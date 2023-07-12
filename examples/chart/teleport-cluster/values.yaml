@@ -530,6 +530,8 @@ service:
 # Options for ingress
 # If you set ingress.enabled to true, service.type MUST also be set to something other than "LoadBalancer" to prevent
 # additional unnecessary load balancers from being created. Ingress controllers should provision their own load balancer.
+# Using an Ingress also requires that you use the `tsh` client to connect to Kubernetes clusters and databases behind Teleport.
+# See https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview for details.
 ingress:
   enabled: false
   # Setting suppressAutomaticWildcards to true will not automatically add *.<clusterName> as a hostname served
