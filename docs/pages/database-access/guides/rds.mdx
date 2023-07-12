@@ -36,18 +36,38 @@ which supports IAM authentication.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - AWS account with RDS and Aurora databases and permissions to create and attach
-  IAM policies.
+  IAM policies. Your RDS and Aurora databases must have password and IAM
+  authentication enabled.
 
 - A Linux host or Amazon Elastic Kubernetes Service cluster where you will run
   the Teleport Database Service, which proxies connections to your RDS
   databases. 
 
-  If you are running the Teleport Database Service on Kubernetes, you will need
-  to install the `teleport` binary on your local workstation. Visit the
-  [Installation](../../installation.mdx) page for environment-specific
-  instructions.
-
 - (!docs/pages/includes/tctl.mdx!)
+
+If you plan to run the Teleport Database Service on Kubenetes, you will need the
+following:
+
+ - The `aws` CLI in your PATH. Install it by following the [AWS
+   documentation](https://aws.amazon.com/cli/).
+ - An IAM OIDC provider running in your Kubernetes cluster. See the [AWS
+   documentation](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html)
+   for how to create an IAM OIDC provider.
+
+   To check whether you have an IAM OIDC provider running in your cluster, run
+   the following `aws` command, assigning <Var name="eks-region" /> to the
+   region where your EKS cluster is running and <Var name="cluster-name" /> to
+   the name of your Kubernetes cluster:
+
+   ```code
+   $ aws --region=<Var name="eks-region" /> eks describe-cluster --name <Var name="cluster-name"/> --query "cluster.identity.oidc.issuer" --output text
+   ```
+
+   If you have an IAM OIDC provider associated with your cluster, this command
+   will print its ID.
+
+ - The [`jq` CLI](https://jqlang.github.io/jq/), which we use to process JSON
+   data in this guide.
 
 ## Step 1/6. Create a Teleport user
 
@@ -66,14 +86,30 @@ will:
 ### Create a join token
 
 Establish trust between the Teleport Database Service and your Teleport cluster
-by creating a join token:
+by creating a join token.
 
-Generate a join token by running the following command on your workstation and
-save it in `/tmp/token` on the host that will run the Database Service:
+Generate a join token by running the following command on your workstation: 
 
 ```code
 $ tctl tokens add --type=db
 ```
+
+The next step depends on how you plan to run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
+
+Save the token in a file called `/tmp/token` on the host that will run the
+Database Service.
+
+</TabItem>
+<TabItem label="Kubernetes">
+
+Later in this guide, you will use this join token when configuring the Teleport
+Database Service.
+
+</TabItem>
+</Tabs>
 
 (!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
@@ -88,27 +124,12 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-</TabItem>
-<TabItem label="Kubernetes Cluster">
-
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
-
-</TabItem>
-</Tabs>
-
-### Create a configuration file
-
 Generate a configuration for the Teleport Database Service:
 
-<Tabs>
-<TabItem label="Linux Host">
-
-Run the command below on your Linux host.
-
-Assign <Var name="teleport.example.com:443" /> to the host and port of your
-Teleport Proxy Service or Enterprise Cloud/Team tenant. Assign <Var
-name="us-west-1" /> to the region associated with the RDS databases you would
-like Teleport to discover.
+Run the command below on your Linux host. Assign <Var
+name="teleport.example.com:443" /> to the host and port of your Teleport Proxy
+Service or Enterprise Cloud/Team tenant. Assign <Var name="us-west-1" /> to the
+region associated with the RDS databases you would like Teleport to discover.
 
 ```code
 $ teleport db configure create \
@@ -122,51 +143,11 @@ The command will generate a Database Service configuration with RDS/Aurora
 database auto-discovery enabled on the configured region and place it at the
 `/etc/teleport.yaml` location.
 
+
 </TabItem>
 <TabItem label="Kubernetes Cluster">
 
-Follow the instructions below on your local workstation.
-
-Create a file called `kube-agent-config.yaml` in your current working directory
-with the following content:
-
-```yaml
-version: v3
-teleport:
-  nodename: teleport-rds
-  data_dir: "/var/lib/teleport"
-  proxy_server: ""
-  join_params:
-    method: token
-    token_name: /etc/teleport-secrets/auth-token
-db_service:
-  enabled: true
-  aws:
-  - types: ["rds"]
-    regions:
-    - ""
-    tags:
-      "*": "*"
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
-```
-
-Assign `teleport.proxy_server` to the host and port of your Teleport Proxy
-Service or Enterprise Cloud/Team tenant (e.g., `mytenant.teleport.sh:443`).
-Assign `db_service.aws[0].regions` to a list of AWS region strings (e.g.,
-`"us-west-1"`) in which you would like the Teleport Database Service to discover
-databases.
-
-Later in this guide, you will install a Helm chart to launch the Teleport
-Database Service. The chart creates a secret containing the join token you
-generated earlier in this guide and mounts it at the path
-`/etc/teleport-secrets/auth-token` on the Database Service pod. The
-configuration above instructs the Database Service to search for its token
-there.
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 </TabItem>
 </Tabs>
@@ -194,72 +175,103 @@ Follow these instructions on your Linux host.
 </TabItem>
 <TabItem label="Kubernetes Cluster">
 
-Follow these instructions on your local workstation, where you will generate IAM
-policies for the Teleport Database Service using the `teleport` binary.
+Follow these instructions on your local workstation.
 
-### Obtain AWS credentials
-
-You will need to authenticate the `teleport` binary to your AWS account by
-providing credentials to its AWS client.
-
-Obtain values for the following environment variables from your organization and
-export these variables within your shell:
-
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_DEFAULT_REGION`
-
-<Details title="Have multiple sources of AWS credentials?">
-
-Teleport's AWS client loads credentials from different sources in the following
-order:
-
-- Environment Variables
-- Shared credentials file
-- Shared configuration file (Teleport always enables shared configuration)
-- EC2 Instance Metadata (credentials only)
-
-While you can provide AWS credentials via a shared credentials file or shared
-configuration file, you will need to run the `teleport` binary with the
-`AWS_PROFILE` environment variable assigned to the name of your profile of
-choice. 
-
-If you have a specific use case that the instructions above do not account for,
-consult the documentation for the [AWS SDK for
-Go](https://docs.aws.amazon.com/sdk-for-go/api/aws/session/) for a detailed
-description of credential loading behavior.
-
-</Details>
-
-### Generate and attach IAM policies
-
-Create IAM policies for the Teleport Database Service so you can attach them to
-its IAM identity. 
-
-For the purpose of this guide, retrieve the IAM role associated with your EKS
-node group, which we will attach our newly generated policies to.
-
-<Admonition title="Do not do this in production" type="warning">
-
-While we are attaching policies to the EKS node group for simplicity, this
-grants elevated privileges to all workloads in your cluster. 
-
-For production, we recommend setting up an OIDC provider for your EKS cluster.
-To do so, follow the instructions in the [AWS
-documentation](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html).
-
-</Admonition>
-
-Assign <Var name="role-arn" /> to the ARN of the IAM role for your EKS cluster's
-node group and run the following command to attach the required policies to the
-role (make sure the configuration file you generated earlier,
-`kube-agent-config.yaml`, is in your working directory):
+Create an IAM policy document that allows an IAM identity to connect to your RDS
+database. Assign <Var name="rds-region" /> to the name of the AWS region where
+your RDS database is running, <Var name="aws-account" /> to your AWS account
+number, and <Var name="resource-id" /> to the resource ID of your RDS or Aurora
+database:
 
 ```code
-$ teleport db configure bootstrap -c kube-agent-config.yaml --attach-to-role <Var name="role-arn" />
+$ cat > connect.json << EOF
+{
+   "Version": "2012-10-17",
+   "Statement": [
+      {
+         "Effect": "Allow",
+         "Action": [
+             "rds-db:connect"
+         ],
+         "Resource": [
+             "arn:aws:rds-db:<Var name="rds-region" />:<Var name="aws-account" />:dbuser:<Var name="resource-id" />/*"
+         ]
+      }
+   ]
+}
+EOF
 ```
 
-Enter `y` in response to the prompt to attach the policies.
+Create the IAM policy:
+
+```code
+$ aws iam create-policy --policy-name teleport-rds-policy --policy-document file://connect.json
+{
+    "Policy": {
+        "PolicyName": "teleport-rds-policy",
+        "PolicyId": "000000000000000000000",
+        "Arn": "arn:aws:iam::000000000000:policy/teleport-rds-policy",
+        "Path": "/",
+        "DefaultVersionId": "v1",
+        "AttachmentCount": 0,
+        "PermissionsBoundaryUsageCount": 0,
+        "IsAttachable": true,
+        "CreateDate": "2023-07-13T18:03:08+00:00",
+        "UpdateDate": "2023-07-13T18:03:08+00:00"
+    }
+}
+```
+
+Next, create a trust policy for the `teleport-rds-role`, which allows the role
+to obtain temporary credentials via the IAM OIDC provider.
+
+Retrieve your OIDCS issuer, assigning <Var name="cluster-name" /> to the name of
+your EKS cluster and <Var name="eks-region" /> to the AWS region where your EKS
+cluster is running:
+
+```code
+$ aws eks describe-cluster --name <Var name="cluster-name" /> --region <Var name="eks-region" /> | jq .cluster.identity.oidc.issuer
+"https://oidc.eks.us-east-1.amazonaws.com/id/44969AD34F07D62C3BE6ACCF41B4"
+```
+
+Create a file called `trustpolicy.json` with the following content, assigning
+<Var name="oidc-issuer" /> to the issuer string you retrieved:
+
+```code
+$ cat > trustpolicy.json << EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::<Var name="aws-account" />:oidc-provider/oidc.eks.<Var name="eks-region" />.amazonaws.com/id/<Var name="oidc-issuer" />"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringEquals": {
+                    "oidc.eks.<Var name="eks-region" />.amazonaws.com/id/<Var name="oidc-issuer" />:aud": "sts.amazonaws.com"
+                }
+            }
+        }
+    ]
+}
+EOF
+```
+
+Create an IAM pole with your trust policy. On success, the command will show the
+IAM resource you created:
+
+```code
+$ aws iam create-role --role-name teleport-rds-role --assume-role-policy-document file://trustpolicy.json
+```
+
+Attach the role to the policy you created earlier. On success, this command will
+show no output:
+
+```code
+$ aws iam attach-role-policy --policy-arn arn:aws:iam::<Var name="aws-account" />:policy/teleport-rds-policy --role-name teleport-rds-role
+```
 
 </TabItem>
 </Tabs>
@@ -276,30 +288,8 @@ Start the Teleport Database Service in your environment:
 </TabItem>
 <TabItem label="Kubernetes Cluster">
 
-Create a Helm values file called `values.yaml` with the following content:
-
-```yaml
-roles: "none"
-authToken:
-proxyAddr:
-teleportConfig:
-```
-
-There are two ways to configure a Teleport service using a Helm chart:
-
-- A static configuration file included within a Helm values file
-- Fields within a values file that the Helm chart will use to generate a
-  configuration file for the Teleport service
-
-Since we have already created a Teleport configuration file in order to run
-`teleport db configure bootstrap`, we will insert this into your values file.
-For this to work, we need to prevent the Helm chart from validating certain
-values fields. We have done this by setting `roles`, which configures the
-service the Helm chart will run, to `"none"`.
-
-Assign `authToken` to the join token you created earlier in this guide. You can
-retrieve this by running the following command and copying a token with the `Db`
-type:
+Retrieve the join token you created earlier in this guide by running the
+following command and copying a token with the `Db` type:
 
 ```code
 $ tctl tokens ls
@@ -308,22 +298,46 @@ Token                            Type Labels Expiry Time (UTC)
 (=presets.tokens.first=) Db          14 Jun 23 21:21 UTC (20m15s)
 ```
 
-Assign `proxyAddr` to the host and port of your Teleport Proxy Service, e.g.,
-`mytenant.teleport.sh:443`.
-
-Append the Teleport configuration file you generated earlier to the values file.
-It will become the value of `teleportConfig`, which the Teleport Database
-Service's Helm chart will use to configure the Database Service:
+Create a Helm values file called `values.yaml`, assigning <Var name="token" />
+to the value of the join token you retrieved above, <Var
+name="mytenant.teleport.sh:443" /> to the host and port of your Teleport Proxy
+Service, and <Var name="rds-uri" /> to the host and port of your RDS database
+(e.g., `myrds.us-east-1.rds.amazonaws.com:5432`):
 
 ```code
-$ cat kube-agent-config.yaml | sed -E "s/(.*)/  \1/" >> values.yaml
+cat > values.yaml << EOF
+authToken: <Var name="token" />
+proxyAddr: <Var name="mytenant.teleport.sh:443" />
+roles: db
+databases:
+- name: example
+  uri: "<Var name="rds-uri" />"
+  protocol: "postgres"
+  static_labels:
+    env: dev
+  aws:
+    region: "<Var name="rds-region" />"
+annotations:
+  serviceAccount:
+    eks.amazonaws.com/role-arn:
+    arn:aws:iam::<Var name="aws-account" />:role/teleport-rds-role
+EOF
 ```
 
 Install the Helm chart for Teleport agent services:
 
 ```code
 $ helm -n teleport install teleport-kube-agent teleport/teleport-kube-agent \
-  --values values.yaml  
+  --values values.yaml --create-namespace
+```
+
+Make sure that the Teleport agent pod is running. You should see one
+`teleport-kube-agent` pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+teleport-kube-agent-0   1/1     Running   0          32s
 ```
 
 </TabItem>
@@ -435,8 +449,6 @@ $ tsh db logout <Var name="postgres-rds" />
 (!docs/pages/includes/database-access/aws-troubleshooting-max-policy-size.mdx!)
 
 ## Next steps
-
-{/*TODO: mention EKS service account authn/authz via OIDC and link to docs*/}
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 - Set up [automatic database user provisioning](../rbac/configuring-auto-user-provisioning.mdx).
