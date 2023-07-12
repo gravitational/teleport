@@ -21,13 +21,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	conv "github.com/gravitational/teleport/api/convert/teleport/accesslist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	conv "github.com/gravitational/teleport/lib/types/accesslist/convert/v1"
 )
 
 // ServiceConfig is the service config for the Access Lists gRPC service.
@@ -104,7 +104,7 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 
 	accessLists := make([]*accesslistv1.AccessList, len(results))
 	for i, r := range results {
-		accessLists[i] = conv.ToV1(r)
+		accessLists[i] = conv.ToProto(r)
 	}
 
 	return &accesslistv1.GetAccessListsResponse{
@@ -113,7 +113,7 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 }
 
 // GetAccessList returns the specified access list resource.
-func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslistv1.GetAccessListResponse, error) {
+func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslistv1.AccessList, error) {
 	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbRead)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -124,19 +124,17 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 		return nil, trace.Wrap(err)
 	}
 
-	return &accesslistv1.GetAccessListResponse{
-		AccessList: conv.ToV1(result),
-	}, nil
+	return conv.ToProto(result), nil
 }
 
 // UpsertAccessList creates or updates an access list resource.
-func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.UpsertAccessListRequest) (*accesslistv1.UpsertAccessListResponse, error) {
+func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.UpsertAccessListRequest) (*accesslistv1.AccessList, error) {
 	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessList, err := conv.FromV1(req.GetAccessList())
+	accessList, err := conv.FromProto(req.GetAccessList())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,9 +143,7 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
-	return &accesslistv1.UpsertAccessListResponse{
-		AccessList: conv.ToV1(responseAccessList),
-	}, nil
+	return conv.ToProto(responseAccessList), nil
 }
 
 // DeleteAccessList removes the specified access list resource.

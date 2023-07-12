@@ -48,9 +48,9 @@ type AccessListServiceClient interface {
 	// GetAccessLists returns a list of all access lists.
 	GetAccessLists(ctx context.Context, in *GetAccessListsRequest, opts ...grpc.CallOption) (*GetAccessListsResponse, error)
 	// GetAccessList returns the specified access list resource.
-	GetAccessList(ctx context.Context, in *GetAccessListRequest, opts ...grpc.CallOption) (*GetAccessListResponse, error)
+	GetAccessList(ctx context.Context, in *GetAccessListRequest, opts ...grpc.CallOption) (*AccessList, error)
 	// UpsertAccessList creates or updates an access list resource.
-	UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*UpsertAccessListResponse, error)
+	UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*AccessList, error)
 	// DeleteAccessList hard deletes the specified access list resource.
 	DeleteAccessList(ctx context.Context, in *DeleteAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllAccessLists hard deletes all access lists.
@@ -74,8 +74,8 @@ func (c *accessListServiceClient) GetAccessLists(ctx context.Context, in *GetAcc
 	return out, nil
 }
 
-func (c *accessListServiceClient) GetAccessList(ctx context.Context, in *GetAccessListRequest, opts ...grpc.CallOption) (*GetAccessListResponse, error) {
-	out := new(GetAccessListResponse)
+func (c *accessListServiceClient) GetAccessList(ctx context.Context, in *GetAccessListRequest, opts ...grpc.CallOption) (*AccessList, error) {
+	out := new(AccessList)
 	err := c.cc.Invoke(ctx, AccessListService_GetAccessList_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -83,8 +83,8 @@ func (c *accessListServiceClient) GetAccessList(ctx context.Context, in *GetAcce
 	return out, nil
 }
 
-func (c *accessListServiceClient) UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*UpsertAccessListResponse, error) {
-	out := new(UpsertAccessListResponse)
+func (c *accessListServiceClient) UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*AccessList, error) {
+	out := new(AccessList)
 	err := c.cc.Invoke(ctx, AccessListService_UpsertAccessList_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -117,9 +117,9 @@ type AccessListServiceServer interface {
 	// GetAccessLists returns a list of all access lists.
 	GetAccessLists(context.Context, *GetAccessListsRequest) (*GetAccessListsResponse, error)
 	// GetAccessList returns the specified access list resource.
-	GetAccessList(context.Context, *GetAccessListRequest) (*GetAccessListResponse, error)
+	GetAccessList(context.Context, *GetAccessListRequest) (*AccessList, error)
 	// UpsertAccessList creates or updates an access list resource.
-	UpsertAccessList(context.Context, *UpsertAccessListRequest) (*UpsertAccessListResponse, error)
+	UpsertAccessList(context.Context, *UpsertAccessListRequest) (*AccessList, error)
 	// DeleteAccessList hard deletes the specified access list resource.
 	DeleteAccessList(context.Context, *DeleteAccessListRequest) (*emptypb.Empty, error)
 	// DeleteAllAccessLists hard deletes all access lists.
@@ -134,10 +134,10 @@ type UnimplementedAccessListServiceServer struct {
 func (UnimplementedAccessListServiceServer) GetAccessLists(context.Context, *GetAccessListsRequest) (*GetAccessListsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessLists not implemented")
 }
-func (UnimplementedAccessListServiceServer) GetAccessList(context.Context, *GetAccessListRequest) (*GetAccessListResponse, error) {
+func (UnimplementedAccessListServiceServer) GetAccessList(context.Context, *GetAccessListRequest) (*AccessList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessList not implemented")
 }
-func (UnimplementedAccessListServiceServer) UpsertAccessList(context.Context, *UpsertAccessListRequest) (*UpsertAccessListResponse, error) {
+func (UnimplementedAccessListServiceServer) UpsertAccessList(context.Context, *UpsertAccessListRequest) (*AccessList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessList not implemented")
 }
 func (UnimplementedAccessListServiceServer) DeleteAccessList(context.Context, *DeleteAccessListRequest) (*emptypb.Empty, error) {

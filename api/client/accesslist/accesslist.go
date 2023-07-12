@@ -65,7 +65,7 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 		return nil, trail.FromGRPC(err)
 	}
 
-	accessList, err := conv.FromProto(resp.AccessList)
+	accessList, err := conv.FromProto(resp)
 	return accessList, trail.FromGRPC(err)
 }
 
@@ -75,7 +75,7 @@ func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.Ac
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	responseAccessList, err := conv.FromProto(resp.AccessList)
+	responseAccessList, err := conv.FromProto(resp)
 	return responseAccessList, trail.FromGRPC(err)
 }
 
