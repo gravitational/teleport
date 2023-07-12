@@ -5806,6 +5806,41 @@ message WatchStatusSpecV1 {
   ];
 }
 
+// ServerInfoV1 contains info that should be applied to joining Nodes.
+message ServerInfoV1 {
+  // Kind is the resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind. Currently unused for this resource.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the resource metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is the resource spec.
+  ServerInfoSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
+message ServerInfoSpecV1 {
+  // AWSInfo contains attributes to match to an EC2 instance.
+  message AWSInfo {
+    // AccountID is an AWS account ID.
+    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+    // InstanceID is an EC2 instance ID.
+    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  }
+  // AWS matches an EC2 instance.
+  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  // NewLabels is the set of labels to add to nodes matching this ServerInfo.
+  map<string, string> NewLabels = 2 [(gogoproto.jsontag) = "new_labels,omitempty"];
+}
+
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
 message JamfSpecV1 {
   option (gogoproto.equal) = true;
@@ -5998,37 +6033,4 @@ message GCPMatcher {
   ];
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
-}
-
-// ServerInfoV1 contains info that should be applied to joining Nodes.
-message ServerInfoV1 {
-  // Kind is the resource kind.
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // SubKind is an optional resource subkind. Currently unused for this resource.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
-  string Version = 3 [(gogoproto.jsontag) = "version"];
-  // Metadata is the resource metadata.
-  Metadata Metadata = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "metadata"
-  ];
-  // Spec is the resource spec.
-  ServerInfoSpecV1 Spec = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "spec"
-  ];
-}
-
-// ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
-message ServerInfoSpecV1 {
-  // AWSInfo contains attributes to match to an EC2 instance.
-  message AWSInfo {
-    // AccountID is an AWS account ID.
-    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
-    // InstanceID is an EC2 instance ID.
-    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
-  }
-  // AWS matches an EC2 instance.
-  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }

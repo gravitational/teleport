@@ -28,6 +28,10 @@ import (
 type ServerInfo interface {
 	// ResourceWithLabels provides common resource headers
 	ResourceWithLabels
+	// GetNewLabels gets the labels to apply to matched Nodes.
+	GetNewLabels() map[string]string
+	// SetNewLabels sets the labels to apply to matched Nodes.
+	SetNewLabels(map[string]string)
 }
 
 // NewServerInfo creates an instance of ServerInfo.
@@ -139,6 +143,16 @@ func (s *ServerInfoV1) MatchSearch(searchValues []string) bool {
 		fieldVals = append(fieldVals, s.Spec.AWS.AccountID, s.Spec.AWS.InstanceID)
 	}
 	return MatchSearch(fieldVals, searchValues, nil)
+}
+
+// GetNewLabels gets the labels to apply to matched Nodes.
+func (s *ServerInfoV1) GetNewLabels() map[string]string {
+	return s.Spec.NewLabels
+}
+
+// SetNewLabels sets the labels to apply to matched Nodes.
+func (s *ServerInfoV1) SetNewLabels(labels map[string]string) {
+	s.Spec.NewLabels = labels
 }
 
 func (s *ServerInfoV1) setStaticFields() {
