@@ -366,7 +366,9 @@ func TestDatabaseFromAzureDBServer(t *testing.T) {
 			types.DiscoveryLabelRegion:              "eastus",
 			types.DiscoveryLabelEngine:              "Microsoft.DBforMySQL/servers",
 			types.DiscoveryLabelEngineVersion:       "5.7",
-			types.DiscoveryLabelResourceGroup:       "defaultRG",
+			types.DiscoveryLabelAzureResourceGroup:  "defaultRG",
+			types.OriginLabel:                       types.OriginCloud,
+			types.CloudLabel:                        types.CloudAzure,
 			types.DiscoveryLabelAzureSubscriptionID: "sub1",
 			"foo":                                   "bar",
 		},
@@ -413,7 +415,9 @@ func TestDatabaseFromAzureRedis(t *testing.T) {
 			types.DiscoveryLabelRegion:              region,
 			types.DiscoveryLabelEngine:              "Microsoft.Cache/Redis",
 			types.DiscoveryLabelEngineVersion:       "6.0",
-			types.DiscoveryLabelResourceGroup:       group,
+			types.DiscoveryLabelAzureResourceGroup:  group,
+			types.OriginLabel:                       types.OriginCloud,
+			types.CloudLabel:                        types.CloudAzure,
 			types.DiscoveryLabelAzureSubscriptionID: subscription,
 			"foo":                                   "bar",
 		},
@@ -470,7 +474,9 @@ func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
 			types.DiscoveryLabelRegion:              region,
 			types.DiscoveryLabelEngine:              "Microsoft.Cache/redisEnterprise",
 			types.DiscoveryLabelEngineVersion:       "6.0",
-			types.DiscoveryLabelResourceGroup:       group,
+			types.DiscoveryLabelAzureResourceGroup:  group,
+			types.OriginLabel:                       types.OriginCloud,
+			types.CloudLabel:                        types.CloudAzure,
 			types.DiscoveryLabelAzureSubscriptionID: subscription,
 			types.DiscoveryLabelEndpointType:        "OSSCluster",
 			"foo":                                   "bar",
@@ -517,6 +523,8 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:     "123456789012",
+			types.OriginLabel:                 types.OriginCloud,
+			types.CloudLabel:                  types.CloudAWS,
 			types.DiscoveryLabelRegion:        "us-west-1",
 			types.DiscoveryLabelEngine:        RDSEnginePostgres,
 			types.DiscoveryLabelEngineVersion: "13.0",
@@ -576,6 +584,8 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:     "123456789012",
+			types.OriginLabel:                 types.OriginCloud,
+			types.CloudLabel:                  types.CloudAWS,
 			types.DiscoveryLabelRegion:        "us-west-1",
 			types.DiscoveryLabelEngine:        RDSEnginePostgres,
 			types.DiscoveryLabelEngineVersion: "13.0",
@@ -607,72 +617,80 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(expected, actual))
 
-	t.Run("with name override", func(t *testing.T) {
-		newName := "override-1"
+	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+		t.Run("with name override via "+overrideLabel, func(t *testing.T) {
+			newName := "override-1"
+			instance := instance
+			instance.TagList = append(instance.TagList,
+				rdsTypesV2.Tag{
+					Key:   aws.String(overrideLabel),
+					Value: aws.String(newName),
+				},
+			)
+			expected.Metadata.Name = newName
 
-		instance.TagList = append(instance.TagList,
-			rdsTypesV2.Tag{
-				Key:   aws.String(types.AWSDatabaseNameOverrideLabel),
-				Value: aws.String(newName),
-			},
-		)
-		expected.Metadata.Name = newName
-
-		actual, err := NewDatabaseFromRDSV2Instance(instance)
-		require.NoError(t, err)
-		require.Equal(t, actual.GetName(), newName)
-	})
+			actual, err := NewDatabaseFromRDSV2Instance(instance)
+			require.NoError(t, err)
+			require.Equal(t, actual.GetName(), newName)
+		})
+	}
 }
 
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
-	instance := &rds.DBInstance{
-		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
-		DBInstanceIdentifier:             aws.String("instance-1"),
-		DBClusterIdentifier:              aws.String("cluster-1"),
-		DbiResourceId:                    aws.String("resource-1"),
-		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
-		Engine:                           aws.String(RDSEnginePostgres),
-		EngineVersion:                    aws.String("13.0"),
-		Endpoint: &rds.Endpoint{
-			Address: aws.String("localhost"),
-			Port:    aws.Int64(5432),
-		},
-		TagList: []*rds.Tag{
-			{Key: aws.String("key"), Value: aws.String("val")},
-			{Key: aws.String(types.AWSDatabaseNameOverrideLabel), Value: aws.String("override-1")},
-		},
-	}
-	expected, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "override-1",
-		Description: "RDS instance in us-west-1",
-		Labels: map[string]string{
-			types.DiscoveryLabelAccountID:      "123456789012",
-			types.DiscoveryLabelRegion:         "us-west-1",
-			types.DiscoveryLabelEngine:         RDSEnginePostgres,
-			types.DiscoveryLabelEngineVersion:  "13.0",
-			types.DiscoveryLabelEndpointType:   "instance",
-			types.AWSDatabaseNameOverrideLabel: "override-1",
-			"key":                              "val",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		AWS: types.AWS{
-			AccountID: "123456789012",
-			Region:    "us-west-1",
-			RDS: types.RDS{
-				InstanceID: "instance-1",
-				ClusterID:  "cluster-1",
-				ResourceID: "resource-1",
-				IAMAuth:    true,
+	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+		instance := &rds.DBInstance{
+			DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
+			DBInstanceIdentifier:             aws.String("instance-1"),
+			DBClusterIdentifier:              aws.String("cluster-1"),
+			DbiResourceId:                    aws.String("resource-1"),
+			IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+			Engine:                           aws.String(RDSEnginePostgres),
+			EngineVersion:                    aws.String("13.0"),
+			Endpoint: &rds.Endpoint{
+				Address: aws.String("localhost"),
+				Port:    aws.Int64(5432),
 			},
-		},
-	})
-	require.NoError(t, err)
-	actual, err := NewDatabaseFromRDSInstance(instance)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(expected, actual))
+			TagList: []*rds.Tag{
+				{Key: aws.String("key"), Value: aws.String("val")},
+				{Key: aws.String(overrideLabel), Value: aws.String("override-1")},
+			},
+		}
+		t.Run("via "+overrideLabel, func(t *testing.T) {
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "override-1",
+				Description: "RDS instance in us-west-1",
+				Labels: map[string]string{
+					types.DiscoveryLabelAccountID:     "123456789012",
+					types.OriginLabel:                 types.OriginCloud,
+					types.CloudLabel:                  types.CloudAWS,
+					types.DiscoveryLabelRegion:        "us-west-1",
+					types.DiscoveryLabelEngine:        RDSEnginePostgres,
+					types.DiscoveryLabelEngineVersion: "13.0",
+					types.DiscoveryLabelEndpointType:  "instance",
+					overrideLabel:                     "override-1",
+					"key":                             "val",
+				},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				AWS: types.AWS{
+					AccountID: "123456789012",
+					Region:    "us-west-1",
+					RDS: types.RDS{
+						InstanceID: "instance-1",
+						ClusterID:  "cluster-1",
+						ResourceID: "resource-1",
+						IAMAuth:    true,
+					},
+				},
+			})
+			require.NoError(t, err)
+			actual, err := NewDatabaseFromRDSInstance(instance)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+		})
+	}
 }
 
 // TestDatabaseFromRDSCluster tests converting an RDS cluster to a database resource.
@@ -713,6 +731,8 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
+				types.OriginLabel:                 types.OriginCloud,
+				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 				types.DiscoveryLabelEngineVersion: "8.0.0",
@@ -736,6 +756,8 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Description: "Aurora cluster in us-east-1 (reader endpoint)",
 			Labels: map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
+				types.OriginLabel:                 types.OriginCloud,
+				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 				types.DiscoveryLabelEngineVersion: "8.0.0",
@@ -756,6 +778,8 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 	t.Run("custom endpoints", func(t *testing.T) {
 		expectedLabels := map[string]string{
 			types.DiscoveryLabelAccountID:     "123456789012",
+			types.OriginLabel:                 types.OriginCloud,
+			types.CloudLabel:                  types.CloudAWS,
 			types.DiscoveryLabelRegion:        "us-east-1",
 			types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 			types.DiscoveryLabelEngineVersion: "8.0.0",
@@ -847,6 +871,8 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
+				types.OriginLabel:                 types.OriginCloud,
+				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
 				types.DiscoveryLabelEngineVersion: "8.0.0",
@@ -864,157 +890,167 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(expected, actual))
 
-		t.Run("with name override", func(t *testing.T) {
-			newName := "override-1"
+		for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+			t.Run("with name override via "+overrideLabel, func(t *testing.T) {
+				newName := "override-1"
 
-			cluster.TagList = append(cluster.TagList,
-				rdsTypesV2.Tag{
-					Key:   aws.String(types.AWSDatabaseNameOverrideLabel),
-					Value: aws.String(newName),
-				},
-			)
-			expected.Metadata.Name = newName
+				cluster.TagList = append(cluster.TagList,
+					rdsTypesV2.Tag{
+						Key:   aws.String(overrideLabel),
+						Value: aws.String(newName),
+					},
+				)
+				expected.Metadata.Name = newName
 
-			actual, err := NewDatabaseFromRDSV2Cluster(cluster)
-			require.NoError(t, err)
-			require.Equal(t, actual.GetName(), newName)
-		})
+				actual, err := NewDatabaseFromRDSV2Cluster(cluster)
+				require.NoError(t, err)
+				require.Equal(t, actual.GetName(), newName)
+			})
+		}
 	})
 }
 
 // TestDatabaseFromRDSClusterNameOverride tests converting an RDS cluster to a database resource with overridden name.
 func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
-	cluster := &rds.DBCluster{
-		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
-		DBClusterIdentifier:              aws.String("cluster-1"),
-		DbClusterResourceId:              aws.String("resource-1"),
-		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
-		Engine:                           aws.String(RDSEngineAuroraMySQL),
-		EngineVersion:                    aws.String("8.0.0"),
-		Endpoint:                         aws.String("localhost"),
-		ReaderEndpoint:                   aws.String("reader.host"),
-		Port:                             aws.Int64(3306),
-		CustomEndpoints: []*string{
-			aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
-			aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
-		},
-		TagList: []*rds.Tag{
-			{Key: aws.String("key"), Value: aws.String("val")},
-			{Key: aws.String(types.AWSDatabaseNameOverrideLabel), Value: aws.String("mycluster-2")},
-		},
-	}
-
-	expectedAWS := types.AWS{
-		AccountID: "123456789012",
-		Region:    "us-east-1",
-		RDS: types.RDS{
-			ClusterID:  "cluster-1",
-			ResourceID: "resource-1",
-			IAMAuth:    true,
-		},
-	}
-
-	t.Run("primary", func(t *testing.T) {
-		expected, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "mycluster-2",
-			Description: "Aurora cluster in us-east-1",
-			Labels: map[string]string{
-				types.DiscoveryLabelAccountID:      "123456789012",
-				types.DiscoveryLabelRegion:         "us-east-1",
-				types.DiscoveryLabelEngine:         RDSEngineAuroraMySQL,
-				types.DiscoveryLabelEngineVersion:  "8.0.0",
-				types.DiscoveryLabelEndpointType:   "primary",
-				types.AWSDatabaseNameOverrideLabel: "mycluster-2",
-				"key":                              "val",
+	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+		cluster := &rds.DBCluster{
+			DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
+			DBClusterIdentifier:              aws.String("cluster-1"),
+			DbClusterResourceId:              aws.String("resource-1"),
+			IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+			Engine:                           aws.String(RDSEngineAuroraMySQL),
+			EngineVersion:                    aws.String("8.0.0"),
+			Endpoint:                         aws.String("localhost"),
+			ReaderEndpoint:                   aws.String("reader.host"),
+			Port:                             aws.Int64(3306),
+			CustomEndpoints: []*string{
+				aws.String("myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com"),
+				aws.String("myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com"),
 			},
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "localhost:3306",
-			AWS:      expectedAWS,
-		})
-		require.NoError(t, err)
-		actual, err := NewDatabaseFromRDSCluster(cluster)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual))
-	})
-
-	t.Run("reader", func(t *testing.T) {
-		expected, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "mycluster-2-reader",
-			Description: "Aurora cluster in us-east-1 (reader endpoint)",
-			Labels: map[string]string{
-				types.DiscoveryLabelAccountID:      "123456789012",
-				types.DiscoveryLabelRegion:         "us-east-1",
-				types.DiscoveryLabelEngine:         RDSEngineAuroraMySQL,
-				types.DiscoveryLabelEngineVersion:  "8.0.0",
-				types.DiscoveryLabelEndpointType:   "reader",
-				types.AWSDatabaseNameOverrideLabel: "mycluster-2",
-				"key":                              "val",
+			TagList: []*rds.Tag{
+				{Key: aws.String("key"), Value: aws.String("val")},
+				{Key: aws.String(overrideLabel), Value: aws.String("mycluster-2")},
 			},
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "reader.host:3306",
-			AWS:      expectedAWS,
-		})
-		require.NoError(t, err)
-		actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual))
-	})
-
-	t.Run("custom endpoints", func(t *testing.T) {
-		expectedLabels := map[string]string{
-			types.DiscoveryLabelAccountID:      "123456789012",
-			types.DiscoveryLabelRegion:         "us-east-1",
-			types.DiscoveryLabelEngine:         RDSEngineAuroraMySQL,
-			types.DiscoveryLabelEngineVersion:  "8.0.0",
-			types.DiscoveryLabelEndpointType:   "custom",
-			types.AWSDatabaseNameOverrideLabel: "mycluster-2",
-			"key":                              "val",
 		}
 
-		expectedMyEndpoint1, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "mycluster-2-custom-myendpoint1",
-			Description: "Aurora cluster in us-east-1 (custom endpoint)",
-			Labels:      expectedLabels,
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
-			AWS:      expectedAWS,
-			TLS: types.DatabaseTLS{
-				ServerName: "localhost",
+		expectedAWS := types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+			RDS: types.RDS{
+				ClusterID:  "cluster-1",
+				ResourceID: "resource-1",
+				IAMAuth:    true,
 			},
-		})
-		require.NoError(t, err)
-
-		expectedMyEndpoint2, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "mycluster-2-custom-myendpoint2",
-			Description: "Aurora cluster in us-east-1 (custom endpoint)",
-			Labels:      expectedLabels,
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
-			AWS:      expectedAWS,
-			TLS: types.DatabaseTLS{
-				ServerName: "localhost",
-			},
-		})
-		require.NoError(t, err)
-
-		databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
-		require.NoError(t, err)
-		require.Equal(t, types.Databases{expectedMyEndpoint1, expectedMyEndpoint2}, databases)
-	})
-
-	t.Run("bad custom endpoints ", func(t *testing.T) {
-		badCluster := *cluster
-		badCluster.CustomEndpoints = []*string{
-			aws.String("badendpoint1"),
-			aws.String("badendpoint2"),
 		}
-		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
-		require.Error(t, err)
-	})
+
+		t.Run("primary", func(t *testing.T) {
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "mycluster-2",
+				Description: "Aurora cluster in us-east-1",
+				Labels: map[string]string{
+					types.DiscoveryLabelAccountID:     "123456789012",
+					types.OriginLabel:                 types.OriginCloud,
+					types.CloudLabel:                  types.CloudAWS,
+					types.DiscoveryLabelRegion:        "us-east-1",
+					types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
+					types.DiscoveryLabelEngineVersion: "8.0.0",
+					types.DiscoveryLabelEndpointType:  "primary",
+					overrideLabel:                     "mycluster-2",
+					"key":                             "val",
+				},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				AWS:      expectedAWS,
+			})
+			require.NoError(t, err)
+			actual, err := NewDatabaseFromRDSCluster(cluster)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+		})
+
+		t.Run("reader", func(t *testing.T) {
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "mycluster-2-reader",
+				Description: "Aurora cluster in us-east-1 (reader endpoint)",
+				Labels: map[string]string{
+					types.DiscoveryLabelAccountID:     "123456789012",
+					types.OriginLabel:                 types.OriginCloud,
+					types.CloudLabel:                  types.CloudAWS,
+					types.DiscoveryLabelRegion:        "us-east-1",
+					types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
+					types.DiscoveryLabelEngineVersion: "8.0.0",
+					types.DiscoveryLabelEndpointType:  "reader",
+					overrideLabel:                     "mycluster-2",
+					"key":                             "val",
+				},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "reader.host:3306",
+				AWS:      expectedAWS,
+			})
+			require.NoError(t, err)
+			actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+		})
+
+		t.Run("custom endpoints", func(t *testing.T) {
+			expectedLabels := map[string]string{
+				types.DiscoveryLabelAccountID:     "123456789012",
+				types.OriginLabel:                 types.OriginCloud,
+				types.CloudLabel:                  types.CloudAWS,
+				types.DiscoveryLabelRegion:        "us-east-1",
+				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
+				types.DiscoveryLabelEngineVersion: "8.0.0",
+				types.DiscoveryLabelEndpointType:  "custom",
+				overrideLabel:                     "mycluster-2",
+				"key":                             "val",
+			}
+
+			expectedMyEndpoint1, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "mycluster-2-custom-myendpoint1",
+				Description: "Aurora cluster in us-east-1 (custom endpoint)",
+				Labels:      expectedLabels,
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
+				AWS:      expectedAWS,
+				TLS: types.DatabaseTLS{
+					ServerName: "localhost",
+				},
+			})
+			require.NoError(t, err)
+
+			expectedMyEndpoint2, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "mycluster-2-custom-myendpoint2",
+				Description: "Aurora cluster in us-east-1 (custom endpoint)",
+				Labels:      expectedLabels,
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com:3306",
+				AWS:      expectedAWS,
+				TLS: types.DatabaseTLS{
+					ServerName: "localhost",
+				},
+			})
+			require.NoError(t, err)
+
+			databases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+			require.NoError(t, err)
+			require.Equal(t, types.Databases{expectedMyEndpoint1, expectedMyEndpoint2}, databases)
+		})
+
+		t.Run("bad custom endpoints ", func(t *testing.T) {
+			badCluster := *cluster
+			badCluster.CustomEndpoints = []*string{
+				aws.String("badendpoint1"),
+				aws.String("badendpoint2"),
+			}
+			_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestDatabaseFromRDSProxy(t *testing.T) {
@@ -1047,6 +1083,8 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Labels: map[string]string{
 				"key":                         "val",
 				types.DiscoveryLabelAccountID: "123456789012",
+				types.OriginLabel:             types.OriginCloud,
+				types.CloudLabel:              types.CloudAWS,
 				types.DiscoveryLabelRegion:    "ca-central-1",
 				types.DiscoveryLabelEngine:    "MYSQL",
 				types.DiscoveryLabelVPCID:     "test-vpc-id",
@@ -1077,6 +1115,8 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Labels: map[string]string{
 				"key":                            "val",
 				types.DiscoveryLabelAccountID:    "123456789012",
+				types.OriginLabel:                types.OriginCloud,
+				types.CloudLabel:                 types.CloudAWS,
 				types.DiscoveryLabelRegion:       "ca-central-1",
 				types.DiscoveryLabelEngine:       "MYSQL",
 				types.DiscoveryLabelVPCID:        "test-vpc-id",
@@ -1237,8 +1277,14 @@ func TestAzureTagsToLabels(t *testing.T) {
 		"Name":    "test",
 	}
 	labels := azureTagsToLabels(azureTags)
-	require.Equal(t, map[string]string{"Name": "test", "Env": "dev",
-		"foo:bar": "some-id"}, labels)
+	wantLabels := map[string]string{
+		"Name":            "test",
+		"Env":             "dev",
+		"foo:bar":         "some-id",
+		types.OriginLabel: types.OriginCloud,
+		types.CloudLabel:  types.CloudAzure,
+	}
+	require.Equal(t, wantLabels, labels)
 }
 
 // TestDatabaseFromRedshiftCluster tests converting an Redshift cluster to a database resource.
@@ -1267,6 +1313,8 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Description: "Redshift cluster in us-east-1",
 			Labels: map[string]string{
 				types.DiscoveryLabelAccountID:     "123456789012",
+				types.OriginLabel:                 types.OriginCloud,
+				types.CloudLabel:                  types.CloudAWS,
 				types.DiscoveryLabelRegion:        "us-east-1",
 				"key":                             "val",
 				"elasticbeanstalk:environment-id": "id",
@@ -1290,65 +1338,69 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 		require.Empty(t, cmp.Diff(expected, actual))
 	})
 
-	t.Run("success with name override", func(t *testing.T) {
-		cluster := &redshift.Cluster{
-			ClusterIdentifier:   aws.String("mycluster"),
-			ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
-			Endpoint: &redshift.Endpoint{
-				Address: aws.String("localhost"),
-				Port:    aws.Int64(5439),
-			},
-			Tags: []*redshift.Tag{
-				{
-					Key:   aws.String("key"),
-					Value: aws.String("val"),
+	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+		t.Run("success with name override via"+overrideLabel, func(t *testing.T) {
+			cluster := &redshift.Cluster{
+				ClusterIdentifier:   aws.String("mycluster"),
+				ClusterNamespaceArn: aws.String("arn:aws:redshift:us-east-1:123456789012:namespace:u-u-i-d"),
+				Endpoint: &redshift.Endpoint{
+					Address: aws.String("localhost"),
+					Port:    aws.Int64(5439),
 				},
-				{
-					Key:   aws.String("elasticbeanstalk:environment-id"),
-					Value: aws.String("id"),
+				Tags: []*redshift.Tag{
+					{
+						Key:   aws.String("key"),
+						Value: aws.String("val"),
+					},
+					{
+						Key:   aws.String("elasticbeanstalk:environment-id"),
+						Value: aws.String("id"),
+					},
+					{
+						Key:   aws.String(overrideLabel),
+						Value: aws.String("mycluster-override-2"),
+					},
 				},
-				{
-					Key:   aws.String(types.AWSDatabaseNameOverrideLabel),
-					Value: aws.String("mycluster-override-2"),
+			}
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "mycluster-override-2",
+				Description: "Redshift cluster in us-east-1",
+				Labels: map[string]string{
+					types.DiscoveryLabelAccountID:     "123456789012",
+					types.OriginLabel:                 types.OriginCloud,
+					types.CloudLabel:                  types.CloudAWS,
+					types.DiscoveryLabelRegion:        "us-east-1",
+					overrideLabel:                     "mycluster-override-2",
+					"key":                             "val",
+					"elasticbeanstalk:environment-id": "id",
 				},
-			},
-		}
-		expected, err := types.NewDatabaseV3(types.Metadata{
-			Name:        "mycluster-override-2",
-			Description: "Redshift cluster in us-east-1",
-			Labels: map[string]string{
-				types.DiscoveryLabelAccountID:      "123456789012",
-				types.DiscoveryLabelRegion:         "us-east-1",
-				types.AWSDatabaseNameOverrideLabel: "mycluster-override-2",
-				"key":                              "val",
-				"elasticbeanstalk:environment-id":  "id",
-			},
-		}, types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5439",
-			AWS: types.AWS{
-				AccountID: "123456789012",
-				Region:    "us-east-1",
-				Redshift: types.Redshift{
-					ClusterID: "mycluster",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5439",
+				AWS: types.AWS{
+					AccountID: "123456789012",
+					Region:    "us-east-1",
+					Redshift: types.Redshift{
+						ClusterID: "mycluster",
+					},
 				},
-			},
+			})
+
+			require.NoError(t, err)
+
+			actual, err := NewDatabaseFromRedshiftCluster(cluster)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
 		})
 
-		require.NoError(t, err)
-
-		actual, err := NewDatabaseFromRedshiftCluster(cluster)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(expected, actual))
-	})
-
-	t.Run("missing endpoint", func(t *testing.T) {
-		_, err := NewDatabaseFromRedshiftCluster(&redshift.Cluster{
-			ClusterIdentifier: aws.String("still-creating"),
+		t.Run("missing endpoint", func(t *testing.T) {
+			_, err := NewDatabaseFromRedshiftCluster(&redshift.Cluster{
+				ClusterIdentifier: aws.String("still-creating"),
+			})
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err), "Expected trace.BadParameter, got %v", err)
 		})
-		require.Error(t, err)
-		require.True(t, trace.IsBadParameter(err), "Expected trace.BadParameter, got %v", err)
-	})
+	}
 }
 
 func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
@@ -1395,6 +1447,8 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
+			types.OriginLabel:                types.OriginCloud,
+			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "us-east-1",
 			types.DiscoveryLabelEndpointType: "configuration",
 			"key":                            "value",
@@ -1421,76 +1475,82 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 }
 
 func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) {
-	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
-		ReplicationGroupId:       aws.String("my-cluster"),
-		Status:                   aws.String("available"),
-		TransitEncryptionEnabled: aws.Bool(true),
-		ClusterEnabled:           aws.Bool(true),
-		ConfigurationEndpoint: &elasticache.Endpoint{
-			Address: aws.String("configuration.localhost"),
-			Port:    aws.Int64(6379),
-		},
-		UserGroupIds: []*string{aws.String("my-user-group")},
-		NodeGroups: []*elasticache.NodeGroup{
-			{
-				NodeGroupId: aws.String("0001"),
-				NodeGroupMembers: []*elasticache.NodeGroupMember{
+	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+		t.Run("via "+overrideLabel, func(t *testing.T) {
+			cluster := &elasticache.ReplicationGroup{
+				ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
+				ReplicationGroupId:       aws.String("my-cluster"),
+				Status:                   aws.String("available"),
+				TransitEncryptionEnabled: aws.Bool(true),
+				ClusterEnabled:           aws.Bool(true),
+				ConfigurationEndpoint: &elasticache.Endpoint{
+					Address: aws.String("configuration.localhost"),
+					Port:    aws.Int64(6379),
+				},
+				UserGroupIds: []*string{aws.String("my-user-group")},
+				NodeGroups: []*elasticache.NodeGroup{
 					{
-						CacheClusterId: aws.String("my-cluster-0001-001"),
+						NodeGroupId: aws.String("0001"),
+						NodeGroupMembers: []*elasticache.NodeGroupMember{
+							{
+								CacheClusterId: aws.String("my-cluster-0001-001"),
+							},
+							{
+								CacheClusterId: aws.String("my-cluster-0001-002"),
+							},
+						},
 					},
 					{
-						CacheClusterId: aws.String("my-cluster-0001-002"),
+						NodeGroupId: aws.String("0002"),
+						NodeGroupMembers: []*elasticache.NodeGroupMember{
+							{
+								CacheClusterId: aws.String("my-cluster-0002-001"),
+							},
+							{
+								CacheClusterId: aws.String("my-cluster-0002-002"),
+							},
+						},
 					},
 				},
-			},
-			{
-				NodeGroupId: aws.String("0002"),
-				NodeGroupMembers: []*elasticache.NodeGroupMember{
-					{
-						CacheClusterId: aws.String("my-cluster-0002-001"),
-					},
-					{
-						CacheClusterId: aws.String("my-cluster-0002-002"),
+			}
+			extraLabels := map[string]string{
+				overrideLabel: "my-override-cluster-2",
+				"key":         "value",
+			}
+
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "my-override-cluster-2",
+				Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
+				Labels: map[string]string{
+					types.DiscoveryLabelAccountID:    "123456789012",
+					types.OriginLabel:                types.OriginCloud,
+					types.CloudLabel:                 types.CloudAWS,
+					types.DiscoveryLabelRegion:       "us-east-1",
+					types.DiscoveryLabelEndpointType: "configuration",
+					overrideLabel:                    "my-override-cluster-2",
+					"key":                            "value",
+				},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolRedis,
+				URI:      "configuration.localhost:6379",
+				AWS: types.AWS{
+					AccountID: "123456789012",
+					Region:    "us-east-1",
+					ElastiCache: types.ElastiCache{
+						ReplicationGroupID:       "my-cluster",
+						UserGroupIDs:             []string{"my-user-group"},
+						TransitEncryptionEnabled: true,
+						EndpointType:             awsutils.ElastiCacheConfigurationEndpoint,
 					},
 				},
-			},
-		},
-	}
-	extraLabels := map[string]string{
-		types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
-		"key":                              "value",
-	}
+			})
+			require.NoError(t, err)
 
-	expected, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "my-override-cluster-2",
-		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
-		Labels: map[string]string{
-			types.DiscoveryLabelAccountID:      "123456789012",
-			types.DiscoveryLabelRegion:         "us-east-1",
-			types.DiscoveryLabelEndpointType:   "configuration",
-			types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
-			"key":                              "value",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolRedis,
-		URI:      "configuration.localhost:6379",
-		AWS: types.AWS{
-			AccountID: "123456789012",
-			Region:    "us-east-1",
-			ElastiCache: types.ElastiCache{
-				ReplicationGroupID:       "my-cluster",
-				UserGroupIDs:             []string{"my-user-group"},
-				TransitEncryptionEnabled: true,
-				EndpointType:             awsutils.ElastiCacheConfigurationEndpoint,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	actual, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(expected, actual))
+			actual, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+		})
+	}
 }
 
 func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
@@ -1522,6 +1582,8 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
+			types.OriginLabel:                types.OriginCloud,
+			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "us-east-1",
 			types.DiscoveryLabelEndpointType: "primary",
 			"key":                            "value",
@@ -1547,6 +1609,8 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
+			types.OriginLabel:                types.OriginCloud,
+			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "us-east-1",
 			types.DiscoveryLabelEndpointType: "reader",
 			"key":                            "value",
@@ -1573,87 +1637,95 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 }
 
 func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
-	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
-		ReplicationGroupId:       aws.String("my-cluster"),
-		Status:                   aws.String("available"),
-		TransitEncryptionEnabled: aws.Bool(true),
-		ClusterEnabled:           aws.Bool(false),
-		UserGroupIds:             []*string{aws.String("my-user-group")},
-		NodeGroups: []*elasticache.NodeGroup{
-			{
-				NodeGroupId: aws.String("0001"),
-				PrimaryEndpoint: &elasticache.Endpoint{
-					Address: aws.String("primary.localhost"),
-					Port:    aws.Int64(6379),
+	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+		t.Run("via "+overrideLabel, func(t *testing.T) {
+			cluster := &elasticache.ReplicationGroup{
+				ARN:                      aws.String("arn:aws:elasticache:us-east-1:123456789012:replicationgroup:my-cluster"),
+				ReplicationGroupId:       aws.String("my-cluster"),
+				Status:                   aws.String("available"),
+				TransitEncryptionEnabled: aws.Bool(true),
+				ClusterEnabled:           aws.Bool(false),
+				UserGroupIds:             []*string{aws.String("my-user-group")},
+				NodeGroups: []*elasticache.NodeGroup{
+					{
+						NodeGroupId: aws.String("0001"),
+						PrimaryEndpoint: &elasticache.Endpoint{
+							Address: aws.String("primary.localhost"),
+							Port:    aws.Int64(6379),
+						},
+						ReaderEndpoint: &elasticache.Endpoint{
+							Address: aws.String("reader.localhost"),
+							Port:    aws.Int64(6379),
+						},
+					},
 				},
-				ReaderEndpoint: &elasticache.Endpoint{
-					Address: aws.String("reader.localhost"),
-					Port:    aws.Int64(6379),
+			}
+			extraLabels := map[string]string{
+				overrideLabel: "my-override-cluster-2",
+				"key":         "value",
+			}
+
+			expectedPrimary, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "my-override-cluster-2",
+				Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
+				Labels: map[string]string{
+					types.DiscoveryLabelAccountID:    "123456789012",
+					types.OriginLabel:                types.OriginCloud,
+					types.CloudLabel:                 types.CloudAWS,
+					types.DiscoveryLabelRegion:       "us-east-1",
+					types.DiscoveryLabelEndpointType: "primary",
+					overrideLabel:                    "my-override-cluster-2",
+					"key":                            "value",
 				},
-			},
-		},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolRedis,
+				URI:      "primary.localhost:6379",
+				AWS: types.AWS{
+					AccountID: "123456789012",
+					Region:    "us-east-1",
+					ElastiCache: types.ElastiCache{
+						ReplicationGroupID:       "my-cluster",
+						UserGroupIDs:             []string{"my-user-group"},
+						TransitEncryptionEnabled: true,
+						EndpointType:             awsutils.ElastiCachePrimaryEndpoint,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			expectedReader, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "my-override-cluster-2-reader",
+				Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
+				Labels: map[string]string{
+					types.DiscoveryLabelAccountID:    "123456789012",
+					types.OriginLabel:                types.OriginCloud,
+					types.CloudLabel:                 types.CloudAWS,
+					types.DiscoveryLabelRegion:       "us-east-1",
+					types.DiscoveryLabelEndpointType: "reader",
+					overrideLabel:                    "my-override-cluster-2",
+					"key":                            "value",
+				},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolRedis,
+				URI:      "reader.localhost:6379",
+				AWS: types.AWS{
+					AccountID: "123456789012",
+					Region:    "us-east-1",
+					ElastiCache: types.ElastiCache{
+						ReplicationGroupID:       "my-cluster",
+						UserGroupIDs:             []string{"my-user-group"},
+						TransitEncryptionEnabled: true,
+						EndpointType:             awsutils.ElastiCacheReaderEndpoint,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			actual, err := NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
+			require.NoError(t, err)
+			require.Equal(t, types.Databases{expectedPrimary, expectedReader}, actual)
+		})
 	}
-	extraLabels := map[string]string{
-		types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
-		"key":                              "value",
-	}
-
-	expectedPrimary, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "my-override-cluster-2",
-		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
-		Labels: map[string]string{
-			types.DiscoveryLabelAccountID:      "123456789012",
-			types.DiscoveryLabelRegion:         "us-east-1",
-			types.DiscoveryLabelEndpointType:   "primary",
-			types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
-			"key":                              "value",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolRedis,
-		URI:      "primary.localhost:6379",
-		AWS: types.AWS{
-			AccountID: "123456789012",
-			Region:    "us-east-1",
-			ElastiCache: types.ElastiCache{
-				ReplicationGroupID:       "my-cluster",
-				UserGroupIDs:             []string{"my-user-group"},
-				TransitEncryptionEnabled: true,
-				EndpointType:             awsutils.ElastiCachePrimaryEndpoint,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	expectedReader, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "my-override-cluster-2-reader",
-		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
-		Labels: map[string]string{
-			types.DiscoveryLabelAccountID:      "123456789012",
-			types.DiscoveryLabelRegion:         "us-east-1",
-			types.DiscoveryLabelEndpointType:   "reader",
-			types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
-			"key":                              "value",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolRedis,
-		URI:      "reader.localhost:6379",
-		AWS: types.AWS{
-			AccountID: "123456789012",
-			Region:    "us-east-1",
-			ElastiCache: types.ElastiCache{
-				ReplicationGroupID:       "my-cluster",
-				UserGroupIDs:             []string{"my-user-group"},
-				TransitEncryptionEnabled: true,
-				EndpointType:             awsutils.ElastiCacheReaderEndpoint,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	actual, err := NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
-	require.NoError(t, err)
-	require.Equal(t, types.Databases{expectedPrimary, expectedReader}, actual)
 }
 
 func TestDatabaseFromMemoryDBCluster(t *testing.T) {
@@ -1675,6 +1747,8 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 		Description: "MemoryDB cluster in us-east-1",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
+			types.OriginLabel:                types.OriginCloud,
+			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "us-east-1",
 			types.DiscoveryLabelEndpointType: "cluster",
 			"key":                            "value",
@@ -1708,6 +1782,8 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 		Description: "Redshift Serverless workgroup in eu-west-2",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
+			types.OriginLabel:                types.OriginCloud,
+			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "eu-west-2",
 			types.DiscoveryLabelEndpointType: "workgroup",
 			types.DiscoveryLabelNamespace:    "my-namespace",
@@ -1742,6 +1818,8 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 		Description: "Redshift Serverless endpoint in eu-west-2",
 		Labels: map[string]string{
 			types.DiscoveryLabelAccountID:    "123456789012",
+			types.OriginLabel:                types.OriginCloud,
+			types.CloudLabel:                 types.CloudAWS,
 			types.DiscoveryLabelRegion:       "eu-west-2",
 			types.DiscoveryLabelEndpointType: "vpc-endpoint",
 			types.DiscoveryLabelWorkgroup:    "my-workgroup",
@@ -1773,51 +1851,57 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 }
 
 func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
-	cluster := &memorydb.Cluster{
-		ARN:        aws.String("arn:aws:memorydb:us-east-1:123456789012:cluster:my-cluster"),
-		Name:       aws.String("my-cluster"),
-		Status:     aws.String("available"),
-		TLSEnabled: aws.Bool(true),
-		ACLName:    aws.String("my-user-group"),
-		ClusterEndpoint: &memorydb.Endpoint{
-			Address: aws.String("memorydb.localhost"),
-			Port:    aws.Int64(6379),
-		},
-	}
-	extraLabels := map[string]string{
-		types.AWSDatabaseNameOverrideLabel: "override-1",
-		"key":                              "value",
-	}
+	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+		t.Run("via "+overrideLabel, func(t *testing.T) {
+			cluster := &memorydb.Cluster{
+				ARN:        aws.String("arn:aws:memorydb:us-east-1:123456789012:cluster:my-cluster"),
+				Name:       aws.String("my-cluster"),
+				Status:     aws.String("available"),
+				TLSEnabled: aws.Bool(true),
+				ACLName:    aws.String("my-user-group"),
+				ClusterEndpoint: &memorydb.Endpoint{
+					Address: aws.String("memorydb.localhost"),
+					Port:    aws.Int64(6379),
+				},
+			}
+			extraLabels := map[string]string{
+				overrideLabel: "override-1",
+				"key":         "value",
+			}
 
-	expected, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "override-1",
-		Description: "MemoryDB cluster in us-east-1",
-		Labels: map[string]string{
-			types.DiscoveryLabelAccountID:      "123456789012",
-			types.DiscoveryLabelRegion:         "us-east-1",
-			types.DiscoveryLabelEndpointType:   "cluster",
-			types.AWSDatabaseNameOverrideLabel: "override-1",
-			"key":                              "value",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolRedis,
-		URI:      "memorydb.localhost:6379",
-		AWS: types.AWS{
-			AccountID: "123456789012",
-			Region:    "us-east-1",
-			MemoryDB: types.MemoryDB{
-				ClusterName:  "my-cluster",
-				ACLName:      "my-user-group",
-				TLSEnabled:   true,
-				EndpointType: awsutils.MemoryDBClusterEndpoint,
-			},
-		},
-	})
-	require.NoError(t, err)
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "override-1",
+				Description: "MemoryDB cluster in us-east-1",
+				Labels: map[string]string{
+					types.DiscoveryLabelAccountID:    "123456789012",
+					types.OriginLabel:                types.OriginCloud,
+					types.CloudLabel:                 types.CloudAWS,
+					types.DiscoveryLabelRegion:       "us-east-1",
+					types.DiscoveryLabelEndpointType: "cluster",
+					overrideLabel:                    "override-1",
+					"key":                            "value",
+				},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolRedis,
+				URI:      "memorydb.localhost:6379",
+				AWS: types.AWS{
+					AccountID: "123456789012",
+					Region:    "us-east-1",
+					MemoryDB: types.MemoryDB{
+						ClusterName:  "my-cluster",
+						ACLName:      "my-user-group",
+						TLSEnabled:   true,
+						EndpointType: awsutils.MemoryDBClusterEndpoint,
+					},
+				},
+			})
+			require.NoError(t, err)
 
-	actual, err := NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(expected, actual))
+			actual, err := NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+		})
+	}
 }
 
 func TestExtraElastiCacheLabels(t *testing.T) {
@@ -2183,15 +2267,17 @@ func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
 				types.DiscoveryLabelRegion:              region,
 				types.DiscoveryLabelEngine:              provider,
 				types.DiscoveryLabelEngineVersion:       "8.0.21",
-				types.DiscoveryLabelResourceGroup:       group,
+				types.DiscoveryLabelAzureResourceGroup:  group,
+				types.OriginLabel:                       types.OriginCloud,
+				types.CloudLabel:                        types.CloudAzure,
 				types.DiscoveryLabelAzureSubscriptionID: subID,
 				"foo":                                   "bar",
 			}
 			if tt.wantReplicationRoleLabel != "" {
-				wantLabels[types.DiscoveryLabelReplicationRole] = tt.wantReplicationRoleLabel
+				wantLabels[types.DiscoveryLabelAzureReplicationRole] = tt.wantReplicationRoleLabel
 			}
 			if tt.wantSourceServerLabel != "" {
-				wantLabels[types.DiscoveryLabelSourceServer] = tt.wantSourceServerLabel
+				wantLabels[types.DiscoveryLabelAzureSourceServer] = tt.wantSourceServerLabel
 			}
 			wantDB, err := types.NewDatabaseV3(types.Metadata{
 				Name:        tt.serverName,
@@ -2210,7 +2296,7 @@ func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
 
 			actual, err := NewDatabaseFromAzureMySQLFlexServer(&server)
 			require.NoError(t, err)
-			require.Equal(t, wantDB, actual)
+			require.Empty(t, cmp.Diff(wantDB, actual))
 		})
 	}
 }
@@ -2258,7 +2344,9 @@ func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
 				types.DiscoveryLabelRegion:              region,
 				types.DiscoveryLabelEngine:              provider,
 				types.DiscoveryLabelEngineVersion:       "14",
-				types.DiscoveryLabelResourceGroup:       group,
+				types.DiscoveryLabelAzureResourceGroup:  group,
+				types.OriginLabel:                       types.OriginCloud,
+				types.CloudLabel:                        types.CloudAzure,
 				types.DiscoveryLabelAzureSubscriptionID: subID,
 				"foo":                                   "bar",
 			}
@@ -2279,7 +2367,7 @@ func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
 
 			actual, err := NewDatabaseFromAzurePostgresFlexServer(&server)
 			require.NoError(t, err)
-			require.Equal(t, wantDB, actual)
+			require.Empty(t, cmp.Diff(wantDB, actual))
 		})
 	}
 }
@@ -2354,7 +2442,9 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 					types.DiscoveryLabelRegion:              "eastus",
 					types.DiscoveryLabelEngine:              tt.engine,
 					types.DiscoveryLabelEngineVersion:       "1.2.3",
-					types.DiscoveryLabelResourceGroup:       group,
+					types.DiscoveryLabelAzureResourceGroup:  group,
+					types.OriginLabel:                       types.OriginCloud,
+					types.CloudLabel:                        types.CloudAzure,
 					types.DiscoveryLabelAzureSubscriptionID: subID,
 					"foo":                                   "bar",
 				},
