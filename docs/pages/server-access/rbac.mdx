@@ -178,6 +178,8 @@ spec:
       # Optional: Session recording mode for SSH sessions.
       # If not set, the value set on default will be used.
       ssh: best_effort|strict
+    # require_session_mfa require per-session MFA for any owner of this role
+    require_session_mfa: true
     # Enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
     # certificates, preventing a compromised certificate from being used on another
     # network. The default is false.
