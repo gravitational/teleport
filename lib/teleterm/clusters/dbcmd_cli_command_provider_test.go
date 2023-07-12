@@ -51,9 +51,9 @@ type fakeStorage struct {
 	clusters []*Cluster
 }
 
-func (f fakeStorage) GetByResourceURI(resourceURI string) (*Cluster, error) {
+func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*Cluster, error) {
 	for _, cluster := range f.clusters {
-		if strings.HasPrefix(resourceURI, cluster.URI.String()) {
+		if strings.HasPrefix(resourceURI.String(), cluster.URI.String()) {
 			return cluster, nil
 		}
 	}
@@ -104,7 +104,7 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 
 			gateway, err := gateway.New(
 				gateway.Config{
-					TargetURI:             cluster.URI.AppendDB("foo").String(),
+					TargetURI:             cluster.URI.AppendDB("foo"),
 					TargetName:            "foo",
 					TargetUser:            "alice",
 					TargetSubresourceName: tc.targetSubresourceName,
@@ -149,7 +149,7 @@ func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *te
 
 	gateway, err := gateway.New(
 		gateway.Config{
-			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo").String(),
+			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo"),
 			TargetName:            "foo",
 			TargetUser:            "alice",
 			TargetSubresourceName: "",

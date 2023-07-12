@@ -97,13 +97,19 @@ type ConnectReportingServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewConnectReportingServiceHandler(svc ConnectReportingServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	mux := http.NewServeMux()
-	mux.Handle(ConnectReportingServiceSubmitConnectEventProcedure, connect_go.NewUnaryHandler(
+	connectReportingServiceSubmitConnectEventHandler := connect_go.NewUnaryHandler(
 		ConnectReportingServiceSubmitConnectEventProcedure,
 		svc.SubmitConnectEvent,
 		opts...,
-	))
-	return "/prehog.v1alpha.ConnectReportingService/", mux
+	)
+	return "/prehog.v1alpha.ConnectReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case ConnectReportingServiceSubmitConnectEventProcedure:
+			connectReportingServiceSubmitConnectEventHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
 }
 
 // UnimplementedConnectReportingServiceHandler returns CodeUnimplemented from all methods.

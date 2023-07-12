@@ -30,17 +30,12 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go (main.pushPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
-environment:
-  BUILDBOX_VERSION: teleport14
-  GID: "1000"
-  RUNTIME: go1.20.5
-  UID: "1000"
 trigger:
   event:
     include:
@@ -78,44 +73,18 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Wait for docker
-  image: docker
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
   pull: if-not-exists
   commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "release-target=release-amd64-centos7" '
   environment:
-    DOCKERHUB_PASSWORD:
-      from_secret: DOCKERHUB_READONLY_TOKEN
-    DOCKERHUB_USERNAME:
-      from_secret: DOCKERHUB_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
-- name: Build artifacts
-  image: docker
-  pull: if-not-exists
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - cd /go/src/github.com/gravitational/teleport
-  - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-centos7
-  - make -C build.assets teleterm
-  environment:
-    ARCH: amd64
-    GID: "1000"
-    GOCACHE: /go/cache
-    GOPATH: /go
-    OS: linux
-    UID: "1000"
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
   image: plugins/slack:1.4.1
   settings:
@@ -127,18 +96,6 @@ steps:
   when:
     status:
     - failure
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-- name: dockerconfig
-  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -146,17 +103,12 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go (main.pushPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: push-build-linux-386
-environment:
-  BUILDBOX_VERSION: teleport14
-  GID: "1000"
-  RUNTIME: go1.20.5
-  UID: "1000"
 trigger:
   event:
     include:
@@ -194,42 +146,18 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Wait for docker
-  image: docker
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
   pull: if-not-exists
   commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "release-target=release-386" '
   environment:
-    DOCKERHUB_PASSWORD:
-      from_secret: DOCKERHUB_READONLY_TOKEN
-    DOCKERHUB_USERNAME:
-      from_secret: DOCKERHUB_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
-- name: Build artifacts
-  image: docker
-  pull: if-not-exists
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-386
-  environment:
-    ARCH: "386"
-    GID: "1000"
-    GOCACHE: /go/cache
-    GOPATH: /go
-    OS: linux
-    UID: "1000"
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
   image: plugins/slack:1.4.1
   settings:
@@ -241,18 +169,6 @@ steps:
   when:
     status:
     - failure
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-- name: dockerconfig
-  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -260,17 +176,12 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go (main.pushPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
-environment:
-  BUILDBOX_VERSION: teleport14
-  GID: "1000"
-  RUNTIME: go1.20.5
-  UID: "1000"
 trigger:
   event:
     include:
@@ -305,49 +216,21 @@ steps:
   - git submodule update --init e
   - mkdir -pv /go/cache
   - rm -f /root/.ssh/id_rsa
-  - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt;
-    else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Wait for docker
-  image: docker
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
   pull: if-not-exists
   commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "release-target=release-amd64-centos7-fips" '
   environment:
-    DOCKERHUB_PASSWORD:
-      from_secret: DOCKERHUB_READONLY_TOKEN
-    DOCKERHUB_USERNAME:
-      from_secret: DOCKERHUB_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
-- name: Build artifacts
-  image: docker
-  pull: if-not-exists
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - cd /go/src/github.com/gravitational/teleport
-  - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-centos7-fips
-  environment:
-    ARCH: amd64
-    FIPS: "yes"
-    GID: "1000"
-    GOCACHE: /go/cache
-    GOPATH: /go
-    OS: linux
-    UID: "1000"
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
   image: plugins/slack:1.4.1
   settings:
@@ -359,18 +242,6 @@ steps:
   when:
     status:
     - failure
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-- name: dockerconfig
-  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -378,17 +249,12 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go (main.pushPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
-environment:
-  BUILDBOX_VERSION: teleport14
-  GID: "1000"
-  RUNTIME: go1.20.5
-  UID: "1000"
 trigger:
   event:
     include:
@@ -426,42 +292,18 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Wait for docker
-  image: docker
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
   pull: if-not-exists
   commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "release-target=release-windows-unsigned" '
   environment:
-    DOCKERHUB_PASSWORD:
-      from_secret: DOCKERHUB_READONLY_TOKEN
-    DOCKERHUB_USERNAME:
-      from_secret: DOCKERHUB_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
-- name: Build artifacts
-  image: docker
-  pull: if-not-exists
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-windows-unsigned
-  environment:
-    ARCH: amd64
-    GID: "1000"
-    GOCACHE: /go/cache
-    GOPATH: /go
-    OS: windows
-    UID: "1000"
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
   image: plugins/slack:1.4.1
   settings:
@@ -473,18 +315,6 @@ steps:
   when:
     status:
     - failure
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-- name: dockerconfig
-  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -1033,17 +863,12 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go (main.pushPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
-environment:
-  BUILDBOX_VERSION: teleport14
-  GID: "1000"
-  RUNTIME: go1.20.5
-  UID: "1000"
 trigger:
   event:
     include:
@@ -1081,42 +906,18 @@ steps:
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-- name: Wait for docker
-  image: docker
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
   pull: if-not-exists
   commands:
-  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "release-target=release-arm" '
   environment:
-    DOCKERHUB_PASSWORD:
-      from_secret: DOCKERHUB_READONLY_TOKEN
-    DOCKERHUB_USERNAME:
-      from_secret: DOCKERHUB_USERNAME
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
-- name: Build artifacts
-  image: docker
-  pull: if-not-exists
-  commands:
-  - apk add --no-cache make
-  - chown -R $UID:$GID /go
-  - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-arm
-  environment:
-    ARCH: arm
-    GID: "1000"
-    GOCACHE: /go/cache
-    GOPATH: /go
-    OS: linux
-    UID: "1000"
-  volumes:
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
   image: plugins/slack:1.4.1
   settings:
@@ -1128,18 +929,6 @@ steps:
   when:
     status:
     - failure
-services:
-- name: Start Docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-volumes:
-- name: dockersock
-  temp: {}
-- name: dockerconfig
-  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -17208,6 +16997,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: d3185434ba38b96a9cbf435a59a3ab0d7e4d3ef6ef39a198164e0e2198f1286d
+hmac: 2963d95d0b1edd755bb31ce77beb3ecc4da2eefbf58b8b8fa949cebe9870e382
 
 ...

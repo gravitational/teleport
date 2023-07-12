@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
@@ -292,7 +293,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, teleport.Start())
 	t.Cleanup(func() { teleport.StopAll() })
 
-	clt := teleport.GetSiteAPI(clusterName)
+	clt := teleport.Process.GetAuthServer()
 	require.NotNil(t, clt)
 
 	var nodeID string
@@ -574,15 +575,34 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 						var hasEnd bool
 						var hasLeave bool
 						for _, se := range sessionEvents {
+							var isAuditEvent bool
 							if se.GetType() == events.SessionStartEvent {
+								isAuditEvent = true
 								hasStart = true
 							}
 							if se.GetType() == events.SessionEndEvent {
+								isAuditEvent = true
 								hasEnd = true
 							}
 							if se.GetType() == events.SessionLeaveEvent {
+								isAuditEvent = true
 								hasLeave = true
 							}
+
+							// ensure session events are also in audit log
+							if !isAuditEvent {
+								continue
+							}
+							auditEvents, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
+								To:         time.Now(),
+								EventTypes: []string{se.GetType()},
+							})
+							require.NoError(t, err)
+
+							found := slices.ContainsFunc(auditEvents, func(ae apievents.AuditEvent) bool {
+								return ae.GetID() == se.GetID()
+							})
+							require.True(t, found)
 						}
 
 						// Make sure all three events were found.
@@ -4652,7 +4672,12 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	var err error
 
 	// create a teleport instance with auth, proxy, and node
+	sessionsDir := t.TempDir()
 	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
+		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+			AuditSessionsURI: sessionsDir,
+		})
+		require.NoError(t, err)
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
 		})
@@ -4660,6 +4685,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 		tconf := suite.defaultServiceConfig()
 		tconf.Auth.Enabled = true
+		tconf.Auth.AuditConfig = auditConfig
 		tconf.Auth.SessionRecordingConfig = recConfig
 
 		tconf.Proxy.Enabled = true
@@ -4680,6 +4706,8 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// should have no sessions in it to start with
 	sessions, _ := site.GetActiveSessionTrackers(ctx)
 	require.Len(t, sessions, 0)
+
+	beforeSession := time.Now()
 
 	// create interactive session (this goroutine is this user's terminal time)
 	endCh := make(chan error, 1)
@@ -4736,6 +4764,52 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// not actually recorded
 	_, err = site.GetSessionChunk(defaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
 	require.Error(t, err)
+
+	// ensure that session related events were emitted to audit log
+	var auditEvents []apievents.AuditEvent
+	require.Eventually(t, func() bool {
+		ae, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
+			From: beforeSession,
+			To:   time.Now(),
+			EventTypes: []string{
+				events.SessionStartEvent,
+				events.SessionLeaveEvent,
+				events.SessionEndEvent,
+			},
+		})
+		assert.NoError(t, err)
+
+		if len(ae) < 3 {
+			return false
+		}
+		auditEvents = ae
+
+		return true
+	}, 10*time.Second, 500*time.Millisecond)
+
+	var hasStart bool
+	var hasLeave bool
+	var hasEnd bool
+	for _, ae := range auditEvents {
+		switch ae.(type) {
+		case *apievents.SessionStart:
+			hasStart = true
+		case *apievents.SessionLeave:
+			hasLeave = true
+		case *apievents.SessionEnd:
+			hasEnd = true
+		default:
+			continue
+		}
+	}
+	require.True(t, hasStart, "session start event not found")
+	require.True(t, hasLeave, "session leave event not found")
+	require.True(t, hasEnd, "session end event not found")
+
+	// ensure session upload directory is empty
+	fi, err := os.ReadDir(sessionsDir)
+	require.NoError(t, err)
+	require.Empty(t, fi)
 }
 
 // testPAM checks that Teleport PAM integration works correctly. In this case
@@ -7136,14 +7210,14 @@ func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 	uploadStream, err := api.CreateAuditStream(ctx, sessionID)
 	require.Nil(t, err)
 
-	generatedSession := events.GenerateTestSession(events.SessionParams{
+	generatedSession := eventstest.GenerateTestSession(eventstest.SessionParams{
 		PrintEvents: 100,
 		SessionID:   string(sessionID),
 		ServerID:    "00000000-0000-0000-0000-000000000000",
 	})
 
 	for _, event := range generatedSession {
-		err := uploadStream.EmitAuditEvent(ctx, event)
+		err := uploadStream.RecordEvent(ctx, eventstest.PrepareEvent(event))
 		require.NoError(t, err)
 	}
 
@@ -8267,6 +8341,170 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestConnectivityDuringAuthRestart ensures that sessions
+// survive an Auth restart.
+func TestConnectivityDuringAuthRestart(t *testing.T) {
+	t.Parallel()
+
+	// Create auth config.
+	authCfg := servicecfg.MakeDefaultConfig()
+	authCfg.Console = nil
+	authCfg.Log = utils.NewLoggerForTests()
+	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	authCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	authCfg.Auth.Preference.SetSecondFactor("off")
+	authCfg.Auth.Enabled = true
+	authCfg.Auth.NoAudit = true
+	authCfg.Proxy.Enabled = false
+	authCfg.SSH.Enabled = false
+
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	auth := helpers.NewInstance(t, helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      uuid.New().String(),
+		NodeName:    Host,
+		Priv:        privateKey,
+		Pub:         publicKey,
+		Log:         utils.NewLoggerForTests(),
+	})
+
+	// Create a user and role.
+	me, err := user.Current()
+	require.NoError(t, err)
+
+	role := services.NewImplicitRole()
+	role.SetName("test")
+	role.SetLogins(types.Allow, []string{me.Username})
+	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}})
+	auth.AddUserWithRole(me.Username, role)
+
+	// create and launch the auth server
+	err = auth.CreateEx(t, nil, authCfg)
+	require.NoError(t, err)
+
+	require.NoError(t, auth.Start())
+	t.Cleanup(func() {
+		require.NoError(t, auth.StopAll())
+	})
+
+	// create a proxy/node instance
+	privateKey, publicKey, err = testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	node := helpers.NewInstance(t, helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      uuid.New().String(),
+		NodeName:    Host,
+		Priv:        privateKey,
+		Pub:         publicKey,
+		Log:         utils.NewLoggerForTests(),
+	})
+
+	// Create node config.
+	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
+	nodeCfg.SetToken("token")
+	nodeCfg.CachePolicy.Enabled = true
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.Console = nil
+	nodeCfg.Log = utils.NewLoggerForTests()
+	nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	nodeCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	nodeCfg.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerType("diag"), &node.Fds))
+	nodeCfg.Auth.Enabled = false
+	// Configure Proxy.
+	nodeCfg.Proxy.Enabled = true
+	nodeCfg.Proxy.DisableWebService = false
+	nodeCfg.Proxy.DisableWebInterface = true
+	nodeCfg.FileDescriptors = append(nodeCfg.FileDescriptors, node.Fds...)
+	nodeCfg.Proxy.SSHAddr.Addr = node.SSHProxy
+	nodeCfg.Proxy.WebAddr.Addr = node.Web
+	nodeCfg.Proxy.ReverseTunnelListenAddr.Addr = node.Secrets.TunnelAddr
+
+	// Configure Node.
+	nodeCfg.SSH.Enabled = true
+	nodeCfg.SSH.Addr.Addr = node.SSH
+
+	err = node.CreateWithConf(t, nodeCfg)
+	require.NoError(t, err)
+
+	require.NoError(t, node.Start())
+	t.Cleanup(func() {
+		require.NoError(t, node.StopAll())
+	})
+
+	term := NewTerminal(200)
+	// create a client for the user created above
+	cli, err := auth.NewClient(helpers.ClientConfig{
+		Login:       me.Username,
+		Cluster:     helpers.Site,
+		Host:        Host,
+		Port:        helpers.Port(t, node.SSH),
+		Interactive: true,
+		Stdin:       term,
+		Stdout:      term,
+		Stderr:      term,
+		Proxy: &helpers.ProxyConfig{
+			SSHAddr: nodeCfg.Proxy.SSHAddr.String(),
+			WebAddr: nodeCfg.Proxy.WebAddr.String(),
+		},
+	})
+	require.NoError(t, err)
+
+	// start ssh session with auth still running
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- cli.SSH(ctx, nil, false)
+	}()
+
+	// validate that the session is active
+	term.Type("echo txlxport100 | sed 's/x/e/g'\n\r")
+	require.Eventually(t, func() bool {
+		idx := strings.Index(term.AllOutput(), "teleport100")
+		return idx != -1
+	}, 3*time.Second, 100*time.Millisecond, "session output never received")
+
+	// restart the auth service a few times
+	authRestartChan := make(chan error, 3)
+	go func() {
+		for i := 0; i < 3; i++ {
+			authRestartChan <- auth.RestartAuth()
+		}
+	}()
+
+	// test that the session remains alive until after auth starts again
+	var (
+		terminate    bool
+		restartCount int
+	)
+	for i := 0; !terminate; i++ {
+		term.Type(fmt.Sprintf("echo txlxport%d | sed 's/x/e/g'\n\r", i+10))
+		require.Eventually(t, func() bool {
+			idx := strings.Index(term.AllOutput(), fmt.Sprintf("teleport%d", i+10))
+			return idx != -1
+		}, 3*time.Second, 100*time.Millisecond, "session output never received")
+
+		select {
+		case err := <-authRestartChan:
+			require.NoError(t, err)
+			restartCount++
+		default:
+			if restartCount == 3 {
+				terminate = true
+			}
+		}
+	}
+
+	// terminate the session
+	term.Type("exit\n\r")
+	require.NoError(t, <-errChan)
 }
 
 func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {

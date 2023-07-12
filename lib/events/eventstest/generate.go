@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package events
+package eventstest
 
 import (
 	"bytes"
@@ -24,6 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 // SessionParams specifies optional parameters
@@ -46,7 +47,7 @@ type SessionParams struct {
 func (p *SessionParams) SetDefaults() {
 	if p.Clock == nil {
 		p.Clock = clockwork.NewFakeClockAt(
-			time.Date(2020, 03, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC))
+			time.Date(2020, 0o3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC))
 	}
 	if p.ServerID == "" {
 		p.ServerID = uuid.New().String()
@@ -63,9 +64,9 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 	sessionStart := apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			Index:       0,
-			Type:        SessionStartEvent,
+			Type:        events.SessionStartEvent,
 			ID:          "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
-			Code:        SessionStartCode,
+			Code:        events.SessionStartCode,
 			Time:        params.Clock.Now().UTC(),
 			ClusterName: params.ClusterName,
 		},
@@ -96,9 +97,9 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 	sessionEnd := apievents.SessionEnd{
 		Metadata: apievents.Metadata{
 			Index: 20,
-			Type:  SessionEndEvent,
+			Type:  events.SessionEndEvent,
 			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
-			Code:  SessionEndCode,
+			Code:  events.SessionEndCode,
 			Time:  params.Clock.Now().UTC().Add(time.Hour + time.Second + 7*time.Millisecond),
 		},
 		ServerMetadata: apievents.ServerMetadata{
@@ -118,13 +119,13 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 		EndTime:           params.Clock.Now().UTC().Add(3*time.Hour + time.Second + 7*time.Millisecond),
 	}
 
-	events := []apievents.AuditEvent{&sessionStart}
+	genEvents := []apievents.AuditEvent{&sessionStart}
 	i := int64(0)
 	for i = 0; i < params.PrintEvents; i++ {
 		event := &apievents.SessionPrint{
 			Metadata: apievents.Metadata{
 				Index: i + 1,
-				Type:  SessionPrintEvent,
+				Type:  events.SessionPrintEvent,
 				Time:  params.Clock.Now().UTC().Add(time.Minute + time.Duration(i)*time.Millisecond),
 			},
 			ChunkIndex:        i,
@@ -134,10 +135,13 @@ func GenerateTestSession(params SessionParams) []apievents.AuditEvent {
 		}
 		event.Bytes = int64(len(event.Data))
 		event.Time = event.Time.Add(time.Duration(i) * time.Millisecond)
-		events = append(events, event)
+
+		genEvents = append(genEvents, event)
 	}
+
 	i++
 	sessionEnd.Metadata.Index = i
-	events = append(events, &sessionEnd)
-	return events
+	genEvents = append(genEvents, &sessionEnd)
+
+	return genEvents
 }

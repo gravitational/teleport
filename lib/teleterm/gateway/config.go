@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/x509"
 	"runtime"
 
 	"github.com/google/uuid"
@@ -39,9 +40,11 @@ type Config struct {
 	// TargetName is the remote resource name
 	TargetName string
 	// TargetURI is the remote resource URI
-	TargetURI string
+	TargetURI uri.ResourceURI
 	// TargetUser is the target user name
 	TargetUser string
+	// TargetGroups is a list of target groups
+	TargetGroups []string
 	// TargetSubresourceName points at a subresource of the remote resource, for example a database
 	// name on a database server. It is used only for generating the CLI command.
 	TargetSubresourceName string
@@ -52,12 +55,19 @@ type Config struct {
 	LocalAddress string
 	// Protocol is the gateway protocol
 	Protocol string
-	// CertPath
+	// CertPath specifies the path to the user certificate that the local proxy
+	// uses to connect to the Teleport Proxy. The path may depend on the type
+	// and the parameters of the gateway.
 	CertPath string
-	// KeyPath
+	// KeyPath specifies the path to the private key of the cert specified in
+	// the CertPath. This is usually the private key of the user profile.
 	KeyPath string
 	// Insecure
 	Insecure bool
+	// ClusterName is the Teleport cluster name.
+	ClusterName string
+	// Username is the username of the profile.
+	Username string
 	// WebProxyAddr
 	WebProxyAddr string
 	// Log is a component logger
@@ -80,6 +90,8 @@ type Config struct {
 	// RootClusterCACertPoolFunc is callback function to fetch Root cluster CAs
 	// when ALPN connection upgrade is required.
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
+	// ProfileDir specifies the tsh home dir of the user profile.
+	ProfileDir string
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
@@ -110,16 +122,11 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
-	c.Log = c.Log.WithFields(logrus.Fields{
-		"resource": c.TargetURI,
-		"gateway":  c.URI.String(),
-	})
-
 	if c.TargetName == "" {
 		return trace.BadParameter("missing target name")
 	}
 
-	if c.TargetURI == "" {
+	if c.TargetURI.String() == "" {
 		return trace.BadParameter("missing target URI")
 	}
 
@@ -135,6 +142,19 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
+	if c.RootClusterCACertPoolFunc == nil {
+		if !c.Insecure {
+			return trace.BadParameter("missing RootClusterCACertPoolFunc")
+		}
+		c.RootClusterCACertPoolFunc = func(_ context.Context) (*x509.CertPool, error) {
+			return x509.NewCertPool(), nil
+		}
+	}
+
+	c.Log = c.Log.WithFields(logrus.Fields{
+		"resource": c.TargetURI.String(),
+		"gateway":  c.URI.String(),
+	})
 	return nil
 }
 

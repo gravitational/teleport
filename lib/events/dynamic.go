@@ -128,7 +128,11 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case TrustedClusterDeleteEvent:
 		e = &events.TrustedClusterDelete{}
 	case TrustedClusterTokenCreateEvent:
+		//nolint:staticcheck // We still need to support viewing the deprecated event
+		//type for backwards compatibility.
 		e = &events.TrustedClusterTokenCreate{}
+	case ProvisionTokenCreateEvent:
+		e = &events.ProvisionTokenCreate{}
 	case GithubConnectorCreatedEvent:
 		e = &events.GithubConnectorCreate{}
 	case GithubConnectorDeletedEvent:
