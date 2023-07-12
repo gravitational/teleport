@@ -52,10 +52,10 @@ spec:
       # the list example above can be expressed as:
       'reg': '^us-west-1|eu-central-1$'
 
+    # Options specific to users create by Teleport via the create_host_user role option
     # List of host groups the created user will be added to. Any that don't already exist are created.
     host_groups: [ubuntu, nginx, other]
-
-    # Assign the user to the sudoers group
+    # List of sudoers entries that the created user will be added to. Only applies to create_host_user
     host_sudoers:
     - 'ALL=(ALL) NOPASSWD: ALL'
 
