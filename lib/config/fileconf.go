@@ -1396,7 +1396,7 @@ type AuthAssistOptions struct {
 	AssistOptions `yaml:",inline"`
 	// CommandExecutionWorkers determines the number of workers that will
 	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
-	CommandExecutionWorkers int64 `yaml:"command_execution_workers,omitempty"`
+	CommandExecutionWorkers int32 `yaml:"command_execution_workers,omitempty"`
 }
 
 // OpenAIOptions stores options related to the OpenAI assist backend.

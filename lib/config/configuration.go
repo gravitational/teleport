@@ -722,8 +722,11 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		key, err := os.ReadFile(keyPath)
 		if err != nil {
 			return trace.Errorf("failed to read OpenAI API key file: %w", err)
-		} else {
-			cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+		}
+		cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+
+		if fc.Auth.Assist.CommandExecutionWorkers < 0 {
+			return trace.BadParameter("command_execution_workers must not be negative")
 		}
 	}
 
@@ -741,7 +744,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
-		var assistCommandExecutionWorkers int64
+		var assistCommandExecutionWorkers int32
 		if fc.Auth.Assist != nil {
 			assistCommandExecutionWorkers = fc.Auth.Assist.CommandExecutionWorkers
 		}

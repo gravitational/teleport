@@ -285,7 +285,7 @@ func (h *Handler) executeCommand(
 		return trace.Wrap(err)
 	}
 
-	runCommands(hosts, runCmd, netConfig.GetAssistCommandExecutionWorkers(), h.log)
+	runCommands(hosts, runCmd, int(netConfig.GetAssistCommandExecutionWorkers()), h.log)
 
 	// Optionally, try to compute the command summary.
 	if output, valid := buffer.Export(); valid {
@@ -396,9 +396,9 @@ func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte 
 }
 
 // runCommands runs the given command on the given hosts.
-func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, numParallel int64, log logrus.FieldLogger) {
+func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, numParallel int, log logrus.FieldLogger) {
 	var group errgroup.Group
-	group.SetLimit(int(numParallel))
+	group.SetLimit(numParallel)
 
 	for _, host := range hosts {
 		host := host

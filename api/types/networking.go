@@ -108,10 +108,10 @@ type ClusterNetworkingConfig interface {
 	SetProxyPingInterval(time.Duration)
 
 	// GetAssistCommandExecutionWorkers gets the number of parallel command execution workers for Assist
-	GetAssistCommandExecutionWorkers() int64
+	GetAssistCommandExecutionWorkers() int32
 
 	// SetAssistCommandExecutionWorkers sets the number of parallel command execution workers for Assist
-	SetAssistCommandExecutionWorkers(n int64)
+	SetAssistCommandExecutionWorkers(n int32)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -382,12 +382,12 @@ func (c *ClusterNetworkingConfigV2) SetProxyPingInterval(interval time.Duration)
 }
 
 // GetAssistCommandExecutionWorkers gets the number of parallel command execution workers for Assist
-func (c *ClusterNetworkingConfigV2) GetAssistCommandExecutionWorkers() int64 {
+func (c *ClusterNetworkingConfigV2) GetAssistCommandExecutionWorkers() int32 {
 	return c.Spec.AssistCommandExecutionWorkers
 }
 
 // SetAssistCommandExecutionWorkers sets the number of parallel command execution workers for Assist
-func (c *ClusterNetworkingConfigV2) SetAssistCommandExecutionWorkers(n int64) {
+func (c *ClusterNetworkingConfigV2) SetAssistCommandExecutionWorkers(n int32) {
 	c.Spec.AssistCommandExecutionWorkers = n
 }
 
