@@ -75,7 +75,7 @@ these options:
 | - | - | - | - | - |
 | [Using `cert-manager`](#using-cert-manager) | Network Load Balancer (NLB) | `LoadBalancer` | No | Requires a Route 53 domain and an `Issuer` configured with IAM permissions to change DNS records for your domain |
 | [Using AWS Certificate Manager](#using-aws-certificate-manager) | Application Load Balancer (ALB) | `Ingress` | Yes | Requires a working instance of the AWS Load Balancer controller installed in your Kubernetes cluster |
-| [Using your own TLS credentials](#using-your-own-tls-credentials) | Network Load Balancer (NLB) | `LoadBalancer` | No | Requires you to manage the maintainance, renewal and trust of the TLS certificates securing Teleport's web listener independently |
+| [Using your own TLS credentials](#using-your-own-tls-credentials) | Network Load Balancer (NLB) | `LoadBalancer` | No | Requires you to independently manage the maintenance, renewal and trust of the TLS certificates securing Teleport's web listener |
 
 #### Using `cert-manager`
 
