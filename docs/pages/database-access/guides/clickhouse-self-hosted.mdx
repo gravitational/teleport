@@ -3,22 +3,30 @@ title: Database Access with ClickHouse
 description: How to configure Teleport database access with ClickHouse.
 ---
 
-Teleport Clickhouse integration leverages  ClickHouse x509 authentication that only supports
-with  HTTPS or Native interfaces only.
-The HTTP interface lets you use ClickHouse on any platform from any programming language in the form of REST API.
-The HTTP interface is more limited than the Native interface, but it has better language support.
-Teleport ClickHouse integration allows you to select between Native or HTTP interface
+The Teleport Clickhouse integration allows you to enroll ClickHouse databases
+with Teleport. 
+
+The Teleport Database Service authenticates to ClickHouse using x509
+certificates, which are available for the ClickHouse HTTP and native TCP
+[interfaces](https://clickhouse.com/docs/en/interfaces/overview). The Teleport
+Database Service can communicate in both the ClickHouse TCP and HTTP protocols,
+and you can select which protocol to use when configuring the Teleport Database
+Service.
+
+Teleport audit logs for query activity are only supported for the ClickHouse
+HTTP interface. Teleport support for ClickHouse's native interfaces does not
+include audit logs for database query activity.
 
 <Admonition type="warning" title="Preview">
- Database access for ClickHouse ClickHouse is currently in Preview mode.
- Teleport audit logs for query activity are only supported for the ClickHouse HTTP interface.
- Teleport support for ClickHouse's native interfaces does not include audit logs for database query activity.
+
+ Teleport support for ClickHouse is currently in Preview.
+
 </Admonition>
 
 This guide will help you to:
 
 - Install and configure Teleport.
-- Set up Teleport to access your self-hosted ClickHouse Database.
+- Set up Teleport to access your self-hosted ClickHouse database.
 - Connect to your database through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -32,12 +40,20 @@ This guide will help you to:
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- For ClickHouse HTTP interfaces integration self-hosted ClickHouse Server v22.3 or later.
-- For ClickHouse Native interface integration self-hosted ClickHouse Server v23.3 or later.
-- For ClickHouse Native interface the [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli) installed and added to your system's `PATH` environment variable.
 - Either a Linux host or Kubernetes cluster where you will run the Teleport Database Service.
 
+You will also need the following, depending on the ClickHouse protocol you
+choose:
 
+<Tabs>
+<TabItem label="HTTP">
+- A self-hosted deployment of ClickHouse Server v22.3 or later.
+</TabItem>
+<TabItem label="Native TCP">
+- A self-hosted deployment of ClickHouse Server v23.3 or later.
+- The [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli) installed and added to your system's `PATH` environment variable.
+</TabItem>
+</Tabs>
 
 ## Step 1/5. Create a Teleport token and user
 
@@ -80,8 +96,6 @@ Use the generated secrets to enable mutual TLS in your `clickhouse-server/config
 </openSSL>
 ```
 
-See [SSL-TLS](https://clickhouse.com/docs/en/guides/sre/configuring-ssl) ClickHouse documentation for more details.
-
 Additionally, your ClickHouse database user accounts must be configured to require a valid client certificate:
 
 ```sql
@@ -95,17 +109,86 @@ GRANT ALL ON *.* TO alice;
 ```
 
 ## Step 4/5. Configure and start the Database Service
-Install and configure Teleport on the host or Kubernetes cluster where you will run the Teleport Database Service:
+
+Install and configure Teleport on the host or Kubernetes cluster where you will
+run the Teleport Database Service:
 
 <Tabs>
 <TabItem label="Linux Server">
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Configure and start the Teleport service:
+On the host where you will run the Teleport Database Service, start Teleport
+with the appropriate configuration.
 
+Note that a single Teleport process can run multiple different services, for
+example multiple Database Service agents as well as the SSH Service or Application
+Service. The step below will overwrite an existing configuration file, so if
+you're running multiple services add `--output=stdout` to print the config in
+your terminal, and manually adjust `/etc/teleport.yaml`.
 
-(!docs/pages/includes/database-access/db-configure-start-clickhouse.mdx dbProtocol="clickhouse-http" dbName="example-clickhouse-http" databaseAddress="clickhouse.example.com:8443" !)
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+
+<Tabs>
+<TabItem label="HTTP">
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> \
+   --name=example-clickhouse \
+   --protocol=clickhouse-http \
+   --uri=clickhouse.example.com:8443 \
+   --labels=env=dev
+```
+
+</TabItem>
+<TabItem label="Native TCP">
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> \
+   --name=example-clickhouse \
+   --protocol=clickhouse \
+   --uri=clickhouse.example.com:9440 \
+   --labels=env=dev
+```
+</TabItem>
+</Tabs>
+
+Configure the Database Service to start automatically when the host boots up by
+creating a systemd service for it. The instructions depend on how you installed
+the Database Service.
+
+<Tabs>
+<TabItem label="Package Manager">
+
+On the host where you will run the Teleport Database Service, start Teleport:
+
+```code
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+
+</TabItem>
+<TabItem label="TAR Archive">
+
+On the host where you will run the Teleport Database Service, create a systemd
+service configuration for Teleport, enable the Teleport service, and start
+Teleport:
+
+```code
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+
+</TabItem>
+</Tabs>
+
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -127,7 +210,10 @@ databases:
 
 
 <Tabs>
-  <TabItem label="ClickHouse HTTP Protocol">
+  <TabItem label="HTTP">
+
+Log in to Teleport and list the databases you can connect to. You should see the
+ClickHouse database you enrolled earlier:
 
 ```code
 $ tsh login --proxy=<Var name="proxy-address" /> --user=testuser
@@ -137,7 +223,8 @@ $ tsh db ls
 # example-clickhouse-http               [*]           env=dev
 ```
 
-Create an authenticated proxy tunnel for allowing to connect to the ClickHouse Database GUI database client send a request via `curl`:
+Create an authenticated proxy tunnel so you can connect to ClickHouse via a GUI
+database client send a request via `curl`:
 
 ```code
 $ tsh proxy db --db-user=alice --tunnel example-clickhouse-http
@@ -165,7 +252,10 @@ $ tsh db logout
 ```
 
   </TabItem>
-  <TabItem label="ClickHouse Native Protocol">
+  <TabItem label="Native TCP">
+
+Log in to Teleport and list the databases you can connect to. You should see the
+ClickHouse database you enrolled earlier:
 
 ```code
 $ tsh login --proxy=<Var name="proxy-address" /> --user=testuser
@@ -174,6 +264,8 @@ $ tsh login --proxy=<Var name="proxy-address" /> --user=testuser
 # ----------------------- ----------- ------------- ------- -------
 # example-clickhouse                  [*]           env=dev
 ```
+
+Connect to the database:
 
 ```code
 $ tsh db connect --db-user=alice example-clickhouse
