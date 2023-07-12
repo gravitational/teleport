@@ -260,7 +260,6 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 
 	// First, try to create a notification alert.
 	isNew, notifyErr := a.tryNotifyService(ctx, req)
-	notifyErr = trace.Wrap(notifyErr)
 
 	// To minimize the count of auto-approval tries, lets attempt it only when we just created an alert.
 	// But if there's an error, we can't really know is the alert new or not so lets just try.
@@ -344,9 +343,9 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 
 	if isNew {
 		for _, serviceName := range serviceNames {
-			ctx, _ = logger.WithField(ctx, "opsgenie_service_name", serviceName)
+			alertCtx, _ := logger.WithField(ctx, "opsgenie_service_name", serviceName)
 
-			if err = a.createAlert(ctx, serviceName, reqID, reqData); err != nil {
+			if err = a.createAlert(alertCtx, serviceName, reqID, reqData); err != nil {
 				return isNew, trace.Wrap(err, "creating Opsgenie alert")
 			}
 		}
@@ -459,9 +458,9 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 			RequestID: req.GetName(),
 			Review: types.AccessReview{
-				Author:        req.GetUser(),
+				Author:        tp.SystemAccessApproverUserName,
 				ProposedState: types.RequestState_APPROVED,
-				Reason: fmt.Sprintf("Access requested by user %s which is on call in service(s) %s",
+				Reason: fmt.Sprintf("Access requested by user %s who is on call on service(s) %s",
 					tp.SystemAccessApproverUserName,
 					strings.Join(serviceNames, ","),
 				),
