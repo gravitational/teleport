@@ -159,7 +159,7 @@ options is below:
 |---------------|---------------|--------------------------------------|
 | Default       | Unspecified   | Provides a certificate in `tlscert`, a private key in `key` and the CA in `teleport-database-ca.crt`. This is compatible with most clients. |
 | MongoDB       | `mongo`       | Provides `mongo.crt` and `mongo.cas`. |
-| CockroachDB   | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt` |
+| CockroachDB   | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt`. |
 | Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` for generic clients that require specific file extensions. |
 
 Be sure to configure the `token` and `ca_pins` fields to match the output from
