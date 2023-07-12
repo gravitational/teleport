@@ -262,7 +262,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	isNew, notifyErr := a.tryNotifyService(ctx, req)
 
 	// To minimize the count of auto-approval tries, let's only attempt it only when we have just created an alert.
-	// But if there's an error, we can't really know is the alert new or not so lets just try.
+	// But if there's an error, we can't really know if the alert is new or not so lets just try.
 	if !isNew && notifyErr == nil {
 		return nil
 	}
