@@ -1,16 +1,16 @@
 ---
 title: Desktop Access with Active Directory (Manual)
-description: Manually Connect Teleport to an Active Directory domain
+description: Manually connect Teleport to an Active Directory domain.
 videoBanner: YvMqgcq0MTQ
 ---
 
-In this guide we will connect an Active Directory domain to Teleport using the
+This guide demonstrates how to connect an Active Directory domain to Teleport using the
 Desktop Service and log into a Windows desktop from that domain.
 
 <Admonition type="tip" title="Use The Wizard">
 
 Starting with Teleport 10.2.6, you can install Active Directory and configure
-the Teleport Desktop Service through the web UI. See [Desktop Access with Active
+the Teleport Desktop Service through the Teleport Web UI. See [Desktop Access with Active
 Directory](active-directory.mdx) for more information.
 
 Teleport Enterprise users can configure Windows Access for local users by
@@ -35,13 +35,11 @@ This guide requires you to have:
 <Admonition title="Azure AD" type="warning">
 
 Microsoft's Azure Active Directory (Azure AD) offering does not support the
-Kerberos authentication protocol, which is required for Teleport's
-certificate-based authentication.
+Kerberos authentication protocol, which is required the certificate-based 
+authentication described in this section.
 
-At this time, Teleport does not support integration with Azure AD, however
-Teleport Enterprise customers can access Windows desktops (including those
-joined to Azure AD) using local accounts via the process described in [Getting
-Started with Desktop Access](./getting-started.mdx).
+For information about configuring Teleport to work with Azure Active Directory,
+see [Teleport Authentication with Azure Active Directory (AD)](../access-controls/sso/azuread.mdx).
 
 </Admonition>
 
@@ -149,7 +147,7 @@ your entire domain, and then deny it interactive login.
 $GPOName="Block teleport-svc Interactive Login"
 ```
 
-2. Create the new GPO by running (from the same prompt):
+1. Create the new GPO by running (from the same prompt):
 
 ```powershell
 New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
@@ -161,17 +159,17 @@ New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
    created
    (`$FOREST > Domains > $DOMAIN > Group Policy Objects > Block teleport-svc Interactive Login`),
    right-click on it and select `Edit...` from the context menu.
-2. Select:
+1. Select:
 
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment
-```
+   ```text
+   Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment
+   ```
 
-3. Double click `Deny log on locally` and in the popup, check `Define these policy settings`.
-4. Then click `Add User or Group...`, `Browse ...`, enter the SAM account name
+1. Double click `Deny log on locally` and in the popup, check `Define these policy settings`.
+1. Then click `Add User or Group...`, `Browse ...`, enter the SAM account name
    of the user you created above (`svc-teleport`) and hit `Check Names` select
    your Group, and then hit `OK` on all the windows.
-5. Repeat steps 3 and 4 for `Deny log on through Remote Desktop Services` (in
+1. Repeat steps 3 and 4 for `Deny log on through Remote Desktop Services` (in
    lieu of `Deny log on locally`).
 
 <Figure align="left" bordered caption="Deny Interactive Login">
@@ -239,20 +237,20 @@ and `Users` which is nested one level beneath the domain root.
    New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
    ```
 
-2. Again open the `Group Policy Management` program, and on the left pane,
+1. Open the `Group Policy Management` program, and on the left pane,
    navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
 
-3. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
+1. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
 
-4. In the group policy editor, select:
+1. In the group policy editor, select:
 
    ```text
    Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
    ```
 
-5. Right click on `Trusted Root Certification Authorities` and select `Import`.
+1. Right click on `Trusted Root Certification Authorities` and select `Import`.
 
-6. Click through the wizard, selecting your CA file.
+1. Click through the wizard, selecting your CA file.
 
    <Figure align="left" bordered caption="Import Teleport CA">
    ![Import Teleport CA](../../img/desktop-access/ca.png)
@@ -292,7 +290,7 @@ access.
    certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
    ```
 
-2. Force the retrieval of the CA from LDAP. While this step is not required, it
+1. Force the retrieval of the CA from LDAP. While this step is not required, it
    speeds up the process and allows you to proceed to the next steps without
    waiting for the certificate to propagate.
 
@@ -310,7 +308,7 @@ Teleport performs certificate based authentication by emulating a smart card.
    Computer Configuration > Policies > Windows Settings > Security Settings > System Services
    ```
 
-2. Double click on `Smart Card`, select `Define this policy setting` and switch
+1. Double click on `Smart Card`, select `Define this policy setting` and switch
    to `Automatic` then click `OK`.
 
    <Figure align="left" bordered caption="Enable the Smart Card Service">
@@ -325,21 +323,21 @@ Teleport performs certificate based authentication by emulating a smart card.
    Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Connections
    ```
 
-2. Right click on `Allow users to connect remotely by using Remote Desktop Services` and select `Edit`. Select `Enabled` and `OK`.
+1. Right click on `Allow users to connect remotely by using Remote Desktop Services` and select `Edit`. Select `Enabled` and `OK`.
 
-3. Select:
+1. Select:
 
    ```text
    Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
    ```
 
-4. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select `Disable` and `OK`.
+1. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select `Disable` and `OK`.
 
    <Figure align="left" bordered caption="Disable Require user authentication...">
    ![Disable Require](../../img/desktop-access/disable.png)
    </Figure>
 
-5. Right click `Always prompt for password upon connection`, edit, select **`Disabled`** and .
+1. Right click `Always prompt for password upon connection`, edit, select **`Disabled`** and .
    Teleport's smart card based authentication generates a random smart card PIN for each
    desktop session and provides the PIN to the desktop during the RDP connection establishment.
    Since the PIN is never provided to the Teleport user, this setting must be disabled in
@@ -363,13 +361,13 @@ Set to `Disabled` and click `OK`.
    Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security (x2)
    ```
 
-2. Right click on `Inbound Rules` and select `New Rule...`.
+1. Right click on `Inbound Rules` and select `New Rule...`.
 
-3. Under `Predefined` select `Remote Desktop`.
+1. Under `Predefined` select `Remote Desktop`.
 
-4. Only select the rule for `User Mode (TCP-in)`.
+1. Only select the rule for `User Mode (TCP-in)`.
 
-5. On the next screen, select `Allow the connection` and finish.
+1. On the next screen, select `Allow the connection` and finish.
 
    <Figure align="left" bordered caption="Open the Firewall">
    ![Open the Firewall](../../img/desktop-access/firewall.png)
@@ -409,35 +407,35 @@ P-384 and uses SHA384 as the signature algorithm.
    Start > Control Panel > Administrative Tools > Certificate Authority
    ```
 
-2. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
+1. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
 
-3. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
+1. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
 
-4. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
+1. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
 
-5. In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
+1. In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
 
-6. Go to the `General` tab and change `Template display name` to `RemoteDesktopAccess`.
+1. Go to the `General` tab and change `Template display name` to `RemoteDesktopAccess`.
    Make sure `Template name` is also `RemoteDesktopAccess`.
 
-7. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`,
+1. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`,
    then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
 
-8. Next, in the `Extensions` tab select `Application Polices` and click the `Edit` button.
+1. In the `Extensions` tab select `Application Polices` and click the `Edit` button.
 
-9. Remove all entries from the list.
+1. Remove all entries from the list.
 
-10. Go to the `Security` tab, select `Domain Computers` and give the group `Read` and `Enroll` permissions.
+1. Go to the `Security` tab, select `Domain Computers` and give the group `Read` and `Enroll` permissions.
 
-11. Finally, create a template by clicking `OK`.
+1. Finally, create a template by clicking `OK`.
 
-12. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
+1. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
 
    ```text
    New > Certificate Template to Issue
    ```
 
-Select `RemoteDesktopAccess` and click `OK`.
+1. Select `RemoteDesktopAccess` and click `OK`.
 
 ### Update GPO to use a new certificate template
 
@@ -494,12 +492,12 @@ skipping TLS verification in production environments.
 
 1. Begin by navigating to `Start > Control Panel > Administrative Tools > CertificateAuthority`
    to open the CA Microsoft Management Console (MMC) GUI.
-2. Right click on your CA computer and select `Properties`.
-3. From `General` tab, click `View Certificate`.
-4. Select the `Details` view and click `Copy to File`.
-5. Click `Next` in the Certificate Export Wizard, and ensure that `DER encoded binary X.509 (.CER)`
+1. Right click on your CA computer and select `Properties`.
+1. From `General` tab, click `View Certificate`.
+1. Select the `Details` view and click `Copy to File`.
+1. Click `Next` in the Certificate Export Wizard, and ensure that `DER encoded binary X.509 (.CER)`
    is selected
-6. Select a name and location for you certificate and click through the wizard.
+1. Select a name and location for you certificate and click through the wizard.
 
 Now transfer the exported file to the system where you're running Teleport. You
 can either add this certificate to your system's trusted repository or provide

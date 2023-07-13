@@ -68,17 +68,17 @@ server and database access within a single window.
 
    ![A new instance of Teleport Connect](../../img/teleport-connect-init.png)
 
-2. Provide the address of your Teleport Cluster (e.g.
+1. Provide the address of your Teleport Cluster (e.g.
 <ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
 ) and click **NEXT**.
 
-3. Teleport Connect will ask you for your username, password, and MFA. If
-Teleport is integrated with an external Identity Provider (**IdP**), it may
-instead prompt you to authenticate in a browser window with that service.
+1. Teleport Connect will ask you for your username, password, and MFA. 
+   
+   If Teleport is integrated with an external Identity Provider (**IdP**), you might be
+   prompted to authenticate with that service in a browser window.
 
-4. Once authenticated, you can browse and connect to all the resources your
-user is permitted to access:
+1. Browse and connect to all the resources your user is permitted to access:
 
    ![An example of Teleport Connect, populated with instances](../../img/use-teleport/connect-ui-overview.png)
 
@@ -284,18 +284,19 @@ list those that are accessible to your user under <Icon name="database" size="sm
 </TabItem>
 </Tabs>
 
-### Desktop Access
+### Desktop access
 
-Desktop access is available through the Teleport Web UI. In your browser,
-navigate to your Teleport cluster (e.g. 
+Desktop access is available through the Teleport Web UI. 
+
+1. In your browser, navigate to your Teleport cluster (for example, 
 <ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
 ).
 
 1. From the menu on the right, select <Icon name="desktop" inline size="sm"/> **Desktops**.
-2. Next to the desktop you want to access, click **CONNECT**. Select
+1. Next to the desktop you want to access, click **CONNECT**. Select
 or type in a username available to your Teleport user.
-3. Teleport will open a new browser tab or window and begin the RDP session.
+1. Teleport will open a new browser tab or window and begin the RDP session.
 Note that you may need to wait a moment for Teleport to log you in as the specified user.
 
 ## Next steps

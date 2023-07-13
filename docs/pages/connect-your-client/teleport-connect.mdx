@@ -64,34 +64,37 @@ which cluster the current tab is bound to, and the **Share Feedback** button in 
 
 ## Connecting to an SSH server
 
-1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
+- Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
    You can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
-2. Look for the SSH server you want to connect to and click the Connect button to the right.
-3. Select or enter the SSH user you wish to log in as and press `Enter`.
-4. A new tab will open with a shell session on the chosen server.
+- Look for the SSH server you want to connect to and click the Connect button to the right.
+- Select or enter the SSH user you wish to log in as and press `Enter`.
+
+A new tab will open with a shell session on the chosen server.
 
 Alternatively, you can type `tsh ssh` into the command bar in the Teleport Connect window, and the autocompletion will help
 you connect to a server.
 
 ## Connecting to a Kubernetes cluster
 
-1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
+- Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
    You can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
-2. Select the Kubes section.
-3. Look for the cluster you wish to connect to and click the Connect button to the right.
-4. A new local terminal tab will open which is preconfigured with the `$KUBECONFIG` environment variable
-   pointing to a configuration for the specified cluster. Any tools that you have installed that respect
-   the `$KUBECONFIG` environment variable (`kubectl`, `helm`, etc.) will work without additional configuration.
-   To identify the path to this config for use in other tools, run `echo $KUBECONFIG`.
+- Select the Kubes section.
+- Look for the cluster you wish to connect to and click the Connect button to the right.
+
+A new local terminal tab will open which is preconfigured with the `$KUBECONFIG` environment variable
+pointing to a configuration for the specified cluster. Any tools that you have installed that respect
+the `$KUBECONFIG` environment variable (`kubectl`, `helm`, etc.) will work without additional configuration.
+To identify the path to this config for use in other tools, run `echo $KUBECONFIG`.
 
 ## Connecting to a database
 
-1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
+- Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
   can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
-2. Select the Databases section.
-3. Look for the database server you wish to connect to and click the Connect button to the right.
-4. Select or enter the database user you wish to use and press `Enter`.
-5. A new tab will open with a new connection established between your device and the database server.
+- Select the Databases section.
+- Look for the database server you wish to connect to and click the Connect button to the right.
+- Select or enter the database user you wish to use and press `Enter`.
+
+A new tab will open with a new connection established between your device and the database server.
 
 This connection will remain active until you click the Close Connection button or close Teleport
 Connect. The port number will persist between app restarts—you can set up your favorite client
