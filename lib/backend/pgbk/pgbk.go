@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
@@ -249,17 +248,17 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 	var migrateErr error
 
 	if err := pgcommon.Retry0(ctx, b.log, func() error {
-		if _, err := b.pool.Exec(ctx,
+		_, err := b.pool.Exec(ctx,
 			`CREATE TABLE IF NOT EXISTS backend_version (
 				version integer PRIMARY KEY CHECK (version > 0),
 				created timestamptz NOT NULL DEFAULT now()
 			)`, pgx.QueryExecModeExec,
-		); err != nil && !pgcommon.IsCode(err, pgerrcode.InsufficientPrivilege) {
-			return trace.Wrap(err)
-		}
-		return nil
-	}); err != nil {
+		)
 		return trace.Wrap(err)
+	}); err != nil {
+		// the very first SELECT in the next transaction will fail, we don't
+		// need anything higher than debug here
+		b.log.WithError(err).Debug("Failed to confirm the existence of the backend_version table.")
 	}
 
 	if err := pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{
