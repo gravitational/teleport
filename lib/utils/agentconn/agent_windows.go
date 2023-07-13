@@ -21,7 +21,7 @@ package agentconn
 
 import (
 	"encoding/binary"
-	"fmt"
+	"encoding/hex"
 	"net"
 	"os"
 	"os/exec"
@@ -71,8 +71,13 @@ var (
 	// an optional 's ' that is sometimes set depending on the implementation,
 	// ending with a GUID which is used as a shared secret when handshaking
 	// with the SSH agent.
+	// example:
+	// !<socket >51463 s 043B28B0-30D7E90E-027C556A-314067F9
 	cygwinSocket = regexp.MustCompile(`!<socket >(\d+) (s )?([A-Fa-f0-9-]+)`)
 	// format of an output line from Cygwin 'ps'
+	// example:
+	//       PID    PPID    PGID     WINPID   TTY         UID    STIME COMMAND
+	//      1634    1540    1634       7356     ?      197608 14:31:52 /usr/bin/ps
 	psLine = regexp.MustCompile(`(?m)^\s+\d+\s+\d+\s+\d+\s+\d+\s+\?\s+(\d+)`)
 )
 
@@ -214,16 +219,18 @@ func attemptCygwinHandshake(port, key string, uid int64) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// 1. send hex-encoded GUID
-	keyBuf := make([]byte, 16)
-	fmt.Sscanf(
-		key,
-		"%02x%02x%02x%02x-%02x%02x%02x%02x-%02x%02x%02x%02x-%02x%02x%02x%02x",
-		&keyBuf[3], &keyBuf[2], &keyBuf[1], &keyBuf[0],
-		&keyBuf[7], &keyBuf[6], &keyBuf[5], &keyBuf[4],
-		&keyBuf[11], &keyBuf[10], &keyBuf[9], &keyBuf[8],
-		&keyBuf[15], &keyBuf[14], &keyBuf[13], &keyBuf[12],
-	)
+	// 1. send hex-decoded GUID in little endian
+	keyBuf := make([]byte, 0, 16)
+	dst := make([]byte, 4)
+	// handle each part of the GUID in order
+	for i := 8; i <= len(key); i += 9 {
+		_, err := hex.Decode(dst, []byte(key)[i-8:i])
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dst[0], dst[1], dst[2], dst[3] = dst[3], dst[2], dst[1], dst[0]
+		keyBuf = append(keyBuf, dst...)
+	}
 
 	if _, err = conn.Write(keyBuf); err != nil {
 		return nil, trace.Wrap(err)
