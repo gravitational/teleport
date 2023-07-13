@@ -4207,14 +4207,14 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 	return lease, nil
 }
 
+// UpdateOSSDesktopAlert manages alert to show OSS users if there are more than 3 non-AD desktops
 func (a *Server) UpdateOSSDesktopAlert(ctx context.Context) error {
-	windowsDesktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{NonAD: []bool{true}})
+	desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{OnlyNonAD: true})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	desktops := len(windowsDesktops)
 
-	if modules.GetModules().BuildType() == modules.BuildOSS && desktops > 3 {
+	if modules.GetModules().BuildType() == modules.BuildOSS && len(desktops) > 3 {
 		alert, err := types.NewClusterAlert(OSSDesktopsAlertId, OSSDesktopsAlertMessage,
 			types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),

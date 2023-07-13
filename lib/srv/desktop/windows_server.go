@@ -755,8 +755,8 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	}
 	desktop := desktops[0]
 
-	if desktop.NonAD() && buildType == "oss" {
-		desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{NonAD: []bool{true}})
+	if desktop.NonAD() && buildType == modules.BuildOSS {
+		desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{OnlyNonAD: true})
 		if err != nil {
 			log.WithError(err).Warning("Failed to fetch desktops")
 			sendTDPError("Teleport failed to fetch desktops.")

@@ -36,6 +36,28 @@ func NewWindowsDesktopService(backend backend.Backend) *WindowsDesktopService {
 	return &WindowsDesktopService{Backend: backend}
 }
 
+func (s *WindowsDesktopService) GetNonADDesktopsCount(ctx context.Context) (uint64, error) {
+	startKey := backend.Key(windowsDesktopsPrefix, "")
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	count := uint64(0)
+	for _, item := range result.Items {
+		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		if desktop.NonAD() {
+			count++
+		}
+	}
+
+	return count, nil
+}
+
 // GetWindowsDesktops returns all Windows desktops matching filter.
 func (s *WindowsDesktopService) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	startKey := backend.Key(windowsDesktopsPrefix, "")

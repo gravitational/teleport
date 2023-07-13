@@ -225,18 +225,10 @@ func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 	if f.Name != "" && req.GetName() != f.Name {
 		return false
 	}
-	if len(f.NonAD) == 0 {
-		return true
-	}
-	for _, nonAD := range f.NonAD {
-		if req.NonAD() == nonAD {
-			return true
-		}
-	}
-	return false
+	return req.NonAD() || !f.OnlyNonAD
 }
 
-// WindowsDesktops represents a list of windows desktops.
+// WindowsDesktops represents a list of Windows desktops.
 type WindowsDesktops []WindowsDesktop
 
 // Len returns the slice length.
