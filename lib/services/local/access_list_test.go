@@ -27,9 +27,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/types/accesslist"
+	"github.com/gravitational/teleport/lib/types/header"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -64,7 +64,7 @@ func TestAccessListCRUD(t *testing.T) {
 	// Fetch all access lists.
 	out, err = service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*types.AccessList{accessList1, accessList2}, out,
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2}, out,
 		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
 	))
 
@@ -94,7 +94,7 @@ func TestAccessListCRUD(t *testing.T) {
 	require.NoError(t, err)
 	out, err = service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*types.AccessList{accessList2}, out,
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList2}, out,
 		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
 	))
 
@@ -110,16 +110,16 @@ func TestAccessListCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
-func newAccessList(t *testing.T, name string) *types.AccessList {
+func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	t.Helper()
 
-	accessList, err := types.NewAccessList(
+	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: name,
 		},
-		types.AccessListSpec{
+		accesslist.Spec{
 			Description: "test access list",
-			Owners: []types.AccessListOwner{
+			Owners: []accesslist.Owner{
 				{
 					Name:        "test-user1",
 					Description: "test user 1",
@@ -129,31 +129,31 @@ func newAccessList(t *testing.T, name string) *types.AccessList {
 					Description: "test user 2",
 				},
 			},
-			Audit: types.AccessListAudit{
+			Audit: accesslist.Audit{
 				Frequency: time.Hour,
 			},
-			MembershipRequires: types.AccessListRequires{
+			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			OwnershipRequires: types.AccessListRequires{
+			OwnershipRequires: accesslist.Requires{
 				Roles: []string{"orole1", "orole2"},
 				Traits: map[string][]string{
 					"otrait1": {"ovalue1", "ovalue2"},
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			Grants: types.AccessListGrants{
+			Grants: accesslist.Grants{
 				Roles: []string{"grole1", "grole2"},
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []types.AccessListMember{
+			Members: []accesslist.Member{
 				{
 					Name:    "member1",
 					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),

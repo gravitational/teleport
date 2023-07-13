@@ -31,7 +31,7 @@ func getTestVal(isTestField bool, testVal string) string {
 		return testVal
 	}
 
-	return "_"
+	return "foo"
 }
 
 func TestServerSorter(t *testing.T) {

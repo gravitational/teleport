@@ -38,6 +38,7 @@ function main() {
 
     tarballName=$(teleportTarballName)
     curl --show-error --fail --location --remote-name ${cdnBaseURL}/${tarballName}
+    echo "Extracting teleport to $tempDir ..."
     tar -xzf ${tarballName}
 
     mkdir -p ./bin

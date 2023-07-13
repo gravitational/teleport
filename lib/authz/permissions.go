@@ -863,6 +863,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindNode, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
+						types.NewRule(types.KindServerInfo, services.RW()),
 					},
 					// wildcard any cluster available.
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},

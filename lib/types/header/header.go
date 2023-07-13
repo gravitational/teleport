@@ -22,21 +22,9 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/header/v1"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-// FromResourceHeaderV1 converts the resource header protobuf message into an internal resource header object.
-// This function does not use the builder due to the generics for the builder object.
-func FromResourceHeaderV1(msg *headerv1.ResourceHeader) *ResourceHeader {
-	return &ResourceHeader{
-		Kind:     msg.Kind,
-		SubKind:  msg.SubKind,
-		Version:  msg.Version,
-		Metadata: FromMetadataV1(msg.Metadata),
-	}
-}
 
 func ResourceHeaderFromMetadata(metadata Metadata) ResourceHeader {
 	return ResourceHeader{
@@ -162,16 +150,6 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 		return trace.BadParameter("resource has an empty Version field")
 	}
 	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
-}
-
-// FromMetadataV1 converts v1 metadata into an internal metadata object.
-func FromMetadataV1(msg *headerv1.Metadata) Metadata {
-	return Metadata{
-		Name:        msg.Name,
-		Description: msg.Description,
-		Labels:      msg.Labels,
-		Expires:     msg.Expires.AsTime(),
-	}
 }
 
 // Metadata is resource metadata
