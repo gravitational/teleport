@@ -2070,6 +2070,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Checks to see if attempting to interactively play desktops or not SSH, Kube types
 	if len(sessionEvents) > 0 {
 		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
 			message := "Desktop sessions cannot be viewed with tsh." +
