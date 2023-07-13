@@ -1,21 +1,22 @@
 ---
-title: OAuth2 and OIDC authentication for SSH
-description: How to configure SSH access with OAuth2 or OIDC (OpenID connect) using Teleport
-h1: OAuth2 / OIDC Authentication for SSH
+title: OAuth2 and OIDC authentication
+description: How to configure Teleport access with OAuth2 or OIDC (OpenID connect)
 ---
 
-This guide will explain how to configure an SSO provider using [OpenID Connect](http://openid.net/connect/)
-(also known as OIDC) to issue SSH credentials to a specific groups of users.
-When used in combination with role based access control (RBAC) it allows SSH
-administrators to define policies like:
+This guide will explain how to configure an SSO provider using [OpenID
+Connect](http://openid.net/connect/) (also known as OIDC) to issue Teleport
+credentials to a specific groups of users. When used in combination with role
+based access control (RBAC) it allows Teleport administrators to define
+policies like:
 
-- Only members of "DBA" group can SSH into machines running PostgreSQL.
+- Only members of "DBA" group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.
 
 ## Prerequisites
 
 - Admin access to the SSO/IdP being integrated with users assigned to groups/roles.
-- Teleport role with access to maintaining `oidc` resources. This is available in the default `editor` role.
+- Teleport role with access to maintaining `oidc` resources. This is available
+  in the default `editor` role.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
@@ -39,7 +40,7 @@ Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
 
 <Admonition type="tip">
-  For Google Workspace please follow our dedicated [Guide](google-workspace.mdx)
+For Google Workspace please follow our dedicated [Guide](google-workspace.mdx)
 </Admonition>
 
 ## OIDC Redirect URL
@@ -53,9 +54,10 @@ should be `https://proxy.example.com:3080/v1/webapi/oidc/callback`
 
 ## OIDC connector configuration
 
-The next step is to add an OIDC connector to Teleport. The connectors are manipulated
-via `tctl` [resource commands](../../reference/resources.mdx). To create a new connector,
-create a connector resource file in YAML format, for example `oidc-connector.yaml`.
+The next step is to add an OIDC connector to Teleport. The connectors are
+manipulated via `tctl` [resource commands](../../reference/resources.mdx). To
+create a new connector, create a connector resource file in YAML format, for
+example `oidc-connector.yaml`.
 
 The file contents are shown below. This connector requests the scope `group`
 from the identity provider then mapping the value to either to `admin` role or
@@ -198,7 +200,9 @@ spec:
 By default, Teleport will prompt end users to select an account each time they log in
 even if the user only has one account.
 
-Teleport now lets Teleport Admins configure this option. Since `prompt` is optional, by setting the variable to `none`, Teleport will override the default `select_account`.
+Teleport now lets Teleport Admins configure this option. Since `prompt` is
+optional, by setting the variable to `none`, Teleport will override the default
+`select_account`.
 
 ```yaml
 kind: oidc
@@ -209,8 +213,8 @@ spec:
   prompt: 'none'
 ```
 
-The below example will prompt the end-user for reauthentication and will require consent
-from the client.
+The below example will prompt the end-user for reauthentication and will require
+consent from the client.
 
 ```yaml
 kind: oidc
@@ -226,9 +230,12 @@ A list of available optional prompt parameters are available from the
 
 ### Optional: Disable email verification
 
-By default, Teleport will validate the `email_verified` claim, and users who attempt to sign in without a verified email address will be prevented from doing so.
+By default, Teleport will validate the `email_verified` claim, and users who
+attempt to sign in without a verified email address will be prevented from doing so.
 
-For testing and other purposes, you may opt out of this behavior by enabling `allow_unverified_email` in your OIDC connector. This option weakens the overall security of the system, so we do not recommend enabling it.
+For testing and other purposes, you may opt out of this behavior by enabling
+`allow_unverified_email` in your OIDC connector. This option weakens the overall
+security of the system, so we do not recommend enabling it.
 
 ```yaml
 kind: oidc
@@ -243,7 +250,8 @@ spec:
 
 By default, Teleport will use the user's email as their Teleport username.
 
-You can define a `username_claim` to specify the claim that should be used as the username instead.
+You can define a `username_claim` to specify the claim that should be used as
+the username instead:
 
 ```yaml
 kind: oidc
@@ -270,4 +278,3 @@ identity provider if you are not automatically redirected.
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
-
