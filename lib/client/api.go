@@ -2076,16 +2076,21 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Checks to see if attempting to interactively play desktops or not SSH, Kube types
+	// Return errors if this is desktop, app, db or unknown session.
 	if len(sessionEvents) > 0 {
-		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
+	        switch typ := sessionEvents[0].GetType(); typ {
+		case events.WindowsDesktopSessionStartEvent:
 			message := "Desktop sessions cannot be viewed with tsh." +
 				" Please use the browser to play this session or use tsh recordings export to get a video download."
 			return trace.BadParameter("%s", message)
-		} else if sessionEvents[0].GetType() != events.SessionStartEvent {
+		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
 			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
 				" To play entries for Application and Database you must use the json or yaml format."+
 				" \nEx: tsh play -f json %s", sid)
+		case events.SessionStartEvent:
+			// proceed without error
+		default:
+			return trace.BadParameter("unknown session type %q", typ)
 		}
 	}
 	stream, err = w.SessionChunks()
