@@ -2078,7 +2078,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	}
 	// Return errors if this is desktop, app, db or unknown session.
 	if len(sessionEvents) > 0 {
-	        switch typ := sessionEvents[0].GetType(); typ {
+		switch typ := sessionEvents[0].GetType(); typ {
 		case events.WindowsDesktopSessionStartEvent:
 			message := "Desktop sessions cannot be viewed with tsh." +
 				" Please use the browser to play this session or use tsh recordings export to get a video download."
