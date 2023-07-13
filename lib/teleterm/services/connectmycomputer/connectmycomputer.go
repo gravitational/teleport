@@ -108,15 +108,40 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 			return noCertsReloaded, trace.Wrap(err, "creating role %v", role.GetName())
 		}
 	} else {
+		s.cfg.Log.Infof("The role %v already exists", roleName)
+		isRoleDirty := false
+
+		// Ensure that the current system username is in the role.
+		//
+		// This is to account for a use case where the same cluster user attempts to set up the role on
+		// two different devices, potentially using two different system usernames. Since the role is
+		// scoped per cluster user, it must include both system username
 		allowedLogins := existingRole.GetLogins(types.Allow)
 
-		if slices.Contains(allowedLogins, systemUser.Username) {
-			s.cfg.Log.Infof("The role %v already exists and includes current system username.", roleName)
-		} else {
+		if !slices.Contains(allowedLogins, systemUser.Username) {
 			s.cfg.Log.Infof("Adding %v to the logins of the role %v.", systemUser.Username, roleName)
 
 			existingRole.SetLogins(types.Allow, append(allowedLogins, systemUser.Username))
+			isRoleDirty = true
+		}
 
+		// Ensure that the owner label has the expected value.
+		//
+		// This can happen only if someone has manually edited the role. Ensuring it has the expected
+		// value will make sure that the user is able to connect to relevant nodes. This is done more to
+		// reduce the support load than to make the feature more secure.
+		allowedNodeLabels := existingRole.GetNodeLabels(types.Allow)
+		ownerNodeLabelValue := allowedNodeLabels[types.ConnectMyComputerNodeOwnerLabel]
+		expectedOwnerNodeLabelValue := []string{clusterUser.GetName()}
+
+		if !slices.Equal(ownerNodeLabelValue, expectedOwnerNodeLabelValue) {
+			s.cfg.Log.Infof("Overwriting the owner node label in the role %v.", roleName)
+
+			allowedNodeLabels[types.ConnectMyComputerNodeOwnerLabel] = expectedOwnerNodeLabelValue
+			isRoleDirty = true
+		}
+
+		if isRoleDirty {
 			timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
 			err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, existingRole, func(ctx context.Context) error {

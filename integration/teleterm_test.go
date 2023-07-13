@@ -284,6 +284,21 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			},
 		},
 		{
+			name: "role exists and owner node label was changed",
+			existingRole: func(userName string) types.RoleV6 {
+				return types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Allow: types.RoleConditions{
+							NodeLabels: types.Labels{
+								types.ConnectMyComputerNodeOwnerLabel: []string{"bogus-username"},
+							},
+							Logins: []string{systemUser.Username},
+						},
+					},
+				}
+			},
+		},
+		{
 			name:               "user already has existing role that includes current system username",
 			userAlreadyHasRole: true,
 			existingRole: func(userName string) types.RoleV6 {
@@ -308,6 +323,22 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 						Allow: types.RoleConditions{
 							NodeLabels: types.Labels{
 								types.ConnectMyComputerNodeOwnerLabel: []string{userName},
+							},
+							Logins: []string{fmt.Sprintf("bogus-login-%v", uuid.NewString())},
+						},
+					},
+				}
+			},
+		},
+		{
+			name:               "user already has existing role with modified owner node label",
+			userAlreadyHasRole: true,
+			existingRole: func(userName string) types.RoleV6 {
+				return types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Allow: types.RoleConditions{
+							NodeLabels: types.Labels{
+								types.ConnectMyComputerNodeOwnerLabel: []string{"bogus-username"},
 							},
 							Logins: []string{fmt.Sprintf("bogus-login-%v", uuid.NewString())},
 						},
