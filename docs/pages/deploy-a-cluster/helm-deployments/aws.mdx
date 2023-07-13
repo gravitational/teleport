@@ -105,7 +105,7 @@ You should be aware of these potential limitations and differences when using La
 - The reason for both of these requirements is that Teleport uses X509 certificates for authentication, which requires
   that it terminate all inbound TLS traffic itself on the Teleport proxy. This is not directly possible when using
   a Layer 7 load balancer, so the `tsh` client implements this flow itself
-  [using ALPN connection upgrades](../../architecture/tls-routing.mdx/#working-with-layer-7-load-balancers-or-reverse-proxies-preview).
+  [using ALPN connection upgrades](../../architecture/tls-routing.mdx#working-with-layer-7-load-balancers-or-reverse-proxies-preview).
 - The use of Teleport and `tsh` v13 or higher is required.
 
 <Admonition type="warning">
