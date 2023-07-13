@@ -42,8 +42,6 @@ type Cluster struct {
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
-	// RootClusterName is the root cluster name.
-	RootClusterName string
 	// Log is a component logger
 	Log *logrus.Entry
 	// dir is the directory where cluster certificates are stored

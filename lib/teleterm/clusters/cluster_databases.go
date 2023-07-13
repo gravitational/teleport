@@ -258,7 +258,13 @@ func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, optio
 		cluster.clusterClient,
 		&cluster.status,
 		routeToDb,
-		cluster.RootClusterName,
+		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
+		// clusters.
+		//
+		// At this point it doesn't matter though because this argument is used only for
+		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
+		// included in the returned CLI command.
+		cluster.Name,
 		options...,
 	)
 }
