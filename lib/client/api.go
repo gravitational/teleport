@@ -2070,6 +2070,17 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if len(sessionEvents) > 0 {
+		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {	
+			message := "Desktop sessions cannot be viewed with tsh." +
+				" Please use the browser to play this session."
+			return trace.BadParameter("%s", message)
+		} else if sessionEvents[0].GetType() != events.SessionStartEvent {
+			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
+				" To play entries for Application and Database you must use the json or yaml format."+
+				" \nEx: tsh play -f json %s", sid)
+		}
+	}
 	stream, err = w.SessionChunks()
 	if err != nil {
 		return trace.Wrap(err)
