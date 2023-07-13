@@ -428,6 +428,7 @@
     "iamserviceaccount",
     "idps",
     "importcert",
+    "ingressclass",
     "initcontainers",
     "insecureskipproxytlsverify",
     "ioreg",
