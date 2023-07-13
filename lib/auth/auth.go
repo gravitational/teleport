@@ -117,7 +117,7 @@ const (
 )
 
 const (
-	OSSDesktopsAlertId      = "oss-desktops"
+	OSSDesktopsAlertID      = "oss-desktops"
 	OSSDesktopsAlertMessage = "OSS license only allows 3 Non-AD desktops configured. " +
 		"You won't be able to connect to any of them if there are more" +
 		"Please contact Sales to upgrade your license"
@@ -4215,7 +4215,7 @@ func (a *Server) UpdateOSSDesktopAlert(ctx context.Context) error {
 	}
 
 	if modules.GetModules().BuildType() == modules.BuildOSS && len(desktops) > 3 {
-		alert, err := types.NewClusterAlert(OSSDesktopsAlertId, OSSDesktopsAlertMessage,
+		alert, err := types.NewClusterAlert(OSSDesktopsAlertID, OSSDesktopsAlertMessage,
 			types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertPermitAll, "yes"),
@@ -4224,7 +4224,7 @@ func (a *Server) UpdateOSSDesktopAlert(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(a.UpsertClusterAlert(ctx, alert))
-	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertId); err != nil && !trace.IsNotFound(err) {
+	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	return nil
