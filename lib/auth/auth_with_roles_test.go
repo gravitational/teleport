@@ -2975,45 +2975,56 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	require.Len(t, testNodes, numTestNodes)
 
 	// create user and client
-	user, role, err := CreateUserAndRole(srv.Auth(), "user", []string{"user"}, nil)
+	requester, role, err := CreateUserAndRole(srv.Auth(), "requester", []string{"requester"}, nil)
 	require.NoError(t, err)
 
 	// only allow user to see first node
 	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
 
 	// create a new role which can see second node
-	searchAsRole := services.RoleForUser(user)
+	searchAsRole := services.RoleForUser(requester)
 	searchAsRole.SetName("test_search_role")
 	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
-	searchAsRole.SetLogins(types.Allow, []string{"user"})
+	searchAsRole.SetLogins(types.Allow, []string{"requester"})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
 
 	// create a third role which can see the third node
-	previewAsRole := services.RoleForUser(user)
+	previewAsRole := services.RoleForUser(requester)
 	previewAsRole.SetName("test_preview_role")
 	previewAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[2].GetName()}})
-	previewAsRole.SetLogins(types.Allow, []string{"user"})
+	previewAsRole.SetLogins(types.Allow, []string{"requester"})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, previewAsRole))
 
 	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
 	role.SetPreviewAsRoles(types.Allow, []string{previewAsRole.GetName()})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
-	clt, err := srv.NewClient(TestUser(user.GetName()))
+	requesterClt, err := srv.NewClient(TestUser(requester.GetName()))
+	require.NoError(t, err)
+
+	// create another user that can see all nodes but has no search_as_roles or
+	// preview_as_roles
+	admin, _, err := CreateUserAndRole(srv.Auth(), "admin", []string{"admin"}, nil)
+	require.NoError(t, err)
+	adminClt, err := srv.NewClient(TestUser(admin.GetName()))
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		desc                   string
+		clt                    *Client
 		requestOpt             func(*proto.ListResourcesRequest)
 		expectNodes            []string
+		expectSearchEvent      bool
 		expectSearchEventRoles []string
 	}{
 		{
-			desc:        "basic",
+			desc:        "no search",
+			clt:         requesterClt,
 			expectNodes: []string{testNodes[0].GetName()},
 		},
 		{
 			desc: "search as roles",
+			clt:  requesterClt,
 			requestOpt: func(req *proto.ListResourcesRequest) {
 				req.UseSearchAsRoles = true
 			},
@@ -3022,6 +3033,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		},
 		{
 			desc: "preview as roles",
+			clt:  requesterClt,
 			requestOpt: func(req *proto.ListResourcesRequest) {
 				req.UsePreviewAsRoles = true
 			},
@@ -3030,6 +3042,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		},
 		{
 			desc: "both",
+			clt:  requesterClt,
 			requestOpt: func(req *proto.ListResourcesRequest) {
 				req.UseSearchAsRoles = true
 				req.UsePreviewAsRoles = true
@@ -3037,8 +3050,25 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			expectNodes:            []string{testNodes[0].GetName(), testNodes[1].GetName(), testNodes[2].GetName()},
 			expectSearchEventRoles: []string{role.GetName(), searchAsRole.GetName(), previewAsRole.GetName()},
 		},
+		{
+			// this tests the case where the request includes UseSearchAsRoles
+			// and UsePreviewAsRoles, but the user has none, so there should be
+			// no audit event.
+			desc: "no extra roles",
+			clt:  adminClt,
+			requestOpt: func(req *proto.ListResourcesRequest) {
+				req.UseSearchAsRoles = true
+				req.UsePreviewAsRoles = true
+			},
+			expectNodes: []string{testNodes[0].GetName(), testNodes[1].GetName(), testNodes[2].GetName()},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
+			// Overwrite the auth server emitter to capture all events emitted
+			// during this test case.
+			emitter := eventstest.NewChannelEmitter(1)
+			srv.AuthServer.AuthServer.emitter = emitter
+
 			req := proto.ListResourcesRequest{
 				ResourceType: types.KindNode,
 				Limit:        int32(len(testNodes)),
@@ -3046,7 +3076,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			if tc.requestOpt != nil {
 				tc.requestOpt(&req)
 			}
-			resp, err := clt.ListResources(ctx, req)
+			resp, err := tc.clt.ListResources(ctx, req)
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, len(tc.expectNodes))
 			var gotNodes []string
@@ -3056,29 +3086,11 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			require.ElementsMatch(t, tc.expectNodes, gotNodes)
 
 			if len(tc.expectSearchEventRoles) > 0 {
-				require.Eventually(t, func() bool {
-					// make sure an audit event is logged for the search
-					auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-						From:       time.Time{},
-						To:         time.Now(),
-						EventTypes: []string{events.AccessRequestResourceSearch},
-						Limit:      10,
-						Order:      types.EventOrderAscending,
-					})
-					require.NoError(t, err)
-					if len(auditEvents) == 0 {
-						t.Log("no search audit events found")
-						return false
-					}
-					lastEvent := auditEvents[len(auditEvents)-1].(*apievents.AccessRequestResourceSearch)
-					diff := cmp.Diff(tc.expectSearchEventRoles, lastEvent.SearchAsRoles)
-					if diff == "" {
-						// Found the event we're looking for.
-						return true
-					}
-					t.Logf("most recent search event does not have the expected roles, diff: %s", diff)
-					return false
-				}, 10*time.Second, 250*time.Millisecond, "did not find expected search event")
+				searchEvent := <-emitter.C()
+				require.ElementsMatch(t, tc.expectSearchEventRoles, searchEvent.(*apievents.AccessRequestResourceSearch).SearchAsRoles)
+			} else {
+				// expect no event to have been emitted
+				require.Empty(t, emitter.C())
 			}
 		})
 	}
