@@ -2071,7 +2071,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 		return trace.Wrap(err)
 	}
 	if len(sessionEvents) > 0 {
-		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {	
+		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
 			message := "Desktop sessions cannot be viewed with tsh." +
 				" Please use the browser to play this session."
 			return trace.BadParameter("%s", message)
