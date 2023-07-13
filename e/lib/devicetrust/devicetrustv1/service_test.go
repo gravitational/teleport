@@ -151,6 +151,7 @@ func TestService_authz(t *testing.T) {
 			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbList},
+					{rule: types.KindDevice, verb: types.VerbRead},
 				},
 			},
 			rpc: func() error {
@@ -181,6 +182,7 @@ func TestService_authz(t *testing.T) {
 			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbList},
+					{rule: types.KindDevice, verb: types.VerbRead},
 				},
 			},
 			rpc: func() error {
@@ -222,6 +224,7 @@ func TestService_authz(t *testing.T) {
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbCreate},
 					{rule: types.KindDevice, verb: types.VerbUpdate},
+					{rule: types.KindDevice, verb: types.VerbList},
 					{rule: types.KindDevice, verb: types.VerbDelete},
 				},
 			},

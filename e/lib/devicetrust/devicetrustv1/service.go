@@ -383,7 +383,7 @@ func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRe
 }
 
 func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequest) (*devicepb.FindDevicesResponse, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if req.IdOrTag == "" {
@@ -443,7 +443,7 @@ func (s *Service) GetDevice(ctx context.Context, req *devicepb.GetDeviceRequest)
 }
 
 func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequest) (*devicepb.ListDevicesResponse, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -811,8 +811,14 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 }
 
 func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventoryServer) error {
+	verbs := []string{
+		types.VerbCreate,
+		types.VerbUpdate,
+		types.VerbList,   // listing of missing devices
+		types.VerbDelete, // removal of missing devices
+	}
 	ctx := stream.Context()
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate, types.VerbUpdate, types.VerbDelete); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, verbs...); err != nil {
 		return trace.Wrap(err)
 	}
 
