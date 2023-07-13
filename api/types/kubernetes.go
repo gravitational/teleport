@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"time"
 
@@ -327,6 +328,18 @@ func (k *KubernetesClusterV3) setStaticFields() {
 	k.Version = V3
 }
 
+// validKubeClusterName filters the allowed characters in kubernetes cluster
+// names. We need this because cluster names are used for cert filenames on the
+// client side, in the ~/.tsh directory. Restricting characters helps with
+// sneaky cluster names being used for client directory traversal and exploits.
+var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+// ValidateKubeClusterName returns an error if a given string is not a valid
+// KubeCluster name.
+func ValidateKubeClusterName(name string) error {
+	return ValidateResourceName(validKubeClusterName, name)
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	k.setStaticFields()
@@ -337,6 +350,10 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("kubernetes cluster %q invalid label key: %q", k.GetName(), key)
 		}
+	}
+
+	if err := ValidateKubeClusterName(k.Metadata.Name); err != nil {
+		return trace.Wrap(err, "invalid kubernetes cluster name")
 	}
 
 	if err := k.Spec.Azure.CheckAndSetDefaults(); err != nil && k.IsAzure() {

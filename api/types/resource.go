@@ -512,3 +512,14 @@ type ListResourcesResponse struct {
 	// TotalCount is the total number of resources available as a whole.
 	TotalCount int
 }
+
+// ValidateResourceName validates a resource name using a given regexp.
+func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
+	if validationRegex.MatchString(name) {
+		return nil
+	}
+	return trace.BadParameter(
+		"%q does not match regex used for validation %q",
+		name, validationRegex.String(),
+	)
+}
