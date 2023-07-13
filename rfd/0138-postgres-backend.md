@@ -68,8 +68,9 @@ CREATE TABLE events (
     creation_time timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
 );
-CREATE INDEX events_creation_time_idx ON events (creation_time);
-CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id) WHERE session_id != '00000000-0000-0000-0000-000000000000';
+CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);
+CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
+    WHERE session_id != '00000000-0000-0000-0000-000000000000';
 ```
 
 While the database schema is compatible with the one for the backend, we are going to strongly discourage running the backend and the audit log in the same database (using two different databases in the same instance of Postgres is ok), because logical decoding is per-database, not per-table, and keeping both in the same database will require extra work to filter out the changes to the audit log - especially when sifting through the transactions deleting events that are past the retention period.
