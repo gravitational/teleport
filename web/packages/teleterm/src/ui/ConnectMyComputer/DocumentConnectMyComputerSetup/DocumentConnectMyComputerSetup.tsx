@@ -25,7 +25,7 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { useRetryWithRelogin } from 'teleterm/ui/utils';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -88,10 +88,8 @@ function AgentSetup() {
   const { rootClusterUri } = useWorkspaceContext();
 
   const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
-    useRetryWithRelogin(
-      ctx,
-      rootClusterUri,
-      useCallback(async () => {
+    useCallback(async () => {
+      retryWithRelogin(ctx, rootClusterUri, async () => {
         let certsReloaded = false;
 
         try {
@@ -113,8 +111,8 @@ function AgentSetup() {
         if (certsReloaded) {
           await ctx.clustersService.syncRootCluster(rootClusterUri);
         }
-      }, [ctx.connectMyComputerService, ctx.clustersService, rootClusterUri])
-    )
+      });
+    }, [ctx, rootClusterUri])
   );
   const [downloadAgentAttempt, runDownloadAgentAttempt] = useAsync(
     useCallback(

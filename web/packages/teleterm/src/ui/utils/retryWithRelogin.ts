@@ -80,51 +80,6 @@ export async function retryWithRelogin<T>(
   return await actionToRetry();
 }
 
-/**
- * useRetryWithRelogin is the hook version of retryWithRelogin. Typically used in conjunction with
- * useAsync and useCallback.
- *
- * @example Accepting arguments.
- * const [attempt, createGateway] = useAsync(async (port: string) =>
- *   useRetryWithRelogin(
- *     ctx,
- *     clusterUri,
- *     useCallback(async () => {
- *       try {
- *         const response = await foo.createGateway(port)
- *       } catch (error) {
- *         // Custom error handling logic
- *       }
- *     }, [foo])
- *   )
- * )
- *
- * @example No arguments.
- * const [attempt, createGateway] = useAsync(
- *   useRetryWithRelogin(
- *     ctx,
- *     clusterUri,
- *     useCallback(async () => {
- *       try {
- *         const response = await foo.createGateway()
- *       } catch (error) {
- *         // Custom error handling logic
- *       }
- *     }, [foo])
- *   )
- * )
- */
-export function useRetryWithRelogin<T>(
-  appContext: IAppContext,
-  resourceUri: ClusterOrResourceUri,
-  callback: () => Promise<T>
-): () => Promise<T> {
-  return useCallback(
-    () => retryWithRelogin(appContext, resourceUri, callback),
-    [appContext, resourceUri, callback]
-  );
-}
-
 export function isRetryable(error: unknown): boolean {
   // TODO(ravicious): Replace this with actual check on metadata.
   return (
