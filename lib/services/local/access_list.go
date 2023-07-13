@@ -74,8 +74,11 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 }
 
 // UpsertAccessList creates or updates an access list resource.
-func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) error {
-	return trace.Wrap(a.svc.UpsertResource(ctx, accessList))
+func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	if err := trace.Wrap(a.svc.UpsertResource(ctx, accessList)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return accessList, nil
 }
 
 // DeleteAccessList removes the specified access list resource.

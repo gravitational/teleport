@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Conversation } from 'teleport/Assist/Conversation';
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { MessageBox } from 'teleport/Assist/MessageBox';
-import { LandingPage } from 'teleport/Assist/LandingPage';
 import { ViewMode } from 'teleport/Assist/types';
 
 interface ConversationListProps {
@@ -41,48 +40,64 @@ const Container = styled.div.attrs({ 'data-scrollbar': 'default' })`
 
 export function ConversationList(props: ConversationListProps) {
   const ref = useRef<HTMLDivElement>();
+  const scrollRef = useRef<HTMLDivElement>();
 
+  const shouldScroll = useRef(true);
   const scrolling = useRef<boolean>(false);
+  const setScrollingTimeout = useRef<number>(null);
 
-  const { conversations, selectedConversationMessages } = useAssist();
+  const { messages, selectedConversationMessages } = useAssist();
 
-  function scroll() {
+  function scrollIfNotScrolling() {
+    if (!shouldScroll.current || scrolling.current) {
+      return;
+    }
+
     scrolling.current = true;
 
     ref.current.scrollIntoView({ behavior: 'smooth' });
 
-    window.setTimeout(() => (scrolling.current = false), 1000);
+    setScrollingTimeout.current = window.setTimeout(() => {
+      scrolling.current = false;
+    }, 1000);
   }
 
   useEffect(() => {
-    if (!ref.current || scrolling.current) {
+    if (!scrollRef.current) {
       return;
     }
 
-    scroll();
-  }, [selectedConversationMessages, scrolling.current]);
+    function onscroll() {
+      const scrollPosition = scrollRef.current.scrollTop;
+      const maxScrollPosition =
+        scrollRef.current.scrollHeight - scrollRef.current.clientHeight;
 
-  useLayoutEffect(() => {
-    if (!ref.current || scrolling.current) {
+      // if the user has scrolled more than 50px from the bottom of the chat, assume they don't want the message list
+      // to auto scroll.
+      shouldScroll.current = scrollPosition > maxScrollPosition - 50;
+    }
+
+    scrollRef.current.addEventListener('wheel', onscroll);
+
+    return () => scrollRef.current.removeEventListener('wheel', onscroll);
+  }, []);
+
+  useEffect(() => {
+    if (!ref.current || messages.loading) {
       return;
     }
 
-    const id = window.setTimeout(scroll, 500);
-
-    return () => window.clearTimeout(id);
-  }, [props.viewMode, scrolling.current]);
-
-  if (!conversations.selectedId) {
-    return <LandingPage />;
-  }
+    scrollIfNotScrolling();
+  }, [props.viewMode, messages.loading, selectedConversationMessages]);
 
   return (
     <>
-      <Container>
+      <Container ref={scrollRef}>
         <Conversation />
 
         <div ref={ref} />
       </Container>
+
       <MessageBox errorMessage={null} />
     </>
   );

@@ -55,25 +55,27 @@ func TestAccessListCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+	}
+
 	// Create both access lists.
-	err = service.UpsertAccessList(ctx, accessList1)
+	accessList, err := service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
-	err = service.UpsertAccessList(ctx, accessList2)
+	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
+	accessList, err = service.UpsertAccessList(ctx, accessList2)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList2, accessList, cmpOpts...))
 
 	// Fetch all access lists.
 	out, err = service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2}, out,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	))
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2}, out, cmpOpts...))
 
 	// Fetch a specific access list.
-	accessList, err := service.GetAccessList(ctx, accessList2.GetName())
+	accessList, err = service.GetAccessList(ctx, accessList2.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList2, accessList,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	))
+	require.Empty(t, cmp.Diff(accessList2, accessList, cmpOpts...))
 
 	// Try to fetch an access list that doesn't exist.
 	_, err = service.GetAccessList(ctx, "doesnotexist")
@@ -81,22 +83,19 @@ func TestAccessListCRUD(t *testing.T) {
 
 	// Update an access list.
 	accessList1.SetExpiry(clock.Now().Add(30 * time.Minute))
-	err = service.UpsertAccessList(ctx, accessList1)
+	accessList, err = service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 	accessList, err = service.GetAccessList(ctx, accessList1.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList1, accessList,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	))
+	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 
 	// Delete an access list.
 	err = service.DeleteAccessList(ctx, accessList1.GetName())
 	require.NoError(t, err)
 	out, err = service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList2}, out,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	))
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList2}, out, cmpOpts...))
 
 	// Try to delete an access list that doesn't exist.
 	err = service.DeleteAccessList(ctx, "doesnotexist")
