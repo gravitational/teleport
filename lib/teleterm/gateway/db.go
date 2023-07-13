@@ -17,6 +17,7 @@ limitations under the License.
 package gateway
 
 import (
+	"context"
 	"crypto/tls"
 
 	"github.com/gravitational/trace"
@@ -73,9 +74,11 @@ func makeDatabaseGateway(cfg Config) (Database, error) {
 
 	if d.cfg.OnExpiredCert != nil {
 		localProxyConfig.Middleware = &dbMiddleware{
-			log:           d.cfg.Log,
-			dbRoute:       d.cfg.RouteToDatabase(),
-			onExpiredCert: d.onExpiredCert,
+			log:     d.cfg.Log,
+			dbRoute: d.cfg.RouteToDatabase(),
+			onExpiredCert: func(ctx context.Context) error {
+				return trace.Wrap(d.cfg.OnExpiredCert(ctx, d))
+			},
 		}
 	}
 

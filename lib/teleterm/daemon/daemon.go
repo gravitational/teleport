@@ -250,7 +250,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
-	cliCommandProvider, err := s.cfg.CLICommandProviderManager.Get(uri.New(params.TargetURI))
+	cliCommandProvider, err := s.getGatewayCLICommandProvider(targetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -279,6 +279,17 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
+}
+
+func (s *Service) getGatewayCLICommandProvider(targetURI uri.ResourceURI) (gateway.CLICommandProvider, error) {
+	switch {
+	case targetURI.IsDB():
+		return s.cfg.DBCLICommandProvider, nil
+	case targetURI.IsKube():
+		return s.cfg.KubeCLICommandProvider, nil
+	default:
+		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
+	}
 }
 
 // reissueGatewayCerts tries to reissue gateway certs.

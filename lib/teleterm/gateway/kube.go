@@ -17,6 +17,7 @@ limitations under the License.
 package gateway
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/pem"
 
@@ -124,7 +125,9 @@ func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	certReissuer := newKubeCertReissuer(cert, k.onExpiredCert)
+	certReissuer := newKubeCertReissuer(cert, func(ctx context.Context) error {
+		return trace.Wrap(k.cfg.OnExpiredCert(ctx, k))
+	})
 	k.onNewCertFuncs = append(k.onNewCertFuncs, certReissuer.updateCert)
 
 	certs := make(alpnproxy.KubeClientCerts)

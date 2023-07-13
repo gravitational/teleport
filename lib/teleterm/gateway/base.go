@@ -66,7 +66,7 @@ func NewWithLocalPort(gateway Gateway, port string) (Gateway, error) {
 
 	cloner, ok := gateway.(configCloner)
 	if !ok {
-		return nil, trace.BadParameter("failed to convert gateway to *base")
+		return nil, trace.BadParameter("failed to convert gateway to configCloner")
 	}
 
 	cfg := cloner.cloneConfig()
@@ -229,13 +229,6 @@ func (b *base) ReloadCert() error {
 	}
 
 	return trace.NewAggregate(errs...)
-}
-
-func (b *base) onExpiredCert(ctx context.Context) error {
-	if b.cfg.OnExpiredCert == nil {
-		return nil
-	}
-	return trace.Wrap(b.cfg.OnExpiredCert(ctx, b))
 }
 
 func (b *base) cloneConfig() Config {
