@@ -677,6 +677,7 @@
     "splunkd",
     "splunkforwarder",
     "sqlcl",
+    "sqlcmd",
     "sqlnet",
     "sqlserver",
     "sshcacerts",
@@ -785,5 +786,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

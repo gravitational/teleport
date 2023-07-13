@@ -1,5 +1,32 @@
 # Changelog
 
+## 11.3.17 (07/13/23)
+
+* Application Access
+  * Fixed issue with application's original URL query not being preserved after auth redirect. [#28220](https://github.com/gravitational/teleport/pull/28220)
+* Audit Log
+  * Fixed issue with Kubernetes audit events reporting incorrect users/groups in some cases. [#28339](https://github.com/gravitational/teleport/pull/28339)
+* Database Access
+  * Updated `tsh db connect` to prefer `sqlcmd` when connecting to SQL Server. [#28942](https://github.com/gravitational/teleport/pull/28942)
+  * Updated `tsh db connect` to prefer `mongosh` when connecting to MongoDB. [#28669](https://github.com/gravitational/teleport/pull/28669)
+* Desktop Access
+  * Improved handling of LDAP errors. [#29008](https://github.com/gravitational/teleport/pull/29008)
+* CLI
+  * Updated `tctl alerts ack` command to make `--reason` flag optional. [#28953](https://github.com/gravitational/teleport/pull/28953)
+  * Updated `tctl alert ls` command to always show alert ID. [#28904](https://github.com/gravitational/teleport/pull/28904)
+  * Updated `tsh request search` command to deduplicate resources. [#28902](https://github.com/gravitational/teleport/pull/28902)
+* Installation
+  * Fixed issue with installing RPM packages on FIPS-enabled RHEL 8 systems. [#28797](https://github.com/gravitational/teleport/pull/28797)
+  * Fixed issue with unbound variable in auto-discovery installer script. [#28410](https://github.com/gravitational/teleport/pull/28410)
+* Scalability & Reliability
+  * Updated Firestore backend to better handle situations when same collection is used for cluster data and audit events. [#28739](https://github.com/gravitational/teleport/pull/28739)
+  * Fixed issue with bad database objects leading to cache initialization failures. [#28641](https://github.com/gravitational/teleport/pull/28641)
+  * Fixed issue with client idle timeout not recognizing user activity. [#28227](https://github.com/gravitational/teleport/pull/28227)
+* Internal
+  * Updated OpenSSL to version 3.0. [#28439](https://github.com/gravitational/teleport/pull/28439)
+* Web UI
+  * Added message of the day support to web UI. [#27933](https://github.com/gravitational/teleport/pull/27933), [#28935](https://github.com/gravitational/teleport/pull/28935)
+
 ## 11.3.16 (06/21/23)
 
 * Desktop Access
