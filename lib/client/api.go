@@ -2354,12 +2354,21 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 
 	// Return an error if it is a desktop session
 	if len(sessionEvents) > 0 {
-		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
+		switch typ := sessionEvents[0].GetType(); typ {
+		case events.WindowsDesktopSessionStartEvent:
 			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
 			message := "Desktop sessions cannot be viewed with tsh." +
 				" Please use the browser to play this session." +
 				" Click on the URL to view the session in the browser:"
 			return trace.BadParameter("%s\n%s", message, url)
+		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
+			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
+				" To play entries for Application and Database you must use the json or yaml format."+
+				" \nEx: tsh play -f json %s", sid)
+		case events.SessionStartEvent:
+			// proceed without error
+		default:
+			return trace.BadParameter("unknown session type %q", typ)
 		}
 	}
 
@@ -2429,6 +2438,23 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	sessionEvents, err = w.SessionEvents()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// Return errors if this is desktop, app, db or unknown session.
+	if len(sessionEvents) > 0 {
+		switch typ := sessionEvents[0].GetType(); typ {
+		case events.WindowsDesktopSessionStartEvent:
+			message := "Desktop sessions cannot be viewed with tsh." +
+				" Please use the browser to play this session."
+			return trace.BadParameter("%s", message)
+		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
+			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
+				" To play entries for Application and Database you must use the json or yaml format."+
+				"\nEx: tsh play -f json %s", sid)
+		case events.SessionStartEvent:
+			// proceed without error
+		default:
+			return trace.BadParameter("unknown session type %q", typ)
+		}
 	}
 	stream, err = w.SessionChunks()
 	if err != nil {
