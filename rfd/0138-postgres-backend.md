@@ -64,7 +64,7 @@ CREATE TABLE events (
     event_id uuid NOT NULL,
     event_type text NOT NULL,
     session_id uuid NOT NULL,
-    event_data json NOT NULL,
+    event_data bytea NOT NULL,
     creation_time timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
 );
