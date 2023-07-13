@@ -86,6 +86,7 @@ func WithLimiter(l devicetrustv1.RateLimiter) Opt {
 }
 
 // MustNew creates a new [E] or panics.
+// Prefer [NewUsingT], as it configures [modules.TestModules] automatically.
 func MustNew(opts ...Opt) *E {
 	env, err := New(opts...)
 	if err != nil {
@@ -105,11 +106,15 @@ func NewUsingT(t *testing.T, opts ...Opt) *E {
 	}
 	t.Cleanup(func() { _ = env.Close() })
 
-	// A few device trust endpoints (like authn) indirectly check for Enterprise.
-	// It's a bit silly in this module (since this is teleport.e), but those
-	// checks come from OSS code.
+	// Set the build to Enterprise (required by a few OSS checks) and enable the
+	// device trust feature.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			DeviceTrust: modules.DeviceTrustFeature{
+				Enabled: true,
+			},
+		},
 	})
 
 	return env

@@ -181,5 +181,10 @@ func getLicenseFeatures(license types.License) modules.Features {
 		// Assist is disabled by default on Cloud.
 		// In case of the Team plan, this gets overridden to `true` by the dynamic features from Sales Center
 		Assist: !license.GetCloud().Value(),
+		// Device trust is enabled and unlimited, by default, for Enterprise/Cloud.
+		// Team accounts limitations are handled by [feature.FetchFromCloud].
+		DeviceTrust: modules.DeviceTrustFeature{
+			Enabled: true,
+		},
 	}
 }

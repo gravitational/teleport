@@ -7,12 +7,14 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -20,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type unsupportedDeviceSimulator struct {
@@ -49,14 +52,12 @@ func (e *unsupportedDeviceSimulator) enrollRequest(dev *devicepb.Device, enrollT
 func TestService_EnrollDevice(t *testing.T) {
 	deviceTrustConfig := &types.DeviceTrust{}
 	emitter := &eventstest.MockRecorderEmitter{}
-	env := testenv.MustNew(
+	env := testenv.NewUsingT(t,
 		testenv.WithEmitter(emitter),
 		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
 			DeviceTrust: deviceTrustConfig,
-		},
-		),
+		}),
 	)
-	defer env.Close()
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -654,4 +655,73 @@ func TestService_EnrollDevice(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestService_EnrollDevice_usageBasedLimits(t *testing.T) {
+	env := testenv.NewUsingT(t)
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Set usage-based and device limits.
+	// This is safe to do because NewUsingT sets modules.TestModules when called.
+	// We'll also rely on the already-registered cleanup.
+	m := modules.GetModules().(*modules.TestModules)
+	m.TestFeatures.IsUsageBasedBilling = true
+	const devicesLimit = 3
+	m.TestFeatures.DeviceTrust.DevicesUsageLimit = devicesLimit
+	modules.SetModules(m)
+
+	// 1. Register limit+1 devices. This is allowed.
+	var allDevs []*devicepb.Device
+	for i := 0; i < devicesLimit+1; i++ {
+		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: fmt.Sprintf("dev-%v", i),
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		allDevs = append(allDevs, dev)
+	}
+
+	enrollSuccess := func(t *testing.T, dev *devicepb.Device) {
+		t.Helper()
+		if _, _, err := enrollDevice(ctx, devices, dev, defaultCollectData); err != nil {
+			t.Errorf("enrollDevice returned err=%v, wanted success", err)
+		}
+	}
+	enrollLimitFailure := func(t *testing.T, dev *devicepb.Device) {
+		t.Helper()
+		if _, _, err := enrollDevice(ctx, devices, dev, defaultCollectData); !trace.IsAccessDenied(err) {
+			t.Errorf("enrollDevice returned err=%v, wanted AccessDenied/device limit failure", err)
+		}
+	}
+
+	// 2. Enroll limit devices.
+	for _, dev := range allDevs[:devicesLimit] {
+		enrollSuccess(t, dev)
+	}
+
+	// 3. Attempt to enroll past the limit.
+	lastDev := allDevs[devicesLimit]
+	enrollLimitFailure(t, lastDev)
+
+	// 4. Going below the limit allows further enrollments.
+	firstDev := allDevs[0]
+	if _, err := devices.UpdateDevice(ctx, &devicepb.UpdateDeviceRequest{
+		Device: &devicepb.Device{
+			Id:           firstDev.Id,
+			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+		},
+		UpdateMask: &fieldmaskpb.FieldMask{
+			Paths: []string{"enroll_status"}, // unenroll device
+		},
+	}); err != nil {
+		t.Fatalf("UpdateDevice failed: %v", err)
+	}
+	enrollSuccess(t, lastDev)       // allowed, below limit
+	enrollLimitFailure(t, firstDev) // limits applied
 }

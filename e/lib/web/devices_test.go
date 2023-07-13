@@ -10,10 +10,11 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestListDevices_byAssetTag(t *testing.T) {
-	t.Parallel()
+	setDeviceTrustFeatures(t)
 
 	s := newWebSuite(t)
 	webPack := s.newAuthWebPack(t, "foo")
@@ -84,7 +85,7 @@ func TestListDevices_byAssetTag(t *testing.T) {
 }
 
 func TestListDevices_paginated(t *testing.T) {
-	t.Parallel()
+	setDeviceTrustFeatures(t)
 
 	s := newWebSuite(t)
 	webPack := s.newAuthWebPack(t, "foo")
@@ -200,7 +201,7 @@ func unmarshalWebResponse(t *testing.T, resp []byte) *ui.ListDevicesResponse {
 }
 
 func TestListDevices_errors(t *testing.T) {
-	t.Parallel()
+	setDeviceTrustFeatures(t)
 
 	s := newWebSuite(t)
 	webPack := s.newAuthWebPack(t, "foo")
@@ -251,4 +252,15 @@ func TestListDevices_errors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func setDeviceTrustFeatures(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			DeviceTrust: modules.DeviceTrustFeature{
+				Enabled: true,
+			},
+		},
+	})
 }

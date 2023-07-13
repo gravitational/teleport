@@ -49,6 +49,11 @@ func BenchmarkSyncInventory_jamf(b *testing.B) {
 	beforeModules := modules.GetModules()
 	modules.SetModules(&modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			DeviceTrust: modules.DeviceTrustFeature{
+				Enabled: true,
+			},
+		},
 	})
 	b.Cleanup(func() { modules.SetModules(beforeModules) })
 

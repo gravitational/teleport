@@ -72,6 +72,8 @@ type Opts struct {
 }
 
 // MustNew creates a new [E] or panics.
+// Prefer [NewUsingT] when enabling the Device Trust env, as it configures
+// [modules.TestModules] automatically.
 func MustNew(opts *Opts) *E {
 	env, err := New(opts)
 	if err != nil {
@@ -86,9 +88,14 @@ func MustNew(opts *Opts) *E {
 func NewUsingT(t *testing.T, opts *Opts) *E {
 	// Configure device trust settings?
 	if opts != nil && opts.DeviceTrustEnv {
-		// Set build type.
+		// Set build type and features.
 		modules.SetTestModules(t, &modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				DeviceTrust: modules.DeviceTrustFeature{
+					Enabled: true,
+				},
+			},
 		})
 	}
 

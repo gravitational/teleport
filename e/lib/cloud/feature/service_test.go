@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -146,25 +147,40 @@ func TestRun(t *testing.T) {
 	go service.Run(ctx)
 	fakeClock.BlockUntil(1)
 
-	// Advance the clock so the service fetch and stores features
-	fakeClock.Advance(1 * time.Second)
-	require.Eventually(t, func() bool {
-		// Check if the features are stored in the backend.
-		item, err := backend.Get(ctx, featuresBackendKey)
-		if err != nil {
-			return false
-		}
+	requireFeatures := func(t *testing.T, want modules.Features) {
+		t.Helper()
 
-		stored := &modules.Features{}
-		err = json.Unmarshal(item.Value, stored)
-		if err != nil {
-			return false
-		}
+		// Advance the clock so the service fetch and stores features
+		fakeClock.Advance(1 * time.Second)
 
-		return modules.Features{
-			Kubernetes: true,
-		} == *stored
-	}, time.Second, time.Millisecond*100)
+		require.Eventually(t, func() bool {
+			item, err := backend.Get(ctx, featuresBackendKey)
+			if err != nil {
+				return false
+			}
+
+			stored := &modules.Features{}
+			err = json.Unmarshal(item.Value, stored)
+			if err != nil {
+				return false
+			}
+
+			diff := cmp.Diff(want, *stored)
+			if diff == "" {
+				return true
+			}
+			t.Logf("Feature diff (-want +got):\n%s", diff)
+			return false
+		}, 1*time.Second, time.Millisecond*100)
+	}
+
+	// Check if the features are stored in the backend.
+	requireFeatures(t, modules.Features{
+		Kubernetes: true,
+		DeviceTrust: modules.DeviceTrustFeature{
+			Enabled: true, // always enabled
+		},
+	})
 
 	// update features again and see if they are stored in the backend
 	mockCloudClient.setMockGetFeatures(
@@ -175,27 +191,15 @@ func TestRun(t *testing.T) {
 			}, nil
 		},
 	)
-	// Wait for the service to fetch and store the features.
-	fakeClock.Advance(1 * time.Second)
 	// check backend again
-	require.Eventually(t, func() bool {
-		// Check if the features are stored in the backend.
-		item, err := backend.Get(ctx, featuresBackendKey)
-		if err != nil {
-			return false
-		}
-		stored := &modules.Features{}
-
-		err = json.Unmarshal(item.Value, stored)
-		if err != nil {
-			return false
-		}
-
-		return modules.Features{
-			Kubernetes: false,
-			App:        true,
-		} == *stored
-	}, time.Second, time.Millisecond*100)
+	wantFeatures := modules.Features{
+		Kubernetes: false,
+		App:        true,
+		DeviceTrust: modules.DeviceTrustFeature{
+			Enabled: true, // always enabled
+		},
+	}
+	requireFeatures(t, wantFeatures)
 
 	// Test that the service wont crash if it receives an error
 	mockCloudClient.setMockGetFeatures(
@@ -203,26 +207,7 @@ func TestRun(t *testing.T) {
 			return nil, errors.New("err fetching features")
 		},
 	)
-	fakeClock.Advance(1 * time.Second)
-
-	require.Eventually(t, func() bool {
-		// check backend again, the same value as before is expected
-		item, err := backend.Get(ctx, featuresBackendKey)
-		if err != nil {
-			return false
-		}
-		stored := &modules.Features{}
-
-		err = json.Unmarshal(item.Value, stored)
-		if err != nil {
-			return false
-		}
-
-		return modules.Features{
-			Kubernetes: false,
-			App:        true,
-		} == *stored
-	}, time.Second, time.Millisecond*100)
+	requireFeatures(t, wantFeatures)
 
 	// Make sure it can recover after a failed request
 	mockCloudClient.setMockGetFeatures(
@@ -232,22 +217,12 @@ func TestRun(t *testing.T) {
 			}, nil
 		},
 	)
-	fakeClock.Advance(1 * time.Second)
-	require.Eventually(t, func() bool {
-		item, err := backend.Get(ctx, featuresBackendKey)
-		if err != nil {
-			return false
-		}
-		stored := &modules.Features{}
-		err = json.Unmarshal(item.Value, stored)
-		if err != nil {
-			return false
-		}
-
-		return modules.Features{
-			DB: true,
-		} == *stored
-	}, time.Second, time.Millisecond*100)
+	requireFeatures(t, modules.Features{
+		DB: true,
+		DeviceTrust: modules.DeviceTrustFeature{
+			Enabled: true, // always enabled
+		},
+	})
 }
 
 func newMemoryBackend(t *testing.T) backend.Backend {

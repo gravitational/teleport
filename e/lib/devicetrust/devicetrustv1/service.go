@@ -27,6 +27,7 @@ import (
 	config "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -185,7 +186,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	} else {
 		verbs = []string{types.VerbCreate}
 	}
-	if err := s.authorizeVerbs(ctx, types.KindDevice, verbs); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, verbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -231,7 +232,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 }
 
 func (s *Service) UpdateDevice(ctx context.Context, req *devicepb.UpdateDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbUpdate); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -296,7 +297,7 @@ func applyDeviceUpdateMask(paths []string, dst, src *devicepb.Device) error {
 }
 
 func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeVerbs(ctx, types.KindDevice, []string{types.VerbCreate, types.VerbUpdate}); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -356,7 +357,7 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 }
 
 func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbDelete); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -382,7 +383,7 @@ func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRe
 }
 
 func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequest) (*devicepb.FindDevicesResponse, error) {
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbList); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if req.IdOrTag == "" {
@@ -433,7 +434,7 @@ func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequ
 }
 
 func (s *Service) GetDevice(ctx context.Context, req *devicepb.GetDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbRead); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -442,7 +443,7 @@ func (s *Service) GetDevice(ctx context.Context, req *devicepb.GetDeviceRequest)
 }
 
 func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequest) (*devicepb.ListDevicesResponse, error) {
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbList); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -464,7 +465,7 @@ func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequ
 }
 
 func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreateDevicesRequest) (*devicepb.BulkCreateDevicesResponse, error) {
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbCreate); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if len(req.Devices) == 0 {
@@ -506,7 +507,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 			Observe(time.Since(start).Seconds())
 	}()
 
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -616,7 +617,10 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	defer func() { err = s.redactDataDriftErr(dev, err) }()
 
 	ctx := stream.Context()
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbEnroll); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbEnroll); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.verifyEnrolledDevicesLimit(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -663,6 +667,62 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	return trace.Wrap(err)
 }
 
+// verifyEnrolledDevicesLimit enforces usage-based account limits by counting
+// the number of enrolled devices against the devices quota.
+func (s *Service) verifyEnrolledDevicesLimit(ctx context.Context) error {
+	f := modules.GetModules().Features()
+	if !f.IsUsageBasedBilling {
+		return nil // unlimited devices
+	}
+
+	const deviceLimitReachedMessage = "cluster has reached its enrolled trusted device limit, please contact the cluster administrator"
+	devicesLimit := f.DeviceTrust.DevicesUsageLimit
+	if devicesLimit <= 0 {
+		return trace.AccessDenied(deviceLimitReachedMessage)
+	}
+
+	numEnrolled, err := s.countEnrolledDevices(ctx, devicesLimit)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if numEnrolled >= devicesLimit {
+		return trace.AccessDenied(deviceLimitReachedMessage)
+	}
+	return nil
+}
+
+// countEnrolledDevices counts the number of enrolled devices, stopping at
+// `countUpTo`. It may return numbers larger than `countUpTo`
+// Pass negative to count all devices.
+func (s *Service) countEnrolledDevices(ctx context.Context, countUpTo int) (int, error) {
+	numEnrolled := 0
+
+	const pageSize = 0 // aka use server defaults
+	var pageToken string
+	for {
+		stored, nextPageToken, err := s.storage.ListDevices(ctx, pageSize, pageToken, devicepb.DeviceView_DEVICE_VIEW_LIST)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+
+		for _, dev := range stored {
+			if dev.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED {
+				numEnrolled++
+			}
+		}
+		if countUpTo > -1 && numEnrolled >= countUpTo {
+			return numEnrolled, nil
+		}
+
+		if nextPageToken == "" {
+			break
+		}
+		pageToken = nextPageToken
+	}
+
+	return numEnrolled, nil
+}
+
 var authnDisabledLogOnce sync.Once
 
 func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) (err error) {
@@ -679,7 +739,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	// Authenticate the user, but do not perform any additional authorization
 	// checks. Any user may authenticate devices.
 	ctx := stream.Context()
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -752,7 +812,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 
 func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventoryServer) error {
 	ctx := stream.Context()
-	if err := s.authorizeVerbs(ctx, types.KindDevice, []string{types.VerbCreate, types.VerbUpdate, types.VerbDelete}); err != nil {
+	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate, types.VerbUpdate, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -823,8 +883,10 @@ func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {
 	return trace.AccessDenied(DataDriftDetectedMessage)
 }
 
-func (s *Service) authorizeVerbs(ctx context.Context, rule string, verbs []string) error {
-	authCtx, err := s.authorizer.Authorize(ctx)
+// authorizeAccess authorizes the ctx user, verifies the Device Trust feature
+// settings and verifies rule/verb access.
+func (s *Service) authorizeAccess(ctx context.Context, rule string, verbs ...string) error {
+	authCtx, err := s.authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -832,7 +894,6 @@ func (s *Service) authorizeVerbs(ctx context.Context, rule string, verbs []strin
 	ruleCtx := &services.Context{
 		User: authCtx.User,
 	}
-
 	for _, verb := range verbs {
 		if err := authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, rule, verb, false /* silent */); err != nil {
 			return trace.Wrap(err)
@@ -841,8 +902,19 @@ func (s *Service) authorizeVerbs(ctx context.Context, rule string, verbs []strin
 	return nil
 }
 
-func (s *Service) authorizeVerb(ctx context.Context, rule, verb string) error {
-	return s.authorizeVerbs(ctx, rule, []string{verb})
+// authorize authorizes the ctx user and verifies the Device Trust feature
+// settings.
+func (s *Service) authorize(ctx context.Context) (*authz.Context, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !modules.GetModules().Features().DeviceTrust.Enabled {
+		return nil, trace.AccessDenied("this Teleport cluster is not licensed for device trust, please contact the cluster administrator")
+	}
+
+	return authCtx, nil
 }
 
 func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) {

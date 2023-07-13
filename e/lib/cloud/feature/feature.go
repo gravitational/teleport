@@ -18,25 +18,36 @@ var featuresBackendKey = backend.Key("cloud", "features")
 // FetchFromCloud performs a gRPC call to Cloud's tenant service to query
 // the features enabled by the licenses's subscription
 func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Features, error) {
-	features, err := cloudClient.GetFeatures(ctx, &v1.EmptyRequest{})
+	resp, err := cloudClient.GetFeatures(ctx, &v1.EmptyRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &modules.Features{
-		Kubernetes:              features.Kubernetes,
-		App:                     features.App,
-		DB:                      features.Db,
-		Desktop:                 features.Desktop,
-		AdvancedAccessWorkflows: features.AccessRequests,
-		Cloud:                   features.IsCloud,
-		OIDC:                    features.Oidc,
-		SAML:                    features.SAML,
-		AccessControls:          features.AccessControls,
-		HSM:                     features.Hsm,
-		IsUsageBasedBilling:     features.IsUsageBased,
-		Assist:                  features.Assist,
-	}, nil
+	f := &modules.Features{
+		Kubernetes:              resp.Kubernetes,
+		App:                     resp.App,
+		DB:                      resp.Db,
+		Desktop:                 resp.Desktop,
+		AdvancedAccessWorkflows: resp.AccessRequests,
+		Cloud:                   resp.IsCloud,
+		OIDC:                    resp.Oidc,
+		SAML:                    resp.SAML,
+		AccessControls:          resp.AccessControls,
+		HSM:                     resp.Hsm,
+		IsUsageBasedBilling:     resp.IsUsageBased,
+		Assist:                  resp.Assist,
+		// TODO(codingllama): Pull device trust settings from Cloud?
+		DeviceTrust: modules.DeviceTrustFeature{
+			Enabled: true,
+		},
+	}
+
+	// Grant 5 devices for usage-based/Team accounts.
+	if f.IsUsageBasedBilling {
+		f.DeviceTrust.DevicesUsageLimit = 5
+	}
+
+	return f, nil
 }
 
 // Store stores the features in the backend (b)

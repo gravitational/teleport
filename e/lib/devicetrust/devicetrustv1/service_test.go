@@ -36,13 +36,13 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestService_authz(t *testing.T) {
 	authorizer := &fakeAuthorizer{}
-	env := testenv.MustNew(testenv.WithAuthorizer(authorizer))
-	defer env.Close()
+	env := testenv.NewUsingT(t, testenv.WithAuthorizer(authorizer))
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -261,6 +261,23 @@ func TestService_authz(t *testing.T) {
 			}
 		})
 	}
+
+	// Safe because NewUsingT sets a modules.TestModule.
+	m := modules.GetModules().(*modules.TestModules)
+	m.TestFeatures.DeviceTrust.Enabled = false
+
+	// Test system behavior when the feature is disabled.
+	// The check is bundled with user authz, so it's easy to test it here.
+	authorizer.Checker = &testenv.NoopChecker{}
+	for _, test := range tests {
+		t.Run(test.name+"-feature disabled", func(t *testing.T) {
+			err := test.rpc()
+			if !trace.IsAccessDenied(err) {
+				t.Fatalf("RPC returned err=%v, wanted AccessDenied/feature disabled error", err)
+			}
+			assert.ErrorContains(t, err, "not licensed for device trust")
+		})
+	}
 }
 
 type fakeAuthorizer struct {
@@ -416,8 +433,7 @@ func TestService_rateLimiting(t *testing.T) {
 
 func TestService_CreateDevice(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
-	env := testenv.MustNew(testenv.WithEmitter(emitter))
-	defer env.Close()
+	env := testenv.NewUsingT(t, testenv.WithEmitter(emitter))
 	devices := env.DevicesClient
 
 	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -801,8 +817,7 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 
 func TestService_UpdateDevice(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
-	env := testenv.MustNew(testenv.WithEmitter(emitter))
-	defer env.Close()
+	env := testenv.NewUsingT(t, testenv.WithEmitter(emitter))
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -927,8 +942,7 @@ func TestService_UpdateDevice(t *testing.T) {
 }
 
 func TestService_UpdateDevice_errors(t *testing.T) {
-	env := testenv.MustNew()
-	defer env.Close()
+	env := testenv.NewUsingT(t)
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -1050,8 +1064,7 @@ func TestService_UpdateDevice_errors(t *testing.T) {
 
 func TestService_UpsertDevice(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
-	env := testenv.MustNew(testenv.WithEmitter(emitter))
-	defer env.Close()
+	env := testenv.NewUsingT(t, testenv.WithEmitter(emitter))
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -1212,8 +1225,7 @@ func deviceFromTerraform(t *testing.T, dev *devicepb.Device) *devicepb.Device {
 }
 
 func TestService_UpsertDevice_errors(t *testing.T) {
-	env := testenv.MustNew()
-	defer env.Close()
+	env := testenv.NewUsingT(t)
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -1281,8 +1293,7 @@ func TestService_UpsertDevice_errors(t *testing.T) {
 
 func TestService_DeleteDevice(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
-	env := testenv.MustNew(testenv.WithEmitter(emitter))
-	defer env.Close()
+	env := testenv.NewUsingT(t, testenv.WithEmitter(emitter))
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -1357,8 +1368,7 @@ func TestService_DeleteDevice(t *testing.T) {
 }
 
 func TestService_ListDevices(t *testing.T) {
-	env := testenv.MustNew()
-	defer env.Close()
+	env := testenv.NewUsingT(t)
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -1459,8 +1469,7 @@ func TestService_ListDevices(t *testing.T) {
 }
 
 func TestService_FindDevices(t *testing.T) {
-	env := testenv.MustNew()
-	defer env.Close()
+	env := testenv.NewUsingT(t)
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -1570,8 +1579,7 @@ func TestService_FindDevices(t *testing.T) {
 
 func TestService_BulkCreateDevices(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
-	env := testenv.MustNew(testenv.WithEmitter(emitter))
-	defer env.Close()
+	env := testenv.NewUsingT(t, testenv.WithEmitter(emitter))
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -1683,8 +1691,7 @@ func TestService_BulkCreateDevices(t *testing.T) {
 
 func TestService_CreateDeviceEnrollToken(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
-	env := testenv.MustNew(testenv.WithEmitter(emitter))
-	defer env.Close()
+	env := testenv.NewUsingT(t, testenv.WithEmitter(emitter))
 
 	devices := env.DevicesClient
 	ctx := context.Background()

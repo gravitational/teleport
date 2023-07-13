@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dttestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -49,8 +50,16 @@ func TestMain(m *testing.M) {
 
 // TestNodeAccess tests 'tsh ssh' and 'tsh scp' functionality with various security features enabled.
 func TestNodeAccess(t *testing.T) {
-	ctx := context.Background()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			DeviceTrust: modules.DeviceTrustFeature{
+				Enabled: true,
+			},
+		},
+	})
 
+	ctx := context.Background()
 	a := createAgent(t)
 
 	rsaKey, err := native.GenerateRSAPrivateKey()
