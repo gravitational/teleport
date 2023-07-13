@@ -16,9 +16,12 @@
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import {
+  Cluster,
   CreateConnectMyComputerRoleResponse,
   TshClient,
 } from 'teleterm/services/tshd/types';
+
+import { routing } from 'teleterm/ui/uri';
 
 import type * as uri from 'teleterm/ui/uri';
 
@@ -36,5 +39,19 @@ export class ConnectMyComputerService {
     rootClusterUri: uri.RootClusterUri
   ): Promise<CreateConnectMyComputerRoleResponse> {
     return this.tshClient.createConnectMyComputerRole(rootClusterUri);
+  }
+
+  async createAgentConfigFile(cluster: Cluster): Promise<void> {
+    const { rootClusterId } = routing.parseClusterUri(cluster.uri).params;
+
+    const { token, suggestedLabelsList } =
+      await this.tshClient.createConnectMyComputerNodeToken(cluster.uri);
+
+    await this.mainProcessClient.createAgentConfigFile({
+      profileName: rootClusterId,
+      proxy: cluster.proxyHost,
+      token: token,
+      suggestedLabels: suggestedLabelsList,
+    });
   }
 }

@@ -35,9 +35,8 @@ interface DocumentConnectMyComputerSetupProps {
 export function DocumentConnectMyComputerSetup(
   props: DocumentConnectMyComputerSetupProps
 ) {
-  const [step, setStep] = useState<'information' | 'agent-setup'>(
-    'information'
-  );
+  const [step, setStep] =
+    useState<'information' | 'agent-setup'>('information');
 
   return (
     <Document visible={props.visible}>
@@ -86,6 +85,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
 function AgentSetup() {
   const ctx = useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
+  const cluster = ctx.clustersService.findCluster(rootClusterUri);
 
   const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
     useCallback(async () => {
@@ -121,9 +121,17 @@ function AgentSetup() {
     )
   );
   const [generateConfigFileAttempt, runGenerateConfigFileAttempt] = useAsync(
-    useCallback(() => wait(1_000), [])
+    useRetryWithRelogin(
+      ctx,
+      rootClusterUri,
+      useCallback(
+        () => ctx.connectMyComputerService.createAgentConfigFile(cluster),
+        [cluster, ctx.connectMyComputerService]
+      )
+    )
   );
   const [joinClusterAttempt, runJoinClusterAttempt] = useAsync(
+    // TODO(gzdunek): delete node token after joining the cluster
     useCallback(() => wait(1_000), [])
   );
 
