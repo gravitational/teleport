@@ -490,7 +490,7 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Proxy Peering Migration (Preview)",
+              "title": "Proxy Peering Migration",
               "slug": "/management/operations/proxy-peering/",
               "forScopes": ["enterprise"]
             }
@@ -1256,7 +1256,7 @@
           "slug": "/architecture/tls-routing/"
         },
         {
-          "title": "Proxy Peering (Preview)",
+          "title": "Proxy Peering",
           "slug": "/architecture/proxy-peering/"
         }
       ]
