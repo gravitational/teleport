@@ -158,7 +158,7 @@ func diff(repoPath string, ref string, changedFiles []string, elapsed time.Durat
 
 // test builds and prints go test flags
 func test(repoPath string, ref string, changedFiles []string) {
-	var dirs = make(StringSet)
+	dirs := make(StringSet)
 	methods := make([]string, 0)
 
 	dollarSign := "$"
@@ -177,7 +177,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.New {
-			if slices.Contains(testsToSkip, n.RefName) {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}
@@ -190,7 +190,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.Changed {
-			if slices.Contains(testsToSkip, n.RefName) {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}
