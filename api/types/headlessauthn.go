@@ -87,3 +87,86 @@ func (s HeadlessAuthenticationState) IsUnspecified() bool {
 func (s HeadlessAuthenticationState) IsPending() bool {
 	return s == HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
 }
+
+// headlessStateVariants allows iteration of the expected variants
+// of HeadlessAuthenticationState.
+var headlessStateVariants = [4]HeadlessAuthenticationState{
+	HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED,
+	HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
+	HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
+	HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
+}
+
+// Parse attempts to interpret a value as a string representation
+// of a HeadlessAuthenticationState.
+func (s *HeadlessAuthenticationState) Parse(val string) error {
+	for _, state := range headlessStateVariants {
+		if state.String() == val {
+			*s = state
+			return nil
+		}
+	}
+	return trace.BadParameter("unknown request state: %q", val)
+}
+
+// HeadlessAuthenticationFilter encodes filter params for headless authentications.
+type HeadlessAuthenticationFilter struct {
+	Name     string
+	Username string
+	State    HeadlessAuthenticationState
+}
+
+// key values for map encoding of headless authn filter.
+const (
+	headlessFilterKeyName     = "name"
+	headlessFilterKeyUsername = "username"
+	headlessFilterKeyState    = "state"
+)
+
+// IntoMap copies HeadlessAuthenticationFilter values into a map.
+func (f *HeadlessAuthenticationFilter) IntoMap() map[string]string {
+	m := make(map[string]string)
+	if f.Name != "" {
+		m[headlessFilterKeyName] = f.Name
+	}
+	if f.Username != "" {
+		m[headlessFilterKeyUsername] = f.Username
+	}
+	if !f.State.IsUnspecified() {
+		m[headlessFilterKeyState] = f.State.String()
+	}
+	return m
+}
+
+// FromMap copies values from a map into this HeadlessAuthenticationFilter value.
+func (f *HeadlessAuthenticationFilter) FromMap(m map[string]string) error {
+	for key, val := range m {
+		switch key {
+		case headlessFilterKeyName:
+			f.Name = val
+		case headlessFilterKeyUsername:
+			f.Username = val
+		case headlessFilterKeyState:
+			if err := f.State.Parse(val); err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			return trace.BadParameter("unknown filter key %s", key)
+		}
+	}
+	return nil
+}
+
+// Match checks if a given headless authentication matches this filter.
+func (f *HeadlessAuthenticationFilter) Match(req *HeadlessAuthentication) bool {
+	if f.Name != "" && req.GetName() != f.Name {
+		return false
+	}
+	if f.Username != "" && req.User != f.Username {
+		return false
+	}
+	if !f.State.IsUnspecified() && req.State != f.State {
+		return false
+	}
+	return true
+}

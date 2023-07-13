@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -57,6 +58,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -79,6 +81,7 @@ type AuthServiceClient struct {
 	proto.AuthServiceClient
 	assist.AssistServiceClient
 	auditlogpb.AuditLogServiceClient
+	userpreferencespb.UserPreferencesServiceClient
 }
 
 // Client is a gRPC Client that connects to a Teleport Auth server either
@@ -470,9 +473,10 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	c.conn = conn
 	c.grpc = AuthServiceClient{
-		AuthServiceClient:     proto.NewAuthServiceClient(c.conn),
-		AssistServiceClient:   assist.NewAssistServiceClient(c.conn),
-		AuditLogServiceClient: auditlogpb.NewAuditLogServiceClient(c.conn),
+		AuthServiceClient:            proto.NewAuthServiceClient(c.conn),
+		AssistServiceClient:          assist.NewAssistServiceClient(c.conn),
+		AuditLogServiceClient:        auditlogpb.NewAuditLogServiceClient(c.conn),
+		UserPreferencesServiceClient: userpreferencespb.NewUserPreferencesServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
@@ -1450,6 +1454,10 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
+//
+// Note that in HA setups, a registered database may have multiple
+// DatabaseServer entries. Web UI and `tsh db ls` extract databases from this
+// list and remove duplicates by name.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
 	servers, err := GetAllResources[types.DatabaseServer](ctx, c, &proto.ListResourcesRequest{
 		Namespace:    namespace,
@@ -2627,6 +2635,14 @@ func (c *Client) UpdateApp(ctx context.Context, app types.Application) error {
 }
 
 // GetApp returns the specified application resource.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a full list of registered applications that are served by an application
+// service, use GetApplicationServers instead.
 func (c *Client) GetApp(ctx context.Context, name string) (types.Application, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing application name")
@@ -2639,6 +2655,14 @@ func (c *Client) GetApp(ctx context.Context, name string) (types.Application, er
 }
 
 // GetApps returns all application resources.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a full list of registered applications that are served by an application
+// service, use GetApplicationServers instead.
 func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 	items, err := c.grpc.GetApps(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -2741,6 +2765,16 @@ func (c *Client) UpdateDatabase(ctx context.Context, database types.Database) er
 }
 
 // GetDatabase returns the specified database resource.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+//
+// For a full list of registered databases that are served by a database
+// service, use GetDatabaseServers instead.
 func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing database name")
@@ -2753,6 +2787,16 @@ func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, 
 }
 
 // GetDatabases returns all database resources.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+//
+// For a full list of registered databases that are served by a database
+// service, use GetDatabaseServers instead.
 func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	items, err := c.grpc.GetDatabases(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -3832,6 +3876,14 @@ func (c *Client) OktaClient() *okta.Client {
 	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
 }
 
+// AccessListClient returns an access list client.
+// Clients connecting to  older Teleport versions, still get an access list client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) AccessListClient() accesslistv1.AccessListServiceClient {
+	return accesslistv1.NewAccessListServiceClient(c.conn)
+}
+
 // GetCertAuthority retrieves a CA by type and domain.
 func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	ca, err := c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
@@ -3909,6 +3961,24 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 	return headlessAuthn, nil
 }
 
+// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
+func (c *Client) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
+	cancelCtx, cancel := context.WithCancel(ctx)
+	stream, err := c.grpc.WatchPendingHeadlessAuthentications(cancelCtx, &emptypb.Empty{})
+	if err != nil {
+		cancel()
+		return nil, trail.FromGRPC(err)
+	}
+	w := &streamWatcher{
+		stream:  stream,
+		ctx:     cancelCtx,
+		cancel:  cancel,
+		eventsC: make(chan types.Event),
+	}
+	go w.receiveEvents()
+	return w, nil
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (c *Client) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	resp, err := c.grpc.CreateAssistantConversation(ctx, req)
@@ -3979,4 +4049,22 @@ func (c *Client) GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssis
 		return nil, trail.FromGRPC(err)
 	}
 	return result, nil
+}
+
+// GetUserPreferences returns the user preferences for a given user.
+func (c *Client) GetUserPreferences(ctx context.Context, in *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
+	resp, err := c.grpc.GetUserPreferences(ctx, in)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// UpsertUserPreferences creates or updates user preferences for a given username.
+func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencespb.UpsertUserPreferencesRequest) error {
+	_, err := c.grpc.UpsertUserPreferences(ctx, in)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
 }

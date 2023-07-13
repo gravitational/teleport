@@ -667,7 +667,7 @@ $(TEST_LOG_DIR):
 .PHONY: helmunit/installed
 helmunit/installed:
 	@if ! helm unittest -h >/dev/null; then \
-		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest` to install it'; \
+		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11` to install it'; \
 		exit 1; \
 	fi
 
@@ -1394,3 +1394,11 @@ rustup-install-target-toolchain: RUST_VERSION := $(shell $(MAKE) --no-print-dire
 rustup-install-target-toolchain:
 	rustup override set $(RUST_VERSION)
 	rustup target add $(RUST_TARGET_ARCH)
+
+# changelog generates PR changelog between the provided base tag and the tip of
+# the specified branch.
+#
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+.PHONY: changelog
+changelog:
+	@./build.assets/changelog.sh BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)

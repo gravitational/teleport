@@ -111,6 +111,16 @@ func newECSClient(ctx context.Context, req *AWSClientRequest) (*ecs.Client, erro
 	return ecs.NewFromConfig(*cfg), nil
 }
 
+// newSTSClient creates an [sts.Client] using the provided Token, RoleARN and Region.
+func newSTSClient(ctx context.Context, req *AWSClientRequest) (*sts.Client, error) {
+	cfg, err := newAWSConfig(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sts.NewFromConfig(*cfg), nil
+}
+
 // IdentityToken is an implementation of [stscreds.IdentityTokenRetriever] for returning a static token.
 type IdentityToken string
 

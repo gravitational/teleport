@@ -38,7 +38,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -52,9 +51,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
-	libsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -116,7 +116,7 @@ type suiteConfig struct {
 	OnReconcile func(types.Apps)
 	// Apps are the apps to configure.
 	Apps types.Apps
-	// ServerStreamer is the auth server audit events streamer.
+	// ServerStreamer is the auth server session events streamer.
 	ServerStreamer events.Streamer
 	// ValidateRequest is a function that will validate the request received by the application.
 	ValidateRequest func(*Suite, *http.Request)
@@ -316,8 +316,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
-	discard := events.NewDiscardEmitter()
-
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:             s.clock,
 		DataDir:           s.dataDir,
@@ -334,7 +332,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Cloud:             &testCloud{},
 		ResourceMatchers:  config.ResourceMatchers,
 		OnReconcile:       config.OnReconcile,
-		Emitter:           discard,
+		Emitter:           s.authClient,
 		CloudLabels:       config.CloudImporter,
 		ConnectionMonitor: fakeConnMonitor{},
 	})
@@ -647,7 +645,7 @@ func TestHandleConnection(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(_ *Suite, r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
+			require.Equal(t, "443", r.Header.Get(reverseproxy.XForwardedPort))
 		},
 	})
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
@@ -664,9 +662,9 @@ func TestHandleConnectionWS(t *testing.T) {
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ValidateRequest: func(s *Suite, r *http.Request) {
 			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			// Websockets will pass on the server port at this level due to the
-			// websocket transport header rewriter delegate.
-			require.Equal(t, s.serverPort, r.Header.Get(forward.XForwardedPort))
+			// The port is not rewritten for WebSocket requests because it uses
+			// the same port as the original request.
+			require.Equal(t, "443", r.Header.Get(reverseproxy.XForwardedPort))
 		},
 	})
 
@@ -863,8 +861,9 @@ func TestRequestAuditEvents(t *testing.T) {
 	var requestEventsReceived atomic.Uint64
 	var chunkEventsReceived atomic.Uint64
 	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
-		Inner: events.NewDiscardEmitter(),
-		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
+		Inner: events.NewDiscardStreamer(),
+		OnRecordEvent: func(_ context.Context, _ session.ID, pe apievents.PreparedSessionEvent) error {
+			event := pe.GetAuditEvent()
 			switch event.GetType() {
 			case events.AppSessionChunkEvent:
 				chunkEventsReceived.Add(1)

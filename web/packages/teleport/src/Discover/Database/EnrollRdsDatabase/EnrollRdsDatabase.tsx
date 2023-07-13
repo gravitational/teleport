@@ -98,7 +98,7 @@ export function EnrollRdsDatabase() {
   }
 
   async function fetchDatabases(data: TableData) {
-    const integrationName = (agentMeta as DbMeta).integrationName;
+    const integrationName = (agentMeta as DbMeta).integration.name;
 
     setTableData({ ...data, fetchStatus: 'loading' });
     setFetchDbAttempt({ status: 'processing' });
@@ -190,10 +190,7 @@ export function EnrollRdsDatabase() {
         protocol: selectedDb.engine,
         uri: selectedDb.uri,
         labels: selectedDb.labels,
-        awsRds: {
-          accountId: selectedDb.accountId,
-          resourceId: selectedDb.resourceId,
-        },
+        awsRds: selectedDb,
       },
       // Corner case where if registering db fails a user can:
       //   1) change region, which will list new databases or

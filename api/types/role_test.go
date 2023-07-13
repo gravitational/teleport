@@ -164,7 +164,6 @@ func TestRole_GetKubeResources(t *testing.T) {
 		want                []KubernetesResource
 		assertErrorCreation require.ErrorAssertionFunc
 	}{
-		// TODO(tigrato): add more tests once we support other kubernetes resources.
 		{
 			name: "v7 with error",
 			args: args{
@@ -238,13 +237,15 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: append([]KubernetesResource{
 				{
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
+					Verbs:     []string{Wildcard},
 				},
 			},
+				appendV7KubeResources()...),
 		},
 		{
 			name: "v6 to v7 with wildcard",
@@ -265,6 +266,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      Wildcard,
 					Namespace: Wildcard,
 					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
 				},
 			},
 		},
@@ -282,13 +284,15 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: append([]KubernetesResource{
 				{
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
+					Verbs:     []string{Wildcard},
 				},
 			},
+				appendV7KubeResources()...),
 		},
 		{
 			name: "v5 to v7: populate with defaults.",
@@ -303,6 +307,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      Wildcard,
 					Namespace: Wildcard,
 					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
 				},
 			},
 		},
@@ -342,6 +347,24 @@ func TestRole_GetKubeResources(t *testing.T) {
 	}
 }
 
+func appendV7KubeResources() []KubernetesResource {
+	resources := []KubernetesResource{}
+	// append other kubernetes resources
+	for _, resource := range KubernetesResourcesKinds {
+		if resource == KindKubePod {
+			continue
+		}
+		resources = append(resources, KubernetesResource{
+			Kind:      resource,
+			Namespace: Wildcard,
+			Name:      Wildcard,
+			Verbs:     []string{Wildcard},
+		},
+		)
+	}
+	return resources
+}
+
 func TestMarshallCreateHostUserModeJSON(t *testing.T) {
 	for _, tc := range []struct {
 		input    CreateHostUserMode
@@ -356,7 +379,6 @@ func TestMarshallCreateHostUserModeJSON(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, fmt.Sprintf("%q", tc.expected), string(got))
 	}
-
 }
 
 func TestMarshallCreateHostUserModeYAML(t *testing.T) {
@@ -373,7 +395,6 @@ func TestMarshallCreateHostUserModeYAML(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, fmt.Sprintf("%s\n", tc.expected), string(got))
 	}
-
 }
 
 func TestUnmarshallCreateHostUserModeJSON(t *testing.T) {

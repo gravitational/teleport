@@ -119,6 +119,14 @@ type Logger interface {
 	SetLevel(level logrus.Level)
 }
 
+// FieldLoggerWithWriter describes a logger that can expose a writer
+// to be used by stdlib loggers.
+type FieldLoggerWithWriter interface {
+	logrus.FieldLogger
+	Writer() *io.PipeWriter
+	WriterLevel(logrus.Level) *io.PipeWriter
+}
+
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
 // information, sends it to the logger, strips it off and prints a clean message to stderr
 func FatalError(err error) {

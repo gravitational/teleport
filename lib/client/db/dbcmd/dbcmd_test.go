@@ -317,7 +317,9 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
 			execer: &fakeExec{
-				execOutput: map[string][]byte{},
+				execOutput: map[string][]byte{
+					"mongo": []byte("legacy"),
+				},
 			},
 			cmd: []string{"mongo",
 				"--ssl",
@@ -327,12 +329,14 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "mongodb no TLS",
+			name:         "mongodb no TLS (legacy)",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
 			opts:         []ConnectCommandFunc{WithNoTLS()},
 			execer: &fakeExec{
-				execOutput: map[string][]byte{},
+				execOutput: map[string][]byte{
+					"mongo": []byte("legacy"),
+				},
 			},
 			cmd: []string{"mongo",
 				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
@@ -388,11 +392,40 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			},
 		},
 		{
+			name:         "mongosh preferred",
+			dbProtocol:   defaults.ProtocolMongoDB,
+			databaseName: "mydb",
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{}, // Cannot find either bin.
+			},
+			cmd: []string{"mongosh",
+				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+			},
+		},
+		{
 			name:         "sqlserver",
 			dbProtocol:   defaults.ProtocolSQLServer,
 			databaseName: "mydb",
 			execer:       &fakeExec{},
 			cmd: []string{mssqlBin,
+				"-S", "localhost,12345",
+				"-U", "myUser",
+				"-P", fixtures.UUID,
+				"-d", "mydb",
+			},
+			wantErr: false,
+		},
+		{
+			name:         "sqlserver sqlcmd",
+			dbProtocol:   defaults.ProtocolSQLServer,
+			databaseName: "mydb",
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"sqlcmd": {},
+				},
+			},
+			cmd: []string{sqlcmdBin,
 				"-S", "localhost,12345",
 				"-U", "myUser",
 				"-P", fixtures.UUID,

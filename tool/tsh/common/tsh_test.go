@@ -2094,19 +2094,24 @@ iUK/veLmZ6XoouiWLCdU1VJz/1Fcwe/IEamg6ETfofvsqOCgcNYJ
 }
 
 func TestSSHHeadlessCLIFlags(t *testing.T) {
-	t.Parallel()
-
+	var (
+		proxy       = "proxy.example.com:3080"
+		username    = "alice"
+		clustername = "root-cluster"
+	)
 	for _, tc := range []struct {
-		name          string
-		modifyCLIConf func(c *CLIConf)
-		assertErr     require.ErrorAssertionFunc
-		assertConfig  func(t require.TestingT, c *client.Config)
+		name         string
+		cliConf      CLIConf
+		envMap       map[string]string
+		assertErr    require.ErrorAssertionFunc
+		assertConfig func(t require.TestingT, c *client.Config)
 	}{
 		{
 			name: "OK --auth headless",
-			modifyCLIConf: func(c *CLIConf) {
-				c.AuthConnector = constants.HeadlessConnector
-				c.ExplicitUsername = true
+			cliConf: CLIConf{
+				Proxy:         proxy,
+				AuthConnector: constants.HeadlessConnector,
+				Username:      "username",
 			},
 			assertErr: require.NoError,
 			assertConfig: func(t require.TestingT, c *client.Config) {
@@ -2114,55 +2119,104 @@ func TestSSHHeadlessCLIFlags(t *testing.T) {
 			},
 		}, {
 			name: "OK --headless",
-			modifyCLIConf: func(c *CLIConf) {
-				c.Headless = true
-				c.ExplicitUsername = true
+			cliConf: CLIConf{
+				Proxy:    proxy,
+				Headless: true,
+				Username: "username",
 			},
 			assertErr: require.NoError,
 			assertConfig: func(t require.TestingT, c *client.Config) {
 				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
 			},
 		}, {
+			name: "OK use ssh session env with headless cli flag",
+			cliConf: CLIConf{
+				Headless: true,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxy,
+				teleport.SSHTeleportUser:        username,
+				teleport.SSHTeleportClusterName: clustername,
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
+				require.Equal(t, proxy, c.WebProxyAddr)
+				require.Equal(t, username, c.Username)
+				require.Equal(t, clustername, c.SiteName)
+			},
+		}, {
+			name: "OK use ssh session env with headless auth connector cli flag",
+			cliConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxy,
+				teleport.SSHTeleportUser:        username,
+				teleport.SSHTeleportClusterName: clustername,
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
+				require.Equal(t, proxy, c.WebProxyAddr)
+				require.Equal(t, username, c.Username)
+				require.Equal(t, clustername, c.SiteName)
+			},
+		}, {
+			name: "OK ignore ssh session env without headless",
+			cliConf: CLIConf{
+				Proxy:    "other-proxy:3080",
+				Headless: false,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxy,
+				teleport.SSHTeleportUser:        username,
+				teleport.SSHTeleportClusterName: clustername,
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, "other-proxy:3080", c.WebProxyAddr)
+				require.Equal(t, "", c.Username)
+				require.Equal(t, "", c.SiteName)
+			},
+		}, {
 			name: "NOK --headless with mismatched auth connector",
-			modifyCLIConf: func(c *CLIConf) {
-				c.Headless = true
-				c.AuthConnector = constants.LocalConnector
-				c.ExplicitUsername = true
+			cliConf: CLIConf{
+				Proxy:         proxy,
+				Headless:      true,
+				AuthConnector: constants.LocalConnector,
+				Username:      "username",
 			},
 			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
 			},
 		}, {
 			name: "NOK --auth headless without explicit user",
-			modifyCLIConf: func(c *CLIConf) {
-				c.AuthConnector = constants.HeadlessConnector
+			cliConf: CLIConf{
+				Proxy:         proxy,
+				AuthConnector: constants.HeadlessConnector,
 			},
 			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
 			},
 		}, {
 			name: "NOK --headless without explicit user",
-			modifyCLIConf: func(c *CLIConf) {
-				c.Headless = true
+			cliConf: CLIConf{
+				Proxy:    proxy,
+				Headless: true,
 			},
 			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
 			},
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			// minimal configuration (with defaults)
-			conf := &CLIConf{
-				Proxy:    "proxy:3080",
-				UserHost: "localhost",
-				HomePath: t.TempDir(),
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
 			}
 
-			tc.modifyCLIConf(conf)
-
-			c, err := loadClientConfigFromCLIConf(conf, "proxy:3080")
+			tc.cliConf.HomePath = t.TempDir()
+			c, err := loadClientConfigFromCLIConf(&tc.cliConf, proxy)
 			tc.assertErr(t, err)
 			if tc.assertConfig != nil {
 				tc.assertConfig(t, c)
@@ -2240,21 +2294,32 @@ func TestSSHHeadless(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		args      []string
+		envMap    map[string]string
 		assertErr require.ErrorAssertionFunc
 	}{
 		{
 			name:      "node access",
-			args:      []string{"--headless", "--user", "alice"},
+			args:      []string{"--headless", "--user", "alice", "--proxy", proxyAddr.String()},
 			assertErr: require.NoError,
 		}, {
 			name:      "resource request",
-			args:      []string{"--headless", "--user", "bob", "--request-reason", "reason here to bypass prompt"},
+			args:      []string{"--headless", "--user", "bob", "--request-reason", "reason here to bypass prompt", "--proxy", proxyAddr.String()},
+			assertErr: require.NoError,
+		}, {
+			name: "ssh env variables",
+			args: []string{"--headless"},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxyAddr.String(),
+				teleport.SSHTeleportUser:        "alice",
+			},
 			assertErr: require.NoError,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+
 			args := append([]string{
 				"ssh",
 				"-d",
@@ -2422,9 +2487,10 @@ func TestEnvFlags(t *testing.T) {
 
 	testEnvFlag := func(tc testCase) func(t *testing.T) {
 		return func(t *testing.T) {
-			setEnvFlags(&tc.inCLIConf, func(envName string) string {
-				return tc.envMap[envName]
-			})
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+			setEnvFlags(&tc.inCLIConf)
 			require.Equal(t, tc.outCLIConf, tc.inCLIConf)
 		}
 	}
@@ -2565,51 +2631,6 @@ func TestEnvFlags(t *testing.T) {
 	})
 
 	t.Run("tsh ssh session env", func(t *testing.T) {
-		t.Run("ignore ssh session env without headless", testEnvFlag(testCase{
-			inCLIConf: CLIConf{
-				Headless: false,
-			},
-			envMap: map[string]string{
-				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
-				teleport.SSHTeleportUser:        "alice",
-				teleport.SSHTeleportClusterName: "root-cluster",
-			},
-			outCLIConf: CLIConf{
-				Headless: false,
-			},
-		}))
-		t.Run("use ssh session env with headless cli flag", testEnvFlag(testCase{
-			inCLIConf: CLIConf{
-				Headless: true,
-			},
-			envMap: map[string]string{
-				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
-				teleport.SSHTeleportUser:        "alice",
-				teleport.SSHTeleportClusterName: "root-cluster",
-			},
-			outCLIConf: CLIConf{
-				Headless: true,
-				Proxy:    "proxy.example.com",
-				Username: "alice",
-				SiteName: "root-cluster",
-			},
-		}))
-		t.Run("use ssh session env with headless auth connector cli flag", testEnvFlag(testCase{
-			inCLIConf: CLIConf{
-				AuthConnector: constants.HeadlessConnector,
-			},
-			envMap: map[string]string{
-				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
-				teleport.SSHTeleportUser:        "alice",
-				teleport.SSHTeleportClusterName: "root-cluster",
-			},
-			outCLIConf: CLIConf{
-				AuthConnector: constants.HeadlessConnector,
-				Proxy:         "proxy.example.com",
-				Username:      "alice",
-				SiteName:      "root-cluster",
-			},
-		}))
 		t.Run("does not overwrite cli flags", testEnvFlag(testCase{
 			inCLIConf: CLIConf{
 				Headless: true,
@@ -2850,14 +2871,6 @@ func TestKubeConfigUpdate(t *testing.T) {
 }
 
 func TestSetX11Config(t *testing.T) {
-	t.Parallel()
-
-	envMapGetter := func(envMap map[string]string) envGetter {
-		return func(s string) string {
-			return envMap[s]
-		}
-	}
-
 	for _, tc := range []struct {
 		desc         string
 		cf           CLIConf
@@ -2907,6 +2920,7 @@ func TestSetX11Config(t *testing.T) {
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
 			},
+			envMap:      map[string]string{x11.DisplayEnv: ""},
 			assertError: require.Error,
 			expectConfig: client.Config{
 				EnableX11Forwarding: false,
@@ -3050,11 +3064,15 @@ func TestSetX11Config(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+
 			opts, err := parseOptions(tc.opts)
 			require.NoError(t, err)
 
 			clt := client.Config{}
-			err = setX11Config(&clt, &tc.cf, opts, envMapGetter(tc.envMap))
+			err = setX11Config(&clt, &tc.cf, opts)
 			tc.assertError(t, err)
 			require.Equal(t, tc.expectConfig, clt)
 		})
@@ -3494,7 +3512,7 @@ func TestSerializeDatabases(t *testing.T) {
     "kind": "db",
     "version": "v3",
     "metadata": {
-      "name": "my db",
+      "name": "my-db",
       "description": "this is the description",
       "labels": {"a": "1", "b": "2"}
     },
@@ -3548,7 +3566,7 @@ func TestSerializeDatabases(t *testing.T) {
   }]
 	`
 	db, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "my db",
+		Name:        "my-db",
 		Description: "this is the description",
 		Labels:      map[string]string{"a": "1", "b": "2"},
 	}, types.DatabaseSpecV3{
