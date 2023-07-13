@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/types/accesslist"
 	conv "github.com/gravitational/teleport/lib/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/lib/types/header"
-	"github.com/gravitational/trace"
 )
 
 // cmpOpts are general cmpOpts for all comparisons.

@@ -43,7 +43,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -3841,8 +3840,8 @@ func (c *Client) OktaClient() *okta.Client {
 // Clients connecting to  older Teleport versions, still get an access list client
 // when calling this method, but all RPCs will return "not implemented" errors
 // (as per the default gRPC behavior).
-func (c *Client) AccessListClient() *accesslist.Client {
-	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+func (c *Client) AccessListClient() accesslistv1.AccessListServiceClient {
+	return accesslistv1.NewAccessListServiceClient(c.conn)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
