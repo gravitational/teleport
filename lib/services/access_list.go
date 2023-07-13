@@ -38,7 +38,7 @@ type AccessLists interface {
 	AccessListsGetter
 
 	// UpsertAccessList creates or updates an access list resource.
-	UpsertAccessList(context.Context, *accesslist.AccessList) error
+	UpsertAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
 	// DeleteAllAccessLists removes all access lists.
