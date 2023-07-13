@@ -25,6 +25,7 @@ import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
 import "teleport/devicetrust/v1/tpm.proto";
+import "teleport/devicetrust/v1/usage.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
@@ -143,6 +144,12 @@ service DeviceTrustService {
   // Authorized either by a valid MDM service certificate or the appropriate
   // "device" permissions (create/update/delete).
   rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
+
+  // GetDevicesUsage retrieves devices limits and usage numbers for the
+  // underlying account/license.
+  // Requires an authenticated user with billing/read permissions.
+  // See [DevicesUsage] for details.
+  rpc GetDevicesUsage(GetDevicesUsageRequest) returns (DevicesUsage);
 }
 
 // Request for CreateDevice.
@@ -617,3 +624,6 @@ message SyncInventoryMissingDevices {
   // profile.external_id.
   repeated Device devices = 1;
 }
+
+// Request for GetDevicesUsage.
+message GetDevicesUsageRequest {}
