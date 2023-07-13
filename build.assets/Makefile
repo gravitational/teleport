@@ -28,7 +28,7 @@ LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 # Protogen related versions.
-BUF_VERSION ?= 1.23.1
+BUF_VERSION ?= 1.24.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4
