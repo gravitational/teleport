@@ -80,6 +80,10 @@ export class MockMainProcessClient implements MainProcessClient {
   downloadAgent() {
     return Promise.resolve();
   }
+
+  createAgentConfigFile() {
+    return Promise.resolve();
+  }
 }
 
 export const makeRuntimeSettings = (

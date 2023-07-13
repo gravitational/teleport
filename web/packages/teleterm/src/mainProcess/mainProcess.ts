@@ -48,6 +48,9 @@ import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
 import { downloadAgent, FileDownloader } from './agentDownloader';
+import { createAgentConfigFile } from './createAgentConfigFile';
+
+import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
 
 type Options = {
   settings: RuntimeSettings;
@@ -302,6 +305,16 @@ export default class MainProcess {
 
     ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
       this.downloadAgentShared()
+    );
+    ipcMain.handle(
+      'main-process-connect-my-computer-create-agent-config-file',
+      (_, args: AgentConfigFileClusterProperties) =>
+        createAgentConfigFile(this.settings, {
+          proxy: args.proxy,
+          token: args.token,
+          profileName: args.profileName,
+          suggestedLabels: args.suggestedLabels,
+        })
     );
 
     subscribeToTerminalContextMenuEvent();
