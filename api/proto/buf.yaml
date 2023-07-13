@@ -57,5 +57,8 @@ lint:
       - teleport/transport/v1/transport_service.proto
       - teleport/auditlog/v1/auditlog.proto
 breaking:
+  # Temporarily ignore event.proto while we migrate it away from gogo.
+  ignore:
+    - teleport/legacy/client/proto/event.proto
   use:
     - WIRE_JSON
