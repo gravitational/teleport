@@ -24,6 +24,7 @@ var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/tele
 var teleport_lib_teleterm_v1_database_pb = require('../../../../teleport/lib/teleterm/v1/database_pb.js');
 var teleport_lib_teleterm_v1_gateway_pb = require('../../../../teleport/lib/teleterm/v1/gateway_pb.js');
 var teleport_lib_teleterm_v1_kube_pb = require('../../../../teleport/lib/teleterm/v1/kube_pb.js');
+var teleport_lib_teleterm_v1_label_pb = require('../../../../teleport/lib/teleterm/v1/label_pb.js');
 var teleport_lib_teleterm_v1_server_pb = require('../../../../teleport/lib/teleterm/v1/server_pb.js');
 var teleport_lib_teleterm_v1_usage_events_pb = require('../../../../teleport/lib/teleterm/v1/usage_events_pb.js');
 
@@ -93,6 +94,28 @@ function deserialize_teleport_lib_teleterm_v1_CreateAccessRequestResponse(buffer
   return teleport_lib_teleterm_v1_service_pb.CreateAccessRequestResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest');
@@ -135,6 +158,17 @@ function serialize_teleport_lib_teleterm_v1_DeleteAccessRequestRequest(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_DeleteAccessRequestRequest(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.DeleteAccessRequestRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.DeleteConnectMyComputerTokenRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_EmptyResponse(arg) {
@@ -973,6 +1007,30 @@ createConnectMyComputerRole: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse,
+  },
+  // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
+createConnectMyComputerNodeToken: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerNodeTokenResponse,
+  },
+  // DeleteConnectMyComputerToken deletes a join token
+deleteConnectMyComputerToken: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.EmptyResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_DeleteConnectMyComputerTokenRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_EmptyResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_EmptyResponse,
   },
 };
 

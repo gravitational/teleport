@@ -22,6 +22,7 @@ import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
 import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
+import "teleport/lib/teleterm/v1/label.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
 
@@ -128,6 +129,10 @@ service TerminalService {
   // teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
   // the current system user.
   rpc CreateConnectMyComputerRole(CreateConnectMyComputerRoleRequest) returns (CreateConnectMyComputerRoleResponse);
+  // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
+  rpc CreateConnectMyComputerNodeToken(CreateConnectMyComputerNodeTokenRequest) returns (CreateConnectMyComputerNodeTokenResponse);
+  // DeleteConnectMyComputerToken deletes a join token
+  rpc DeleteConnectMyComputerToken(DeleteConnectMyComputerTokenRequest) returns (EmptyResponse);
 }
 
 message EmptyResponse {}
@@ -452,4 +457,17 @@ message CreateConnectMyComputerRoleResponse {
   // certs_reloaded signals to the Electron app that tshd has reloaded the certs in order to refresh
   // the role list. The Electron app should refresh the details from the user cert as well.
   bool certs_reloaded = 1;
+}
+
+message CreateConnectMyComputerNodeTokenRequest {
+  string root_cluster_uri = 1;
+}
+message CreateConnectMyComputerNodeTokenResponse {
+  string token = 1;
+  repeated Label suggested_labels = 6;
+}
+
+message DeleteConnectMyComputerTokenRequest {
+  string root_cluster_uri = 1;
+  string token = 2;
 }

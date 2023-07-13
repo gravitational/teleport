@@ -26,3 +26,13 @@ func (s *Handler) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 	res, err := s.DaemonService.CreateConnectMyComputerRole(ctx, req)
 	return res, trace.Wrap(err)
 }
+
+func (s *Handler) CreateConnectMyComputerNodeToken(ctx context.Context, req *api.CreateConnectMyComputerNodeTokenRequest) (*api.CreateConnectMyComputerNodeTokenResponse, error) {
+	res, err := s.DaemonService.CreateConnectMyComputerNodeToken(ctx, req)
+	return res, trace.Wrap(err)
+}
+
+func (s *Handler) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.EmptyResponse, error) {
+	res, err := s.DaemonService.DeleteConnectMyComputerToken(ctx, req)
+	return res, trace.Wrap(err)
+}

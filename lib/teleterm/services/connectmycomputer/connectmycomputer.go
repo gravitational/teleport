@@ -27,8 +27,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type RoleSetup struct {
@@ -280,4 +283,50 @@ func (c *RoleSetupConfig) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// CreateNodeToken creates a node join token that is valid for 5 minutes
+func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (types.ProvisionToken, error) {
+	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req types.ProvisionTokenSpecV2
+	req.Roles = types.SystemRoles{types.RoleNode}
+	req.SuggestedLabels = types.Labels{
+		types.ConnectMyComputerNodeOwnerLabel: apiutils.Strings{cluster.GetLoggedInUser().Name},
+	}
+	expires := time.Now().UTC().Add(5 * time.Minute)
+
+	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = provisioner.CreateToken(ctx, provisionToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return provisionToken, nil
+}
+
+// DeleteToken deletes a join token
+func (t *TokenProvisioner) DeleteToken(ctx context.Context, provisioner Provisioner, token string) error {
+	err := provisioner.DeleteToken(ctx, token)
+	return trace.Wrap(err)
+}
+
+// Provisioner represents [services.Provisioner] methods used by [TokenProvisioner].
+// During a normal operation, [auth.ClientI] is passed as this interface.
+type Provisioner interface {
+	// See [services.Provisioner.CreateToken].
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+	// See [services.Provisioner.DeleteToken].
+	DeleteToken(ctx context.Context, token string) error
+}
+
+type TokenProvisioner struct {
+	Log *logrus.Entry
 }
