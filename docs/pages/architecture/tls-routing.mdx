@@ -220,6 +220,10 @@ will take the client source IPs from the "X-Forwarded-For" headers set by the
 load balancer or the reverse proxy. This also applies to TLS routing requests
 that utilize connection upgrades, since they are essentially HTTP requests.
 
+To prevent IP spoofing, only a single IP address is expected in the
+"X-Forwarded-For" headers per request. Any requests with multiple IP addresses
+will be rejected.
+
 ## Next steps
 
 - See [migration guide](../management/operations/tls-routing.mdx) to learn how to
