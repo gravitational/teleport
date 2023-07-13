@@ -2086,7 +2086,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
 			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
 				" To play entries for Application and Database you must use the json or yaml format."+
-				" \nEx: tsh play -f json %s", sid)
+				"\nEx: tsh play -f json %s", sid)
 		case events.SessionStartEvent:
 			// proceed without error
 		default:
