@@ -122,7 +122,7 @@ func TestSSHConfig_GetSSHConfig(t *testing.T) {
 			},
 		},
 		{
-			name:       "modern OpenSSH - single cluster with username",
+			name:       "modern OpenSSH - single cluster with username and custom port",
 			sshVersion: "9.0.0",
 			config: &SSHConfigParameters{
 				AppName:             TshApp,
@@ -134,6 +134,7 @@ func TestSSHConfig_GetSSHConfig(t *testing.T) {
 				ProxyPort:           "443",
 				ExecutablePath:      "/tmp/tsh",
 				Username:            "testuser",
+				Port:                3232,
 			},
 		},
 	}
