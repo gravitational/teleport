@@ -48,7 +48,7 @@ func Dial(socket string) (net.Conn, error) {
 		// MSYSTEM is used to specify what Cygwin environment is used;
 		// if it exists, there's a very good chance we're in a Cygwin
 		// environment
-		if msys, ok := os.LookupEnv("MSYSTEM"); ok && msys != "" {
+		if msys := os.Getenv("MSYSTEM"); msys != "" {
 			conn, err := dialCygwin(socket)
 			if err != nil {
 				return nil, trace.Wrap(err)
