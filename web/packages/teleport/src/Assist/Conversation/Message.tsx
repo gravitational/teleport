@@ -196,8 +196,11 @@ export function Message(props: MessageProps) {
   );
 
   const authorIsTeleport = props.message.author === Author.Teleport;
-  const showFooter =
-    !authorIsTeleport || (props.lastMessage ? !messages.streaming : true);
+  const showFooter = !(
+    authorIsTeleport &&
+    props.lastMessage &&
+    messages.streaming
+  );
 
   return (
     <Container>
