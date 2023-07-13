@@ -80,8 +80,8 @@ To spin up a new server using Docker:
 
 1. Open a terminal shell on your workstation.
 
-1. Start a Docker container on your workstation to prepare a server that you want 
-enroll as a resource in your Teleport Team tenant:
+1. Start a Docker container on your workstation to prepare a server that you want enroll 
+as a resource in your Teleport Team tenant:
 
     ```code
     $ docker run --interactive --tty ubuntu:22.10 /bin/bash
@@ -89,8 +89,7 @@ enroll as a resource in your Teleport Team tenant:
 
     This command starts a new shell session in the `ubuntu:22.10` container. 
 
-1. Run the following command to install `curl` and `telnet` from the package management 
-repository:
+1. Run the following command to install `curl` and `telnet` from the package management repository:
 
     ```code
     $ apt update && apt install -y curl telnet
@@ -120,9 +119,9 @@ To install the Teleport SSH Service on your server:
 
     ![Select resource type](../../img/cloud/getting-started/choose-resource@2x.png)
 
-1. Click _Ubuntu 14.04+_ to register the server in the Docker container.
+1. Click *Ubuntu 14.04+* to register the server in the Docker container.
 
-    After you select _Ubuntu 14.04+_ as the resource type, the script to install and 
+    After you select *Ubuntu 14.04+* as the resource type, the script to install and 
     configure the Teleport service is displayed. For example:
 
     ![Configure resource](../../img/cloud/getting-started/paste-script@2x.png)
@@ -270,14 +269,14 @@ clusters, cloud provider APIs, and Windows desktops. Role-based access control
 ensures that only authorized users are allowed access to those resources.
 
 For more information about deploying agents, see the following topics:
-- [Run Teleport Agents](../agents/introduction/)
+- [Run Teleport Agents](../agents/introduction.mdx)
 - [Deploy Teleport Agents with Terraform](../agents/deploy-agents-terraform.mdx)
-- [Join Services to your Teleport Cluster](../agents/join-services-to-your-cluster/)
+- [Join Services to your Teleport Cluster](../agents/join-services-to-your-cluster.mdx)
 
 For information about configuring roles, see the following topics:
-- [Getting Started with Access Controls](../access-controls/getting-started/)
-- [Cluster Access and RBAC](../access-controls/guides/)
-- [Access Controls for Servers](../server-access/rbac/#role-configuration)
+- [Getting Started with Access Controls](../access-controls/getting-started.mdx)
+- [Cluster Access and RBAC](../access-controls/guides.mdx)
+- [Access Controls for Servers](../server-access/rbac/#role-configuration.mdx)
 
 ## Subscribe
 
