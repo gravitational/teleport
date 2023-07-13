@@ -162,7 +162,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 	//   after role setup and [client.IsErrorResolvableWithRelogin] returns true for the error from
 	//   the response, Connect will ask the user to relogin.
 	//
-	// TODO(ravicious): Expand [auth.ServerWithRoles.GenerateUserCerts] to support refreshing role
+	// TODO(ravicious): Expand auth.ServerWithRoles.GenerateUserCerts to support refreshing role
 	// list without having to send a bogus request ID.
 	err = certManager.ReissueUserCerts(ctx, client.CertCacheDrop, client.ReissueParams{
 		RouteToCluster:     cluster.Name,
@@ -219,19 +219,19 @@ func (s *RoleSetup) syncResourceUpdate(ctx context.Context, accessAndIdentity Ac
 	}
 }
 
-// AccessAndIdentity represents [services.Access], [services.Identity] and [auth.Cache] methods used
-// by [RoleSetup]. During a normal operation, [auth.ClientI] is passed as this interface.
+// AccessAndIdentity represents services.Access, services.Identity and auth.Cache methods used
+// by [RoleSetup]. During a normal operation, auth.ClientI is passed as this interface.
 type AccessAndIdentity interface {
-	// See [services.Access.GetRole].
+	// See services.Access.GetRole.
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	// See [services.Access.UpsertRole].
+	// See services.Access.UpsertRole.
 	UpsertRole(context.Context, types.Role) error
-	// See [auth.Cache.NewWatcher].
+	// See auth.Cache.NewWatcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
-	// See [services.Identity.GetUser].
+	// See services.Identity.GetUser.
 	GetUser(name string, withSecrets bool) (types.User, error)
-	// See [services.Identity.UpdateUser].
+	// See services.Identity.UpdateUser.
 	UpdateUser(context.Context, types.User) error
 }
 
