@@ -59,15 +59,20 @@ a healthy start before continuing to the next version.
 
 When upgrading a single Teleport cluster:
 
-1. **Upgrade the Auth Service first to the next Major version**. The Auth Service keeps the cluster state
-   and, if there are data format changes introduced in the new version, will
-   perform necessary migrations.  Confirm the start of the Auth Service and a healthy state.
-1. Upgrade Proxy Service instances to the same version number. These are stateless and can be upgraded in
-   any sequence or at the same time.
-1. Finally, upgrade your Teleport resource services in any sequence or at the
-   same time to the same version number.
-1. If you are upgrading more then one version number then repeat Step 1 to 3 until you have reached your target
-   major version.
+- Upgrade the **Auth Service** to the next **major version first**. 
+   The Auth Service keeps the cluster state. If there are data format 
+   changes introduced in the new version, the Auth Service performs the necessary migrations.  
+   After the upgrade, start the Auth Service and CONFIRM that it's in a healthy state before
+   continuing.
+
+-  Upgrade Proxy Service instances to the same version number as the Auth Service. 
+   Proxy Service instances are stateless and can be upgraded in any sequence or at the same time.
+
+- Upgrade your Teleport resource services to the same version number as the Auth Service.
+   You can upgrade resource agents in any sequence or at the same time.
+   
+If you are upgrading more then one version number, repeat these steps until 
+you reach your target major version number.
 
 <Admonition
   type="warning"
