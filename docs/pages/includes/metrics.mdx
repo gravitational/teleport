@@ -15,7 +15,8 @@
 | `backend_batch_write_seconds`                            | histogram | cache               | Latency for backend batch write operations.                                                        |
 | `backend_read_requests_total`                            | counter   | cache               | Number of read requests to the backend.                                                            |
 | `backend_read_seconds`                                   | histogram | cache               | Latency for read operations.                                                                       |
-| `backend_requests`                                       | counter   | cache               | Number of write requests to the backend.                                                           |
+| `backend_requests`                                       | counter   | cache               | Number of requests to the backend (reads, writes, and keepalives).                                                           |
+| `backend_write_requests_total`                           | counter   | cache               | Number of write requests to the backend. |
 | `backend_write_seconds`                                  | histogram | cache               | Latency for backend write operations.                                                              |
 | `cluster_name_not_found_total`                           | counter   | Teleport Auth       | Number of times a cluster was not found.                                                           |
 | `dynamo_requests_total`                                  | counter   | DynamoDB            | Total number of requests to the DynamoDB API.                                                      |
@@ -114,6 +115,7 @@
 
 | Name | Type | Component | Description |
 | - | - | - | - |
+| `process_state` | gauge | Teleport | State of the teleport process: 0 - ok, 1 - recovering, 2 - degraded, 3 - starting. |
 | `certificate_mismatch_total` | counter | Teleport | Number of SSH server login failures due to a certificate mismatch. |
 | `reversetunnel_connected_proxies` | gauge | Teleport | Number of known proxies being sought. |
 | `rx` | counter | Teleport | Number of bytes received during an SSH connection. |
@@ -123,45 +125,47 @@
 | `teleport_cache_stale_events` | counter | Teleport | Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend. |
 | `tx` | counter | Teleport | Number of bytes transmitted during an SSH connection. |
 
-## Golang runtime metrics
+## Go runtime metrics
+
+These metrics are surfaced by the Go runtime and are not specific to Teleport.
 
 | Name | Type | Component | Description |
 | - | - | - | - |
-| `go_gc_duration_seconds` | summary | Internal Golang | A summary of GC invocation durations. |
-| `go_goroutines` | gauge | Internal Golang | Number of goroutines that currently exist. |
-| `go_info` | gauge | Internal Golang | Information about the Go environment. |
-| `go_memstats_alloc_bytes_total` | counter | Internal Golang | Total number of bytes allocated, even if freed. |
-| `go_memstats_alloc_bytes` | gauge | Internal Golang | Number of bytes allocated and still in use. |
-| `go_memstats_buck_hash_sys_bytes` | gauge | Internal Golang | Number of bytes used by the profiling bucket hash table. |
-| `go_memstats_frees_total` | counter | Internal Golang | Total number of frees. |
-| `go_memstats_gc_cpu_fraction` | gauge | Internal Golang | The fraction of this program's available CPU time used by the GC since the program started. |
-| `go_memstats_gc_sys_bytes` | gauge | Internal Golang | Number of bytes used for garbage collection system metadata. |
-| `go_memstats_heap_alloc_bytes` | gauge | Internal Golang | Number of heap bytes allocated and still in use. |
-| `go_memstats_heap_idle_bytes` | gauge | Internal Golang | Number of heap bytes waiting to be used. |
-| `go_memstats_heap_inuse_bytes` | gauge | Internal Golang | Number of heap bytes that are in use. |
-| `go_memstats_heap_objects` | gauge | Internal Golang | Number of allocated objects. |
-| `go_memstats_heap_released_bytes` | gauge | Internal Golang | Number of heap bytes released to the OS. |
-| `go_memstats_heap_sys_bytes` | gauge | Internal Golang | Number of heap bytes obtained from the system. |
-| `go_memstats_last_gc_time_seconds` | gauge | Internal Golang | Number of seconds since the Unix epoch of the last garbage collection. |
-| `go_memstats_lookups_total` | counter | Internal Golang | Total number of pointer lookups. |
-| `go_memstats_mallocs_total` | counter | Internal Golang | Total number of mallocs. |
-| `go_memstats_mcache_inuse_bytes` | gauge | Internal Golang | Number of bytes in use by mcache structures. |
-| `go_memstats_mcache_sys_bytes` | gauge | Internal Golang | Number of bytes used for mcache structures obtained from system. |
-| `go_memstats_mspan_inuse_bytes` | gauge | Internal Golang | Number of bytes in use by mspan structures. |
-| `go_memstats_mspan_sys_bytes` | gauge | Internal Golang | Number of bytes used for mspan structures obtained from system. |
-| `go_memstats_next_gc_bytes` | gauge | Internal Golang | Number of heap bytes when next the garbage collection will take place. |
-| `go_memstats_other_sys_bytes` | gauge | Internal Golang | Number of bytes used for other system allocations. |
-| `go_memstats_stack_inuse_bytes` | gauge | Internal Golang | Number of bytes in use by the stack allocator. |
-| `go_memstats_stack_sys_bytes` | gauge | Internal Golang | Number of bytes obtained from the system for stack allocator. |
-| `go_memstats_sys_bytes` | gauge | Internal Golang | Number of bytes obtained from the system. |
-| `go_threads` | gauge | Internal Golang | Number of OS threads created. |
-| `process_cpu_seconds_total` | counter | Internal Golang | Total user and system CPU time spent in seconds. |
-| `process_max_fds` | gauge | Internal Golang | Maximum number of open file descriptors. |
-| `process_open_fds` | gauge | Internal Golang | Number of open file descriptors. |
-| `process_resident_memory_bytes` | gauge | Internal Golang | Resident memory size in bytes. |
-| `process_start_time_seconds` | gauge | Internal Golang | Start time of the process since the Unix epoch in seconds. |
-| `process_virtual_memory_bytes` | gauge | Internal Golang | Virtual memory size in bytes. |
-| `process_virtual_memory_max_bytes` | gauge | Internal Golang | Maximum amount of virtual memory available in bytes. |
+| `go_gc_duration_seconds` | summary | Internal Go | A summary of GC invocation durations. |
+| `go_goroutines` | gauge | Internal Go | Number of goroutines that currently exist. |
+| `go_info` | gauge | Internal Go | Information about the Go environment. |
+| `go_memstats_alloc_bytes_total` | counter | Internal Go | Total number of bytes allocated, even if freed. |
+| `go_memstats_alloc_bytes` | gauge | Internal Go | Number of bytes allocated and still in use. |
+| `go_memstats_buck_hash_sys_bytes` | gauge | Internal Go | Number of bytes used by the profiling bucket hash table. |
+| `go_memstats_frees_total` | counter | Internal Go | Total number of frees. |
+| `go_memstats_gc_cpu_fraction` | gauge | Internal Go | The fraction of this program's available CPU time used by the GC since the program started. |
+| `go_memstats_gc_sys_bytes` | gauge | Internal Go | Number of bytes used for garbage collection system metadata. |
+| `go_memstats_heap_alloc_bytes` | gauge | Internal Go | Number of heap bytes allocated and still in use. |
+| `go_memstats_heap_idle_bytes` | gauge | Internal Go | Number of heap bytes waiting to be used. |
+| `go_memstats_heap_inuse_bytes` | gauge | Internal Go | Number of heap bytes that are in use. |
+| `go_memstats_heap_objects` | gauge | Internal Go | Number of allocated objects. |
+| `go_memstats_heap_released_bytes` | gauge | Internal Go | Number of heap bytes released to the OS. |
+| `go_memstats_heap_sys_bytes` | gauge | Internal Go | Number of heap bytes obtained from the system. |
+| `go_memstats_last_gc_time_seconds` | gauge | Internal Go | Number of seconds since the Unix epoch of the last garbage collection. |
+| `go_memstats_lookups_total` | counter | Internal Go | Total number of pointer lookups. |
+| `go_memstats_mallocs_total` | counter | Internal Go | Total number of mallocs. |
+| `go_memstats_mcache_inuse_bytes` | gauge | Internal Go | Number of bytes in use by mcache structures. |
+| `go_memstats_mcache_sys_bytes` | gauge | Internal Go | Number of bytes used for mcache structures obtained from system. |
+| `go_memstats_mspan_inuse_bytes` | gauge | Internal Go | Number of bytes in use by mspan structures. |
+| `go_memstats_mspan_sys_bytes` | gauge | Internal Go | Number of bytes used for mspan structures obtained from system. |
+| `go_memstats_next_gc_bytes` | gauge | Internal Go | Number of heap bytes when next the garbage collection will take place. |
+| `go_memstats_other_sys_bytes` | gauge | Internal Go | Number of bytes used for other system allocations. |
+| `go_memstats_stack_inuse_bytes` | gauge | Internal Go | Number of bytes in use by the stack allocator. |
+| `go_memstats_stack_sys_bytes` | gauge | Internal Go | Number of bytes obtained from the system for stack allocator. |
+| `go_memstats_sys_bytes` | gauge | Internal Go | Number of bytes obtained from the system. |
+| `go_threads` | gauge | Internal Go | Number of OS threads created. |
+| `process_cpu_seconds_total` | counter | Internal Go | Total user and system CPU time spent in seconds. |
+| `process_max_fds` | gauge | Internal Go | Maximum number of open file descriptors. |
+| `process_open_fds` | gauge | Internal Go | Number of open file descriptors. |
+| `process_resident_memory_bytes` | gauge | Internal Go | Resident memory size in bytes. |
+| `process_start_time_seconds` | gauge | Internal Go | Start time of the process since the Unix epoch in seconds. |
+| `process_virtual_memory_bytes` | gauge | Internal Go | Virtual memory size in bytes. |
+| `process_virtual_memory_max_bytes` | gauge | Internal Go | Maximum amount of virtual memory available in bytes. |
 
 ## Prometheus
 

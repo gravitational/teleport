@@ -26,6 +26,9 @@ import (
 )
 
 func FuzzParseProxyJump(f *testing.F) {
+	f.Add("@:,")
+	f.Add("user@host:port,bob@host:port")
+
 	f.Fuzz(func(t *testing.T, in string) {
 		require.NotPanics(t, func() {
 			ParseProxyJump(in)
@@ -34,6 +37,13 @@ func FuzzParseProxyJump(f *testing.F) {
 }
 
 func FuzzParseWebLinks(f *testing.F) {
+	f.Add("|")
+	f.Add(",")
+	f.Add("<foo>|<bar>")
+	f.Add("<foo>,<bar>")
+	f.Add(`<foo>; rel="next"|<bar>; rel="prev"`)
+	f.Add(`<foo>; rel="first",<bar>; rel="last"`)
+
 	f.Fuzz(func(t *testing.T, s string) {
 		links := strings.Split(s, "|")
 		require.NotPanics(t, func() {
@@ -48,11 +58,18 @@ func FuzzParseWebLinks(f *testing.F) {
 }
 
 func FuzzReadYAML(f *testing.F) {
+	f.Add([]byte("name: Example\nage: 30\nskills:\n  - Python\n  - JavaScript"))
+	f.Add([]byte("---\nname: Document1\n---\nname: Document2"))
+	f.Add([]byte(`name: "John Doe`))
+	f.Add([]byte("level1:\n  level2:\n    level3:\n      level4:\n        key: value"))
+	f.Add([]byte("default: &DEFAULT\n  name: Example\n  age: 30\nperson1:\n  <<: *DEFAULT\n  name: Another Example"))
+	f.Add([]byte("123:\n  name: Example"))
+
 	f.Fuzz(func(t *testing.T, dataBytes []byte) {
 		data := bytes.NewReader(dataBytes)
 
 		require.NotPanics(t, func() {
-			ReadYAML(data)
+			_, _ = ReadYAML(data)
 		})
 	})
 }

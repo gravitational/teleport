@@ -74,7 +74,6 @@ func TestEmitConnTeleportSmallReads(t *testing.T) {
 	}
 
 	require.False(t, conn.emitted)
-
 }
 
 func TestEmitConnNotTeleportSmallReads(t *testing.T) {

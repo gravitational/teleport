@@ -72,7 +72,7 @@ type RemoteClusterTunnelManagerConfig struct {
 	LocalCluster string
 	// Local ReverseTunnelServer to reach other cluster members connecting to
 	// this proxy over a tunnel.
-	ReverseTunnelServer Server
+	ReverseTunnelServer reversetunnelclient.Server
 	// Clock is a mock-able clock.
 	Clock clockwork.Clock
 	// KubeDialAddr is an optional address of a local kubernetes proxy.

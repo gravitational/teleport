@@ -426,7 +426,7 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 			// This check ignores the Kind field because `validateKubeResources` ensures
 			// that for older roles, the Kind field can only be pod.
 		case len(resources) == 1 && resources[0].Name == Wildcard && resources[0].Namespace == Wildcard:
-			return []KubernetesResource{{Kind: Wildcard, Name: Wildcard, Namespace: Wildcard}}
+			return []KubernetesResource{{Kind: Wildcard, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}}}
 		default:
 			for _, resource := range KubernetesResourcesKinds {
 				// Ignore Pod resources for older roles because Pods were already supported
@@ -434,7 +434,7 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 				if resource == KindKubePod {
 					continue
 				}
-				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard})
+				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}})
 			}
 			return resources
 		}
@@ -938,9 +938,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if r.Spec.Options.DesktopDirectorySharing == nil {
 		r.Spec.Options.DesktopDirectorySharing = NewBoolOption(true)
 	}
-	if r.Spec.Options.CreateHostUser == nil {
-		r.Spec.Options.CreateHostUser = NewBoolOption(false)
-	}
 	if r.Spec.Options.CreateDesktopUser == nil {
 		r.Spec.Options.CreateDesktopUser = NewBoolOption(false)
 	}
@@ -957,6 +954,10 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 				Enabled: NewBoolOption(true),
 			},
 		}
+	}
+
+	if _, ok := CreateHostUserMode_name[int32(r.Spec.Options.CreateHostUserMode)]; !ok {
+		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", r.Spec.Options.CreateHostUserMode)
 	}
 
 	switch r.Version {
@@ -996,11 +997,13 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			}
 		}
 
+		setDefaultKubernetesVerbs(&r.Spec)
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
 
 	case V6:
+		setDefaultKubernetesVerbs(&r.Spec)
 		if err := validateRoleSpecKubeResources(r.Version, r.Spec); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1012,6 +1015,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Kind:      Wildcard,
 					Namespace: Wildcard,
 					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
 				},
 			}
 		}
@@ -1585,6 +1589,19 @@ func validateRoleSpecKubeResources(version string, spec RoleSpecV6) error {
 	return nil
 }
 
+// setDefaultKubernetesVerbs sets the default verbs for each KubernetesResource
+// entry if none are specified. This is necessary for backwards compatibility
+// with older versions of Role: V3, V4, V5, and v6.
+func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
+	for _, kubeResources := range [][]KubernetesResource{spec.Allow.KubernetesResources, spec.Deny.KubernetesResources} {
+		for i := range kubeResources {
+			if len(kubeResources[i].Verbs) == 0 {
+				kubeResources[i].Verbs = []string{Wildcard}
+			}
+		}
+	}
+}
+
 // validateKubeResources validates the following rules for each kubeResources entry:
 // - Kind belongs to KubernetesResourcesKinds
 // - Name is not empty
@@ -1594,6 +1611,16 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
 			return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
 		}
+
+		for _, verb := range kubeResource.Verbs {
+			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard {
+				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
+			}
+			if verb == Wildcard && len(kubeResource.Verbs) > 1 {
+				return trace.BadParameter("KubernetesResource verb %q cannot be used with other verbs", verb)
+			}
+		}
+
 		// Only Pod resources are supported in role version <=V6.
 		// This is mandatory because we must append the other resources to the
 		// kubernetes resources.
@@ -1603,9 +1630,12 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			if kubeResource.Kind != KindKubePod {
 				return trace.BadParameter("KubernetesResource %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
 			}
+			if len(kubeResource.Verbs) != 1 || kubeResource.Verbs[0] != Wildcard {
+				return trace.BadParameter("Role version %q only supports %q verb. Upgrade the role version to %q", roleVersion, Wildcard, V7)
+			}
 		}
 
-		if len(kubeResource.Namespace) == 0 {
+		if len(kubeResource.Namespace) == 0 && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
 			return trace.BadParameter("KubernetesResource must include Namespace")
 		}
 		if len(kubeResource.Name) == 0 {
@@ -1754,4 +1784,96 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
+}
+
+const (
+	createHostUserModeOffString  = "off"
+	createHostUserModeDropString = "drop"
+	createHostUserModeKeepString = "keep"
+)
+
+func (h CreateHostUserMode) encode() (string, error) {
+	switch h {
+	case CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED:
+		return "", nil
+	case CreateHostUserMode_HOST_USER_MODE_OFF:
+		return createHostUserModeOffString, nil
+	case CreateHostUserMode_HOST_USER_MODE_DROP:
+		return createHostUserModeDropString, nil
+	case CreateHostUserMode_HOST_USER_MODE_KEEP:
+		return createHostUserModeKeepString, nil
+	}
+	return "", trace.BadParameter("invalid host user mode %v", h)
+}
+
+func (h *CreateHostUserMode) decode(val any) error {
+	var valS string
+	switch val := val.(type) {
+	case string:
+		valS = val
+	case bool:
+		if val {
+			return trace.BadParameter("create_host_user_mode cannot be true, got %v", val)
+		}
+		valS = createHostUserModeOffString
+	default:
+		return trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch valS {
+	case "":
+		*h = CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED
+	case createHostUserModeOffString:
+		*h = CreateHostUserMode_HOST_USER_MODE_OFF
+	case createHostUserModeDropString:
+		*h = CreateHostUserMode_HOST_USER_MODE_DROP
+	case createHostUserModeKeepString:
+		*h = CreateHostUserMode_HOST_USER_MODE_KEEP
+	default:
+		return trace.BadParameter("invalid host user mode %v", val)
+	}
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateHostUserMode to yaml.
+func (h *CreateHostUserMode) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateHostUserMode to json bytes.
+func (h *CreateHostUserMode) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
 }

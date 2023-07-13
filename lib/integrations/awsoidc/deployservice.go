@@ -22,14 +22,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 var (
@@ -55,8 +58,11 @@ var (
 )
 
 const (
-	// teleportContainerImageFmt is the Teleport Container Image to be used
-	teleportContainerImageFmt = "public.ecr.aws/gravitational/teleport-distroless:%s"
+	// teleportOSS is the prefix for the image name when deploying the OSS version of Teleport
+	teleportOSS = "teleport"
+
+	// teleportEnt is the prefix for the image name when deploying the Enterprise version of Teleport
+	teleportEnt = "teleport-ent"
 
 	// clusterStatusActive is the string representing an ACTIVE ECS Cluster.
 	clusterStatusActive = "ACTIVE"
@@ -90,6 +96,10 @@ var (
 type DeployServiceRequest struct {
 	// Region is the AWS Region
 	Region string
+
+	// AccountID is the AWS Account ID.
+	// Optional. sts.GetCallerIdentity is used if the value is not provided.
+	AccountID string
 
 	// SubnetIDs are the subnets associated with the service.
 	SubnetIDs []string
@@ -135,6 +145,13 @@ type DeployServiceRequest struct {
 	// DatabaseResourceMatcherLabels contains the set of labels to be used by the DatabaseService.
 	// This is used when the deployment mode creates a Database Service.
 	DatabaseResourceMatcherLabels types.Labels
+
+	// TeleportVersionTag is the version of teleport to install.
+	// Ensure the tag exists in:
+	// public.ecr.aws/gravitational/teleport-distroless:<TeleportVersionTag>
+	// Eg, 13.2.0
+	// Optional. Defaults to the current version.
+	TeleportVersionTag string
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -166,6 +183,10 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("teleport cluster name is required")
 	}
 	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
+
+	if r.TeleportVersionTag == "" {
+		r.TeleportVersionTag = teleport.Version
+	}
 
 	if r.TeleportIAMTokenName == nil || *r.TeleportIAMTokenName == "" {
 		r.TeleportIAMTokenName = &defaultTeleportIAMTokenName
@@ -269,12 +290,54 @@ type DeployServiceClient interface {
 	// RegisterTaskDefinition registers a new task definition from the supplied family and containerDefinitions.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.RegisterTaskDefinition
 	RegisterTaskDefinition(ctx context.Context, params *ecs.RegisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error)
+
+	// TokenService are the required methods to manage the IAM Join Token.
+	// When the deployed service connects to the cluster, it will use the IAM Join method.
+	// Before deploying the service, it must ensure that the token exists and has the appropriate token rul.
+	TokenService
+
+	// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+type defaultDeployServiceClient struct {
+	*ecs.Client
+	stsClient          *sts.Client
+	tokenServiceClient TokenService
+}
+
+// GetToken returns a provision token by name.
+func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	return d.tokenServiceClient.GetToken(ctx, name)
+}
+
+// UpsertToken creates or updates a provision token.
+func (d *defaultDeployServiceClient) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
+	return d.tokenServiceClient.UpsertToken(ctx, token)
+}
+
+// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
+func (d defaultDeployServiceClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
-func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (DeployServiceClient, error) {
-	fmt.Println(clientReq.Token)
-	return newECSClient(ctx, clientReq)
+func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, tokenServiceClient TokenService) (DeployServiceClient, error) {
+	ecsClient, err := newECSClient(ctx, clientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stsClient, err := newSTSClient(ctx, clientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &defaultDeployServiceClient{
+		Client:             ecsClient,
+		stsClient:          stsClient,
+		tokenServiceClient: tokenServiceClient,
+	}, nil
 }
 
 // DeployService calls Amazon ECS APIs to deploy a Teleport Service.
@@ -297,84 +360,9 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 // You can also use the role received as parameter (req.TaskRoleARN) to have an even stricter matching.
 // Eg of the identity ARN: "arn:aws:sts::0123456789012:assumed-role/<req.TaskRoleARN>/<abcd>"
 //
-// # Pre-requirement: TaskRole creation
-//
-// The req.TaskRoleARN Role must have permissions according to the Teleport Services being deployed.
-// Example for a DatabaseService:
-//
-//	{
-//	    "Version": "2012-10-17",
-//	    "Statement": [
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": [
-//	                "iam:DeleteRolePolicy",
-//	                "iam:PutRolePolicy",
-//	                "iam:GetRolePolicy"
-//	            ],
-//	            "Resource": "arn:aws:iam::123456789012:role/<req.TaskRoleARN>"
-//	        },
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": [
-//	                "rds:DescribeDBInstances",
-//	                "rds:ModifyDBInstance"
-//	            ],
-//	            "Resource": "*"
-//	        },
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": "logs:*",
-//	            "Resource": "*"
-//	        }
-//	    ]
-//	}
-//
-// And the following Trust Policy
-//
-//	{
-//	    "Version": "2012-10-17",
-//	    "Statement": [
-//	        {
-//	            "Effect": "Allow",
-//	            "Principal": {
-//	                "Service": "ecs-tasks.amazonaws.com"
-//	            },
-//	            "Action": "sts:AssumeRole"
-//	        }
-//	    ]
-//	}
-//
-// # Pre-requirement: AWS OIDC Integration Role
-//
-// To deploy those services the AWS OIDC Integration Role requires the following policy:
-//
-//	{
-//	    "Version": "2012-10-17",
-//	    "Statement": [
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": [
-//	                "ecs:CreateCluster",
-//	                "ecs:PutClusterCapacityProviders",
-//	                "ecs:DescribeClusters",
-//	                "ecs:RegisterTaskDefinition",
-//	                "ecs:CreateService",
-//	                "ecs:DescribeServices",
-//	                "ecs:UpdateService"
-//	            ],
-//	            "Resource": "*"
-//	        },
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": [
-//	                "iam:PassRole"
-//	            ],
-//	            "Resource": "arn:aws:iam::123456789012:role/<req.TaskRoleARN>"
-//	        }
-//	    ]
-//	}
-//
+// # Pre-requirement: TaskRole and Integration Role
+// The required IAM Roles and Policies are described in [awsoidc.ConfigureDeployServiceIAM].
+
 // # Resource tagging
 //
 // Created resources have the following set of tags:
@@ -385,6 +373,26 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 // If resources already exist, only resources with those tags will be updated.
 func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest) (*DeployServiceResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.AccountID == "" {
+		callerIdentity, err := clt.GetCallerIdentity(ctx, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		req.AccountID = aws.ToString(callerIdentity.Account)
+	}
+
+	upsertTokenReq := upsertIAMJoinTokenRequest{
+		tokenName:      *req.TeleportIAMTokenName,
+		accountID:      req.AccountID,
+		region:         req.Region,
+		iamRole:        req.TaskRoleARN,
+		deploymentMode: req.DeploymentMode,
+	}
+	if err := upsertIAMJoinToken(ctx, upsertTokenReq, clt); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -421,7 +429,11 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, teleport.Version)
+	teleportFlavor := teleportOSS
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		teleportFlavor = teleportEnt
+	}
+	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, req.TeleportVersionTag)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,
@@ -453,7 +465,7 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceR
 				},
 			},
 		}},
-		Tags: req.ResourceCreationTags.ForECS(),
+		Tags: req.ResourceCreationTags.ToECSTags(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -481,7 +493,7 @@ func upsertCluster(ctx context.Context, clt DeployServiceClient, req DeployServi
 		createClusterResp, err := clt.CreateCluster(ctx, &ecs.CreateClusterInput{
 			ClusterName:       req.ClusterName,
 			CapacityProviders: requiredCapacityProviders,
-			Tags:              req.ResourceCreationTags.ForECS(),
+			Tags:              req.ResourceCreationTags.ToECSTags(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -655,7 +667,7 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 				Subnets:        req.SubnetIDs,
 			},
 		},
-		Tags:          req.ResourceCreationTags.ForECS(),
+		Tags:          req.ResourceCreationTags.ToECSTags(),
 		PropagateTags: ecsTypes.PropagateTagsService,
 	})
 	if err != nil {

@@ -52,34 +52,32 @@ func TestString(t *testing.T) {
 	}
 }
 
-func TestParseClusterURI(t *testing.T) {
+func TestGetClusterURI(t *testing.T) {
 	tests := []struct {
-		in  string
+		in  uri.ResourceURI
 		out uri.ResourceURI
 	}{
 		{
-			"/clusters/cluster.sh",
+			uri.NewClusterURI("cluster.sh"),
 			uri.NewClusterURI("cluster.sh"),
 		},
 		{
-			"/clusters/cluster.sh/servers/server1",
+			uri.NewClusterURI("cluster.sh").AppendServer("server1"),
 			uri.NewClusterURI("cluster.sh"),
 		},
 		{
-			"/clusters/cluster.sh/leaves/leaf.sh",
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 		},
 		{
-			"/clusters/cluster.sh/leaves/leaf.sh/dbs/postgres",
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh").AppendDB("postgres"),
 			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.in, func(t *testing.T) {
-			out, err := uri.ParseClusterURI(tt.in)
-			require.NoError(t, err)
-			require.Equal(t, tt.out, out)
+		t.Run(tt.in.String(), func(t *testing.T) {
+			require.Equal(t, tt.out, tt.in.GetClusterURI())
 		})
 	}
 }
@@ -125,6 +123,52 @@ func TestGetDbName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			out := tt.in.GetDbName()
+			require.Equal(t, tt.out, out)
+		})
+	}
+}
+
+func TestGetKubeName(t *testing.T) {
+	tests := []struct {
+		name string
+		in   uri.ResourceURI
+		out  string
+	}{
+		{
+			name: "returns root cluster kube name",
+			in:   uri.NewClusterURI("foo").AppendKube("k8s"),
+			out:  "k8s",
+		},
+		{
+			name: "returns leaf cluster kube name",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
+			out:  "k8s",
+		},
+		{
+			name: "returns empty string when given root cluster URI",
+			in:   uri.NewClusterURI("foo"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given root cluster non-kube resource URI",
+			in:   uri.NewClusterURI("foo").AppendDB("postgres"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster non-kube resource URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
+			out:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := tt.in.GetKubeName()
 			require.Equal(t, tt.out, out)
 		})
 	}
@@ -214,5 +258,69 @@ func TestGetRootClusterURI(t *testing.T) {
 			out := tt.in.GetRootClusterURI()
 			require.Equal(t, tt.out, out)
 		})
+	}
+}
+
+func TestIsDB(t *testing.T) {
+	tests := []struct {
+		in    uri.ResourceURI
+		check require.BoolAssertionFunc
+	}{
+		{
+			in:    uri.NewClusterURI("foo").AppendDB("db"),
+			check: require.True,
+		},
+		{
+			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("db"),
+			check: require.True,
+		},
+		{
+			in:    uri.NewClusterURI("foo"),
+			check: require.False,
+		},
+		{
+			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			check: require.False,
+		},
+		{
+			in:    uri.NewClusterURI("foo").AppendKube("kube"),
+			check: require.False,
+		},
+	}
+
+	for _, tt := range tests {
+		tt.check(t, tt.in.IsDB())
+	}
+}
+
+func TestIsKube(t *testing.T) {
+	tests := []struct {
+		in    uri.ResourceURI
+		check require.BoolAssertionFunc
+	}{
+		{
+			in:    uri.NewClusterURI("foo").AppendKube("kube"),
+			check: require.True,
+		},
+		{
+			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("kube"),
+			check: require.True,
+		},
+		{
+			in:    uri.NewClusterURI("foo"),
+			check: require.False,
+		},
+		{
+			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			check: require.False,
+		},
+		{
+			in:    uri.NewClusterURI("foo").AppendDB("db"),
+			check: require.False,
+		},
+	}
+
+	for _, tt := range tests {
+		tt.check(t, tt.in.IsKube())
 	}
 }

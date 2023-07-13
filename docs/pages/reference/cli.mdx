@@ -1012,7 +1012,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 *The proxy endpoint can take a https and ssh port in this format `host:https_port[,ssh_proxy_port]`*
 
 ```code
-# Try Toboth ports 443 and 3080 for https
+# Try both ports 443 and 3080 for https
 $ tsh --proxy=proxy.example.com login
 
 # Use ports 8080 and 8023 for https and SSH proxy:
@@ -1575,7 +1575,7 @@ which could result in the error,
 `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
   </TabItem>
-  <TabItem scope={["cloud"]} label="Teleport Cloud">
+  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 When running `tctl` commands, administrators must authenticate to a Teleport
 cluster. This can be done in two ways:
@@ -1674,9 +1674,9 @@ These flags are available for all commands `--debug, --config`. Run
 ```code
 # Adds teleport user "joe" with mappings to
 # OS users and {{ internal.logins }} to "joe" and "ubuntu"
-$ tctl users add joe --roles=access joe,ubuntu
+$ tctl users add joe --roles=access,requester joe,ubuntu
 # Adds Teleport user "joe" with mappings to the editor role
-$ tctl users add joe --roles=editor
+$ tctl users add joe --roles=editor,reviewer
 ```
 
 ### tctl users update
@@ -2982,7 +2982,7 @@ Starts the Machine ID client `tbot`, fetching and writing certificates to disk a
 
 #### Examples
 <Tabs>
-  <TabItem scope={["Cloud"]} label="Teleport Cloud">
+  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 ```code
 $ tbot start \
@@ -2995,7 +2995,7 @@ $ tbot start \
 ```
 
   </TabItem>
-  <TabItem scope={["Enterprise/OSS"]} label="Enterprise/OSS">
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 ```code
 $ tbot start \

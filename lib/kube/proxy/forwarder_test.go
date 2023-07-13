@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -56,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -161,7 +161,7 @@ func TestAuthenticate(t *testing.T) {
 	require.NoError(t, err)
 
 	tun := mockRevTunnel{
-		sites: map[string]reversetunnel.RemoteSite{
+		sites: map[string]reversetunnelclient.RemoteSite{
 			"remote": mockRemoteSite{name: "remote"},
 			"local":  mockRemoteSite{name: "local"},
 		},
@@ -201,7 +201,7 @@ func TestAuthenticate(t *testing.T) {
 		routeToCluster    string
 		kubernetesCluster string
 		haveKubeCreds     bool
-		tunnel            reversetunnel.Server
+		tunnel            reversetunnelclient.Server
 		kubeServers       []types.KubeServer
 		activeRequests    []string
 
@@ -755,6 +755,7 @@ func TestAuthenticate(t *testing.T) {
 			req := &http.Request{
 				Host:       "example.com",
 				RemoteAddr: remoteAddr,
+				URL:        &url.URL{},
 				TLS: &tls.ConnectionState{
 					PeerCertificates: []*x509.Certificate{
 						{
@@ -785,8 +786,8 @@ func TestAuthenticate(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
-				cmp.AllowUnexported(authContext{}, teleportClusterClient{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster"),
+				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, apiResource{}),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "apiResource"),
 			))
 
 			// validate authCtx.key() to make sure it includes certExpires timestamp.
@@ -934,8 +935,6 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Log(tt.desc)
-
 		err := setupImpersonationHeaders(
 			logrus.NewEntry(logrus.New()),
 			authContext{
@@ -945,7 +944,6 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			tt.inHeaders,
 		)
-		t.Log("got error:", err)
 		tt.errAssertion(t, err)
 
 		if err == nil {
@@ -1185,11 +1183,11 @@ func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse,
 	}, nil
 }
 
-// mockRemoteSite is a reversetunnel.RemoteSite implementation with hardcoded
+// mockRemoteSite is a reversetunnelclient.RemoteSite implementation with hardcoded
 // name, because there's no easy way to construct a real
-// reversetunnel.RemoteSite.
+// reversetunnelclient.RemoteSite.
 type mockRemoteSite struct {
-	reversetunnel.RemoteSite
+	reversetunnelclient.RemoteSite
 	name string
 }
 
@@ -1234,12 +1232,12 @@ func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAut
 }
 
 type mockRevTunnel struct {
-	reversetunnel.Server
+	reversetunnelclient.Server
 
-	sites map[string]reversetunnel.RemoteSite
+	sites map[string]reversetunnelclient.RemoteSite
 }
 
-func (t mockRevTunnel) GetSite(name string) (reversetunnel.RemoteSite, error) {
+func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
 	s, ok := t.sites[name]
 	if !ok {
 		return nil, trace.NotFound("remote site %q not found", name)
@@ -1247,8 +1245,8 @@ func (t mockRevTunnel) GetSite(name string) (reversetunnel.RemoteSite, error) {
 	return s, nil
 }
 
-func (t mockRevTunnel) GetSites() ([]reversetunnel.RemoteSite, error) {
-	var sites []reversetunnel.RemoteSite
+func (t mockRevTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error) {
+	var sites []reversetunnelclient.RemoteSite
 	for _, s := range t.sites {
 		sites = append(sites, s)
 	}
@@ -1606,49 +1604,6 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 	}
 }
 
-func Test_getPodResourceFromRequest(t *testing.T) {
-	tests := []struct {
-		name       string
-		requestURI string
-		want       *types.KubernetesResource
-	}{
-		{
-			name:       "pod access endpoint",
-			requestURI: "/api/v1/namespaces/default/pods/podName",
-			want: &types.KubernetesResource{
-				Kind:      types.KindKubePod,
-				Namespace: "default",
-				Name:      "podName",
-			},
-		},
-		{
-			name:       "pod exec endpoint",
-			requestURI: "/api/v1/namespaces/default/pods/podName/exec",
-			want: &types.KubernetesResource{
-				Kind:      types.KindKubePod,
-				Namespace: "default",
-				Name:      "podName",
-			},
-		},
-		{
-			name:       "pod list endpoint",
-			requestURI: "/api/v1/namespaces/default/pods/",
-			want:       nil,
-		},
-		{
-			name:       "secrets get endpoint",
-			requestURI: "/api/v1/namespaces/default/secrets/secretName",
-			want:       nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := getPodResourceFromRequest(tt.requestURI)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func Test_copyImpersonationHeaders(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1755,6 +1710,94 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 
 			_, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
 			tt.assertErrFunc(t, err)
+		})
+	}
+}
+
+func Test_authContext_eventClusterMeta(t *testing.T) {
+	t.Parallel()
+	kubeClusterLabels := map[string]string{
+		"label": "value",
+	}
+	type args struct {
+		req *http.Request
+		ctx *authContext
+	}
+	tests := []struct {
+		name string
+		args args
+		want apievents.KubernetesClusterMetadata
+	}{
+		{
+			name: "no headers in request",
+			args: args{
+				req: &http.Request{
+					Header: http.Header{},
+				},
+				ctx: &authContext{
+					kubeClusterName:   "clusterName",
+					kubeClusterLabels: kubeClusterLabels,
+					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}},
+					kubeUsers:         map[string]struct{}{"kube-user-a": {}},
+				},
+			},
+			want: apievents.KubernetesClusterMetadata{
+				KubernetesCluster: "clusterName",
+				KubernetesLabels:  kubeClusterLabels,
+				KubernetesGroups:  []string{"kube-group-a", "kube-group-b"},
+				KubernetesUsers:   []string{"kube-user-a"},
+			},
+		},
+		{
+			name: "with filter headers in request",
+			args: args{
+				req: &http.Request{
+					Header: http.Header{
+						ImpersonateUserHeader:  []string{"kube-user-a"},
+						ImpersonateGroupHeader: []string{"kube-group-b", "kube-group-c"},
+					},
+				},
+				ctx: &authContext{
+					kubeClusterName:   "clusterName",
+					kubeClusterLabels: kubeClusterLabels,
+					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
+					kubeUsers:         map[string]struct{}{"kube-user-a": {}, "kube-user-b": {}},
+				},
+			},
+			want: apievents.KubernetesClusterMetadata{
+				KubernetesCluster: "clusterName",
+				KubernetesLabels:  kubeClusterLabels,
+				KubernetesGroups:  []string{"kube-group-b", "kube-group-c"},
+				KubernetesUsers:   []string{"kube-user-a"},
+			},
+		},
+		{
+			name: "without filter headers in request and multi groups",
+			args: args{
+				req: &http.Request{
+					Header: http.Header{},
+				},
+				ctx: &authContext{
+					kubeClusterName:   "clusterName",
+					kubeClusterLabels: kubeClusterLabels,
+					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
+					kubeUsers:         map[string]struct{}{"kube-user-a": {}, "kube-user-b": {}},
+				},
+			},
+			want: apievents.KubernetesClusterMetadata{
+				KubernetesCluster: "clusterName",
+				KubernetesLabels:  kubeClusterLabels,
+				KubernetesGroups:  []string{"kube-group-a", "kube-group-b", "kube-group-c"},
+				KubernetesUsers:   []string{"kube-user-a", "kube-user-b"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.args.ctx.eventClusterMeta(tt.args.req)
+			sort.Strings(got.KubernetesGroups)
+			sort.Strings(got.KubernetesGroups)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

@@ -33,7 +33,7 @@ LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 # Sync any version changes below with devbox.json.
 # Protogen related versions.
-BUF_VERSION ?= 1.21.0
+BUF_VERSION ?= 1.23.1
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4
@@ -58,7 +58,6 @@ include grpcbox.mk
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
 # make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
 BUILDBOX_NAME=$(BUILDBOX)
-BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
 DOCSBOX=ghcr.io/gravitational/docs
 
@@ -435,9 +434,9 @@ release-arm64: buildbox-arm
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY:release-fips
-release-fips: buildbox-fips
+release-fips: buildbox-centos7-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #

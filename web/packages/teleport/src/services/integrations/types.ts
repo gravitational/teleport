@@ -202,6 +202,10 @@ export type AwsRdsDatabase = {
   accountId: string;
   // labels contains this Instance tags.
   labels: Label[];
+  // subnets is a list of subnets for the RDS instance.
+  subnets: string[];
+  // region is the AWS cloud region that this database is from.
+  region: Regions;
   // status contains this Instance status.
   // There is a lot of status states available so only a select few were
   // hard defined to use to determine the status color.
@@ -220,4 +224,27 @@ export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
   };
+};
+
+export type AwsOidcDeployServiceRequest = {
+  deploymentMode: 'database-service';
+  region: Regions;
+  subnetIds: string[];
+  taskRoleArn: string;
+  databaseAgentMatcherLabels: Label[];
+};
+
+export type AwsOidcDeployServiceResponse = {
+  // clusterArn is the Amazon ECS Cluster ARN
+  // where the task was started.
+  clusterArn: string;
+  // serviceArn is the Amazon ECS Cluster Service
+  // ARN created to run the task.
+  serviceArn: string;
+  // taskDefinitionArn is the Amazon ECS Task Definition
+  // ARN created to run the Service.
+  taskDefinitionArn: string;
+  // serviceDashboardUrl is a link to the service's Dashboard
+  // URL in Amazon Console.
+  serviceDashboardUrl: string;
 };

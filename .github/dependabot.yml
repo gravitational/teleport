@@ -11,6 +11,10 @@ updates:
       - dependency-name: github.com/gravitational/ttlmap
       # Breaks backwards compatibility
       - dependency-name: github.com/go-webauthn/webauthn
+      # Requires github.com/go-webauthn/webauthn upgrade
+      - dependency-name: github.com/google/go-attestation # requires go-tpm
+      - dependency-name: github.com/google/go-tpm         # requires newer go-webauthn/webauthn
+      - dependency-name: github.com/google/go-tpm-tools   # requires go-tpm
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies

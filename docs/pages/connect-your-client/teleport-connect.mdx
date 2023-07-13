@@ -107,7 +107,7 @@ Alternatively, you can look for the cluster in the search bar and press `Enter` 
   can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
 2. Select the Databases section.
 3. Look for the database server you wish to connect to and click the Connect button to the right.
-4. Select or enter the database user you with to use and press `Enter`.
+4. Select or enter the database user you wish to use and press `Enter`.
 5. A new tab will open with a new connection established between your device and the database server.
 
 Alternatively, you can look for the database in the search bar and press `Enter` to connect to it.
@@ -196,6 +196,9 @@ Below is the list of the supported config properties.
 
 | Property                      | Default                                                                                                              | Description                                                            |
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| `theme`                       | `system`                                                                                                             | Color theme for the app. Available modes: `light`, `dark`, `system`.   |
+| `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                          |
+| `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                            |
 | `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)). |
 | `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                              |
 | `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+W` on Windows/Linux                                                                   | Shortcut to close a tab.                                               |
@@ -207,8 +210,6 @@ Below is the list of the supported config properties.
 | `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                   | Shortcut to open the cluster selector.                                 |
 | `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+I` on Windows/Linux                                                                   | Shortcut to open the profile selector.                                 |
 | `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+K` on Windows/Linux                                                                   | Shortcut to open the search bar.                                       |
-| `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                          |
-| `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                            |
 
 <Admonition
   type="note"

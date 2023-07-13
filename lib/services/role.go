@@ -793,15 +793,6 @@ func (set RuleSet) Slice() []types.Rule {
 	return out
 }
 
-// HostUsersInfo keeps information about groups and sudoers entries
-// for a particular host user
-type HostUsersInfo struct {
-	// Groups is the list of groups to include host users in
-	Groups []string
-	// Sudoers is a list of entries for a users sudoers file
-	Sudoers []string
-}
-
 // RoleFromSpec returns new Role created from spec
 func RoleFromSpec(name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
@@ -2210,14 +2201,20 @@ type KubeResourcesMatcher struct {
 // Match matches a Kubernetes resource against provided role and condition.
 func (m *KubeResourcesMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	var finalResult bool
-	for _, pod := range m.resources {
-		result, err := utils.KubeResourceMatchesRegex(pod, role.GetKubeResources(condition))
+	for _, resource := range m.resources {
+		// We use utils.KubeResourceMatchesRegexWithVerbsCollector instead of utils.KubeResourceMatchesRegex
+		// because KubeResourcesMatcher is used to match access request resources at creation time against
+		// the roles specified in the `search_as_roles` field. This means that we don't have the request verb
+		// at this point and we need to match the resource against all the verbs specified in the role.
+		// If the resource matches any of the verbs, we consider the resource as matched.
+		// Verbs are enforced at the request time when the user is trying to access the Kubernetes Pod.
+		result, _, err := utils.KubeResourceMatchesRegexWithVerbsCollector(resource, role.GetKubeResources(condition))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
 		if result {
-			delete(m.unmatchedReqs, pod.ClusterResource())
+			delete(m.unmatchedReqs, resource.ClusterResource())
 			finalResult = true
 		}
 	}
@@ -2824,11 +2821,12 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappe
 	}
 
 	for _, role := range set {
-		matchLabels, _, err := checkRoleLabelsMatch(types.Deny, role, userTraits, cluster, false)
-		if err != nil || !matchLabels {
-			continue
-		}
-
+		// deny rules are not checked for labels because they are greedy. It means that
+		// if there is a deny rule for a cluster, it will deny access to all resources
+		// in that cluster, regardless of kubernetes_resources (i.e. making them irrelevant).
+		// If the goal is to deny access to a specific resource, it should be done by collecting
+		// all kube resources in deny rules and ignoring if the role matches or not
+		// the cluster (i.e. no labels check).
 		denied = append(denied, role.GetKubeResources(types.Deny)...)
 	}
 

@@ -276,6 +276,9 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	}
 	cfg.Database, cfg.TableName = splitted[0], splitted[1]
 
+	if region := url.Query().Get("region"); region != "" {
+		cfg.Region = region
+	}
 	topicARN := url.Query().Get("topicArn")
 	if topicARN != "" {
 		cfg.TopicARN = topicARN
@@ -405,7 +408,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	l := &Log{
-		publisher:      newPublisher(cfg),
+		publisher:      newPublisherFromAthenaConfig(cfg),
 		querier:        querier,
 		consumerCloser: consumer,
 	}

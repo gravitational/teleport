@@ -644,6 +644,10 @@ message InstanceSpecV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "control_log,omitempty"
   ];
+
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 7 [(gogoproto.jsontag) = "ext_upgrader,omitempty"];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -704,6 +708,18 @@ message InstanceFilter {
   // expose *at least* one of the listed services. This is in contrast to service matching in version
   // directives which match instances that expose a *at most* the listed services.
   repeated string Services = 3 [(gogoproto.casttype) = "SystemRole"];
+
+  // ExternalUpgrader matches instance upgrader if specified.
+  string ExternalUpgrader = 4;
+
+  // NoExtUpgrader explicitly matches instances for which no upgrader is defined.
+  bool NoExtUpgrader = 5;
+
+  // OlderThanVersion is an optional exclusive upper version bound.
+  string OlderThanVersion = 6;
+
+  // NewerThanVersion is an optional exclusive lower version bound.
+  string NewerThanVersion = 7;
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
@@ -1562,6 +1578,10 @@ message ClusterNetworkingConfigSpecV2 {
     (gogoproto.jsontag) = "proxy_ping_interval,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // AssistCommandExecutionWorkers determines the number of workers that will
+  // execute arbitrary Assist commands on servers in parallel
+  int32 AssistCommandExecutionWorkers = 11 [(gogoproto.jsontag) = "assist_command_execution_workers,omitempty"];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -1736,6 +1756,13 @@ message AuthPreferenceSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "allow_headless,omitempty",
     (gogoproto.customtype) = "BoolOption"
+  ];
+
+  // DefaultSessionTTL is the TTL to use for user certs when
+  // an explicit TTL is not requested.
+  int64 DefaultSessionTTL = 16 [
+    (gogoproto.jsontag) = "default_session_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
   ];
 }
 
@@ -2318,6 +2345,19 @@ message RoleSpecV6 {
   ];
 }
 
+// CreateHostUserMode determines whether host user creation should be
+// disabled or if host users should be cleaned up or kept after
+// sessions end.
+enum CreateHostUserMode {
+  HOST_USER_MODE_UNSPECIFIED = 0;
+  // HOST_USER_MODE_OFF disables host user creation.
+  HOST_USER_MODE_OFF = 1;
+  // HOST_USER_MODE_DROP enables host user creation and deletes users at session end.
+  HOST_USER_MODE_DROP = 2;
+  // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
+  HOST_USER_MODE_KEEP = 3;
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2431,7 +2471,7 @@ message RoleOptions {
   // CreateHostUser allows users to be automatically created on a host
   BoolValue CreateHostUser = 20 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "create_host_user",
+    (gogoproto.jsontag) = "create_host_user,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
 
@@ -2475,6 +2515,10 @@ message RoleOptions {
     (gogoproto.jsontag) = "create_db_user",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // CreateHostUserMode allows users to be automatically created on a
+  // host when not set to off
+  CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
 }
 
 message RecordSession {
@@ -2694,6 +2738,8 @@ message KubernetesResource {
   // Name is the resource name.
   // It supports wildcards.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+  // Verbs are the allowed Kubernetes verbs for the following resource.
+  repeated string Verbs = 4 [(gogoproto.jsontag) = "verbs,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -5004,6 +5050,18 @@ message DatabaseResourceMatcher {
     (gogoproto.jsontag) = "labels",
     (gogoproto.customtype) = "Labels"
   ];
+  ResourceMatcherAWS AWS = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "aws"
+  ];
+}
+
+// ResourceMatcherAWS contains AWS specific settings for resource matcher.
+message ResourceMatcherAWS {
+  // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
+  string AssumeRoleARN = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+  // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+  string ExternalID = 2 [(gogoproto.jsontag) = "external_id,omitempty"];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
@@ -5172,6 +5230,8 @@ message PluginSpecV1 {
     PluginOktaSettings okta = 4;
     // Settings for device trust jamf plugin
     PluginJamfSettings jamf = 5;
+    // Settings for the PagerDuty plugin
+    PluginPagerDutySettings pager_duty = 6;
   }
 }
 
@@ -5195,6 +5255,19 @@ message PluginOpsgenieAccessSettings {
   repeated string default_schedules = 4;
   // APIEndpoint is the address of Opsgenie API.
   string api_endpoint = 5;
+}
+
+message PluginPagerDutySettings {
+  option (gogoproto.equal) = true;
+
+  // UserEmail is the email address of the PagerDuty user that will be
+  // listed as the reporter source of incidents, comments, etc
+  // within PagerDuty. Should usually be the same user the API key
+  // represents.
+  string user_email = 1;
+
+  // APIEndpoint is the address of PagerDuty API.
+  string api_endpoint = 2;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.
@@ -5777,6 +5850,8 @@ message ServerInfoSpecV1 {
   }
   // AWS matches an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  // NewLabels is the set of labels to add to nodes matching this ServerInfo.
+  map<string, string> NewLabels = 2 [(gogoproto.jsontag) = "new_labels,omitempty"];
 }
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
@@ -5825,8 +5900,7 @@ message JamfInventoryEntry {
   // PARTIAL syncs are scheduled in the time window between FULL syncs, so
   // sync_period_partial must always be smaller than sync_period_full, otherwise
   // it would never trigger.
-  // Set to negative to disable PARTIAL syncs.
-  // Defaults to 6h.
+  // Set to zero or negative to disable PARTIAL syncs.
   int64 sync_period_partial = 2 [
     (gogoproto.jsontag) = "sync_period_partial,omitempty",
     (gogoproto.casttype) = "Duration"
@@ -5834,8 +5908,7 @@ message JamfInventoryEntry {
   // Sync period for FULL syncs.
   // Ideally sync_period_full is a multiple of sync_period_partial, so schedules
   // line up perfectly.
-  // Set to negative to disable FULL syncs.
-  // Defaults to 24h.
+  // Set to zero or negative to disable FULL syncs.
   int64 sync_period_full = 3 [
     (gogoproto.jsontag) = "sync_period_full,omitempty",
     (gogoproto.casttype) = "Duration"
