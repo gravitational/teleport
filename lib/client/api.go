@@ -4154,7 +4154,7 @@ func connectToSSHAgent() agent.ExtendedAgent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
-		log.Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
+		log.WithError(err).Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
 		return nil
 	}
 
