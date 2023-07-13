@@ -220,7 +220,10 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 
 	if setPermissions {
 		// Ensure the database has restrictive access permissions.
-		db.PingContext(ctx)
+		err = db.PingContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		err = os.Chmod(path, dbMode)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
