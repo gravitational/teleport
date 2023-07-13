@@ -1988,7 +1988,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		return trace.Wrap(err)
 	}
 
-	// Return an error if it is a desktop session
+	// Return an error if it is a desktop session and check to see if this is not a Kube or SSH session
 	if len(sessionEvents) > 0 {
 		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
 			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
@@ -1996,6 +1996,10 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 				" Please use the browser to play this session." +
 				" Click on the URL to view the session in the browser:"
 			return trace.BadParameter("%s\n%s", message, url)
+		} else if sessionEvents[0].GetType() != events.SessionStartEvent {
+			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
+				" To play entries for Application and Database you must use the json or yaml format."+
+				" \nEx: tsh play -f json %s", sid)
 		}
 	}
 
