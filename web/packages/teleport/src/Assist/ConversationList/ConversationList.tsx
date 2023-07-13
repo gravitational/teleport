@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import { Conversation } from 'teleport/Assist/Conversation';
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { MessageBox } from 'teleport/Assist/MessageBox';
-import { LandingPage } from 'teleport/Assist/LandingPage';
 import { ViewMode } from 'teleport/Assist/types';
 
 interface ConversationListProps {
@@ -45,11 +44,12 @@ export function ConversationList(props: ConversationListProps) {
 
   const shouldScroll = useRef(true);
   const scrolling = useRef<boolean>(false);
+  const setScrollingTimeout = useRef<number>(null);
 
-  const { conversations, selectedConversationMessages } = useAssist();
+  const { messages, selectedConversationMessages } = useAssist();
 
-  function scroll() {
-    if (!shouldScroll.current) {
+  function scrollIfNotScrolling() {
+    if (!shouldScroll.current || scrolling.current) {
       return;
     }
 
@@ -57,7 +57,9 @@ export function ConversationList(props: ConversationListProps) {
 
     ref.current.scrollIntoView({ behavior: 'smooth' });
 
-    window.setTimeout(() => (scrolling.current = false), 1000);
+    setScrollingTimeout.current = window.setTimeout(() => {
+      scrolling.current = false;
+    }, 1000);
   }
 
   useEffect(() => {
@@ -78,29 +80,15 @@ export function ConversationList(props: ConversationListProps) {
     scrollRef.current.addEventListener('wheel', onscroll);
 
     return () => scrollRef.current.removeEventListener('wheel', onscroll);
-  }, [scrollRef.current]);
+  }, []);
 
   useEffect(() => {
-    if (!ref.current || scrolling.current) {
+    if (!ref.current || messages.loading) {
       return;
     }
 
-    scroll();
-  }, [selectedConversationMessages, scrolling.current]);
-
-  useLayoutEffect(() => {
-    if (!ref.current || scrolling.current) {
-      return;
-    }
-
-    const id = window.setTimeout(scroll, 500);
-
-    return () => window.clearTimeout(id);
-  }, [props.viewMode, scrolling.current]);
-
-  if (!conversations.selectedId) {
-    return <LandingPage />;
-  }
+    scrollIfNotScrolling();
+  }, [props.viewMode, messages.loading, selectedConversationMessages]);
 
   return (
     <>
@@ -109,6 +97,7 @@ export function ConversationList(props: ConversationListProps) {
 
         <div ref={ref} />
       </Container>
+
       <MessageBox errorMessage={null} />
     </>
   );
