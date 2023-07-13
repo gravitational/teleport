@@ -1449,7 +1449,7 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 // the calls to a remote SSH server as they can contain Teleport-specific
 // information used to process the session properly (e.g. TELEPORT_SESSION or
 // SSH_TELEPORT_RECORD_NON_INTERACTIVE)
-var teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT"}
+var teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT_"}
 
 func isTeleportEnv(varName string) bool {
 	for _, prefix := range teleportVarPrefixes {
