@@ -8,7 +8,7 @@ Teleport can provide secure, unified access to your Kubernetes clusters. This gu
 <ScopedBlock scope={["enterprise"]}>
 - Deploy Teleport Enterprise in a Kubernetes cluster.
 </ScopedBlock>
-<ScopedBlock scope={["oss","cloud"]}>
+<ScopedBlock scope={["oss"]}>
 - Deploy Teleport in a Kubernetes cluster.
 </ScopedBlock>
 - Set up Single Sign-On (SSO) for authentication to your Teleport cluster.
@@ -52,7 +52,7 @@ used for notifications.
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
@@ -112,7 +112,11 @@ Teleport's Helm chart uses an [external load balancer](https://kubernetes.io/doc
 to create a public IP for Teleport.
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem label="Open Source" scope="oss">
+
+    Write a values file (`teleport-cluster-values.yaml`) which will configure a single node Teleport cluster and
+    provision a cert using ACME.
+
     ```code
     # Set kubectl context to the namespace to save some typing
     $ kubectl config set-context --current --namespace=teleport-cluster
@@ -197,7 +201,7 @@ spec:
 Create the role and add a user:
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     # Create a role
     $ kubectl exec -i deployment/teleport-cluster-auth -- tctl create -f < member.yaml
@@ -235,7 +239,7 @@ Let's install `tsh` and `tctl` on Linux.
 For other install options, check out the [installation guide](../../installation.mdx)
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     $ curl -L -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
@@ -291,7 +295,7 @@ pod/teleport-cluster-proxy-c6bf55-z256w   1/1     Running   0          22h
 In this step, we will set up the GitHub Single Sign-On connector for the OSS version of Teleport and Okta for the Enterprise version.
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     Save the file below as `github.yaml` and update the fields. You will need to set up the
     [GitHub OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
     Any member with the team `admin` in the organization `octocats` will be able to assume a builtin role `access`.
@@ -345,7 +349,7 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
 To create a connector, we are going to run Teleport's admin tool `tctl` from the pod.
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     $ kubectl config set-context --current --namespace=teleport-cluster
 
@@ -366,7 +370,7 @@ Try `tsh login` with a GitHub user. This example uses a custom `KUBECONFIG` to p
 the default one in case there is a problem.
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --auth=github
     ```
