@@ -1,17 +1,15 @@
 ---
 title: "Introduction to Teleport Team"
-description: "Teleport Team makes it quick and easy for small organizations set up secure RBAC for their infrastructure."
+description: "Teleport Team makes it easy for small organizations set up secure role-based access control for their infrastructure."
 tocDepth: 3
 ---
 
 Teleport Team helps small organizations provide secure access to their infrastructure, with 
-minimal configuration and no management overhead. 
+minimal configuration and cluster management. 
 
-With Teleport Team, the Teleport Auth Service and Teleport Proxy Service are professionally 
-managed in the cloud. By connecting to these services in the cloud, you have immediate access
-to a scalable and fault tolerant certificate authority and reverse proxy that you don't need 
-to manage or maintain. Instead of managing the infrastructure, you can focus on adding users 
-and resources you want to protect and configuring secure role-based access for private and public
+With Teleport Team, the Teleport Auth Service and Teleport Proxy Service are managed for you as cloud-based services. 
+These services provide you with immediate access to a scalable and fault tolerant certificate authority and reverse 
+proxy that you don't need to manage or maintain. You can focus on enrolling the resources you want to protect and configuring secure role-based access for private and public
 networks across the globe.
 
 After you start a [free trial](https://goteleport.com/signup) of Teleport Team,
@@ -46,15 +44,13 @@ compares to Teleport Enterprise Cloud and Teleport Enterprise, see
 
 </Notice>
 
-This guide explains how to register a local server with a
-Teleport Team account. After you register the server, you can access it through the 
-Web UI in a browser or using the terminal. You can also record your sessions, so you 
-can review it later.
+This guide explains how to register a local server with a Teleport Team account. 
+After you register the server, you can access it through the Teleport Web UI in a browser or using the terminal. 
+You can also record your sessions, so you can review them later.
 
 ## Prerequisites
 
-- A Teleport Team account. You can sign up for a free trial at the following
-  page:
+- A Teleport Team account. You can sign up for a free trial at the following page:
 
   https://goteleport.com/signup/
 
@@ -65,17 +61,17 @@ can review it later.
 - Docker installed on your workstation. 
 
   This guide illustrates how to register a server with Teleport Team using a Docker 
-  and the Teleport SSH Service. Docker is only required for the local demo environment 
-  used in this guide. You can find installation instructions for Docker on [Docker's
-  website](https://docs.docker.com/get-docker/). If you want to register servers in 
-  Teleport Team without using Docker, see 
-  [register servers and configure access to them](../server-access/introduction.mdx).
+  container and the Teleport SSH Service. 
+  Docker is only required for the local demo environment used in this guide. 
+  You can find installation instructions for Docker on [Docker's website](https://docs.docker.com/get-docker/). 
+  If you want to register servers in Teleport Team without using Docker, see the getting started guide for
+  [server access](../server-access/getting-started.mdx).
 
 - The `tsh` client tool. 
   
   The `tsh` client tool is only required to access the server from a terminal. 
   For installation instructions, see [Installation Guide](../installation.mdx). 
-  If you don't install he `tsh` client tool, you can access the server in 
+  If you don't install the `tsh` client tool, you can access the server in 
   Teleport Team using the Web UI through your browser.
 
 ## Step 1/5. Spin up a server
@@ -85,7 +81,7 @@ To spin up a new server using Docker:
 1. Open a terminal shell on your workstation.
 
 1. Start a Docker container on your workstation to prepare a server that you want 
-register in your Teleport Team tenant:
+enroll as a resource in your Teleport Team tenant:
 
     ```code
     $ docker run --interactive --tty ubuntu:22.10 /bin/bash
@@ -275,7 +271,7 @@ ensures that only authorized users are allowed access to those resources.
 
 For more information about deploying agents, see the following topics:
 - [Run Teleport Agents](../agents/introduction/)
-- [Deploy Teleport Agents withTerraform](../agents/deploy-agents-terraform.mdx)
+- [Deploy Teleport Agents with Terraform](../agents/deploy-agents-terraform.mdx)
 - [Join Services to your Teleport Cluster](../agents/join-services-to-your-cluster/)
 
 For information about configuring roles, see the following topics:
