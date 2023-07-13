@@ -434,9 +434,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-		require.NoError(t, err)
-		require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+		mustGetPodFromKubeClient(t, k8Client, kubePodName)
 	})
 }
 
@@ -507,9 +505,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+	mustGetPodFromKubeClient(t, k8Client, kubePodName)
 }
 
 func TestKubeIPPinning(t *testing.T) {
