@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 var (
@@ -57,8 +58,11 @@ var (
 )
 
 const (
-	// teleportContainerImageFmt is the Teleport Container Image to be used
-	teleportContainerImageFmt = "public.ecr.aws/gravitational/teleport-distroless:%s"
+	// teleportOSS is the prefix for the image name when deploying the OSS version of Teleport
+	teleportOSS = "teleport"
+
+	// teleportEnt is the prefix for the image name when deploying the Enterprise version of Teleport
+	teleportEnt = "teleport-ent"
 
 	// clusterStatusActive is the string representing an ACTIVE ECS Cluster.
 	clusterStatusActive = "ACTIVE"
@@ -425,7 +429,11 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, req.TeleportVersionTag)
+	teleportFlavor := teleportOSS
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		teleportFlavor = teleportEnt
+	}
+	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, req.TeleportVersionTag)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,

@@ -108,31 +108,6 @@ func TestDatabaseServerSorter(t *testing.T) {
 		},
 	}
 
-	makeServers := func(testVals []string, testField string) []DatabaseServer {
-		servers := make([]DatabaseServer, len(testVals))
-		for i := 0; i < len(testVals); i++ {
-			testVal := testVals[i]
-			dbSpec := dbSpecs[i%len(dbSpecs)]
-			var err error
-
-			servers[i], err = NewDatabaseServerV3(Metadata{
-				Name: "_",
-			}, DatabaseServerSpecV3{
-				HostID:   "_",
-				Hostname: "_",
-				Database: &DatabaseV3{
-					Metadata: Metadata{
-						Name:        getTestVal(testField == ResourceMetadataName, testVal),
-						Description: getTestVal(testField == ResourceSpecDescription, testVal),
-					},
-					Spec: dbSpec,
-				},
-			})
-			require.NoError(t, err)
-		}
-		return servers
-	}
-
 	cases := []struct {
 		name      string
 		wantErr   bool
@@ -156,7 +131,7 @@ func TestDatabaseServerSorter(t *testing.T) {
 		c := c
 		t.Run(fmt.Sprintf("%s desc", c.name), func(t *testing.T) {
 			sortBy := SortBy{Field: c.fieldName, IsDesc: true}
-			servers := DatabaseServers(makeServers(testValsUnordered, c.fieldName))
+			servers := DatabaseServers(makeServers(t, testValsUnordered, dbSpecs, c.fieldName))
 			require.NoError(t, servers.SortByCustom(sortBy))
 			targetVals, err := servers.GetFieldVals(c.fieldName)
 			require.NoError(t, err)
@@ -165,7 +140,7 @@ func TestDatabaseServerSorter(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%s asc", c.name), func(t *testing.T) {
 			sortBy := SortBy{Field: c.fieldName}
-			servers := DatabaseServers(makeServers(testValsUnordered, c.fieldName))
+			servers := DatabaseServers(makeServers(t, testValsUnordered, dbSpecs, c.fieldName))
 			require.NoError(t, servers.SortByCustom(sortBy))
 			targetVals, err := servers.GetFieldVals(c.fieldName)
 			require.NoError(t, err)
@@ -175,6 +150,32 @@ func TestDatabaseServerSorter(t *testing.T) {
 
 	// Test error.
 	sortBy := SortBy{Field: "unsupported"}
-	servers := makeServers(testValsUnordered, "does-not-matter")
+	servers := makeServers(t, testValsUnordered, dbSpecs, "does-not-matter")
 	require.True(t, trace.IsNotImplemented(DatabaseServers(servers).SortByCustom(sortBy)))
+}
+
+func makeServers(t *testing.T, testVals []string, dbSpecs []DatabaseSpecV3, testField string) []DatabaseServer {
+	t.Helper()
+	servers := make([]DatabaseServer, len(testVals))
+	for i := 0; i < len(testVals); i++ {
+		testVal := testVals[i]
+		dbSpec := dbSpecs[i%len(dbSpecs)]
+		var err error
+
+		servers[i], err = NewDatabaseServerV3(Metadata{
+			Name: "foo",
+		}, DatabaseServerSpecV3{
+			HostID:   "_",
+			Hostname: "_",
+			Database: &DatabaseV3{
+				Metadata: Metadata{
+					Name:        getTestVal(testField == ResourceMetadataName, testVal),
+					Description: getTestVal(testField == ResourceSpecDescription, testVal),
+				},
+				Spec: dbSpec,
+			},
+		})
+		require.NoError(t, err)
+	}
+	return servers
 }

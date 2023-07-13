@@ -183,13 +183,18 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 //
 // It doesn't make network requests so the returned clusters.Cluster will not include full
 // information returned from the web/auth servers.
-func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
-	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
+func (s *Service) ResolveCluster(path string) (*clusters.Cluster, error) {
+	resourceURI, err := uri.Parse(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cluster, err := s.resolveCluster(resourceURI)
+	return cluster, trace.Wrap(err)
+}
 
-	return cluster, nil
+func (s *Service) resolveCluster(uri uri.ResourceURI) (*clusters.Cluster, error) {
+	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
+	return cluster, trace.Wrap(err)
 }
 
 // ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
@@ -241,9 +246,14 @@ type GatewayCreator interface {
 
 // createGateway assumes that mu is already held by a public method.
 func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+	targetURI, err := uri.ParseGatewayTargetURI(params.TargetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
-		TargetURI:             params.TargetURI,
+		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
@@ -270,24 +280,18 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 // reissueGatewayCerts tries to reissue gateway certs.
 func (s *Service) reissueGatewayCerts(ctx context.Context, g *gateway.Gateway) error {
-	clusterURI, err := uri.ParseClusterURI(g.TargetURI())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	rootClusterURI := clusterURI.GetRootClusterURI().String()
-
 	reloginReq := &api.ReloginRequest{
-		RootClusterUri: rootClusterURI,
+		RootClusterUri: g.TargetURI().GetClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
 			GatewayCertExpired: &api.GatewayCertExpired{
 				GatewayUri: g.URI().String(),
-				TargetUri:  g.TargetURI(),
+				TargetUri:  g.TargetURI().String(),
 			},
 		},
 	}
 
 	reissueDBCerts := func() error {
-		cluster, err := s.ResolveCluster(g.TargetURI())
+		cluster, err := s.resolveCluster(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -310,7 +314,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g *gateway.Gateway) e
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
 					GatewayUri: g.URI().String(),
-					TargetUri:  g.TargetURI(),
+					TargetUri:  g.TargetURI().String(),
 					Error:      err.Error(),
 				},
 			},

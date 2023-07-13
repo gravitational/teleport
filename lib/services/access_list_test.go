@@ -22,20 +22,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/types/accesslist"
+	"github.com/gravitational/teleport/lib/types/header"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestAccessListUnmarshal verifies an access list resource can be unmarshaled.
 func TestAccessListUnmarshal(t *testing.T) {
-	expected, err := types.NewAccessList(
+	expected, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: "test-access-list",
 		},
-		types.AccessListSpec{
+		accesslist.Spec{
 			Description: "test access list",
-			Owners: []types.AccessListOwner{
+			Owners: []accesslist.Owner{
 				{
 					Name:        "test-user1",
 					Description: "test user 1",
@@ -45,31 +45,31 @@ func TestAccessListUnmarshal(t *testing.T) {
 					Description: "test user 2",
 				},
 			},
-			Audit: types.AccessListAudit{
+			Audit: accesslist.Audit{
 				Frequency: time.Hour,
 			},
-			MembershipRequires: types.AccessListRequires{
+			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			OwnershipRequires: types.AccessListRequires{
+			OwnershipRequires: accesslist.Requires{
 				Roles: []string{"orole1", "orole2"},
 				Traits: map[string][]string{
 					"otrait1": {"ovalue1", "ovalue2"},
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			Grants: types.AccessListGrants{
+			Grants: accesslist.Grants{
 				Roles: []string{"grole1", "grole2"},
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []types.AccessListMember{
+			Members: []accesslist.Member{
 				{
 					Name:    "member1",
 					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -97,13 +97,13 @@ func TestAccessListUnmarshal(t *testing.T) {
 
 // TestAccessListMarshal verifies a marshaled access list resource can be unmarshaled back.
 func TestAccessListMarshal(t *testing.T) {
-	expected, err := types.NewAccessList(
+	expected, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: "test-rule",
 		},
-		types.AccessListSpec{
+		accesslist.Spec{
 			Description: "test access list",
-			Owners: []types.AccessListOwner{
+			Owners: []accesslist.Owner{
 				{
 					Name:        "test-user1",
 					Description: "test user 1",
@@ -113,31 +113,31 @@ func TestAccessListMarshal(t *testing.T) {
 					Description: "test user 2",
 				},
 			},
-			Audit: types.AccessListAudit{
+			Audit: accesslist.Audit{
 				Frequency: time.Hour,
 			},
-			MembershipRequires: types.AccessListRequires{
+			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			OwnershipRequires: types.AccessListRequires{
+			OwnershipRequires: accesslist.Requires{
 				Roles: []string{"orole1", "orole2"},
 				Traits: map[string][]string{
 					"otrait1": {"ovalue1", "ovalue2"},
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			Grants: types.AccessListGrants{
+			Grants: accesslist.Grants{
 				Roles: []string{"grole1", "grole2"},
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []types.AccessListMember{
+			Members: []accesslist.Member{
 				{
 					Name:    "member1",
 					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
