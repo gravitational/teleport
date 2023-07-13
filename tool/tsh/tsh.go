@@ -990,6 +990,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	mfa := newMFACommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
+	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := newFIDO2Command(app)
