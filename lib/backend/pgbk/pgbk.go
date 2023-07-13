@@ -411,29 +411,38 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 
 // Get implements [backend.Backend].
 func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	var item *backend.Item
 	item, err := pgcommon.Retry(ctx, b.log, func() (*backend.Item, error) {
-		var value []byte
-		var expires zeronull.Timestamptz
-		var revision pgtype.UUID
-		if err := b.pool.QueryRow(ctx,
-			"SELECT value, expires, revision FROM kv"+
-				" WHERE key = $1 AND (expires IS NULL OR expires > now())",
-			key,
-		).Scan(&value, &expires, &revision); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				var noItem *backend.Item
-				return noItem, nil
+		batch := new(pgx.Batch)
+		batch.Queue("SET transaction_read_only TO on")
+
+		var item *backend.Item
+		batch.Queue("SELECT value, expires, revision FROM kv"+
+			" WHERE key = $1 AND (expires IS NULL OR expires > now())", key,
+		).QueryRow(func(row pgx.Row) error {
+			var value []byte
+			var expires zeronull.Timestamptz
+			var revision pgtype.UUID
+			if err := row.Scan(&value, &expires, &revision); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil
+				}
+				return trace.Wrap(err)
 			}
+
+			item = &backend.Item{
+				Key:     key,
+				Value:   value,
+				Expires: time.Time(expires).UTC(),
+				// Revision: crockfordLowercaseBase32.EncodeToString(revision.Bytes[:]),
+			}
+			return nil
+		})
+
+		if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return &backend.Item{
-			Key:     key,
-			Value:   value,
-			Expires: time.Time(expires).UTC(),
-			// Revision: crockfordLowercaseBase32.EncodeToString(revision.Bytes[:]),
-		}, nil
+		return item, nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -452,29 +461,40 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	}
 
 	items, err := pgcommon.Retry(ctx, b.log, func() ([]backend.Item, error) {
-		rows, _ := b.pool.Query(ctx,
+		batch := new(pgx.Batch)
+		batch.Queue("SET transaction_read_only TO on")
+		// TODO(espadolini): figure out if we want transaction_deferred enabled
+		// for GetRange
+
+		var items []backend.Item
+		batch.Queue(
 			"SELECT key, value, expires, revision FROM kv"+
 				" WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > now())"+
 				" ORDER BY key LIMIT $3",
 			startKey, endKey, limit,
-		)
-		items, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
-			var key, value []byte
-			var expires zeronull.Timestamptz
-			var revision pgtype.UUID
-			if err := row.Scan(&key, &value, &expires, &revision); err != nil {
-				return backend.Item{}, err
-			}
-			return backend.Item{
-				Key:     key,
-				Value:   value,
-				Expires: time.Time(expires).UTC(),
-				// Revision: crockfordLowercaseBase32.EncodeToString(revision.Bytes[:]),
-			}, nil
+		).Query(func(rows pgx.Rows) error {
+			var err error
+			items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
+				var key, value []byte
+				var expires zeronull.Timestamptz
+				var revision pgtype.UUID
+				if err := row.Scan(&key, &value, &expires, &revision); err != nil {
+					return backend.Item{}, err
+				}
+				return backend.Item{
+					Key:     key,
+					Value:   value,
+					Expires: time.Time(expires).UTC(),
+					// Revision: crockfordLowercaseBase32.EncodeToString(revision.Bytes[:]),
+				}, nil
+			})
+			return trace.Wrap(err)
 		})
-		if err != nil {
+
+		if err := b.pool.SendBatch(ctx, batch).Close(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		return items, nil
 	})
 	if err != nil {
