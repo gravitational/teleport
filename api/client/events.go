@@ -104,8 +104,8 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 				SnowflakeSession: r,
 			}
 		case types.KindSAMLIdPSession:
-			out.Resource = &proto.Event_SAMLIdPSession{
-				SAMLIdPSession: r,
+			out.Resource = &proto.Event_SamlIdpSession{
+				SamlIdpSession: r,
 			}
 		default:
 			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
@@ -179,16 +179,16 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			Installer: r,
 		}
 	case *types.UIConfigV1:
-		out.Resource = &proto.Event_UIConfig{
-			UIConfig: r,
+		out.Resource = &proto.Event_UiConfig{
+			UiConfig: r,
 		}
 	case *types.DatabaseServiceV1:
 		out.Resource = &proto.Event_DatabaseService{
 			DatabaseService: r,
 		}
 	case *types.SAMLIdPServiceProviderV1:
-		out.Resource = &proto.Event_SAMLIdPServiceProvider{
-			SAMLIdPServiceProvider: r,
+		out.Resource = &proto.Event_SamlIdpServiceProvider{
+			SamlIdpServiceProvider: r,
 		}
 	case *types.UserGroupV1:
 		out.Resource = &proto.Event_UserGroup{
@@ -341,13 +341,13 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetInstaller(); r != nil {
 		out.Resource = r
 		return &out, nil
-	} else if r := in.GetUIConfig(); r != nil {
+	} else if r := in.GetUiConfig(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetDatabaseService(); r != nil {
 		out.Resource = r
 		return &out, nil
-	} else if r := in.GetSAMLIdPServiceProvider(); r != nil {
+	} else if r := in.GetSamlIdpServiceProvider(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetUserGroup(); r != nil {

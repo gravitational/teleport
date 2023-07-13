@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	gproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -401,8 +402,9 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 				return trace.Wrap(err)
 			}
 
-			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
-			watcherEventSizes.Observe(float64(out.Size()))
+			size := float64(gproto.Size(out))
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
+			watcherEventSizes.Observe(size)
 
 			if err := stream.Send(out); err != nil {
 				return trace.Wrap(err)
@@ -5250,8 +5252,9 @@ func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, strea
 				return trace.Wrap(err)
 			}
 
-			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
-			watcherEventSizes.Observe(float64(out.Size()))
+			size := float64(gproto.Size(out))
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
+			watcherEventSizes.Observe(size)
 
 			if err := stream.Send(out); err != nil {
 				return trace.Wrap(err)

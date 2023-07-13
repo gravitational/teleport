@@ -1,0 +1,129 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package proto;
+
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/client/proto";
+
+// Operation identifies type of operation
+enum Operation {
+  // INIT is sent as a first sentinel event
+  // on the watch channel
+  INIT = 0;
+  // PUT identifies created or updated object
+  PUT = 1;
+  // DELETE identifies deleted object
+  DELETE = 2;
+}
+
+// Event returns cluster event
+message Event {
+  reserved 7;
+
+  // Operation identifies operation
+  Operation type = 1;
+  // Resource contains the updated resource
+  oneof resource {
+    // resource_header is specified in delete events,
+    // the full object is not available, so resource
+    // header is used to provide information about object type
+    types.ResourceHeader resource_header = 2;
+    // cert_authority is filled in certificate-authority related events
+    types.CertAuthorityV2 cert_authority = 3;
+    // static_tokens is filled in static-tokens related events
+    types.StaticTokensV2 static_tokens = 4;
+    // provision_token is filled in provision-token related events
+    types.ProvisionTokenV2 provision_token = 5;
+    // cluster_name is a cluster name resource
+    types.ClusterNameV2 cluster_name = 6;
+    // user is a user resource
+    types.UserV2 user = 8;
+    // role is a role resource
+    types.RoleV6 role = 9;
+    // namespace is a namespace resource
+    types.Namespace namespace = 10;
+    // server is a node or proxy resource
+    types.ServerV2 server = 11;
+    // reverse_tunnel is a resource with reverse tunnel
+    types.ReverseTunnelV2 reverse_tunnel = 12;
+    // tunnel_connection is a resource for tunnel connnections
+    types.TunnelConnectionV2 tunnel_connection = 13;
+    // access_request is a resource for access requests
+    types.AccessRequestV3 access_request = 14;
+    // app_session is an application web session.
+    types.WebSessionV2 app_session = 15;
+    // remote_cluster is a resource for remote clusters
+    types.RemoteClusterV3 remote_cluster = 16;
+    // database_server is a resource for database servers.
+    types.DatabaseServerV3 database_server = 17;
+    // web_session is a regular web session.
+    types.WebSessionV2 web_session = 18;
+    // web_token is a web token.
+    types.WebTokenV3 web_token = 19;
+    // cluster_networking_config is a resource for cluster networking configuration.
+    types.ClusterNetworkingConfigV2 cluster_networking_config = 20;
+    // session_recording_config is a resource for session recording configuration.
+    types.SessionRecordingConfigV2 session_recording_config = 21;
+    // auth_preference is cluster auth preference.
+    types.AuthPreferenceV2 auth_preference = 22;
+    // cluster_audit_config is a resource for cluster audit configuration.
+    types.ClusterAuditConfigV2 cluster_audit_config = 23;
+    // lock is a lock resource.
+    types.LockV2 lock = 24;
+    // network_restrictions is a resource for network restrictions
+    types.NetworkRestrictionsV4 network_restrictions = 25;
+    // windows_desktop_service is a resource for Windows desktop services.
+    types.WindowsDesktopServiceV3 windows_desktop_service = 26;
+    // windows_desktop is a resource for Windows desktop host.
+    types.WindowsDesktopV3 windows_desktop = 27;
+    // database is a database resource.
+    types.DatabaseV3 database = 28;
+    // app_server is an application server resource.
+    types.AppServerV3 app_server = 29;
+    // app is an application resource.
+    types.AppV3 app = 30;
+    // snowflake_session is a Snowflake web session.
+    types.WebSessionV2 snowflake_session = 31;
+    // kubernetes_server is an Kubernetes server resource.
+    types.KubernetesServerV3 kubernetes_server = 32;
+    // kubernetes_cluster is an Kubernetes cluster resource.
+    types.KubernetesClusterV3 kubernetes_cluster = 33;
+    // installer is an installer resource
+    types.InstallerV1 installer = 34;
+    // database_service is a DatabaseService resource
+    types.DatabaseServiceV1 database_service = 35;
+    // saml_idp_service_provider is a SAMLIdPServiceProvider resource
+    types.SAMLIdPServiceProviderV1 saml_idp_service_provider = 36;
+    // saml_idp_session is a SAML IdP session.
+    types.WebSessionV2 saml_idp_session = 37;
+    // user_group is a UserGroup resource
+    types.UserGroupV1 user_group = 38;
+    // ui_config provides a way for users to adjust settings of the UI served by the proxy service.
+    types.UIConfigV1 ui_config = 39;
+    // okta_import_rule is an OktaImportRule resource.
+    types.OktaImportRuleV1 okta_import_rule = 40;
+    // okta_assignment is an OktaAssignment resource.
+    types.OktaAssignmentV1 okta_assignment = 41;
+    // integration is an Integration resource.
+    types.IntegrationV1 integration = 42;
+    // watch_status is an WatchStatus resource.
+    types.WatchStatusV1 watch_status = 43;
+    // headless_authentication is a HeadlessAuthentication resource.
+    types.HeadlessAuthentication headless_authentication = 44;
+  }
+}
