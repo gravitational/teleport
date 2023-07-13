@@ -59,6 +59,10 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 
 // GetByURI returns a cluster by URI. Assumes the URI has been successfully parsed and is of a
 // cluster.
+//
+// clusterClient being returned as the second return value is a stopgap in an effort to make
+// clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
+// https://github.com/gravitational/teleport/issues/13278
 func (s *Storage) GetByURI(clusterURI uri.ResourceURI) (*Cluster, *client.TeleportClient, error) {
 	profileName := clusterURI.GetProfileName()
 	leafClusterName := clusterURI.GetLeafClusterName()
