@@ -21,16 +21,16 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/types/accesslist"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AccessListsGetter defines an interface for reading access lists.
 type AccessListsGetter interface {
 	// GetAccessLists returns a list of all access lists.
-	GetAccessLists(context.Context) ([]*types.AccessList, error)
+	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// GetAccessList returns the specified access list resource.
-	GetAccessList(context.Context, string) (*types.AccessList, error)
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 }
 
 // AccessLists defines an interface for managing AccessLists.
@@ -38,7 +38,7 @@ type AccessLists interface {
 	AccessListsGetter
 
 	// UpsertAccessList creates or updates an access list resource.
-	UpsertAccessList(context.Context, *types.AccessList) error
+	UpsertAccessList(context.Context, *accesslist.AccessList) error
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
 	// DeleteAllAccessLists removes all access lists.
@@ -46,7 +46,7 @@ type AccessLists interface {
 }
 
 // MarshalAccessList marshals the access list resource to JSON.
-func MarshalAccessList(accessList *types.AccessList, opts ...MarshalOption) ([]byte, error) {
+func MarshalAccessList(accessList *accesslist.AccessList, opts ...MarshalOption) ([]byte, error) {
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +65,7 @@ func MarshalAccessList(accessList *types.AccessList, opts ...MarshalOption) ([]b
 }
 
 // UnmarshalAccessList unmarshals the access list resource from JSON.
-func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*types.AccessList, error) {
+func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.AccessList, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing access list data")
 	}
@@ -73,7 +73,7 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*types.AccessList,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var accessList *types.AccessList
+	var accessList *accesslist.AccessList
 	if err := utils.FastUnmarshal(data, &accessList); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
