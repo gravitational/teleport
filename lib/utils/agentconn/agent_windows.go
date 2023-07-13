@@ -62,10 +62,15 @@ func Dial(socket string) (net.Conn, error) {
 	return conn, nil
 }
 
+// SIDs that are computer or domain SIDs start with this prefix.
 const wellKnownSIDPrefix = "S-1-5-"
 
 var (
-	// format of the contents of a file created by Cygwin 'ssh-agent'
+	// Format of the contents of a file created by Cygwin 'ssh-agent'.
+	// After '!<socket >', the listening port is specified, followed by
+	// an optional 's ' that is sometimes set depending on the implementation,
+	// ending with a GUID which is used as a shared secret when handshaking
+	// with the SSH agent.
 	cygwinSocket = regexp.MustCompile(`!<socket >(\d+) (s )?([A-Fa-f0-9-]+)`)
 	// format of an output line from Cygwin 'ps'
 	psLine = regexp.MustCompile(`(?m)^\s+\d+\s+\d+\s+\d+\s+\d+\s+\?\s+(\d+)`)
