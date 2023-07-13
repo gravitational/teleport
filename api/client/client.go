@@ -2474,10 +2474,10 @@ func (c *Client) UpdateApp(ctx context.Context, app types.Application) error {
 // Note that application resources here refers to "dynamically-added"
 // applications such as applications created by `tctl create`, or the CreateApp
 // API. Applications defined in the `app_service.apps` section of the service
-// yaml configuration are not collected in this API.
+// YAML configuration are not collected in this API.
 //
 // For a full list of registered applications that are served by an application
-// service service, use GetApplicationServers instead.
+// service, use GetApplicationServers instead.
 func (c *Client) GetApp(ctx context.Context, name string) (types.Application, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing application name")
@@ -2494,10 +2494,10 @@ func (c *Client) GetApp(ctx context.Context, name string) (types.Application, er
 // Note that application resources here refers to "dynamically-added"
 // applications such as applications created by `tctl create`, or the CreateApp
 // API. Applications defined in the `app_service.apps` section of the service
-// yaml configuration are not collected in this API.
+// YAML configuration are not collected in this API.
 //
 // For a full list of registered applications that are served by an application
-// service service, use GetApplicationServers instead.
+// service, use GetApplicationServers instead.
 func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 	items, err := c.grpc.GetApps(ctx, &emptypb.Empty{}, c.callOpts...)
 	if err != nil {
@@ -2606,7 +2606,7 @@ func (c *Client) UpdateDatabase(ctx context.Context, database types.Database) er
 // CreateDatabase API. Databases discovered by the database agent (legacy
 // discovery flow using `database_service.aws/database_service.azure`) and
 // static databases defined in the `database_service.databases` section of the
-// service yaml configuration are not collected in this API.
+// service YAML configuration are not collected in this API.
 //
 // For a full list of registered databases that are served by a database
 // service, use GetDatabaseServers instead.
@@ -2628,7 +2628,7 @@ func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, 
 // CreateDatabase API. Databases discovered by the database agent (legacy
 // discovery flow using `database_service.aws/database_service.azure`) and
 // static databases defined in the `database_service.databases` section of the
-// service yaml configuration are not collected in this API.
+// service YAML configuration are not collected in this API.
 //
 // For a full list of registered databases that are served by a database
 // service, use GetDatabaseServers instead.
