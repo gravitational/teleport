@@ -9,7 +9,7 @@ credentials to a specific groups of users. When used in combination with role
 based access control (RBAC) it allows Teleport administrators to define
 policies like:
 
-- Only members of "DBA" group can connect to PostgreSQL databases.
+- Only members of the "DBA" group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.
 
 ## Prerequisites
@@ -22,10 +22,6 @@ policies like:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Enable default OIDC authentication
-
-(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
-
 ## Identity Providers
 
 Register Teleport with the external identity provider you will be using and
@@ -36,113 +32,122 @@ documented on the identity providers website. Here are a few links:
 - [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
 - [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#\_client_registration)
 
-Add your OIDC connector information to `teleport.yaml`. A few examples are
-provided below.
-
 <Admonition type="tip">
 For Google Workspace please follow our dedicated [Guide](google-workspace.mdx)
 </Admonition>
 
+Save the relevant information from your identity provider. To make following
+this guide easier, you can add the values here and they will be included in the
+example commands below:
+
+- Client ID: <Var name="<CLIENT-ID>" description="The Client ID for your Teleport application, provided by your IdP"/>
+- Client secret: <Var name="<CLIENT-SECRET>" description="The Client secret for your Teleport application, provided by your IdP"/>
+
 ## OIDC Redirect URL
 
-OIDC relies on HTTP re-directs to return control back to Teleport after
+OIDC relies on HTTP redirects to return control back to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
-If the Teleport web proxy is running on `proxy.example.com` host, the redirect URL
-should be `https://proxy.example.com:3080/v1/webapi/oidc/callback`
+The redirect URL for OIDC authentication in Teleport is <nobr><Var
+name="mytenant.teleport.sh" description="Your Teleport Cloud tenant or Proxy
+Service address"/>`/v1/webapi/oidc/callback`</nobr>. Replace `mytenant.teleport.sh`
+with your Teleport Cloud tenant or Proxy Service address.
 
 ## OIDC connector configuration
 
 The next step is to add an OIDC connector to Teleport. The connectors are
-manipulated via `tctl` [resource commands](../../reference/resources.mdx). To
-create a new connector, create a connector resource file in YAML format, for
-example `oidc-connector.yaml`.
+created, test, and added / removed via `tctl` [resource commands](../../reference/resources.mdx).
 
-The file contents are shown below. This connector requests the scope `group`
-from the identity provider then mapping the value to either to `admin` role or
-the `user` role depending on the value returned for `group` within the claims.
+To create a new connector, use `tctl sso configure`. Our example creates a
+connector resource file in YAML format named `oidc-connector.yaml`:
+
+```code
+$ tctl sso configure oidc --name <CONNECTOR-NAME> \
+  --issuer-url <PATH-TO-PROVIDER> \
+  --id <CLIENT-ID> --secret <CLIENT-SECRET> \
+  --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,access \
+  --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,editor > oidc-connector.yaml
+```
+
+- `--name`: Usually the name of the IdP, this is how the connector will be
+  identified in Teleport.
+- `--issuer-url`: This is the base path to the IdP's OIDC configuration endpoint,
+  excluding `.well-known/openid-configuration`. If, for example, the endpoint
+  is `https://example.com/.well-known/openid-configuration`, you would use
+  `example.com`.
+- `--id`: The client ID as defined in the IdP. Depending on your identity
+  provider this may be something you can define (i.e. `teleport`), or may be an
+  assigned string.
+- `--secret`: The client token/secret provided by the IdP to authorize this client.
+- `--claims-to-roles`: A mapping of OIDC claims/values to be associated with
+  Teleport roles.
+
+For more information on these and all available flags, see the [tctl sso configure
+oidc](/docs/reference/cli.mdx#tctl-sso-configure-oidc) section of the Teleport CLI
+Reference page.
+
+The file created should look like the example below. This connector requests
+the scope `<CLAIM-KEY>` from the identity provider, then maps the value to
+either the `access` or the `editor` role depending on the value returned for
+that key within the claims:
 
 ```yaml
 (!examples/resources/oidc-connector.yaml!)
 ```
 
-Create the connector:
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-# Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --proxy=teleport.example.com --user=myuser
-$ tctl create oidc-connector.yaml
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
-$ tctl create oidc-connector.yaml
-```
-
-</ScopedBlock>
-
-## Create Teleport Roles
-
-The next step is to define Teleport roles. They are created using the same
-`tctl` [resource commands](../../reference/resources.mdx) as we used for the auth
-connector.
-
-Below are two example roles that are mentioned above, the first is an admin
-with full access to the system while the second is a developer with limited
-access.
+<Details title="Practical Example: Keycloak">
+The following example was generated using Keycloak as the identity provider.
+Keycloak is being served at `keycloak.example.com`, and the Teleport Proxy
+Service is listening at `teleport.example.com`. In Keycloak, the client is
+named `teleport`, and under the `teleport-dedicated` client scope we've added
+the "Group Membership" mapper:
 
 ```yaml
-# role-admin.yaml
-kind: "role"
-version: "v3"
+kind: oidc
 metadata:
-  name: "admin"
+  name: keycloak
 spec:
-  options:
-    max_session_ttl: "90h0m0s"
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - access
+    value: /users
+  - claim: groups
+    roles:
+    - editor
+    value: /admins
+  client_id: teleport
+  client_secret: abc123...
+  issuer_url: https://keycloak.example.com/realms/master
+  redirect_url: https://teleport.example.com:443/v1/webapi/oidc/callback
+version: v3
+
 ```
 
-Users are only allowed to login to nodes labelled with `access: relaxed`
-teleport label. Developers can log in as either `ubuntu` to a username that
-arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access.
+</Details>
 
-```yaml
-# role-dev.yaml
-kind: "role"
-version: "v3"
-metadata:
-  name: "dev"
-spec:
-  options:
-    max_session_ttl: "90h0m0s"
-  allow:
-    logins: [ "{{external.username}}", ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-Create both roles:
+Before applying the connector to your cluster, you can test that it's configured
+correctly:
 
 ```code
-$ tctl create role-admin.yaml
-$ tctl create role-dev.yaml
+$ cat oidc-connector | tctl sso test
+```
+
+This should open up your web browser and attempt to log you in to the Teleport
+cluster through your IdP. If it fails, review the output of this command for
+troubleshooting details.
+
+<Admonition type="tip">
+The "[OIDC] Claims" section of the CLI output provides all the details of your
+user provided by the IdP. This is a good starting point while troubleshooting
+errors like `Failed to calculate user attributes.`
+</Admonition>
+
+One your tests are successful, create the connector:
+
+```code
+$ tctl create -f oidc-connector.yaml
 ```
 
 ### Optional: ACR Values
@@ -169,7 +174,7 @@ spec:
   issuer_url: "https://oidc.example.com"
   client_id: "xxxxxxxxxxxxxxxxxxxxxxx.example.com"
   client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
-  redirect_url: "https://<cluster-url>:3080/v1/webapi/oidc/callback"
+  redirect_url: "https://mytenant.teleport.sh/v1/webapi/oidc/callback"
   display: "Login with Example"
   acr_values: "foo/bar"
   provider: netiq
@@ -195,43 +200,16 @@ spec:
   # redirect_timeout: 90s
 ```
 
-### Optional: Prompt
-
-By default, Teleport will prompt end users to select an account each time they log in
-even if the user only has one account.
-
-Teleport now lets Teleport Admins configure this option. Since `prompt` is
-optional, by setting the variable to `none`, Teleport will override the default
-`select_account`.
-
-```yaml
-kind: oidc
-version: v2
-metadata:
-  name: connector
-spec:
-  prompt: 'none'
-```
-
-The below example will prompt the end-user for reauthentication and will require
-consent from the client.
-
-```yaml
-kind: oidc
-version: v2
-metadata:
-  name: connector
-spec:
-  prompt: 'login consent'
-```
-
-A list of available optional prompt parameters are available from the
-[OpenID website](https://openid.net/specs/openid-connect-core-1\_0.html#AuthRequest).
-
 ### Optional: Disable email verification
 
 By default, Teleport will validate the `email_verified` claim, and users who
-attempt to sign in without a verified email address will be prevented from doing so.
+attempt to sign in without a verified email address will be prevented from doing so:
+
+```text
+ERROR: SSO flow failed.
+identity provider callback failed with error: OIDC provider did not verify email.
+        email not verified by OIDC provider
+```
 
 For testing and other purposes, you may opt out of this behavior by enabling
 `allow_unverified_email` in your OIDC connector. This option weakens the overall
@@ -263,17 +241,9 @@ spec:
   username_claim: preferred_username
 ```
 
-## Testing
+## Enable default OIDC authentication
 
-For the Web UI, if the above configuration were real, you would see a button
-that says `Login with Example`. Simply click on that and you will be
-re-directed to a login page for your identity provider and if successful,
-redirected back to Teleport.
-
-For console login, you simple type `tsh --proxy <proxy-addr> ssh <server-addr>`
-and a browser window should automatically open taking you to the login page for
-your identity provider. `tsh` will also output a link the login page of the
-identity provider if you are not automatically redirected.
+(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
 
 ## Troubleshooting
 
