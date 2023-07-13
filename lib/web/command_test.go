@@ -322,6 +322,7 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 // The commands should run in parallel, but we don't have a deterministic way to
 // test that (sleep with checking the execution time in not deterministic).
 func Test_runCommands(t *testing.T) {
+	const numWorkers = 30
 	counter := atomic.Int32{}
 
 	runCmd := func(host *hostInfo) error {
@@ -339,7 +340,7 @@ func Test_runCommands(t *testing.T) {
 	logger := logrus.New()
 	logger.Out = io.Discard
 
-	runCommands(hosts, runCmd, logger)
+	runCommands(hosts, runCmd, numWorkers, logger)
 
 	require.Equal(t, int32(100), counter.Load())
 }
