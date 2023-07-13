@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/types/accesslist"
 )
 
 const (
@@ -37,12 +38,12 @@ const (
 type AccessListService struct {
 	log   logrus.FieldLogger
 	clock clockwork.Clock
-	svc   *generic.Service[*types.AccessList]
+	svc   *generic.Service[*accesslist.AccessList]
 }
 
 // NewAccessListService creates a new AccessListService.
 func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*AccessListService, error) {
-	svc, err := generic.NewService(&generic.ServiceConfig[*types.AccessList]{
+	svc, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessList]{
 		Backend:       backend,
 		ResourceKind:  types.KindAccessList,
 		BackendPrefix: accessListPrefix,
@@ -61,19 +62,19 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*Acce
 }
 
 // GetAccessLists returns a list of all access lists.
-func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*types.AccessList, error) {
+func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	accessLists, err := a.svc.GetResources(ctx)
 	return accessLists, trace.Wrap(err)
 }
 
 // GetAccessList returns the specified access list resource.
-func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*types.AccessList, error) {
+func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	accessList, err := a.svc.GetResource(ctx, name)
 	return accessList, trace.Wrap(err)
 }
 
 // UpsertAccessList creates or updates an access list resource.
-func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *types.AccessList) error {
+func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) error {
 	return trace.Wrap(a.svc.UpsertResource(ctx, accessList))
 }
 
