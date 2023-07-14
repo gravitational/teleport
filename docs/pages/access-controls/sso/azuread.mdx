@@ -75,6 +75,7 @@ Before you get started, you’ll need:
 8. Edit **Attributes & Claims**
 
    - Click on **Unique User Identifier (Name ID)** under **Required claim**.
+
    - Change the "name identifier format" to **Default**. Make sure the source
      attribute is `user.userprincipalname`.
 
@@ -86,9 +87,9 @@ Before you get started, you’ll need:
 
    - Add a claim that transforms the format of the Azure AD username to lower case, in order to pass it to
      Teleport. Set the Source to "Transformation". In the new panel:
-      - Set the Transformation value to "Extract()"
-      - Set the Attribute name to `user.userprincipalname`.
-      - Set the Value to `ToLowercase()`.
+       - Set the Transformation value to "Extract()"
+       - Set the Attribute name to `user.userprincipalname`.
+       - Set the Value to `ToLowercase()`.
 
      ![Add a transformed username](../../../img/azuread/azuread-8c-usernameclaim.png)
 
