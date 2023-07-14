@@ -67,6 +67,22 @@ message SessionStartEvent {
   string user_name = 1;
   // ssh/kube/desktop, maybe db?
   string session_type = 2;
+
+  // if session_type == "db" the database struct contains  additional information
+  // about database session.
+  //
+  // PostHog property: tp.database
+  SessionStartDatabaseMetadata database = 3;
+}
+
+// SessionStartDatabaseMetadata contains additional information about database session.
+message SessionStartDatabaseMetadata {
+  // database type.
+  string db_type = 1;
+  // database protocol.
+  string db_protocol = 2;
+  // database origin source.
+  string db_origin = 3;
 }
 
 message UserCertificateIssuedEvent {
