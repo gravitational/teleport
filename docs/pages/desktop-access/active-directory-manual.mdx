@@ -35,12 +35,13 @@ This guide requires you to have:
 <Admonition title="Azure AD" type="warning">
 
 Microsoft's Azure Active Directory (Azure AD) offering does not support the
-Kerberos authentication protocol, which is required the certificate-based 
+Kerberos authentication protocol, which is required for the certificate-based 
 authentication described in this section.
 
-For information about configuring Teleport to work with Azure Active Directory,
-see [Teleport Authentication with Azure Active Directory (AD)](../access-controls/sso/azuread.mdx).
-
+At this time, Teleport does not support integration with Azure AD, however
+Teleport Enterprise customers can access Windows desktops (including those
+joined to Azure AD) using local accounts via the process described in [Getting
+Started with Desktop Access](./getting-started.mdx).
 </Admonition>
 
 - Access to a Domain Controller
