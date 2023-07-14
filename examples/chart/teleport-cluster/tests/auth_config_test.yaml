@@ -181,6 +181,16 @@ tests:
           of: ConfigMap
       - matchSnapshot:
           path: data.teleport\.yaml
+  - it: fails when core and audit events dynamodb table are the same
+    values:
+      - ../.lint/aws-ha.yaml
+    set:
+      aws:
+        backendTable: test-dynamodb-same
+        auditLogTable: test-dynamodb-same
+    asserts:
+      - failedTemplate:
+          errorMessage: "aws.auditLogTable and aws.backendTable must not be the same table"
 
   - it: matches snapshot for aws-ha-antiaffinity.yaml
     values:

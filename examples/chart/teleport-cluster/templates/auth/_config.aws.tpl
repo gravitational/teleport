@@ -22,4 +22,7 @@
     {{- else }}
     auto_scaling: false
     {{- end }}
+  {{ if eq .Values.aws.auditLogTable .Values.aws.backendTable  }}
+    {{- fail "aws.auditLogTable and aws.backendTable must not be the same table" }}
+  {{- end -}}    
 {{- end -}}
