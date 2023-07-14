@@ -276,7 +276,7 @@ func TestService_authz(t *testing.T) {
 		t.Run(test.name+"-feature disabled", func(t *testing.T) {
 			err := test.rpc()
 			if !trace.IsAccessDenied(err) {
-				t.Fatalf("RPC returned err=%v, wanted AccessDenied/feature disabled error", err)
+				t.Fatalf("RPC returned err=%v, want AccessDenied/feature disabled error", err)
 			}
 			assert.ErrorContains(t, err, "not licensed for device trust")
 		})

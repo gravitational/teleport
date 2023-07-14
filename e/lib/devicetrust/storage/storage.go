@@ -24,6 +24,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 const (
@@ -1003,11 +1004,37 @@ func (s *S) EnrollDevice(
 		return nil, trace.Wrap(err)
 	}
 
-	// Update device.
-	if _, err := s.backend.CompareAndSwap(ctx, *item, backend.Item{
-		Key:   item.Key,
-		Value: val,
-	}); err != nil {
+	updateDevice := func() error {
+		_, err := s.backend.CompareAndSwap(ctx, *item, backend.Item{
+			Key:   item.Key,
+			Value: val,
+		})
+		return trace.Wrap(err)
+	}
+
+	// Verify limits if the account is usage-based, otherwise just update.
+	var completeEnrollFn func() error
+	if f := modules.GetModules().Features(); f.IsUsageBasedBilling {
+		completeEnrollFn = func() error {
+			return backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					Backend:       s.backend,
+					LockName:      "devicesEnrollLock",
+					TTL:           5 * time.Second,
+					RetryInterval: 100 * time.Millisecond,
+				},
+			}, func(ctx context.Context) error {
+				if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {
+					return trace.Wrap(err)
+				}
+				return trace.Wrap(updateDevice())
+			})
+		}
+	} else {
+		completeEnrollFn = updateDevice
+	}
+
+	if err := completeEnrollFn(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1322,6 +1349,69 @@ func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) 
 	return nil
 }
 
+// GetDevicesUsage returns the current usage numbers for Device Trust.
+// Meant for usage-based accounts.
+func (s *S) GetDevicesUsage(ctx context.Context) (*DevicesUsage, error) {
+	return s.getDevicesUsage(ctx, -1 /* limit */)
+}
+
+func (s *S) getDevicesUsage(ctx context.Context, limit int) (*DevicesUsage, error) {
+	numEnrolled := 0
+
+	const pageSize = 0
+	var pageToken string
+	for {
+		devs, nextPageToken, err := s.ListDevices(ctx, pageSize, pageToken, devicepb.DeviceView_DEVICE_VIEW_LIST)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, dev := range devs {
+			if dev.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED {
+				numEnrolled++
+			}
+		}
+		if limit > -1 && numEnrolled >= limit {
+			break
+		}
+		if nextPageToken == "" {
+			break
+		}
+		pageToken = nextPageToken
+	}
+
+	return &DevicesUsage{
+		NumEnrolled: numEnrolled,
+	}, nil
+}
+
+// VerifyEnrolledDevicesLimit returns an error if the current account is
+// usage-based and has reached its enrollment limits, otherwise it returns nil.
+// [S.EnrollDevice] will check limits before allowing new enrollments, but this
+// method is exposed so we can avoid starting a costly enrollment ceremony if
+// the limits are already reached.
+func (s *S) VerifyEnrolledDevicesLimit(ctx context.Context) error {
+	f := modules.GetModules().Features()
+	if !f.IsUsageBasedBilling {
+		return nil // unlimited
+	}
+
+	const deviceLimitReachedMessage = "cluster has reached its enrolled trusted device limit, please contact the cluster administrator"
+	limit := f.DeviceTrust.DevicesUsageLimit
+	if limit <= 0 {
+		return trace.AccessDenied(deviceLimitReachedMessage)
+	}
+
+	usage, err := s.getDevicesUsage(ctx, limit)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if usage.NumEnrolled >= limit {
+		return trace.AccessDenied(deviceLimitReachedMessage)
+	}
+
+	return nil
+}
+
 func deviceIDFromKey(key []byte) string {
 	idx := bytes.LastIndexByte(key, backend.Separator)
 	return string(key[idx+1:])
@@ -1522,12 +1612,12 @@ func deviceKey(deviceID string) []byte {
 	return backend.Key("devices", "id", deviceID)
 }
 
-func devicesByAssetTagKey(assetTag string) []byte {
-	return backend.Key("devices", "byTag", assetTag)
-}
-
 func deviceTokenKey(deviceID string) []byte {
 	return backend.Key("devices", "enroll_token", deviceID)
+}
+
+func devicesByAssetTagKey(assetTag string) []byte {
+	return backend.Key("devices", "byTag", assetTag)
 }
 
 func collectedDataKey(deviceID, cdID string) []byte {

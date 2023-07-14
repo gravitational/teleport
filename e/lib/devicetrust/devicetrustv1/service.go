@@ -620,7 +620,9 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbEnroll); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.verifyEnrolledDevicesLimit(ctx); err != nil {
+
+	// Don't start a costly ceremony if we already reached the devices limit.
+	if err := s.storage.VerifyEnrolledDevicesLimit(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -665,62 +667,6 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	}
 	dev, err = c.EnrollDevice(stream)
 	return trace.Wrap(err)
-}
-
-// verifyEnrolledDevicesLimit enforces usage-based account limits by counting
-// the number of enrolled devices against the devices quota.
-func (s *Service) verifyEnrolledDevicesLimit(ctx context.Context) error {
-	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
-		return nil // unlimited devices
-	}
-
-	const deviceLimitReachedMessage = "cluster has reached its enrolled trusted device limit, please contact the cluster administrator"
-	devicesLimit := f.DeviceTrust.DevicesUsageLimit
-	if devicesLimit <= 0 {
-		return trace.AccessDenied(deviceLimitReachedMessage)
-	}
-
-	numEnrolled, err := s.countEnrolledDevices(ctx, devicesLimit)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if numEnrolled >= devicesLimit {
-		return trace.AccessDenied(deviceLimitReachedMessage)
-	}
-	return nil
-}
-
-// countEnrolledDevices counts the number of enrolled devices, stopping at
-// `countUpTo`. It may return numbers larger than `countUpTo`
-// Pass negative to count all devices.
-func (s *Service) countEnrolledDevices(ctx context.Context, countUpTo int) (int, error) {
-	numEnrolled := 0
-
-	const pageSize = 0 // aka use server defaults
-	var pageToken string
-	for {
-		stored, nextPageToken, err := s.storage.ListDevices(ctx, pageSize, pageToken, devicepb.DeviceView_DEVICE_VIEW_LIST)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		for _, dev := range stored {
-			if dev.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED {
-				numEnrolled++
-			}
-		}
-		if countUpTo > -1 && numEnrolled >= countUpTo {
-			return numEnrolled, nil
-		}
-
-		if nextPageToken == "" {
-			break
-		}
-		pageToken = nextPageToken
-	}
-
-	return numEnrolled, nil
 }
 
 var authnDisabledLogOnce sync.Once

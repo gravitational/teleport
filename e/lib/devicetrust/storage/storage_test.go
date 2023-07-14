@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -30,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestS_BulkCreateDevices(t *testing.T) {
@@ -2754,7 +2757,7 @@ func enroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.
 
 	dev, err := s.EnrollDevice(ctx, dev.Id, cred, collectedDataForDevice(dev))
 	if err != nil {
-		return nil, nil, fmt.Errorf("calling EnrollDevice: %v", err)
+		return nil, nil, err // unwrapped for simpler comparisons
 	}
 	return dev, key, nil
 }
@@ -3247,6 +3250,109 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 	}
 }
 
+func TestS_DevicesUsageLimit(t *testing.T) {
+	const devicesLimit = 3
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			IsUsageBasedBilling: true,
+			DeviceTrust: modules.DeviceTrustFeature{
+				Enabled:           true,
+				DevicesUsageLimit: devicesLimit,
+			},
+		},
+	})
+
+	// Lock acquisition for usage-based enrollments requires a RealClock, the test
+	// will deadlock otherwise.
+	env := mustNewEnv(withClock(clockwork.NewRealClock()))
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	assertUsage := func(t *testing.T, wantEnrolled int) {
+		got, err := s.GetDevicesUsage(ctx)
+		if err != nil {
+			t.Errorf("GetDevicesUsage failed: %v", err)
+			return
+		}
+		want := &storage.DevicesUsage{
+			NumEnrolled: wantEnrolled,
+		}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("GetDevicesUsage mismatch (-want +got)\n%s", diff)
+		}
+	}
+
+	t.Run("GetDevicesUsage/zero", func(t *testing.T) {
+		assertUsage(t, 0 /* wantEnrolled */)
+	})
+
+	// Add a few devices.
+	const allDevsNum = devicesLimit + 10
+	allDevs := make([]*devicepb.Device, allDevsNum)
+	for i := 0; i < allDevsNum; i++ {
+		dev, err := s.CreateDevice(ctx, &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: fmt.Sprintf("dev-%v", i),
+		}, false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		allDevs[i] = dev
+	}
+
+	// Usage is still zero.
+	t.Run("GetDevicesUsage/zero", func(t *testing.T) {
+		assertUsage(t, 0 /* wantEnrolled */)
+	})
+
+	// Enroll a few devices and verify the side-effects.
+	wantEnrolled := devicesLimit - 1
+	for _, dev := range allDevs[:wantEnrolled] {
+		if _, _, err := enroll(ctx, s, dev); err != nil {
+			t.Errorf("enroll returned err=%v, want success", err)
+		}
+	}
+	t.Run(fmt.Sprintf("GetDevicesUsage/%v", wantEnrolled), func(t *testing.T) {
+		assertUsage(t, wantEnrolled)
+	})
+	t.Run("VerifyEnrolledDevicesLimit/allowed", func(t *testing.T) {
+		if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {
+			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want success", err)
+		}
+	})
+
+	// Attempt to enroll past the limit.
+	t.Run("Enroll beyond limit", func(t *testing.T) {
+		var g errgroup.Group
+		var successes atomic.Int32
+		for _, dev := range allDevs[wantEnrolled:] {
+			dev := dev
+			g.Go(func() error {
+				switch _, _, err := enroll(ctx, s, dev); {
+				case err == nil:
+					successes.Add(1)
+				case !trace.IsAccessDenied(err):
+					t.Errorf("enroll returned unexpected error: %v, want either nil or AccessDenied", err)
+				}
+				return nil
+			})
+		}
+		g.Wait()
+		if got := successes.Load(); got != 1 {
+			t.Errorf("Enrolled %v devices at the limit, want exactly 1", got)
+		}
+	})
+
+	t.Run("VerifyEnrolledDevicesLimit/denied", func(t *testing.T) {
+		if err := s.VerifyEnrolledDevicesLimit(ctx); !trace.IsAccessDenied(err) {
+			t.Errorf("VerifyEnrolledDevicesLimit returned err=%v, want AccessDenied/devices limit failure", err)
+		}
+	})
+}
+
 // diffDevices diffs two slices of devices, sorting both by ID first.
 func diffDevices(want, got []*devicepb.Device) string {
 	sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
@@ -3256,9 +3362,13 @@ func diffDevices(want, got []*devicepb.Device) string {
 
 // storageEnv groups the necessary components to test storage.
 type storageEnv struct {
+	// Clock is the underlying FakeClock.
+	// nil if withClock() is used with a real clock.
 	Clock clockwork.FakeClock
 	S     *storage.S
-	mem   *memory.Memory
+
+	memClock clockwork.Clock // actual mem clock, always set.
+	mem      *memory.Memory
 }
 
 func (e *storageEnv) Close() error {
@@ -3268,31 +3378,57 @@ func (e *storageEnv) Close() error {
 	return nil
 }
 
-func mustNewEnv() *storageEnv {
-	env, err := newEnv()
+type opt func(*storageEnv)
+
+func withClock(clock clockwork.Clock) opt {
+	return func(env *storageEnv) { env.memClock = clock }
+}
+
+func mustNewEnv(opts ...opt) *storageEnv {
+	env, err := newEnv(opts...)
 	if err != nil {
 		panic(err)
 	}
 	return env
 }
 
-func newEnv() (*storageEnv, error) {
-	clock := clockwork.NewFakeClock()
-	mem, err := memory.New(memory.Config{
-		Clock: clock,
+func newEnv(opts ...opt) (*storageEnv, error) {
+	env := &storageEnv{}
+	for _, opt := range opts {
+		opt(env)
+	}
+
+	// Use a FakeClock if no clock was provided (via withClock), otherwise do our
+	// best to honor the clock we got.
+	// Initially storageEnv only allowed for a FakeClock, this was retrofited
+	// later.
+	if fakeClock, ok := env.memClock.(clockwork.FakeClock); ok {
+		env.Clock = fakeClock
+	} else if env.memClock == nil {
+		env.Clock = clockwork.NewFakeClock()
+		env.memClock = env.Clock
+	}
+
+	ok := false
+	defer func() {
+		if !ok {
+			env.Close()
+		}
+	}()
+
+	var err error
+	env.mem, err = memory.New(memory.Config{
+		Clock: env.memClock,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	s, err := storage.New(mem)
+	env.S, err = storage.New(env.mem)
 	if err != nil {
-		mem.Close()
 		return nil, err
 	}
-	return &storageEnv{
-		Clock: clock,
-		S:     s,
-		mem:   mem,
-	}, nil
+
+	ok = true
+	return env, nil
 }

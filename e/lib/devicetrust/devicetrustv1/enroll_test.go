@@ -690,13 +690,13 @@ func TestService_EnrollDevice_usageBasedLimits(t *testing.T) {
 	enrollSuccess := func(t *testing.T, dev *devicepb.Device) {
 		t.Helper()
 		if _, _, err := enrollDevice(ctx, devices, dev, defaultCollectData); err != nil {
-			t.Errorf("enrollDevice returned err=%v, wanted success", err)
+			t.Errorf("enrollDevice returned err=%v, want success", err)
 		}
 	}
 	enrollLimitFailure := func(t *testing.T, dev *devicepb.Device) {
 		t.Helper()
 		if _, _, err := enrollDevice(ctx, devices, dev, defaultCollectData); !trace.IsAccessDenied(err) {
-			t.Errorf("enrollDevice returned err=%v, wanted AccessDenied/device limit failure", err)
+			t.Errorf("enrollDevice returned err=%v, want AccessDenied/device limit failure", err)
 		}
 	}
 
