@@ -265,7 +265,7 @@ const (
 	embeddingInitialDelay = 10 * time.Second
 	// embeddingPeriod is the time between two embedding routines.
 	// A seventh jitter is applied on the period.
-	embeddingPeriod = time.Hour
+	embeddingPeriod = 20 * time.Minute
 )
 
 // Connector has all resources process needs to connect to other parts of the
