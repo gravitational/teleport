@@ -144,7 +144,6 @@ RUN apt-get -y update && \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
-        osslsigncode \
         python3-pip \
         python3-setuptools \
         python3-wheel \
@@ -175,6 +174,18 @@ RUN apt-get -y update && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Install osslsigncode for Windows Code Signing. The format of our 
+# Code Signing Certificate needs us to use osslsigncode >= 2.6, which
+# allows the use of legacy OpenSSL algorithms. This is not yet provided
+# by Ubuntu, so we will have to fetch it ourselves.   
+RUN --mount=type=bind,target=/context \
+    curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
+    && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
+    && unzip -d /tmp/osslsigncode osslsigncode.zip \
+    && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
+    && rm -rf /tmp/osslsigncode \
+    && rm osslsigncode.zip
+    
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
