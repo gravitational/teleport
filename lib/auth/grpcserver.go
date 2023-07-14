@@ -5364,7 +5364,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
 
 	// httplib.TLSCreds are explicitly used instead of credentials.NewTLS because the latter
-	// modifies the tls.Config.Nextauthpb. which causes problems due to multiplexing on the auth
+	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
 	// listener.
 	creds, err := NewTransportCredentials(TransportCredentialsConfig{
 		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
