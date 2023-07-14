@@ -16,7 +16,6 @@ package pgcommon
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -31,10 +30,9 @@ import (
 
 // AzureBeforeConnect will return a pgx BeforeConnect function suitable for
 // Azure AD authentication. The returned function will set the password of the
-// pgx.ConnConfig to a token for the relevant scope, fetching it and reusing it
-// until expired (a burst of connections right at backend start is expected). If
-// a client ID is provided, authentication will only be attempted as the managed
-// identity with said ID rather than with all the default credentials.
+// pgx.ConnConfig to a token for the relevant scope. If a client ID is provided,
+// authentication will only be attempted as the managed identity with said ID
+// rather than with all the default credentials.
 func AzureBeforeConnect(clientID string, log logrus.FieldLogger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
 	var cred azcore.TokenCredential
 	if clientID != "" {
@@ -55,23 +53,9 @@ func AzureBeforeConnect(clientID string, log logrus.FieldLogger) (func(ctx conte
 		cred = c
 	}
 
-	var mu sync.Mutex
-	var cachedToken azcore.AccessToken
-
 	beforeConnect := func(ctx context.Context, config *pgx.ConnConfig) error {
-		mu.Lock()
-		token := cachedToken
-		mu.Unlock()
-
-		// to account for clock drift between us, the database, and the IDMS,
-		// refresh the token 10 minutes before we think it will expire
-		if token.ExpiresOn.After(time.Now().Add(10 * time.Minute)) {
-			log.WithField("ttl", time.Until(token.ExpiresOn).String()).Debug("Reusing cached Azure access token.")
-			config.Password = token.Token
-			return nil
-		}
-
-		log.Debug("Fetching new Azure access token.")
+		// the [azcore.TokenCredential] returned by the [azidentity] credential
+		// functions handle caching and single-flighting for us
 		token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 			Scopes: []string{"https://ossrdbms-aad.database.windows.net/.default"},
 		})
@@ -79,12 +63,8 @@ func AzureBeforeConnect(clientID string, log logrus.FieldLogger) (func(ctx conte
 			return trace.Wrap(err)
 		}
 
-		log.WithField("ttl", time.Until(token.ExpiresOn).String()).Debug("Fetched Azure access token.")
+		log.WithField("ttl", time.Until(token.ExpiresOn).String()).Debug("Acquired Azure access token.")
 		config.Password = token.Token
-
-		mu.Lock()
-		cachedToken = token
-		mu.Unlock()
 
 		return nil
 	}
