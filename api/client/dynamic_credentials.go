@@ -1,11 +1,14 @@
 package client
 
 import (
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
@@ -16,6 +19,8 @@ type WatchedIdentityFileCreds struct {
 	mu      sync.RWMutex
 	tlsCert *tls.Certificate
 	pool    *x509.CertPool
+	sshCert *ssh.Certificate
+	sshKey  crypto.Signer
 
 	path        string
 	clusterName string
@@ -53,9 +58,27 @@ func (d *WatchedIdentityFileCreds) Reload() error {
 		}
 	}
 
+	// This sections is essentially id.SSHClientConfig()
+	sshCert, err := sshutils.ParseCertificate(id.Certs.SSH)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sshPrivateKey, err := keys.ParsePrivateKey(id.PrivateKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err := sshutils.ProxyClientSSHConfig(
+		sshCert, sshPrivateKey, id.CACerts.SSH...,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	d.mu.Lock()
 	d.pool = pool
 	d.tlsCert = &cert
+	d.sshCert = sshCert
+	d.sshKey = sshPrivateKey
 	d.mu.Unlock()
 	return nil
 }
@@ -74,10 +97,7 @@ func (d *WatchedIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 		// GetClientCertificate is used instead of the static Certificates
 		// field.
 		Certificates: nil,
-		// Encoded cluster name required to ensure requests are routed to the
-		// correct cloud tenants.
-		// TODO: Make this optional - yet encouraged.
-		ServerName: utils.EncodeClusterName(d.clusterName),
+
 		GetClientCertificate: func(
 			info *tls.CertificateRequestInfo,
 		) (*tls.Certificate, error) {
@@ -116,14 +136,41 @@ func (d *WatchedIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 		NextProtos: []string{http2.NextProtoTLS},
 	}
 
+	// If the cluster name has been provided, we should use that for SNI.
+	// This enables alpn routed connections on Teleport Cloud which relies on
+	// a distinct SNI to route traffic to the correct Teleport Tenant.
+	// TODO: Could we determine this from the cert 🤔 and not need to ask
+	// the user explicitly for this.
+	if d.clusterName != "" {
+		cfg.ServerName = utils.EncodeClusterName(d.clusterName)
+	} else {
+		// Otherwise fall back to `teleport.cluster.local` which should work
+		// in most general teleport installs.
+		cfg.ServerName = constants.APIDomain
+	}
+
 	return cfg, nil
 }
 
 // SSHClientConfig returns SSH configuration.
 func (d *WatchedIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
-	// For now, SSH Client Config is disabled until I can wrap my head around
-	// the changes needed to make an SSH config dynamic.
-	// This means the auth server must be available directly or using
-	// the ALPN/SNI.
-	return nil, trace.NotImplemented("no ssh config")
+	// Build a "dynamic" ssh config. Based roughly on
+	// `sshutils.ProxyClientSSHConfig` with modifications to make it work with
+	// dynamically changing credentials.
+	cfg := &ssh.ClientConfig{
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
+				d.mu.RLock()
+				defer d.mu.Unlock()
+
+				sshSigner, err := sshutils.SSHSigner(d.sshCert, d.sshKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return []ssh.Signer{sshSigner}, nil
+			}),
+		},
+	}
+
+	return cfg, nil
 }
