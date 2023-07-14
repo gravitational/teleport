@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -1648,7 +1649,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 // ClusterResource returns the resource name in the following format
 // <namespace>/<name>.
 func (k *KubernetesResource) ClusterResource() string {
-	return k.Namespace + "/" + k.Name
+	return path.Join(k.Namespace, k.Name)
 }
 
 // IsEmpty will return true if the condition is empty.
