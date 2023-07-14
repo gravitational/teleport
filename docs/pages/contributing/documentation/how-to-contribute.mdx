@@ -1,5 +1,5 @@
 ---
-title: How to Contribute to Teleport Documentation
+title: How to Contribute to the Teleport Documentation
 description: Follow this guide to learn how to contribute changes to Teleport documentation.
 ---
 
@@ -15,7 +15,7 @@ Before you begin, verify that your environment meets the following prerequisites
 - You have a code editor, a GitHub account, and experience using command-line 
   programs, including `git` commands and command line options.
 
-- You have Node.js, version 16.x or newer, installed. 
+- You have Node.js, version 18.x or newer, installed. 
    Run `node --version` to check whether Node is installed.
    If you need to install or update Node, see 
    [Installing Node.js](https://nodejs.org/en/download/package-manager) 
@@ -38,7 +38,10 @@ To set up a local environment for contributing to Teleport documentation:
     $ git clone https://github.com/gravitational/docs --recurse-submodules
     ```
 
-    This command clones the main branch for different versions of the documentation.
+    This command clones the documentation submodules that correspond to the
+    different major release versions of the Teleport code. For example, there
+    are documentation submodules for the 11.x, 12.x, 13.x, and 14.x versions
+    of Teleport.
 
 1. Change to the root of the `docs` directory:
     
@@ -73,7 +76,7 @@ To navigate to a specific version of the documentation:
     ```
     
 1. Change to the directory under `content` that contains the version of documentation you want to update.
-    For example, navigate to the directory that corresponds to latest version of Teleport.
+    For example, navigate to the directory that corresponds to latest version of Teleport:
 
     ```code
     $ cd content/(=teleport.major_version=).x
@@ -123,11 +126,7 @@ You can also use `yarn` commands to check for errors and fix common issues.
 
 To test changes in your local environment:
 
-1. Change to the root of the `docs` directory by running the following command:
-    
-    ```code
-    $ cd docs
-    ```
+1. Change to the top-level `docs` directory in your local copy of the https://github.com/gravitational/docs repository.
 
 1. Start the development server by running the following commands:
     
@@ -151,8 +150,11 @@ To test changes in your local environment:
 
 ## Step 4/5. Create a pull request
 
-If you're an internal contributor with permission to access the [Teleport repository](https://github.com/gravitational/teleport), you can commit changes and push branches directly to the repository.
-If you're an external contributor, you can commit changes to your private branch and push private branches to a fork of the [Teleport repository](https://github.com/gravitational/teleport).
+If you're an internal contributor with permission to access the 
+[Teleport repository](https://github.com/gravitational/teleport), you can commit 
+changes and push branches directly to the repository.
+If you're an external contributor, you can commit changes to your private branch 
+and push private branches to a fork of the Teleport repository.
 
 ### Internal contributors
 
@@ -175,6 +177,10 @@ If you work at Teleport:
 
 1. Open the [Teleport repository](https://github.com/gravitational/teleport), select your branch as the branch to 
 merge into main, then click **New pull request**.
+
+    The continuous integration (CI) pipeline automatically assigns reviewers to your pull request.  
+
+1. Wait for the minimum required approvals, then merge your pull request as soon as possible.
 
 ### External contributors
 
@@ -215,10 +221,12 @@ by running a command similar to the following:
 1. Open the [Teleport repository](https://github.com/gravitational/teleport), select your branch as the branch to merge into main, 
 then click **New pull request**.
 
-    The continuous integration (CI) pipeline automatically assign reviewers to your pull request. 
+    The continuous integration (CI) pipeline automatically assigns reviewers to your pull request and
+    generates a companion pull request with your commits for automated verification that your pull request 
+    conforms to certain conventions. 
     To ensure that your PR is merged, you should respond to reviewer feedback in a timely manner. 
     If you don't respond to reviewer feedback in a reasonable period of time, your pull request is likely to 
-    be deemed inactive and closed automatically. 
+    be deemed inactive and closed.
 
 1. Wait for the minimum required approvals, then merge your pull request as soon as possible.
 
@@ -364,4 +372,4 @@ In this example:
 ## Next steps
 
 - Consult the [style guide](./style-guide.mdx) to ensure your docs page is consistent with the rest of the documentation.
-- Use the [UI reference](./reference.mdx) to find the right UI components for your needs.
+- Use the [documentation UI components](./reference.mdx) reference guide to find the right UI components for your needs.
