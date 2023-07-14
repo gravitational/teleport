@@ -1,6 +1,6 @@
 ---
 title: OAuth2 and OIDC authentication
-description: How to configure Teleport access with OAuth2 or OIDC (OpenID connect)
+description: How to configure Teleport access with OAuth2 or OpenID connect (OIDC)
 ---
 
 This guide will explain how to configure an SSO provider using [OpenID
@@ -32,7 +32,7 @@ documented on the identity providers website. Here are a few links:
 - [Google Identity Platform](https://developers.google.com/identity/protocols/OpenIDConnect)
 - [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#\_client_registration)
 
-<Admonition type="tip">
+<Admonition type="tip" title="Google Workspace">
 For Google Workspace please follow our dedicated [Guide](google-workspace.mdx)
 </Admonition>
 
@@ -57,7 +57,8 @@ with your Teleport Cloud tenant or Proxy Service address.
 ## OIDC connector configuration
 
 The next step is to add an OIDC connector to Teleport. The connectors are
-created, test, and added / removed via `tctl` [resource commands](../../reference/resources.mdx).
+created, test, and added / removed via `tctl` [resource commands](../../reference/resources.mdx)
+or the Web UI.
 
 To create a new connector, use `tctl sso configure`. Our example creates a
 connector resource file in YAML format named `oidc-connector.yaml`:
@@ -75,7 +76,7 @@ $ tctl sso configure oidc --name <CONNECTOR-NAME> \
 - `--issuer-url`: This is the base path to the IdP's OIDC configuration endpoint,
   excluding `.well-known/openid-configuration`. If, for example, the endpoint
   is `https://example.com/.well-known/openid-configuration`, you would use
-  `example.com`.
+  `https://example.com`.
 - `--id`: The client ID as defined in the IdP. Depending on your identity
   provider this may be something you can define (i.e. `teleport`), or may be an
   assigned string.
