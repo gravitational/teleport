@@ -662,6 +662,15 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
+	// DiscoveredResourceNode identifies a discovered SSH node.
+	DiscoveredResourceNode = "node"
+	// DiscoveredResourceDatabase identifies a discovered database.
+	DiscoveredResourceDatabase = "db"
+	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
+	DiscoveredResourceKubernetes = "k8s"
+	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
+	DiscoveredResourceAgentlessNode = "node.openssh"
+
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
 
