@@ -1005,6 +1005,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
+	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 
 	puttyConfig := app.Command("puttyconfig", "Add PuTTY saved session configuration for specified hostname to Windows registry")
 	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
@@ -1927,21 +1928,13 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Show on-login alerts, all high severity alerts are shown by onStatus
-	// so can be excluded here, except when Hardware Key Touch is required
-	// which skips on-status alerts.
-	alertSeverityMax := types.AlertSeverity_MEDIUM
-	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		alertSeverityMax = types.AlertSeverity_HIGH
-	}
-
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
 	// with a message like "run 'tsh alerts ls' to view N additional alerts".
 	if err := common.ShowClusterAlerts(cf.Context, proxyClient.CurrentCluster(), os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
+	}, types.AlertSeverity_LOW); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -4088,7 +4081,7 @@ func onStatus(cf *CLIConf) error {
 		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
-			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+			types.AlertSeverity_HIGH); err != nil {
 			log.WithError(err).Warn("Failed to display cluster alerts.")
 		}
 	}

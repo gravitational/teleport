@@ -40,7 +40,7 @@ type Config struct {
 	// TargetName is the remote resource name
 	TargetName string
 	// TargetURI is the remote resource URI
-	TargetURI string
+	TargetURI uri.ResourceURI
 	// TargetUser is the target user name
 	TargetUser string
 	// TargetGroups is a list of target groups
@@ -122,16 +122,11 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
-	c.Log = c.Log.WithFields(logrus.Fields{
-		"resource": c.TargetURI,
-		"gateway":  c.URI.String(),
-	})
-
 	if c.TargetName == "" {
 		return trace.BadParameter("missing target name")
 	}
 
-	if c.TargetURI == "" {
+	if c.TargetURI.String() == "" {
 		return trace.BadParameter("missing target URI")
 	}
 
@@ -155,6 +150,11 @@ func (c *Config) CheckAndSetDefaults() error {
 			return x509.NewCertPool(), nil
 		}
 	}
+
+	c.Log = c.Log.WithFields(logrus.Fields{
+		"resource": c.TargetURI.String(),
+		"gateway":  c.URI.String(),
+	})
 	return nil
 }
 

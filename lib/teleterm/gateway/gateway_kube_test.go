@@ -71,7 +71,7 @@ func TestKubeGateway(t *testing.T) {
 		Config{
 			Clock:              clock,
 			TargetName:         kubeClusterName,
-			TargetURI:          uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName).String(),
+			TargetURI:          uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName),
 			CertPath:           proxy.clientCertPath(),
 			KeyPath:            proxy.clientKeyPath(),
 			WebProxyAddr:       proxy.webProxyAddr,

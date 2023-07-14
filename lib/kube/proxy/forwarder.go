@@ -30,7 +30,6 @@ import (
 	"net"
 	"net/http"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
@@ -125,9 +123,8 @@ type ForwarderConfig struct {
 	AuthClient auth.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
 	CachingAuthClient auth.ReadKubernetesAccessPoint
-	// StreamEmitter is used to create audit streams
-	// and emit audit events
-	StreamEmitter events.StreamEmitter
+	// Emitter is used to emit audit events
+	Emitter apievents.Emitter
 	// DataDir is a data dir to store logs
 	DataDir string
 	// Namespace is a namespace of the proxy server (not a K8s namespace)
@@ -193,8 +190,8 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.Authz == nil {
 		return trace.BadParameter("missing parameter Authz")
 	}
-	if f.StreamEmitter == nil {
-		return trace.BadParameter("missing parameter StreamEmitter")
+	if f.Emitter == nil {
+		return trace.BadParameter("missing parameter Emitter")
 	}
 	if f.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
@@ -1155,30 +1152,6 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 	return result, nil
 }
 
-// newStreamer returns sync or async streamer based on the configuration
-// of the server and the session, sync streamer sends the events
-// directly to the auth server and blocks if the events can not be received,
-// async streamer buffers the events to disk and uploads the events later
-func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
-	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
-		f.log.Debug("Using sync streamer for session.")
-		return f.cfg.AuthClient, nil
-	}
-	f.log.Debug("Using async streamer for session.")
-	dir := filepath.Join(
-		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingSessionsDir, apidefaults.Namespace,
-	)
-	fileStreamer, err := filesessions.NewStreamer(dir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TeeStreamer sends non-print and non disk events
-	// to the audit log in async mode, while buffering all
-	// events on disk for further upload at the end of the session
-	return events.NewTeeStreamer(fileStreamer, f.cfg.StreamEmitter), nil
-}
-
 // join joins an existing session over a websocket connection
 func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	f.log.Debugf("Join %v.", req.URL.String())
@@ -1514,7 +1487,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		SessionRecording: ctx.recordingConfig.GetMode(),
 	}
 
-	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
+	if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
 		f.log.WithError(err).Warn("Failed to emit event.")
 	}
 
@@ -1535,7 +1508,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	defer func() {
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
+		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit exec event.")
 		}
 
@@ -1558,7 +1531,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 			SessionRecording:          ctx.recordingConfig.GetMode(),
 		}
 
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
+		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	}()
@@ -1819,7 +1792,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		if !success {
 			portForward.Code = events.PortForwardFailureCode
 		}
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, portForward); err != nil {
+		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, portForward); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}

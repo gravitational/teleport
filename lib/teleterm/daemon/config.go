@@ -37,7 +37,6 @@ type Config struct {
 	// Electron app. This is to ensure that the server public key is written to the disk under the
 	// expected location by the time we get around to creating the client.
 	CreateTshdEventsClientCredsFunc CreateTshdEventsClientCredsFunc
-	GatewayCertReissuer             *GatewayCertReissuer
 	// PrehogAddr is the URL where prehog events should be submitted.
 	PrehogAddr string
 }
@@ -60,12 +59,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.Log == nil {
 		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "daemon")
-	}
-
-	if c.GatewayCertReissuer == nil {
-		c.GatewayCertReissuer = &GatewayCertReissuer{
-			Log: c.Log,
-		}
 	}
 
 	return nil

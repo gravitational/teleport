@@ -84,8 +84,6 @@ type Config struct {
 	AccessPoint auth.DatabaseAccessPoint
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
-	// StreamEmitter is a non-blocking audit events emitter.
-	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
@@ -159,9 +157,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
-	}
-	if c.StreamEmitter == nil {
-		return trace.BadParameter("missing StreamEmitter")
 	}
 	if c.Emitter == nil {
 		c.Emitter = c.AuthClient
@@ -933,7 +928,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
-	streamWriter, err := s.newStreamWriter(sessionCtx)
+	rec, err := s.newSessionRecorder(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -943,13 +938,13 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
-			err := streamWriter.Close(s.connContext)
+			err := rec.Close(s.closeContext)
 			if err != nil {
 				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
 			}
 		}()
 	}()
-	engine, err := s.dispatch(sessionCtx, streamWriter, clientConn)
+	engine, err := s.dispatch(sessionCtx, rec, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1011,9 +1006,10 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 }
 
 // dispatch creates and initializes an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
+func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparerRecorder, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
-		Emitter: streamWriter,
+		Emitter:  s.cfg.Emitter,
+		Recorder: rec,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

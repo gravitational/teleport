@@ -1578,6 +1578,10 @@ message ClusterNetworkingConfigSpecV2 {
     (gogoproto.jsontag) = "proxy_ping_interval,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // AssistCommandExecutionWorkers determines the number of workers that will
+  // execute arbitrary Assist commands on servers in parallel
+  int32 AssistCommandExecutionWorkers = 11 [(gogoproto.jsontag) = "assist_command_execution_workers,omitempty"];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -5846,6 +5850,8 @@ message ServerInfoSpecV1 {
   }
   // AWS matches an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  // NewLabels is the set of labels to add to nodes matching this ServerInfo.
+  map<string, string> NewLabels = 2 [(gogoproto.jsontag) = "new_labels,omitempty"];
 }
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.

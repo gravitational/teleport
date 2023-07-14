@@ -53,7 +53,6 @@ import (
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1136,136 +1135,6 @@ func TestAuthPreferenceRBAC(t *testing.T) {
 		},
 		alwaysReadable: true,
 	})
-}
-
-func TestClusterNetworkingCloudUpdates(t *testing.T) {
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
-	err := srv.Auth().SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	require.NoError(t, err)
-
-	user, _, err := CreateUserAndRole(srv.Auth(), "username", []string{}, []types.Rule{
-		{
-			Resources: []string{
-				types.KindClusterNetworkingConfig,
-			},
-			Verbs: services.RW(),
-		},
-	})
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		cloud                   bool
-		identity                TestIdentity
-		expectSetErr            string
-		clusterNetworkingConfig types.ClusterNetworkingConfig
-		name                    string
-	}{
-		{
-			name:                    "non admin user can set existing values to the same value",
-			cloud:                   true,
-			identity:                TestUser(user.GetName()),
-			clusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
-		},
-		{
-			name:         "non admin user cannot set keep_alive_interval",
-			cloud:        true,
-			identity:     TestUser(user.GetName()),
-			expectSetErr: "keep_alive_interval",
-			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
-				KeepAliveInterval: types.Duration(time.Second * 20),
-			}),
-		},
-		{
-			name:         "non admin user cannot set tunnel_strategy",
-			cloud:        true,
-			identity:     TestUser(user.GetName()),
-			expectSetErr: "tunnel_strategy",
-			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
-				TunnelStrategy: &types.TunnelStrategyV1{
-					Strategy: &types.TunnelStrategyV1_ProxyPeering{
-						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
-					},
-				},
-			}),
-		},
-		{
-			name:         "non admin user cannot set proxy_listener_mode",
-			cloud:        true,
-			identity:     TestUser(user.GetName()),
-			expectSetErr: "proxy_listener_mode",
-			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
-				ProxyListenerMode: types.ProxyListenerMode_Multiplex,
-			}),
-		},
-		{
-			name:         "non admin user cannot set keep_alive_count_max",
-			cloud:        true,
-			identity:     TestUser(user.GetName()),
-			expectSetErr: "keep_alive_count_max",
-			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
-				KeepAliveCountMax: 55,
-			}),
-		},
-		{
-			name:     "non admin user can set client_idle_timeout",
-			cloud:    true,
-			identity: TestUser(user.GetName()),
-			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
-				ClientIdleTimeout: types.Duration(time.Second * 67),
-			}),
-		},
-		{
-			name:     "admin user can set keep_alive_interval",
-			cloud:    true,
-			identity: TestAdmin(),
-			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
-				KeepAliveInterval: types.Duration(time.Second * 67),
-			}),
-		},
-		{
-			name:     "non admin user can set keep_alive_interval on non cloud cluster",
-			cloud:    false,
-			identity: TestUser(user.GetName()),
-			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
-				KeepAliveInterval: types.Duration(time.Second * 67),
-			}),
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
-				TestBuildType: modules.BuildEnterprise,
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			})
-
-			client, err := srv.NewClient(tc.identity)
-			require.NoError(t, err)
-
-			err = client.SetClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig)
-			if err != nil {
-				require.NotEmpty(t, tc.expectSetErr)
-				require.ErrorContains(t, err, tc.expectSetErr)
-			} else {
-				require.Empty(t, tc.expectSetErr)
-			}
-		})
-	}
-}
-
-func newClusterNetworkingConf(t *testing.T, spec types.ClusterNetworkingConfigSpecV2) types.ClusterNetworkingConfig {
-	c := &types.ClusterNetworkingConfigV2{
-		Metadata: types.Metadata{
-			Labels: map[string]string{
-				types.OriginLabel: types.OriginDynamic,
-			},
-		},
-		Spec: spec,
-	}
-	err := c.CheckAndSetDefaults()
-	require.NoError(t, err)
-	return c
 }
 
 func TestClusterNetworkingConfigRBAC(t *testing.T) {
@@ -2975,45 +2844,56 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 	require.Len(t, testNodes, numTestNodes)
 
 	// create user and client
-	user, role, err := CreateUserAndRole(srv.Auth(), "user", []string{"user"}, nil)
+	requester, role, err := CreateUserAndRole(srv.Auth(), "requester", []string{"requester"}, nil)
 	require.NoError(t, err)
 
 	// only allow user to see first node
 	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
 
 	// create a new role which can see second node
-	searchAsRole := services.RoleForUser(user)
+	searchAsRole := services.RoleForUser(requester)
 	searchAsRole.SetName("test_search_role")
 	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
-	searchAsRole.SetLogins(types.Allow, []string{"user"})
+	searchAsRole.SetLogins(types.Allow, []string{"requester"})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, searchAsRole))
 
 	// create a third role which can see the third node
-	previewAsRole := services.RoleForUser(user)
+	previewAsRole := services.RoleForUser(requester)
 	previewAsRole.SetName("test_preview_role")
 	previewAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[2].GetName()}})
-	previewAsRole.SetLogins(types.Allow, []string{"user"})
+	previewAsRole.SetLogins(types.Allow, []string{"requester"})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, previewAsRole))
 
 	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
 	role.SetPreviewAsRoles(types.Allow, []string{previewAsRole.GetName()})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
-	clt, err := srv.NewClient(TestUser(user.GetName()))
+	requesterClt, err := srv.NewClient(TestUser(requester.GetName()))
+	require.NoError(t, err)
+
+	// create another user that can see all nodes but has no search_as_roles or
+	// preview_as_roles
+	admin, _, err := CreateUserAndRole(srv.Auth(), "admin", []string{"admin"}, nil)
+	require.NoError(t, err)
+	adminClt, err := srv.NewClient(TestUser(admin.GetName()))
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		desc                   string
+		clt                    *Client
 		requestOpt             func(*proto.ListResourcesRequest)
 		expectNodes            []string
+		expectSearchEvent      bool
 		expectSearchEventRoles []string
 	}{
 		{
-			desc:        "basic",
+			desc:        "no search",
+			clt:         requesterClt,
 			expectNodes: []string{testNodes[0].GetName()},
 		},
 		{
 			desc: "search as roles",
+			clt:  requesterClt,
 			requestOpt: func(req *proto.ListResourcesRequest) {
 				req.UseSearchAsRoles = true
 			},
@@ -3022,6 +2902,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		},
 		{
 			desc: "preview as roles",
+			clt:  requesterClt,
 			requestOpt: func(req *proto.ListResourcesRequest) {
 				req.UsePreviewAsRoles = true
 			},
@@ -3030,6 +2911,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		},
 		{
 			desc: "both",
+			clt:  requesterClt,
 			requestOpt: func(req *proto.ListResourcesRequest) {
 				req.UseSearchAsRoles = true
 				req.UsePreviewAsRoles = true
@@ -3037,8 +2919,25 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			expectNodes:            []string{testNodes[0].GetName(), testNodes[1].GetName(), testNodes[2].GetName()},
 			expectSearchEventRoles: []string{role.GetName(), searchAsRole.GetName(), previewAsRole.GetName()},
 		},
+		{
+			// this tests the case where the request includes UseSearchAsRoles
+			// and UsePreviewAsRoles, but the user has none, so there should be
+			// no audit event.
+			desc: "no extra roles",
+			clt:  adminClt,
+			requestOpt: func(req *proto.ListResourcesRequest) {
+				req.UseSearchAsRoles = true
+				req.UsePreviewAsRoles = true
+			},
+			expectNodes: []string{testNodes[0].GetName(), testNodes[1].GetName(), testNodes[2].GetName()},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
+			// Overwrite the auth server emitter to capture all events emitted
+			// during this test case.
+			emitter := eventstest.NewChannelEmitter(1)
+			srv.AuthServer.AuthServer.emitter = emitter
+
 			req := proto.ListResourcesRequest{
 				ResourceType: types.KindNode,
 				Limit:        int32(len(testNodes)),
@@ -3046,7 +2945,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			if tc.requestOpt != nil {
 				tc.requestOpt(&req)
 			}
-			resp, err := clt.ListResources(ctx, req)
+			resp, err := tc.clt.ListResources(ctx, req)
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, len(tc.expectNodes))
 			var gotNodes []string
@@ -3056,29 +2955,11 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			require.ElementsMatch(t, tc.expectNodes, gotNodes)
 
 			if len(tc.expectSearchEventRoles) > 0 {
-				require.Eventually(t, func() bool {
-					// make sure an audit event is logged for the search
-					auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-						From:       time.Time{},
-						To:         time.Now(),
-						EventTypes: []string{events.AccessRequestResourceSearch},
-						Limit:      10,
-						Order:      types.EventOrderAscending,
-					})
-					require.NoError(t, err)
-					if len(auditEvents) == 0 {
-						t.Log("no search audit events found")
-						return false
-					}
-					lastEvent := auditEvents[len(auditEvents)-1].(*apievents.AccessRequestResourceSearch)
-					diff := cmp.Diff(tc.expectSearchEventRoles, lastEvent.SearchAsRoles)
-					if diff == "" {
-						// Found the event we're looking for.
-						return true
-					}
-					t.Logf("most recent search event does not have the expected roles, diff: %s", diff)
-					return false
-				}, 10*time.Second, 250*time.Millisecond, "did not find expected search event")
+				searchEvent := <-emitter.C()
+				require.ElementsMatch(t, tc.expectSearchEventRoles, searchEvent.(*apievents.AccessRequestResourceSearch).SearchAsRoles)
+			} else {
+				// expect no event to have been emitted
+				require.Empty(t, emitter.C())
 			}
 		})
 	}
@@ -5835,5 +5716,156 @@ func mustResourceID(clusterName, kind, name string) types.ResourceID {
 		ClusterName: clusterName,
 		Kind:        kind,
 		Name:        name,
+	}
+}
+
+func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	// For each user, prepare 4 different headless authentications with the varying states.
+	// These will be created during each test, and the watcher will return a subset of the
+	// collected events based on the test's filter.
+	var headlessAuthns []*types.HeadlessAuthentication
+	for _, username := range []string{alice, bob} {
+		for _, state := range []types.HeadlessAuthenticationState{
+			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED,
+			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
+			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
+			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
+		} {
+			ha, err := types.NewHeadlessAuthentication(username, uuid.NewString(), srv.Clock().Now().Add(time.Minute))
+			require.NoError(t, err)
+			ha.State = state
+			headlessAuthns = append(headlessAuthns, ha)
+		}
+	}
+	aliceAuthns := headlessAuthns[:4]
+	bobAuthns := headlessAuthns[4:]
+
+	testCases := []struct {
+		name             string
+		identity         TestIdentity
+		filter           types.HeadlessAuthenticationFilter
+		expectWatchError string
+		expectResources  []*types.HeadlessAuthentication
+	}{
+		{
+			name:             "NOK non local users cannot watch headless authentications",
+			identity:         TestAdmin(),
+			expectWatchError: "non-local user roles cannot watch headless authentications",
+		},
+		{
+			name:             "NOK must filter for username",
+			identity:         TestUser(admin),
+			filter:           types.HeadlessAuthenticationFilter{},
+			expectWatchError: "user cannot watch headless authentications without a filter for their username",
+		},
+		{
+			name:     "NOK alice cannot filter for username=bob",
+			identity: TestUser(alice),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: bob,
+			},
+			expectWatchError: "user \"alice\" cannot watch headless authentications of \"bob\"",
+		},
+		{
+			name:     "OK alice can filter for username=alice",
+			identity: TestUser(alice),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: alice,
+			},
+			expectResources: aliceAuthns,
+		},
+		{
+			name:     "OK bob can filter for username=bob",
+			identity: TestUser(bob),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: bob,
+			},
+			expectResources: bobAuthns,
+		},
+		{
+			name:     "OK alice can filter for pending requests",
+			identity: TestUser(alice),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: alice,
+				State:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
+			},
+			expectResources: []*types.HeadlessAuthentication{aliceAuthns[types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING]},
+		},
+		{
+			name:     "OK alice can filter for a specific request",
+			identity: TestUser(alice),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: alice,
+				Name:     headlessAuthns[2].GetName(),
+			},
+			expectResources: aliceAuthns[2:3],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := srv.NewClient(tc.identity)
+			require.NoError(t, err)
+
+			watchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			watcher, err := client.NewWatcher(watchCtx, types.Watch{
+				Kinds: []types.WatchKind{
+					{
+						Kind:   types.KindHeadlessAuthentication,
+						Filter: tc.filter.IntoMap(),
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			select {
+			case event := <-watcher.Events():
+				require.Equal(t, types.OpInit, event.Type, "Expected watcher init event but got %v", event)
+			case <-time.After(time.Second):
+				t.Fatal("Failed to receive watcher init event before timeout")
+			case <-watcher.Done():
+				if tc.expectWatchError != "" {
+					require.True(t, trace.IsAccessDenied(watcher.Error()), "Expected access denied error but got %v", err)
+					require.ErrorContains(t, watcher.Error(), tc.expectWatchError)
+					return
+				}
+				t.Fatalf("Watcher unexpectedly closed with error: %v", watcher.Error())
+			}
+
+			for _, ha := range headlessAuthns {
+				err = srv.Auth().UpsertHeadlessAuthentication(ctx, ha)
+				require.NoError(t, err)
+			}
+
+			var expectEvents []types.Event
+			for _, expectResource := range tc.expectResources {
+				expectEvents = append(expectEvents, types.Event{
+					Type:     types.OpPut,
+					Resource: expectResource,
+				})
+			}
+
+			var events []types.Event
+		loop:
+			for {
+				select {
+				case event := <-watcher.Events():
+					events = append(events, event)
+				case <-time.After(100 * time.Millisecond):
+					break loop
+				case <-watcher.Done():
+					t.Fatalf("Watcher unexpectedly closed with error: %v", watcher.Error())
+				}
+			}
+
+			require.Equal(t, expectEvents, events)
+		})
 	}
 }

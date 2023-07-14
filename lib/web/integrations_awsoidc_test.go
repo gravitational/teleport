@@ -59,11 +59,11 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure deployservice-iam " +
-				`--cluster="localhost" ` +
-				`--name="myintegration" ` +
-				`--aws-region="us-east-1" ` +
-				`--role="myRole" ` +
-				`--task-role="taskRole"`,
+				`--cluster=localhost ` +
+				`--name=myintegration ` +
+				`--aws-region=us-east-1 ` +
+				`--role=myRole ` +
+				`--task-role=taskRole`,
 		},
 		{
 			name: "valid with symbols in role",
@@ -75,11 +75,11 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure deployservice-iam " +
-				`--cluster="localhost" ` +
-				`--name="myintegration" ` +
-				`--aws-region="us-east-1" ` +
-				`--role="Test+1=2,3.4@5-6_7" ` +
-				`--task-role="taskRole"`,
+				`--cluster=localhost ` +
+				`--name=myintegration ` +
+				`--aws-region=us-east-1 ` +
+				`--role=Test+1=2,3.4@5-6_7 ` +
+				`--task-role=taskRole`,
 		},
 		{
 			name: "missing aws-region",
