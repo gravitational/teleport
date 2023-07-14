@@ -334,7 +334,15 @@ from a trusted CA, e.g., Let's Encrypt.
 
 ## Amazon EC2
 
-We provide pre-built `amd64` Amazon Linux 2023 based EC2 AMIs with Teleport pre-installed.
+We provide pre-built `amd64` Amazon Linux 2023 based EC2 AMIs with Teleport
+pre-installed. 
+
+These images are primarily intended for deploying a Teleport cluster using our 
+[reference Terraform code](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform).
+
+See the [Starter Cluster Terraform](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster)
+and the [Running Teleport Enterprise in High Availability mode on AWS](deploy-a-cluster/deployments/aws-terraform/)
+guide for detailed usage examples.
 
 The image names all include the build timestamp (shown as `$TIMESTAMP` in the table
 below), and are tagged for easier searching.
