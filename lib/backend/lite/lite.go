@@ -178,7 +178,7 @@ func (cfg *Config) ConnectionURI() string {
 
 	u := url.URL{
 		Scheme:   "file",
-		Opaque:   url.QueryEscape(filepath.Join(cfg.Path, defaultDBFile)),
+		Path:     filepath.Join(cfg.Path, defaultDBFile),
 		RawQuery: params.Encode(),
 	}
 	return u.String()
@@ -220,7 +220,10 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 
 	if setPermissions {
 		// Ensure the database has restrictive access permissions.
-		db.PingContext(ctx)
+		err = db.PingContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		err = os.Chmod(path, dbMode)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
