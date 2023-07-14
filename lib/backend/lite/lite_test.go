@@ -19,6 +19,7 @@ package lite
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -54,7 +55,7 @@ func TestLite(t *testing.T) {
 		}
 
 		backend, err := NewWithConfig(context.Background(), Config{
-			Path:             t.TempDir(),
+			Path:             filepath.Join(t.TempDir(), "directory with spaces"), // checks if spaces are encoded correctly
 			PollStreamPeriod: 300 * time.Millisecond,
 			Clock:            clock,
 		})

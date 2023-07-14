@@ -20,7 +20,7 @@ OS ?= linux
 ARCH ?= amd64
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.20.5
+GOLANG_VERSION ?= go1.20.6
 
 # Sync with devbox.json.
 NODE_VERSION ?= 16.18.1

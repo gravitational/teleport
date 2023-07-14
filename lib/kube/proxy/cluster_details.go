@@ -60,6 +60,8 @@ type clusterDetailsConfig struct {
 	// resourceMatchers is the list of resource matchers to match the cluster against
 	// to determine if we should assume the role or not for AWS.
 	resourceMatchers []services.ResourceMatcher
+	// clock is the clock to use.
+	clock clockwork.Clock
 }
 
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
@@ -102,7 +104,7 @@ func (k *kubeDetails) Close() {
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
 func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (kubeCreds, error) {
-	dynCredsCfg := dynamicCredsConfig{kubeCluster: cfg.cluster, log: cfg.log, checker: cfg.checker, resourceMatchers: cfg.resourceMatchers}
+	dynCredsCfg := dynamicCredsConfig{kubeCluster: cfg.cluster, log: cfg.log, checker: cfg.checker, resourceMatchers: cfg.resourceMatchers, clock: cfg.clock}
 	switch {
 	case cfg.cluster.IsKubeconfig():
 		return getStaticCredentialsFromKubeconfig(ctx, cfg.cluster, cfg.log, cfg.checker)
