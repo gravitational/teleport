@@ -240,10 +240,6 @@ func TestConvertEC2InstancesToServerInfos(t *testing.T) {
 	expected, err := types.NewServerInfo(types.Metadata{
 		Name: "myaccount-myinstance",
 	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "myaccount",
-			InstanceID: "myinstance",
-		},
 		NewLabels: map[string]string{"aws/foo": "bar"},
 	})
 	require.NoError(t, err)

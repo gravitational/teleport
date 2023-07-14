@@ -464,6 +464,10 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+func (c *Client) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
+}
+
 func (c *Client) GetLicense(ctx context.Context) (string, error) {
 	return c.APIClient.GetLicense(ctx)
 }
