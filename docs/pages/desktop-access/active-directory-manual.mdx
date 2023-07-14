@@ -566,10 +566,11 @@ ssh_service:
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Cloud">
-For Teleport Cloud, Windows Desktop Service should establish a reverse tunnel to
-the hosted proxy. This requires setting `proxy_server` to your cloud tenant and
-providing a join token.
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+
+For Teleport Team and Teleport Enterprise Cloud, the Windows Desktop Service
+should establish a reverse tunnel to the hosted Teleport Proxy Service. This
+requires setting `proxy_server` to your cloud tenant and providing a join token.
 
 First, generate a join token with the following command:
 

@@ -13,7 +13,7 @@ including:
 - `tbot`
 
 If you are new to Teleport, we recommend following our [getting started
-guide](./get-started.mdx).
+guide](./index.mdx).
 
 For best results, Teleport clients (`tsh`, `tctl`, `tbot`) should be the same major
 version as the cluster they are connecting to. Teleport servers are compatible
@@ -49,6 +49,33 @@ supports most features on Windows 10 and later.*
 ## Linux
 
 All installations include `teleport`, `tsh`, `tctl`, and `tbot`.
+
+### Feature support
+
+Some Teleport features have additional requirements:
+
+| Feature                                                                        | Requirement   | Debian                   | Ubuntu   | CentOS/RHEL | Amazon Linux            |
+|--------------------------------------------------------------------------------|---------------|--------------------------|----------|-------------|------------------------|
+| [Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx) | Kernel  v5.8+ | 11, or 10 with backports | 20.04.2+ | 9+          | 2 (post 11/2021), 2023 |
+| Automatic Updates                                                              | systemd-based | 8+                       | 16.04+   | 7+          | 2, 2023                |
+| Installation through apt/yum repos                                             | systemd-based | 8+                       | 16.04+   | 7+          | 2, 2023                |
+
+<Admonition type="note">
+`apt` and `yum` repos don't expose packages for all distribution variants.
+When following installation instructions, you might need to replace `ID` with
+`ID_LIKE` to install packages of the closest supported distribution.
+
+Currently supported distributions (and `ID`) are:
+- RHEL >= 7 (`rhel`)
+- CentOS >= 7 (`centos`)
+- Debian >= 8 (`debian`)
+- Ubuntu >= 16.04 (`ubuntu`)
+- Amazon Linux 2 and 2023 (`amzn`)
+
+</Admonition>
+
+
+### Installation instructions
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -126,7 +153,7 @@ either:
   `(=teleport.version=)`.
 
 <Tabs>
-<TabItem label="Open Source" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Team/Community Edition" scope={["oss", "team"]}>
 
 |Image name|Troubleshooting Tools?|Image base|
 |-|-|-|
@@ -142,7 +169,7 @@ repository](https://gallery.ecr.aws/gravitational/teleport-ent).  Their use is
 considered deprecated, and they may be removed in future releases.
 
 </TabItem>
-<TabItem label="Enterprise" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Enterprise Cloud/Enterprise" scope={["cloud", "enterprise"]}>
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
@@ -318,8 +345,10 @@ chart.
 
 ## macOS
 
-<Tabs dropdownCaption="Teleport Edition">
-<TabItem label="Installer" options="Open Source" scope="oss">
+<Tabs dropdownView dropdownCaption="Teleport Edition">
+<TabItem label="Teleport Team/Community Edition" scope={["oss","team"]}>
+  <Tabs>
+  <TabItem label="Teleport package" >
   You can download one of the following .pkg installers for macOS:
 
   |Link|Binaries|
@@ -342,7 +371,7 @@ chart.
   ```
 
 </TabItem>
-<TabItem label="Homebrew" options="Open Source">
+<TabItem label="Homebrew">
 
   <Notice type="danger">
 
@@ -382,9 +411,16 @@ chart.
   against `tsh version` and `tctl version`.
 
 </TabItem>
-<TabItem label="Installer " options="Enterprise,Cloud"  scope={["enterprise", "cloud"]}>
+</Tabs>
+</TabItem>
+<TabItem label="Enterprise" scope="enterprise">
 
 (!docs/pages/includes/enterprise/install-macos.mdx!)
+
+</TabItem>
+<TabItem label="Enterprise Cloud" scope="cloud">
+
+(!docs/pages/includes/cloud/install-macos.mdx!)
 
 </TabItem>
 </Tabs>
