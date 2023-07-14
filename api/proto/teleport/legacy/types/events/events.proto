@@ -2431,6 +2431,10 @@ message DatabaseMetadata {
   string DatabaseGCPInstanceID = 10 [(gogoproto.jsontag) = "db_gcp_instance_id,omitempty"];
   // DatabaseRoles is a list of database roles for auto-provisioned users.
   repeated string DatabaseRoles = 11 [(gogoproto.jsontag) = "db_roles,omitempty"];
+  // DatabaseType is the database type.
+  string DatabaseType = 12 [(gogoproto.jsontag) = "db_type,omitempty"];
+  // DatabaseOrigin is the database origin source.
+  string DatabaseOrigin = 13 [(gogoproto.jsontag) = "db_origin,omitempty"];
 }
 
 // DatabaseCreate is emitted when a new database resource is created.
