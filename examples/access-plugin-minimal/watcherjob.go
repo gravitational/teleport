@@ -33,18 +33,16 @@ func (g *googleSheetsClient) HandleEvent(ctx context.Context, event types.Event)
 	if r.GetState() == types.RequestState_PENDING {
 		if err := g.createRow(r); err != nil {
 			return err
-		} else {
-			fmt.Println("Successfully created a row")
-			return nil
 		}
+		fmt.Println("Successfully created a row")
+		return nil
 	}
 
 	if err := g.updateSpreadsheet(r); err != nil {
 		return err
-	} else {
-		fmt.Println("Successfully updated a spreadsheet row")
-		return nil
 	}
+	fmt.Println("Successfully updated a spreadsheet row")
+	return nil
 }
 
 func (p *AccessRequestPlugin) Run() error {
