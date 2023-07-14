@@ -34,32 +34,32 @@ To set up a local environment for contributing to Teleport documentation:
 
 1. Clone the `gravitational/docs` repository by running the following command:
 
-    ```code
-    $ git clone https://github.com/gravitational/docs --recurse-submodules
-    ```
+   ```code
+   $ git clone https://github.com/gravitational/docs --recurse-submodules
+   ```
 
-    This command clones the documentation submodules that correspond to the
-    different major release versions of the Teleport code. For example, there
-    are documentation submodules for the 11.x, 12.x, 13.x, and 14.x versions
-    of Teleport.
+   This command clones the documentation submodules that correspond to the
+   different major release versions of the Teleport code. For example, there
+   are documentation submodules for the 11.x, 12.x, 13.x, and 14.x versions
+   of Teleport.
 
 1. Change to the root of the `docs` directory:
-    
-    ```code
-    $ cd docs
-    ```
+   
+   ```code
+   $ cd docs
+   ```
 
 1. Update the documentation to the latest version from the master branch:
-    
-    ```code
-    $ yarn git-update
-    ```
+   
+   ```code
+   $ yarn git-update
+   ```
 
 1. Install dependencies:
-    
-    ```code
-    $ yarn
-    ```
+   
+   ```code
+   $ yarn
+   ```
 
 ## Step 2/5. Navigate to a specific version
 
@@ -70,50 +70,50 @@ a `git` submodule for a different branch of `gravitational/teleport`.
 To navigate to a specific version of the documentation:
 
 1. View the versions of the documentation listed in the `content` directory by running the following command:
-    
-    ```code
-    $ ls -l content
-    ```
-    
+   
+   ```code
+   $ ls -l content
+   ```
+   
 1. Change to the directory under `content` that contains the version of documentation you want to update.
-    For example, navigate to the directory that corresponds to latest version of Teleport:
+   For example, navigate to the directory that corresponds to latest version of Teleport:
 
-    ```code
-    $ cd content/(=teleport.major_version=).x
-    ```
+   ```code
+   $ cd content/(=teleport.major_version=).x
+   ```
 
 1. Switch to the master branch by running the following command:
-    
-    ```code
-    $ git switch master
-    ```
+   
+   ```code
+   $ git switch master
+   ```
 
-    You can use a versioned branch if you want to update documentation for a specific previous version of Teleport.
-    However, it most cases, you should use the `master` branch.
+   You can use a versioned branch if you want to update documentation for a specific previous version of Teleport.
+   However, it most cases, you should use the `master` branch.
 
 1. Create a new branch of `gravitational/teleport` for your changes by running a command similar to the following:
 
-    ```code
-    $ git switch -c my-branch
-    ```
+   ```code
+   $ git switch -c my-branch
+   ```
 
-    You now have a branch for a specific version of the documentation content.
-    Before making any changes, note how the content is organized so you know where to find the files 
-    to update.
-    
-    Within the `content/*.*` directory in your branch, there's a `docs` subdirectory. 
-    The `content/*.*/docs` subdirectory contains the files and folders used to produce a specific version 
-    of the documentation. 
-    
-    The subdirectory includes the following:
+   You now have a branch for a specific version of the documentation content.
+   Before making any changes, note how the content is organized so you know where to find the files 
+   to update.
+   
+   Within the `content/*.*` directory in your branch, there's a `docs` subdirectory. 
+   The `content/*.*/docs` subdirectory contains the files and folders used to produce a specific version 
+   of the documentation. 
+   
+   The subdirectory includes the following:
 
-    - The `img/` folder for images used inside the pages.
-    - The `pages/` folder for the Markdown files that contain documentation content. 
-      Every file in this folder is rendered as a page.
-    - The `pages/includes` folder for content that's only rendered when it's included in the body of a page.
-    - The `config.json` file for configuring version information.
+   - The `img/` folder for images used inside the pages.
+   - The `pages/` folder for the Markdown files that contain documentation content. 
+     Every file in this folder is rendered as a page.
+   - The `pages/includes` folder for content that's only rendered when it's included in the body of a page.
+   - The `config.json` file for configuring version information.
 
-    You're now ready to make changes in your own branch using the code editor of your choice.
+   You're now ready to make changes in your own branch using the code editor of your choice.
 
 ## Step 3/5. Test changes locally
 
@@ -129,24 +129,24 @@ To test changes in your local environment:
 1. Change to the top-level `docs` directory in your local copy of the https://github.com/gravitational/docs repository.
 
 1. Start the development server by running the following commands:
-    
-    ```code
-    $ yarn dev
-    ```
+   
+   ```code
+   $ yarn dev
+   ```
 
 1. Open a web browser and navigate to the documentation using the URL `localhost:3000/docs`. 
 
 1. Validate the Markdown syntax by running the following commends:
 
-    ```code
-    # Check your Markdown syntax
-    $ yarn markdown-lint
-    # markdown-lint, but also checks that external links work
-    $ yarn markdown-lint-external-links
-    ```
+   ```code
+   # Check your Markdown syntax
+   $ yarn markdown-lint
+   # markdown-lint, but also checks that external links work
+   $ yarn markdown-lint-external-links
+   ```
 
-    For more information about using `yarn` commands to work with Teleport documentation, 
-    see the [README](https://github.com/gravitational/docs).
+   For more information about using `yarn` commands to work with Teleport documentation, 
+   see the [README](https://github.com/gravitational/docs).
 
 ## Step 4/5. Create a pull request
 
@@ -162,23 +162,23 @@ If you work at Teleport:
 
 1. Add files and commit changes to your local branch periodically with commands similar to the following:
 
-    ```code
-    $ git add <new-file-name>                      # Add a specific new file to be committed
-    $ git add -A                                   # Add all changed files to the list of files to be committed
-    $ git commit -am "Fix or feature description"  # Add and commit changes with a comment
-    $ git commit -m                                # Commit changes already added
-    ```
+   ```code
+   $ git add <new-file-name>                 # Add a specific new file to be committed
+   $ git add -A                           # Add all changed files to the list of files to be committed
+   $ git commit -am "Fix or feature description"  # Add and commit changes with a comment
+   $ git commit -m                        # Commit changes already added
+   ```
 
 1. Push your branch to `gravitational/teleport` with a command similar to the following:
-    
-    ```code
-    $ git push origin my-branch
-    ```
+   
+   ```code
+   $ git push origin my-branch
+   ```
 
 1. Open the [Teleport repository](https://github.com/gravitational/teleport), select your branch as the branch to 
 merge into main, then click **New pull request**.
 
-    The continuous integration (CI) pipeline automatically assigns reviewers to your pull request.  
+   The continuous integration (CI) pipeline automatically assigns reviewers to your pull request.  
 
 1. Wait for the minimum required approvals, then merge your pull request as soon as possible.
 
@@ -196,37 +196,37 @@ To push changes as an external contributor:
 1. Verify the owner and repository name.
 
 1. Click **Create fork**.
-    
-    Alternatively, you can create a fork from the command-line by running a command similar to the following:
-    
-    ```code
-    $ git remote add fork ssh://git@github.com/my-user/teleport
-    ```
+   
+   Alternatively, you can create a fork from the command-line by running a command similar to the following:
+   
+   ```code
+   $ git remote add fork ssh://git@github.com/my-user/teleport
+   ```
 
-    In this command, `my-user` represents your GitHub user name and `teleport` is the name of your Teleport repository fork.
+   In this command, `my-user` represents your GitHub user name and `teleport` is the name of your Teleport repository fork.
 
 1. Pull all of the changes from the remote repository into your local fork by running the following command:
-    
-    ```code
-    $ git fetch origin
-    ```
+   
+   ```code
+   $ git fetch origin
+   ```
 
 1. Push changes from your local branch to the remote fork of the [Teleport repository](https://github.com/gravitational/teleport) 
 by running a command similar to the following:
-    
-    ```code
-    $ git push --set-upstream fork my-branch
-    ```
+   
+   ```code
+   $ git push --set-upstream fork my-branch
+   ```
 
 1. Open the [Teleport repository](https://github.com/gravitational/teleport), select your branch as the branch to merge into main, 
 then click **New pull request**.
 
-    The continuous integration (CI) pipeline automatically assigns reviewers to your pull request and
-    generates a companion pull request with your commits for automated verification that your pull request 
-    conforms to certain conventions. 
-    To ensure that your PR is merged, you should respond to reviewer feedback in a timely manner. 
-    If you don't respond to reviewer feedback in a reasonable period of time, your pull request is likely to 
-    be deemed inactive and closed.
+   The continuous integration (CI) pipeline automatically assigns reviewers to your pull request and
+   generates a companion pull request with your commits for automated verification that your pull request 
+   conforms to certain conventions. 
+   To ensure that your PR is merged, you should respond to reviewer feedback in a timely manner. 
+   If you don't respond to reviewer feedback in a reasonable period of time, your pull request is likely to 
+   be deemed inactive and closed.
 
 1. Wait for the minimum required approvals, then merge your pull request as soon as possible.
 
@@ -274,11 +274,11 @@ To use make:
 1. Run the following command to assign the `PR` variable to the ID of your original GitHub pull request and
 the `TO` variable to a comma-separated list of versioned branch names:
 
-    ```code
-    $ PR=0000 TO=branch/v10 make backport
-    ```
+   ```code
+   $ PR=0000 TO=branch/v10 make backport
+   ```
 
-    This `make backport` script automatically generates backport branches and opens pull requests for them.
+   This `make backport` script automatically generates backport branches and opens pull requests for them.
 </TabItem>
 
 <TabItem label="Select commits (internal)">
@@ -304,35 +304,35 @@ merged.
 
 1. Run the following commands to create a branch for the commit being backported:
 
-    ```code
-    $ git switch branch/v11
-    $ git pull
-    $ git switch -c my-branch-backport-v11
-    $ git cherry-pick <commit-hash>
-    ```
+   ```code
+   $ git switch branch/v11
+   $ git pull
+   $ git switch -c my-branch-backport-v11
+   $ git cherry-pick <commit-hash>
+   ```
 
 1. Open the files that indicate there are merge conflicts and resolve all of the
 conflicts.
 
 1. Add the updated and saved files to the staged list of changes. For example:
 
-    ```code
-    $ git add docs/pages/core-concepts.mdx
-    ```
+   ```code
+   $ git add docs/pages/core-concepts.mdx
+   ```
 
-    You can use `git status` to check whether there are additional merge conflicts.
+   You can use `git status` to check whether there are additional merge conflicts.
 
 1. Finish the cherry-pick operation by running the following command:
-    
-    ```code
-    git cherry-pick --continue
-    ```
+   
+   ```code
+   git cherry-pick --continue
+   ```
 
 1. Push the changes for the backport to the fork.
 
-    ```code 
-    $ git push --set-upstream origin my-branch-backport-v11
-    ```
+   ```code 
+   $ git push --set-upstream origin my-branch-backport-v11
+   ```
 
 1. Create a pull request in the [Teleport repository](https://github.com/gravitational/teleport) for your backport.
 
@@ -351,18 +351,18 @@ In this example:
 
 1. Run the following commands to create a branch for the commit being backported:
 
-    ```code
-    $ git switch branch/v11
-    $ git pull
-    $ git switch -c my-branch-backport-v11
-    $ git cherry-pick <commit-hash>
-    ```
+   ```code
+   $ git switch branch/v11
+   $ git pull
+   $ git switch -c my-branch-backport-v11
+   $ git cherry-pick <commit-hash>
+   ```
 
 1. Push the changes for the backport to the fork.
 
-    ```code 
-    $ git push --set-upstream fork my-branch-backport-v11
-    ```
+   ```code 
+   $ git push --set-upstream fork my-branch-backport-v11
+   ```
 
 1. Create a pull request in the [Teleport repository](https://github.com/gravitational/teleport) for your backport.
 
