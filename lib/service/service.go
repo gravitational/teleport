@@ -1627,7 +1627,14 @@ func (process *TeleportProcess) initAuthService() error {
 
 	var embedderClient ai.Embedder
 	if cfg.Auth.AssistAPIKey != "" {
-		embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
+		// Like for proxy, if a custom OpenAIConfig is passed, the token from
+		// cfg.Auth.AssistAPIKey is ignored and the one from the config is used.
+		if cfg.OpenAIConfig != nil {
+			embedderClient = ai.NewClientFromConfig(*cfg.OpenAIConfig)
+		} else {
+			embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+		}
 	}
 
 	embeddingsRetriever := ai.NewSimpleRetriever()
@@ -3823,7 +3830,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 				return ctx, trace.Wrap(err)
 			}),
-			PROXYSigner: proxySigner,
+			PROXYSigner:  proxySigner,
+			OpenAIConfig: cfg.OpenAIConfig,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
