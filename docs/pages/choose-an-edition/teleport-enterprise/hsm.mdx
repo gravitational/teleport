@@ -120,11 +120,11 @@ to use.
     Client SDK 5.
     https://docs.aws.amazon.com/cloudhsm/latest/userguide/gs_cloudhsm_cli-install.html
 
-    Bootstrap the CLI by configuring the IP address of the new HSM:
-
-    ```code
-    $ sudo /opt/cloudhsm/bin/configure-cli -a <Var name="HSM IP address"/>
-    ```
+   Bootstrap the CLI by configuring the IP address of the new HSM:
+   
+   ```code
+   $ sudo /opt/cloudhsm/bin/configure-cli -a <Var name="HSM IP address"/>
+   ```
 
 1. Copy the self-signed certificate from step 6 (`customerCA.crt`) to the EC2
     instance, save it at `/opt/cloudhsm/etc/customerCA.crt`.
@@ -132,55 +132,56 @@ to use.
 1. Activate the CloudHSM cluster with the CloudHSM CLI by creating an admin user
     with a new password:
 
-    ```text
-    $ sudo /opt/cloudhsm/bin/cloudhsm-cli interactive
-    aws-cloudhsm > cluster activate
-    Enter password:
-    Confirm password:
-    {
-      "error_code": 0,
-      "data": "Cluster activation successful"
-    }
-    ```
+   ```text
+   $ sudo /opt/cloudhsm/bin/cloudhsm-cli interactive
+   aws-cloudhsm > cluster activate
+   Enter password:
+   Confirm password:
+   {
+     "error_code": 0,
+     "data": "Cluster activation successful"
+   }
+   ```
 
 1. Login to the CloudHSM CLI as the new admin user and create a Crypto User to
     be used by Teleport.
     Remember this new password because Teleport will use it later to authenticate
     to the PKCS#11 library.
 
-    ```text
-    aws-cloudhsm > login --username admin --role admin
-    Enter password:
-    {
-      "error_code": 0,
-      "data": {
-        "username": "admin",
-        "role": "admin"
-      }
-    }
-    aws-cloudhsm > user create --username teleport --role crypto-user
-    Enter password:
-    Confirm password:
-    {
-      "error_code": 0,
-      "data": {
-        "username": "teleport",
-        "role": "crypto-user"
-      }
-    }
-    aws-cloudhsm > quit
-    ```
+   ```text
+   aws-cloudhsm > login --username admin --role admin
+   Enter password:
+   {
+     "error_code": 0,
+     "data": {
+       "username": "admin",
+       "role": "admin"
+     }
+   }
+   aws-cloudhsm > user create --username teleport --role crypto-user
+   Enter password:
+   Confirm password:
+   {
+     "error_code": 0,
+     "data": {
+       "username": "teleport",
+       "role": "crypto-user"
+     }
+   }
+   aws-cloudhsm > quit
+   ```
 
 1. Install the PKCS#11 library for the Client SDK 5 on the same Auth Server EC2 instance
     https://docs.aws.amazon.com/cloudhsm/latest/userguide/pkcs11-library-install.html
 
-    Bootstrap the PKCS#11 library by configuring the HSM IP address.
-    If you only have one HSM in the cluster, you must include the
-    `--disable-key-availability-check` flag.
+   Bootstrap the PKCS#11 library by configuring the HSM IP address.
+   If you only have one HSM in the cluster, you must include the
+   `--disable-key-availability-check` flag.
 
-    ```code
-    $ sudo /opt/cloudhsm/bin/configure-pkcs11 --disable-key-availability-check -a <Var name="HSM IP address"/>
-
+   ```code
+   $ sudo /opt/cloudhsm/bin/configure-pkcs11 --disable-key-availability-check -a <Var name="HSM IP address"/>
+   ```
+   
   </TabItem>
   <TabItem label="YubiHSM2">
 

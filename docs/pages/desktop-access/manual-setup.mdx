@@ -32,8 +32,6 @@ This guide requires you to have:
   encrypted LDAP connection). Typically this means installing
   [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
 
-<<<<<<< HEAD:docs/pages/desktop-access/manual-setup.mdx
-=======
 <Admonition title="Azure AD" type="warning">
 
 Microsoft's Azure Active Directory (Azure AD) offering does not support the
@@ -46,7 +44,6 @@ joined to Azure AD) using local accounts via the process described in [Getting
 Started with Desktop Access](./getting-started.mdx).
 </Admonition>
 
->>>>>>> a485e83b2b (Changes to ordered and unordered lists for lint warnings):docs/pages/desktop-access/active-directory-manual.mdx
 - Access to a Domain Controller
 
 - An existing Teleport cluster with one of the following versions:
@@ -207,7 +204,6 @@ Started](../try-out-teleport/introduction.mdx) guide.
 These steps will need to be repeated if Teleport's user certificate authority is rotated.
 </Admonition>
 
-
 1. Get the Teleport user CA certificate by running:
 
 ```code
@@ -250,28 +246,18 @@ New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
 
 1. Open the `Group Policy Management` program, and on the left pane,
    navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
-<<<<<<< HEAD:docs/pages/desktop-access/manual-setup.mdx
-3. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
-4. In the group policy editor, select:
-=======
 
 1. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
 
 1. In the group policy editor, select:
->>>>>>> a485e83b2b (Changes to ordered and unordered lists for lint warnings):docs/pages/desktop-access/active-directory-manual.mdx
 
 ```text
 Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
 ```
 
-<<<<<<< HEAD:docs/pages/desktop-access/manual-setup.mdx
-5. Right click on `Trusted Root Certification Authorities` and select `Import`.
-6. Click through the wizard, selecting your CA file.
-=======
 1. Right click on `Trusted Root Certification Authorities` and select `Import`.
 
 1. Click through the wizard, selecting your CA file.
->>>>>>> a485e83b2b (Changes to ordered and unordered lists for lint warnings):docs/pages/desktop-access/active-directory-manual.mdx
 
 <Figure align="left" bordered caption="Import Teleport CA">
   ![Import Teleport CA](../../img/desktop-access/ca.png)
@@ -341,14 +327,9 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
 Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Connections
 ```
 
-<<<<<<< HEAD:docs/pages/desktop-access/manual-setup.mdx
-2. Right click on `Allow users to connect remotely by using Remote Desktop Services` and select `Edit`. Select `Enabled` and `OK`.
-3. Select:
-=======
 1. Right click on `Allow users to connect remotely by using Remote Desktop Services` and select `Edit`. Select `Enabled` and `OK`.
 
 1. Select:
->>>>>>> a485e83b2b (Changes to ordered and unordered lists for lint warnings):docs/pages/desktop-access/active-directory-manual.mdx
 
 ```text
 Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
@@ -384,12 +365,6 @@ Set to `Disabled` and click `OK`.
 Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security (x2)
 ```
 
-<<<<<<< HEAD:docs/pages/desktop-access/manual-setup.mdx
-2. Right click on `Inbound Rules` and select `New Rule...`.
-3. Under `Predefined` select `Remote Desktop`.
-4. Only select the rule for `User Mode (TCP-in)`.
-5. On the next screen, select `Allow the connection` and finish.
-=======
 1. Right click on `Inbound Rules` and select `New Rule...`.
 
 1. Under `Predefined` select `Remote Desktop`.
@@ -397,7 +372,6 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Windo
 1. Only select the rule for `User Mode (TCP-in)`.
 
 1. On the next screen, select `Allow the connection` and finish.
->>>>>>> a485e83b2b (Changes to ordered and unordered lists for lint warnings):docs/pages/desktop-access/active-directory-manual.mdx
 
 <Figure align="left" bordered caption="Open the Firewall">
   ![Open the Firewall](../../img/desktop-access/firewall.png)
@@ -435,24 +409,6 @@ In this section, we will create a certificate template that uses elliptic curve 
 Start > Control Panel > Administrative Tools > Certificate Authority
 ```
 
-<<<<<<< HEAD:docs/pages/desktop-access/manual-setup.mdx
-2. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
-3. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
-4. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
-5. In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
-6. Go to the `General` tab and change `Template display name` to `RemoteDesktopAccess`. Make sure `Template name` is also `RemoteDesktopAccess`.
-7. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
-8. Next, in the `Extensions` tab select `Application Polices` and click the `Edit` button.
-9. Remove all entries from the list.
-10. Go to the `Security` tab, select `Domain Computers` and give the group `Read` and `Enroll` permissions.
-11. Finally, create a template by clicking `OK`.
-12. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
-
-```text
-New > Certificate Template to Issue
-```
-Select `RemoteDesktopAccess` and click `OK`.
-=======
 1. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
 
 1. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
@@ -482,7 +438,6 @@ Select `RemoteDesktopAccess` and click `OK`.
    ```
 
 1. Select `RemoteDesktopAccess` and click `OK`.
->>>>>>> a485e83b2b (Changes to ordered and unordered lists for lint warnings):docs/pages/desktop-access/active-directory-manual.mdx
 
 ### Update GPO to use a new certificate template
 
@@ -498,7 +453,6 @@ Right-click on `Server authentication certificate template`, `Edit`, then select
   ![RDP Certificate Template](../../img/desktop-access/rdp-certificate-template.png)
 </Figure>
 
-
 ### Configure server certificate auto-enrollment
 
 In the group policy editor for `Teleport Access Policy`, select:
@@ -508,7 +462,6 @@ Computer Configuration > Policies > Windows Settings > Public Key Policies
 ```
 
 Double-click on `Certificate Services Client - Auto-Enrollment`, then select `Enabled` in the `Configuration Model`.
-
 
 ### Ensure your GPO is updated
 
@@ -536,23 +489,14 @@ this step.
 
 {/* Adapted from https://www.ibm.com/docs/it/rds/5.2.1?topic=security-exporting-certificate-from-active-directory-server */}
 
-<<<<<<< HEAD:docs/pages/desktop-access/manual-setup.mdx
-1. Begin by navigating to `Start > Control Panel > Administrative Tools > Certificate Authority` to open the CA Microsoft Management Console (MMC) GUI.
-2. Right click on your CA computer and select `Properties`.
-3. From `General` tab, click `View Certificate`.
-4. Select the `Details` view and click `Copy to File`.
-5. Click `Next` in the Certificate Export Wizard, and ensure that `DER encoded binary X.509 (.CER)` is selected
-6. Select a name and location for you certificate and click through the wizard.
-=======
 1. Begin by navigating to `Start > Control Panel > Administrative Tools > CertificateAuthority`
    to open the CA Microsoft Management Console (MMC) GUI.
 1. Right click on your CA computer and select `Properties`.
 1. From `General` tab, click `View Certificate`.
 1. Select the `Details` view and click `Copy to File`.
 1. Click `Next` in the Certificate Export Wizard, and ensure that `DER encoded binary X.509 (.CER)`
-   is selected
+   is selected.
 1. Select a name and location for you certificate and click through the wizard.
->>>>>>> a485e83b2b (Changes to ordered and unordered lists for lint warnings):docs/pages/desktop-access/active-directory-manual.mdx
 
 Now transfer the exported file to the system where you're running Teleport. You
 can either add this certificate to your system's trusted repository or provide
