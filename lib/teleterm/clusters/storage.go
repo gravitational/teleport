@@ -58,10 +58,9 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 }
 
 // GetByURI returns a cluster by URI
-func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
-	URI := uri.New(clusterURI)
-	profileName := URI.GetProfileName()
-	leafClusterName := URI.GetLeafClusterName()
+func (s *Storage) GetByURI(clusterURI uri.ResourceURI) (*Cluster, error) {
+	profileName := clusterURI.GetProfileName()
+	leafClusterName := clusterURI.GetLeafClusterName()
 
 	cluster, err := s.fromProfile(profileName, leafClusterName)
 	if err != nil {
@@ -73,13 +72,8 @@ func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
 
 // GetByResourceURI returns a cluster by a URI of its resource. Accepts both root and leaf cluster
 // resources and will return a root or leaf cluster accordingly.
-func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, error) {
-	clusterURI, err := uri.ParseClusterURI(resourceURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, err := s.GetByURI(clusterURI.String())
+func (s *Storage) GetByResourceURI(resourceURI uri.ResourceURI) (*Cluster, error) {
+	cluster, err := s.GetByURI(resourceURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,7 +82,7 @@ func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, error) {
 }
 
 // ResolveCluster is an alias for GetByResourceURI.
-func (s *Storage) ResolveCluster(resourceURI string) (*Cluster, error) {
+func (s *Storage) ResolveCluster(resourceURI uri.ResourceURI) (*Cluster, error) {
 	cluster, err := s.GetByResourceURI(resourceURI)
 	return cluster, trace.Wrap(err)
 }
@@ -217,9 +211,12 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	// load profile status if key exists
 	_, err = clusterClient.LocalAgent().GetKey(clusterNameForKey)
 	if err != nil {
-		s.Log.WithError(err).Infof("Unable to load the keys for cluster %v.", clusterNameForKey)
+		if trace.IsNotFound(err) {
+			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
-
 	if err == nil && cfg.Username != "" {
 		status, err = clusterClient.ProfileStatus()
 		if err != nil {
@@ -229,9 +226,6 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
 	}
 
 	return &Cluster{

@@ -29,6 +29,7 @@ import { TopBar } from './TopBar';
 
 export default {
   title: 'Teleport/TopBar',
+  args: { userContext: true },
 };
 
 export function Story() {

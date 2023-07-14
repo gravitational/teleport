@@ -25,6 +25,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -468,15 +469,10 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 	return true
 }
 
-// LabelPattern is a regexp that describes a valid label key
-const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
-
-var validLabelKey = regexp.MustCompile(LabelPattern)
-
 // IsValidLabelKey checks if the supplied string matches the
 // label key regexp.
 func IsValidLabelKey(s string) bool {
-	return validLabelKey.MatchString(s)
+	return common.IsValidLabelKey(s)
 }
 
 // MatchSearch goes through select field values from a resource
@@ -523,4 +519,15 @@ type ListResourcesResponse struct {
 	NextKey string
 	// TotalCount is the total number of resources available as a whole.
 	TotalCount int
+}
+
+// ValidateResourceName validates a resource name using a given regexp.
+func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
+	if validationRegex.MatchString(name) {
+		return nil
+	}
+	return trace.BadParameter(
+		"%q does not match regex used for validation %q",
+		name, validationRegex.String(),
+	)
 }

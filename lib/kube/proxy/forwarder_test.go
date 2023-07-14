@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -162,7 +161,7 @@ func TestAuthenticate(t *testing.T) {
 	require.NoError(t, err)
 
 	tun := mockRevTunnel{
-		sites: map[string]reversetunnel.RemoteSite{
+		sites: map[string]reversetunnelclient.RemoteSite{
 			"remote": mockRemoteSite{name: "remote"},
 			"local":  mockRemoteSite{name: "local"},
 		},
@@ -202,7 +201,7 @@ func TestAuthenticate(t *testing.T) {
 		routeToCluster    string
 		kubernetesCluster string
 		haveKubeCreds     bool
-		tunnel            reversetunnel.Server
+		tunnel            reversetunnelclient.Server
 		kubeServers       []types.KubeServer
 		activeRequests    []string
 
@@ -1184,11 +1183,11 @@ func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse,
 	}, nil
 }
 
-// mockRemoteSite is a reversetunnel.RemoteSite implementation with hardcoded
+// mockRemoteSite is a reversetunnelclient.RemoteSite implementation with hardcoded
 // name, because there's no easy way to construct a real
-// reversetunnel.RemoteSite.
+// reversetunnelclient.RemoteSite.
 type mockRemoteSite struct {
-	reversetunnel.RemoteSite
+	reversetunnelclient.RemoteSite
 	name string
 }
 
@@ -1233,12 +1232,12 @@ func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAut
 }
 
 type mockRevTunnel struct {
-	reversetunnel.Server
+	reversetunnelclient.Server
 
-	sites map[string]reversetunnel.RemoteSite
+	sites map[string]reversetunnelclient.RemoteSite
 }
 
-func (t mockRevTunnel) GetSite(name string) (reversetunnel.RemoteSite, error) {
+func (t mockRevTunnel) GetSite(name string) (reversetunnelclient.RemoteSite, error) {
 	s, ok := t.sites[name]
 	if !ok {
 		return nil, trace.NotFound("remote site %q not found", name)
@@ -1246,8 +1245,8 @@ func (t mockRevTunnel) GetSite(name string) (reversetunnel.RemoteSite, error) {
 	return s, nil
 }
 
-func (t mockRevTunnel) GetSites() ([]reversetunnel.RemoteSite, error) {
-	var sites []reversetunnel.RemoteSite
+func (t mockRevTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error) {
+	var sites []reversetunnelclient.RemoteSite
 	for _, s := range t.sites {
 		sites = append(sites, s)
 	}

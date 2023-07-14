@@ -13,7 +13,7 @@ including:
 - `tbot`
 
 If you are new to Teleport, we recommend following our [getting started
-guide](./get-started.mdx).
+guide](./index.mdx).
 
 For best results, Teleport clients (`tsh`, `tctl`, `tbot`) should be the same major
 version as the cluster they are connecting to. Teleport servers are compatible
@@ -153,7 +153,7 @@ either:
   `(=teleport.version=)`.
 
 <Tabs>
-<TabItem label="Open Source" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Team/Community Edition" scope={["oss", "team"]}>
 
 |Image name|Troubleshooting Tools?|Image base|
 |-|-|-|
@@ -169,10 +169,10 @@ repository](https://gallery.ecr.aws/gravitational/teleport-ent).  Their use is
 considered deprecated, and they may be removed in future releases.
 
 </TabItem>
-<TabItem label="Enterprise" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Enterprise Cloud/Enterprise" scope={["cloud", "enterprise"]}>
 
-| Image name | Teleport version | Includes troubleshooting tools | Image base |
-| - | - | - | - |
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
 | `(=teleport.latest_ent_docker_image=)` | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
 | `(=teleport.latest_ent_debug_docker_image=)` | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
 
@@ -180,8 +180,8 @@ We also provide the following images for FIPS builds of Teleport Enterprise:
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
-| `gravitational/teleport-ent-fips-distroless` | No | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
-| `gravitational/teleport-ent-fips-distroless-debug` | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `gravitational/teleport-ent-fips-distroless` | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
+| `gravitational/teleport-ent-fips-distroless-debug` | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
 
 For testing, we always recommend that you use the latest release version of
 Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
@@ -253,7 +253,7 @@ Services on a local Docker container using Teleport Community Edition.
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
 can, however, join other local Docker containers to it using the [token
-method](./management/join-services-to-your-cluster/join-token.mdx).
+method](./agents/join-services-to-your-cluster/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
@@ -346,7 +346,7 @@ chart.
 ## macOS
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
-<TabItem label="Open Source" scope="oss">
+<TabItem label="Teleport Team/Community Edition" scope={["oss","team"]}>
   <Tabs>
   <TabItem label="Teleport package" >
   You can download one of the following .pkg installers for macOS:
@@ -418,7 +418,7 @@ chart.
 (!docs/pages/includes/enterprise/install-macos.mdx!)
 
 </TabItem>
-<TabItem label="Cloud" scope="cloud">
+<TabItem label="Enterprise Cloud" scope="cloud">
 
 (!docs/pages/includes/cloud/install-macos.mdx!)
 

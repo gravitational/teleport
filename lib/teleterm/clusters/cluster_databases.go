@@ -43,7 +43,7 @@ type Database struct {
 }
 
 // GetDatabase returns a database
-func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, error) {
+func (c *Cluster) GetDatabase(ctx context.Context, dbURI uri.ResourceURI) (*Database, error) {
 	// TODO(ravicious): Fetch a single db instead of filtering the response from GetDatabases.
 	// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
 	dbs, err := c.getAllDatabases(ctx)
@@ -52,7 +52,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 	}
 
 	for _, db := range dbs {
-		if db.URI.String() == dbURI {
+		if db.URI == dbURI {
 			return &db, nil
 		}
 	}
@@ -202,7 +202,11 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
 	var authClient auth.ClientI
 	var proxyClient *client.ProxyClient
-	var err error
+
+	dbResourceURI, err := uri.ParseDBURI(dbURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
@@ -228,7 +232,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 		return nil, trace.Wrap(err)
 	}
 
-	db, err := c.GetDatabase(ctx, dbURI)
+	db, err := c.GetDatabase(ctx, dbResourceURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

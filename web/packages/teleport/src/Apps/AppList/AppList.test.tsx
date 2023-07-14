@@ -64,6 +64,7 @@ test('correct launch url is generated for a selected role', () => {
           fqdn: 'awsconsole-1.com',
           id: 'one-aws-console-1-awsconsole-1.teleport-proxy.com',
           launchUrl: '',
+          userGroups: [],
         },
       ]}
     />
