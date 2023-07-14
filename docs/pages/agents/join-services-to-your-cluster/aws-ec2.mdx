@@ -58,7 +58,7 @@ The Teleport Auth Service needs permission to call `ec2:DescribeInstances` in or
 that the EC2 instances attempting to join your cluster are legitimate and
 currently running.
 
-### Step 1.1. Create the IAM policy
+### Create the IAM policy
 
 Create the following AWS IAM policy named `teleport-DescribeInstances-policy` in
 your account:
@@ -76,7 +76,7 @@ your account:
 }
 ```
 
-### Step 1.2. Attach the IAM policy
+### Attach the IAM policy
 
 If your Teleport Auth Service is running on an EC2 instance and already has an
 attached "IAM role for Amazon EC2", add the above
@@ -194,16 +194,16 @@ have permissions to assume an IAM role in each of those accounts and call
 
 In each AWS account where your EC2 instances will be running:
 
-1. Create the `teleport-DescribeInstances-policy` from [Step 1.1](#step-11-create-the-iam-policy).
+1. Create the `teleport-DescribeInstances-policy` from [Step 1.1](#create-the-iam-policy).
 
-2. Create an IAM role `teleport-DescribeInstances-role` that can be assumed from
+1. Create an IAM role `teleport-DescribeInstances-role` that can be assumed from
    the account where your Teleport Auth Service is running.
 
    Go to the AWS IAM Console, select Create Role, and for "Select type of
    trusted entity", select "Another AWS account" and enter the AWS Account ID of
    the account where your Teleport Auth Service is running.
 
-   Attach the `teleport-DescribeInstances-policy` to the role.
+1. Attach the `teleport-DescribeInstances-policy` to the role.
 
 In the AWS account where your Teleport Auth Service is running:
 
@@ -228,8 +228,8 @@ In the AWS account where your Teleport Auth Service is running:
 }
 ```
 
-2. Attach this `teleport-AssumeRole-policy` to the IAM role your Teleport Auth
-   Service has credentials for, see [Step 1.2](#step-12-attach-the-iam-policy).
+1. Attach this `teleport-AssumeRole-policy` to the IAM role your Teleport Auth
+   Service has credentials for, see [Step 1.2](#attach-the-iam-policy).
 
 When creating the AWS joining token, include an allow rule for each foreign
 account and specify the AWS ARN for the foreign
