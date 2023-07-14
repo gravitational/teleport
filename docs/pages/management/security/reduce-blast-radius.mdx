@@ -76,7 +76,7 @@ Choose `on` if you would like to require MFA for all users while letting them ch
 - Adjusting the Teleport signup page so a user must enroll an MFA device of the kind you have selected. If the value of `second_factor` is `on`, users will have the option to select from multiple device types.
 - Presenting the user with an MFA challenge when they run `tsh login`.
 
-If you have enabled SSO in your Teleport environment, mfa challenges at login will only apply to Teleport local users. The IDP will be responsible for implementing any second factor challenges at login time.
+If you have enabled SSO in your Teleport environment, MFA challenges at login only apply for local users, but the Idp may apply its own MFA checks.
 
 <Admonition type="warning">
 If your `second_factor` configuration is set to `off` and a user creates an account without a second factor, changing `second_factor` to a value that requires MFA will force that user to authenticate with a credential they have not registered. This will lock them out of their account. You have two ways to avoid this scenario:
