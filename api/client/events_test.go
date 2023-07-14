@@ -16,7 +16,11 @@ package client
 
 import (
 	"testing"
+	"time"
 
+	"github.com/gravitational/teleport/api/types/accesslist"
+	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -43,6 +47,9 @@ func TestEventEqual(t *testing.T) {
 		PublicAddr: "https://public-addr.com",
 	})
 	require.NoError(t, err)
+
+	accessList1 := newAccessList(t, "1")
+	accessList2 := newAccessList(t, "2")
 
 	tests := []struct {
 		name     string
@@ -99,6 +106,38 @@ func TestEventEqual(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name: "regular protobuf oneof equal",
+			event1: &authpb.Event{
+				Type: authpb.Operation_PUT,
+				Resource: &authpb.Event_AccessList{
+					AccessList: accesslistv1conv.ToProto(accessList1),
+				},
+			},
+			event2: &authpb.Event{
+				Type: authpb.Operation_PUT,
+				Resource: &authpb.Event_AccessList{
+					AccessList: accesslistv1conv.ToProto(accessList1),
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "regular protobuf oneof not equal",
+			event1: &authpb.Event{
+				Type: authpb.Operation_PUT,
+				Resource: &authpb.Event_AccessList{
+					AccessList: accesslistv1conv.ToProto(accessList1),
+				},
+			},
+			event2: &authpb.Event{
+				Type: authpb.Operation_PUT,
+				Resource: &authpb.Event_AccessList{
+					AccessList: accesslistv1conv.ToProto(accessList2),
+				},
+			},
+			expected: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -109,4 +148,70 @@ func TestEventEqual(t *testing.T) {
 			require.Equal(t, test.expected, proto.Equal(test.event1, test.event2))
 		})
 	}
+}
+
+func newAccessList(t *testing.T, name string) *accesslist.AccessList {
+	t.Helper()
+
+	accessList, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "access-list",
+		},
+		accesslist.Spec{
+			Description: "test access list",
+			Owners: []accesslist.Owner{
+				{
+					Name:        "test-user1",
+					Description: "test user 1",
+				},
+				{
+					Name:        "test-user2",
+					Description: "test user 2",
+				},
+			},
+			Audit: accesslist.Audit{
+				Frequency: time.Hour,
+			},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"mrole1", "mrole2"},
+				Traits: map[string][]string{
+					"mtrait1": {"mvalue1", "mvalue2"},
+					"mtrait2": {"mvalue3", "mvalue4"},
+				},
+			},
+			OwnershipRequires: accesslist.Requires{
+				Roles: []string{"orole1", "orole2"},
+				Traits: map[string][]string{
+					"otrait1": {"ovalue1", "ovalue2"},
+					"otrait2": {"ovalue3", "ovalue4"},
+				},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"grole1", "grole2"},
+				Traits: map[string][]string{
+					"gtrait1": {"gvalue1", "gvalue2"},
+					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+			Members: []accesslist.Member{
+				{
+					Name:    "member1",
+					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+					Reason:  "because",
+					AddedBy: "test-user1",
+				},
+				{
+					Name:    "member2",
+					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+					Reason:  "because again",
+					AddedBy: "test-user2",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	return accessList
 }
