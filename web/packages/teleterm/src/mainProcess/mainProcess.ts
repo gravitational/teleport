@@ -413,10 +413,8 @@ function promisifyProcessExit(childProcess: ChildProcess) {
 }
 
 /** Shares promise returned from `promiseFn` across multiple concurrent callers. */
-function sharePromise<Return extends Promise<any>>(
-  promiseFn: () => Return
-): () => Return {
-  let pending: Return | undefined = undefined;
+function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | undefined = undefined;
 
   return () => {
     if (!pending) {
