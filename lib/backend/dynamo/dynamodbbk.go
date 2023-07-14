@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -57,6 +58,8 @@ type Config struct {
 	SecretKey string `json:"secret_key,omitempty"`
 	// TableName where to store K/V in DynamoDB
 	TableName string `json:"table_name,omitempty"`
+	// Audit Events URIs
+	AuditEventsURIs []string `json:"audit_events_uri,omitempty"`
 	// ReadCapacityUnits is Dynamodb read capacity units
 	ReadCapacityUnits int64 `json:"read_capacity_units"`
 	// WriteCapacityUnits is Dynamodb write capacity units
@@ -97,9 +100,18 @@ type Config struct {
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to DynamoDB
 func (cfg *Config) CheckAndSetDefaults() error {
+
 	// Table name is required.
 	if cfg.TableName == "" {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
+	}
+
+	// Check the TableName is not being used within the audit uri list
+	dynamoDBURI := regexp.MustCompile(`((?i)dynamodb)://` + cfg.TableName)
+	for _, auditURI := range cfg.AuditEventsURIs {
+		if dynamoDBURI.MatchString(auditURI) {
+			return trace.BadParameter(("DynamoDB: Same table used for table_name and audit_events_uri. Separate DynamoDB tables are required."))
+		}
 	}
 
 	if cfg.ReadCapacityUnits == 0 {
