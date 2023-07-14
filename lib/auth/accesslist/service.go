@@ -23,11 +23,11 @@ import (
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
+	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	conv "github.com/gravitational/teleport/lib/types/accesslist/convert/v1"
 )
 
 // ServiceConfig is the service config for the Access Lists gRPC service.
