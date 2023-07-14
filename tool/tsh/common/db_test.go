@@ -23,7 +23,6 @@ import (
 	"crypto/rsa"
 	"encoding/pem"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,7 +79,7 @@ func testDatabaseLogin(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
-			mySQLAddr := net.JoinHostPort("127.0.0.1", ports.Pop())
+			mySQLAddr := localListenerAddr()
 			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
 			cfg.Proxy.MySQLPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
 			cfg.Databases.Enabled = true
@@ -157,9 +156,6 @@ func testDatabaseLogin(t *testing.T) {
 		}),
 	)
 	s.user = alice
-
-	proxyAddr, err := s.root.ProxyWebAddr()
-	require.NoError(t, err)
 
 	// Log into Teleport cluster.
 	tmpHomePath, _ := mustLogin(t, s)
@@ -255,7 +251,7 @@ func testDatabaseLogin(t *testing.T) {
 
 			// Fetch the active profile.
 			clientStore := client.NewFSClientStore(tmpHomePath)
-			profile, err := clientStore.ReadProfileStatus(proxyAddr.Host())
+			profile, err := clientStore.ReadProfileStatus(s.root.Config.Proxy.WebAddr.String())
 			require.NoError(t, err)
 			require.Equal(t, s.user.GetName(), profile.Username)
 
@@ -987,7 +983,6 @@ func testFilterActiveDatabases(t *testing.T) {
 			t.Cleanup(cancel)
 			cf := &CLIConf{
 				Context:             ctx,
-				TracingProvider:     tracing.NoopProvider(),
 				HomePath:            tmpHomePath,
 				DatabaseService:     tt.dbName,
 				Labels:              tt.labels,
