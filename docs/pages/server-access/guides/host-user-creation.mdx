@@ -179,8 +179,7 @@ that were formed, will still remain.
 If Teleport is managing other active sessions or if there are any running
 processes that belong to the user, it will delay the cleanup. Teleport will then
 try again every five minutes until it's successful. Once it can delete the user,
-it also removes any sudoers entries that were made for them. Teleport uses a
-specific pattern when it creates and deletes these sudoers entries.
+it also removes any sudoers entries that were made for them.
 
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
