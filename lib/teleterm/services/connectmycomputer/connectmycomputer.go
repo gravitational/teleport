@@ -142,7 +142,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		}
 
 		if isRoleDirty {
-			timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
 			defer cancel()
 			err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, existingRole, func(ctx context.Context) error {
 				return trace.Wrap(accessAndIdentity.UpsertRole(ctx, existingRole),
@@ -163,7 +163,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 
 	s.cfg.Log.Infof("Adding the role %v to the user %v.", roleName, clusterUser.GetName())
 	clusterUser.AddRole(roleName)
-	timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, resourceUpdateTimeout)
 	defer cancel()
 	err = s.syncResourceUpdate(timeoutCtx, accessAndIdentity, clusterUser, func(ctx context.Context) error {
 		return trace.Wrap(accessAndIdentity.UpdateUser(ctx, clusterUser),
@@ -195,6 +195,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 	})
 	return RoleSetupResult{CertsReloaded: true}, trace.Wrap(err)
 }
+
+const resourceUpdateTimeout = 15 * time.Second
 
 // syncResourceUpdate calls a function which updates the given resource and then waits until the
 // cache propagates the change.
