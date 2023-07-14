@@ -408,7 +408,7 @@ func setupMockSSHNode(t *testing.T, ctx context.Context, sshListener net.Listene
 // sends testCommandOutput in the main channel and closes all channels.
 // This is not strictly following the SSH RFC as request processing is blocked
 // as soon as an exec request is received, but is good enough for our use-case.
-func handlerSSH(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
+func handlerSSH(_ context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
 	ch, requests, err := nch.Accept()
 	if err != nil {
 		return
@@ -417,22 +417,31 @@ func handlerSSH(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.Ne
 	// "pty-req", "env" and "exec". Here we don't output anything and start a
 	// routine consuming requests and waiting for the "exec" one.
 	go func(in <-chan *ssh.Request) {
-		for req := range in {
-			if req.Type == "exec" {
-				req.Reply(true, nil)
-				_, err = ch.Write([]byte(testCommandOutput))
-				msg := struct {
-					Status uint32
-				}{
-					Status: 0,
+		for {
+			select {
+			case req := <-in:
+				if req.Type == "exec" {
+					req.Reply(true, nil)
+					_, err = ch.Write([]byte(testCommandOutput))
+					msg := struct {
+						Status uint32
+					}{
+						Status: 0,
+					}
+					ch.SendRequest("exit-status", false, ssh.Marshal(&msg))
+					ch.Close()
+					ccx.Close()
+					return
+				} else {
+					req.Reply(true, nil)
 				}
-				ch.SendRequest("exit-status", false, ssh.Marshal(&msg))
+			// If it's been 10 seconds we have not received any message, we exit
+			case <-time.After(10 * time.Second):
 				ch.Close()
 				ccx.Close()
 				return
-			} else {
-				req.Reply(true, nil)
 			}
+
 		}
 	}(requests)
 }
