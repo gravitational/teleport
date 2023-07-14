@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -335,6 +336,14 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(
 		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
+}
+
+// AccessListClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessListClient() accesslistv1.AccessListServiceClient {
+	return accesslistv1.NewAccessListServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles"))
 }
 
 // integrationsService returns an Integrations Service.
@@ -1581,6 +1590,56 @@ const (
 	kubeService = "kube_service"
 )
 
+// authContextForSearch returns an extended authz.Context which should be used
+// when searching for resources that a user may be able to request access to,
+// but does not already have access to.
+// Extra roles are determined from the user's search_as_roles and
+// preview_as_roles if [req] requested that each be used.
+func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.ListResourcesRequest) (*authz.Context, error) {
+	var extraRoles []string
+	if req.UseSearchAsRoles {
+		extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
+	}
+	if req.UsePreviewAsRoles {
+		extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
+	}
+	if len(extraRoles) == 0 {
+		// Return the current auth context unmodified.
+		return &a.context, nil
+	}
+
+	clusterName, err := a.authServer.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get a new auth context with the additional roles
+	extendedContext, err := a.context.WithExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only emit the event if the role list actually changed
+	if len(extendedContext.Checker.RoleNames()) != len(a.context.Checker.RoleNames()) {
+		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
+			Metadata: apievents.Metadata{
+				Type: events.AccessRequestResourceSearch,
+				Code: events.AccessRequestResourceSearchCode,
+			},
+			UserMetadata:        authz.ClientUserMetadata(ctx),
+			SearchAsRoles:       extendedContext.Checker.RoleNames(),
+			ResourceType:        req.ResourceType,
+			Namespace:           req.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return extendedContext, nil
+}
+
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	// kubeService is a special resource type that is used to keep compatibility
@@ -1602,34 +1661,18 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.Wrap(err)
 	}
 
+	// Apply any requested additional search_as_roles and/or preview_as_roles
+	// for the duration of the search.
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
-		var extraRoles []string
-		if req.UseSearchAsRoles {
-			extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
-		}
-		if req.UsePreviewAsRoles {
-			extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
-		}
-		clusterName, err := a.authServer.GetClusterName()
+		extendedContext, err := a.authContextForSearch(ctx, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.context.UseExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
-			Metadata: apievents.Metadata{
-				Type: events.AccessRequestResourceSearch,
-				Code: events.AccessRequestResourceSearchCode,
-			},
-			UserMetadata:        authz.ClientUserMetadata(ctx),
-			SearchAsRoles:       a.context.Checker.RoleNames(),
-			ResourceType:        req.ResourceType,
-			Namespace:           req.Namespace,
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
-		})
+		baseContext := a.context
+		a.context = *extendedContext
+		defer func() {
+			a.context = baseContext
+		}()
 	}
 
 	// ListResources request coming through this auth layer gets request filters

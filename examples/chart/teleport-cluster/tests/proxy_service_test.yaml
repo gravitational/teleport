@@ -28,6 +28,115 @@ tests:
           path: spec.type
           value: ClusterIP
 
+  - it: uses a ClusterIP when proxy.service.type=ClusterIP
+    set:
+      clusterName: teleport.example.com
+      service:
+        type: NodePort
+      proxy:
+        service:
+          type: ClusterIP
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: fails to deploy when ingress.enabled=true and proxy.service.type is set to LoadBalancer (default)
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "proxy.service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set proxy.service.type=ClusterIP instead"
+
+  - it: uses a ClusterIP when ingress.enabled=true and service.type=ClusterIP
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      service:
+        type: ClusterIP
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: uses a ClusterIP when ingress.enabled=true and proxy.service.type=ClusterIP
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxy:
+        service:
+          type: ClusterIP
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: uses a NodePort when ingress.enabled=true and proxy.service.type=NodePort
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxy:
+        service:
+          type: NodePort
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: NodePort
+
+  - it: uses a NodePort when ingress.enabled=true and service.type=NodePort
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      service:
+        type: NodePort
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: NodePort
+
+  - it: uses a NodePort when ingress.enabled=true and proxy.service.type is overridden
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxy:
+        service:
+          type: NodePort
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: NodePort
+
   - it: sets AWS annotations when chartMode=aws
     set:
       clusterName: teleport.example.com
@@ -73,11 +182,47 @@ tests:
             targetPort: 5432
             protocol: TCP
 
+  - it: does not add a separate Postgres listener port when separatePostgresListener is true and ingress.enabled=true
+    values:
+      - ../.lint/separate-postgres-listener.yaml
+    set:
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      service:
+        type: ClusterIP
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+            name: postgres
+            port: 5432
+            targetPort: 5432
+            protocol: TCP
+
   - it: adds a separate Mongo listener port when separateMongoListener is true
     values:
       - ../.lint/separate-mongo-listener.yaml
     asserts:
       - contains:
+          path: spec.ports
+          content:
+            name: mongo
+            port: 27017
+            targetPort: 27017
+            protocol: TCP
+
+  - it: does not add a separate Mongo listener port when separateMongoListener is true and ingress.enabled=true
+    values:
+      - ../.lint/separate-mongo-listener.yaml
+    set:
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      service:
+        type: ClusterIP
+    asserts:
+      - notContains:
           path: spec.ports
           content:
             name: mongo
@@ -98,6 +243,22 @@ tests:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
           value: ssl
 
+  - it: does not add AWS backend protocol annotation when in AWS mode, ACM annotation is set and ingress is enabled
+    values:
+      - ../.lint/aws-ha.yaml
+    set:
+      ingress:
+        enabled: true
+      service:
+        type: ClusterIP
+      annotations:
+        service:
+          service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:1234567890:certificate/a857a76c-51d0-4d3d-8000-465bb3e9829b
+          service.beta.kubernetes.io/aws-load-balancer-ssl-ports: 443
+    asserts:
+      - isNull:
+          path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
+
   - it: sets AWS backend protocol annotation to tcp when in AWS mode and ACM annotation is not set
     values:
       - ../.lint/aws-ha.yaml
@@ -106,10 +267,58 @@ tests:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
           value: tcp
 
+  - it: does not set AWS backend protocol annotation when in AWS mode, ACM annotation is not set and ingress is enabled
+    values:
+      - ../.lint/aws-ha.yaml
+    set:
+      ingress:
+        enabled: true
+      service:
+        type: ClusterIP
+      annotations:
+        service:
+          # required so at least one service annotation exists, to avoid non map type error
+          service.beta.kubernetes.io/random-annotation: helm-lint
+    asserts:
+      - isNull:
+          path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
+
   - it: exposes separate listener ports by default
     values:
       - ../.lint/example-minimal-standalone.yaml
     asserts:
+      - matchSnapshot:
+          path: spec.ports
+
+  - it: does not expose separate listener ports by default when ingress.enabled=true
+    values:
+      - ../.lint/example-minimal-standalone.yaml
+    set:
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      service:
+        type: ClusterIP
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+          - name: sshproxy
+            port: 3023
+            targetPort: 3023
+            protocol: TCP
+          - name: k8s
+            port: 3026
+            targetPort: 3026
+            protocol: TCP
+          - name: sshtun
+            port: 3024
+            targetPort: 3024
+            protocol: TCP
+          - name: mysql
+            port: 3036
+            targetPort: 3036
+            protocol: TCP
       - matchSnapshot:
           path: spec.ports
 
@@ -120,9 +329,53 @@ tests:
       - matchSnapshot:
           path: spec.ports
 
+  - it: does not expose separate listener ports when running in separate mode and ingress.enabled=true
+    values:
+      - ../.lint/proxy-listener-mode-separate.yaml
+    set:
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      service:
+        type: ClusterIP
+    asserts:
+      - notContains:
+          path: spec.ports
+          content:
+          - name: sshproxy
+            port: 3023
+            targetPort: 3023
+            protocol: TCP
+          - name: k8s
+            port: 3026
+            targetPort: 3026
+            protocol: TCP
+          - name: sshtun
+            port: 3024
+            targetPort: 3024
+            protocol: TCP
+          - name: mysql
+            port: 3036
+            targetPort: 3036
+            protocol: TCP
+      - matchSnapshot:
+          path: spec.ports
+
   - it: exposes a single port when running in multiplex mode
     values:
       - ../.lint/proxy-listener-mode-multiplex.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.ports
+
+  - it: exposes a single port when running in multiplex mode and ingress.enabled=true
+    values:
+      - ../.lint/proxy-listener-mode-multiplex.yaml
+    set:
+      ingress:
+        enabled: true
+      service:
+        type: ClusterIP
     asserts:
       - matchSnapshot:
           path: spec.ports
