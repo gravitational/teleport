@@ -30,7 +30,9 @@ Before you get started, you’ll need:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Configure Azure AD
+## Step 1/3. Configure Azure AD
+
+### Create an enterprise application
 
 1. Select **Azure AD -> Enterprise Applications**
 
@@ -52,15 +54,17 @@ Before you get started, you’ll need:
 
    Click **Save** before proceeding to the next step.
 
-5. Select **Single sign-on** under **Manage** and choose **SAML**
+### Configure SAML
+
+1. Select **Single sign-on** under **Manage** and choose **SAML**
 
    ![Select SAML](../../../img/azuread/azuread-5-selectsaml.png)
 
-6. Edit the **Basic SAML Configuration**
+2. Edit the **Basic SAML Configuration**
 
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-6-editbasicsaml.png)
 
-7. Enter the URL for your Teleport cluster or Teleport tenant in the **Entity ID** and **Reply URL**  fields. For example:
+3. Enter the URL for your Teleport cluster or Teleport tenant in the **Entity ID** and **Reply URL**  fields. For example:
    name="mytenant.teleport.sh:443" /> to the host and HTTPS port of your
    Teleport Proxy Service (or Teleport Team/Enterprise Cloud tenant):
 
@@ -72,33 +76,36 @@ Before you get started, you’ll need:
 
    Click **Save** before proceeding to the next step.
 
-8. Edit **Attributes & Claims**
-
-   - Click on **Unique User Identifier (Name ID)** under **Required claim**.
-
-   - Change the "name identifier format" to **Default**. Make sure the source
-     attribute is `user.userprincipalname`.
-
-     ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
-
-   - Add a group claim to make user security groups available to the connector:
-
-     ![Put in Security group claim](../../../img/azuread/azuread-8b-groupclaim.png)
-
-   - Add a claim that transforms the format of the Azure AD username to lower case, in order to pass it to
-     Teleport. Set the Source to "Transformation". In the new panel:
-       - Set the Transformation value to "Extract()"
-       - Set the Attribute name to `user.userprincipalname`.
-       - Set the Value to `ToLowercase()`.
-
-     ![Add a transformed username](../../../img/azuread/azuread-8c-usernameclaim.png)
-
-9. In **SAML Certificates** section, copy the **App Federation
-   Metadata URL** link and save it for the next step:
+4. In **SAML Certificates** section, copy the **App Federation
+   Metadata URL** link and save it for use in our Teleport connector configuration:
 
    ![Download Federation Metadata XML](../../../img/azuread/azuread-9-fedmeatadataxml.png)
 
-## Create a SAML Connector
+### Edit attributes & claims
+
+1. Click on **Unique User Identifier (Name ID)** under **Required claim**.
+
+2. Change the "name identifier format" to **Default**. Make sure the source
+  attribute is `user.userprincipalname`.
+
+   ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
+
+3. Add a group claim to make user security groups available to the connector:
+
+   ![Put in Security group claim](../../../img/azuread/azuread-8b-groupclaim.png)
+
+4. Add a claim that transforms the format of the Azure AD username to lower case, in order to pass it to
+   Teleport. Set the Source to "Transformation". In the new panel:
+
+   - Set the Transformation value to "Extract()"
+
+   - Set the Attribute name to `user.userprincipalname`.
+
+   - Set the Value to `ToLowercase()`.
+
+     ![Add a transformed username](../../../img/azuread/azuread-8c-usernameclaim.png)
+
+## Step 2/3. Create a SAML connector
 
 Now, create a SAML connector resource using `tctl`.
 
@@ -162,7 +169,7 @@ Your browser should open and log you in to the Teleport cluster using your
 Azure AD credentials. If there are any problems, the CLI output will help you
 debug the connector configuration.
 
-## Create a new Teleport role
+## Step 3/3. Create a new Teleport role
 
 Create a Teleport role resource that will use external username data from the
 Azure AD connector to determine which Linux logins to allow on a host.
