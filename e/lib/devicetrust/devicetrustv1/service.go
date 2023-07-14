@@ -822,6 +822,12 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		return trace.Wrap(err)
 	}
 
+	// MDMs are disallowed for Teleport Team.
+	if f := modules.GetModules().Features(); f.IsUsageBasedBilling {
+		return trace.AccessDenied(
+			"this Teleport cluster is not licensed for MDM integrations, please contact the cluster administrator")
+	}
+
 	userMeta := getUserMetadata(ctx)
 	auditCB := func(eventType, eventCode string, dev *devicepb.Device, err error) {
 		if err != nil {

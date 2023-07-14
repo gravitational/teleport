@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type syncInventoryTest struct {
@@ -1078,6 +1079,32 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 		})
 	}
 }
+func TestService_SyncInventory_usageBasedDisallowed(t *testing.T) {
+	env := testenv.NewUsingT(t)
+
+	m := modules.GetModules().(*modules.TestModules)
+	m.TestFeatures.IsUsageBasedBilling = true
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Attempt to sync.
+	_, err := syncInventoryPages(ctx, devices, &devicepb.SyncInventoryStart{
+		Source: &devicepb.DeviceSource{
+			Name:   "jamf",
+			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+		},
+	}, [][]*devicepb.Device{
+		{{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "neversynced",
+		}},
+	})
+	if !trace.IsAccessDenied(err) {
+		t.Errorf("SyncInventory returned err=%v (%T), want AccessDenied/MDM sync disallowed", err, err)
+	}
+	assert.ErrorContains(t, err, "MDM integrations", "SyncInventory error mismatch")
+}
 
 // syncInventoryPages sends `startReq`, then `devicePages` as `devices_to_add`
 // (one send per page), and finally `endReq` to a SyncInventory stream.
@@ -1107,7 +1134,7 @@ func syncInventoryPages(
 	}
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, fmt.Errorf("start Recv: %w", err)
+		return nil, err // unwrapped for easier assertions
 	}
 	if resp.GetAck() == nil {
 		return nil, fmt.Errorf("start: got payload=%T, want Ack", resp.GetPayload())
