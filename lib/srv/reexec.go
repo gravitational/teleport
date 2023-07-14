@@ -26,6 +26,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -192,6 +193,12 @@ type UaccMetadata struct {
 // RunCommand reads in the command to run from the parent process (over a
 // pipe) then constructs and runs the command.
 func RunCommand() (errw io.Writer, code int, err error) {
+	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
+	// existing exec sessions to close before ending the process. For this to
+	// work when closing the entire teleport process group, exec sessions must
+	// ignore SIGQUIT signals.
+	signal.Ignore(syscall.SIGQUIT)
+
 	// errorWriter is used to return any error message back to the client. By
 	// default, it writes to stdout, but if a TTY is allocated, it will write
 	// to it instead.
@@ -442,7 +449,7 @@ func waitForShell(termiantefd *os.File, cmd *exec.Cmd) error {
 		// Wait for the terminate file descriptor to be closed. The FD will be closed when Teleport
 		// parent process wants to terminate the remote command and all childs.
 		_, err := termiantefd.Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			// Kill the shell process
 			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
 		} else {

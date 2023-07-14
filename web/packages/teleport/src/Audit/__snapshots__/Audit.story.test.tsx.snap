@@ -455,12 +455,12 @@ exports[`list of all events 1`] = `
             </strong>
              - 
             <strong>
-              188
+              196
             </strong>
              of
              
             <strong>
-              188
+              196
             </strong>
           </div>
           <button
@@ -537,6 +537,258 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Okta assignment failed to clean up
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta assignment [assignment-id], source [source], user [mike] cleanup has failed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Okta assignment has been cleaned up
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta assignment [assignment-id], source [source], user [mike] has been successfully cleaned up
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Okta assignment failed to process
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta assignment [assignment-id], source [source], user [mike] processing has failed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Okta assignment has been processed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta assignment [assignment-id], source [source], user [mike] has been successfully processed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Okta synchronization failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta synchronization failed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Okta applications have been updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            [5] added, [1] updated, [7] deleted
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Okta groups have been updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            [5] added, [1] updated, [7] deleted
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
                 class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
@@ -588,6 +840,42 @@ exports[`list of all events 1`] = `
             style="min-width: 120px;"
           >
             2023-03-11T11:08:29.954Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              SAML IdP service provider delete failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] failed to delete all service providers
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-25T19:21:36.144Z
           </td>
           <td
             align="right"
@@ -2700,7 +2988,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Resource Access Request Search
+              Resource Access Search
             </div>
           </td>
           <td

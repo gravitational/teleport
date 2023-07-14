@@ -28,6 +28,8 @@ type EvaluationInput struct {
 type EvaluationOutput struct {
 	// Traits holds the final output traits.
 	Traits map[string][]string
+	// AppliedRules holds a list of names of rules that were applied.
+	AppliedRules []string
 }
 
 // Evaluator can be used to evaluate login rules currently present in the

@@ -1,11 +1,7 @@
 ---
-title: Microsoft SQL Server access with PKINIT authentication (Preview)
+title: Microsoft SQL Server access with PKINIT authentication
 description: How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.
 ---
-
-<Admonition type="warning" title="Preview">
-  Microsoft SQL Server access is currently in Preview mode.
-</Admonition>
 
 This guide will help you to:
 
@@ -14,8 +10,7 @@ This guide will help you to:
 - Connect to SQL Server through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-![SQL Server with self-hosted Teleport](../../../img/database-access/guides/sqlserver_selfhosted.png)
-{/*```mermaid
+```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
 a(Users)
@@ -37,11 +32,10 @@ style local fill:#C0C0C0,stroke: #000000
   c-->e
   e-->d
 end
-```*/}
+```
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-![Teleport SQL Server access with Teleport Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
-{/*```mermaid
+```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
 a(Users)
@@ -63,7 +57,7 @@ style local fill:#C0C0C0,stroke: #000000
   c-->e
   e-->d
 end
-```*/}
+```
 </ScopedBlock>
 
 This guide will focus on SQL Servers using self-hosted Active Directory
@@ -358,13 +352,7 @@ To retrieve credentials for a database and connect to it:
 $ tsh db connect --db-user=teleport sqlserver
 ```
 
-<Admonition type="note">
-  The `mssql-cli` command-line client should be available in `PATH` of the machine
-  you're running `tsh db connect` from.  
-  
-  `mssql-cli` is not required for SQL Server connections.  Use `tsh proxy db --db-user=teleport --tunnel sqlserver`
-   to connect from other DB Clients such as Microsoft SQL Server Management Studio.
-</Admonition>
+(!docs/pages/includes/database-access/sql-server-connect-note.mdx!)
 
 To log out of the database and remove credentials:
 

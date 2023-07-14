@@ -17,16 +17,24 @@ limitations under the License.
 import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
 
+import { ContextProvider } from 'teleport';
+
+import { createTeleportContext } from 'teleport/mocks/contexts';
+
 import { SessionJoinBtn } from './SessionJoinBtn';
 
 test('all participant modes are properly listed and in the correct order', () => {
+  const ctx = createTeleportContext();
+
   render(
-    <SessionJoinBtn
-      sid={'4b038eda-ddca-5533-9a49-3a34f133b5f4'}
-      clusterId={'test-cluster'}
-      participantModes={['moderator', 'peer', 'observer']}
-      showCTA={false}
-    />
+    <ContextProvider ctx={ctx}>
+      <SessionJoinBtn
+        sid={'4b038eda-ddca-5533-9a49-3a34f133b5f4'}
+        clusterId={'test-cluster'}
+        participantModes={['moderator', 'peer', 'observer']}
+        showCTA={false}
+      />
+    </ContextProvider>
   );
 
   const joinBtn = screen.queryByText(/Join/i);
@@ -53,13 +61,16 @@ test('all participant modes are properly listed and in the correct order', () =>
 });
 
 test('all possible participant modes are properly listed in the CTA without join links', () => {
+  const ctx = createTeleportContext();
   render(
-    <SessionJoinBtn
-      sid={'4b038eda-ddca-5533-9a49-3a34f133b5f4'}
-      clusterId={'test-cluster'}
-      participantModes={['moderator', 'peer', 'observer']}
-      showCTA={true}
-    />
+    <ContextProvider ctx={ctx}>
+      <SessionJoinBtn
+        sid={'4b038eda-ddca-5533-9a49-3a34f133b5f4'}
+        clusterId={'test-cluster'}
+        participantModes={['moderator', 'peer', 'observer']}
+        showCTA={true}
+      />
+    </ContextProvider>
   );
 
   const joinBtn = screen.queryByText(/Join/i);
@@ -69,7 +80,13 @@ test('all possible participant modes are properly listed in the CTA without join
 
   // Make sure that no link to join session is available when showCTA = true.
   const menuItems = screen.queryByRole<HTMLAnchorElement>('link');
-  expect(menuItems).not.toBeInTheDocument();
+
+  expect(menuItems.getAttribute('href')).not.toMatch(/.*console\/session.*/);
+
+  // Make sure the CTAs are rendered
+  expect(menuItems).toHaveTextContent(
+    'Join Active Sessions with Teleport Enterprise'
+  );
 
   const cta = screen.queryByText(
     'Join Active Sessions with Teleport Enterprise'

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -70,6 +70,11 @@ func (c *touchIDDiagCommand) run(cf *CLIConf) error {
 	fmt.Printf("Passed LAPolicy test? %v\n", res.PassedLAPolicyTest)
 	fmt.Printf("Passed Secure Enclave test? %v\n", res.PassedSecureEnclaveTest)
 	fmt.Printf("Touch ID enabled? %v\n", res.IsAvailable)
+
+	if res.IsClamshellFailure() {
+		fmt.Printf("\nTouch ID diagnostics failed, is your MacBook lid closed?\n")
+	}
+
 	return nil
 }
 

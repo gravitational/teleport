@@ -57,6 +57,7 @@ import (
 	ghapi "github.com/google/go-github/v41/github"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
@@ -84,7 +85,7 @@ func main() {
 		log.Fatalf("Failed to fetch installation ID for app #%d on account %s: %s", args.appID, args.owner, err)
 	}
 
-	tx, err := ghinst.New(http.DefaultTransport, args.appID, installationID, args.appKey)
+	tx, err := ghinst.New(&retryablehttp.RoundTripper{}, args.appID, installationID, args.appKey)
 	if err != nil {
 		log.Fatalf("Failed creating authenticated transport: %s", err)
 	}
@@ -165,7 +166,7 @@ func lookupInstallationID(ctx context.Context, args args) (int64, error) {
 	// Because we don't know the Installtion ID yet (otherwise we wouldn't be
 	// here at all) we have to uses a special, short-lived github client that
 	// can authenticate without it.
-	tx, err := ghinst.NewAppsTransport(http.DefaultTransport, args.appID, args.appKey)
+	tx, err := ghinst.NewAppsTransport(&retryablehttp.RoundTripper{}, args.appID, args.appKey)
 	if err != nil {
 		return 0, trace.Wrap(err, "Failed creating authenticated transport")
 	}
@@ -223,7 +224,7 @@ func waitForActiveWorkflowRuns(ctx context.Context, gh *ghapi.Client, args args)
 
 func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag string, baselineTime time.Time, existingRuns github.RunIDSet) (*ghapi.WorkflowRun, error) {
 	// Now we need to wait and see if a new workflow is spawned
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {

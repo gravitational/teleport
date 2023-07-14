@@ -1530,14 +1530,14 @@ func TestProxies(t *testing.T) {
 		newResource: func(name string) (types.Server, error) {
 			return suite.NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
-		create: modifyNoContext(p.presenceS.UpsertProxy),
+		create: p.presenceS.UpsertProxy,
 		list: func(_ context.Context) ([]types.Server, error) {
 			return p.presenceS.GetProxies()
 		},
 		cacheList: func(_ context.Context) ([]types.Server, error) {
 			return p.cache.GetProxies()
 		},
-		update: modifyNoContext(p.presenceS.UpsertProxy),
+		update: p.presenceS.UpsertProxy,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllProxies()
 		},
@@ -1555,14 +1555,14 @@ func TestAuthServers(t *testing.T) {
 		newResource: func(name string) (types.Server, error) {
 			return suite.NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
-		create: modifyNoContext(p.presenceS.UpsertAuthServer),
+		create: p.presenceS.UpsertAuthServer,
 		list: func(_ context.Context) ([]types.Server, error) {
 			return p.presenceS.GetAuthServers()
 		},
 		cacheList: func(_ context.Context) ([]types.Server, error) {
 			return p.cache.GetAuthServers()
 		},
-		update: modifyNoContext(p.presenceS.UpsertAuthServer),
+		update: p.presenceS.UpsertAuthServer,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllAuthServers()
 		},
@@ -1848,7 +1848,7 @@ func TestUserGroups(t *testing.T) {
 			return types.NewUserGroup(
 				types.Metadata{
 					Name: name,
-				},
+				}, types.UserGroupSpecV1{},
 			)
 		},
 		create: p.userGroups.CreateUserGroup,
@@ -2613,6 +2613,106 @@ func TestPartialHealth(t *testing.T) {
 		require.Equal(t, []types.WatchKind{{Kind: types.KindUser}}, watchStatus.GetKinds())
 	case <-time.After(time.Second):
 		t.Fatal("Timeout waiting for event.")
+	}
+}
+
+// TestInvalidDatbases given a database that returns an error on validation, the
+// cache should not be impacted, and the database must be on it. This scenario
+// is most common on Teleport upgrades/downgrades where the database validation
+// can have new rules, causing the existing database to fail on validation.
+func TestInvalidDatabases(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	generateInvalidDB := func(t *testing.T, resourceID int64, name string) types.Database {
+		db := &types.DatabaseV3{Metadata: types.Metadata{
+			ID:   resourceID,
+			Name: name,
+		}, Spec: types.DatabaseSpecV3{
+			Protocol: "invalid-protocol",
+			URI:      "non-empty-uri",
+		}}
+		// Just ensures the database we're using on this test will trigger a
+		// validation failure.
+		require.Error(t, services.ValidateDatabase(db))
+		return db
+	}
+
+	for name, tc := range map[string]struct {
+		storeFunc func(*testing.T, *backend.Wrapper, *Cache)
+	}{
+		"CreateDatabase": {
+			storeFunc: func(t *testing.T, b *backend.Wrapper, _ *Cache) {
+				db := generateInvalidDB(t, 0, "invalid-db")
+				value, err := services.MarshalDatabase(db)
+				require.NoError(t, err)
+				_, err = b.Create(ctx, backend.Item{
+					Key:     backend.Key("db", db.GetName()),
+					Value:   value,
+					Expires: db.Expiry(),
+					ID:      db.GetResourceID(),
+				})
+				require.NoError(t, err)
+			},
+		},
+		"UpdateDatabase": {
+			storeFunc: func(t *testing.T, b *backend.Wrapper, c *Cache) {
+				dbName := "updated-db"
+				validDB, err := types.NewDatabaseV3(types.Metadata{
+					Name: dbName,
+				}, types.DatabaseSpecV3{
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "postgres://localhost",
+				})
+				require.NoError(t, err)
+				require.NoError(t, services.ValidateDatabase(validDB))
+
+				marshalledDB, err := services.MarshalDatabase(validDB)
+				require.NoError(t, err)
+				_, err = b.Create(ctx, backend.Item{
+					Key:     backend.Key("db", validDB.GetName()),
+					Value:   marshalledDB,
+					Expires: validDB.Expiry(),
+					ID:      validDB.GetResourceID(),
+				})
+				require.NoError(t, err)
+
+				// Wait until the database appear on cache.
+				require.Eventually(t, func() bool {
+					if dbs, err := c.GetDatabases(ctx); err == nil {
+						return len(dbs) == 1
+					}
+
+					return false
+				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
+
+				cacheDB, err := c.GetDatabase(ctx, dbName)
+				require.NoError(t, err)
+
+				invalidDB := generateInvalidDB(t, cacheDB.GetResourceID(), cacheDB.GetName())
+				value, err := services.MarshalDatabase(invalidDB)
+				require.NoError(t, err)
+				_, err = b.Update(ctx, backend.Item{
+					Key:     backend.Key("db", cacheDB.GetName()),
+					Value:   value,
+					Expires: invalidDB.Expiry(),
+					ID:      cacheDB.GetResourceID(),
+				})
+				require.NoError(t, err)
+			},
+		},
+	} {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			p := newTestPack(t, ForAuth)
+			t.Cleanup(p.Close)
+
+			tc.storeFunc(t, p.backend, p.cache)
+
+			// Events processing should not restart due to an invalid database error.
+			unexpectedEvent(t, p.eventsC, Reloading)
+		})
 	}
 }
 

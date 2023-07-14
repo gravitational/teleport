@@ -60,7 +60,7 @@ import (
 // from destination node address to support multiple platform where 'cut -d' command is not provided.
 // For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
 func onProxyCommandSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,7 +72,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		}
 
 		if len(tc.JumpHosts) > 0 {
-			err := setupJumpHost(cf, tc, *proxyParams)
+			err := setupJumpHost(cf, tc, proxyParams.clusterName)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -89,10 +89,6 @@ type sshProxyParams struct {
 	proxyHost string
 	// proxyPort is the Teleport proxy port.
 	proxyPort string
-	// targetHost is the target SSH node host name.
-	targetHost string
-	// targetPort is the target SSH node port.
-	targetPort string
 	// clusterName is the cluster where the SSH node resides.
 	clusterName string
 	// tlsRouting is true if the Teleport proxy has TLS routing enabled.
@@ -101,11 +97,6 @@ type sshProxyParams struct {
 
 // getSSHProxyParams prepares parameters for establishing an SSH proxy connection.
 func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyParams, error) {
-	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Without jump hosts, we will be connecting to the current Teleport client
 	// proxy the user is logged into.
 	if len(tc.JumpHosts) == 0 {
@@ -116,8 +107,6 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 		return &sshProxyParams{
 			proxyHost:   proxyHost,
 			proxyPort:   strconv.Itoa(proxyPort),
-			targetHost:  cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName),
-			targetPort:  targetPort,
 			clusterName: tc.SiteName,
 			tlsRouting:  tc.TLSRoutingEnabled,
 		}, nil
@@ -143,8 +132,6 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 	return &sshProxyParams{
 		proxyHost:   sshProxyHost,
 		proxyPort:   sshProxyPort,
-		targetHost:  targetHost,
-		targetPort:  targetPort,
 		clusterName: ping.ClusterName,
 		tlsRouting:  ping.Proxy.TLSRoutingEnabled,
 	}, nil
@@ -161,19 +148,19 @@ func cleanTargetHost(targetHost, proxyHost, siteName string) string {
 }
 
 // setupJumpHost configures the client for connecting to the jump host's proxy.
-func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams) error {
+func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, clusterName string) error {
 	return tc.WithoutJumpHosts(func(tc *libclient.TeleportClient) error {
 		// Fetch certificate for the leaf cluster. This allows users to log
 		// in once into the root cluster and let the proxy handle fetching
 		// certificates for leaf clusters automatically.
-		err := tc.LoadKeyForClusterWithReissue(cf.Context, sp.clusterName)
+		err := tc.LoadKeyForClusterWithReissue(cf.Context, clusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// We'll be connecting directly to the leaf cluster so make sure agent
 		// loads correct host CA.
-		tc.LocalAgent().UpdateCluster(sp.clusterName)
+		tc.LocalAgent().UpdateCluster(clusterName)
 		return nil
 	})
 }
@@ -229,7 +216,15 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 		return trace.Wrap(err)
 	}
 
-	sshUserHost := fmt.Sprintf("%s:%s", sp.targetHost, sp.targetPort)
+	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+	if err != nil {
+		targetHost = tc.Host
+		targetPort = strconv.Itoa(tc.HostPort)
+	}
+
+	targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName)
+
+	sshUserHost := fmt.Sprintf("%s:%s", targetHost, targetPort)
 	if err = sess.RequestSubsystem(ctx, proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -263,7 +258,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 				InsecureSkipVerify: tc.InsecureSkipVerify,
 				ServerName:         sp.proxyHost,
 			},
-			ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequiredForWebProxy(remoteProxyAddr),
+			ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequiredForWebProxy(ctx, remoteProxyAddr),
 		})
 
 	default:
@@ -362,7 +357,7 @@ func formatCommand(cmd *exec.Cmd) string {
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -370,7 +365,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	route, db, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
+	dbInfo, err := getDatabaseInfo(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -380,14 +375,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// 2. check if db login is required.
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
-	requires := getDBLocalProxyRequirement(tc, route)
+	requires := getDBLocalProxyRequirement(tc, dbInfo.RouteToDatabase)
 	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
 		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
-		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
+		return trace.BadParameter(formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
 	}
-	if err := maybeDatabaseLogin(cf, tc, profile, route, requires); err != nil {
+	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -403,7 +398,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
 
-	listener, err := createLocalProxyListener(addr, route, profile)
+	listener, err := createLocalProxyListener(addr, dbInfo.RouteToDatabase, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -419,8 +414,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		cf:               cf,
 		tc:               tc,
 		profile:          profile,
-		route:            *route,
-		database:         db,
+		dbInfo:           dbInfo,
 		autoReissueCerts: cf.LocalProxyTunnel, // only auto-reissue certs for --tunnel flag.
 		tunnel:           tunnel,
 	})
@@ -449,11 +443,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
 		}
-		if opts, err = maybeAddDBUserPassword(db, opts); err != nil {
+		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
 		}
 
-		commands, err := dbcmd.NewCmdBuilder(tc, profile, route, rootCluster,
+		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
 		).GetConnectCommandAlternatives()
 		if err != nil {
@@ -462,14 +456,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		// shared template arguments
 		templateArgs := map[string]any{
-			"database":   route.ServiceName,
-			"type":       defaults.ReadableDatabaseProtocol(route.Protocol),
+			"database":   dbInfo.ServiceName,
+			"type":       defaults.ReadableDatabaseProtocol(dbInfo.Protocol),
 			"cluster":    tc.SiteName,
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
 		}
 
-		tmpl := chooseProxyCommandTemplate(templateArgs, commands, route.Protocol)
+		tmpl := chooseProxyCommandTemplate(templateArgs, commands, dbInfo.Protocol)
 		err = tmpl.Execute(os.Stdout, templateArgs)
 		if err != nil {
 			return trace.Wrap(err)
@@ -477,10 +471,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
-			"database":   route.ServiceName,
+			"database":   dbInfo.ServiceName,
 			"address":    listener.Addr().String(),
 			"ca":         profile.CACertPathForCluster(rootCluster),
-			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, route.ServiceName),
+			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
 			"key":        profile.KeyPath(),
 			"randomPort": randomPort,
 		})
@@ -496,16 +490,22 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func maybeAddDBUserPassword(db types.Database, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
-	if db != nil && db.GetProtocol() == defaults.ProtocolCassandra && db.IsAWSHosted() {
-		// Cassandra client always prompt for password, so we need to provide it
-		// Provide an auto generated random password to skip the prompt in case of
-		// connection to AWS hosted cassandra.
-		password, err := utils.CryptoRandomHex(16)
+func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	if dbInfo.Protocol == defaults.ProtocolCassandra {
+		db, err := dbInfo.GetDatabase(cf, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return append(opts, dbcmd.WithPassword(password)), nil
+		if db.IsAWSHosted() {
+			// Cassandra client always prompt for password, so we need to provide it
+			// Provide an auto generated random password to skip the prompt in case of
+			// connection to AWS hosted cassandra.
+			password, err := utils.CryptoRandomHex(16)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return append(opts, dbcmd.WithPassword(password)), nil
+		}
 	}
 	return opts, nil
 }
@@ -545,12 +545,12 @@ func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificate(tc, cf.AppName)
+	appCerts, err := loadAppCertificateWithAppLogin(cf, tc, cf.AppName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -607,7 +607,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	awsApp, err := pickActiveAWSApp(cf)
+	awsApp, err := pickAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -699,7 +699,7 @@ func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
 
 // onProxyCommandAzure creates local proxes for Azure apps.
 func onProxyCommandAzure(cf *CLIConf) error {
-	azApp, err := pickActiveAzureApp(cf)
+	azApp, err := pickAzureApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -730,7 +730,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 // onProxyCommandGCloud creates local proxies for GCP apps.
 func onProxyCommandGCloud(cf *CLIConf) error {
-	gcpApp, err := pickActiveGCPApp(cf)
+	gcpApp, err := pickGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -759,32 +759,60 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 	return nil
 }
 
+// loadAppCertificateWithAppLogin is a wrapper around loadAppCertificate that will attempt to login the user to
+// the app of choice at most once, if the return value from loadAppCertificate call indicates that app login
+// should fix the problem.
+func loadAppCertificateWithAppLogin(cf *CLIConf, tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
+	cert, needLogin, err := loadAppCertificate(tc, appName)
+	if err != nil {
+		if !needLogin {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
+		log.WithError(err).Debugf("Loading app certificate failed, attempting to login into app %q", appName)
+		quiet := cf.Quiet
+		cf.Quiet = true
+		errLogin := onAppLogin(cf)
+		cf.Quiet = quiet
+		if errLogin != nil {
+			log.WithError(errLogin).Debugf("Login attempt failed")
+			// combine errors
+			return tls.Certificate{}, trace.NewAggregate(err, errLogin)
+		}
+		// another attempt
+		cert, _, err = loadAppCertificate(tc, appName)
+		return cert, trace.Wrap(err)
+	}
+	return cert, nil
+}
+
 // loadAppCertificate loads the app certificate for the provided app.
-func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
+// Returns tuple (certificate, needLogin, err).
+// The boolean `needLogin` will be true if the error returned should go away with successful `tsh app login <appName>`.
+func loadAppCertificate(tc *libclient.TeleportClient, appName string) (certificate tls.Certificate, needLogin bool, err error) {
 	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return tls.Certificate{}, false, trace.Wrap(err)
 	}
 	cert, ok := key.AppTLSCerts[appName]
 	if !ok {
-		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh apps login'")
+		return tls.Certificate{}, true, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	}
 
 	tlsCert, err := key.TLSCertificate(cert)
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return tls.Certificate{}, false, trace.Wrap(err)
 	}
 
 	expiresAt, err := getTLSCertExpireTime(tlsCert)
 	if err != nil {
-		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh apps login'")
+		return tls.Certificate{}, true, trace.WrapWithMessage(err, "invalid certificate - please login to the application again: 'tsh apps login %v'", appName)
 	}
 	if time.Until(expiresAt) < 5*time.Second {
-		return tls.Certificate{}, trace.BadParameter(
-			"application %s certificate has expired, please re-login to the app using 'tsh apps login'",
+		return tls.Certificate{}, true, trace.BadParameter(
+			"application %s certificate has expired, please re-login to the app using 'tsh apps login %v'", appName,
 			appName)
 	}
-	return tlsCert, nil
+	return tlsCert, false, nil
 }
 
 func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {

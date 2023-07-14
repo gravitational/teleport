@@ -3,16 +3,10 @@ title: Running Teleport on GCP
 description: How to install and configure Teleport on GCP
 ---
 
-We've created this guide to give customers an overview of how to use Teleport on
-[Google Cloud](https://cloud.google.com/gcp/) (GCP). This guide provides a
-high-level introduction to setting up and running Teleport in production.
-
-<ScopedBlock scope="cloud">
-
-This guide shows you how to deploy the Auth Service and Proxy Service, which
-Teleport Cloud manages for you.
-
-</ScopedBlock>
+We've created this guide to give customers an overview of how to deploy a
+self-hosted Teleport cluster on [Google Cloud](https://cloud.google.com/gcp/)
+(GCP). This guide provides a high-level introduction to setting up and running
+Teleport in production.
 
 We have split this guide into:
 
@@ -225,8 +219,8 @@ Follow install instructions from our [installation page](../../installation.mdx#
 We recommend configuring Teleport as per the below steps:
 
 <Tabs>
-	<TabItem label="Open Source">
-**1. Configure Teleport Auth Server** using the below example `teleport.yaml`,and start it
+	<TabItem scope="oss" label="Open Source">
+**1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
 using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
 automatically include the `systemd` configuration.
 

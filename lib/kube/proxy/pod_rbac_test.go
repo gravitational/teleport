@@ -51,6 +51,7 @@ func TestListPodRBAC(t *testing.T) {
 		usernameWithFullAccess      = "full_user"
 		usernameWithNamespaceAccess = "default_user"
 		usernameWithLimitedAccess   = "limited_user"
+		usernameWithDenyRule        = "denied_user"
 		testPodName                 = "test"
 	)
 	// kubeMock is a Kubernetes API mock for the session tests.
@@ -133,6 +134,39 @@ func TestListPodRBAC(t *testing.T) {
 						{
 							Kind:      types.KindKubePod,
 							Name:      "nginx-*",
+							Namespace: metav1.NamespaceDefault,
+						},
+					},
+				)
+			},
+		},
+	)
+
+	// create a user allowed to access all namespaces except the default namespace.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithDenyRule, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithDenyRule,
+		RoleSpec{
+			Name:       usernameWithDenyRule,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+						},
+					},
+				)
+				r.SetKubeResources(types.Deny,
+					[]types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
 						},
 					},
@@ -235,6 +269,26 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 		{
+			name: "list pods in every namespace for user with default namespace deny rule",
+			args: args{
+				user: userWithDenyRule,
+			},
+			want: want{
+				listPodsResult: []string{
+					"dev/nginx-1",
+					"dev/nginx-2",
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods \"test\" is forbidden: User \"denied_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
+		{
 			name: "list default namespace pods for user with limited access and a resource access request",
 			args: args{
 				user:      userWithNamespaceAccess,
@@ -321,7 +375,13 @@ func TestListPodRBAC(t *testing.T) {
 				testPodName,
 				metav1.GetOptions{},
 			)
-			require.Equal(t, tt.want.getTestPodResult, err)
+
+			if tt.want.getTestPodResult == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.want.getTestPodResult.Error())
+			}
 		})
 	}
 }

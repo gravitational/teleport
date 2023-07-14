@@ -649,6 +649,11 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 // rangeKey is the name of the 'range key' the schema requires.
 // currently is always set to "FullPath" (used to be something else, that's
 // why it's a parameter for migration purposes)
+//
+// Note: If we change DynamoDB table schemas, we must also update the
+// documentation in case users want to set up DynamoDB tables manually. Edit the
+// following docs partial:
+// docs/pages/includes/dynamodb-iam-policy.mdx
 func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string) error {
 	pThroughput := dynamodb.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
@@ -847,6 +852,22 @@ func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
 	return nil
 }
 
+func (b *Backend) deleteKeyIfExpired(ctx context.Context, key []byte) error {
+	_, err := b.svc.DeleteItemWithContext(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(b.TableName),
+		Key:       keyToAttributeValueMap(key),
+
+		// succeed if the item no longer exists
+		ConditionExpression: aws.String(
+			"attribute_not_exists(FullPath) OR (attribute_exists(Expires) AND Expires <= :timestamp)",
+		),
+		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+			":timestamp": timeToAttributeValue(b.clock.Now()),
+		},
+	})
+	return trace.Wrap(err)
+}
+
 func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 	av, err := dynamodbattribute.MarshalMap(keyLookup{
 		HashKey:  hashKey,
@@ -875,7 +896,7 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 	}
 	// Check if key expired, if expired delete it
 	if r.isExpired(b.clock.Now()) {
-		if err := b.deleteKey(ctx, key); err != nil {
+		if err := b.deleteKeyIfExpired(ctx, key); err != nil {
 			b.Warnf("Failed deleting expired key %q: %v", key, err)
 		}
 		return nil, trace.NotFound("%q is not found", key)
@@ -924,4 +945,21 @@ func (r records) Swap(i, j int) {
 // Less is part of sort.Interface.
 func (r records) Less(i, j int) bool {
 	return r[i].FullPath < r[j].FullPath
+}
+
+func fullPathToAttributeValueMap(fullPath string) map[string]*dynamodb.AttributeValue {
+	return map[string]*dynamodb.AttributeValue{
+		hashKeyKey:  {S: aws.String(hashKey)},
+		fullPathKey: {S: aws.String(fullPath)},
+	}
+}
+
+func keyToAttributeValueMap(key []byte) map[string]*dynamodb.AttributeValue {
+	return fullPathToAttributeValueMap(prependPrefix(key))
+}
+
+func timeToAttributeValue(t time.Time) *dynamodb.AttributeValue {
+	return &dynamodb.AttributeValue{
+		N: aws.String(strconv.FormatInt(t.Unix(), 10)),
+	}
 }

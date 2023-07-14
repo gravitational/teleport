@@ -20,13 +20,36 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
-// AutoEnroll attempts to create an auto-enroll token via
-// [devicepb.DeviceTrustServiceClient.CreateDeviceEnrollToken] and enrolls the
-// device by calling [RunCeremony].
+// AutoEnrollCeremony is the auto-enrollment version of [Ceremony].
+type AutoEnrollCeremony struct {
+	*Ceremony
+
+	CollectDeviceData func() (*devicepb.DeviceCollectedData, error)
+}
+
+// NewAutoEnrollCeremony creates a new [AutoEnrollCeremony] based on the regular
+// ceremony provided by [NewCeremony].
+func NewAutoEnrollCeremony() *AutoEnrollCeremony {
+	return &AutoEnrollCeremony{
+		Ceremony:          NewCeremony(),
+		CollectDeviceData: native.CollectDeviceData,
+	}
+}
+
+// AutoEnroll performs auto-enrollment for the current device.
+// Equivalent to `NewAutoEnroll().Run()`.
 func AutoEnroll(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient) (*devicepb.Device, error) {
-	cd, err := collectDeviceData()
+	return NewAutoEnrollCeremony().Run(ctx, devicesClient)
+}
+
+// Run attempts to create an auto-enroll token via
+// [devicepb.DeviceTrustServiceClient.CreateDeviceEnrollToken] and enrolls the
+// device using a regular [Ceremony].
+func (c *AutoEnrollCeremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient) (*devicepb.Device, error) {
+	cd, err := c.CollectDeviceData()
 	if err != nil {
 		return nil, trace.Wrap(err, "collecting device data")
 	}
@@ -38,6 +61,6 @@ func AutoEnroll(ctx context.Context, devicesClient devicepb.DeviceTrustServiceCl
 		return nil, trace.Wrap(err, "creating auto-token")
 	}
 
-	dev, err := RunCeremony(ctx, devicesClient, token.Token)
+	dev, err := c.Ceremony.Run(ctx, devicesClient, false, token.Token)
 	return dev, trace.Wrap(err)
 }

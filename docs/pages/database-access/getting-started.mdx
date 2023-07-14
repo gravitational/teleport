@@ -21,13 +21,6 @@ Here's an overview of what we will do:
 
 ## Prerequisites
 
-<Admonition type="note" title="Supported versions">
-
-Teleport database access is available starting from the `6.0.0` Teleport
-release.
-
-</Admonition>
-
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - An AWS account with a PostgreSQL AWS Aurora database and permissions to create
@@ -98,6 +91,8 @@ see the AWS [documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGui
 ## Step 2/4. Start the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
@@ -172,9 +167,16 @@ EOF
 
 Create the Teleport user assigned the `db` role we've just created:
 
+<ScopedBlock scope={["oss"]}>
 ```code
 $ tctl users add --roles=access,db alice
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code
+$ tctl users add --roles=access,requester,db alice
+```
+</ScopedBlock>
 
 ## Step 4/4. Connect
 

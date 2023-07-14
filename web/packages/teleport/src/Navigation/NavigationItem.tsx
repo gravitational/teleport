@@ -34,8 +34,8 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { useTeleport } from 'teleport';
 
 import type {
-  TeleportFeature,
   TeleportFeatureNavigationItem,
+  TeleportFeature,
 } from 'teleport/types';
 
 interface NavigationItemProps {

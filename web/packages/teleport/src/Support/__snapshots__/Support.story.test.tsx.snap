@@ -17,9 +17,9 @@ exports[`support Cloud 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -398,9 +398,9 @@ exports[`support Enterprise 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -799,6 +799,9 @@ exports[`support Enterprise with CTA 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  width: 100%;
 }
 
 .c9:hover,
@@ -828,9 +831,9 @@ exports[`support Enterprise with CTA 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -848,7 +851,7 @@ exports[`support Enterprise with CTA 1`] = `
   margin: 0px;
 }
 
-.c14 {
+.c13 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -857,7 +860,7 @@ exports[`support Enterprise with CTA 1`] = `
   font-weight: 600;
 }
 
-.c16 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -866,7 +869,7 @@ exports[`support Enterprise with CTA 1`] = `
   margin: 0px;
 }
 
-.c17 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -882,13 +885,13 @@ exports[`support Enterprise with CTA 1`] = `
   flex-wrap: wrap;
 }
 
-.c11 {
+.c10 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
-.c15 {
+.c14 {
   box-sizing: border-box;
   margin-bottom: 16px;
   display: flex;
@@ -910,22 +913,14 @@ exports[`support Enterprise with CTA 1`] = `
   padding-bottom: 24px;
 }
 
-.c10 {
-  text-transform: none;
-  width: 100%;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  font-size: 12px;
-}
-
-.c12 {
+.c11 {
   color: inherit;
   font-weight: 500;
   font-size: 15px;
-  margin-right: 4px;
+  margin-right: 10px;
 }
 
-.c13 {
+.c12 {
   box-sizing: border-box;
   margin-top: 24px;
   padding-left: 32px;
@@ -1019,19 +1014,23 @@ exports[`support Enterprise with CTA 1`] = `
         >
           Send Product Feedback
         </a>
-        <button
-          class="c9 c10"
+        <a
+          class="c9"
+          href="https://goteleport.com/r/upgrade-team?4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
           kind="primary"
+          style="text-transform: none;"
+          target="blank"
+          width="100%"
         >
           <div
-            class="c11"
+            class="c10"
           >
             <span
-              class="c6 icon icon-unlock c12"
+              class="c6 icon icon-unlock c11"
             />
             Unlock Premium Support w/Enterprise
           </div>
-        </button>
+        </a>
       </div>
       <div
         class="c3"
@@ -1166,58 +1165,58 @@ exports[`support Enterprise with CTA 1`] = `
     </div>
   </div>
   <div
-    class="c13"
+    class="c12"
   >
     <h5
-      class="c14"
+      class="c13"
       font-weight="bold"
     >
       Cluster Information
     </h5>
     <div
-      class="c15"
+      class="c14"
     >
       <div
-        class="c16"
+        class="c15"
         style="width: 130px;"
       >
         Cluster Name
         :
       </div>
       <div
-        class="c17"
+        class="c16"
       >
         test
       </div>
     </div>
     <div
-      class="c15"
+      class="c14"
     >
       <div
-        class="c16"
+        class="c15"
         style="width: 130px;"
       >
         Teleport Version
         :
       </div>
       <div
-        class="c17"
+        class="c16"
       >
         4.4.0-dev
       </div>
     </div>
     <div
-      class="c15"
+      class="c14"
     >
       <div
-        class="c16"
+        class="c15"
         style="width: 130px;"
       >
         Public Address
         :
       </div>
       <div
-        class="c17"
+        class="c16"
       >
         localhost:3080
       </div>
@@ -1243,9 +1242,9 @@ exports[`support OSS 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {

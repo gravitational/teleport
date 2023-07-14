@@ -75,6 +75,84 @@ func TestSliceMatchesRegex(t *testing.T) {
 	}
 }
 
+func TestRegexMatchesAny(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		desc        string
+		inputs      []string
+		expr        string
+		expectError string
+		expectMatch bool
+	}{
+		{
+			desc:        "empty",
+			expectMatch: false,
+		},
+		{
+			desc:        "exact match",
+			expr:        "test",
+			inputs:      []string{"test"},
+			expectMatch: true,
+		},
+		{
+			desc:        "no exact match",
+			expr:        "test",
+			inputs:      []string{"first", "last"},
+			expectMatch: false,
+		},
+		{
+			desc:        "must match full string",
+			expr:        "test",
+			inputs:      []string{"pretest", "tempest", "testpost"},
+			expectMatch: false,
+		},
+		{
+			desc:        "glob match",
+			expr:        "env-*-staging",
+			inputs:      []string{"env-app-staging"},
+			expectMatch: true,
+		},
+		{
+			desc:        "glob must match full string",
+			expr:        "env-*-staging",
+			inputs:      []string{"pre-env-app-staging", "env-app-staging-post"},
+			expectMatch: false,
+		},
+		{
+			desc:        "regexp match",
+			expr:        "^env-[a-zA-Z0-9]{3,12}-staging$",
+			inputs:      []string{"env-app-staging"},
+			expectMatch: true,
+		},
+		{
+			desc:        "regexp no match",
+			expr:        "^env-[a-zA-Z0-9]{3,12}-staging$",
+			inputs:      []string{"env-~-staging", "env-🚀-staging", "env-reallylongname-staging"},
+			expectMatch: false,
+		},
+		{
+			desc:        "regexp must match full string",
+			expr:        "^env-[a-zA-Z0-9]{3,12}-staging$",
+			inputs:      []string{"pre-env-app-staging", "env-app-staging-post"},
+			expectMatch: false,
+		},
+		{
+			desc:        "bad regexp",
+			expr:        "^env-(?!prod)$",
+			expectError: "error parsing regexp",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			match, err := RegexMatchesAny(tc.inputs, tc.expr)
+			if msg := tc.expectError; msg != "" {
+				require.ErrorContains(t, err, msg)
+				return
+			}
+			require.Equal(t, tc.expectMatch, match)
+		})
+	}
+}
+
 func TestKubeResourceMatchesRegex(t *testing.T) {
 	tests := []struct {
 		name      string

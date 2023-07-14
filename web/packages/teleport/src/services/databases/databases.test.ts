@@ -40,6 +40,19 @@ test('correct formatting of database fetch response', async () => {
           { name: 'cluster', value: 'root' },
           { name: 'env', value: 'aws' },
         ],
+        aws: {
+          rds: {
+            resourceId: 'resource-id',
+          },
+        },
+      },
+      {
+        name: 'self-hosted',
+        type: 'Self-hosted PostgreSQL',
+        protocol: 'postgres',
+        names: [],
+        users: [],
+        labels: [],
       },
     ],
     startKey: mockResponse.startKey,
@@ -150,6 +163,7 @@ test('null array fields in database services fetch response', async () => {
 
 const mockResponse = {
   items: [
+    // aws rds
     {
       name: 'aurora',
       desc: 'PostgreSQL 11.6: AWS Aurora',
@@ -160,6 +174,19 @@ const mockResponse = {
         { name: 'cluster', value: 'root' },
         { name: 'env', value: 'aws' },
       ],
+      aws: {
+        rds: {
+          resource_id: 'resource-id',
+        },
+      },
+    },
+    // non-aws self-hosted
+    {
+      name: 'self-hosted',
+      type: 'self-hosted',
+      protocol: 'postgres',
+      uri: 'localhost:5432',
+      labels: [],
     },
   ],
   startKey: 'mockKey',

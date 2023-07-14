@@ -1017,6 +1017,8 @@ type ProxyConfig struct {
 	SSHAddr string
 	// WebAddr the address the web service should listen on
 	WebAddr string
+	// KubeAddr is the kube proxy address.
+	KubeAddr string
 	// ReverseTunnelAddr the address the reverse proxy service should listen on
 	ReverseTunnelAddr string
 	// Disable the web service
@@ -1224,6 +1226,8 @@ func (i *TeleInstance) Start() error {
 
 // ClientConfig is a client configuration
 type ClientConfig struct {
+	// TeleportUser is Teleport username
+	TeleportUser string
 	// Login is SSH login name
 	Login string
 	// Cluster is a cluster name to connect to
@@ -1281,17 +1285,21 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 
 	var webProxyAddr string
 	var sshProxyAddr string
+	var kubeProxyAddr string
 
 	switch {
 	case cfg.Proxy != nil:
 		webProxyAddr = cfg.Proxy.WebAddr
 		sshProxyAddr = cfg.Proxy.SSHAddr
+		kubeProxyAddr = cfg.Proxy.KubeAddr
 	case cfg.ALBAddr != "":
 		webProxyAddr = cfg.ALBAddr
 		sshProxyAddr = cfg.ALBAddr
+		kubeProxyAddr = cfg.ALBAddr
 	default:
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy
+		kubeProxyAddr = i.Config.Proxy.Kube.ListenAddr.Addr
 	}
 
 	fwdAgentMode := client.ForwardAgentNo
@@ -1299,8 +1307,12 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		fwdAgentMode = client.ForwardAgentYes
 	}
 
+	if cfg.TeleportUser == "" {
+		cfg.TeleportUser = cfg.Login
+	}
+
 	cconf := &client.Config{
-		Username:                      cfg.Login,
+		Username:                      cfg.TeleportUser,
 		Host:                          cfg.Host,
 		HostPort:                      cfg.Port,
 		HostLogin:                     cfg.Login,
@@ -1311,6 +1323,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Labels:                        cfg.Labels,
 		WebProxyAddr:                  webProxyAddr,
 		SSHProxyAddr:                  sshProxyAddr,
+		KubeProxyAddr:                 kubeProxyAddr,
 		InteractiveCommand:            cfg.Interactive,
 		TLSRoutingEnabled:             i.IsSinglePortSetup,
 		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",
@@ -1530,21 +1543,22 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := web.NewTerminalStream(ws)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	stream := web.NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
 	return stream, nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.
 // (server CAs and signed session key).
 func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg ClientConfig) (*client.TeleportClient, error) {
+	login := cfg.Login
+	if cfg.TeleportUser != "" {
+		login = cfg.TeleportUser
+	}
+
 	// Generate certificates for the user simulating login.
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,
-		Username: cfg.Login,
+		Username: login,
 		SourceIP: cfg.SourceIP,
 	})
 	if err != nil {
@@ -1605,6 +1619,27 @@ func (i *TeleInstance) StopNodes() error {
 		}
 	}
 	return trace.NewAggregate(errors...)
+}
+
+// RestartAuth stops and then starts the auth service.
+func (i *TeleInstance) RestartAuth() error {
+	if i.Process == nil {
+		return nil
+	}
+
+	i.Log.Infof("Asking Teleport instance %q to stop", i.Secrets.SiteName)
+	err := i.Process.Close()
+	if err != nil {
+		i.Log.WithError(err).Error("Failed closing the teleport process.")
+		return trace.Wrap(err)
+	}
+	i.Log.Infof("Teleport instance %q stopped!", i.Secrets.SiteName)
+
+	if err := i.Process.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(i.Process.Start())
 }
 
 // StopAuth stops the auth server process. If removeData is true, the data

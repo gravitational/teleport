@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -64,14 +65,14 @@ func (f *FakeMacOSDevice) CollectDeviceData() (*devicepb.DeviceCollectedData, er
 	}, nil
 }
 
-func (f *FakeMacOSDevice) DeviceCredential() *devicepb.DeviceCredential {
+func (f *FakeMacOSDevice) GetDeviceCredential() *devicepb.DeviceCredential {
 	return &devicepb.DeviceCredential{
 		Id:           f.ID,
 		PublicKeyDer: f.PubKeyDER,
 	}
 }
 
-func (f *FakeMacOSDevice) GetOSType() devicepb.OSType {
+func (f *FakeMacOSDevice) GetDeviceOSType() devicepb.OSType {
 	return devicepb.OSType_OS_TYPE_MACOS
 }
 
@@ -90,4 +91,15 @@ func (f *FakeMacOSDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
 func (f *FakeMacOSDevice) SignChallenge(chal []byte) (sig []byte, err error) {
 	h := sha256.Sum256(chal)
 	return ecdsa.SignASN1(rand.Reader, f.privKey, h[:])
+}
+
+func (d *FakeMacOSDevice) SolveTPMEnrollChallenge(
+	_ *devicepb.TPMEnrollChallenge,
+	_ bool,
+) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return nil, trace.NotImplemented("mac device does not implement SolveTPMEnrollChallenge")
+}
+
+func (d *FakeMacOSDevice) SolveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, trace.NotImplemented("mac device does not implement SolveTPMAuthnDeviceChallenge")
 }

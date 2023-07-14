@@ -15,13 +15,43 @@ limitations under the License.
 */
 
 import { fonts } from './fonts';
-import { getContrastRatio } from './utils/colorManipulator';
+import { darken, getContrastRatio } from './utils/colorManipulator';
 import { lightBlue, blueGrey, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
+
+const dataVisualisationColors = {
+  primary: {
+    purple: '#5531D4',
+    wednesdays: '#A70DAF',
+    picton: '#006BB8',
+    sunflower: '#8F5F00',
+    caribbean: '#007562',
+    abbey: '#BF372E',
+    cyan: '#007282',
+  },
+  secondary: {
+    purple: '#6F4CED',
+    wednesdays: '#DC37E5',
+    picton: '#0089DE',
+    sunflower: '#B27800',
+    caribbean: '#009681',
+    abbey: '#D4635B',
+    cyan: '#1792A3',
+  },
+  tertiary: {
+    purple: '#3D1BB2',
+    wednesdays: '#690274',
+    picton: '#004B89',
+    sunflower: '#704B00',
+    caribbean: '#005742',
+    abbey: '#9D0A00',
+    cyan: '#015C6E',
+  },
+};
 
 const colors = {
   /*
@@ -110,6 +140,10 @@ const colors = {
     },
   },
 
+  tooltip: {
+    background: '#F0F2F4',
+  },
+
   progressBarColor: '#007D6B',
 
   dark: '#000000',
@@ -140,6 +174,39 @@ const colors = {
     disabledBackground: 'rgba(255, 255, 255, 0.12)',
   },
 
+  terminal: {
+    foreground: '#000',
+    background: '#F1F2F4', // levels.sunken
+    selectionBackground: 'rgba(0, 0, 0, 0.18)',
+    cursor: '#000',
+    cursorAccent: '#F1F2F4',
+    red: dataVisualisationColors.tertiary.abbey,
+    green: dataVisualisationColors.tertiary.caribbean,
+    yellow: dataVisualisationColors.tertiary.sunflower,
+    blue: dataVisualisationColors.tertiary.picton,
+    magenta: dataVisualisationColors.tertiary.purple,
+    cyan: dataVisualisationColors.tertiary.cyan,
+    brightWhite: darken('#F1F2F4', 0.55),
+    white: darken('#F1F2F4', 0.68),
+    brightBlack: darken('#F1F2F4', 0.8),
+    black: '#000',
+    brightRed: dataVisualisationColors.primary.abbey,
+    brightGreen: dataVisualisationColors.primary.caribbean,
+    brightYellow: dataVisualisationColors.primary.sunflower,
+    brightBlue: dataVisualisationColors.primary.picton,
+    brightMagenta: dataVisualisationColors.primary.purple,
+    brightCyan: dataVisualisationColors.primary.cyan,
+  },
+
+  editor: {
+    abbey: dataVisualisationColors.primary.abbey,
+    purple: dataVisualisationColors.primary.purple,
+    cyan: dataVisualisationColors.primary.cyan,
+    picton: dataVisualisationColors.primary.picton,
+    sunflower: dataVisualisationColors.primary.sunflower,
+    caribbean: dataVisualisationColors.primary.caribbean,
+  },
+
   subtle: blueGrey[50],
   link: '#0073BA',
   bgTerminal: '#010B1C',
@@ -147,6 +214,8 @@ const colors = {
   disabled: blueGrey[500],
   info: lightBlue[600],
   success: '#007D6B',
+
+  dataVisualisation: dataVisualisationColors,
 };
 
 const borders = [

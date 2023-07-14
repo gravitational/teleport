@@ -45,6 +45,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
+	"github.com/aws/aws-sdk-go/service/opensearchservice"
+	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -109,6 +111,8 @@ type AWSClients interface {
 	GetAWSElastiCacheClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (elasticacheiface.ElastiCacheAPI, error)
 	// GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
 	GetAWSMemoryDBClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (memorydbiface.MemoryDBAPI, error)
+	// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
+	GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (opensearchserviceiface.OpenSearchServiceAPI, error)
 	// GetAWSSecretsManagerClient returns AWS Secrets Manager client for the specified region.
 	GetAWSSecretsManagerClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (secretsmanageriface.SecretsManagerAPI, error)
 	// GetAWSIAMClient returns AWS IAM client for the specified region.
@@ -331,6 +335,15 @@ func (c *cloudClients) GetAWSElastiCacheClient(ctx context.Context, region strin
 		return nil, trace.Wrap(err)
 	}
 	return elasticache.New(session), nil
+}
+
+// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
+func (c *cloudClients) GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (opensearchserviceiface.OpenSearchServiceAPI, error) {
+	session, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return opensearchservice.New(session), nil
 }
 
 // GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
@@ -759,6 +772,7 @@ type TestCloudClients struct {
 	Redshift                redshiftiface.RedshiftAPI
 	RedshiftServerless      redshiftserverlessiface.RedshiftServerlessAPI
 	ElastiCache             elasticacheiface.ElastiCacheAPI
+	OpenSearch              opensearchserviceiface.OpenSearchServiceAPI
 	MemoryDB                memorydbiface.MemoryDBAPI
 	SecretsManager          secretsmanageriface.SecretsManagerAPI
 	IAM                     iamiface.IAMAPI
@@ -854,6 +868,15 @@ func (c *TestCloudClients) GetAWSElastiCacheClient(ctx context.Context, region s
 		return nil, trace.Wrap(err)
 	}
 	return c.ElastiCache, nil
+}
+
+// GetAWSOpenSearchClient returns AWS OpenSearch client for the specified region.
+func (c *TestCloudClients) GetAWSOpenSearchClient(ctx context.Context, region string, opts ...AWSAssumeRoleOptionFn) (opensearchserviceiface.OpenSearchServiceAPI, error) {
+	_, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.OpenSearch, nil
 }
 
 // GetAWSMemoryDBClient returns AWS MemoryDB client for the specified region.
@@ -964,7 +987,7 @@ func (c *TestCloudClients) GetAzurePostgresClient(subscription string) (azure.DB
 
 // GetAzureKubernetesClient returns an AKS client for the specified subscription
 func (c *TestCloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
-	if len(c.AzurePostgresPerSub) != 0 {
+	if len(c.AzureAKSClientPerSub) != 0 {
 		return c.AzureAKSClientPerSub[subscription], nil
 	}
 	return c.AzureAKSClient, nil

@@ -52,7 +52,7 @@ export function CreateDatabaseDialog({
       <>
         <Text mb={5}>
           <Icons.Warning ml={1} mr={2} color="error.main" />
-          Register Failed: {attempt.statusText}
+          {attempt.statusText}
         </Text>
         <Flex>
           <ButtonPrimary mr={3} width="50%" onClick={retry}>
@@ -104,7 +104,7 @@ export function CreateDatabaseDialog({
   return (
     <Dialog disableEscapeKeyDown={false} open={true}>
       <DialogContent
-        width="400px"
+        width="460px"
         alignItems="center"
         mb={0}
         textAlign="center"

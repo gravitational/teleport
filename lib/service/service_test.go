@@ -376,7 +376,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
+			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -427,7 +427,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 				AuditSessionsURI: "s3://testbucket/sessions-rec",
 			})
 			require.NoError(t, err)
-			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
+			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
 			tt.wantFn(t, log, err)
 		})
 	}
@@ -1272,8 +1272,22 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name:       "jamf enabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Jamf: servicecfg.JamfConfig{
+					Spec: &types.JamfSpecV1{
+						Enabled:     true,
+						ApiEndpoint: "https://example.jamfcloud.com",
+						Username:    "llama",
+						Password:    "supersecret!!1!ONE",
+					},
+				},
+			},
+			expected: true,
+		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buildType := modules.BuildOSS

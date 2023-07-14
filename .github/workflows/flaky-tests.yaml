@@ -7,6 +7,10 @@ on:
       - '**.go'
       - '.github/workflows/flaky-tests.yaml'
 
+permissions:
+  pull-requests: read
+  issues: read
+
 jobs:
   test:
     name: Flaky Tests Detector
@@ -54,44 +58,62 @@ jobs:
       - name: Prepare unit tests
         run: make test-go-prepare
 
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.REVIEWERS_APP_ID }}
+          private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Checkout shared-workflows
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: main
+
+      - name: Find excluded tests
+        id: find_excluded
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=exclude-flakes -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"
+
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"  -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go"
           target: test-go-unit
 
       - name: Run libfido2 difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "lib/auth/webauthncli/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "lib/auth/webauthncli/**/*"
           target: test-go-libfido2
 
       - name: Run touch-id difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "lib/auth/touchid/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "lib/auth/touchid/**/*"
           target: test-go-touch-id
 
       - name: Run tsh difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "tool/tsh/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "tool/tsh/**/*"
           target: test-go-tsh
 
       - name: Run api difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "api/**/*" --relative "api"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "api/**/*" --relative "api"
           target: test-api
 
       - name: Run kube-agent-updater difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "integrations/kube-agent-updater/**/*" --relative "integrations/kube-agent-updater"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "integrations/kube-agent-updater/**/*" --relative "integrations/kube-agent-updater"
           target: test-kube-agent-updater
 
       - name: Run teleport-usage difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "examples/teleport-usage/**/*" --relative "examples/teleport-usage"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "examples/teleport-usage/**/*" --relative "examples/teleport-usage"
           target: test-teleport-usage

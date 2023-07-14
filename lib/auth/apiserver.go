@@ -250,11 +250,11 @@ func (s *APIServer) upsertServer(auth services.Presence, role types.SystemRole, 
 		}
 		return handle, nil
 	case types.RoleAuth:
-		if err := auth.UpsertAuthServer(server); err != nil {
+		if err := auth.UpsertAuthServer(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.RoleProxy:
-		if err := auth.UpsertProxy(server); err != nil {
+		if err := auth.UpsertProxy(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -304,7 +304,7 @@ func (s *APIServer) deleteProxy(auth ClientI, w http.ResponseWriter, r *http.Req
 	if name == "" {
 		return nil, trace.BadParameter("missing proxy name")
 	}
-	err := auth.DeleteProxy(name)
+	err := auth.DeleteProxy(r.Context(), name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -824,7 +824,13 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 	}
 
 	eventTypes := query[events.EventType]
-	eventsList, _, err := auth.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, types.EventOrderDescending, "")
+	eventsList, _, err := auth.SearchEvents(r.Context(), events.SearchEventsRequest{
+		From:       from,
+		To:         to,
+		EventTypes: eventTypes,
+		Limit:      limit,
+		Order:      types.EventOrderDescending,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -864,7 +870,12 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 		}
 	}
 	// only pull back start and end events to build list of completed sessions
-	eventsList, _, err := auth.SearchSessionEvents(from, to, limit, types.EventOrderDescending, "", nil, "")
+	eventsList, _, err := auth.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
+		From:  from,
+		To:    to,
+		Limit: limit,
+		Order: types.EventOrderDescending,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -18,10 +18,7 @@ package web
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"net/http"
 
@@ -35,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
-	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -284,76 +280,6 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	tokenStr := p.ByName("token")
-	if tokenStr == "" {
-		return "", trace.BadParameter("invalid token")
-	}
-
-	dbAddress := r.URL.Query().Get("uri")
-	if dbAddress == "" {
-		return "", trace.BadParameter("invalid database address")
-	}
-
-	// verify that the token exists
-	_, err := h.GetProxyClient().GetToken(r.Context(), tokenStr)
-	if err != nil {
-		return "", trace.BadParameter("invalid token")
-	}
-
-	proxyServers, err := h.GetProxyClient().GetProxies()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if len(proxyServers) == 0 {
-		return "", trace.NotFound("no proxy servers found")
-	}
-
-	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certAuthority, err := h.GetProxyClient().GetCertAuthority(
-		r.Context(),
-		types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName},
-		false,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(certAuthority.GetActiveKeys().TLS) != 1 {
-		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
-	}
-
-	keyPair := certAuthority.GetActiveKeys().TLS[0]
-	block, _ := pem.Decode(keyPair.Cert)
-	if block == nil {
-		return nil, trace.BadParameter("no PEM data in CA data")
-	}
-
-	httplib.SetScriptHeaders(w.Header())
-	w.WriteHeader(http.StatusOK)
-	err = scripts.DatabaseAccessSQLServerConfigureScript.Execute(w, scripts.DatabaseAccessSQLServerConfigureParams{
-		CACertPEM:       string(keyPair.Cert),
-		CACertSHA1:      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		CACertBase64:    base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
-		CRLPEM:          string(encodeCRLPEM(caCRL)),
-		ProxyPublicAddr: proxyServers[0].GetPublicAddr(),
-		ProvisionToken:  tokenStr,
-		DBAddress:       dbAddress,
-	})
-
-	return nil, trace.Wrap(err)
-}
-
 // fetchDatabaseWithName fetch a database with provided database name.
 func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -411,12 +337,4 @@ func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error
 	database.SetOrigin(types.OriginDynamic)
 
 	return database, nil
-}
-
-// encodeCRLPEM takes DER encoded CRL and encodes into PEM.
-func encodeCRLPEM(contents []byte) []byte {
-	return pem.EncodeToMemory(&pem.Block{
-		Type:  "X509 CRL",
-		Bytes: contents,
-	})
 }

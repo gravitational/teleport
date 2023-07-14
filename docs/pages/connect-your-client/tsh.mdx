@@ -80,10 +80,27 @@ to call [`tsh login`](../reference/cli.mdx#tsh-login) in the beginning.
 
 ## Installing tsh
 
-Follow [these install instructions](../installation.mdx) to obtain the `tsh`
-binary. Ideally, install `tsh` of the same version as the version used in your
-Teleport cluster.
+Follow the instructions below to install the `tsh` binary. 
 
+We recommend installing `tsh` of the same major version as the version used in
+your Teleport cluster. 
+
+To find the version number, either:
+
+- In the Web UI, select your username in the upper right, then click
+  **Help & Support**. You will see the version of your Teleport
+  cluster under **CLUSTER INFORMATION**.
+
+- Use `curl` and `jq`. Replace <Var name="teleport.example.com" />
+  with your Proxy Service address (e.g. `mytenant.teleport.sh` for Teleport
+  Enterprise Cloud):
+
+  ```code
+  $ curl https://<Var name="teleport.example.com" />/webapi/find | jq '.server_version'
+  "(=teleport.version=)"
+  ```
+
+(!docs/pages/includes/install-tsh.mdx!)
 ## User identities
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
@@ -149,7 +166,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 
 | Port | Description |
 | - | - |
-| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `3080`). |
+| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `443` and `3080`). |
 
 The login command retrieves a user's certificate and stores it in `~/.tsh`
 directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) if there is one running.
@@ -411,7 +428,7 @@ $ tsh ls os=osx
 
 [CLI Docs -tsh ls](../reference/cli.mdx#tsh-ls)
 
-<Details title="Not seeing Nodes?" opened={false}>
+<Details title="Not seeing Nodes?">
 
 (!docs/pages/includes/node-logins.mdx!)
 

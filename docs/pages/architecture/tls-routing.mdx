@@ -8,9 +8,10 @@ description: How Teleport implements a single-port setup with TLS routing
   opened={true}
   scope={["oss", "enterprise"]}
   scopeOnly={true}
-  min="8.0"
+  min="13.0"
 >
-  TLS routing is available starting from Teleport `8.0`.
+  Support for TLS Routing behind layer 7 (HTTP/HTTPS) load balancers and
+  reverse proxies is available in Preview starting from Teleport `13.0`.
 </Details>
 
 In TLS routing mode [Teleport proxy](./proxy.mdx) multiplexes all client
@@ -24,17 +25,6 @@ network such as SSH.
 To implement TLS routing, Teleport uses SNI ([Server Name Indication](https://en.wikipedia.org/wiki/Server_Name_Indication))
 and ALPN ([Application-Level Protocol Negotiation](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation))
 TLS extensions.
-
-<Admonition
-  type="warning"
-  title="TLS routing is incompatible with layer 7 load balancers and reverse proxies"
->
-TLS routing will not work in environments where layer 7 load balancers or reverse proxies are used. See further information in the [When to use TLS routing](#when-to-use-tls-routing) section below.
-</Admonition>
-
-## When to use TLS routing
-
-(!docs/pages/includes/tls-multiplexing-warnings.mdx!)
 
 ## How it works
 
@@ -112,8 +102,9 @@ Kubernetes client `kubectl` uses HTTPS API and TLS handshake to talk to the API
 server.
 
 As such, it is not possible to request a custom ALPN protocol using `kubectl`.
-Instead, Teleport leverages SNI and sets a `ServerName` prefixed with `kube.`
-when generating a kubeconfig file during `tsh kube login`:
+Instead, Teleport leverages SNI and sets a `ServerName` prefixed with
+`kube-teleport-proxy-alpn.` when generating a kubeconfig file during `tsh kube
+login`:
 
 ```yaml
 apiVersion: v1
@@ -122,7 +113,7 @@ clusters:
 - cluster:
     certificate-authority-data: ...
     server: https://proxy.example.com:443
-    tls-server-name: kube.proxy.example.com
+    tls-server-name: kube-teleport-proxy-alpn.proxy.example.com
   name: example
 ```
 
@@ -131,10 +122,10 @@ clusters:
 The `tsh db connect` command executes an appropriate database client for the
 database you're connecting to.
 
-In TLS routing mode, `tsh` starts a local proxy which database client connection
-is tunneled through. The local proxy uses one of `teleport-postgres`,
-`teleport-mysql` or `teleport-mongodb` ALPN values depending on the database.
-The proxy is shut down when the database session ends.
+In TLS routing mode, `tsh` starts a local proxy which database client
+connections are tunneled through. The local proxy uses ALPN values like
+`teleport-mysql` depending on the database. The proxy is shut down when the
+database session ends.
 
 ### Native and GUI clients
 
@@ -156,6 +147,82 @@ Application access, desktop access and Teleport web UI are served by the
 Teleport proxy's web listener and don't require a local proxy or any special
 ALPN/SNI negotiation. These web connections use standard `http1.1` and `h2`
 protocols for ALPN.
+
+## Working with layer 7 load balancers or reverse proxies (Preview)
+
+Starting from version `13.0`, TLS routing can now be enabled allowing the
+Teleport Proxy Service to serve a single port behind a layer 7 load balancer or
+reverse proxy.
+
+![Layer 7 load balancer setup](../../img/architecture/tls-routing-alb.svg)
+
+It is expected that the layer 7 load balancer or reverse proxy will terminate
+TLS with a public certificate, such as using ACM for AWS ALB. This means that
+the Proxy Service does not require a Web TLS certificate using `http_keypair`
+or `acme`.
+
+Teleport clients automatically detect whether the Teleport Proxy Service is
+behind a layer 7 load balancer or a reverse proxy. In such cases, the client
+initiates a connection upgrade (the same principle used by `WebSocket`) and then
+sends the TLS routing request through the upgraded connection.
+
+![Connection upgrade](../../img/architecture/tls-routing-connection-upgrade.svg)
+
+Non-Teleport clients should require local proxies that can perform the
+special connection upgrades.
+
+Let's take a closer look at how each protocol functions in this configuration.
+
+### SSH
+
+When transporting the SSH protocol over TLS routing, `tsh` make connection
+upgrades seamlessly. This is applicable to `tsh ssh/scp` commands, as well as
+`tsh proxy ssh` when connected via `ProxyCommand` using OpenSSH clients.
+
+### Kubernetes
+
+The `tsh proxy kube` command creates a local proxy and an ephemeral kubeconfig
+for Kubernetes clients like `kubectl`. The local proxy generates a self-signed
+certificate to secure local communications with the Kubernetes clients.
+
+When forwarding the requests to the Proxy Service, the local proxy performs
+necessary connection upgrades and sets the required SNI for the TLS handshake.
+
+### Databases
+
+In TLS routing mode, `tsh db connect` starts a local proxy which database
+client connection is tunneled through. The local proxy initiates a connection
+to the Proxy Service with the connection upgrade then uses database specific
+ALPN values for the TLS handshake.
+
+Similarly, native and GUI clients can connect through `tsh proxy db` which
+starts a local proxy that handles the connection upgrades.
+
+### Web UI and Desktops
+
+The Teleport Web UI is fully functional with standard browsers, without any
+special ALPN/SNI values or connection upgrades.
+
+### Apps
+
+For both HTTP and TCP apps, `tsh proxy app` can launch a local proxy that
+handles the connection upgrades and sets appropriate ALPN value for TLS
+routing.
+
+`tsh` CLI commands for accessing Cloud APIs, e.g., `tsh aws`, transparently
+start a local proxy that performs connection upgrades for TLS routing. To start
+local proxies for native applications, you can use `tsh proxy aws`.
+
+### Client source IPs
+
+When `proxy_service.trust_x_forwarded_for` is set to `true`, the Proxy service
+will take the client source IPs from the "X-Forwarded-For" headers set by the
+load balancer or the reverse proxy. This also applies to TLS routing requests
+that utilize connection upgrades, since they are essentially HTTP requests.
+
+To prevent IP spoofing, only a single IP address is expected in the
+"X-Forwarded-For" headers per request. Any requests with multiple IP addresses
+will be rejected.
 
 ## Next steps
 

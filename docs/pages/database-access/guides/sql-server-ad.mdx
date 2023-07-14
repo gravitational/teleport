@@ -1,23 +1,8 @@
 ---
-title: Database Access with Microsoft SQL Server with Active Directory authentication (Preview)
+title: Database Access with Microsoft SQL Server with Active Directory authentication
 description: How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
 videoBanner: k2wz79XCexY
 ---
-
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="9.0"
->
-  Database access for Microsoft SQL Server with Active Directory authentication
-  is available starting from Teleport `9.0`.
-</Details>
-
-<Admonition type="warning" title="Preview">
-  Database access for Microsoft SQL Server is currently in Preview mode.
-</Admonition>
 
 This guide will help you to:
 
@@ -26,10 +11,54 @@ This guide will help you to:
 - Connect to SQL Server through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Database Access SQL Server Self-Hosted](../../../img/database-access/guides/sqlserver_selfhosted.png)
+```mermaid
+%%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
+graph LR
+a(Users)
+b[Teleport Proxy]
+style b fill: #844cff,color: #ffffff
+a-->b
+b-->c
+subgraph local [Private Network]
+style local fill:#C0C0C0,stroke: #000000
+  c[Teleport DB Service]
+  style c fill: #a379ff,color: #ffffff
+  subgraph ad [ ]
+  direction TB
+  style ad fill:none,stroke:none
+    e[(SQL Servers)]
+    d{Active Directory Users}
+  end
+  c-->d
+  c-->e
+  e-->d
+end
+```
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-![Teleport Database Access SQL Server Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
+```mermaid
+%%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
+graph LR
+a(Users)
+b[Teleport Cloud Tenant]
+style b fill: #844cff,color: #ffffff
+a-->b
+b-->c
+subgraph local [Private Network]
+style local fill:#C0C0C0,stroke: #000000
+  c[Teleport DB Service]
+  style c fill: #a379ff,color: #ffffff
+  subgraph ad [ ]
+  direction TB
+  style ad fill:none,stroke:none
+    e[(SQL Servers)]
+    d{Active Directory Users}
+  end
+  c-->d
+  c-->e
+  e-->d
+end
+```
 </ScopedBlock>
 
 This guide will focus on Amazon RDS for SQL Server using AWS-managed Active
@@ -357,13 +386,7 @@ To retrieve credentials for a database and connect to it:
 $ tsh db connect --db-user=teleport sqlserver
 ```
 
-<Admonition type="note">
-  The `mssql-cli` command-line client should be available in `PATH` of the machine
-  you're running `tsh db connect` from.  
-  
-  `mssql-cli` is not required for SQL Server connections.  Use `tsh proxy db --db-user=teleport --tunnel sqlserver`
-   to connect from other DB Clients such as Microsoft SQL Server Management Studio.
-</Admonition>
+(!docs/pages/includes/database-access/sql-server-connect-note.mdx!)
 
 To log out of the database and remove credentials:
 

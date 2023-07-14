@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
   UID: "1000"
 trigger:
   event:
@@ -129,7 +129,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -155,7 +155,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
   UID: "1000"
 trigger:
   event:
@@ -243,7 +243,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -269,7 +269,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
   UID: "1000"
 trigger:
   event:
@@ -361,7 +361,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -387,7 +387,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
   UID: "1000"
 trigger:
   event:
@@ -475,7 +475,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -485,6 +485,79 @@ volumes:
   temp: {}
 - name: dockerconfig
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: push-build-darwin-amd64
+trigger:
+  event:
+    include:
+    - push
+    exclude:
+    - pull_request
+  repo:
+    include:
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-mac.yaml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "build-packages=false" -input "release-artifacts=false" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+- name: Send Slack notification
+  image: plugins/slack:1.4.1
+  settings:
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+  when:
+    status:
+    - failure
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -780,7 +853,7 @@ steps:
     path: /root/.aws
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -1042,7 +1115,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
   UID: "1000"
 trigger:
   event:
@@ -1130,7 +1203,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -1479,7 +1552,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
 trigger:
   event:
     include:
@@ -1661,7 +1734,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -1688,7 +1761,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
 trigger:
   event:
     include:
@@ -1869,7 +1942,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -1896,7 +1969,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
 trigger:
   event:
     include:
@@ -2084,7 +2157,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -2111,7 +2184,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
 trigger:
   event:
     include:
@@ -2290,7 +2363,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -2567,7 +2640,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -2846,7 +2919,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -3119,7 +3192,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -3384,7 +3457,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -3411,7 +3484,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
 trigger:
   event:
     include:
@@ -3590,7 +3663,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -3867,7 +3940,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -4140,7 +4213,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -4237,7 +4310,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
 trigger:
   event:
     include:
@@ -4416,7 +4489,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -4994,7 +5067,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -5534,7 +5607,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -5566,7 +5639,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.6
 trigger:
   event:
     include:
@@ -5748,7 +5821,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -6330,7 +6403,7 @@ steps:
     path: /root/.docker
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -7038,6 +7111,66 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow promote-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
     -input "release-source-tag=${DRONE_TAG}" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-teleport-hardened-amis
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-hardened-amis
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow promote-teleport-hardened-amis.yaml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
+    "release-source-tag=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -8374,7 +8507,7 @@ steps:
   - Tag and push image "teleport-operator:v13-arm64" to ECR - staging
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -8420,6 +8553,7 @@ clone:
 depends_on:
 - clean-up-previous-build
 - build-linux-amd64-deb
+- build-linux-amd64-fips-deb
 - build-linux-arm64-deb
 steps:
 - name: Check out code
@@ -8448,6 +8582,68 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: build-teleport-hardened-amis
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+depends_on:
+- clean-up-previous-build
+- build-linux-amd64-deb
+- build-linux-amd64-fips-deb
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-teleport-hardened-amis.yaml -workflow-ref=${DRONE_TAG}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
@@ -9712,7 +9908,7 @@ steps:
   - Tag and push image "teleport-operator:v13-arm64" to ECR - production
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -12124,7 +12320,7 @@ steps:
   - Tag and push image "teleport-operator:v12-arm64" to ECR - production
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -14536,7 +14732,7 @@ steps:
   - Tag and push image "teleport-operator:v11-arm64" to ECR - production
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -16948,7 +17144,7 @@ steps:
   - Tag and push image "teleport-operator:v10-arm64" to ECR - production
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -16996,6 +17192,7 @@ depends_on:
 - teleport-container-images-branch-promote
 - publish-os-package-repos
 - promote-teleport-oci-distroless-images
+- promote-teleport-hardened-amis
 - promote-teleport-kube-agent-updater-oci-images
 steps:
 - name: Check if commit is tagged
@@ -17085,7 +17282,7 @@ steps:
     path: /root/.aws
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -17106,6 +17303,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 6285c96c5277bc0aacb843eddff886b22b72c5f3761d96109b8b3562a7442e70
+hmac: 32f5af12453e18903e5ad1e4c15f36a4350f60a8bf2ce1405a15961bb4b58ba3
 
 ...

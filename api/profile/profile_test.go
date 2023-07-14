@@ -20,6 +20,7 @@ package profile_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -39,7 +40,6 @@ func TestProfileBasics(t *testing.T) {
 		WebProxyAddr:          "proxy:3088",
 		SSHProxyAddr:          "proxy:3023",
 		Username:              "testuser",
-		ForwardedPorts:        []string{"8000:example.com:8000"},
 		DynamicForwardedPorts: []string{"localhost:8080"},
 		Dir:                   dir,
 		SiteName:              "example.com",
@@ -101,4 +101,72 @@ func TestAppPath(t *testing.T) {
 
 	expected := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana-x509.pem")
 	require.Equal(t, expected, p.AppCertPath("banana"))
+}
+
+func TestProfilePath(t *testing.T) {
+	switch runtime.GOOS {
+	case "darwin", "linux":
+	default:
+		t.Skip("this test only runs on Unix")
+	}
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.Equal(t, "/foo/bar", profile.FullProfilePath("/foo/bar"))
+	require.Equal(t, filepath.Join(dir, ".tsh"), profile.FullProfilePath(""))
+}
+
+func TestRequireKubeLocalProxy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		inputProfile *profile.Profile
+		checkResult  require.BoolAssertionFunc
+	}{
+		{
+			name: "kube not enabled",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				TLSRoutingEnabled:             true,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "ALPN connection upgrade not required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:      "example.com:443",
+				KubeProxyAddr:     "example.com:443",
+				TLSRoutingEnabled: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "kube uses separate listener",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:3026",
+				TLSRoutingEnabled:             false,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "local proxy required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:443",
+				TLSRoutingEnabled:             true,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.True,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.checkResult(t, test.inputProfile.RequireKubeLocalProxy())
+		})
+	}
 }

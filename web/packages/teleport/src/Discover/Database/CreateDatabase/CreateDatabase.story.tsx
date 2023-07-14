@@ -68,6 +68,7 @@ const props: State = {
   attempt: { status: '' },
   clearAttempt: () => null,
   registerDatabase: () => null,
+  fetchDatabaseServers: () => null,
   canCreateDatabase: true,
   pollTimeout: Date.now() + 30000,
   dbEngine: DatabaseEngine.Postgres,

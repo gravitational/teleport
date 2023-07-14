@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
@@ -43,7 +44,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -146,11 +146,11 @@ func ValidateDatabase(db types.Database) error {
 		return trace.Wrap(err)
 	}
 
-	// Unlike application access proxy, database proxy name doesn't necessarily
-	// need to be a valid subdomain but use the same validation logic for the
-	// simplicity and consistency.
-	if errs := validation.IsDNS1035Label(db.GetName()); len(errs) > 0 {
-		return trace.BadParameter("invalid database %q name: %v", db.GetName(), errs)
+	// This was added in v14 and backported, except that it's intentionally
+	// called here instead of in CheckAndSetDefaults for backwards
+	// compatibility.
+	if err := types.ValidateDatabaseName(db.GetName()); err != nil {
+		return trace.Wrap(err, "invalid database name")
 	}
 
 	if !slices.Contains(defaults.DatabaseProtocols, db.GetProtocol()) {
@@ -223,6 +223,7 @@ func ValidateDatabase(db types.Database) error {
 				db.GetName(), awsMeta.AssumeRoleARN, err)
 		}
 	}
+
 	return nil
 }
 
@@ -594,6 +595,18 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var subnets []string
+	if rdsInstance.DBSubnetGroup != nil {
+		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
+		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
+			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
+				continue
+			}
+			subnets = append(subnets, *s.SubnetIdentifier)
+		}
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
@@ -602,6 +615,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
+			Subnets:    subnets,
 		},
 	}, nil
 }
@@ -793,7 +807,7 @@ func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) 
 		})
 }
 
-// NewDatabaseFromRDSProxyCustomEndpiont creates database resource from RDS
+// NewDatabaseFromRDSProxyCustomEndpoint creates database resource from RDS
 // Proxy custom endpoint.
 func NewDatabaseFromRDSProxyCustomEndpoint(dbProxy *rds.DBProxy, customEndpoint *rds.DBProxyEndpoint, port int64, tags []*rds.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxyCustomEndpoint(dbProxy, customEndpoint)
@@ -908,6 +922,95 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 		URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), aws.Int64Value(endpoint.Port)),
 		AWS:      *metadata,
 	})
+}
+
+// NewDatabaseFromOpenSearchDomain creates a database resource from an OpenSearch domain.
+func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
+	var databases types.Databases
+
+	if aws.StringValue(domain.Endpoint) != "" {
+		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchDefaultEndpoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		meta := types.Metadata{
+			Description: fmt.Sprintf("OpenSearch domain in %v (default endpoint)", metadata.Region),
+			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchDefaultEndpoint, tags),
+		}
+
+		meta = setDBName(meta, aws.StringValue(domain.DomainName))
+		spec := types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolOpenSearch,
+			URI:      fmt.Sprintf("%v:443", aws.StringValue(domain.Endpoint)),
+			AWS:      *metadata,
+		}
+
+		db, err := types.NewDatabaseV3(meta, spec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		databases = append(databases, db)
+	}
+
+	if domain.DomainEndpointOptions != nil && aws.StringValue(domain.DomainEndpointOptions.CustomEndpoint) != "" {
+		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchCustomEndpoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		meta := types.Metadata{
+			Description: fmt.Sprintf("OpenSearch domain in %v (custom endpoint)", metadata.Region),
+			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchCustomEndpoint, tags),
+		}
+
+		meta = setDBName(meta, aws.StringValue(domain.DomainName), "custom")
+		spec := types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolOpenSearch,
+			URI:      fmt.Sprintf("%v:443", aws.StringValue(domain.DomainEndpointOptions.CustomEndpoint)),
+			AWS:      *metadata,
+		}
+
+		db, err := types.NewDatabaseV3(meta, spec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		databases = append(databases, db)
+	}
+
+	for name, url := range domain.Endpoints {
+		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchVPCEndpoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		meta := types.Metadata{
+			Description: fmt.Sprintf("OpenSearch domain in %v (endpoint %q)", metadata.Region, name),
+			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchVPCEndpoint, tags),
+		}
+
+		if domain.VPCOptions != nil {
+			meta.Labels[labelVPCID] = aws.StringValue(domain.VPCOptions.VPCId)
+		}
+
+		meta = setDBName(meta, aws.StringValue(domain.DomainName), name)
+		spec := types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolOpenSearch,
+			URI:      fmt.Sprintf("%v:443", aws.StringValue(url)),
+			AWS:      *metadata,
+		}
+
+		db, err := types.NewDatabaseV3(meta, spec)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		databases = append(databases, db)
+	}
+
+	return databases, nil
 }
 
 // NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
@@ -1103,6 +1206,24 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 			UserGroupIDs:             userGroupIDs,
 			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
 			EndpointType:             endpointType,
+		},
+	}, nil
+}
+
+// MetadataFromOpenSearchDomain creates AWS metadata for the provided OpenSearch domain.
+func MetadataFromOpenSearchDomain(domain *opensearchservice.DomainStatus, endpointType string) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(domain.ARN))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		OpenSearch: types.OpenSearch{
+			DomainName:   aws.StringValue(domain.DomainName),
+			DomainID:     aws.StringValue(domain.DomainId),
+			EndpointType: endpointType,
 		},
 	}, nil
 }
@@ -1398,6 +1519,12 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	return labels
 }
 
+func labelsFromOpenSearchDomain(domain *opensearchservice.DomainStatus, meta *types.AWS, endpointType string, tags []*opensearchservice.Tag) map[string]string {
+	labels := labelsFromMetaAndEndpointType(meta, endpointType, libcloudaws.TagsToLabels(tags))
+	labels[labelEngineVersion] = aws.StringValue(domain.EngineVersion)
+	return labels
+}
+
 // labelsFromMetaAndEndpointType creates database labels from provided AWS meta and endpoint type.
 func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLabels map[string]string) map[string]string {
 	labels := labelsFromAWSMetadata(meta)
@@ -1609,6 +1736,11 @@ func IsElastiCacheClusterAvailable(cluster *elasticache.ReplicationGroup) bool {
 // IsMemoryDBClusterAvailable checks if the MemoryDB cluster is available.
 func IsMemoryDBClusterAvailable(cluster *memorydb.Cluster) bool {
 	return IsAWSResourceAvailable(cluster, cluster.Status)
+}
+
+// IsOpenSearchDomainAvailable checks if the OpenSearch domain is available.
+func IsOpenSearchDomainAvailable(domain *opensearchservice.DomainStatus) bool {
+	return aws.BoolValue(domain.Created) && !aws.BoolValue(domain.Deleted)
 }
 
 // IsRDSProxyAvailable checks if the RDS Proxy is available.

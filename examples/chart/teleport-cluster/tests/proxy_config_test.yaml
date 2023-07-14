@@ -137,3 +137,99 @@ tests:
           of: ConfigMap
       - matchSnapshot:
           path: data.teleport\.yaml
+
+  - it: generates a config with a clusterName containing a regular string
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: fails when clusterName contains a regular string and a colon
+    set:
+      clusterName: "helm-test:cluster-1"
+    asserts:
+      - failedTemplate:
+          errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"
+
+  - it: fails when clusterName contains a port
+    set:
+      clusterName: "helm-test.example.com:443"
+    asserts:
+      - failedTemplate:
+          errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"
+
+  - it: generates a config with proxy_service.trust_x_forwarded_for=true when version >=13.2.0 and ingress.enabled=true
+    chart:
+      version: 13.2.0
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config with proxy_service.trust_x_forwarded_for=true when version = 14.0.0-rc.1 and ingress.enabled=true
+    chart:
+      version: "14.0.0-rc.1"
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version >=13.2.0 and ingress.enabled is not set
+    chart:
+      version: 13.2.0
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 13.2.0 and ingress.enabled=true
+    chart:
+      version: 13.1.5
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 13.2.0 and ingress.enabled is not set
+    chart:
+      version: 13.1.5
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml

@@ -206,7 +206,29 @@ more information.)
 
 ![DynamoDB local connection in NoSQL Workbench](../../img/database-access/nosql-workbench-connection.png)
 
-## PostgreSQL DBeaver
+## SQL Server with Azure Data Studio
+
+In Azure Data Studio create a connection using your proxy's endpoint. This is
+`localhost,62652` in the example above. On a Windows machine, using an address in
+ the format `127.0.0.1,62652` could be required instead of `localhost`. (See
+[Get connection information](./gui-clients.mdx#get-connection-information) for
+more information.)
+
+Create a connection with Microsoft SQL Server with these settings:
+
+|Connection Detail|Value|
+|---|---|
+|Server|`host`,`port` of proxy endpoint|
+|Authentication Type|SQL Login|
+|Password|empty|
+|Encrypt|`False`|
+  
+Example:
+![Azure Data Studio connection options](../../img/database-access/azure-data-studio-connection.png)
+
+Click **Connect** to connect.
+  
+  ## PostgreSQL DBeaver
 
 To connect to your PostgreSQL instance, use the authenticated proxy address.
 This is `127.0.0.1:62652` in the example above (see the “Authenticated Proxy”
@@ -248,6 +270,29 @@ certificate, key and root certificate from the configuration above:
 Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
 for password, leave the password field empty and click OK.
 
+## Microsoft SQL Server Management Studio
+
+In Microsoft SQL Server Management Studio connect to a database engine using
+your proxy's endpoint. This is `localhost,62652` in the example above. Using
+the IP `127.0.0.1,62652` connection could be required on a Windows machine
+instead of `localhost`. (See [Get connection information](./gui-clients.mdx#get-connection-information) for
+more information.)
+  
+Create a connection with Microsoft SQL Server with these settings:
+
+|Connection Detail|Value|
+|---|---|
+|Server type|Database Engine|
+|Server name|`host`,`port` of proxy endpoint|
+|Authentication|SQL Server Authentication|
+|Password|empty|
+|Encryption|do not enable|
+
+Example:
+![Microsoft SQL Server Management Studio connection options](../../img/database-access/msft-sql-server-management-studio-connection.png)
+
+Click Connect to connect.
+  
 ## Redis Insight
 
 <Admonition type="note">

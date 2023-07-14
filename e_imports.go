@@ -43,6 +43,7 @@ xargs go list -find -f '{{if (and
 */
 
 import (
+	_ "github.com/alecthomas/kingpin/v2"
 	_ "github.com/beevik/etree"
 	_ "github.com/bufbuild/connect-go"
 	_ "github.com/coreos/go-oidc/jose"
@@ -53,11 +54,12 @@ import (
 	_ "github.com/go-piv/piv-go/piv"
 	_ "github.com/gogo/protobuf/gogoproto"
 	_ "github.com/gogo/protobuf/proto"
+	_ "github.com/google/go-attestation/attest"
 	_ "github.com/google/go-cmp/cmp"
 	_ "github.com/google/go-cmp/cmp/cmpopts"
+	_ "github.com/google/go-tpm-tools/simulator"
 	_ "github.com/google/uuid"
 	_ "github.com/gravitational/form"
-	_ "github.com/gravitational/kingpin"
 	_ "github.com/gravitational/license"
 	_ "github.com/gravitational/roundtrip"
 	_ "github.com/gravitational/trace"

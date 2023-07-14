@@ -78,6 +78,8 @@ export interface Acl {
   integrations: AccessWithUse;
   deviceTrust: Access;
   lock: Access;
+  assist: Access;
+  samlIdpServiceProvider: Access;
 }
 
 export interface User {

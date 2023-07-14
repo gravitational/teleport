@@ -116,20 +116,23 @@ var (
 	)
 	eventCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "etcd_events",
-			Help: "Number of etcd events",
+			Namespace: teleport.MetricNamespace,
+			Name:      "etcd_events",
+			Help:      "Number of etcd events processed",
 		},
 	)
 	eventBackpressure = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "etcd_event_backpressure",
-			Help: "Number of etcd events that hit backpressure",
+			Namespace: teleport.MetricNamespace,
+			Name:      "etcd_event_backpressure",
+			Help:      "Number of etcd events that hit backpressure",
 		},
 	)
 
 	prometheusCollectors = []prometheus.Collector{
 		writeLatencies, txLatencies, batchReadLatencies,
 		readLatencies, writeRequests, txRequests, batchReadRequests, readRequests,
+		eventCount, eventBackpressure,
 	}
 )
 

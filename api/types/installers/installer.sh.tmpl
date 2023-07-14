@@ -22,15 +22,15 @@ on_azure() {
 
   . /etc/os-release
 
-  # old versions of ubuntu require that keys get added by `apt-key add`, without
-  # adding the key apt shows a key signing error when installing teleport.
-  LEGACY_UBUNTU=false
-  if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
-    LEGACY_UBUNTU=true
+  PACKAGE_LIST="{{ .TeleportPackage }} jq"
+  if [[ "{{ .AutomaticUpgrades }}" == "true" ]]; then
+    PACKAGE_LIST="${PACKAGE_LIST} {{ .TeleportPackage }}-updater"
   fi
 
   if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
-    if [ "$LEGACY_UBUNTU" = true ]; then
+    # old versions of ubuntu require that keys get added by `apt-key add`, without
+    # adding the key apt shows a key signing error when installing teleport.
+    if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
       curl -o /tmp/teleport-pubkey.asc https://apt.releases.teleport.dev/gpg
       cat /tmp/teleport-pubkey.asc | sudo apt-key add -
       echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
@@ -41,14 +41,14 @@ on_azure() {
       echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
-    sudo apt-get install -y {{ .TeleportPackage }} jq
+    sudo apt-get install -y ${PACKAGE_LIST}
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
     if [ "$ID" = "rhel" ]; then
       VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
     fi
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
-    sudo yum install -y {{ .TeleportPackage }} jq
+    sudo yum install -y ${PACKAGE_LIST}
   else
     echo "Unsupported distro: $ID"
     exit 1

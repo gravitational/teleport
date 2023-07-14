@@ -20,13 +20,6 @@ This guide will help you to:
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-<Notice type="warning">
-
-Teleport database access for Cloud SQL MySQL is available starting from the
-`7.0` release.
-
-</Notice>
-
 - Google Cloud account
 - A host, e.g., a Compute Engine instance, where you will run the Teleport Database
   Service
@@ -65,11 +58,18 @@ Assign the Service Account the "Cloud SQL Admin" role:
   cloudsql.users.update
   # Used to auto-download the instance's root CA certificate.
   cloudsql.instances.get
-  # Used to generate an ephemeral client certificate when the GCP instance
-  # is configured to "Allow only SSL connections." (optional)
-  cloudsql.sslCerts.createEphemeral
   ```
 </Admonition>
+
+### (Optional) Allow only SSL connections
+
+(!docs/pages/includes/database-access/cloudsql-ssl.mdx!)
+
+In addition, when using Cloud SQL MySQL with "Allow only SSL connections"
+enabled, Teleport connects to the database's Cloud SQL Proxy port `3307`
+instead of the default `3306` as the default Cloud SQL MySQL listener does not
+trust generated ephemeral certificates. For this reason, you should make sure
+to allow port `3307` when using "Allow only SSL connections" with MySQL.
 
 ### Create a key for the service account
 

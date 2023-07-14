@@ -105,6 +105,24 @@ func TestConfig_SetFromURL(t *testing.T) {
 			url:     "athena://db.tbl/?limiterRefillAmount=abc",
 			wantErr: "invalid limiterRefillAmount value (it must be int)",
 		},
+		{
+			name: "region param",
+			url:  "athena://db.tbl/?region=fake-region",
+			want: Config{
+				TableName: "tbl",
+				Database:  "db",
+				Region:    "fake-region",
+			},
+		},
+		{
+			name: "no region param",
+			url:  "athena://db.tbl",
+			want: Config{
+				TableName: "tbl",
+				Database:  "db",
+				Region:    "",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -281,7 +299,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry"), cmp.AllowUnexported(Config{})))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}
@@ -293,8 +311,10 @@ func TestPublisherConsumer(t *testing.T) {
 	fS3 := newFakeS3manager()
 	fq := newFakeQueue()
 	p := &publisher{
-		snsPublisher: fq,
-		uploader:     fS3,
+		PublisherConfig: PublisherConfig{
+			SNSPublisher: fq,
+			Uploader:     fS3,
+		},
 	}
 
 	smallEvent := &apievents.AppCreate{

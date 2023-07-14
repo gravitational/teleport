@@ -726,6 +726,20 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_deviceTrust(t *testing.T) {
 			},
 			wantErr: "device trust mode",
 		},
+		{
+			name: "Bad EKCertAllowedCAs",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: "", // "off" for OSS, "optional" for Enterprise.
+						EKCertAllowedCAs: []string{
+							"this is not a pem encoded certificate for a CA",
+						},
+					},
+				},
+			},
+			wantErr: "invalid EKCert allowed CAs entry",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

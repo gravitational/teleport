@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -57,7 +56,8 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		t.Skip("Skipping AWS-dependent test suite.")
 	}
-	fakeClock := clockwork.NewFakeClockAt(time.Now().UTC())
+
+	fakeClock := clockwork.NewFakeClock()
 
 	log, err := New(context.Background(), Config{
 		Region:       "eu-north-1",
@@ -109,7 +109,7 @@ func TestSessionEventsCRUD(t *testing.T) {
 func TestSearchSessionEvensBySessionID(t *testing.T) {
 	tt := setupDynamoContext(t)
 
-	tt.suite.SearchSessionEvensBySessionID(t)
+	tt.suite.SearchSessionEventsBySessionID(t)
 }
 
 func TestSizeBreak(t *testing.T) {
@@ -134,20 +134,19 @@ func TestSizeBreak(t *testing.T) {
 	}
 
 	var checkpoint string
-	events := make([]apievents.AuditEvent, 0)
-
+	gotEvents := make([]apievents.AuditEvent, 0)
+	ctx := context.Background()
 	for {
-		fetched, lCheckpoint, err := tt.log.SearchEvents(
-			tt.suite.Clock.Now().UTC().Add(-time.Hour),
-			tt.suite.Clock.Now().UTC().Add(time.Hour),
-			apidefaults.Namespace,
-			nil,
-			eventCount,
-			types.EventOrderDescending,
-			checkpoint)
+		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:     tt.suite.Clock.Now().UTC().Add(-time.Hour),
+			To:       tt.suite.Clock.Now().UTC().Add(time.Hour),
+			Limit:    eventCount,
+			Order:    types.EventOrderDescending,
+			StartKey: checkpoint,
+		})
 		require.NoError(t, err)
 		checkpoint = lCheckpoint
-		events = append(events, fetched...)
+		gotEvents = append(gotEvents, fetched...)
 
 		if checkpoint == "" {
 			break
@@ -156,7 +155,7 @@ func TestSizeBreak(t *testing.T) {
 
 	lastTime := tt.suite.Clock.Now().UTC().Add(time.Hour)
 
-	for _, event := range events {
+	for _, event := range gotEvents {
 		require.True(t, event.GetTime().Before(lastTime))
 		lastTime = event.GetTime()
 	}
@@ -201,8 +200,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 			UserMetadata: apievents.UserMetadata{User: "bob"},
 			Metadata: apievents.Metadata{
 				Type: events.UserLoginEvent,
-				Time: tt.suite.Clock.Now().UTC(),
-			},
+				Time: tt.suite.Clock.Now().UTC()},
 		})
 		require.NoError(t, err)
 	}
@@ -211,17 +209,15 @@ func TestLargeTableRetrieve(t *testing.T) {
 		history []apievents.AuditEvent
 		err     error
 	)
+	ctx := context.Background()
 	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
 		time.Sleep(tt.suite.QueryDelay)
 
-		history, _, err = tt.suite.Log.SearchEvents(
-			tt.suite.Clock.Now().Add(-1*time.Hour),
-			tt.suite.Clock.Now().Add(time.Hour),
-			apidefaults.Namespace,
-			nil,
-			0,
-			types.EventOrderAscending,
-			"")
+		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:  tt.suite.Clock.Now().Add(-1 * time.Hour),
+			To:    tt.suite.Clock.Now().Add(time.Hour),
+			Order: types.EventOrderAscending,
+		})
 		require.NoError(t, err)
 
 		if len(history) == eventCount {
@@ -262,10 +258,10 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	ctx := context.Background()
-	now := tt.suite.Clock.Now().UTC()
+	now := tt.suite.Clock.Now()
 	dbQueryEvent := &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now().UTC(),
+			Time: tt.suite.Clock.Now(),
 			Type: events.DatabaseSessionQueryEvent,
 		},
 		DatabaseQuery: strings.Repeat("A", maxItemSize),
@@ -273,26 +269,24 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	err := tt.suite.Log.EmitAuditEvent(ctx, dbQueryEvent)
 	require.NoError(t, err)
 
-	result, _, err := tt.suite.Log.SearchEvents(
-		now.Add(-1*time.Hour),
-		now.Add(time.Hour),
-		apidefaults.Namespace,
-		[]string{events.DatabaseSessionQueryEvent},
-		0, types.EventOrderAscending,
-		"",
-	)
+	result, _, err := tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       now.Add(-1 * time.Hour),
+		To:         now.Add(time.Hour),
+		EventTypes: []string{events.DatabaseSessionQueryEvent},
+		Order:      types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 
 	appReqEvent := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now().UTC(),
+			Time: tt.suite.Clock.Now(),
 			Type: events.AppSessionRequestEvent,
 		},
 		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = tt.suite.Log.EmitAuditEvent(ctx, appReqEvent)
-	require.ErrorContains(t, err, "ValidationException: Item size has exceeded the maximum allowed size")
+	require.NoError(t, err)
 }
 
 func TestConfig_SetFromURL(t *testing.T) {
@@ -347,6 +341,7 @@ func TestConfig_SetFromURL(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
+
 			uri, err := url.Parse(tt.url)
 			require.NoError(t, err)
 			require.NoError(t, tt.cfg.SetFromURL(uri))

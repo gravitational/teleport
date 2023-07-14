@@ -1,0 +1,87 @@
+name: Kube Integration Tests (Non-root)
+run-name: Kube Integration Tests (Non-root) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+      - branch/*
+  pull_request:
+    paths:
+      - '.github/workflows/kube-integration-tests-non-root.yaml'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+      - 'Makefile'
+  merge_group:
+    paths:
+      - '.github/workflows/kube-integration-tests-non-root.yaml'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+      - 'Makefile'
+
+env:
+  TEST_KUBE: true
+  KUBECONFIG: /home/.kube/config
+
+jobs:
+  test:
+    name: Kube Integration Tests (Non-root)
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+      packages: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      env:
+        WEBASSETS_SKIP_BUILD: 1
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Chown
+        run: |
+          mkdir -p $(go env GOMODCACHE)
+          mkdir -p $(go env GOCACHE)
+          chown -Rf ci:ci ${GITHUB_WORKSPACE} $(go env GOMODCACHE) $(go env GOCACHE)
+        continue-on-error: true
+
+      - name: Create KinD cluster
+        uses: helm/kind-action@v1.5.0
+        with:
+          cluster_name: kind
+          config: fixtures/kind/config.yaml
+
+# The current container where tests run isn't linked to the KinD network and
+# we won't be able to access the KinD control plane without linking them.
+# This step is required because our tests run in teleport-buildbox container
+# and by default the KinD container network isn't exposed to it.
+# Connecting the network allow us to access the control plane using DNS kind-control-plane.
+# It also copies the default kubeconfig and places it in /home/.kube so ci user
+# is able to access it.
+      - name: Link test container to KinD network
+        run: |
+          docker network connect kind $(cat /etc/hostname)
+          kubectl config set-cluster kind-kind --server=https://kind-control-plane:6443
+          kubectl cluster-info
+          kubectl apply -f  fixtures/ci-teleport-rbac/ci-teleport.yaml
+          cp -r $HOME/.kube /home/
+          chown -R ci:ci /home/.kube
+
+      - name: Run tests
+        timeout-minutes: 40
+        run: |
+          runuser -u ci -g ci make integration-kube RDPCLIENT_SKIP_BUILD=1

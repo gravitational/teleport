@@ -1,0 +1,21 @@
+Next, attach the following policy to the IAM role or IAM user the Teleport
+Application Service instance is using, which allows the Application Service to
+assume the IAM roles:
+
+```yaml
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+<Admonition type="tip">
+You can make the policy more strict by providing specific IAM role resource
+ARNs in the "Resource" field instead of using a wildcard.
+</Admonition>

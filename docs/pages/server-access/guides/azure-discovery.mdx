@@ -250,82 +250,7 @@ discovery_service:
 
 ## Step 5/5. [Optional] Customize the default installer script
 
-To customize the default installer script, execute the following command on
-your workstation:
-
-```code
-$ tctl get installer/default-installer > teleport-default-installer.yaml
-```
-
-The resulting `teleport-default-installer.yaml` can the be edited to
-change what gets executed when enrolling discovered Azure instances.
-
-After making the desired changes to the default installer, the
-resource can be updated by executing:
-
-```code
-$ tctl create -f teleport-default-installer.yaml
-```
-
-Multiple `installer` resources can exist and be specified in the
-`azure.install.script_name` section of a `discovery_service.azure` list item in
-`teleport.yaml`:
-
-```yaml
-discovery_service:
-  azure:
-    - types: ["vm"] 
-      tags:
-       - "env": "prod"
-      install: # optional section when default-installer is used.
-        script_name: "default-installer"
-    - types: ["vm"] 
-      tags:
-       - "env": "devel"
-      install:
-        script_name: "devel-installer"
-```
-
----
-
-The `installer` resource has the following templating options:
-
-- `{{ .MajorVersion }}`: the major version of Teleport to use when
-  installing from the repository.
-- `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to
-connect to.
-- `{{ .RepoChannel }}`: Optional package repository (apt/yum) channel name.
-Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation.mdx#linux) for more details.
-
-These can be used as follows:
-
-```yaml
-kind: installer
-metadata:
-  name: default-installer
-spec:
-  script: |
-    echo {{ .PublicProxyAddr }}
-    echo Teleport-{{ .MajorVersion }}
-    echo Repository Channel: {{ .RepoChannel }}
-version: v1
-```
-
-Which, when retrieved by the Systems Manager document will evaluate to a script
-with the following contents:
-
-```sh
-echo teleport.example.com
-echo Teleport-(=teleport.version=)
-echo Repository Channel: stable/v(=teleport.version=)
-```
-
-The default installer will take the following actions:
-
-- Add an official Teleport repository to supported Linux distributions.
-- Install Teleport via `apt` or `yum`.
-- Generate the Teleport config file and write it to `/etc/teleport.yaml`.
-- Enable and start the Teleport service.
+(!docs/pages/includes/server-access/custom-installer.mdx cloud="Azure" matcher="azure" matchTypes="[\"vm\"]"!)
 
 ## Troubleshooting
 
@@ -340,7 +265,7 @@ for more information.
 
 ## Next steps
 
-- Read [Joining Nodes via Azure Managed Identity](../../management/join-services-to-your-cluster/azure.mdx)
+- Read [Joining Nodes via Azure Managed Identity](../../agents/join-services-to-your-cluster/azure.mdx)
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
   config file reference documentation](../../reference/config.mdx).

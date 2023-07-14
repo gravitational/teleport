@@ -25,10 +25,9 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-func TestAutoEnroll(t *testing.T) {
+func TestAutoEnrollCeremony_Run(t *testing.T) {
 	env := testenv.MustNew()
 	defer env.Close()
-	t.Cleanup(resetNative())
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -38,7 +37,7 @@ func TestAutoEnroll(t *testing.T) {
 
 	tests := []struct {
 		name string
-		dev  fakeDevice
+		dev  testenv.FakeDevice
 	}{
 		{
 			name: "macOS device",
@@ -47,12 +46,17 @@ func TestAutoEnroll(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*enroll.GetOSType = test.dev.GetOSType
-			*enroll.CollectDeviceData = test.dev.CollectDeviceData
-			*enroll.EnrollInit = test.dev.EnrollDeviceInit
-			*enroll.SignChallenge = test.dev.SignChallenge
+			c := enroll.AutoEnrollCeremony{
+				Ceremony: &enroll.Ceremony{
+					GetDeviceOSType:         test.dev.GetDeviceOSType,
+					EnrollDeviceInit:        test.dev.EnrollDeviceInit,
+					SignChallenge:           test.dev.SignChallenge,
+					SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
+				},
+				CollectDeviceData: test.dev.CollectDeviceData,
+			}
 
-			dev, err := enroll.AutoEnroll(ctx, devices)
+			dev, err := c.Run(ctx, devices)
 			require.NoError(t, err, "AutoEnroll failed")
 			assert.NotNil(t, dev, "AutoEnroll returned nil device")
 		})

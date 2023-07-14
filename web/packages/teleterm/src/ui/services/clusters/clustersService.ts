@@ -26,6 +26,7 @@ import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   Cluster,
+  Gateway,
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
@@ -407,6 +408,25 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   findGateway(gatewayUri: uri.GatewayUri) {
     return this.state.gateways.get(gatewayUri);
+  }
+
+  findGatewayByConnectionParams(
+    targetUri: uri.DatabaseUri,
+    targetUser: string
+  ) {
+    let found: Gateway;
+
+    for (const [, gateway] of this.state.gateways) {
+      if (
+        gateway.targetUri === targetUri &&
+        gateway.targetUser === targetUser
+      ) {
+        found = gateway;
+        break;
+      }
+    }
+
+    return found;
   }
 
   /**

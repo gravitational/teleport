@@ -87,7 +87,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: {
     type: 'access_request.search',
-    desc: 'Resource Access Request Search',
+    desc: 'Resource Access Search',
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
   },
@@ -752,10 +752,12 @@ export const formatters: Formatters = {
   [eventCodes.DATABASE_SESSION_STARTED]: {
     type: 'db.session.start',
     desc: 'Database Session Started',
-    format: ({ user, db_service, db_name, db_user }) =>
+    format: ({ user, db_service, db_name, db_user, db_roles }) =>
       `User [${user}] has connected ${
         db_name ? `to database [${db_name}] ` : ''
-      }as [${db_user}] on [${db_service}]`,
+      }as [${db_user}] ${
+        db_roles ? `with roles [${db_roles}] ` : ''
+      }on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
     type: 'db.session.start',
@@ -1103,20 +1105,36 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        message += ` on [${windows_domain}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Denied',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        message += ` on [${windows_domain}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `Session for Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}] has ended for user [${user}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let desktopMessage = `[${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        desktopMessage += ` on [${windows_domain}]`;
+      }
+      let message = `Session for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      return message;
+    },
   },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
@@ -1367,6 +1385,47 @@ export const formatters: Formatters = {
     desc: 'SAML IdP service provider delete failed',
     format: ({ updated_by }) =>
       `User [${updated_by}] failed to delete all service providers`,
+  },
+  [eventCodes.OKTA_GROUPS_UPDATE]: {
+    type: 'okta.groups.update',
+    desc: 'Okta groups have been updated',
+    format: ({ added, updated, deleted }) =>
+      `[${added}] added, [${updated}] updated, [${deleted}] deleted`,
+  },
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: {
+    type: 'okta.applications.update',
+    desc: 'Okta applications have been updated',
+    format: ({ added, updated, deleted }) =>
+      `[${added}] added, [${updated}] updated, [${deleted}] deleted`,
+  },
+  [eventCodes.OKTA_SYNC_FAILURE]: {
+    type: 'okta.sync.failure',
+    desc: 'Okta synchronization failed',
+    format: () => `Okta synchronization failed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: {
+    type: 'okta.assignment.process',
+    desc: 'Okta assignment has been processed',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully processed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: {
+    type: 'okta.assignment.process',
+    desc: 'Okta assignment failed to process',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] processing has failed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: {
+    type: 'okta.assignment.cleanup',
+    desc: 'Okta assignment has been cleaned up',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully cleaned up`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: {
+    type: 'okta.assignment.cleanup',
+    desc: 'Okta assignment failed to clean up',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

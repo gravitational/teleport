@@ -34,6 +34,7 @@ import {
   getResourcePretitle,
   RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
+import AddApp from 'teleport/Apps/AddApp';
 
 import { icons } from './icons';
 
@@ -44,7 +45,7 @@ interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;
 }
 
-export function SelectResource(props: SelectResourceProps) {
+export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
   const location = useLocation<{ entity: AddButtonResourceKind }>();
   const history = useHistory();
@@ -52,6 +53,7 @@ export function SelectResource(props: SelectResourceProps) {
   const [search, setSearch] = useState('');
   const [resources, setResources] = useState<ResourceSpec[]>([]);
   const [defaultResources, setDefaultResources] = useState<ResourceSpec[]>([]);
+  const [showApp, setShowApp] = useState(false);
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
@@ -84,7 +86,8 @@ export function SelectResource(props: SelectResourceProps) {
       ...updatedResources.filter(r => r.hasAccess),
       ...updatedResources.filter(r => !r.hasAccess),
     ];
-    setDefaultResources(filteredResourcesByPerm);
+    const sortedResources = sortResources(filteredResourcesByPerm);
+    setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
     // a `add <specific-resource-type>` button.
@@ -95,11 +98,11 @@ export function SelectResource(props: SelectResourceProps) {
     if (resourceKindSpecifiedByUrlLoc) {
       const sortedResourcesByKind = sortResourcesByKind(
         resourceKindSpecifiedByUrlLoc,
-        filteredResourcesByPerm
+        sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
     } else {
-      setResources(filteredResourcesByPerm);
+      setResources(sortedResources);
     }
 
     // Processing of the lists should only happen once on init.
@@ -133,31 +136,50 @@ export function SelectResource(props: SelectResourceProps) {
               const title = r.name;
               const pretitle = getResourcePretitle(r);
 
-              // There can be two types of click behavior with the resource cards:
+              let resourceCardProps;
+              if (r.kind === ResourceKind.Application) {
+                resourceCardProps = {
+                  onClick: () => {
+                    if (r.hasAccess) {
+                      setShowApp(true);
+                      onSelect(r);
+                    }
+                  },
+                };
+              } else if (r.unguidedLink) {
+                resourceCardProps = {
+                  as: Link,
+                  href: r.hasAccess ? r.unguidedLink : null,
+                  target: '_blank',
+                  style: { textDecoration: 'none' },
+                };
+              } else {
+                resourceCardProps = {
+                  onClick: () => r.hasAccess && onSelect(r),
+                };
+              }
+
+              // There can be three types of click behavior with the resource cards:
               //  1) If the resource has no interactive UI flow ("unguided"),
               //     clicking on the card will take a user to our docs page
               //     on a new tab.
               //  2) If the resource is guided, we start the "flow" by
               //     taking user to the next step.
+              //  3) If the resource is kind 'Application', it will render the legacy
+              //     popup modal where it shows user to add app manually or automatically.
               return (
                 <ResourceCard
                   data-testid={r.kind}
                   key={`${index}${pretitle}${title}`}
                   hasAccess={r.hasAccess}
-                  as={r.unguidedLink ? Link : null}
-                  href={r.hasAccess ? r.unguidedLink : null}
-                  target={r.unguidedLink ? '_blank' : null}
-                  onClick={() => r.hasAccess && props.onSelect(r)}
-                  className={r.unguidedLink ? 'unguided' : ''}
+                  {...resourceCardProps}
                 >
                   {!r.unguidedLink && r.hasAccess && (
                     <BadgeGuided>Guided</BadgeGuided>
                   )}
                   {!r.hasAccess && (
                     <ToolTipNoPermBadge
-                      children={
-                        <PermissionsErrorMessage resourceKind={r.kind} />
-                      }
+                      children={<PermissionsErrorMessage resource={r} />}
                     />
                   )}
                   <Flex px={2} alignItems="center">
@@ -195,6 +217,7 @@ export function SelectResource(props: SelectResourceProps) {
           </Text>
         </>
       )}
+      {showApp && <AddApp onClose={() => setShowApp(false)} />}
     </Box>
   );
 }
@@ -250,6 +273,8 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
       return acl.kubeServers.read && acl.kubeServers.list;
     case ResourceKind.Server:
       return acl.nodes.list;
+    case ResourceKind.SamlApplication:
+      return acl.samlIdpServiceProvider.create;
     default:
       return false;
   }
@@ -295,6 +320,25 @@ function sortResourcesByKind(
   return sorted;
 }
 
+// Sort the resources alphabetically and with the Guided resources listed first.
+export function sortResources(resources: ResourceSpec[]) {
+  const sortedResources = [...resources];
+  sortedResources.sort((a, b) => {
+    if (!a.unguidedLink && a.hasAccess && !b.unguidedLink && b.hasAccess) {
+      return a.name.localeCompare(b.name);
+    }
+    if (!b.unguidedLink && b.hasAccess) {
+      return 1;
+    }
+    if (!a.unguidedLink && a.hasAccess) {
+      return -1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return sortedResources;
+}
+
 function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {
   return RESOURCES.map(r => {
     const hasAccess = checkHasAccess(acl, r.kind);
@@ -328,10 +372,6 @@ const ResourceCard = styled.div`
   height: 48px;
 
   opacity: ${props => (props.hasAccess ? '1' : '0.45')};
-
-  &.unguided {
-    text-decoration: none;
-  }
 
   :hover {
     background: ${props => props.theme.colors.spotBackground[1]};

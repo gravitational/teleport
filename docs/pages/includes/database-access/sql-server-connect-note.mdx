@@ -1,0 +1,14 @@
+<Admonition type="note">
+When you run the `tsh db connect` command above, `tsh` attempts to execute
+the `mssql-cli` command-line client, which must be available in the user's
+`PATH`. If you do not have `mssql-cli` available on your system, you can run the
+following command to start a local proxy server that you can connect
+to with your SQL Server client:
+
+```code
+$ tsh proxy db --db-user=teleport --tunnel sqlserver
+```
+
+Read the [Database Access GUI Clients](../../connect-your-client/gui-clients.mdx#sql-server-with-azure-data-studio) 
+guide for how to connect your DB GUI client to the local proxy.
+</Admonition>

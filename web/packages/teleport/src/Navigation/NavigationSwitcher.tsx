@@ -103,8 +103,8 @@ const Arrow = styled.div<OpenProps>`
     transition: 0.1s linear transform;
 
     path {
-    fill: ${props => props.theme.colors.text.main}
-  }
+      fill: ${props => props.theme.colors.text.main}
+    }
   }
 `;
 

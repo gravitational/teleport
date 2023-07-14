@@ -1,9 +1,9 @@
 Troubleshooting SSO configuration can be challenging. Usually a Teleport administrator
 must be able to:
 
-<ScopedBlock scope={["oss","enterprise"]}>
-- Ensure that HTTP/TLS certificates are configured properly for both Teleport
-  proxy and the SSO provider.
+<ScopedBlock scope={["enterprise"]}>
+- Ensure that HTTP/TLS certificates are configured properly for both the Teleport
+  Proxy Service and the SSO provider.
 </ScopedBlock>
 - Be able to see what SAML/OIDC claims and values are getting exported and passed
   by the SSO provider to Teleport.
@@ -17,7 +17,8 @@ If something is not working, we recommend to:
 ### Using the Web UI
 
 If you get "access denied" or other login errors, the number one place to check is the Audit
-Log. You can access it in the **Activity** tab of the Teleport Web UI.
+Log. Under the **Management** area you can access it within the **Activity** tab in the
+Teleport Web UI. 
 
 ![Audit Log Entry for SSO Login error](../../../img/sso/teleportauditlogssofailed.png)
 

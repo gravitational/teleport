@@ -16,9 +16,9 @@ package enroll_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,62 +27,72 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-func TestRunCeremony(t *testing.T) {
+func TestCeremony_Run(t *testing.T) {
 	env := testenv.MustNew()
 	defer env.Close()
-	t.Cleanup(resetNative())
 
 	devices := env.DevicesClient
 	ctx := context.Background()
 
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
+	windowsDev1 := testenv.NewFakeWindowsDevice()
 
 	tests := []struct {
-		name string
-		dev  fakeDevice
+		name            string
+		dev             testenv.FakeDevice
+		assertErr       func(t *testing.T, err error)
+		assertGotDevice func(t *testing.T, device *devicepb.Device)
 	}{
 		{
-			name: "macOS device",
+			name: "macOS device succeeds",
 			dev:  macOSDev1,
+			assertErr: func(t *testing.T, err error) {
+				assert.NoError(t, err, "RunCeremony returned an error")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				assert.NotNil(t, d, "RunCeremony returned nil device")
+			},
+		},
+		{
+			name: "windows device succeeds",
+			dev:  windowsDev1,
+			assertErr: func(t *testing.T, err error) {
+				assert.NoError(t, err, "RunCeremony returned an error")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				require.NotNil(t, d, "RunCeremony returned nil device")
+				require.NotNil(t, d.Credential, "device credential is nil")
+				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id, "device credential mismatch")
+			},
+		},
+		{
+			name: "linux device fails",
+			dev:  testenv.NewFakeLinuxDevice(),
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				assert.True(
+					t, trace.IsBadParameter(err), "RunCeremony did not return a BadParameter error",
+				)
+				assert.ErrorContains(t, err, "linux", "RunCeremony error mismatch")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				assert.Nil(t, d, "RunCeremony returned an unexpected, non-nil device")
+			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*enroll.GetOSType = test.dev.GetOSType
-			*enroll.EnrollInit = test.dev.EnrollDeviceInit
-			*enroll.SignChallenge = test.dev.SignChallenge
+			c := &enroll.Ceremony{
+				GetDeviceOSType:         test.dev.GetDeviceOSType,
+				EnrollDeviceInit:        test.dev.EnrollDeviceInit,
+				SignChallenge:           test.dev.SignChallenge,
+				SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
+			}
 
-			got, err := enroll.RunCeremony(ctx, devices, "faketoken")
-			require.NoError(t, err, "RunCeremony failed")
-			assert.NotNil(t, got, "RunCeremony returned nil device")
+			got, err := c.Run(ctx, devices, false, "faketoken")
+			test.assertErr(t, err)
+			test.assertGotDevice(t, got)
 		})
 	}
-}
-
-func resetNative() func() {
-	const guardKey = "_dt_reset_native"
-	if os.Getenv(guardKey) != "" {
-		panic("Tests that rely on resetNative cannot run in parallel.")
-	}
-	os.Setenv(guardKey, "1")
-
-	collectDeviceData := *enroll.CollectDeviceData
-	enrollDeviceInit := *enroll.EnrollInit
-	getOSType := *enroll.GetOSType
-	signChallenge := *enroll.SignChallenge
-	return func() {
-		*enroll.CollectDeviceData = collectDeviceData
-		*enroll.EnrollInit = enrollDeviceInit
-		*enroll.GetOSType = getOSType
-		*enroll.SignChallenge = signChallenge
-		os.Unsetenv(guardKey)
-	}
-}
-
-type fakeDevice interface {
-	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
-	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
-	GetOSType() devicepb.OSType
-	SignChallenge(chal []byte) (sig []byte, err error)
 }

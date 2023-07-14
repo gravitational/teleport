@@ -64,14 +64,6 @@ func TestAWS(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// Log into the "aws-app" app.
-	err = Run(
-		context.Background(),
-		[]string{"app", "login", "aws-app"},
-		setHomePath(tmpHomePath),
-	)
-	require.NoError(t, err)
-
 	// Run "tsh aws". Use a custom "cmdRunner" instead of executing AWS CLI. We
 	// don't want to try a real AWS request as it might get sent to AWS
 	// eventually by the App Service.
@@ -105,6 +97,29 @@ func TestAWS(t *testing.T) {
 		require.NoError(t, conn.Close())
 		return nil
 	}
+
+	// Log into the "aws-app" app.
+	err = Run(
+		context.Background(),
+		[]string{"app", "login", "aws-app"},
+		setHomePath(tmpHomePath),
+	)
+	require.NoError(t, err)
+	err = Run(
+		context.Background(),
+		[]string{"aws", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
+		setHomePath(tmpHomePath),
+		setCmdRunner(validateCmd),
+	)
+	require.NoError(t, err)
+
+	// Log out from "aws-app" app. The app should be logged-in automatically as needed.
+	err = Run(
+		context.Background(),
+		[]string{"app", "logout", "aws-app"},
+		setHomePath(tmpHomePath),
+	)
+	require.NoError(t, err)
 	err = Run(
 		context.Background(),
 		[]string{"aws", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},

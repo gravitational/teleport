@@ -16,6 +16,10 @@ limitations under the License.
 
 import React from 'react';
 
+import { ContextProvider } from 'teleport';
+
+import { createTeleportContext } from 'teleport/mocks/contexts';
+
 import { Sessions } from './Sessions';
 import { sessions } from './fixtures';
 
@@ -35,7 +39,11 @@ export function Loaded() {
     showActiveSessionsCTA: false,
   };
 
-  return <Sessions {...props} />;
+  return (
+    <ContextProvider ctx={ctx}>
+      <Sessions {...props} />
+    </ContextProvider>
+  );
 }
 
 export function LoadedWithCTA() {
@@ -50,5 +58,11 @@ export function LoadedWithCTA() {
     showActiveSessionsCTA: true,
   };
 
-  return <Sessions {...props} />;
+  return (
+    <ContextProvider ctx={ctx}>
+      <Sessions {...props} />
+    </ContextProvider>
+  );
 }
+
+const ctx = createTeleportContext();

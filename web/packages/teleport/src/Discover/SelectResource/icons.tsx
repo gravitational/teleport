@@ -17,8 +17,8 @@
 import React from 'react';
 import { Image } from 'design';
 import * as Icons from 'design/Icon';
+import { AWSIcon } from 'design/SVGIcon';
 
-import aws from './assets/aws.png';
 import azure from './assets/azure.png';
 import cockroach from './assets/cockroach.png';
 import database from './assets/database.png';
@@ -39,18 +39,20 @@ import snowflake from './assets/snowflake.png';
 import k8s from './assets/kubernetes.png';
 import server from './assets/server.png';
 import application from './assets/application.png';
+import grafana from './assets/grafana.png';
 
 export const icons = {
   Apple: <Icons.Apple fontSize={22} />,
   Application: <Image src={application} width="23.9px" height="24px" />,
   Database: <Image src={database} width="23.9px" height="24px" />,
-  Aws: <Image src={aws} width="24.65px" height="14.36px" />,
+  Aws: <AWSIcon width={24.65} height={14.36} />,
   Azure: <Image src={azure} width="23.9px" height="24px" />,
   Cockroach: <Image src={cockroach} width="23.9px" height="24px" />,
   Dynamo: <Image src={dynamo} width="23.9px" height="24px" />,
   Ec2: <Image src={ec2} width="23.9px" height="24px" />,
   Eks: <Image src={eks} width="23.9px" height="24px" />,
   Gcp: <Image src={gcp} width="23.9px" height="24px" />,
+  Grafana: <Image src={grafana} width="23.9px" height="24px" />,
   Jenkins: <Image src={jenkins} width="23.9px" height="24px" />,
   Linux: <Image src={linux} width="23.9px" height="24px" />,
   Kube: <Image src={k8s} width="23.9px" height="24px" />,

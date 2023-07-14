@@ -40,7 +40,7 @@ import (
 var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
 
 func onRequestList(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -135,7 +135,7 @@ func serializeAccessRequests(reqs []types.AccessRequest, format string) (string,
 }
 
 func onRequestShow(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -269,7 +269,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 }
 
 func onRequestCreate(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -283,7 +283,7 @@ func onRequestCreate(cf *CLIConf) error {
 }
 
 func onRequestReview(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -373,7 +373,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 }
 
 func onRequestSearch(cf *CLIConf) error {
-	tc, err := makeClient(cf, false /* useProfileLogin */)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -450,6 +450,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	var rows [][]string
 	var resourceIDs []string
+	deduplicateResourceIDs := map[string]struct{}{}
 	for _, resource := range resources {
 		var row []string
 		switch r := resource.(type) {
@@ -460,6 +461,9 @@ func onRequestSearch(cf *CLIConf) error {
 				Name:            cf.KubernetesCluster,
 				SubResourceName: fmt.Sprintf("%s/%s", r.Spec.Namespace, resource.GetName()),
 			})
+			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
+				continue
+			}
 			resourceIDs = append(resourceIDs, resourceID)
 
 			row = []string{
@@ -475,6 +479,10 @@ func onRequestSearch(cf *CLIConf) error {
 				Kind:        resource.GetKind(),
 				Name:        resource.GetName(),
 			})
+			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
+				continue
+			}
+
 			resourceIDs = append(resourceIDs, resourceID)
 			hostName := ""
 			if r, ok := resource.(interface{ GetHostname() string }); ok {
@@ -507,8 +515,20 @@ To request access to these resources, run
 	return nil
 }
 
+// ignoreDuplicateResourceId returns true if the resource ID is a duplicate
+// and should be ignored. Otherwise, it returns false and adds the resource ID
+// to the deduplicateResourceIDs map.
+func ignoreDuplicateResourceId(deduplicateResourceIDs map[string]struct{}, resourceID string) bool {
+	// Ignore duplicate resource IDs.
+	if _, ok := deduplicateResourceIDs[resourceID]; ok {
+		return true
+	}
+	deduplicateResourceIDs[resourceID] = struct{}{}
+	return false
+}
+
 func onRequestDrop(cf *CLIConf) error {
-	tc, err := makeClient(cf, false /* useProfileLogin */)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

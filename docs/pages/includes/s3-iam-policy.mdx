@@ -1,3 +1,60 @@
+On startup, the Teleport Auth Service checks whether the S3 bucket you have
+configured for session recording storage exists. If it does not, the Auth
+Service attempts to create and configure the bucket.
+
+The IAM permissions that the Auth Service requires to manage its session
+recording bucket depends on whether you expect to create the bucket yourself or
+enable the Auth Service to create and configure it for you:
+
+<Tabs>
+<TabItem label="Manage the Bucket Yourself">
+
+Note that Teleport will only use S3 buckets with versioning enabled. This
+ensures that a session log cannot be permanently altered or deleted, as
+Teleport will always look at the oldest version of a recording.
+
+You'll need to replace these values in the policy example below:
+
+| Placeholder value | Replace with |
+| - | - |
+| `your-sessions-bucket` | Name to use for the Teleport S3 session recording bucket |
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "BucketActions",
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucketVersions",
+                "s3:ListBucketMultipartUploads",
+                "s3:ListBucket",
+                "s3:GetEncryptionConfiguration",
+                "s3:GetBucketVersioning"
+            ],
+            "Resource": "arn:aws:s3:::your-sessions-bucket"
+        },
+        {
+            "Sid": "ObjectActions",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObjectVersion",
+                "s3:GetObjectRetention",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListMultipartUploadParts",
+                "s3:AbortMultipartUpload"
+            ],
+            "Resource": "arn:aws:s3:::your-sessions-bucket/*"
+        }
+    ]
+}
+```
+
+</TabItem>
+<TabItem label="Auth Service Creates a Bucket">
+
 You'll need to replace these values in the policy example below:
 
 | Placeholder value | Replace with |
@@ -38,3 +95,5 @@ You'll need to replace these values in the policy example below:
     ]
 }
 ```
+</TabItem>
+</Tabs>

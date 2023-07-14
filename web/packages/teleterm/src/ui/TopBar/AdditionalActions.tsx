@@ -32,11 +32,14 @@ import { useNewTabOpener } from 'teleterm/ui/TabHost';
 type MenuItem = {
   title: string;
   isVisible: boolean;
-  Icon: React.ComponentType<{ fontSize: number }>;
+  Icon: React.ElementType;
   onNavigate: () => void;
   prependSeparator?: boolean;
   keyboardShortcutAction?: KeyboardShortcutAction;
-};
+} & (MenuItemAlwaysEnabled | MenuItemConditionallyDisabled);
+
+type MenuItemAlwaysEnabled = { isDisabled?: false };
+type MenuItemConditionallyDisabled = { isDisabled: true; disabledText: string };
 
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
@@ -51,6 +54,7 @@ function useMenuItems(): MenuItem[] {
     localClusterUri: workspacesService.getActiveWorkspace()?.localClusterUri,
   });
 
+  const hasNoActiveWorkspace = !documentsService;
   const areAccessRequestsSupported =
     !!activeRootCluster?.features?.advancedAccessWorkflows;
 
@@ -61,6 +65,9 @@ function useMenuItems(): MenuItem[] {
     {
       title: 'Open new terminal',
       isVisible: true,
+      isDisabled: hasNoActiveWorkspace,
+      disabledText:
+        'You need to be logged in to a cluster to open new terminals.',
       Icon: icons.Terminal,
       keyboardShortcutAction: 'newTerminalTab',
       onNavigate: openTerminalTab,
@@ -137,10 +144,11 @@ export function AdditionalActions() {
 
   const items = useMenuItems().map(item => {
     return (
-      <React.Fragment key={item.title}>
-        {item.prependSeparator && <Separator />}
-        <MenuItem item={item} closeMenu={() => setIsPopoverOpened(false)} />
-      </React.Fragment>
+      <MenuItem
+        key={item.title}
+        item={item}
+        closeMenu={() => setIsPopoverOpened(false)}
+      />
     );
   });
 
@@ -168,7 +176,7 @@ export function AdditionalActions() {
   );
 }
 
-const Menu = styled.menu`
+export const Menu = styled.menu`
   list-style: none;
   padding: 0;
   margin: 0;
@@ -183,7 +191,7 @@ const Separator = styled.div`
   height: 1px;
 `;
 
-function MenuItem({
+export function MenuItem({
   item,
   closeMenu,
 }: {
@@ -197,32 +205,47 @@ function MenuItem({
   };
 
   return (
-    <StyledListItem as="button" type="button" onClick={handleClick}>
-      <item.Icon fontSize={2} />
-      <Flex
-        gap={2}
-        flex="1"
-        alignItems="baseline"
-        justifyContent="space-between"
+    <>
+      {item.prependSeparator && <Separator />}
+      <StyledListItem
+        as="button"
+        type="button"
+        disabled={item.isDisabled}
+        title={item.isDisabled && item.disabledText}
+        onClick={handleClick}
       >
-        <Text>{item.title}</Text>
+        <item.Icon
+          color={item.isDisabled ? 'text.disabled' : null}
+          fontSize={2}
+        />
+        <Flex
+          gap={2}
+          flex="1"
+          alignItems="baseline"
+          justifyContent="space-between"
+        >
+          <Text>{item.title}</Text>
 
-        {item.keyboardShortcutAction && (
-          <Text
-            fontSize={1}
-            css={`
-              border-radius: 4px;
-              width: fit-content;
-              padding: ${props => props.theme.space[1]}px
-                ${props => props.theme.space[1]}px;
-            `}
-            bg="levels.surface"
-          >
-            {getAccelerator(item.keyboardShortcutAction)}
-          </Text>
-        )}
-      </Flex>
-    </StyledListItem>
+          {item.keyboardShortcutAction && (
+            <Text
+              fontSize={1}
+              css={`
+                border-radius: 4px;
+                width: fit-content;
+                // Using a background with an alpha color to make this interact better with the
+                // disabled state.
+                background-color: ${props =>
+                  props.theme.colors.spotBackground[0]};
+                padding: ${props => props.theme.space[1]}px
+                  ${props => props.theme.space[1]}px;
+              `}
+            >
+              {getAccelerator(item.keyboardShortcutAction)}
+            </Text>
+          )}
+        </Flex>
+      </StyledListItem>
+    </>
   );
 }
 
@@ -231,4 +254,13 @@ const StyledListItem = styled(ListItem)`
   gap: ${props => props.theme.space[3]}px;
   padding: 0 ${props => props.theme.space[3]}px;
   border-radius: 0;
+
+  &:disabled {
+    cursor: default;
+    color: ${props => props.theme.colors.text.disabled};
+
+    &:hover {
+      background-color: inherit;
+    }
+  }
 `;

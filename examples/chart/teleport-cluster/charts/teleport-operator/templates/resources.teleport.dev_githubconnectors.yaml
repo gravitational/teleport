@@ -35,27 +35,33 @@ spec:
           spec:
             description: GithubConnector resource definition v3 from Teleport
             properties:
+              api_endpoint_url:
+                description: APIEndpointURL is the URL of the API endpoint of the
+                  Github instance this connector is for.
+                type: string
               client_id:
-                description: ClientID is the GitHub OAuth app client ID.
+                description: ClientID is the Github OAuth app client ID.
                 type: string
               client_secret:
-                description: ClientSecret is the GitHub OAuth app client secret.
+                description: ClientSecret is the Github OAuth app client secret.
                 type: string
               display:
                 description: Display is the connector display name.
                 type: string
               endpoint_url:
+                description: EndpointURL is the URL of the GitHub instance this connector
+                  is for.
                 type: string
               redirect_url:
                 description: RedirectURL is the authorization callback URL.
                 type: string
               teams_to_roles:
-                description: TeamsToRoles maps GitHub team memberships onto allowed
+                description: TeamsToRoles maps Github team memberships onto allowed
                   roles.
                 items:
                   properties:
                     organization:
-                      description: Organization is a GitHub organization a user belongs
+                      description: Organization is a Github organization a user belongs
                         to.
                       type: string
                     roles:

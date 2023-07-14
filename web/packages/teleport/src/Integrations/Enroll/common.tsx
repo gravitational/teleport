@@ -15,12 +15,10 @@
  */
 
 import React from 'react';
-import { Flex, Text, Box } from 'design';
+import { Box, Flex, Text } from 'design';
 import styled from 'styled-components';
 
-export const IntegrationTile = styled(Flex).attrs({
-  'data-testid': 'tile',
-})`
+export const IntegrationTile = styled(Flex)`
   color: inherit;
   text-decoration: none;
   flex-direction: column;
@@ -54,9 +52,8 @@ export const NoCodeIntegrationDescription = () => (
       No-Code Integrations
     </Text>
     <Text typography="body1">
-      Hosted Integrations eliminate the setup work so you can quickly connect
-      applications to Teleport for alerting and other useful functions. This
-      list is short for now, but it will grow with time!
+      Set up Teleport to post notifications to messaging apps, discover and
+      import resources from cloud providers and other services.
     </Text>
   </Box>
 );

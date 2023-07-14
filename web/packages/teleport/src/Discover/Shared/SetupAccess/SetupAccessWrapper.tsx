@@ -41,6 +41,7 @@ export type Props = {
   traitDescription: string;
   hasTraits: boolean;
   onProceed(): void;
+  onPrev(): void;
   children: React.ReactNode;
   infoContent?: React.ReactNode;
 };
@@ -55,6 +56,7 @@ export function SetupAccessWrapper({
   traitDescription,
   headerSubtitle,
   onProceed,
+  onPrev,
   children,
   infoContent,
 }: Props) {
@@ -134,6 +136,7 @@ export function SetupAccessWrapper({
       {infoContent}
       <ActionButtons
         onProceed={onProceed}
+        onPrev={onPrev}
         disableProceed={
           attempt.status === 'failed' ||
           attempt.status === 'processing' ||

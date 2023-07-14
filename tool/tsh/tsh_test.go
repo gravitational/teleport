@@ -38,6 +38,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/exp/slices"
@@ -52,10 +53,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/backend"
@@ -114,6 +119,7 @@ func init() {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -751,7 +757,7 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// empty config won't work:
-	tc, err := makeClient(&conf, true)
+	tc, err := makeClient(&conf)
 	require.Nil(t, tc)
 	require.Error(t, err)
 
@@ -770,7 +776,7 @@ func TestMakeClient(t *testing.T) {
 	err = clientStore.SaveProfile(profile, true)
 	require.NoError(t, err)
 
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 
@@ -782,7 +788,7 @@ func TestMakeClient(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, localUser, tc.Config.HostLogin)
-	require.Equal(t, apidefaults.CertDuration, tc.Config.KeyTTL)
+	require.Equal(t, time.Duration(0), tc.Config.KeyTTL)
 
 	// specific configuration
 	conf.MinsToLive = 5
@@ -790,7 +796,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
 	require.Equal(t, "root", tc.Config.HostLogin)
@@ -820,7 +826,7 @@ func TestMakeClient(t *testing.T) {
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
 	}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
 	require.Equal(t, "root@example.com", tc.Config.HostLogin)
@@ -857,7 +863,7 @@ func TestMakeClient(t *testing.T) {
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
@@ -873,7 +879,7 @@ func TestMakeClient(t *testing.T) {
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
@@ -1924,15 +1930,312 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
-func TestSSHHeadless(t *testing.T) {
+func TestKubeCredentialsLock(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	const kubeClusterName = "kube-cluster"
+
+	t.Run("failed client creation doesn't create lockfile", func(t *testing.T) {
+		tmpHomePath := t.TempDir()
+
+		firstErr := Run(ctx, []string{
+			"kube",
+			"credentials",
+			"--proxy", "fake-proxy",
+			"--teleport-cluster", "teleport",
+			"--kube-cluster", kubeClusterName,
+		}, setHomePath(tmpHomePath))
+		require.Error(t, firstErr) // Fails because fake proxy doesn't exist
+		require.NoFileExists(t, keypaths.KubeCredLockfilePath(tmpHomePath, "fake-proxy"))
+	})
+
+	t.Run("kube credentials called multiple times, SSO login called only once", func(t *testing.T) {
+		tmpHomePath := t.TempDir()
+		connector := mockConnector(t)
+		alice, err := types.NewUser("alice@example.com")
+		require.NoError(t, err)
+
+		kubeRole, err := types.NewRole("kube-access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				KubernetesLabels: types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
+				KubeGroups:       []string{kube.TestImpersonationGroup},
+				KubeUsers:        []string{alice.GetName()},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		alice.SetRoles([]string{"access", kubeRole.GetName()})
+
+		require.NoError(t, err)
+		authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice, kubeRole))
+		authServer := authProcess.GetAuthServer()
+		require.NotNil(t, authServer)
+		proxyAddr, err := proxyProcess.ProxyWebAddr()
+		require.NoError(t, err)
+
+		teleportClusterName, err := authServer.GetClusterName()
+		require.NoError(t, err)
+
+		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+			Name:   kubeClusterName,
+			Labels: map[string]string{},
+		},
+			types.KubernetesClusterSpecV3{},
+		)
+		require.NoError(t, err)
+		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, kubeClusterName, kubeClusterName)
+		require.NoError(t, err)
+		_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
+		require.NoError(t, err)
+
+		var ssoCalls atomic.Int32
+		mockSSO := mockSSOLogin(t, authServer, alice)
+		ssoFunc := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
+			ssoCalls.Add(1)
+			return mockSSO(ctx, connectorID, priv, protocol)
+		}
+
+		err = Run(context.Background(), []string{
+			"login",
+			"--insecure",
+			"--debug",
+			"--auth", connector.GetName(),
+			"--proxy", proxyAddr.String(),
+		}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+			cf.mockSSOLogin = ssoFunc
+			return nil
+		})
+		require.NoError(t, err)
+		_, err = profile.FromDir(tmpHomePath, "")
+		require.NoError(t, err)
+		ssoCalls.Store(0) // Reset number of calls after setup login
+
+		// Overwrite profile data to simulate expired user certificate
+		expiredSSHCert := `
+		ssh-rsa-cert-v01@openssh.com AAAAHHNzaC1yc2EtY2VydC12MDFAb3BlbnNzaC5jb20AAAAgefu/ZQ70TbBMZfGUFHluE7PCu6PiWN0SsA5xrKbkzCkAAAADAQABAAABAQCyGzVvW7vgsK1P2Rtg55DTjL4We0WjSYYdzXJnVbyTxqrEYDOkhSnw4tZTS9KgALb698g0vrqy5bSJXB90d8uLdTmCmPngPbYpSN+p3P2SbIdkB5cRIMspB22qSkfHUARQlYM4PrMYIznWwQRFBvrRNOVdTdbMywlQGMUb0jdxK7JFBx1LC76qfHJhrD7jZS+MtygFIqhAJS9CQXW314p3FmL9s1cPV5lQfY527np8580qMKPkdeowPd/hVGcPA/C+ZxLcN9LqnuTZEFoDvYtwjfofOGUpANwtENBNZbNTxHDk7shYCRN9aZJ50zdFq3rMNdzFlEyJwm2ca+7aRDLlAAAAAAAAAAAAAAABAAAAEWFsaWNlQGV4YW1wbGUuY29tAAAAVQAAADYtdGVsZXBvcnQtbm9sb2dpbi1hZDVhYTViMi00MDBlLTQ2ZmUtOThjOS02ZjRhNDA2YzdlZGMAAAAXLXRlbGVwb3J0LWludGVybmFsLWpvaW4AAAAAZG9PKAAAAABkb0+gAAAAAAAAAQkAAAAXcGVybWl0LWFnZW50LWZvcndhcmRpbmcAAAAAAAAAFnBlcm1pdC1wb3J0LWZvcndhcmRpbmcAAAAAAAAACnBlcm1pdC1wdHkAAAAAAAAAEnByaXZhdGUta2V5LXBvbGljeQAAAAgAAAAEbm9uZQAAAA50ZWxlcG9ydC1yb2xlcwAAADUAAAAxeyJ2ZXJzaW9uIjoidjEiLCJyb2xlcyI6WyJhY2Nlc3MiLCJrdWJlLWFjY2VzcyJdfQAAABl0ZWxlcG9ydC1yb3V0ZS10by1jbHVzdGVyAAAADQAAAAlsb2NhbGhvc3QAAAAPdGVsZXBvcnQtdHJhaXRzAAAACAAAAARudWxsAAAAAAAAARcAAAAHc3NoLXJzYQAAAAMBAAEAAAEBAK/vBVOnf+QLSF0aKsEpQuof1o/5EJJ25C07tljSWvF2wNixHOyHZj8kAwO3f2XmWQd/XBddvZtLETvTbdBum8T37oOLepnDR32TzTV7cR7XVvo0pSqwrg0jWuAxt67b2n2BnWOCULdV9mPM8X9q4wRhqQHFGB3+7dD24x5YmVIBFUFJKYfFYh516giKAcNPFSK6eD381+cNXYx3yDO6i/iyrsuhbYVcTlWSV2Zhc0Gytf83QRmpM6hXW8b8hGCui36ffXSYu/9nWHcK7OeaHZzePT7jHptyqcrYSs52VuzikO74jpw8htU6maUeEcR5TBbeBlB+hmHQfwl8bEUeszMAAAEUAAAADHJzYS1zaGEyLTUxMgAAAQAwb7OpVkJP8pz9M4VIoG0DzXe5W2GN2pH0eWq+n/+YgshzcWPyHsPbckCu9IleHhrp6IK8ZyCt2qLi77o9XJxJUCiJxmsnfJYTs5DtWoCqiIRWKtYvSNpML1PH/badQsS/Stg7VUs48Yftg4eJOo4PYfJqDoHRfGimMwTNQ+aIWAYek3QwydlDdEtJ6X8kkHhNnZb0fzUbUyQLzFDXPu++di+AHNOpMOWDBtNZ1Lm3WWja/t5zIv7j6L67ZTzS5JtV7TlcD+lJ7RcBfWow8OtEW5RyyI8918A2q/zbe3OhGD4D2dZxPUhyGPHLLgy9NJqJoueR8qLPQQyMdDl4JKUq
+		`
+		privKey := `
+-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAshs1b1u74LCtT9kbYOeQ04y+FntFo0mGHc1yZ1W8k8aqxGAz
+pIUp8OLWU0vSoAC2+vfINL66suW0iVwfdHfLi3U5gpj54D22KUjfqdz9kmyHZAeX
+ESDLKQdtqkpHx1AEUJWDOD6zGCM51sEERQb60TTlXU3WzMsJUBjFG9I3cSuyRQcd
+Swu+qnxyYaw+42UvjLcoBSKoQCUvQkF1t9eKdxZi/bNXD1eZUH2Odu56fOfNKjCj
+5HXqMD3f4VRnDwPwvmcS3DfS6p7k2RBaA72LcI36HzhlKQDcLRDQTWWzU8Rw5O7I
+WAkTfWmSedM3Rat6zDXcxZRMicJtnGvu2kQy5QIDAQABAoIBAFBPIn4PAB1lrRBX
+FhhQ8iXhzYi3lwP00Cu6Cr77kueTakbYFhE2Fl5O+lNe2h9ZkyiA996IrgiiuRBC
+4NAUgExm1ELGFc3+JZhiCrA+PHx8wWPiZETN462hctqZWdpOg1OOxzdiVkEpCRiD
+uhgh+JDC6DV1NsjrOEzMjnxoAqXdS8R8HRSr7ATV/28rXCpzBevtsQFWsHFQ069H
+uL9JY4AnBdvnu749ClFYuhux/C0zSAsZIu47WUmmyZdIXY/B32vkhbDfKPpCp7Il
+5sE9reNGf22jkqjC4wLpCT0L8wuUnJil0Sj1JUQjtZc4vn7Fc1RWZWRZKC4IlI/+
+OUSdXhUCgYEA6krEs7B1W3mO8sCXEUpFZv8KfLaa4BeDncGS++qGrz4qSI8JiuUI
+M4uLBec+9FHAAMVd5F/JxhcA5J1BA2e9mITEf582ur/lTU2cSYBIY64IPBMR0ask
+Q9UdAdu0r/xQ91cdwKiaSrC3bPgCX/Xe6MzaEWMrmdnse3Kl+E49n0cCgYEAwpvB
+gtCk/L6lOsQDgLH3zO27qlYUGSPqhy8iIF+4HMMIIvdIOrSMHspEHhbnypQe9cYO
+GRcimlb4U0FbHsOmpkfcNHhvBTegmYEYjuWJR0AN8cgaV2b6XytqYB7Gv2kXhjnF
+9dvamhy9+4SngywbqZshUlazVW/RfO4+OqXsKnMCgYBwJJOcUqUJwNhsV0S30O4B
+S6gwY5MkGf00oHgDPpFzBfVlP5nYsqHHUk6b58DZXtvhQpcbfcHtoAscYizBPYGh
+pEMNtx6SKtHNu41IHTAJDj8AyjvoONul4Db/MbN93O7ARSGHmuwnPgi+DsPMPLqS
+gaMLWYWAIbAwsoLApGqYdwKBgAZALHoAK5x2nyYBD7+9d6Ecba+t7h1Umv7Wk7kI
+eghqd0NwP+Cq1elTQ9bXk4BdO5VXVDKYHKNqcbVy3vNhA2RJ4JfK2n4HaGAl1l0Y
+oE0qkIgYjkgKZbZS1arasjWJsZi9GE+qTR4wGCYQ/7Rl4UmUUwCrCj2PRuJFYLhP
+hgNjAoGBAKwqiQpwNzbKOq3+pxau6Y32BqUaTV5ut9FEUz0/qzuNoc2S5bCf4wq+
+cc/nvPBnXrP+rsubJXjFDfcIjcZ7x41bRMENvP50xD/J94IpK88TGTVa04VHKExx
+iUK/veLmZ6XoouiWLCdU1VJz/1Fcwe/IEamg6ETfofvsqOCgcNYJ
+-----END RSA PRIVATE KEY-----
+`
+		pubKey := `ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyGzVvW7vgsK1P2Rtg55DTjL4We0WjSYYdzXJnVbyTxqrEYDOkhSnw4tZTS9KgALb698g0vrqy5bSJXB90d8uLdTmCmPngPbYpSN+p3P2SbIdkB5cRIMspB22qSkfHUARQlYM4PrMYIznWwQRFBvrRNOVdTdbMywlQGMUb0jdxK7JFBx1LC76qfHJhrD7jZS+MtygFIqhAJS9CQXW314p3FmL9s1cPV5lQfY527np8580qMKPkdeowPd/hVGcPA/C+ZxLcN9LqnuTZEFoDvYtwjfofOGUpANwtENBNZbNTxHDk7shYCRN9aZJ50zdFq3rMNdzFlEyJwm2ca+7aRDLl
+`
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com"), []byte(privKey), 0666)
+		require.NoError(t, err)
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com.pub"), []byte(pubKey), 0666)
+		require.NoError(t, err)
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com-ssh/localhost-cert.pub"), []byte(expiredSSHCert), 0666)
+		require.NoError(t, err)
+
+		errChan := make(chan error)
+		runCreds := func() {
+			credErr := Run(context.Background(), []string{
+				"kube",
+				"credentials",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+				"--auth", connector.GetName(),
+				"--teleport-cluster", teleportClusterName.GetClusterName(),
+				"--kube-cluster", kubeClusterName,
+			}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+				cf.mockSSOLogin = ssoFunc
+				return nil
+			})
+			errChan <- credErr
+		}
+
+		// Run kube credentials calls in parallel, only one should actually call SSO login
+		runsCount := 3
+		for i := 0; i < runsCount; i++ {
+			go runCreds()
+		}
+		for i := 0; i < runsCount; i++ {
+			select {
+			case err := <-errChan:
+				if err != nil {
+					require.ErrorIs(t, err, errKubeCredLockfileFound)
+				}
+
+			case <-time.After(time.Second * 5):
+				require.Fail(t, "Running kube credentials timed out")
+			}
+		}
+		require.Equal(t, 1, int(ssoCalls.Load()), "SSO login should have been called exactly once")
+	})
+}
+
+func TestSSHHeadlessCLIFlags(t *testing.T) {
+	var (
+		proxy       = "proxy.example.com:3080"
+		username    = "alice"
+		clustername = "root-cluster"
+	)
+	for _, tc := range []struct {
+		name         string
+		cliConf      CLIConf
+		envMap       map[string]string
+		assertErr    require.ErrorAssertionFunc
+		assertConfig func(t require.TestingT, c *client.Config)
+	}{
+		{
+			name: "OK --auth headless",
+			cliConf: CLIConf{
+				Proxy:         proxy,
+				AuthConnector: constants.HeadlessConnector,
+				Username:      "username",
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
+			},
+		}, {
+			name: "OK --headless",
+			cliConf: CLIConf{
+				Proxy:    proxy,
+				Headless: true,
+				Username: "username",
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
+			},
+		}, {
+			name: "OK use ssh session env with headless cli flag",
+			cliConf: CLIConf{
+				Headless: true,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxy,
+				teleport.SSHTeleportUser:        username,
+				teleport.SSHTeleportClusterName: clustername,
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
+				require.Equal(t, proxy, c.WebProxyAddr)
+				require.Equal(t, username, c.Username)
+				require.Equal(t, clustername, c.SiteName)
+			},
+		}, {
+			name: "OK use ssh session env with headless auth connector cli flag",
+			cliConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxy,
+				teleport.SSHTeleportUser:        username,
+				teleport.SSHTeleportClusterName: clustername,
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
+				require.Equal(t, proxy, c.WebProxyAddr)
+				require.Equal(t, username, c.Username)
+				require.Equal(t, clustername, c.SiteName)
+			},
+		}, {
+			name: "OK ignore ssh session env without headless",
+			cliConf: CLIConf{
+				Proxy:    "other-proxy:3080",
+				Headless: false,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxy,
+				teleport.SSHTeleportUser:        username,
+				teleport.SSHTeleportClusterName: clustername,
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, "other-proxy:3080", c.WebProxyAddr)
+				require.Equal(t, "", c.Username)
+				require.Equal(t, "", c.SiteName)
+			},
+		}, {
+			name: "NOK --headless with mismatched auth connector",
+			cliConf: CLIConf{
+				Proxy:         proxy,
+				Headless:      true,
+				AuthConnector: constants.LocalConnector,
+				Username:      "username",
+			},
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
+			},
+		}, {
+			name: "NOK --auth headless without explicit user",
+			cliConf: CLIConf{
+				Proxy:         proxy,
+				AuthConnector: constants.HeadlessConnector,
+			},
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
+			},
+		}, {
+			name: "NOK --headless without explicit user",
+			cliConf: CLIConf{
+				Proxy:    proxy,
+				Headless: true,
+			},
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+
+			tc.cliConf.HomePath = t.TempDir()
+			c, err := loadClientConfigFromCLIConf(&tc.cliConf, proxy)
+			tc.assertErr(t, err)
+			if tc.assertConfig != nil {
+				tc.assertConfig(t, c)
+			}
+		})
+	}
+}
+
+func TestSSHHeadless(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	user, err := user.Current()
 	require.NoError(t, err)
 
 	// Headless ssh should pass session mfa requirements
-	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			RequireMFAType: types.RequireMFAType_SESSION,
 		},
@@ -1945,12 +2248,27 @@ func TestSSHHeadless(t *testing.T) {
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetRoles([]string{"ssh-login"})
+	alice.SetRoles([]string{"node-access"})
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(sshLoginRole, alice))
-
-	authAddr, err := rootAuth.AuthAddr()
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"node-access"},
+			},
+		},
+	})
 	require.NoError(t, err)
+
+	bob, err := types.NewUser("bob@example.com")
+	require.NoError(t, err)
+	bob.SetRoles([]string{"requester"})
+
+	sshHostName := "test-ssh-host"
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(nodeAccess, alice, requester, bob), withConfig(func(cfg *servicecfg.Config) {
+		cfg.Hostname = sshHostName
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}))
 
 	proxyAddr, err := rootProxy.ProxyWebAddr()
 	require.NoError(t, err)
@@ -1965,34 +2283,125 @@ func TestSSHHeadless(t *testing.T) {
 		},
 	}))
 
-	sshHostname := "test-ssh-server"
-	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	sshHostID := node.Config.HostUUID
-
-	hasNodes := func(hostIDs ...string) func() bool {
-		return func() bool {
-			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
-			foundCount := 0
-			for _, node := range nodes {
-				if slices.Contains(hostIDs, node.GetName()) {
-					foundCount++
-				}
-			}
-			return foundCount == len(hostIDs)
+	go func() {
+		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
+			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
 		}
+		// Cancel the context, so Run calls don't block
+		cancel()
+	}()
+
+	for _, tc := range []struct {
+		name      string
+		args      []string
+		envMap    map[string]string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "node access",
+			args:      []string{"--headless", "--user", "alice", "--proxy", proxyAddr.String()},
+			assertErr: require.NoError,
+		}, {
+			name:      "resource request",
+			args:      []string{"--headless", "--user", "bob", "--request-reason", "reason here to bypass prompt", "--proxy", proxyAddr.String()},
+			assertErr: require.NoError,
+		}, {
+			name: "ssh env variables",
+			args: []string{"--headless"},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxyAddr.String(),
+				teleport.SSHTeleportUser:        "alice",
+			},
+			assertErr: require.NoError,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+
+			args := append([]string{
+				"ssh",
+				"-d",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+			}, tc.args...)
+			args = append(args,
+				fmt.Sprintf("%s@%s", user.Username, sshHostName),
+				"echo", "test",
+			)
+
+			err := Run(ctx, args, cliOption(func(cf *CLIConf) error {
+				cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+				return nil
+			}))
+			tc.assertErr(t, err)
+		})
 	}
+}
 
-	// wait for auth to see nodes
-	require.Eventually(t, hasNodes(sshHostID), 10*time.Second, 100*time.Millisecond, "nodes never showed up")
+func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	agentKeyring, _ := createAgent(t)
 
-	// perform "tsh --headless ssh"
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	// Headless ssh should pass session mfa requirements
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"node-access"})
+
+	sshHostname := "test-ssh-host"
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(nodeAccess, alice), withConfig(func(cfg *servicecfg.Config) {
+		cfg.Hostname = sshHostname
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}))
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+		},
+	}))
+
+	go func() {
+		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
+			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
+		}
+		// Cancel the context, so Run calls don't block
+		cancel()
+	}()
+
 	err = Run(ctx, []string{
 		"ssh",
+		"-d",
 		"--insecure",
-		"--headless",
 		"--proxy", proxyAddr.String(),
+		"--headless",
 		"--user", "alice",
+		"--add-keys-to-agent=yes",
 		fmt.Sprintf("%s@%s", user.Username, sshHostname),
 		"echo", "test",
 	}, cliOption(func(cf *CLIConf) error {
@@ -2001,35 +2410,9 @@ func TestSSHHeadless(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// "tsh --auth headless ssh" should also perform headless ssh
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--auth", constants.HeadlessConnector,
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, cliOption(func(cf *CLIConf) error {
-		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
+	keys, err := agentKeyring.List()
 	require.NoError(t, err)
-
-	// headless ssh should fail if user is not set.
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--headless",
-		"--proxy", proxyAddr.String(),
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, cliOption(func(cf *CLIConf) error {
-		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable"))
+	require.Empty(t, keys)
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -2104,9 +2487,10 @@ func TestEnvFlags(t *testing.T) {
 
 	testEnvFlag := func(tc testCase) func(t *testing.T) {
 		return func(t *testing.T) {
-			setEnvFlags(&tc.inCLIConf, func(envName string) string {
-				return tc.envMap[envName]
-			})
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+			setEnvFlags(&tc.inCLIConf)
 			require.Equal(t, tc.outCLIConf, tc.inCLIConf)
 		}
 	}
@@ -2242,6 +2626,28 @@ func TestEnvFlags(t *testing.T) {
 			},
 			outCLIConf: CLIConf{
 				GlobalTshConfigPath: "/opt/teleport/tsh.yaml",
+			},
+		}))
+	})
+
+	t.Run("tsh ssh session env", func(t *testing.T) {
+		t.Run("does not overwrite cli flags", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: "other.example.com",
+				teleport.SSHTeleportUser:        "bob",
+				teleport.SSHTeleportClusterName: "leaf-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
 			},
 		}))
 	})
@@ -2465,14 +2871,6 @@ func TestKubeConfigUpdate(t *testing.T) {
 }
 
 func TestSetX11Config(t *testing.T) {
-	t.Parallel()
-
-	envMapGetter := func(envMap map[string]string) envGetter {
-		return func(s string) string {
-			return envMap[s]
-		}
-	}
-
 	for _, tc := range []struct {
 		desc         string
 		cf           CLIConf
@@ -2522,6 +2920,7 @@ func TestSetX11Config(t *testing.T) {
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
 			},
+			envMap:      map[string]string{x11.DisplayEnv: ""},
 			assertError: require.Error,
 			expectConfig: client.Config{
 				EnableX11Forwarding: false,
@@ -2665,11 +3064,15 @@ func TestSetX11Config(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
+			for k, v := range tc.envMap {
+				t.Setenv(k, v)
+			}
+
 			opts, err := parseOptions(tc.opts)
 			require.NoError(t, err)
 
 			clt := client.Config{}
-			err = setX11Config(&clt, &tc.cf, opts, envMapGetter(tc.envMap))
+			err = setX11Config(&clt, &tc.cf, opts)
 			tc.assertError(t, err)
 			require.Equal(t, tc.expectConfig, clt)
 		})
@@ -2953,6 +3356,10 @@ func setOverrideStdout(stdout io.Writer) cliOption {
 	}
 }
 
+func setCopyStdout(stdout io.Writer) cliOption {
+	return setOverrideStdout(io.MultiWriter(os.Stdout, stdout))
+}
+
 func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
@@ -3105,7 +3512,7 @@ func TestSerializeDatabases(t *testing.T) {
     "kind": "db",
     "version": "v3",
     "metadata": {
-      "name": "my db",
+      "name": "my-db",
       "description": "this is the description",
       "labels": {"a": "1", "b": "2"}
     },
@@ -3120,6 +3527,7 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
+        "opensearch": {},
         "rdsproxy": {},
         "redshift_serverless": {}
       },
@@ -3134,7 +3542,8 @@ func TestSerializeDatabases(t *testing.T) {
       "ad": {
         "domain": "",
         "spn": ""
-      }
+      },
+      "mongo_atlas": {}
     },
     "status": {
       "mysql": {},
@@ -3146,6 +3555,7 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
+        "opensearch": {},
         "rdsproxy": {},
         "redshift_serverless": {}
       },
@@ -3156,7 +3566,7 @@ func TestSerializeDatabases(t *testing.T) {
   }]
 	`
 	db, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "my db",
+		Name:        "my-db",
 		Description: "this is the description",
 		Labels:      map[string]string{"a": "1", "b": "2"},
 	}, types.DatabaseSpecV3{
@@ -3284,9 +3694,10 @@ func TestSerializeDatabases(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
 			expected := fmt.Sprintf(expectedFmt, tt.dbUsersData)
 			testSerialization(t, expected, func(f string) (string, error) {
-				return serializeDatabases([]types.Database{db}, f, tt.roles)
+				return serializeDatabases([]types.Database{db}, f, accessChecker)
 			})
 		})
 	}
@@ -3942,10 +4353,13 @@ func TestListDatabasesWithUsers(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotUsers := getDBUsers(tt.database, tt.roles)
+
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
+
+			gotUsers := getDBUsers(tt.database, accessChecker)
 			require.Equal(t, tt.wantUsers, gotUsers)
 
-			gotText := formatUsersForDB(tt.database, tt.roles)
+			gotText := formatUsersForDB(tt.database, accessChecker)
 			require.Equal(t, tt.wantText, gotText)
 		})
 	}

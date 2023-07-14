@@ -282,8 +282,16 @@ func TestParseRoleARN(t *testing.T) {
 			arn:             "arn:aws:iam::123456789012:user/test-user",
 			wantErrContains: "not an AWS IAM role",
 		},
-		"iam role arn is missing role name": {
+		"iam role arn is missing role name section": {
 			arn:             "arn:aws:iam::123456789012:role",
+			wantErrContains: "missing AWS IAM role name",
+		},
+		"iam role arn is missing role name": {
+			arn:             "arn:aws:iam::123456789012:role/",
+			wantErrContains: "missing AWS IAM role name",
+		},
+		"service role arn is missing role name": {
+			arn:             "arn:aws:iam::123456789012:role/aws-service-role/redshift.amazonaws.com/",
 			wantErrContains: "missing AWS IAM role name",
 		},
 	}
@@ -292,7 +300,7 @@ func TestParseRoleARN(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			got, err := ParseRoleARN(tt.arn)
 			if tt.wantErrContains != "" {
-				require.Error(t, err, err.Error())
+				require.Error(t, err)
 				require.ErrorContains(t, err, tt.wantErrContains)
 				return
 			}
@@ -389,6 +397,79 @@ func TestBuildRoleARN(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, got)
 			require.Equal(t, tt.wantARN, got)
+		})
+	}
+}
+
+func TestIsRoleARN(t *testing.T) {
+	for name, tt := range map[string]struct {
+		arn           string
+		expectedValue bool
+	}{
+		"valid full arn":      {"arn:aws:iam::123456789012:role/role-name", true},
+		"valid partial arn":   {"role/role-name", true},
+		"valid user arn":      {"arn:aws:iam::123456789012:user/user-name", false},
+		"invalid arn":         {"arn:aws:iam:::123456789012:role/role-name", false},
+		"invalid partial arn": {"user/user-name", false},
+		"invalid value":       {"role-name", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tt.expectedValue, IsRoleARN(tt.arn))
+		})
+	}
+}
+
+func TestIsUserARN(t *testing.T) {
+	for name, tt := range map[string]struct {
+		arn           string
+		expectedValue bool
+	}{
+		"valid full arn":      {"arn:aws:iam::123456789012:user/user-name", true},
+		"valid partial arn":   {"user/user-name", true},
+		"valid user arn":      {"arn:aws:iam::123456789012:role/role-name", false},
+		"invalid arn":         {"arn:aws:iam:::123456789012:user/user-name", false},
+		"invalid partial arn": {"role/role-name", false},
+		"invalid value":       {"user-name", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tt.expectedValue, IsUserARN(tt.arn))
+		})
+	}
+}
+
+func TestResourceARN(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		resourceType string
+		partition    string
+		accountID    string
+		resourceName string
+		expected     string
+	}{
+		{
+			name:         "role",
+			resourceType: "role",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyRole",
+			expected:     "arn:aws:iam::123456789012:role/MyRole",
+		},
+		{
+			name:         "policy",
+			resourceType: "policy",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyPolicy",
+			expected:     "arn:aws:iam::123456789012:policy/MyPolicy",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			switch tt.resourceType {
+			case "role":
+				require.Equal(t, tt.expected, RoleARN(tt.partition, tt.accountID, tt.resourceName))
+			case "policy":
+				require.Equal(t, tt.expected, PolicyARN(tt.partition, tt.accountID, tt.resourceName))
+			}
 		})
 	}
 }

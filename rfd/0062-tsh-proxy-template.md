@@ -130,8 +130,10 @@ proxy_templates:
 ```
 
 
-Templates are evaluated in order and the first one matching will take effect.
-At least one of `cluster` and `proxy` must be set for a template to be valid.
+Templates are evaluated in order and the first one matching will take effect. For each
+replace rule set (`cluster`, `proxy`, and `host`), the corresponding cli value will be
+overridden (`--cluster`, `-J`, and `%h:%p`). If `template` and all replace rules are empty,
+the template is invalid.
 
 Note that the proxy address must point to the web proxy address (not SSH proxy):
 `tsh proxy ssh` will issue a ping request to the proxy to retrieve additional

@@ -16,10 +16,9 @@
 
 import React from 'react';
 
-import { AwsRdsDatabase } from 'teleport/services/integrations';
-
 import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
+import { CheckedAwsRdsDatabase } from './EnrollRdsDatabase';
 
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
@@ -28,7 +27,6 @@ export default {
 export const AwsRegionsSelectorDisabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={true}
     onRefresh={() => null}
     disableSelector={true}
     clear={() => null}
@@ -38,7 +36,6 @@ export const AwsRegionsSelectorDisabled = () => (
 export const AwsRegionsSelectorEnabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={false}
     onRefresh={() => null}
     disableSelector={false}
     clear={() => null}
@@ -48,7 +45,6 @@ export const AwsRegionsSelectorEnabled = () => (
 export const AwsRegionsSelectorRefreshEnabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={true}
     onRefresh={() => null}
     disableSelector={false}
     clear={() => null}
@@ -85,7 +81,7 @@ export const RdsDatabaseListLoading = () => (
   />
 );
 
-const fixtures: AwsRdsDatabase[] = [
+const fixtures: CheckedAwsRdsDatabase[] = [
   {
     name: 'postgres-name',
     engine: 'postgres',
@@ -103,6 +99,7 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    dbServerExists: true,
   },
   {
     name: 'alpaca',
@@ -137,6 +134,7 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'Unknown' as any,
     accountId: '',
     resourceId: '',
+    dbServerExists: true,
   },
   {
     name: 'llama',

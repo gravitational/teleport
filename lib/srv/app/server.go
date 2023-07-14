@@ -61,10 +61,10 @@ const (
 	connContextKey appServerContextKey = "teleport-connContextKey"
 )
 
-// ConnMonitor monitors authorized connnections and terminates them when
+// ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // Config is the configuration for an application server.
@@ -700,14 +700,25 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	// Proxy sends a X.509 client certificate to pass identity information,
-	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, conn)
+	ctx, cancel := context.WithCancel(s.closeContext)
+	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   s.c.Clock,
+		Context: ctx,
+		Cancel:  cancel,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx := authz.ContextWithUser(s.closeContext, user)
+	// Proxy sends a X.509 client certificate to pass identity information,
+	// extract it and run authorization checks on it.
+	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx = authz.ContextWithUser(s.closeContext, user)
 	ctx = authz.ContextWithClientAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := s.authorizeContext(ctx)
 
@@ -725,7 +736,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 		}
 	} else {
 		// Monitor the connection an update the context.
-		ctx, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, conn)
+		ctx, _, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -782,7 +793,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = s.serveHTTP(w, r)
 	}
 	if err != nil {
-		s.log.Warnf("Failed to serve request: %v.", err)
+		s.log.WithError(err).Warnf("Failed to serve request")
 
 		// Covert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
@@ -958,6 +969,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Ap
 		state,
 		matchers...)
 	if err != nil {
+		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 

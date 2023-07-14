@@ -17,6 +17,9 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { setupServer } from 'msw/node';
+import { rest } from 'msw';
+
 import {
   render as testingRender,
   screen,
@@ -33,7 +36,28 @@ import TeleportContext from 'teleport/teleportContext';
 
 import { makeUserContext } from 'teleport/services/user';
 
+import { UserContextProvider } from 'teleport/User';
+
+import { ThemePreference } from 'teleport/services/userPreferences/types';
+
 import { UserMenuNav } from './UserMenuNav';
+
+const server = setupServer(
+  rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
+    return res(
+      ctx.json({
+        theme: ThemePreference.Light,
+        assist: {},
+      })
+    );
+  })
+);
+
+beforeAll(() => server.listen());
+
+afterEach(() => server.resetHandlers());
+
+afterAll(() => server.close());
 
 describe('navigation items rendering', () => {
   test.each`
@@ -42,11 +66,11 @@ describe('navigation items rendering', () => {
     ${cfg.routes.support} | ${'Help & Support'}
   `(
     'there is an element `$menuName` that links to `$path`',
-    ({ path, menuName }) => {
+    async ({ path, menuName }) => {
       render(path);
 
       // Click on dropdown menu.
-      fireEvent.click(screen.getByText(/llama/i));
+      fireEvent.click(await screen.findByText(/llama/i));
 
       // Only one checkmark should be rendered at a time.
       const targetEl = screen.getByText(menuName);
@@ -70,9 +94,11 @@ function render(path: string) {
   testingRender(
     <MemoryRouter initialEntries={[path]}>
       <TeleportContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={getOSSFeatures()}>
-          <UserMenuNav username="llama" />
-        </FeaturesContextProvider>
+        <UserContextProvider>
+          <FeaturesContextProvider value={getOSSFeatures()}>
+            <UserMenuNav username="llama" />
+          </FeaturesContextProvider>
+        </UserContextProvider>
       </TeleportContextProvider>
     </MemoryRouter>
   );

@@ -21,14 +21,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -51,7 +49,12 @@ type InventoryCommand struct {
 
 	version string
 
+	olderThan string
+	newerThan string
+
 	services string
+
+	upgrader string
 
 	inventoryStatus *kingpin.CmdClause
 	inventoryList   *kingpin.CmdClause
@@ -61,17 +64,20 @@ type InventoryCommand struct {
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
 func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
-	inventory := app.Command("inventory", "Manage Teleport instance inventory").Hidden()
+	inventory := app.Command("inventory", "Manage Teleport instance inventory.").Hidden()
 
-	c.inventoryStatus = inventory.Command("status", "Show inventory status summary")
+	c.inventoryStatus = inventory.Command("status", "Show inventory status summary.")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
 
-	c.inventoryList = inventory.Command("list", "List Teleport instance inventory").Alias("ls")
-	c.inventoryList.Flag("version", "Filter output by version").StringVar(&c.version)
+	c.inventoryList = inventory.Command("list", "List Teleport instance inventory.").Alias("ls")
+	c.inventoryList.Flag("older-than", "Filter for older teleport versions").StringVar(&c.olderThan)
+	c.inventoryList.Flag("newer-than", "Filter for newer teleport versions").StringVar(&c.newerThan)
+	c.inventoryList.Flag("exact-version", "Filter output by teleport version").StringVar(&c.version)
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
 	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
+	c.inventoryList.Flag("upgrader", "Filter output by upgrader (kube,unit,none)").StringVar(&c.upgrader)
 
-	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance")
+	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
 	c.inventoryPing.Flag("control-log", "Use control log for ping").Hidden().BoolVar(&c.controlLog)
 }
@@ -92,34 +98,78 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, client auth.C
 }
 
 func (c *InventoryCommand) Status(ctx context.Context, client auth.ClientI) error {
-	if !c.getConnected {
-		// intention is for the status command to eventually display cluster-wide inventory
-		// info by default, but we only have access to info specific to this auth right now,
-		// so we can only display the locally connected instances. in order to avoid confusion
-		// we simply don't support any default output right now.
-		fmt.Println("Nothing to display.\n\nhint: try using the --connected flag to see a summary of locally connected instances.")
-		return nil
-	}
 	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest{
 		Connected: c.getConnected,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if c.getConnected {
-		table := asciitable.MakeTable([]string{"ServerID", "Services", "Version"})
+		table := asciitable.MakeTable([]string{"Server ID", "Services", "Version", "Upgrader"})
 		for _, h := range rsp.Connected {
 			services := make([]string, 0, len(h.Services))
 			for _, s := range h.Services {
 				services = append(services, string(s))
 			}
-			table.AddRow([]string{h.ServerID, strings.Join(services, ","), h.Version})
+			upgrader := h.ExternalUpgrader
+			if upgrader == "" {
+				upgrader = "none"
+			}
+			table.AddRow([]string{h.ServerID, strings.Join(services, ","), h.Version, upgrader})
 		}
 
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	}
+
+	printHierarchicalData(map[string]any{
+		"Versions":        toAnyMap(rsp.VersionCounts),
+		"Upgraders":       toAnyMap(rsp.UpgraderCounts),
+		"Services":        toAnyMap(rsp.ServiceCounts),
+		"Total Instances": rsp.InstanceCount,
+	}, "  ", 0)
+
 	return nil
+}
+
+// toAnyMap converts a mapping with a concrete value type to an 'any' value type.
+func toAnyMap[T any](m map[string]T) map[string]any {
+	n := make(map[string]any, len(m))
+	for key, val := range m {
+		n[key] = val
+	}
+
+	return n
+}
+
+// printHierarchicalData is a helper for displaying nested mappings of data.
+func printHierarchicalData(data map[string]any, indent string, depth int) {
+	var longestKey int
+	for key := range data {
+		if longestKey == 0 || len(key) > longestKey {
+			longestKey = len(key)
+		}
+	}
+
+	for key, val := range data {
+		if m, ok := val.(map[string]any); ok {
+			if len(m) != 0 {
+				fmt.Printf("%s%s:\n", strings.Repeat(indent, depth), key)
+				printHierarchicalData(m, indent, depth+1)
+				continue
+			} else {
+				val = "none"
+			}
+		}
+
+		fmt.Printf("%s%s: %s%v\n",
+			strings.Repeat(indent, depth),
+			key,
+			strings.Repeat(" ", longestKey-len(key)),
+			val,
+		)
+	}
 }
 
 func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error {
@@ -131,28 +181,44 @@ func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error 
 			return trace.Wrap(err)
 		}
 	}
+	upgrader := c.upgrader
+	var noUpgrader bool
+	if upgrader == "none" {
+		// explicitly match instances with no upgrader defined
+		upgrader = ""
+		noUpgrader = true
+	}
 
 	instances := client.GetInstances(ctx, types.InstanceFilter{
-		Services: services,
-		Version:  vc.Normalize(c.version),
+		Services:         services,
+		Version:          vc.Normalize(c.version),
+		OlderThanVersion: vc.Normalize(c.olderThan),
+		NewerThanVersion: vc.Normalize(c.newerThan),
+		ExternalUpgrader: upgrader,
+		NoExtUpgrader:    noUpgrader,
 	})
 
 	switch c.format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"ServerID", "Hostname", "Services", "Version", "Status"})
-		now := time.Now().UTC()
+		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Version", "Upgrader"})
 		for instances.Next() {
 			instance := instances.Item()
 			services := make([]string, 0, len(instance.GetServices()))
 			for _, s := range instance.GetServices() {
 				services = append(services, string(s))
 			}
+
+			upgrader := instance.GetExternalUpgrader()
+			if upgrader == "" {
+				upgrader = "none"
+			}
+
 			table.AddRow([]string{
 				instance.GetName(),
 				instance.GetHostname(),
 				strings.Join(services, ","),
 				instance.GetTeleportVersion(),
-				makeInstanceStatus(now, instance),
+				upgrader,
 			})
 		}
 
@@ -171,26 +237,6 @@ func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error 
 	default:
 		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
 	}
-}
-
-// makeInstanceStatus builds the instance status string. This currently distinguishes online/offline, but the
-// plan is to eventually use the status field to give users insight at a glance into the current status of
-// ongoing upgrades as well.  Ex:
-//
-// Status
-// -----------------------------------------------
-// online (1m7s ago)
-// installing -> v1.2.3 (17s ago)
-// online, upgrade recommended -> v1.2.3 (20s ago)
-// churned during install -> v1.2.3 (6m ago)
-// online, install soon -> v1.2.3 (46s ago)
-func makeInstanceStatus(now time.Time, instance types.Instance) string {
-	status := "offline"
-	if instance.GetLastSeen().Add(apidefaults.ServerAnnounceTTL).After(now) {
-		status = "online"
-	}
-
-	return fmt.Sprintf("%s (%s ago)", status, now.Sub(instance.GetLastSeen()).Round(time.Second))
 }
 
 func (c *InventoryCommand) Ping(ctx context.Context, client auth.ClientI) error {

@@ -15,6 +15,7 @@
 package types
 
 import (
+	"crypto"
 	"testing"
 	"time"
 
@@ -119,6 +120,7 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 			PublicKeyDer:          []byte("insert public key here"),
 			DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED,
 			TpmEkcertSerial:       "00:00:00:00:00:00:00:00:00:00:00:DE:AD:BE:EF:CA:FE",
+			TpmAkPublic:           []byte("a TPMT_PUBLIC encoded blob"),
 		},
 		CollectedData: []*devicepb.DeviceCollectedData{
 			{
@@ -128,11 +130,61 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 				SerialNumber: assetTag,
 			},
 			{
-				CollectTime:  timestamppb.New(t2),
-				RecordTime:   timestamppb.New(t22),
-				OsType:       osType,
-				SerialNumber: assetTag,
+				CollectTime:             timestamppb.New(t2),
+				RecordTime:              timestamppb.New(t22),
+				OsType:                  osType,
+				SerialNumber:            assetTag,
+				ModelIdentifier:         "MacBookPro9,2",
+				OsVersion:               "13.1.2",
+				OsBuild:                 "22D68",
+				OsUsername:              "llama",
+				JamfBinaryVersion:       "9.27",
+				MacosEnrollmentProfiles: "Enrolled via DEP: No\nMDM enrollment: Yes (User Approved)\nMDM server: ...",
+				ReportedAssetTag:        assetTag + "-reported",
+				SystemSerialNumber:      assetTag + "-system",
+				BaseBoardSerialNumber:   assetTag + "-board",
+				TpmPlatformAttestation: &devicepb.TPMPlatformAttestation{
+					Nonce: []byte("foo-bar-bizz"),
+					PlatformParameters: &devicepb.TPMPlatformParameters{
+						EventLog: []byte("dummy-event-log"),
+						Quotes: []*devicepb.TPMQuote{
+							{
+								Quote:     []byte("fake-quote-1"),
+								Signature: []byte("fake-signature-1"),
+							},
+							{
+								Quote:     []byte("fake-quote-2"),
+								Signature: []byte("fake-signature-2"),
+							},
+						},
+						Pcrs: []*devicepb.TPMPCR{
+							{
+								Index:     0,
+								Digest:    []byte("fake-sha1-digest"),
+								DigestAlg: uint64(crypto.SHA1),
+							},
+							{
+								Index:     1,
+								Digest:    []byte("fake-sha256-digest"),
+								DigestAlg: uint64(crypto.SHA256),
+							},
+						},
+					},
+				},
 			},
+		},
+		Source: &devicepb.DeviceSource{
+			Name:   "myscript",
+			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
+		},
+		Profile: &devicepb.DeviceProfile{
+			UpdateTime:        timestamppb.New(t1),
+			ModelIdentifier:   "MacBookPro9,2",
+			OsVersion:         "13.1.2",
+			OsBuild:           "22D68",
+			OsUsernames:       []string{"admin", "llama"},
+			JamfBinaryVersion: "9.27",
+			ExternalId:        "99",
 		},
 	}
 
@@ -155,10 +207,12 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		attestationType string
-		errorContains   string
+		wantEmpty       bool
+		wantErr         string
 	}{
 		{
 			attestationType: "unspecified",
+			wantEmpty:       true,
 		},
 		{
 			attestationType: "tpm_ekpub",
@@ -171,18 +225,95 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 		},
 		{
 			attestationType: "quantum_entanglement",
-			errorContains:   "unknown attestation type",
+			wantErr:         "unknown attestation type",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.attestationType, func(t *testing.T) {
 			asEnum, err := ResourceDeviceAttestationTypeFromString(tt.attestationType)
-			if tt.errorContains != "" {
-				require.ErrorContains(t, err, tt.errorContains)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr, "ResourceDeviceAttestationTypeFromString error mismatch")
 				return
 			}
+
 			got := ResourceDeviceAttestationTypeToString(asEnum)
-			require.Equal(t, tt.attestationType, got)
+			want := tt.attestationType
+			if tt.wantEmpty {
+				want = ""
+			}
+			require.Equal(t, want, got, "ResourceDeviceAttestationTypeToString mismatch")
+		})
+	}
+}
+
+func TestAllDeviceEnumsMapped(t *testing.T) {
+	tests := []struct {
+		name       string
+		nameMap    map[int32]string // a proto enum "name" map, like MyEnum_name.
+		toString   func(i int32) string
+		fromString func(s string) (int32, error)
+	}{
+		{
+			name:    "OSType",
+			nameMap: devicepb.OSType_name,
+			toString: func(i int32) string {
+				return ResourceOSTypeToString(devicepb.OSType(i))
+			},
+			fromString: func(s string) (int32, error) {
+				val, err := ResourceOSTypeFromString(s)
+				return int32(val), err
+			},
+		},
+		{
+			name:    "DeviceEnrollStatus",
+			nameMap: devicepb.DeviceEnrollStatus_name,
+			toString: func(i int32) string {
+				return ResourceDeviceEnrollStatusToString(devicepb.DeviceEnrollStatus(i))
+			},
+			fromString: func(s string) (int32, error) {
+				val, err := ResourceDeviceEnrollStatusFromString(s)
+				return int32(val), err
+			},
+		},
+		{
+			name:    "DeviceAttestationType",
+			nameMap: devicepb.DeviceAttestationType_name,
+			toString: func(i int32) string {
+				return ResourceDeviceAttestationTypeToString(devicepb.DeviceAttestationType(i))
+			},
+			fromString: func(s string) (int32, error) {
+				val, err := ResourceDeviceAttestationTypeFromString(s)
+				return int32(val), err
+			},
+		},
+		{
+			name:    "DeviceOrigin",
+			nameMap: devicepb.DeviceOrigin_name,
+			toString: func(i int32) string {
+				return ResourceDeviceOriginToString(devicepb.DeviceOrigin(i))
+			},
+			fromString: func(s string) (int32, error) {
+				val, err := ResourceDeviceOriginFromString(s)
+				return int32(val), err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for num, name := range test.nameMap {
+				t.Run(name, func(t *testing.T) {
+					s := test.toString(num)
+					gotNum, err := test.fromString(s)
+					require.NoError(t, err, "to/from enum conversion failed")
+					require.Equal(t, num, gotNum, "to/from enum conversion changed the enum value")
+				})
+			}
+
+			t.Run(`from "" (empty string)`, func(t *testing.T) {
+				got, err := test.fromString("")
+				require.NoError(t, err, `conversion from "" failed`)
+				require.Equal(t, int32(0), got, `conversion from "" returned a non-zero value`)
+			})
 		})
 	}
 }

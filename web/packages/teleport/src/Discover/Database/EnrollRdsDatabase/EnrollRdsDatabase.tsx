@@ -20,16 +20,17 @@ import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
   AwsRdsDatabase,
-  ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
   Regions,
   integrationService,
 } from 'teleport/services/integrations';
 import { DatabaseEngine } from 'teleport/Discover/SelectResource';
+import { Database } from 'teleport/services/databases';
 
 import { ActionButtons, Header } from '../../Shared';
 
@@ -40,7 +41,7 @@ import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
-  items: ListAwsRdsDatabaseResponse['databases'];
+  items: CheckedAwsRdsDatabase[];
   fetchStatus: FetchStatus;
   startKey?: string;
   currRegion?: Regions;
@@ -52,6 +53,14 @@ const emptyTableData: TableData = {
   startKey: '',
 };
 
+// CheckedAwsRdsDatabase is a type to describe that a
+// AwsRdsDatabase has been checked (by its resource id)
+// with the backend whether or not a database server already
+// exists for it.
+export type CheckedAwsRdsDatabase = AwsRdsDatabase & {
+  dbServerExists?: boolean;
+};
+
 export function EnrollRdsDatabase() {
   const {
     createdDb,
@@ -60,6 +69,7 @@ export function EnrollRdsDatabase() {
     attempt: registerAttempt,
     clearAttempt: clearRegisterAttempt,
     nextStep,
+    fetchDatabaseServers,
   } = useCreateDatabase();
 
   const { agentMeta, resourceSpec, emitErrorEvent } = useDiscover();
@@ -71,7 +81,7 @@ export function EnrollRdsDatabase() {
     startKey: '',
     fetchStatus: 'disabled',
   });
-  const [selectedDb, setSelectedDb] = useState<AwsRdsDatabase>();
+  const [selectedDb, setSelectedDb] = useState<CheckedAwsRdsDatabase>();
 
   function fetchDatabasesWithNewRegion(region: Regions) {
     // Clear table when fetching with new region.
@@ -87,36 +97,76 @@ export function EnrollRdsDatabase() {
     fetchDatabases({ ...tableData, startKey: '', items: [] });
   }
 
-  function fetchDatabases(data: TableData) {
+  async function fetchDatabases(data: TableData) {
     const integrationName = (agentMeta as DbMeta).integrationName;
 
     setTableData({ ...data, fetchStatus: 'loading' });
     setFetchDbAttempt({ status: 'processing' });
 
-    integrationService
-      .fetchAwsRdsDatabases(
-        integrationName,
-        getRdsEngineIdentifier(resourceSpec.dbMeta?.engine),
-        {
-          region: data.currRegion,
-          nextToken: data.startKey,
-        }
-      )
-      .then(resp => {
+    try {
+      const { databases: fetchedRdsDbs, nextToken } =
+        await integrationService.fetchAwsRdsDatabases(
+          integrationName,
+          getRdsEngineIdentifier(resourceSpec.dbMeta?.engine),
+          {
+            region: data.currRegion,
+            nextToken: data.startKey,
+          }
+        );
+
+      // Abort if there were no rds dbs for the selected region.
+      if (fetchedRdsDbs.length <= 0) {
         setFetchDbAttempt({ status: 'success' });
-        setTableData({
-          currRegion: data.currRegion,
-          startKey: resp.nextToken,
-          fetchStatus: resp.nextToken ? '' : 'disabled',
-          // concat each page fetch.
-          items: [...data.items, ...resp.databases],
-        });
-      })
-      .catch((err: Error) => {
-        setFetchDbAttempt({ status: 'failed', statusText: err.message });
-        setTableData(data); // fallback to previous data
-        emitErrorEvent(`failed to fetch aws rds list: ${err.message}`);
+        setTableData({ ...data, fetchStatus: 'disabled' });
+        return;
+      }
+
+      // Check if fetched rds databases have a database
+      // server for it, to prevent user from enrolling
+      // the same db and getting an error from it.
+
+      // Build the predicate string that will query for
+      // all the fetched rds dbs by its resource ids.
+      const resourceIds: string[] = fetchedRdsDbs.map(
+        d => `resource.spec.aws.rds.resource_id == "${d.resourceId}"`
+      );
+      const query = resourceIds.join(' || ');
+      const { agents: fetchedDbServers } = await fetchDatabaseServers(
+        query,
+        fetchedRdsDbs.length // limit
+      );
+
+      const dbServerLookupByResourceId: Record<string, Database> = {};
+      fetchedDbServers.forEach(
+        d => (dbServerLookupByResourceId[d.aws.rds.resourceId] = d)
+      );
+
+      // Check for db server matches.
+      const checkedRdsDbs: CheckedAwsRdsDatabase[] = fetchedRdsDbs.map(rds => {
+        const dbServer = dbServerLookupByResourceId[rds.resourceId];
+        if (dbServer) {
+          return {
+            ...rds,
+            dbServerExists: true,
+          };
+        }
+        return rds;
       });
+
+      setFetchDbAttempt({ status: 'success' });
+      setTableData({
+        currRegion: data.currRegion,
+        startKey: nextToken,
+        fetchStatus: nextToken ? '' : 'disabled',
+        // concat each page fetch.
+        items: [...data.items, ...checkedRdsDbs],
+      });
+    } catch (err) {
+      const errMsg = getErrMessage(err);
+      setFetchDbAttempt({ status: 'failed', statusText: errMsg });
+      setTableData(data); // fallback to previous data
+      emitErrorEvent(`database fetch error: ${errMsg}`);
+    }
   }
 
   function clear() {
@@ -163,9 +213,6 @@ export function EnrollRdsDatabase() {
         onRefresh={refreshDatabaseList}
         clear={clear}
         disableSelector={fetchDbAttempt.status === 'processing'}
-        disableFetch={
-          fetchDbAttempt.status === 'processing' || tableData.items.length > 0
-        }
       />
       <DatabaseList
         items={tableData.items}

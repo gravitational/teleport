@@ -112,7 +112,7 @@ const renderJoinCell = ({
   showActiveSessionsCTA,
 }: renderJoinCellProps) => {
   const { joinable } = kinds[kind];
-  if (!joinable || participantModes.length === 0) {
+  if (!joinable) {
     return <Cell align="right" height="26px" />;
   }
 

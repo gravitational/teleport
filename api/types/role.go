@@ -58,6 +58,9 @@ type Role interface {
 	// SetOptions sets role options
 	SetOptions(opt RoleOptions)
 
+	// GetCreateDatabaseUserOption returns value of "create_db_user" option.
+	GetCreateDatabaseUserOption() bool
+
 	// GetLogins gets *nix system logins for allow or deny condition.
 	GetLogins(RoleConditionType) []string
 	// SetLogins sets *nix system logins for allow or deny condition.
@@ -67,6 +70,13 @@ type Role interface {
 	GetNamespaces(RoleConditionType) []string
 	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
+
+	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
+	// type [kind] this role is allowed or denied access to.
+	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
+	// SetLabelMatchers sets the LabelMatchers that match labels of resources of
+	// type [kind] this role is allowed or denied access to.
+	SetLabelMatchers(rct RoleConditionType, kind string, labelMatchers LabelMatchers) error
 
 	// GetNodeLabels gets the map of node labels this role is allowed or denied access to.
 	GetNodeLabels(RoleConditionType) Labels
@@ -135,6 +145,11 @@ type Role interface {
 	GetDatabaseUsers(RoleConditionType) []string
 	// SetDatabaseUsers sets a list of database users this role is allowed or denied access to.
 	SetDatabaseUsers(RoleConditionType, []string)
+
+	// GetDatabaseRoles gets a list of database roles for auto-provisioned users.
+	GetDatabaseRoles(RoleConditionType) []string
+	// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
+	SetDatabaseRoles(RoleConditionType, []string)
 
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
@@ -323,6 +338,14 @@ func (r *RoleV6) GetOptions() RoleOptions {
 // SetOptions sets role options.
 func (r *RoleV6) SetOptions(options RoleOptions) {
 	r.Spec.Options = options
+}
+
+// GetCreateDatabaseUserOption returns value of "create_db_user" option.
+func (r *RoleV6) GetCreateDatabaseUserOption() bool {
+	if r.Spec.Options.CreateDatabaseUser == nil {
+		return false
+	}
+	return r.Spec.Options.CreateDatabaseUser.Value
 }
 
 // GetLogins gets system logins for allow or deny condition.
@@ -597,6 +620,23 @@ func (r *RoleV6) SetDatabaseUsers(rct RoleConditionType, values []string) {
 	}
 }
 
+// GetDatabaseRoles gets a list of database roles for auto-provisioned users.
+func (r *RoleV6) GetDatabaseRoles(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseRoles
+	}
+	return r.Spec.Deny.DatabaseRoles
+}
+
+// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
+func (r *RoleV6) SetDatabaseRoles(rct RoleConditionType, values []string) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseRoles = values
+	} else {
+		r.Spec.Deny.DatabaseRoles = values
+	}
+}
+
 // GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 func (r *RoleV6) GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions {
 	cond := r.Spec.Deny.Impersonate
@@ -850,11 +890,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if r.Spec.Options.DesktopDirectorySharing == nil {
 		r.Spec.Options.DesktopDirectorySharing = NewBoolOption(true)
 	}
-	if r.Spec.Options.CreateHostUser == nil {
-		r.Spec.Options.CreateHostUser = NewBoolOption(false)
-	}
 	if r.Spec.Options.CreateDesktopUser == nil {
 		r.Spec.Options.CreateDesktopUser = NewBoolOption(false)
+	}
+	if r.Spec.Options.CreateDatabaseUser == nil {
+		r.Spec.Options.CreateDatabaseUser = NewBoolOption(false)
 	}
 	if r.Spec.Options.SSHFileCopy == nil {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
@@ -866,6 +906,10 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 				Enabled: NewBoolOption(true),
 			},
 		}
+	}
+
+	if _, ok := CreateHostUserMode_name[int32(r.Spec.Options.CreateHostUserMode)]; !ok {
+		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", r.Spec.Options.CreateHostUserMode)
 	}
 
 	switch r.Version {
@@ -891,24 +935,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			r.Spec.Allow.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
 		}
 
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
-			r.Spec.Allow.KubernetesResources = []KubernetesResource{
-				{
-					Kind:      KindKubePod,
-					Namespace: Wildcard,
-					Name:      Wildcard,
-				},
-			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
-		}
+		fallthrough
 	case V4, V5:
 		// Labels default to nil/empty for v4+ roles
-
 		// Allow unrestricted access to all pods.
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
+		if len(r.Spec.Allow.KubernetesResources) == 0 && len(r.Spec.Allow.KubernetesLabels) > 0 {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				{
 					Kind:      KindKubePod,
@@ -916,11 +947,12 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Name:      Wildcard,
 				},
 			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
 		}
+
+		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+
 	case V6:
 		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
 			return trace.Wrap(err)
@@ -978,6 +1010,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			return trace.BadParameter("wildcard matcher is not allowed in allow.gcp_service_accounts")
 		}
 	}
+	for _, role := range r.Spec.Allow.DatabaseRoles {
+		if role == Wildcard {
+			return trace.BadParameter("wildcard is not allowed in allow.database_roles")
+		}
+	}
 	checkWildcardSelector := func(labels Labels) error {
 		for key, val := range labels {
 			if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
@@ -1024,6 +1061,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
+
 	return nil
 }
 
@@ -1508,4 +1546,223 @@ func validateKubeResources(kubeResources []KubernetesResource) error {
 // <namespace>/<name>.
 func (k *KubernetesResource) ClusterResource() string {
 	return k.Namespace + "/" + k.Name
+}
+
+// LabelMatchers holds the role label matchers and label expression that are
+// used to match resource labels of a specific resource kind and condition
+// (allow/deny).
+type LabelMatchers struct {
+	Labels     Labels
+	Expression string
+}
+
+// Empty returns true if all elements of the LabelMatchers are empty/unset.
+func (l LabelMatchers) Empty() bool {
+	return len(l.Labels) == 0 && len(l.Expression) == 0
+}
+
+// GetLabelMatchers gets the LabelMatchers that match labels of resources of
+// type [kind] this role is allowed or denied access to.
+func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error) {
+	var cond *RoleConditions
+	if rct == Allow {
+		cond = &r.Spec.Allow
+	} else {
+		cond = &r.Spec.Deny
+	}
+	switch kind {
+	case KindRemoteCluster:
+		return LabelMatchers{cond.ClusterLabels, cond.ClusterLabelsExpression}, nil
+	case KindNode:
+		return LabelMatchers{cond.NodeLabels, cond.NodeLabelsExpression}, nil
+	case KindKubernetesCluster:
+		return LabelMatchers{cond.KubernetesLabels, cond.KubernetesLabelsExpression}, nil
+	case KindApp:
+		return LabelMatchers{cond.AppLabels, cond.AppLabelsExpression}, nil
+	case KindDatabase:
+		return LabelMatchers{cond.DatabaseLabels, cond.DatabaseLabelsExpression}, nil
+	case KindDatabaseService:
+		return LabelMatchers{cond.DatabaseServiceLabels, cond.DatabaseServiceLabelsExpression}, nil
+	case KindWindowsDesktop:
+		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindWindowsDesktopService:
+		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindUserGroup:
+		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	}
+	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
+}
+
+// SetLabelMatchers sets the LabelMatchers that match labels of resources of
+// type [kind] this role is allowed or denied access to.
+func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatchers LabelMatchers) error {
+	var cond *RoleConditions
+	if rct == Allow {
+		cond = &r.Spec.Allow
+	} else {
+		cond = &r.Spec.Deny
+	}
+	switch kind {
+	case KindRemoteCluster:
+		cond.ClusterLabels = labelMatchers.Labels
+		cond.ClusterLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindNode:
+		cond.NodeLabels = labelMatchers.Labels
+		cond.NodeLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindKubernetesCluster:
+		cond.KubernetesLabels = labelMatchers.Labels
+		cond.KubernetesLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindApp:
+		cond.AppLabels = labelMatchers.Labels
+		cond.AppLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindDatabase:
+		cond.DatabaseLabels = labelMatchers.Labels
+		cond.DatabaseLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindDatabaseService:
+		cond.DatabaseServiceLabels = labelMatchers.Labels
+		cond.DatabaseServiceLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindWindowsDesktop:
+		cond.WindowsDesktopLabels = labelMatchers.Labels
+		cond.WindowsDesktopLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindWindowsDesktopService:
+		cond.WindowsDesktopLabels = labelMatchers.Labels
+		cond.WindowsDesktopLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindUserGroup:
+		cond.GroupLabels = labelMatchers.Labels
+		cond.GroupLabelsExpression = labelMatchers.Expression
+		return nil
+	}
+	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
+}
+
+// LabelMatcherKinds is the complete list of resource kinds that support label
+// matchers.
+var LabelMatcherKinds = []string{
+	KindRemoteCluster,
+	KindNode,
+	KindKubernetesCluster,
+	KindApp,
+	KindDatabase,
+	KindDatabaseService,
+	KindWindowsDesktop,
+	KindWindowsDesktopService,
+	KindUserGroup,
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessRequestConditions) IsEmpty() bool {
+	return len(a.Annotations) == 0 &&
+		len(a.ClaimsToRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.SearchAsRoles) == 0 &&
+		len(a.SuggestedReviewers) == 0 &&
+		len(a.Thresholds) == 0
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessReviewConditions) IsEmpty() bool {
+	return len(a.ClaimsToRoles) == 0 &&
+		len(a.PreviewAsRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.Where) == 0
+}
+
+const (
+	createHostUserModeOffString  = "off"
+	createHostUserModeDropString = "drop"
+	createHostUserModeKeepString = "keep"
+)
+
+func (h CreateHostUserMode) encode() (string, error) {
+	switch h {
+	case CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED:
+		return "", nil
+	case CreateHostUserMode_HOST_USER_MODE_OFF:
+		return createHostUserModeOffString, nil
+	case CreateHostUserMode_HOST_USER_MODE_DROP:
+		return createHostUserModeDropString, nil
+	case CreateHostUserMode_HOST_USER_MODE_KEEP:
+		return createHostUserModeKeepString, nil
+	}
+	return "", trace.BadParameter("invalid host user mode %v", h)
+}
+
+func (h *CreateHostUserMode) decode(val any) error {
+	var valS string
+	switch val := val.(type) {
+	case string:
+		valS = val
+	case bool:
+		if val {
+			return trace.BadParameter("create_host_user_mode cannot be true, got %v", val)
+		}
+		valS = createHostUserModeOffString
+	default:
+		return trace.BadParameter("bad value type %T, expected string", val)
+	}
+
+	switch valS {
+	case "":
+		*h = CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED
+	case createHostUserModeOffString:
+		*h = CreateHostUserMode_HOST_USER_MODE_OFF
+	case createHostUserModeDropString:
+		*h = CreateHostUserMode_HOST_USER_MODE_DROP
+	case createHostUserModeKeepString:
+		*h = CreateHostUserMode_HOST_USER_MODE_KEEP
+	default:
+		return trace.BadParameter("invalid host user mode %v", val)
+	}
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateHostUserMode to yaml.
+func (h *CreateHostUserMode) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateHostUserMode to json bytes.
+func (h *CreateHostUserMode) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
 }

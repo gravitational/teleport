@@ -213,6 +213,13 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: Icons.Info,
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: Icons.Info,
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: Icons.Info,
+  [eventCodes.OKTA_GROUPS_UPDATE]: Icons.Info,
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: Icons.Info,
+  [eventCodes.OKTA_SYNC_FAILURE]: Icons.Warning,
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: Icons.Info,
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: Icons.Warning,
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: Icons.Info,
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: Icons.Warning,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

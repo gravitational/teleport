@@ -194,9 +194,9 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (ad
 		return addrs, nil
 	}
 	if s.dnsResolver == nil {
-		return nil, trace.NewAggregate(err, trace.Errorf("DNS lookup for %v failed and there's no LDAP server to fallback to", hostname))
+		return nil, trace.NewAggregate(err, trace.Errorf("DNS lookup for %q failed and there's no LDAP server to fallback to", hostname))
 	}
-	s.cfg.Log.WithError(err).Debugf("DNS lookup for %v failed, falling back to LDAP server", hostname)
+	s.cfg.Log.WithError(err).Debugf("DNS lookup for %q failed, falling back to LDAP server", hostname)
 	return s.dnsResolver.LookupHost(ctx, hostname)
 }
 
@@ -204,6 +204,9 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (ad
 // from an LDAP search result
 func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
 	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
+	if hostname == "" {
+		return nil, trace.BadParameter("LDAP entry missing hostname, has attributes: %v", entry.Attributes)
+	}
 	labels := getHostLabels(hostname)
 	labels[types.TeleportNamespace+"/windows_domain"] = s.cfg.Domain
 	s.applyLabelsFromLDAP(entry, labels)

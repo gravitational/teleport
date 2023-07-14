@@ -107,7 +107,7 @@ type agentConfig struct {
 	// tracker tracks existing proxies.
 	tracker *track.Tracker
 	// lease gives the agent an exclusive claim to connect to a proxy.
-	lease track.Lease
+	lease *track.Lease
 	// clock is use to get the current time. Mock clocks can be used for
 	// testing.
 	clock clockwork.Clock
@@ -116,7 +116,7 @@ type agentConfig struct {
 	// localAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	localAuthAddresses []string
-	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
 }
 
@@ -137,17 +137,18 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	if c.tracker == nil {
 		return trace.BadParameter("missing parameter tracker")
 	}
+	if c.lease == nil {
+		return trace.BadParameter("missing parameter lease")
+	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
 	}
 	if c.log == nil {
 		c.log = logrus.New()
 	}
-	if !c.lease.IsZero() {
-		c.log = c.log.WithField("leaseID", c.lease.ID())
-	}
-
-	c.log = c.log.WithField("target", c.addr.String())
+	c.log = c.log.
+		WithField("leaseID", c.lease.ID()).
+		WithField("target", c.addr.String())
 
 	return nil
 }
@@ -174,8 +175,6 @@ type agent struct {
 	discoveryC <-chan ssh.NewChannel
 	// transportC receives new tranport channels.
 	transportC <-chan ssh.NewChannel
-	// unclaim releases the claim to the proxy in the tracker.
-	unclaim func()
 	// ctx is the internal context used to release resources used by  the agent.
 	ctx context.Context
 	// cancel cancels the internal context.
@@ -189,7 +188,7 @@ type agent struct {
 	// drainWG tracks transports and other concurrent operations required
 	// to drain a connection are finished.
 	drainWG sync.WaitGroup
-	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
 }
 
@@ -205,7 +204,6 @@ func newAgent(config agentConfig) (*agent, error) {
 		state:          AgentInitial,
 		cancel:         noop,
 		drainCancel:    noop,
-		unclaim:        noop,
 		doneConnecting: make(chan struct{}),
 		proxySigner:    config.proxySigner,
 	}, nil
@@ -367,12 +365,10 @@ func (a *agent) connect() error {
 	}
 	a.client = client
 
-	unclaim, ok := a.tracker.Claim(a.client.Principals()...)
-	if !ok {
+	if !a.lease.Claim(a.client.Principals()...) {
 		a.client.Close()
 		return trace.Errorf("Failed to claim proxy: %v claimed by another agent", a.client.Principals())
 	}
-	a.unclaim = unclaim
 
 	startupCtx, cancel := context.WithCancel(a.ctx)
 
@@ -431,8 +427,6 @@ func (a *agent) Stop() error {
 	}
 
 	a.drainCancel()
-
-	a.unclaim()
 	a.lease.Release()
 
 	// Wait for open tranports to close before closing the connection.
@@ -651,9 +645,8 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				return
 			}
 
-			proxies := r.ProxyNames()
-			a.log.Debugf("Received discovery request: %v", proxies)
-			a.tracker.TrackExpected(proxies...)
+			a.log.Debugf("Received discovery request: %s", &r)
+			a.tracker.TrackExpected(r.TrackProxies()...)
 		}
 	}
 }

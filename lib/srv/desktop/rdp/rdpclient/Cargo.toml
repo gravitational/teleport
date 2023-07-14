@@ -8,20 +8,20 @@ edition = "2018"
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.2.1"
+bitflags = "2.1.0"
 byteorder = "1.4.3"
 env_logger = "0.10.0"
 iso7816 = "0.1.0"
 iso7816-tlv = "0.4.3"
-libc = "0.2.142"
+libc = "0.2.141"
 log = "0.4.17"
 num-derive = "0.3.3"
 num-traits = "0.2.15"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
-rsa = "0.9.0"
+rsa = "0.8.2"
 rdp-rs = { git = "https://github.com/gravitational/rdp-rs", rev = "75eb6a30b83e7152ee6213964b5ac6e783304840" }
-uuid = { version = "1.3.2", features = ["v4"] }
+uuid = { version = "1.3.1", features = ["v4"] }
 utf16string = "0.2.0"
 png = "0.17.8"
 

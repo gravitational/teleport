@@ -15,6 +15,7 @@
  */
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
+import cfg from 'teleport/config';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -24,6 +25,7 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from './databases';
 import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
+import { SAML_APPLICATIONS } from './resourcesE';
 
 const baseServerKeywords = 'server node';
 export const SERVERS: ResourceSpec[] = [
@@ -56,9 +58,9 @@ export const SERVERS: ResourceSpec[] = [
     event: DiscoverEventResource.Server,
   },
   {
-    name: 'macOS (Intel)',
+    name: 'macOS',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'mac macos intel',
+    keywords: baseServerKeywords + 'mac macos intel silicone apple',
     icon: 'Apple',
     event: DiscoverEventResource.Server,
   },
@@ -70,8 +72,7 @@ export const APPLICATIONS: ResourceSpec[] = [
     kind: ResourceKind.Application,
     keywords: 'application',
     icon: 'Application',
-    unguidedLink:
-      'https://goteleport.com/docs/application-access/getting-started/',
+    isDialog: true,
     event: DiscoverEventResource.ApplicationHttp,
   },
 ];
@@ -103,7 +104,7 @@ export const KUBERNETES: ResourceSpec[] = [
   },
 ];
 
-export const RESOURCES: ResourceSpec[] = [
+const BASE_RESOURCES: ResourceSpec[] = [
   ...APPLICATIONS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
@@ -112,6 +113,10 @@ export const RESOURCES: ResourceSpec[] = [
   ...DATABASES_UNGUIDED,
   ...DATABASES_UNGUIDED_DOC,
 ];
+
+export const RESOURCES = !cfg.isEnterprise
+  ? BASE_RESOURCES
+  : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
 
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {

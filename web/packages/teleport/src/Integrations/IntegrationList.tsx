@@ -18,8 +18,12 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Image } from 'design';
-import awsIcon from 'design/assets/images/icons/aws.svg';
+import { AWSIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
+import openaiIcon from 'design/assets/images/icons/openai.svg';
+import jamfIcon from 'design/assets/images/icons/jamf.svg';
+import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
+import oktaIcon from 'design/assets/images/icons/okta.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -36,7 +40,10 @@ import {
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
-  onDeleteIntegration?(i: Integration): void;
+  integrationOps?: {
+    onDeleteIntegration(i: Integration): void;
+    onEditIntegration(i: Integration): void;
+  };
 };
 
 type IntegrationLike = Integration | Plugin;
@@ -86,7 +93,16 @@ export function IntegrationList(props: Props<IntegrationLike>) {
             return (
               <Cell align="right">
                 <MenuButton>
-                  <MenuItem onClick={() => props.onDeleteIntegration(item)}>
+                  <MenuItem
+                    onClick={() => props.integrationOps.onEditIntegration(item)}
+                  >
+                    Edit...
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() =>
+                      props.integrationOps.onDeleteIntegration(item)
+                    }
+                  >
                     Delete...
                   </MenuItem>
                 </MenuButton>
@@ -170,13 +186,33 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Slack';
         icon = <IconContainer src={slackIcon} />;
         break;
+      case 'openai':
+        formattedText = 'OpenAI';
+        icon = <IconContainer src={openaiIcon} />;
+        break;
+      case 'jamf':
+        formattedText = 'Jamf';
+        icon = <IconContainer src={jamfIcon} />;
+        break;
+      case 'okta':
+        formattedText = 'Okta';
+        icon = <IconContainer src={oktaIcon} />;
+        break;
+      case 'opsgenie':
+        formattedText = 'Opsgenie';
+        icon = <IconContainer src={opsgenieIcon} />;
+        break;
     }
   } else {
     // Default is integration.
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
         formattedText = item.name;
-        icon = <IconContainer src={awsIcon} />;
+        icon = (
+          <SvgIconContainer>
+            <AWSIcon />
+          </SvgIconContainer>
+        );
         break;
     }
   }
@@ -197,5 +233,9 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 
 const IconContainer = styled(Image)`
   width: 22px;
-  padding-right: 8px;
+  margin-right: 10px;
+`;
+
+const SvgIconContainer = styled(Flex)`
+  margin-right: 10px;
 `;

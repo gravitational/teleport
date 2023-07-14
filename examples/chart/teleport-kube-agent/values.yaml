@@ -146,7 +146,7 @@ updater:
   # `updater.versionServer` is the URL of the version server the agent fetches
   # the target version from. The complete version endpoint is built by
   # concatenating `versionServer` and `releaseChannel`.
-  versionServer: "https://update.gravitational.io/v1/"
+  versionServer: "https://updates.releases.teleport.dev/v1/"
   # Release channel the agent subscribes to.
   releaseChannel: "stable/cloud"
   image: public.ecr.aws/gravitational/teleport-kube-agent-updater
@@ -250,7 +250,18 @@ rbac:
   create: true
 
 # Name of the Secret to store the teleport join token.
-secretName: teleport-kube-agent-join-token
+# DEPRECATED Use joinTokenSecret.name instead
+secretName: ""
+
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: true
+  # Name of the Secret to store the teleport join token.
+  name: teleport-kube-agent-join-token
 
 # Teleport logging configuration
 log:
@@ -354,6 +365,17 @@ extraVolumes: []
 extraVolumeMounts: []
 # - name: myvolume
 #   mountPath: /path/on/host
+
+# Pod Host aliases (see https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
+hostAliases: []
+# - ip: "127.0.0.1"
+#   hostnames:
+#     - "foo.local"
+#     - "bar.local"
+# - ip: "10.1.2.3"
+#   hostnames:
+#     - "foo.remote"
+#     - "bar.remote"
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent

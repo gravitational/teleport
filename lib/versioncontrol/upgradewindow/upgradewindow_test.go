@@ -152,11 +152,11 @@ func TestSystemdUnitDriver(t *testing.T) {
 	err = driver.Reset(ctx)
 	require.NoError(t, err)
 
-	_, err = os.ReadFile(schedPath)
-	require.Error(t, err)
-	require.True(t, os.IsNotExist(err))
+	sb, err = os.ReadFile(schedPath)
+	require.NoError(t, err)
+	require.Equal(t, "", string(sb))
 
-	// verify that NotExist error is suppressed
+	// verify that duplicate resets succeed
 	err = driver.Reset(ctx)
 	require.NoError(t, err)
 
@@ -175,9 +175,9 @@ func TestSystemdUnitDriver(t *testing.T) {
 	err = driver.Sync(ctx, proto.ExportUpgradeWindowsResponse{})
 	require.NoError(t, err)
 
-	_, err = os.ReadFile(schedPath)
-	require.Error(t, err)
-	require.True(t, os.IsNotExist(err))
+	sb, err = os.ReadFile(schedPath)
+	require.NoError(t, err)
+	require.Equal(t, "", string(sb))
 }
 
 // fakeDriver is used to inject custom behavior into a dummy Driver instance.

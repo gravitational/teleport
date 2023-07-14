@@ -590,6 +590,23 @@ message Features {
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
   // IsUsageBased enables some usage-based billing features
   bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
+  // Assist enables the Assistant feature
+  bool Assist = 18 [(gogoproto.jsontag) = "assist"];
+  // DeviceTrust holds its namesake feature settings.
+  DeviceTrustFeature DeviceTrust = 19 [(gogoproto.jsontag) = "device_trust,omitempty"];
+}
+
+// DeviceTrustFeature holds the Device Trust feature general and usage-based
+// settings.
+// Requires Teleport Enterprise.
+message DeviceTrustFeature {
+  // True if the Device Trust feature is enabled.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // Usage-based limit for the number of registered/enrolled devices, at the
+  // implementation's discretion.
+  // Meant for usage-based accounts, like Teleport Team. Has no effect if
+  // [Features.IsUsageBased] is `false`.
+  int32 devices_usage_limit = 2 [(gogoproto.jsontag) = "devices_usage_limit,omitempty"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -2099,6 +2116,9 @@ message UpstreamInventoryHello {
   // instance can claim its hostname to be). This value exists only to assist users in correlating
   // instance resources with hosts.
   string Hostname = 4;
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 5;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
@@ -2152,6 +2172,27 @@ message InventoryStatusSummary {
   // Connected is a summary of the instances connected to the current auth server.  Only set if
   // the Connected flag in the status request is true.
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
+
+  // InstanceCount is the total number of instance resources aggregated.
+  uint32 InstanceCount = 2;
+
+  // VersionCounts aggregates unique version counts.
+  map<string, uint32> VersionCounts = 3;
+
+  // UpgraderCounts aggregates the unique upgrader counts.
+  map<string, uint32> UpgraderCounts = 4;
+
+  // ServiceCounts aggregates the number of services.
+  map<string, uint32> ServiceCounts = 5;
+}
+
+// InventoryConnectedServiceCountsRequest requests inventory connected service counts.
+message InventoryConnectedServiceCountsRequest {}
+
+// InventoryConnectedServiceCounts is the connected service counts seen in the inventory.
+message InventoryConnectedServiceCounts {
+  // ServiceCounts is the count of each connected service seen in the inventory.
+  map<string, uint64> ServiceCounts = 1 [(gogoproto.castkey) = "github.com/gravitational/teleport/api/types.SystemRole"];
 }
 
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
@@ -2304,6 +2345,9 @@ service AuthService {
 
   // GetInventoryStatus gets information about current instance inventory.
   rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
+
+  // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+  rpc GetInventoryConnectedServiceCounts(InventoryConnectedServiceCountsRequest) returns (InventoryConnectedServiceCounts);
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);

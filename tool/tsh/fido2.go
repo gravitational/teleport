@@ -22,10 +22,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"

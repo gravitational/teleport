@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -229,4 +230,23 @@ func newUserTestCase(t *testing.T, name string, roles []string, withSecrets bool
 		user.SetLocalAuth(&auth)
 	}
 	return &user
+}
+
+func TestBootstrapLock(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	tt := setupServicesContext(ctx, t)
+
+	nl, err := types.NewLock("test", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "user",
+		},
+		Message: "lock test",
+	})
+	require.NoError(t, err)
+	require.NoError(t, CreateResources(ctx, tt.bk, nl))
+
+	l, err := tt.suite.Access.GetLock(ctx, "test")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(nl, l, protocmp.Transform()))
 }

@@ -42,12 +42,6 @@ type KubernetesClusterGetter interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
-// KubernetesServerGetter defines interface for fetching kubernetes server resources.
-type KubernetesServerGetter interface {
-	// GetKubernetesServers returns all kubernetes server resources.
-	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
-}
-
 // Kubernetes defines an interface for managing kubernetes clusters resources.
 type Kubernetes interface {
 	// KubernetesGetter provides methods for fetching kubernetes resources.

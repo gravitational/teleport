@@ -15,27 +15,65 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
-
-// IntegrationAWSOIDCTokenGenerator describes the required methods to generate tokens for calling AWS OIDC Integration actions.
-type IntegrationAWSOIDCTokenGenerator interface {
-	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
-}
 
 // awsOIDCListDatabases returns a list of databases using the ListDatabases action of the AWS OIDC Integration.
 func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	ctx := r.Context()
+
+	var req ui.AWSOIDCListDatabasesRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDBsClient, err := awsoidc.NewListDatabasesClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListDatabases(ctx,
+		listDBsClient,
+		awsoidc.ListDatabasesRequest{
+			Region:    req.Region,
+			NextToken: req.NextToken,
+			Engines:   req.Engines,
+			RDSType:   req.RDSType,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListDatabasesResponse{
+		NextToken: resp.NextToken,
+		Databases: ui.MakeDatabases(resp.Databases, nil, nil),
+	}, nil
+}
+
+// awsOIDClientRequest receives a request to execute an action for the AWS OIDC integrations.
+func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (*awsoidc.AWSClientRequest, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
 		return nil, trace.BadParameter("an integration name is required")
@@ -55,11 +93,6 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	var req ui.AWSOIDCListDatabasesRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	issuer, err := h.issuerFromPublicAddr()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,30 +110,138 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	rdsClient, err := awsoidc.NewRDSClient(ctx, awsoidc.RDSClientRequest{
-		Token:   token,
-		RoleARN: awsoidcSpec.RoleARN,
-		Region:  req.Region,
+	return &awsoidc.AWSClientRequest{
+		IntegrationName: integrationName,
+		Token:           token,
+		RoleARN:         awsoidcSpec.RoleARN,
+		Region:          region,
+	}, nil
+}
+
+// awsOIDCDeployService deploys a Discovery Service and a Database Service in Amazon ECS.
+func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployServiceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployDBServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databaseAgentMatcherLabels := make(types.Labels, len(req.DatabaseAgentMatcherLabels))
+	for _, label := range req.DatabaseAgentMatcherLabels {
+		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
+	}
+
+	teleportVersionTag := teleport.Version
+	if automaticUpgrades(h.ClusterFeatures) {
+		cloudStableVersion, err := automaticupgrades.Version(ctx, "" /* use default version server */)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
+		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
+	}
+
+	deployServiceResp, err := awsoidc.DeployService(ctx, deployDBServiceClient, awsoidc.DeployServiceRequest{
+		Region:                        req.Region,
+		AccountID:                     req.AccountID,
+		SubnetIDs:                     req.SubnetIDs,
+		ClusterName:                   req.ClusterName,
+		ServiceName:                   req.ServiceName,
+		TaskName:                      req.TaskName,
+		TaskRoleARN:                   req.TaskRoleARN,
+		ProxyServerHostPort:           h.PublicProxyAddr(),
+		TeleportClusterName:           h.auth.clusterName,
+		TeleportVersionTag:            teleportVersionTag,
+		DeploymentMode:                req.DeploymentMode,
+		IntegrationName:               awsClientReq.IntegrationName,
+		DatabaseResourceMatcherLabels: databaseAgentMatcherLabels,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := awsoidc.ListDatabases(ctx,
-		rdsClient,
-		awsoidc.ListDatabasesRequest{
-			Region:    req.Region,
-			NextToken: req.NextToken,
-			Engines:   req.Engines,
-			RDSType:   req.RDSType,
-		},
-	)
+	return ui.AWSOIDCDeployServiceResponse{
+		ClusterARN:          deployServiceResp.ClusterARN,
+		ServiceARN:          deployServiceResp.ServiceARN,
+		TaskDefinitionARN:   deployServiceResp.TaskDefinitionARN,
+		ServiceDashboardURL: deployServiceResp.ServiceDashboardURL,
+	}, nil
+}
+
+// awsOIDCConfigureDeployServiceIAM returns a script that configures the required IAM permissions to enable the usage of DeployService action.
+func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	ctx := r.Context()
+
+	queryParams := r.URL.Query()
+
+	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.AWSOIDCListDatabasesResponse{
-		NextToken: resp.NextToken,
-		Databases: ui.MakeDatabases(resp.Databases, nil, nil),
-	}, nil
+	integrationName := queryParams.Get("integrationName")
+	if len(integrationName) == 0 {
+		return nil, trace.BadParameter("missing integrationName param")
+	}
+
+	// Ensure the IntegrationName is valid.
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
+	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	awsRegion := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(awsRegion); err != nil {
+		return nil, trace.BadParameter("invalid awsRegion")
+	}
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role")
+	}
+
+	taskRole := queryParams.Get("taskRole")
+	if err := aws.IsValidIAMRoleName(taskRole); err != nil {
+		return nil, trace.BadParameter("invalid taskRole")
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure deployservice-iam
+	argsList := []string{
+		"integration", "configure", "deployservice-iam",
+		fmt.Sprintf("--cluster=%s", clusterName),
+		fmt.Sprintf("--name=%s", integrationName),
+		fmt.Sprintf("--aws-region=%s", awsRegion),
+		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--task-role=%s", taskRole),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs: strings.Join(argsList, " "),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
 }

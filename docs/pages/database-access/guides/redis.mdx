@@ -3,16 +3,6 @@ title: Database Access with Redis
 description: How to configure Teleport database access with Redis.
 ---
 
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="9.0"
->
-  Database access for Redis is available starting from Teleport `9.0`.
-</Details>
-
 If you want to configure Redis Cluster, please read [Database Access with Redis Cluster](redis-cluster.mdx).
 
 This guide will help you to:
@@ -24,7 +14,7 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/redis_selfhosted.png)
 </ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+<ScopedBlock scope={["cloud","team"]}>
 ![Teleport Database Access Redis Cloud](../../../img/database-access/guides/redis_cloud.png)
 </ScopedBlock>
 
@@ -36,8 +26,7 @@ This guide will help you to:
 
 - `redis-cli` version `6.2` or newer installed and added to your system's `PATH` environment variable.
 
-- A host where you will run the Teleport Database Service. Teleport version 9.0
-  or newer must be installed.
+- A host where you will run the Teleport Database Service.
 
   See [Installation](../../installation.mdx) for details.
 

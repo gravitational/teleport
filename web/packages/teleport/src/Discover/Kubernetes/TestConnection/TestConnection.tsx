@@ -30,7 +30,7 @@ import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import {
   ActionButtons,
   HeaderSubtitle,
-  HeaderWithBackBtn,
+  Header,
   ConnectionDiagnosticResult,
 } from '../../Shared';
 
@@ -97,9 +97,7 @@ export function TestConnection({
               onClose={cancelMfaDialog}
             />
           )}
-          <HeaderWithBackBtn onPrev={prevStep}>
-            Test Connection
-          </HeaderWithBackBtn>
+          <Header>Test Connection</Header>
           <HeaderSubtitle>
             Optionally verify that you can successfully connect to the
             Kubernetes cluster you just added.
@@ -196,7 +194,11 @@ export function TestConnection({
               <TextSelectCopy mt="1" text="kubectl get pods" />
             </Box>
           </StyledBox>
-          <ActionButtons onProceed={nextStep} lastStep={true} />
+          <ActionButtons
+            onProceed={nextStep}
+            lastStep={true}
+            onPrev={prevStep}
+          />
         </Box>
       )}
     </Validation>

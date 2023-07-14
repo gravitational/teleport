@@ -20,9 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
@@ -30,11 +28,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -220,6 +216,20 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	elasticache, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID: "some-group",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	selfHosted, err := types.NewDatabaseV3(types.Metadata{
 		Name: "self-hosted",
 	}, types.DatabaseSpecV3{
@@ -229,7 +239,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add database servers for above databases.
-	for _, db := range []*types.DatabaseV3{redshift, selfHosted} {
+	for _, db := range []*types.DatabaseV3{redshift, elasticache, selfHosted} {
 		_, err = env.server.Auth().UpsertDatabaseServer(context.TODO(), mustCreateDatabaseServer(t, db))
 		require.NoError(t, err)
 	}
@@ -244,6 +254,14 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.Code())
 				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), redshift)
+			},
+		},
+		{
+			inputDatabaseName: "aws-elasticache",
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), elasticache)
 			},
 		},
 		{
@@ -338,56 +356,6 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	require.Equal(t, respResourceMatcher.Labels, &types.Labels{"env": []string{"prod"}})
 }
 
-func TestHandleSQLServerConfigureScript(t *testing.T) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "user", nil /* roles */)
-
-	for _, tc := range []struct {
-		desc        string
-		uri         string
-		assertError require.ErrorAssertionFunc
-		tokenFunc   func(*testing.T) string
-	}{
-		{
-			desc: "valid token and uri",
-			uri:  "instance.example.teleport.dev",
-			tokenFunc: func(t *testing.T) string {
-				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
-				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
-				return token
-			},
-			assertError: require.NoError,
-		},
-		{
-			desc: "valid token and invalid uri",
-			uri:  "",
-			tokenFunc: func(t *testing.T) string {
-				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
-				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
-				return token
-			},
-			assertError: require.Error,
-		},
-		{
-			desc:        "invalid token",
-			uri:         "instance.example.teleport.dev",
-			tokenFunc:   func(_ *testing.T) string { return "random-token" },
-			assertError: require.Error,
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			_, err := pack.clt.Get(
-				ctx,
-				pack.clt.Endpoint("webapi/scripts/databases/configure/sqlserver", tc.tokenFunc(t), "configure-ad.ps1"),
-				url.Values{"uri": []string{tc.uri}},
-			)
-			tc.assertError(t, err)
-		})
-	}
-}
-
 func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.DatabaseServer {
 	t.Helper()
 
@@ -420,16 +388,4 @@ func requireDatabaseIAMPolicyAWS(t *testing.T, respBody []byte, database types.D
 
 func strPtr(str string) *string {
 	return &str
-}
-
-func generateProvisionToken(t *testing.T, role types.SystemRole, expiresAt time.Time) (types.ProvisionToken, string) {
-	t.Helper()
-
-	token, err := utils.CryptoRandomHex(auth.TokenLenBytes)
-	require.NoError(t, err)
-
-	pt, err := types.NewProvisionToken(token, types.SystemRoles{role}, expiresAt)
-	require.NoError(t, err)
-
-	return pt, token
 }

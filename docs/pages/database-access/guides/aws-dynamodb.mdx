@@ -31,7 +31,6 @@ This guide will help you to:
 - A host, e.g., an EC2 instance, where you will run the Teleport Database Service.
   This guide assumes an EC2 instance when creating and applying IAM roles, and
   must be adjusted accordingly for custom configurations.
-
 - (!docs/pages/includes/tctl.mdx!)
 
 <Admonition type="note" title="Example Access Control">
@@ -152,31 +151,9 @@ the correct STS endpoint.
 
 ### Generate a token
 
-<Details title="Alterative methods">
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
-For users with a lot of infrastructure in AWS, or who might create or recreate
-many instances, consider alternative methods for joining new EC2 instances running
-Teleport:
-
-- [Configure Teleport to Automatically Enroll EC2 instances (Preview)](../../server-access/guides/ec2-discovery.mdx)
-- [Joining Nodes via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-iam.mdx)
-- [Joining Nodes via AWS EC2 Identity Document](../../management/join-services-to-your-cluster/aws-ec2.mdx)
-
-</Details>
-
-A join token is required to authorize a Teleport Database Service instance
-to join the cluster. Generate a short-lived join token and save the output of
-the command:
-
-```code
-$ tctl tokens add \
-    --type=db \
-    --db-name=example-dynamodb \
-    --db-protocol=dynamodb
-```
-
-Use the token provided by the output of this command in the next step.
+(!docs/pages/includes/database-access/token.mdx!)
 
 ### Install and start Teleport
 
@@ -194,7 +171,7 @@ teleport:
   nodename: CHANGEME
   data_dir: /var/lib/teleport
   proxy_server: teleport.example.com:443
-  auth_token: (=presets.tokens.first=)
+  auth_token: /tmp/token
 db_service:
   enabled: "yes"
   # Lists statically registered databases proxied by this agent.
@@ -213,7 +190,7 @@ db_service:
 
 Substitute `teleport.example.com` with the address of your Teleport Proxy Service.
 (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
-Replace the value of `auth_token` with the token generated in the previous step.
+The token generated should have been placed in the file `/tmp/token`.
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 

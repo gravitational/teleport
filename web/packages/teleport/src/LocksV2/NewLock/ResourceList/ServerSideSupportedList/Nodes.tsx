@@ -54,12 +54,14 @@ export function Nodes(props: ServerSideListProps & { nodes: Node[] }) {
         {
           altKey: 'action-btn',
           render: agent =>
-            renderActionCell(Boolean(selectedResources.node[agent.id]), () =>
-              toggleSelectResource({
-                kind: 'node',
-                targetValue: agent.id,
-                friendlyName: agent.hostname,
-              })
+            renderActionCell(
+              Boolean(selectedResources.server_id[agent.id]),
+              () =>
+                toggleSelectResource({
+                  kind: 'server_id',
+                  targetValue: agent.id,
+                  friendlyName: agent.hostname,
+                })
             ),
         },
       ]}

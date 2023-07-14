@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 )
@@ -36,6 +36,7 @@ var (
 	exclude  = kingpin.Flag("exclude", "Comma-separated list of exclude paths").Short('e').Strings()
 	include  = kingpin.Flag("include", "Comma-separated list of include paths").Short('i').Strings()
 	relative = kingpin.Flag("relative", "Returns paths relative to specified folder").String()
+	skip     = kingpin.Flag("skip", "A space-delimited list of test names to skip").String()
 
 	_ = kingpin.Command("diff", "Print diff in human-readable format")
 
@@ -59,11 +60,24 @@ var (
 		// TestProxySSH and TestList takes around 10-15s to run, largely due to the 7-10 seconds it takes to create a
 		// tsh test suite. This prevents it from ever completing the 100 runs successfully.
 		"TestProxySSH", "TestList",
+
+		// TestDiagnoseSSHConnection takes around 15s to run.
+		// When running 100x it exceeds the 600s defined to run the tests.
+		"TestDiagnoseSSHConnection",
+
+		// TestServer_Authenticate_headless takes about 4-5 seconds to run, so if other tests are changed
+		// in the same PR that take >1 second total, it may cause the flaky test detector to time out.
+		"TestServer_Authenticate_headless",
 	}
 )
 
 func main() {
 	command := kingpin.Parse()
+
+	if *skip != "" {
+		extraSkip := strings.Fields(*skip)
+		testsToSkip = append(testsToSkip, extraSkip...)
+	}
 
 	// Set default git directory to cwd
 	if repoPath == nil {
@@ -144,7 +158,7 @@ func diff(repoPath string, ref string, changedFiles []string, elapsed time.Durat
 
 // test builds and prints go test flags
 func test(repoPath string, ref string, changedFiles []string) {
-	var dirs = make(StringSet)
+	dirs := make(StringSet)
 	methods := make([]string, 0)
 
 	dollarSign := "$"
@@ -163,6 +177,10 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.New {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
+				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
+				continue
+			}
 			methods = append(methods, "^"+n.RefName+dollarSign)
 			dirs[dir] = struct{}{}
 		}
@@ -172,7 +190,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.Changed {
-			if slices.Contains(testsToSkip, n.RefName) {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}

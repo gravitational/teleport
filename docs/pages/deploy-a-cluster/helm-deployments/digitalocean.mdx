@@ -72,9 +72,7 @@ $ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=b
 namespace/teleport-cluster labeled
 ```
 
-(!docs/pages/includes//enterprise/obtainlicense.mdx!)
-
-Create a secret called "license" in the namespace you created:
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
 
 ```code
 $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
@@ -123,6 +121,7 @@ Once you get the value for the external IP (it may take a few minutes for this f
 ## Step 3/4. Create and set up Teleport user
 Now we create a Teleport user by executing the `tctl` command with `kubectl`.
 
+<ScopedBlock scope={["oss"]}>
 ```code
 $ kubectl --namespace teleport-cluster exec deployment/teleport-cluster-auth -- tctl users add tadmin --roles=access,editor --logins=ubuntu
 
@@ -131,6 +130,17 @@ https://tele.example.com:443/web/invite/<invite-token>
 
 NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code
+$ kubectl --namespace teleport-cluster exec deployment/teleport-cluster-auth -- tctl users add tadmin --roles=access,editor,reviewer --logins=ubuntu
+
+User "tadmin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://tele.example.com:443/web/invite/<invite-token>
+
+NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
+```
+</ScopedBlock>
 
 Copy the link shown after executing the above command and open the link in a web browser to complete the user registration process (the link is `https://tele.example.com:443/web/invite/<invite-token>` in the above case).
 <Figure align="left" bordered caption="Set up user">
@@ -201,6 +211,7 @@ $ export KUBECONFIG=${HOME?}/teleport-kubeconfig.yaml
 
 </Admonition>
 
+<ScopedBlock scope={["oss"]}>
 ```code 
 $ tsh login --proxy=tele.example.com:443 --auth=local --user=tadmin
 Enter password for Teleport user tadmin:
@@ -215,6 +226,23 @@ Enter your OTP token:
   Valid until:        2021-10-27 06:37:15 +0000 UTC [valid for 12h0m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code 
+$ tsh login --proxy=tele.example.com:443 --auth=local --user=tadmin
+Enter password for Teleport user tadmin:
+Enter your OTP token:
+540255
+> Profile URL:        https://tele.example.com:443
+  Logged in as:       tadmin
+  Cluster:            tele.example.com
+  Roles:              access, editor, reviewer, member
+  Logins:             ubuntu
+  Kubernetes:         enabled
+  Valid until:        2021-10-27 06:37:15 +0000 UTC [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+</ScopedBlock>
 
 ### Select the Kubernetes cluster
 
@@ -246,7 +274,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect a Kubernetes cluster with
 Teleport:
 
-- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/register-clusters/register-via-deployment.mdx)
+- Connect another Kubernetes cluster to Teleport by [deploying the Teleport Kubernetes Service](../../kubernetes-access/getting-started.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
 - [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

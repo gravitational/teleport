@@ -5,7 +5,7 @@ description: Values that can be set using the teleport-kube-agent Helm chart
 
 The `teleport-kube-agent` Helm chart is used to configure a Teleport agent that
 runs in a remote Kubernetes cluster to provide access to resources in your
-infrastructure. 
+infrastructure.
 
 You can [browse the source on
 GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-kube-agent).
@@ -30,11 +30,11 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 
 Releases of this chart installed before version 11 are considered legacy
 releases, which launch the Teleport pod as a `Deployment` if no storage was
-configured. 
+configured.
 
 In version 11 and above, the chart launches the Teleport pod as a `StatefulSet`
 even when the chart is configured not to use external storage, and the Teleport pod
-reads its state from a Kubernetes `Secret`. 
+reads its state from a Kubernetes `Secret`.
 
 While the Teleport pod does not require external storage, you can still use the
 [`storage.enabled`](#storageenabled) field to configure the way the Teleport pod
@@ -51,7 +51,7 @@ The `teleport-kube-agent` chart deploys the following Kubernetes resources:
 | Kind                  | Default Name                                               | Description                                                                                                                                                                                                                                                                                             | When Deployed                                                                                                     |
 |-----------------------|------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
 | `StatefulSet`         | The release name                                           | Running a user-configured Teleport pod.                                                                                                                                                                                                                                                                 | Always.                                                                                                           |
-| `Secret`              | `secretName` (default: `teleport-kube-agent-join-token`)   | Used for managing the state of the Teleport pod.                                                                                                                                                                                                                                                        | `authToken` or `joinParams.tokenName` is provided.                                                                |
+| `Secret`              | `joinTokenSecret.name` (default: `teleport-kube-agent-join-token`)   | Used for managing the state of the Teleport pod.                                                                                                                                                                                                                                              | `joinTokenSecret.secret` is `true`.                                                                |
 | `Deployment`          | The release name                                           | Runs a user-configured Teleport pod.                                                                                                                                                                                                                                                                    | `storage.enabled` is `false` and the chart is being upgraded. Fresh installs will deploy a `StatefulSet` instead. |
 | `Role`                | The `roleName` option, if given, or the release name.      | Used to manage the state of the Teleport pod via Kubernetes secrets.                                                                                                                                                                                                                                    | Always.                                                                                                           |
 | `ClusterRole`         | `clusterRoleName`, if given, or the release name.          | Allows impersonating users, groups, and service accounts, getting pods, and creating [`SelfSubjectAccessReview`s](https://www.pulumi.com/registry/packages/kubernetes/api-docs/authorization/v1/selfsubjectaccessreview/) so the Teleport pod can manage access to resources in its Kubernetes cluster. | Always.                                                                                                           |
@@ -89,16 +89,32 @@ This parameter is not mandatory to preserve backwards compatibility with older c
   ```yaml
   roles: kube,app,db
   ```
+  
+## `enterprise`
 
-If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
+| Type     | Default value |
+|----------|---------------|
+| `bool`   | `false`       |
 
+When `enterprise` is set to `true`, the container image used for Teleport agent
+pods run by the `teleport-kube-agent` chart will be the enterprise version.
+This should be set to `true` for connecting to Teleport Cloud and self-hosted
+Teleport Enterprise clusters to use enterprise features within the Kube Agent. 
+
+`values.yaml` example:
+
+  ```yaml
+  enterprise: true
+  ```  
+  
 ## `updater`
 
 `updater` controls whether the Kube Agent Updater should be deployed alongside
 the `teleport-kube-agent`. The updater fetches the target version, validates the
-image signature, and updates the teleport deployment.
+image signature, and updates the teleport deployment. The `enterprise` value should 
+have been set to `true`.
 
-All kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
 ... default to the agent values. However, they can be overridden from the
 `updater` object. For example:
 
@@ -141,14 +157,14 @@ You can enable this when:
 You must not enable this if:
 
 - you are a Teleport Cloud customer not enrolled in automatic updates.
-- you are a self-hosted Teleport user and have not set up your Teleport cluster to 
+- you are a self-hosted Teleport user and have not set up your Teleport cluster to
   support automatic updates.
 
 ### `updater.versionServer`
 
-| Type     | Default value                         | Required?                       |
-|----------|---------------------------------------|---------------------------------|
-| `string` | "https://update.gravitational.io/v1/" | Yes if not using Teleport Cloud |
+| Type     | Default value                               | Required?                       |
+|----------|---------------------------------------------|---------------------------------|
+| `string` | "https://updates.releases.teleport.dev/v1/" | Yes if not using Teleport Cloud |
 
 `updater.versionServer` is the URL of the version server the agent fetches the
 target version from. The complete version endpoint is built by concatenating
@@ -195,7 +211,7 @@ than a Teleport-published image.
 
 `roleBindingName` provides a custom name for the `RoleBinding` resource that the
 `teleport-kube-agent` chart creates for the Teleport pod. By default, the
-`RoleBinding` has the name of the Helm release. 
+`RoleBinding` has the name of the Helm release.
 
 You should set this value if there is a `RoleBinding` resource in the namespace
 of your `teleport-kube-agent` resources with the same name as your
@@ -215,7 +231,7 @@ of your `teleport-kube-agent` resources with the same name as your
 
 `roleName` provides a custom name for the `Role` resource that the
 `teleport-kube-agent` chart creates for the Teleport pod. By default, the `Role`
-has the name of the Helm release. 
+has the name of the Helm release.
 
 You should set this value if there is a `Role` resource in the namespace of your
 `teleport-kube-agent` resources with the same name as your `teleport-kube-agent`
@@ -224,7 +240,7 @@ release.
 `values.yaml` example:
 
   ```yaml
-  roleName: myrole 
+  roleName: myrole
   ```
 
 ## `serviceAccountName`
@@ -244,7 +260,7 @@ The value `joinParams` supports more methods to join the Teleport cluster and ta
 and `joinParams` are set.
 
 A token must be specified for the agent to join the Teleport cluster, either though `authToken`,
-[`joinParams`](#joinparams), or [an existing Kubernetes Secret](#secretname).
+[`joinParams`](#joinparams), or [an existing Kubernetes Secret](#joinTokenSecret).
 
 | Services                          | Service Name  | `tctl tokens add` example            | `teleport.yaml` static token example        |
 |-----------------------------------|---------------|--------------------------------------|---------------------------------------------|
@@ -285,11 +301,11 @@ These sub-values must be configured for the agent to connect to a cluster.
 Possible values are `token`, `iam` and `ec2`.
 
 - For `iam`, see [Joining Nodes Via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-iam.mdx).
+  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx).
 - For `ec2`, see [Joining Nodes Via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-ec2.mdx).
+  Role](../../agents/join-services-to-your-cluster/aws-ec2.mdx).
 - For `token` (default value), the token must be provided through `joinParams.tokenName` or
-  [through an existing Kubernetes Secret](#secretName).
+  [through an existing Kubernetes Secret](#joinTokenSecret).
 
 <Admonition type="note" title="IAM joining requirements">
 Using the IAM joining method requires either the pods to have access to [instance
@@ -321,7 +337,7 @@ the value is sensitive and is automatically stored in a Kubernetes Secret instea
 agent's configuration.
 
 If method is `token`, `joinParams.tokenName` can be empty if the token is provided through an existing Kubernetes
-Secret, see [`secretName`](#secretName) for more details and instructions.
+Secret, see [`joinTokenSecret`](#joinTokenSecret) for more details and instructions.
 
 `values.yaml` example:
 
@@ -676,7 +692,7 @@ If you want to run Teleport version `X.Y.Z`, you should use
 When `caPin` is set, the Teleport pod will use its values to check the
 Auth Service's identity when first joining a cluster. This enables a more secure
 way of adding new Teleport instances to a cluster. See
-["Adding Nodes to the Cluster"](../../management/join-services-to-your-cluster/join-token.mdx).
+["Adding Nodes to the Cluster"](../../agents/join-services-to-your-cluster/join-token.mdx).
 
 Each list element can be the pin itself (recommended, works out of the box),
 or a path to a file containing the pin. For the latter it is your
@@ -868,7 +884,7 @@ hook](https://helm.sh/docs/topics/charts_hooks/), and the upgrade finishes.
 If `storage.enabled` is `true`, then during the upgrade, the
 `teleport-kube-agent` chart will use the existing `StatefulSet` resource to run
 the Teleport pod. The chart will import the pod's identify from the previously
-configured external storage into a Kubernetes `Secret`. 
+configured external storage into a Kubernetes `Secret`.
 
 #### New chart installations
 
@@ -956,9 +972,9 @@ connecting to a Teleport Cloud instance enrolled in automatic updates.
 
 ## `imagePullSecrets`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
 
@@ -1116,9 +1132,9 @@ Ensures that this number of replicas is available during voluntary disruptions, 
 
 ## `serviceAccount.create`
 
-| Type      | Default value | Required? | Can be used in `custom` mode? |
-|-----------|---------------|-----------|-------------------------------|
-| `boolean` | `true`        | No        | ✅                             |
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `true`        | No        |
 
 [Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 
@@ -1135,13 +1151,13 @@ When off, the `serviceAccount.name` parameter should be set to the existing `Ser
 
 ## `serviceAccount.name`
 
-| Type     | Default value | Required? | Can be used in `custom` mode? |
-|----------|---------------|-----------|-------------------------------|
-| `string` | `""`          | No        | ✅                             |
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `string` | `""`          | No        |
 
 `serviceAccount.name` provides a custom name for the `ServiceAccount` resource
 that the `teleport-kube-agent` chart creates for the Teleport pod. By default,
-the `ServiceAccount` has the name of the Helm release. 
+the `ServiceAccount` has the name of the Helm release.
 
 You should set this value if there is a `ServiceAccount` resource in the
 namespace of your `teleport-kube-agent` resources with the same name as your
@@ -1154,16 +1170,28 @@ namespace of your `teleport-kube-agent` resources with the same name as your
     name: kubernetes-serviceaccount
   ```
 
-## `secretName`
+## `joinTokenSecret`
+
+### `joinTokenSecret.create`
+
+| Type     | Default value                    |
+|----------|----------------------------------|
+| `bool`   | `true`                           |
+
+
+Boolean value to control whether Helm Chart should create the `Secret`.
+When off, the `joinTokenSecret.name` parameter should be set to the existing `Secret` name.
+
+### `joinTokenSecret.name`
 
 | Type     | Default value                    |
 |----------|----------------------------------|
 | `string` | `teleport-kube-agent-join-token` |
 
-`secretName` is the name of the Kubernetes Secret containing the Teleport join token used by the chart.
+`name` is the name of the Kubernetes Secret containing the Teleport join token used by the chart.
 
-If `joinParams.method` is `token` and you set both `authToken` and `joinParams.tokenName` to a blank value, the chart
-will not attempt to create the secret itself. Instead, it will read the value from an existing secret. `secretName`
+If `joinTokenSecret.create` is `false`, the chart will not attempt to create the secret itself.
+Instead, it will read the value from an existing secret. `joinTokenSecret.name`
 configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
 join token stored in your Teleport chart values.
 
@@ -1180,7 +1208,10 @@ $ kubectl --namespace teleport create secret generic teleport-kube-agent-join-to
 `values.yaml` example:
 
   ```yaml
-  secretName: "secret-i-created-before"
+  joinTokenSecret:
+    create: false
+    name: "secret-i-created-before"
+
   joinParams:
     method: "token"
     tokenName: ""
@@ -1215,9 +1246,9 @@ The default is `INFO`, which is recommended in production.
 
 ### `log.output`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-|----------|---------------|-------------------------------|----------------------------|
-| `string` | `stderr`      | ❌                             | `teleport.log.output`      |
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `stderr`      | `teleport.log.output`      |
 
 `log.output` sets the output destination for the Teleport process.
 
@@ -1234,9 +1265,9 @@ The value can also be set to a file path (such as `/var/log/teleport.log`) to wr
 
 ### `log.format`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent   |
-|----------|---------------|-------------------------------|------------------------------|
-| `string` | `text`        | ❌                             | `teleport.log.format.output` |
+| Type     | Default value | `teleport.yaml` equivalent   |
+|----------|---------------|------------------------------|
+| `string` | `text`        | `teleport.log.format.output` |
 
 `log.format` sets the output type for the Teleport process.
 
@@ -1251,9 +1282,9 @@ Possible values are `text` (default) or `json`.
 
 ### `log.extraFields`
 
-| Type   | Default value                                   | Can be used in `custom` mode? | `teleport.yaml` equivalent         |
-|--------|-------------------------------------------------|-------------------------------|------------------------------------|
-| `list` | `["timestamp", "level", "component", "caller"]` | ❌                             | `teleport.log.format.extra_fields` |
+| Type   | Default value                                   | `teleport.yaml` equivalent         |
+|--------|-------------------------------------------------|------------------------------------|
+| `list` | `["timestamp", "level", "component", "caller"]` | `teleport.log.format.extra_fields` |
 
 `log.extraFields` sets the fields used in logging for the Teleport process.
 
@@ -1552,18 +1583,13 @@ chart for the Teleport pod.
 
 ## `annotations.config`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-|----------|---------------|-------------------------------|----------------------------|
-| `object` | `{}`          | ❌                             | None                       |
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `object` | `{}`          | None                       |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
-
-<Admonition type="note">
-  These annotations will not be applied in `custom` mode, as the `ConfigMap` is not managed by the chart.
-  In this instance, you should apply annotations manually to your created `ConfigMap`.
-</Admonition>
 
 `values.yaml` example:
 
@@ -1575,9 +1601,9 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
 
 ## `annotations.deployment`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1593,9 +1619,9 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 
 ## `annotations.pod`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1611,9 +1637,9 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
 
 ## `annotations.serviceAccount`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1629,9 +1655,9 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
 
 ## `extraVolumes`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
@@ -1682,9 +1708,9 @@ A list of extra environment variables to be set on the main Teleport container.
 
 ## `extraVolumeMounts`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
@@ -1699,11 +1725,36 @@ mounts will also be mounted into any `initContainers` configured by the chart.
     mountPath: /path/to/mount/volume
   ```
 
+## `hostAliases`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+Configure aliases in the pod's `/etc/hosts`.
+This can be used to have the agent join the Teleport cluster through a different
+non-public route, or to allow the agent to access applications or databases that
+are not resolvable. See [the Kubernetes documentation
+](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/) for
+more details.
+
+```yaml
+hostAliases:
+  - ip: "127.0.0.1"
+    hostnames:
+      - "foo.local"
+      - "bar.local"
+  - ip: "10.1.2.3"
+    hostnames:
+      - "foo.remote"
+      - "bar.remote"
+```
+
 ## `imagePullPolicy`
 
-| Type     | Default value  | Can be used in `custom` mode? |
-|----------|----------------|-------------------------------|
-| `string` | `IfNotPresent` | ✅                             |
+| Type     | Default value  |
+|----------|----------------|
+| `string` | `IfNotPresent` |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 
@@ -1717,9 +1768,9 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
 ## `initContainers`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 
@@ -1736,9 +1787,9 @@ A list of `initContainers` which will be run before the main Teleport container 
 
 ## `resources`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 
@@ -1794,9 +1845,9 @@ To unset the security context, set it to `null` or `~`.
 
 ## `tolerations`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
 

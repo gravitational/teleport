@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -137,7 +136,7 @@ func TestProxyWatcher(t *testing.T) {
 	require.NoError(t, w.WaitInitialization())
 	// Add a proxy server.
 	proxy := newProxyServer(t, "proxy1", "127.0.0.1:2023")
-	require.NoError(t, presence.UpsertProxy(proxy))
+	require.NoError(t, presence.UpsertProxy(ctx, proxy))
 
 	// The first event is always the current list of proxies.
 	select {
@@ -152,7 +151,7 @@ func TestProxyWatcher(t *testing.T) {
 
 	// Add a second proxy.
 	proxy2 := newProxyServer(t, "proxy2", "127.0.0.1:2023")
-	require.NoError(t, presence.UpsertProxy(proxy2))
+	require.NoError(t, presence.UpsertProxy(ctx, proxy2))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -165,7 +164,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the first proxy.
-	require.NoError(t, presence.DeleteProxy(proxy.GetName()))
+	require.NoError(t, presence.DeleteProxy(ctx, proxy.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -179,7 +178,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the second proxy.
-	require.NoError(t, presence.DeleteProxy(proxy2.GetName()))
+	require.NoError(t, presence.DeleteProxy(ctx, proxy2.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -996,110 +995,6 @@ func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {
 	})
 	require.NoError(t, err)
 	return s
-}
-
-func TestKubeServerWatcher(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
-
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	type client struct {
-		services.Presence
-		types.Events
-	}
-
-	presence := local.NewPresenceService(bk)
-	w, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: "test",
-			Client: &client{
-				Presence: presence,
-				Events:   local.NewEventsService(bk),
-			},
-			MaxStaleness: time.Minute,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(w.Close)
-
-	newKubeServer := func(t *testing.T, name, addr, hostID string) types.KubeServer {
-		kube, err := types.NewKubernetesClusterV3(
-			types.Metadata{
-				Name: name,
-			},
-			types.KubernetesClusterSpecV3{})
-		require.NoError(t, err)
-		server, err := types.NewKubernetesServerV3FromCluster(kube, addr, hostID)
-		require.NoError(t, err)
-		return server
-	}
-
-	// Add some kube servers.
-	kubeServers := make([]types.KubeServer, 0, 5)
-	for i := 0; i < 5; i++ {
-		kubeServer := newKubeServer(t, fmt.Sprintf("kube_cluster-%d", i), "addr", fmt.Sprintf("host-%d", i))
-		_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
-		require.NoError(t, err)
-		kubeServers = append(kubeServers, kubeServer)
-	}
-
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubernetesServers(context.Background())
-		assert.NoError(t, err)
-		return len(filtered) == len(kubeServers)
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
-
-	// Test filtering by cluster name.
-	filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[0].GetName())
-	require.NoError(t, err)
-	require.Len(t, filtered, 1)
-
-	// Test Deleting a kube server.
-	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
-	require.Eventually(t, func() bool {
-		kube, err := w.GetKubernetesServers(context.Background())
-		assert.NoError(t, err)
-		return len(kube) == len(kubeServers)-1
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
-
-	filtered, err = w.GetKubeServersByClusterName(context.Background(), kubeServers[0].GetName())
-	require.Error(t, err)
-	require.Empty(t, filtered)
-
-	// Test adding a kube server with the same name as an existing one.
-	kubeServer := newKubeServer(t, kubeServers[1].GetName(), "addr", uuid.NewString())
-	_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
-		assert.NoError(t, err)
-		return len(filtered) == 2
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
-
-	// Test deleting all kube servers with the same name.
-	filtered, err = w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
-	assert.NoError(t, err)
-	for _, server := range filtered {
-		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
-	}
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
-		return len(filtered) == 0 && err != nil
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
-
-	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
-	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubernetesServers(context.Background())
-		assert.NoError(t, err)
-		return len(filtered) == 0
-	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")
 }
 
 // TestAccessRequestWatcher tests that access request resource watcher properly receives

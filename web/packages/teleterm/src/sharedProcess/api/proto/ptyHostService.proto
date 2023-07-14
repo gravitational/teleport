@@ -33,7 +33,8 @@ message PtyCreate {
   string path = 3;
   repeated string args = 4;
   string cwd = 5;
-  optional string init_command = 6;
+  reserved 6;
+  reserved "init_command";
   google.protobuf.Struct env = 7;
 }
 
@@ -51,6 +52,7 @@ message PtyServerEvent {
     PtyEventData data = 2;
     PtyEventOpen open = 3;
     PtyEventExit exit = 4;
+    PtyEventStartError start_error = 5;
   }
 }
 
@@ -73,6 +75,10 @@ message PtyEventOpen {}
 message PtyEventExit {
   uint32 exit_code = 1;
   optional uint32 signal = 2;
+}
+
+message PtyEventStartError {
+  string message = 1;
 }
 
 message PtyCwd {

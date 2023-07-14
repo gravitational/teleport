@@ -36,7 +36,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -700,7 +699,8 @@ func TestList(t *testing.T) {
 	}
 }
 
-func createAgent(t *testing.T) string {
+// create a new local agent key ring and serve it on $SSH_AUTH_SOCK for tests.
+func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	t.Helper()
 
 	currentUser, err := user.Current()
@@ -726,7 +726,7 @@ func createAgent(t *testing.T) string {
 
 	t.Setenv(teleport.SSHAuthSock, teleAgent.Path)
 
-	return teleAgent.Path
+	return keyring, teleAgent.Path
 }
 
 func disableAgent(t *testing.T) {
@@ -787,10 +787,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 	var buff bytes.Buffer
 	err := Run(context.Background(), []string{
 		"config",
-	}, func(cf *CLIConf) error {
-		cf.overrideStdout = &buff
-		return nil
-	})
+	}, setCopyStdout(&buff))
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
@@ -815,10 +812,11 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 	sshPath, err := exec.LookPath("ssh")
 	require.NoError(t, err)
 
+	_, agentPath := createAgent(t)
 	cmd := exec.Command(sshPath, ss...)
 	cmd.Env = []string{
 		fmt.Sprintf("%s=1", tshBinMainTestEnv),
-		fmt.Sprintf("SSH_AUTH_SOCK=%s", createAgent(t)),
+		fmt.Sprintf("SSH_AUTH_SOCK=%s", agentPath),
 		fmt.Sprintf("PATH=%s", filepath.Dir(sshPath)),
 		fmt.Sprintf("%s=%s", types.HomeEnvVar, os.Getenv(types.HomeEnvVar)),
 	}
@@ -842,14 +840,12 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 
 func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
 	now := time.Now()
-	events, _, err := auth.SearchEvents(
-		now.Add(-time.Hour),
-		now.Add(time.Hour),
-		apidefaults.Namespace,
-		nil,
-		0,
-		types.EventOrderDescending,
-		"")
+	ctx := context.Background()
+	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
+		From:  now.Add(-time.Hour),
+		To:    now.Add(time.Hour),
+		Order: types.EventOrderDescending,
+	})
 
 	require.NoError(t, err)
 	return events
@@ -1053,6 +1049,7 @@ type fakeAWSAppInfo struct {
 func (f fakeAWSAppInfo) GetAppName() string {
 	return "fake-aws-app"
 }
+
 func (f fakeAWSAppInfo) GetEnvVars() (map[string]string, error) {
 	envVars := map[string]string{
 		"AWS_ACCESS_KEY_ID":     "FAKE_ID",
@@ -1064,9 +1061,11 @@ func (f fakeAWSAppInfo) GetEnvVars() (map[string]string, error) {
 	}
 	return envVars, nil
 }
+
 func (f fakeAWSAppInfo) GetEndpointURL() string {
 	return "https://127.0.0.1:12345"
 }
+
 func (f fakeAWSAppInfo) GetForwardProxyAddr() string {
 	return f.forwardProxyAddr
 }

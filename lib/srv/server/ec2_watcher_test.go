@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 type mockClients struct {
@@ -141,24 +140,24 @@ func TestEC2Watcher(t *testing.T) {
 	clients := mockClients{
 		ec2Client: &mockEC2Client{},
 	}
-	matchers := []services.AWSMatcher{
+	matchers := []types.AWSMatcher{
 		{
-			Params: services.InstallerParams{
+			Params: &types.InstallerParams{
 				InstallTeleport: true,
 			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-			SSM:     &services.AWSSSM{},
+			SSM:     &types.AWSSSM{},
 		},
 		{
-			Params: services.InstallerParams{
+			Params: &types.InstallerParams{
 				InstallTeleport: true,
 			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"env": {"dev"}},
-			SSM:     &services.AWSSSM{},
+			SSM:     &types.AWSSSM{},
 		},
 	}
 	ctx := context.Background()
@@ -216,7 +215,7 @@ func TestEC2Watcher(t *testing.T) {
 		}},
 	}
 	clients.ec2Client.output = &output
-	watcher, err := NewEC2Watcher(ctx, matchers, &clients)
+	watcher, err := NewEC2Watcher(ctx, matchers, &clients, make(<-chan []types.Server))
 	require.NoError(t, err)
 
 	go watcher.Run()
@@ -224,13 +223,13 @@ func TestEC2Watcher(t *testing.T) {
 	result := <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
-		Instances:  []*ec2.Instance{&present},
+		Instances:  []EC2Instance{toEC2Instance(&present)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
 	}, *result.EC2Instances)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
-		Instances:  []*ec2.Instance{&presentOther},
+		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
 	}, *result.EC2Instances)
 }

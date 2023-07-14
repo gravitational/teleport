@@ -110,6 +110,8 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 				withCustomSpecFields([]string{"priority", "traits_expression", "traits_map"}),
 			},
 		},
+		{name: "ProvisionTokenV2"},
+		{name: "OktaImportRuleV1"},
 	}
 
 	for _, resource := range resources {

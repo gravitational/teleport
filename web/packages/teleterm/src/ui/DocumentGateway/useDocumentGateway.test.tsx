@@ -29,12 +29,6 @@ import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
 
 import { useDocumentGateway } from './useDocumentGateway';
 
-jest.mock('teleterm/staticConfig', () => ({
-  staticConfig: {
-    prehogAddress: undefined,
-  },
-}));
-
 beforeEach(() => {
   jest.restoreAllMocks();
 });

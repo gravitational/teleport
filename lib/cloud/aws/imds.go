@@ -159,3 +159,31 @@ func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error)
 
 	return id, nil
 }
+
+// GetLocalIPV4 gets the EC2 instance's local ipv4 address.
+func (client *InstanceMetadataClient) GetLocalIPV4(ctx context.Context) (string, error) {
+	ip, err := client.getMetadata(ctx, "local-ipv4")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return ip, nil
+}
+
+// GetPublicIPV4 gets the EC2 instance's local ipv4 address.
+func (client *InstanceMetadataClient) GetPublicIPV4(ctx context.Context) (string, error) {
+	ip, err := client.getMetadata(ctx, "public-ipv4")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return ip, nil
+}
+
+func (client *InstanceMetadataClient) GetAccountID(ctx context.Context) (string, error) {
+	idOut, err := client.c.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return idOut.AccountID, nil
+}

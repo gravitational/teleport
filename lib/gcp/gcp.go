@@ -25,7 +25,7 @@ import (
 const defaultIssuerHost = "accounts.google.com"
 
 // ComputeEngine contains VM-specific token claims.
-type computeEngine struct {
+type ComputeEngine struct {
 	// The ID of the instance's project.
 	ProjectID string `json:"project_id"`
 	// The instance's zone.
@@ -37,8 +37,8 @@ type computeEngine struct {
 }
 
 // Google contains Google-specific token claims.
-type google struct {
-	ComputeEngine computeEngine `json:"compute_engine"`
+type Google struct {
+	ComputeEngine ComputeEngine `json:"compute_engine"`
 }
 
 // IDTokenClaims is the set of claims in a GCP ID token. GCP documentation for
@@ -47,7 +47,7 @@ type google struct {
 type IDTokenClaims struct {
 	// The email of the service account that this token was issued for.
 	Email  string `json:"email"`
-	Google google `json:"google"`
+	Google Google `json:"google"`
 }
 
 // JoinAuditAttributes returns a series of attributes that can be inserted into

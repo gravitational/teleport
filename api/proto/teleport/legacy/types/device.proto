@@ -59,15 +59,18 @@ message DeviceSpec {
   string enroll_status = 5 [(gogoproto.jsontag) = "enroll_status"];
   DeviceCredential credential = 6 [(gogoproto.jsontag) = "credential,omitempty"];
   repeated DeviceCollectedData collected_data = 7 [(gogoproto.jsontag) = "collected_data,omitempty"];
+  DeviceSource source = 8 [(gogoproto.jsontag) = "source,omitempty"];
+  DeviceProfile profile = 9 [(gogoproto.jsontag) = "profile,omitempty"];
 }
 
 // DeviceCredential is the resource representation of
 // teleport.devicetrust.v1.DeviceCredential.
 message DeviceCredential {
   string id = 1 [(gogoproto.jsontag) = "id"];
-  bytes public_key_der = 2 [(gogoproto.jsontag) = "public_key_der"];
-  string device_attestation_type = 3 [(gogoproto.jsontag) = "device_attestation_type"];
-  string tpm_ekcert_serial = 4 [(gogoproto.jsontag) = "tpm_ekcert_serial"];
+  bytes public_key_der = 2 [(gogoproto.jsontag) = "public_key_der,omitempty"];
+  string device_attestation_type = 3 [(gogoproto.jsontag) = "device_attestation_type,omitempty"];
+  string tpm_ekcert_serial = 4 [(gogoproto.jsontag) = "tpm_ekcert_serial,omitempty"];
+  bytes tpm_ak_public = 5 [(gogoproto.jsontag) = "tpm_ak_public,omitempty"];
 }
 
 // DeviceCollectedData is the resource representation of
@@ -83,4 +86,64 @@ message DeviceCollectedData {
   ];
   string os_type = 3 [(gogoproto.jsontag) = "os_type"];
   string serial_number = 4 [(gogoproto.jsontag) = "serial_number,omitempty"];
+  string model_identifier = 5 [(gogoproto.jsontag) = "model_identifier,omitempty"];
+  string os_version = 6 [(gogoproto.jsontag) = "os_version,omitempty"];
+  string os_build = 7 [(gogoproto.jsontag) = "os_build,omitempty"];
+  string os_username = 8 [(gogoproto.jsontag) = "os_username,omitempty"];
+  string jamf_binary_version = 9 [(gogoproto.jsontag) = "jamf_binary_version,omitempty"];
+  string macos_enrollment_profiles = 10 [(gogoproto.jsontag) = "macos_enrollment_profiles,omitempty"];
+  string reported_asset_tag = 11 [(gogoproto.jsontag) = "reported_asset_tag,omitempty"];
+  string system_serial_number = 12 [(gogoproto.jsontag) = "system_serial_number,omitempty"];
+  string base_board_serial_number = 13 [(gogoproto.jsontag) = "base_board_serial_number,omitempty"];
+  TPMPlatformAttestation tpm_platform_attestation = 14 [(gogoproto.jsontag) = "tpm_platform_attestation,omitempty"];
+}
+
+// TPMPCR is the resource representation of teleport.devicetrust.v1.TPMPCR.
+message TPMPCR {
+  int32 index = 1 [(gogoproto.jsontag) = "index"];
+  bytes digest = 2 [(gogoproto.jsontag) = "digest"];
+  uint64 digest_alg = 3 [(gogoproto.jsontag) = "digest_alg"];
+}
+
+// TPMQuote is the resource representation of teleport.devicetrust.v1.TPMQuote.
+message TPMQuote {
+  bytes quote = 1 [(gogoproto.jsontag) = "quote"];
+  bytes signature = 2 [(gogoproto.jsontag) = "signature"];
+}
+
+// TPMPlatformParameters is the resource representation of
+// teleport.devicetrust.v1.TPMPlatformParameters.
+message TPMPlatformParameters {
+  repeated TPMQuote quotes = 1 [(gogoproto.jsontag) = "quotes"];
+  repeated TPMPCR pcrs = 2 [(gogoproto.jsontag) = "pcrs"];
+  bytes event_log = 3 [(gogoproto.jsontag) = "event_log"];
+}
+
+// TPMPlatformAttestation is the resource representation of
+// teleport.devicetrust.v1.TPMPlatformAttestation.
+message TPMPlatformAttestation {
+  bytes nonce = 1 [(gogoproto.jsontag) = "nonce,omitempty"];
+  TPMPlatformParameters platform_parameters = 2 [(gogoproto.jsontag) = "platform_parameters,omitempty"];
+}
+
+// DeviceSource is the resource representation of
+// teleport.devicetrust.v1.DeviceSource..
+message DeviceSource {
+  string name = 1 [(gogoproto.jsontag) = "name"];
+  string origin = 2 [(gogoproto.jsontag) = "origin"];
+}
+
+// DeviceProfile is the resource representation of
+// teleport.devicetrust.v1.DeviceProfile.
+message DeviceProfile {
+  google.protobuf.Timestamp update_time = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "update_time,omitempty"
+  ];
+  string model_identifier = 2 [(gogoproto.jsontag) = "model_identifier,omitempty"];
+  string os_version = 3 [(gogoproto.jsontag) = "os_version,omitempty"];
+  string os_build = 4 [(gogoproto.jsontag) = "os_build,omitempty"];
+  repeated string os_usernames = 5 [(gogoproto.jsontag) = "os_usernames,omitempty"];
+  string jamf_binary_version = 6 [(gogoproto.jsontag) = "jamf_binary_version,omitempty"];
+  string external_id = 7 [(gogoproto.jsontag) = "external_id,omitempty"];
 }

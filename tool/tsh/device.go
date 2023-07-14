@@ -17,7 +17,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -34,13 +34,18 @@ type deviceCommand struct {
 	// collect and keyget are debug commands.
 	collect *deviceCollectCommand
 	keyget  *deviceKeygetCommand
+
+	// activateCredential is a hidden command invoked on an elevated child
+	// process
+	activateCredential *deviceActivateCredentialCommand
 }
 
 func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	root := &deviceCommand{
-		enroll:  &deviceEnrollCommand{},
-		collect: &deviceCollectCommand{},
-		keyget:  &deviceKeygetCommand{},
+		enroll:             &deviceEnrollCommand{},
+		collect:            &deviceCollectCommand{},
+		keyget:             &deviceKeygetCommand{},
+		activateCredential: &deviceActivateCredentialCommand{},
 	}
 
 	// "tsh device" command.
@@ -49,7 +54,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 
 	// "tsh device enroll" command.
 	root.enroll.CmdClause = parentCmd.Command(
-		"enroll", "Enroll this device as a trusted device. Requires Teleport Enterprise")
+		"enroll", "Enroll this device as a trusted device. Requires Teleport Enterprise.")
 	root.enroll.Flag("token", "Device enrollment token").
 		Required().
 		StringVar(&root.enroll.token)
@@ -57,7 +62,13 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	// "tsh device" hidden debug commands.
 	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
 	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
-
+	root.activateCredential.CmdClause = parentCmd.Command("tpm-activate-credential", "").Hidden()
+	root.activateCredential.Flag("encrypted-credential", "").
+		Required().
+		StringVar(&root.activateCredential.encryptedCredential)
+	root.activateCredential.Flag("encrypted-credential-secret", "").
+		Required().
+		StringVar(&root.activateCredential.encryptedCredentialSecret)
 	return root
 }
 
@@ -68,7 +79,7 @@ type deviceEnrollCommand struct {
 }
 
 func (c *deviceEnrollCommand) run(cf *CLIConf) error {
-	teleportClient, err := makeClient(cf, true /* useProfileLogin */)
+	teleportClient, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -89,7 +100,7 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 		defer authClient.Close()
 
 		devices := authClient.DevicesClient()
-		dev, err = enroll.RunCeremony(ctx, devices, c.token)
+		dev, err = enroll.RunCeremony(ctx, devices, cf.Debug, c.token)
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
@@ -146,4 +157,26 @@ func (c *deviceKeygetCommand) run(cf *CLIConf) error {
 	}
 	fmt.Printf("DeviceCredential %s\n", val)
 	return nil
+}
+
+type deviceActivateCredentialCommand struct {
+	*kingpin.CmdClause
+	encryptedCredential       string
+	encryptedCredentialSecret string
+}
+
+func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
+	//nolint:staticcheck // HandleTPMActivateCredential works depending on the platform.
+	err := dtnative.HandleTPMActivateCredential(
+		c.encryptedCredential, c.encryptedCredentialSecret,
+	)
+	//nolint:staticcheck // `err` can indeed be nil.
+	if cf.Debug && err != nil {
+		// On error, wait for user input before executing. This is because this
+		// opens in a second window. If we return the error immediately, then
+		// this window closes before the user can inspect it.
+		log.WithError(err).Error("An error occurred during credential activation. Press enter to close this window.")
+		_, _ = fmt.Scanln()
+	}
+	return trace.Wrap(err)
 }

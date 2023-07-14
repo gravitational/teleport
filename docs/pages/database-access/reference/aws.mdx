@@ -399,7 +399,7 @@ IAM policies with the required permissions are shown below.
 To connect to an RDS database, the Database Service instance's IAM identity
 needs to have `rds-db:connect` permissions for it:
 
-<Details title="Example IAM policy document" opened={false}>
+<Details title="Example IAM policy document">
 ```json
 {
    "Version": "2012-10-17",
@@ -446,7 +446,7 @@ Redshift databases.
 In order to authorize Teleport to generate temporary IAM tokens, create an IAM
 role with the `GetClusterCredentials` permission:
 
-<Details title="Example IAM policy document" opened={false}>
+<Details title="Example IAM policy document">
 ```json
 {
     "Version": "2012-10-17",

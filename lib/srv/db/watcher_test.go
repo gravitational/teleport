@@ -133,7 +133,7 @@ func TestWatcher(t *testing.T) {
 // ResourceMatchers should be always evaluated for the dynamic registered
 // resources.
 func TestWatcherDynamicResource(t *testing.T) {
-	var db1, db2, db3, db4 *types.DatabaseV3
+	var db1, db2, db3, db4, db5 *types.DatabaseV3
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
@@ -144,9 +144,20 @@ func TestWatcherDynamicResource(t *testing.T) {
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: []types.Database{db0},
 		ResourceMatchers: []services.ResourceMatcher{
-			{Labels: types.Labels{
-				"group": []string{"a"},
-			}},
+			{
+				Labels: types.Labels{
+					"group": []string{"a"},
+				},
+			},
+			{
+				Labels: types.Labels{
+					"group": []string{"b"},
+				},
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+					ExternalID:    "external-id",
+				},
+			},
 		},
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
@@ -156,6 +167,10 @@ func TestWatcherDynamicResource(t *testing.T) {
 
 	withRDSURL := func(v3 *types.DatabaseSpecV3) {
 		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com:5432"
+		v3.AWS.AccountID = "123456789012"
+	}
+	withDiscoveryAssumeRoleARN := func(v3 *types.DatabaseSpecV3) {
+		v3.AWS.AssumeRoleARN = "arn:aws:iam::123456789012:role/DBDiscovery"
 	}
 
 	t.Run("dynamic resource - no match", func(t *testing.T) {
@@ -205,6 +220,25 @@ func TestWatcherDynamicResource(t *testing.T) {
 		// The db4 service should be properly registered by the agent.
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4})
 	})
+
+	t.Run("discovery resource - AssumeRoleARN", func(t *testing.T) {
+		// Created a discovery service created database resource that matches
+		// ResourceMatchers and has AssumeRoleARN set by the discovery service.
+		discoveredDB5, err := makeDiscoveryDatabase("db5", map[string]string{"group": "b"}, withRDSURL, withDiscoveryAssumeRoleARN)
+		require.NoError(t, err)
+		require.True(t, db4.IsRDS())
+
+		err = testCtx.authServer.CreateDatabase(ctx, discoveredDB5)
+		require.NoError(t, err)
+
+		// Validate that AssumeRoleARN is overwritten by the one configured in
+		// the resource matcher.
+		db5 = discoveredDB5.Copy()
+		db5.SetAWSAssumeRole("arn:aws:iam::123456789012:role/DBAccess")
+		db5.SetAWSExternalID("external-id")
+
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
+	})
 }
 
 func setDiscoveryGroupLabel(r types.ResourceWithLabels, discoveryGroup string) {
@@ -252,12 +286,12 @@ func TestWatcherCloudFetchers(t *testing.T) {
 			}),
 			AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
 		},
-		AzureMatchers: []services.AzureMatcher{{
+		AzureMatchers: []types.AzureMatcher{{
 			Subscriptions: []string{"sub"},
 			Types:         []string{services.AzureMatcherSQLServer},
 			ResourceTags:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 		}},
-		AWSMatchers: []services.AWSMatcher{{
+		AWSMatchers: []types.AWSMatcher{{
 			Types:   []string{services.AWSMatcherRDS, services.AWSMatcherRedshiftServerless},
 			Regions: []string{"us-east-1"},
 			Tags:    types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -334,7 +368,7 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 
 	server := &armsql.Server{
 		ID:   to.Ptr(fmt.Sprintf("/subscriptions/sub-id/resourceGroups/%v/providers/Microsoft.Sql/servers/%v", group, name)),
-		Name: to.Ptr(fmt.Sprintf("%s.database.windows.net", name)),
+		Name: to.Ptr(fmt.Sprintf("%s-database-windows-net", name)),
 		Properties: &armsql.ServerProperties{
 			FullyQualifiedDomainName: to.Ptr("localhost"),
 		},

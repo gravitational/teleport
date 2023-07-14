@@ -18,6 +18,7 @@ export enum EventType {
   START = 'session.start',
   JOIN = 'session.join',
   END = 'session.end',
+  EXEC = 'exec',
   PRINT = 'print',
   RESIZE = 'resize',
   FILE_TRANSFER_REQUEST = 'file_transfer_request',

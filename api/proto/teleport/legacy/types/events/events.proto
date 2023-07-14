@@ -175,6 +175,45 @@ message SAMLIdPServiceProviderMetadata {
   string ServiceProviderShortcut = 2 [(gogoproto.jsontag) = "service_provider_shortcut,omitempty"];
 }
 
+// OktaResourcesUpdatedMetadata contains common metadata for Okta resources updated events.
+message OktaResourcesUpdatedMetadata {
+  // Added is the number of resources added.
+  int32 Added = 1 [(gogoproto.jsontag) = "added"];
+  // Updated is the number of resources updated.
+  int32 Updated = 2 [(gogoproto.jsontag) = "updated"];
+  // Deleted is the number of resources deleted.
+  int32 Deleted = 3 [(gogoproto.jsontag) = "deleted"];
+  // AddedResources is a list of the actual resources that were added.
+  repeated OktaResource AddedResources = 4 [(gogoproto.jsontag) = "added_resources"];
+  // UpdatedResources is a list of the actual resources that were updated.
+  repeated OktaResource UpdatedResources = 5 [(gogoproto.jsontag) = "updated_resources"];
+  // DeletedResources is a list of the actual resources that were deleted.
+  repeated OktaResource DeletedResources = 6 [(gogoproto.jsontag) = "deleted_resources"];
+}
+
+// OktaResource is a descriptor of an Okta resource.
+message OktaResource {
+  // ID is the identifier of the Okta resource.
+  string ID = 1 [(gogoproto.jsontag) = "id"];
+  // Description is the description of the Okta resource.
+  string Description = 2 [(gogoproto.jsontag) = "description"];
+}
+
+// OktaAssignmentMetadata contains common metadata for Okta assignment events.
+message OktaAssignmentMetadata {
+  // Source is the source of the Okta assignment.
+  string Source = 1 [(gogoproto.jsontag) = "source,omitempty"];
+
+  // User is the user the Okta assignment is for.
+  string User = 2 [(gogoproto.jsontag) = "user,omitempty"];
+
+  // StartingStatus is the starting status of the assignment.
+  string StartingStatus = 3 [(gogoproto.jsontag) = "starting_status,omitempty"];
+
+  // EndingStatus is the ending status of the assignment.
+  string EndingStatus = 4 [(gogoproto.jsontag) = "ending_status,omitempty"];
+}
+
 // SessionStart is a session start event
 message SessionStart {
   // Metadata is a common event metadata
@@ -1098,6 +1137,10 @@ message UserLogin {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AppliedLoginRules stores the name of each login rule that was applied
+  // during the login.
+  repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
@@ -2352,6 +2395,12 @@ message DatabaseMetadata {
   string DatabaseGCPProjectID = 9 [(gogoproto.jsontag) = "db_gcp_project_id,omitempty"];
   // DatabaseGCPInstanceID is instance ID for GCP hosted databases.
   string DatabaseGCPInstanceID = 10 [(gogoproto.jsontag) = "db_gcp_instance_id,omitempty"];
+  // DatabaseRoles is a list of database roles for auto-provisioned users.
+  repeated string DatabaseRoles = 11 [(gogoproto.jsontag) = "db_roles,omitempty"];
+  // DatabaseType is the database type.
+  string DatabaseType = 12 [(gogoproto.jsontag) = "db_type,omitempty"];
+  // DatabaseOrigin is the database origin source.
+  string DatabaseOrigin = 13 [(gogoproto.jsontag) = "db_origin,omitempty"];
 }
 
 // DatabaseCreate is emitted when a new database resource is created.
@@ -3317,6 +3366,9 @@ message OneOf {
     events.SAMLIdPServiceProviderDeleteAll SAMLIdPServiceProviderDeleteAll = 119;
     events.OpenSearchRequest OpenSearchRequest = 120;
     events.DeviceEvent2 DeviceEvent2 = 121;
+    events.OktaResourcesUpdate OktaResourcesUpdate = 122;
+    events.OktaSyncFailure OktaSyncFailure = 123;
+    events.OktaAssignmentResult OktaAssignmentResult = 124;
   }
 }
 
@@ -4711,6 +4763,92 @@ message SAMLIdPServiceProviderDeleteAll {
 
   // ResourceMetadata is common resource event metadata
   ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OktaResourcesUpdate is emitted when Okta related resources have been updated.
+message OktaResourcesUpdate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Server is a common server metadata.
+  ServerMetadata Server = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Updated is common metadata related to Okta resources being updated.
+  OktaResourcesUpdatedMetadata Updated = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OktaSyncFailure is emitted when an Okta synchronization attempt has failed.
+message OktaSyncFailure {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Server is a common server metadata.
+  ServerMetadata Server = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains error information for the synchronization failure.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OktaAssignmentResult is emitted when an Okta assignment processing or cleanup was attempted.
+message OktaAssignmentResult {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Server is a common server metadata.
+  ServerMetadata Server = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the assignment processing was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // OktaAssignmentMetadata is common Okta assignment metadata.
+  OktaAssignmentMetadata OktaAssignment = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

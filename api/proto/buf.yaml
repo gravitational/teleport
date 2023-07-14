@@ -54,6 +54,7 @@ lint:
       - teleport/devicetrust/v1/devicetrust_service.proto
       - teleport/legacy/client/proto/joinservice.proto
       - teleport/transport/v1/transport_service.proto
+      - teleport/auditlog/v1/auditlog.proto
 breaking:
   use:
-    - FILE
+    - WIRE_JSON

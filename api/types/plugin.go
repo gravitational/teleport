@@ -32,6 +32,28 @@ const (
 	PluginTypeUnknown PluginType = ""
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
+	// PluginTypeOpenAI is the OpenAI plugin
+	PluginTypeOpenAI = "openai"
+	// PluginTypeOkta is the Okta plugin
+	PluginTypeOkta = "okta"
+	// PluginTypeJamf is the Jamf MDM plugin
+	PluginTypeJamf = "jamf"
+	// PluginTypeOpsgenie is the Opsgenie access request plugin
+	PluginTypeOpsgenie = "opsgenie"
+	// PluginTypePagerDuty is the PagerDuty access plugin
+	PluginTypePagerDuty = "pagerduty"
+)
+
+// PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
+type PluginSubkind string
+
+const (
+	// PluginSubkindUnknown is returned when no plugin subkind matches.
+	PluginSubkindUnknown PluginSubkind = ""
+	// PluginSubkindMDM represents MDM plugins collectively
+	PluginSubkindMDM = "mdm"
+	// PluginSubkindAccess represents access request plugins collectively
+	PluginSubkindAccess = "access"
 )
 
 // Plugin represents a plugin instance
@@ -49,6 +71,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
 // PluginStatus is the plugin status
@@ -96,6 +119,77 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.BadParameter("Slack access plugin can only be used with OAuth2 access token credential type")
 		}
 		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_Openai:
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
+	case *PluginSpecV1_Opsgenie:
+		if settings.Opsgenie == nil {
+			return trace.BadParameter("missing opsgenie settings")
+		}
+		if err := settings.Opsgenie.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("opsgenie plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_Jamf:
+		// Check Jamf settings.
+		if settings.Jamf == nil {
+			return trace.BadParameter("missing Jamf settings")
+		}
+		if err := settings.Jamf.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("jamf plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_Okta:
+		// Check settings.
+		if settings.Okta == nil {
+			return trace.BadParameter("missing Okta settings")
+		}
+		if err := settings.Okta.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("okta plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_PagerDuty:
+		if settings.PagerDuty == nil {
+			return trace.BadParameter("missing PagerDuty settings")
+		}
+		if err := settings.PagerDuty.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -228,6 +322,16 @@ func (p *PluginV1) GetType() PluginType {
 	switch p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
 		return PluginTypeSlack
+	case *PluginSpecV1_Openai:
+		return PluginTypeOpenAI
+	case *PluginSpecV1_Okta:
+		return PluginTypeOkta
+	case *PluginSpecV1_Jamf:
+		return PluginTypeJamf
+	case *PluginSpecV1_Opsgenie:
+		return PluginTypeOpsgenie
+	case *PluginSpecV1_PagerDuty:
+		return PluginTypePagerDuty
 	default:
 		return PluginTypeUnknown
 	}
@@ -242,6 +346,32 @@ func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CheckAndSetDefaults validates and set the default values.
+func (s *PluginOktaSettings) CheckAndSetDefaults() error {
+	if s.OrgUrl == "" {
+		return trace.BadParameter("org_url must be set")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values.
+func (s *PluginJamfSettings) CheckAndSetDefaults() error {
+	if s.JamfSpec.ApiEndpoint == "" {
+		return trace.BadParameter("api endpoint must be set")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
+	if s.ApiEndpoint == "" {
+		return trace.BadParameter("opsgenie api endpoint url must be set")
+	}
+	return nil
+}
+
 // CheckAndSetDefaults validates and set the default values
 func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 	if c.AuthorizationCode == "" {
@@ -251,6 +381,18 @@ func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 		return trace.BadParameter("redirect_uri must be set")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default PagerDuty values
+func (c *PluginPagerDutySettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+
+	if c.UserEmail == "" {
+		return trace.BadParameter("user_email must be set")
+	}
 	return nil
 }
 

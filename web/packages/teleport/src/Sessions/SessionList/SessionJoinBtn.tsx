@@ -35,8 +35,14 @@ export const SessionJoinBtn = ({
   participantModes: ParticipantMode[];
   showCTA: boolean;
 }) => {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
+
+  function closeMenu() {
+    setAnchorEl(null);
+  }
+
   return (
-    <JoinMenu>
+    <JoinMenu anchorEl={anchorEl} setAnchorEl={setAnchorEl}>
       {showCTA && (
         <Box mx="12px" my="3">
           <ButtonLockedFeature
@@ -56,6 +62,7 @@ export const SessionJoinBtn = ({
         participantMode="observer"
         key="observer"
         showCTA={showCTA}
+        closeMenu={closeMenu}
       />
       <JoinMenuItem
         title="As a Moderator"
@@ -65,6 +72,7 @@ export const SessionJoinBtn = ({
         participantMode="moderator"
         key="moderator"
         showCTA={showCTA}
+        closeMenu={closeMenu}
       />
       <JoinMenuItem
         title="As a Peer"
@@ -74,14 +82,21 @@ export const SessionJoinBtn = ({
         participantMode="peer"
         key="peer"
         showCTA={showCTA}
+        closeMenu={closeMenu}
       />
     </JoinMenu>
   );
 };
 
-function JoinMenu({ children }: { children: React.ReactNode }) {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
-
+function JoinMenu({
+  children,
+  anchorEl,
+  setAnchorEl,
+}: {
+  children: React.ReactNode;
+  anchorEl: HTMLElement;
+  setAnchorEl: React.Dispatch<React.SetStateAction<HTMLElement>>;
+}) {
   const handleClickListItem = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
@@ -122,6 +137,7 @@ function JoinMenuItem({
   participantMode,
   url,
   showCTA,
+  closeMenu,
 }: {
   title: string;
   description: string;
@@ -129,6 +145,7 @@ function JoinMenuItem({
   participantMode: ParticipantMode;
   url: string;
   showCTA: boolean;
+  closeMenu: () => void;
 }) {
   if (hasAccess && !showCTA) {
     return (
@@ -136,6 +153,7 @@ function JoinMenuItem({
         as="a"
         href={url}
         target="_blank"
+        onClick={closeMenu}
         css={`
           text-decoration: none;
           padding: 8px 12px;

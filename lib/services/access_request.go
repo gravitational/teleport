@@ -1548,7 +1548,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
 		}
 		for _, role := range allRoles {
-			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
+			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1628,7 +1628,7 @@ func countAllowedLogins(role types.Role) int {
 	return len(allowed)
 }
 
-func roleAllowsResource(
+func (m *RequestValidator) roleAllowsResource(
 	ctx context.Context,
 	role types.Role,
 	resource types.ResourceWithLabels,
@@ -1641,7 +1641,7 @@ func roleAllowsResource(
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
 	matchers = append(matchers, extraMatchers...)
-	err := roleSet.checkAccess(resource, AccessState{MFAVerified: true}, matchers...)
+	err := roleSet.checkAccess(resource, m.user.GetTraits(), AccessState{MFAVerified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.
@@ -1658,14 +1658,14 @@ func roleAllowsResource(
 type ListResourcesRequestOption func(*proto.ListResourcesRequest)
 
 func GetResourceDetails(ctx context.Context, clusterName string, lister ResourceLister, ids []types.ResourceID) (map[string]types.ResourceDetails, error) {
-	var nodeIDs []types.ResourceID
+	var resourceIDs []types.ResourceID
 	for _, resourceID := range ids {
-		if resourceID.Kind != types.KindNode {
-			// The only detail we want, for now, is the server hostname, so we
-			// can skip all other resource kinds as a minor optimization.
-			continue
+		// We're interested in hostname or friendly name details. These apply to
+		// nodes, app servers, and user groups.
+		switch resourceID.Kind {
+		case types.KindNode, types.KindApp, types.KindUserGroup:
+			resourceIDs = append(resourceIDs, resourceID)
 		}
-		nodeIDs = append(nodeIDs, resourceID)
 	}
 
 	withExtraRoles := func(req *proto.ListResourcesRequest) {
@@ -1673,36 +1673,37 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister Resource
 		req.UsePreviewAsRoles = true
 	}
 
-	resources, err := GetResourcesByResourceIDs(ctx, lister, nodeIDs, withExtraRoles)
+	resources, err := GetResourcesByResourceIDs(ctx, lister, resourceIDs, withExtraRoles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	result := make(map[string]types.ResourceDetails)
 	for _, resource := range resources {
-		hn, ok := resource.(interface{ GetHostname() string })
-		if !ok {
+		friendlyName := FriendlyName(resource)
+
+		// No friendly name was found, so skip to the next resource.
+		if friendlyName == "" {
 			continue
 		}
+
 		id := types.ResourceID{
 			ClusterName: clusterName,
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		}
 		result[types.ResourceIDToString(id)] = types.ResourceDetails{
-			Hostname: hn.GetHostname(),
+			FriendlyName: friendlyName,
 		}
 	}
 
 	return result, nil
 }
 
-func GetNodeResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
+// GetResourceIDsByCluster will return resource IDs grouped by cluster.
+func GetResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
 	resourceIDsByCluster := make(map[string][]types.ResourceID)
 	for _, resourceID := range r.GetRequestedResourceIDs() {
-		if resourceID.Kind != types.KindNode {
-			continue
-		}
 		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
 	}
 	return resourceIDsByCluster

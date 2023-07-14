@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
+	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 )
 
 type ResourceCollection interface {
@@ -1164,7 +1165,7 @@ type oktaAssignmentCollection struct {
 func (c *oktaAssignmentCollection) resources() []types.Resource {
 	r := make([]types.Resource, len(c.assignments))
 	for i, resource := range c.assignments {
-		r[i] = resource
+		r[i] = oktaassignment.ToResource(resource)
 	}
 	return r
 }

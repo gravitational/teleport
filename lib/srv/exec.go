@@ -19,6 +19,7 @@ package srv
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -153,7 +154,13 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 
 	// Connect stdout and stderr to the channel so the user can interact with the command.
 	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
+
+	if e.Ctx.recordNonInteractiveSession {
+		e.Ctx.Tracef("Starting local exec and recording non-interactive session")
+		e.Cmd.Stdout = io.MultiWriter(e.Ctx.multiWriter, channel)
+	} else {
+		e.Cmd.Stdout = channel
+	}
 
 	// Copy from the channel (client input) into stdin of the process.
 	inputWriter, err := e.Cmd.StdinPipe()
@@ -286,7 +293,7 @@ func waitForContinue(contfd *os.File) error {
 		// won't be closed until the parent has placed it in a cgroup.
 		buf := make([]byte, 1)
 		_, err := contfd.Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			err = nil
 		}
 		waitCh <- err
@@ -334,7 +341,13 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	}
 
 	// hook up stdout/err the channel so the user can interact with the command
-	e.session.Stdout = ch
+	if e.ctx.recordNonInteractiveSession {
+		e.ctx.Tracef("Starting remote exec and recording non-interactive session")
+		e.session.Stdout = io.MultiWriter(e.ctx.multiWriter, ch)
+	} else {
+		e.session.Stdout = ch
+	}
+
 	e.session.Stderr = ch.Stderr()
 	inputWriter, err := e.session.StdinPipe()
 	if err != nil {

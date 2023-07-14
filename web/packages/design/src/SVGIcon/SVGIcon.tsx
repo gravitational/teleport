@@ -24,16 +24,19 @@ export function SVGIcon({
   height,
   width,
   fill,
-}: Props) {
+  ...svgProps
+}: Props & React.SVGProps<SVGSVGElement>) {
   const theme = useTheme();
 
   return (
     <svg
+      data-testid="svg"
       viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
       width={width || size}
       height={height || size}
       fill={fill || theme.colors.text.main}
+      {...svgProps}
     >
       {children}
     </svg>

@@ -25,6 +25,7 @@ import {
   PtyEventOpen,
   PtyEventResize,
   PtyEventStart,
+  PtyEventStartError,
   PtyServerEvent,
 } from '../api/protogen/ptyHostService_pb';
 
@@ -75,6 +76,13 @@ export class PtyEventsStreamHandler {
         )
       )
     );
+    this.ptyProcess.onStartError(message => {
+      this.stream.write(
+        new PtyServerEvent().setStartError(
+          new PtyEventStartError().setMessage(message)
+        )
+      );
+    });
     this.ptyProcess.start(event.getColumns(), event.getRows());
     this.logger.info(`stream has started`);
   }

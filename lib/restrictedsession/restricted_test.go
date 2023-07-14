@@ -239,7 +239,8 @@ func (tt *bpfContext) Close(t *testing.T) {
 	if tt.enhancedRecorder != nil && tt.ctx != nil {
 		err := tt.enhancedRecorder.CloseSession(tt.ctx)
 		require.NoError(t, err)
-		err = tt.enhancedRecorder.Close()
+		const restarting = false
+		err = tt.enhancedRecorder.Close(restarting)
 		require.NoError(t, err)
 	}
 

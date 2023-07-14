@@ -64,9 +64,12 @@ func TestDatabaseServerResource(t *testing.T) {
 				},
 				{
 					Name:        "example2",
-					Description: "Example2 MySQL",
-					Protocol:    "mysql",
+					Description: "Example PostgreSQL",
+					Protocol:    "postgres",
 					URI:         "localhost:33307",
+					AdminUser: config.DatabaseAdminUser{
+						Name: "root",
+					},
 					TLS: config.DatabaseTLS{
 						Mode:       "verify-ca",
 						ServerName: "db.example.com",
@@ -92,12 +95,15 @@ func TestDatabaseServerResource(t *testing.T) {
 
 	wantDB, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "example2",
-		Description: "Example2 MySQL",
+		Description: "Example PostgreSQL",
 		Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
 	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolMySQL,
+		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:33307",
 		CACert:   fixtures.TLSCACertPEM,
+		AdminUser: &types.DatabaseAdminUser{
+			Name: "root",
+		},
 		TLS: types.DatabaseTLS{
 			Mode:       types.DatabaseTLSMode_VERIFY_CA,
 			ServerName: "db.example.com",

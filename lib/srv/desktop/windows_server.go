@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -62,12 +63,12 @@ const (
 
 	// ldapDialTimeout is the timeout for dialing the LDAP server
 	// when making an initial connection
-	ldapDialTimeout = 5 * time.Second
+	ldapDialTimeout = 15 * time.Second
 
 	// ldapRequestTimeout is the timeout for making LDAP requests.
 	// It is larger than the dial timeout because LDAP queries in large
 	// Active Directory environments may take longer to complete.
-	ldapRequestTimeout = 20 * time.Second
+	ldapRequestTimeout = 45 * time.Second
 
 	// windowsDesktopServiceCertTTL is the TTL for certificates issued to the
 	// Windows Desktop Service in order to authenticate with the LDAP server.
@@ -79,6 +80,11 @@ const (
 	// windowsDesktopServiceCertRetryInterval indicates how often to retry
 	// issuing an LDAP certificate if the operation fails.
 	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
+
+	// ldapTimeoutRetryInterval indicates how often to retry LDAP initialization
+	// if it times out. It is set lower than windowsDesktopServiceCertRetryInterval
+	// because LDAP timeouts may indicate a temporary issue.
+	ldapTimeoutRetryInterval = 10 * time.Second
 )
 
 // ComputerAttributes are the attributes we fetch when discovering
@@ -523,7 +529,14 @@ func (s *WindowsService) initializeLDAP() error {
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
-		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval)
+
+		// failures due to timeouts might be transient, so retry more frequently
+		retryAfter := windowsDesktopServiceCertRetryInterval
+		if errors.Is(err, context.DeadlineExceeded) {
+			retryAfter = ldapTimeoutRetryInterval
+		}
+
+		s.scheduleNextLDAPCertRenewalLocked(retryAfter)
 		s.mu.Unlock()
 		return trace.Wrap(err, "dial")
 	}
@@ -783,7 +796,11 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
-		sendTDPError("RDP connection failed.")
+		msg := "RDP connection failed."
+		if um, ok := err.(trace.UserMessager); ok {
+			msg = um.UserMessage()
+		}
+		sendTDPError(msg)
 		return
 	}
 }
@@ -1112,28 +1129,27 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	var activeDirectorySID string
 	if !desktop.NonAD() {
 		// Find the user's SID
-		s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
-		filters := []string{
-			fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
-			fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
+		filter := windows.CombineLDAPFilters([]string{
+			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountType, windows.AccountTypeUser),
 			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
-		}
+		})
+		s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username %q with filter %v", username, filter)
 
-		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
+		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
 		// if LDAP-based desktop discovery is not enabled, there may not be enough
 		// traffic to keep the connection open. Attempt to open a new LDAP connection
 		// in this case.
 		if trace.IsConnectionProblem(err) {
 			s.initializeLDAP() // ignore error, this is a best effort attempt
-			entries, err = s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
+			entries, err = s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), filter, []string{windows.AttrObjectSid})
 		}
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		if len(entries) == 0 {
-			return nil, nil, trace.NotFound("LDAP failed to return objectSid for Windows username: %v", username)
+			return nil, nil, trace.NotFound("could not find Windows account %q", username)
 		} else if len(entries) > 1 {
-			s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
+			s.cfg.Log.Warnf("found multiple entries for username %q, taking the first", username)
 		}
 		activeDirectorySID, err = windows.ADSIDStringFromLDAPEntry(entries[0])
 		if err != nil {

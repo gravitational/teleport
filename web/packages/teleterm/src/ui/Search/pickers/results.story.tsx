@@ -358,6 +358,10 @@ const AuxiliaryItems = () => (
     ExtraTopComponent={
       <>
         <NoResultsItem
+          clustersWithExpiredCerts={new Set()}
+          getClusterName={routing.parseClusterName}
+        />
+        <NoResultsItem
           clustersWithExpiredCerts={new Set([clusterUri])}
           getClusterName={routing.parseClusterName}
         />
