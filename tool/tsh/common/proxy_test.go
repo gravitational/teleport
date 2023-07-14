@@ -745,13 +745,15 @@ func setMockSSOLogin(t *testing.T, s *suite) CliOption {
 func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
 	tshHome := t.TempDir()
 	kubeConfig := filepath.Join(t.TempDir(), teleport.KubeConfigFile)
+	proxyAddr, err := s.root.ProxyWebAddr()
+	require.NoError(t, err)
 	args = append([]string{
 		"login",
 		"--insecure",
 		"--debug",
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--proxy", proxyAddr.String(),
 	}, args...)
-	err := Run(context.Background(), args,
+	err = Run(context.Background(), args,
 		setMockSSOLogin(t, s),
 		setHomePath(tshHome),
 		setKubeConfigPath(kubeConfig),
