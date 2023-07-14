@@ -68,19 +68,19 @@ export async function downloadAgent(
     return;
   }
 
-  const binaryName = createAgentBinaryName({
+  const tarballName = createAgentTarballName({
     arch: settings.arch,
     platform: settings.platform,
     version,
   });
-  const url = `${TELEPORT_CDN_ADDRESS}/${binaryName}`;
+  const url = `${TELEPORT_CDN_ADDRESS}/${tarballName}`;
 
   const agentTempDirectory = await mkdtemp(
-    join(settings.tempDataDir, 'connect-my-computer-'),
+    join(settings.tempDataDir, 'connect-my-computer-')
   );
   await fileDownloader.run(url, agentTempDirectory);
-  const binaryPath = join(agentTempDirectory, binaryName);
-  await unpack(binaryPath, settings.sessionDataDir);
+  const tarballPath = join(agentTempDirectory, tarballName);
+  await unpack(tarballPath, settings.sessionDataDir);
   await rm(agentTempDirectory, { recursive: true });
 
   logger.info(`Downloaded agent v${version}.`);
@@ -131,7 +131,7 @@ async function fetchLatestTeleportRelease(): Promise<string> {
  * teleport-v<version>-darwin-arm64-bin.tar.gz
  * teleport-v<version>-darwin-amd64-bin.tar.gz
  */
-function createAgentBinaryName(params: AgentBinary): string {
+function createAgentTarballName(params: AgentBinary): string {
   const arch = params.arch === 'x64' ? 'amd64' : params.arch;
   return `teleport-v${params.version}-${params.platform}-${arch}-bin.tar.gz`;
 }
