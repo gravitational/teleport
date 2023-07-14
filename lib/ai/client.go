@@ -33,8 +33,8 @@ type Client struct {
 }
 
 // NewClient creates a new client for OpenAI API.
-func NewClient(apiURL string) *Client {
-	return &Client{openai.NewClient(apiURL)}
+func NewClient(authToken string) *Client {
+	return &Client{openai.NewClient(authToken)}
 }
 
 // NewClientFromConfig creates a new client for OpenAI API from config.

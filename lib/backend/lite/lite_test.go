@@ -19,7 +19,6 @@ package lite
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -55,7 +54,7 @@ func TestLite(t *testing.T) {
 		}
 
 		backend, err := NewWithConfig(context.Background(), Config{
-			Path:             filepath.Join(t.TempDir(), "directory with spaces"), // checks if spaces are encoded correctly
+			Path:             t.TempDir(),
 			PollStreamPeriod: 300 * time.Millisecond,
 			Clock:            clock,
 		})
@@ -123,4 +122,34 @@ func TestImport(t *testing.T) {
 	imported, err = uut.Imported(ctx)
 	require.NoError(t, err)
 	require.True(t, imported)
+}
+
+func TestConnectionURIGeneration(t *testing.T) {
+	fileNameAndParams := "/sqlite.db?_busy_timeout=0&_txlock=immediate"
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{
+			name:     "absolute path",
+			path:     "/Users/testuser/data_dir",
+			expected: "file:/Users/testuser/data_dir" + fileNameAndParams,
+		}, {
+			name:     "relative path",
+			path:     "./data_dir",
+			expected: "file:data_dir" + fileNameAndParams,
+		}, {
+			name:     "path with space",
+			path:     "/Users/testuser/dir with spaces/data_dir",
+			expected: "file:/Users/testuser/dir%20with%20spaces/data_dir" + fileNameAndParams,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := Config{Path: tt.path}
+			require.Equal(t, tt.expected, conf.ConnectionURI())
+		})
+	}
 }
