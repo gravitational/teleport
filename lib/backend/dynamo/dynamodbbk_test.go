@@ -142,7 +142,7 @@ func TestCreateTable(t *testing.T) {
 		{
 			name:                "table creation succeeds",
 			errorIsFn:           errIsNil,
-			billingMode:         billingModeOnDemand,
+			billingMode:         billingModePayPerRequest,
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
@@ -150,7 +150,7 @@ func TestCreateTable(t *testing.T) {
 			readCapacityUnits:   10,
 			writeCapacityUnits:  10,
 			errorIsFn:           errIsNil,
-			billingMode:         billingModeOnDemand,
+			billingMode:         billingModePayPerRequest,
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
@@ -162,7 +162,7 @@ func TestCreateTable(t *testing.T) {
 				ReadCapacityUnits:  aws.Int64(10),
 				WriteCapacityUnits: aws.Int64(10),
 			},
-			billingMode:         billingModeOnDemand,
+			billingMode:         billingModePayPerRequest,
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
@@ -174,7 +174,7 @@ func TestCreateTable(t *testing.T) {
 				ReadCapacityUnits:  aws.Int64(10),
 				WriteCapacityUnits: aws.Int64(10),
 			},
-			billingMode:         billingModeOnDemand,
+			billingMode:         billingModePayPerRequest,
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
