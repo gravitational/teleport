@@ -206,7 +206,7 @@ function updateSessionDataPath() {
   switch (process.platform) {
     case 'linux': {
       const xdgCacheHome = process.env.XDG_CACHE_HOME;
-      const cacheDirectory = xdgCacheHome || `${os.homedir()}/cache`;
+      const cacheDirectory = xdgCacheHome || `${os.homedir()}/.cache`;
       app.setPath('sessionData', path.resolve(cacheDirectory, app.getName()));
       break;
     }
