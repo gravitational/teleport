@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -2183,10 +2184,17 @@ func NewKubeResourcesMatcher(resources []types.KubernetesResource) *KubeResource
 		resources:     resources,
 		unmatchedReqs: map[string]struct{}{},
 	}
-	for _, name := range resources {
-		matcher.unmatchedReqs[name.ClusterResource()] = struct{}{}
+	for _, r := range resources {
+		matcher.unmatchedReqs[unmatchedKey(r)] = struct{}{}
 	}
 	return matcher
+}
+
+// unmatchedKey returns a unique key for a Kubernetes resource.
+// It is used to keep track of the resources that did not match any of user's roles.
+// Format: <kind>/<namespace>/<name>
+func unmatchedKey(r types.KubernetesResource) string {
+	return path.Join(r.Kind, r.ClusterResource())
 }
 
 // KubeResourcesMatcher matches a role against any Kubernetes Resource specified.
@@ -2214,7 +2222,7 @@ func (m *KubeResourcesMatcher) Match(role types.Role, condition types.RoleCondit
 		}
 
 		if result {
-			delete(m.unmatchedReqs, resource.ClusterResource())
+			delete(m.unmatchedReqs, unmatchedKey(resource))
 			finalResult = true
 		}
 	}

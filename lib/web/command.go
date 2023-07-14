@@ -708,7 +708,7 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 	clientConfig.HostLogin = t.sessionData.Login
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
-	clientConfig.Stdout = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, envelopeTypeStdout, t.stream), t.buffer)
+	clientConfig.Stdout = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, EnvelopeTypeStdout, t.stream), t.buffer)
 	clientConfig.Stderr = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, envelopeTypeStderr, t.stream), t.buffer)
 	clientConfig.Stdin = &bytes.Buffer{} // set stdin to a dummy buffer
 	clientConfig.SiteName = t.sessionData.ClusterName

@@ -1835,15 +1835,23 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 
 	for _, resourceID := range resourceIDs {
 		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
-			splits := strings.Split(resourceID.SubResourceName, "/")
-			if len(splits) != 2 {
-				return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
+			switch {
+			case slices.Contains(types.KubernetesClusterWideResourceKinds, resourceID.Kind):
+				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
+					Kind: resourceID.Kind,
+					Name: resourceID.SubResourceName,
+				})
+			default:
+				splits := strings.Split(resourceID.SubResourceName, "/")
+				if len(splits) != 2 {
+					return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
+				}
+				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
+					Kind:      resourceID.Kind,
+					Namespace: splits[0],
+					Name:      splits[1],
+				})
 			}
-			kubernetesResources = append(kubernetesResources, types.KubernetesResource{
-				Kind:      resourceID.Kind,
-				Namespace: splits[0],
-				Name:      splits[1],
-			})
 		}
 	}
 	return kubernetesResources, nil

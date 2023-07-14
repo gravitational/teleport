@@ -606,7 +606,8 @@ func (k *KubernetesResourceV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if len(k.Spec.Namespace) == 0 {
+	// Unless the resource is cluster-wide, it must have a namespace.
+	if len(k.Spec.Namespace) == 0 && !slices.Contains(KubernetesClusterWideResourceKinds, k.Kind) {
 		return trace.BadParameter("missing kubernetes namespace")
 	}
 

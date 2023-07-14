@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2021 Gravitational, Inc.
+Copyright 2016-2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -757,7 +757,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
 	exportRecordings := recordings.Command("export", "Export recorded desktop sesions to video.")
 	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
-	exportRecordings.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
+	exportRecordings.Arg("session-id", "ID of the session to export").Required().StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
