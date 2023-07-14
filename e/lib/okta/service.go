@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -112,6 +113,9 @@ type Config struct {
 
 	// BackendTasksPerSecond is the number of backend modifying tasks that can be run per second.
 	BackendTasksPerSecond int
+
+	// PluginStatusSink is an optional status sink for reporting the plugin status.
+	PluginStatusSink common.StatusSink
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -290,6 +294,8 @@ type Service struct {
 	shutdownCalled atomic.Bool
 	closeCalled    atomic.Bool
 
+	pluginStatusSink common.StatusSink
+
 	httpServer *http.Server
 }
 
@@ -349,8 +355,10 @@ func New(ctx context.Context, config Config) (*Service, error) {
 		}
 
 		return &wrappedClient{
-			client:     client,
-			oktaOrgURL: config.OktaAPIEndpoint,
+			log:              config.Log,
+			client:           client,
+			oktaOrgURL:       config.OktaAPIEndpoint,
+			pluginStatusSink: config.PluginStatusSink,
 		}, nil
 	})
 }
@@ -361,11 +369,13 @@ type oktaClientFn func(context.Context, Config) (oktaClient, error)
 // newWithClientCreator will create a new Okta service with the given oktaClient.
 func newWithClientCreator(ctx context.Context, config Config, creator oktaClientFn) (*Service, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
+		reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_OTHER_ERROR)
 		return nil, trace.Wrap(err)
 	}
 
 	client, err := creator(ctx, config)
 	if err != nil {
+		reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_OTHER_ERROR)
 		return nil, trace.Wrap(err)
 	}
 
@@ -401,6 +411,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		timeBetweenSyncs:     config.TimeBetweenSyncs,
 		syncStoppedCh:        make(chan struct{}, 1),
 		stopCh:               make(chan struct{}, 1),
+		pluginStatusSink:     config.PluginStatusSink,
 	}
 	s.tlsConfig = app.CopyAndConfigureTLS(config.Log, s.accessPoint, config.TLSConfig)
 
@@ -414,10 +425,13 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 
 	clusterName, err := s.accessPoint.GetClusterName()
 	if err != nil {
+		reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_OTHER_ERROR)
 		return nil, trace.Wrap(err)
 	}
 
 	s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
+
+	reportPluginStatus(ctx, config.Log, config.PluginStatusSink, types.PluginStatusCode_RUNNING)
 
 	return s, nil
 }
@@ -600,3 +614,17 @@ type connListener struct {
 func (c *connListener) Accept() (net.Conn, error) { return c.conn, nil }
 func (c *connListener) Close() error              { return nil }
 func (c *connListener) Addr() net.Addr            { return c.conn.LocalAddr() }
+
+// reportPluginStatus will report the plugin status to the given status sink if it exists.
+func reportPluginStatus(ctx context.Context, log *logrus.Entry, pluginStatusSink common.StatusSink, code types.PluginStatusCode) {
+	if pluginStatusSink == nil {
+		return
+	}
+
+	err := pluginStatusSink.Emit(ctx, &types.PluginStatusV1{
+		Code: code,
+	})
+	if err != nil {
+		log.Errorf("Error emitting plugin status: %v", err)
+	}
+}

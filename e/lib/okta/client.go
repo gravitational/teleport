@@ -23,6 +23,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 )
 
 const (
@@ -34,8 +38,10 @@ var _ oktaClient = (*wrappedClient)(nil)
 
 // wrappedClient is a client type that is backed by an Okta SDK client.
 type wrappedClient struct {
-	client     *okta.Client
-	oktaOrgURL string
+	log              *logrus.Entry
+	client           *okta.Client
+	oktaOrgURL       string
+	pluginStatusSink common.StatusSink
 }
 
 // iterateGroups will iterate over the list of all Okta groups.
@@ -45,7 +51,7 @@ func (w *wrappedClient) iterateGroups(ctx context.Context, fn func(*okta.Group) 
 	oktaGroups, resp, err := w.client.Group.ListGroups(ctx, query.NewQueryParams())
 	for {
 		if err != nil {
-			return trace.Wrap(oktaErrToTrace(err), "error when iterating through groups")
+			return trace.Wrap(w.oktaErrToTrace(ctx, err), "error when iterating through groups")
 		}
 
 		for _, oktaGroup := range oktaGroups {
@@ -74,7 +80,7 @@ func (w *wrappedClient) iterateApps(ctx context.Context, fn func(okta.App) error
 	))
 	for {
 		if err != nil {
-			return trace.Wrap(oktaErrToTrace(err), "error when iterating through apps")
+			return trace.Wrap(w.oktaErrToTrace(ctx, err), "error when iterating through apps")
 		}
 
 		for _, oktaApp := range oktaApps {
@@ -103,7 +109,7 @@ func (w *wrappedClient) getGroupAssignments(ctx context.Context, groupID string)
 
 	for {
 		if err != nil {
-			return nil, trace.Wrap(oktaErrToTrace(err), "error when getting group user assignments")
+			return nil, trace.Wrap(w.oktaErrToTrace(ctx, err), "error when getting group user assignments")
 		}
 
 		for _, groupUser := range groupUsers {
@@ -132,7 +138,7 @@ func (w *wrappedClient) getAppAssignments(ctx context.Context, appID string) ([]
 
 	for {
 		if err != nil {
-			return nil, trace.Wrap(oktaErrToTrace(err), "error when getting application user assignments")
+			return nil, trace.Wrap(w.oktaErrToTrace(ctx, err), "error when getting application user assignments")
 		}
 
 		for _, appUser := range appUsers {
@@ -161,7 +167,7 @@ func (w *wrappedClient) getAppGroups(ctx context.Context, appID string) ([]strin
 
 	for {
 		if err != nil {
-			return nil, trace.Wrap(oktaErrToTrace(err), "error when getting application groups")
+			return nil, trace.Wrap(w.oktaErrToTrace(ctx, err), "error when getting application groups")
 		}
 
 		for _, group := range groups {
@@ -190,7 +196,7 @@ func (w *wrappedClient) listUsers(ctx context.Context) (map[string]string, error
 
 	for {
 		if err != nil {
-			return nil, trace.Wrap(oktaErrToTrace(err), "error while listing users")
+			return nil, trace.Wrap(w.oktaErrToTrace(ctx, err), "error while listing users")
 		}
 
 		for _, user := range users {
@@ -213,7 +219,7 @@ func (w *wrappedClient) listUsers(ctx context.Context) (map[string]string, error
 // assignUserToGroup will assign the given user to the group.
 func (w *wrappedClient) assignUserToGroup(ctx context.Context, userID, groupId string) error {
 	if _, err := w.client.Group.AddUserToGroup(ctx, groupId, userID); err != nil {
-		return oktaErrToTrace(err)
+		return w.oktaErrToTrace(ctx, err)
 	}
 
 	return nil
@@ -222,7 +228,7 @@ func (w *wrappedClient) assignUserToGroup(ctx context.Context, userID, groupId s
 // unassignUserFromGroup will unassign the given user from the group.
 func (w *wrappedClient) unassignUserFromGroup(ctx context.Context, userID, groupId string) error {
 	if _, err := w.client.Group.RemoveUserFromGroup(ctx, groupId, userID); err != nil {
-		return oktaErrToTrace(err)
+		return w.oktaErrToTrace(ctx, err)
 	}
 
 	return nil
@@ -232,14 +238,14 @@ func (w *wrappedClient) unassignUserFromGroup(ctx context.Context, userID, group
 func (w *wrappedClient) assignUserToApplication(ctx context.Context, username, applicationId string) error {
 	user, _, err := w.client.User.GetUser(ctx, username)
 	if err != nil {
-		return oktaErrToTrace(err)
+		return w.oktaErrToTrace(ctx, err)
 	}
 
 	appUser := okta.AppUser{
 		Id: user.Id,
 	}
 	if _, _, err := w.client.Application.AssignUserToApplication(ctx, applicationId, appUser); err != nil {
-		return oktaErrToTrace(err)
+		return w.oktaErrToTrace(ctx, err)
 	}
 
 	return nil
@@ -249,12 +255,12 @@ func (w *wrappedClient) assignUserToApplication(ctx context.Context, username, a
 func (w *wrappedClient) unassignUserFromApplication(ctx context.Context, username, applicationId string) error {
 	user, _, err := w.client.User.GetUser(ctx, username)
 	if err != nil {
-		return oktaErrToTrace(err)
+		return w.oktaErrToTrace(ctx, err)
 	}
 
 	// Unlike groups, deleting a non-existent application user will produce an error from the Okta API.
 	if _, err := w.client.Application.DeleteApplicationUser(ctx, applicationId, user.Id, query.NewQueryParams()); err != nil {
-		return oktaErrToTrace(err)
+		return w.oktaErrToTrace(ctx, err)
 	}
 
 	return nil
@@ -269,12 +275,13 @@ const (
 	// Okta error constants are not housed within the SDK, so we'll need to refer to the
 	// documentation directly and define our own..
 	// https://developer.okta.com/docs/reference/error-codes/
-	oktaErrCodeAPIValidationException    = "E0000001"
-	oktaErrCodeAuthenticationException   = "E0000004"
-	oktaErrCodeInvalidSessionException   = "E0000005"
-	oktaErrCodeAccessDeniedException     = "E0000006"
-	oktaErrCodeResourceNotFoundException = "E0000007"
-	oktaErrCodeNotFoundException         = "E0000008"
+	oktaErrCodeAPIValidationException        = "E0000001"
+	oktaErrCodeAuthenticationException       = "E0000004"
+	oktaErrCodeInvalidSessionException       = "E0000005"
+	oktaErrCodeAccessDeniedException         = "E0000006"
+	oktaErrCodeResourceNotFoundException     = "E0000007"
+	oktaErrCodeNotFoundException             = "E0000008"
+	oktaErrCodeInvalidTokenProvidedException = "E0000011"
 )
 
 // oktaAPIValidationError is a validation error.
@@ -288,7 +295,7 @@ func (o oktaAPIValidationError) Error() string {
 }
 
 // oktaErrToTrace takes Okta errors and converts them into appropriate trace equivalents.
-func oktaErrToTrace(err error) error {
+func (w *wrappedClient) oktaErrToTrace(ctx context.Context, err error) error {
 	oktaErr, ok := err.(*okta.Error)
 
 	// If this is not an Okta error, just wrap the error and return it.
@@ -297,7 +304,10 @@ func oktaErrToTrace(err error) error {
 	}
 
 	switch oktaErr.ErrorCode {
-	case oktaErrCodeAuthenticationException, oktaErrCodeInvalidSessionException, oktaErrCodeAccessDeniedException:
+	case oktaErrCodeAuthenticationException, oktaErrCodeInvalidSessionException, oktaErrCodeInvalidTokenProvidedException:
+		reportPluginStatus(ctx, w.log, w.pluginStatusSink, types.PluginStatusCode_UNAUTHORIZED)
+		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
+	case oktaErrCodeAccessDeniedException:
 		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
 	case oktaErrCodeResourceNotFoundException, oktaErrCodeNotFoundException:
 		return trace.WithField(trace.NotFound(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
