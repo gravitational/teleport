@@ -76,6 +76,10 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 			logrus.Debugf("ALPN connection upgrade required for %q: %v. No ALPN protocol is negotiated by the server.", addr, true)
 			return true
 		}
+		if isUnadvertisedALPNError(err) {
+			logrus.Debugf("ALPN connection upgrade required for %q: %v.", addr, err)
+			return true
+		}
 
 		// If dialing TLS fails for any other reason, we assume connection
 		// upgrade is not required so it will fallback to original connection
@@ -95,6 +99,10 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 func isRemoteNoALPNError(err error) bool {
 	var opErr *net.OpError
 	return errors.As(err, &opErr) && opErr.Op == "remote error" && strings.Contains(opErr.Err.Error(), "tls: no application protocol")
+}
+
+func isUnadvertisedALPNError(err error) bool {
+	return strings.Contains(err.Error(), "tls: server selected unadvertised ALPN protocol")
 }
 
 // OverwriteALPNConnUpgradeRequirementByEnv overwrites ALPN connection upgrade
