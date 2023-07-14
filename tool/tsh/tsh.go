@@ -749,7 +749,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
 	exportRecordings := recordings.Command("export", "Export recorded desktop sesions to video.")
 	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
-	exportRecordings.Arg("session-id", "ID of the session to export to video").Required().StringVar(&cf.SessionID)
+	exportRecordings.Arg("session-id", "ID of the session to export").Required().StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
