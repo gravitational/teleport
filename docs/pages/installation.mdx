@@ -344,6 +344,11 @@ See the [Starter Cluster Terraform](https://github.com/gravitational/teleport/tr
 and the [Running Teleport Enterprise in High Availability mode on AWS](deploy-a-cluster/deployments/aws-terraform/)
 guide for detailed usage examples.
 
+In order to use these AMIs outside of the reference Terraform, you can configure
+the Teleport installation by setting configuration variables in the 
+`/etc/teleport.d/conf` file on the EC2 instance. See the [Starter Cluster Configuration Template](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster/data.tpl)
+for a list of the available configuration options.
+
 The image names all include the build timestamp (shown as `$TIMESTAMP` in the table
 below), and are tagged for easier searching.
 
