@@ -45,7 +45,7 @@ func Add(ctx context.Context, tc *client.TeleportClient, db tlsca.RouteToDatabas
 	if !IsSupported(db) {
 		return nil
 	}
-	profileFile, err := load(db)
+	profileFile, err := load(tc, db)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -98,7 +98,7 @@ func New(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 
 // Env returns environment variables for the specified database profile.
 func Env(tc *client.TeleportClient, db tlsca.RouteToDatabase) (map[string]string, error) {
-	profileFile, err := load(db)
+	profileFile, err := load(tc, db)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -114,7 +114,7 @@ func Delete(tc *client.TeleportClient, db tlsca.RouteToDatabase) error {
 	if !IsSupported(db) {
 		return nil
 	}
-	profileFile, err := load(db)
+	profileFile, err := load(tc, db)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -138,12 +138,12 @@ func IsSupported(db tlsca.RouteToDatabase) bool {
 }
 
 // load loads the appropriate database connection profile.
-func load(db tlsca.RouteToDatabase) (profile.ConnectProfileFile, error) {
+func load(tc *client.TeleportClient, db tlsca.RouteToDatabase) (profile.ConnectProfileFile, error) {
 	switch db.Protocol {
 	case defaults.ProtocolPostgres:
-		return postgres.Load()
+		return postgres.Load(tc.HomePath)
 	case defaults.ProtocolMySQL:
-		return mysql.Load()
+		return mysql.Load(tc.HomePath)
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		db.Protocol)
