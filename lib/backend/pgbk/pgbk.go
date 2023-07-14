@@ -241,8 +241,8 @@ var schemas = []string{
 	CREATE INDEX kv_expires_idx ON kv (expires) WHERE expires IS NOT NULL;`,
 }
 
-// setupAndMigrate sets up the database schema, applying migrations in order if
-// necessary.
+// setupAndMigrate sets up the database schema, applying the migrations in the
+// [schemas] slice starting from the first non-applied one.
 func (b *Backend) setupAndMigrate(ctx context.Context) error {
 	var version int32
 	var migrateErr error
