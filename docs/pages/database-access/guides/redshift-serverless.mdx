@@ -340,7 +340,7 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
    CREATE USER "IAMR:teleport-redshift-serverless-access" WITH PASSWORD DISABLE;
    ```
 
-2. Grant this user appropriate in-database permissions. For example:
+1. Grant this user appropriate in-database permissions. For example:
 
    ```sql
    GRANT SELECT ON TABLE users  TO "IAMR:teleport-redshift-serverless-access";

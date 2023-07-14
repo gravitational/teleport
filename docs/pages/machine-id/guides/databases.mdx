@@ -54,11 +54,12 @@ spec:
 ```
 
 This role allows Machine ID bots to do two things:
- 1. Access the database `example` on any database server (due to the `'*': '*'`
+
+ - Access the database `example` on any database server (due to the `'*': '*'`
     label selector) as the user `alice`. You may restrict access to the bot
     using a more specific label selector; see the [Database Access RBAC 
     guide](../../database-access/rbac.mdx) for more info.
- 2. Discover information about databases in Teleport.
+ - Discover information about databases in Teleport.
 
 Write this to `role.yaml` and run the following to create the role in Teleport:
 
