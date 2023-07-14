@@ -179,7 +179,7 @@ func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any)
 	}
 
 	cookie := &http.Cookie{
-		Name:  websession.CookieName,
+		Name:  web.CookieName,
 		Value: w.webCookie,
 	}
 
