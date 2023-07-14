@@ -178,6 +178,7 @@ func (cfg *Config) ConnectionURI() string {
 
 	u := url.URL{
 		Scheme:   "file",
+		OmitHost: true,
 		Path:     filepath.Join(cfg.Path, defaultDBFile),
 		RawQuery: params.Encode(),
 	}
