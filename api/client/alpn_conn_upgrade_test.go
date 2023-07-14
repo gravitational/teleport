@@ -25,9 +25,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -88,6 +90,21 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 			})
 		})
 	}
+
+	t.Run("manual", func(t *testing.T) {
+		addrKey := "TELEPORT_TLS_ROUTING_CONN_UPGRADE_MANUAL_TEST_ADDR"
+		addr := os.Getenv(addrKey)
+		if addr == "" {
+			t.Skip(addrKey, "not specified")
+		}
+
+		// Beef up the logger.
+		logrus.SetLevel(logrus.DebugLevel)
+		logrus.SetReportCaller(true)
+
+		// Call and print result.
+		t.Log("IsALPNConnUpgradeRequired for", addr, ":", IsALPNConnUpgradeRequired(context.Background(), addr, false))
+	})
 }
 
 func TestIsALPNConnUpgradeRequiredByEnv(t *testing.T) {
