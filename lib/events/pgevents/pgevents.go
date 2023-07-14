@@ -266,8 +266,8 @@ var schemas = []string{
 		WHERE session_id != '00000000-0000-0000-0000-000000000000';`,
 }
 
-// setupAndMigrate sets up the database schema, applying migrations in order if
-// necessary.
+// setupAndMigrate sets up the database schema, applying the migrations in the
+// [schemas] slice starting from the first non-applied one.
 func (l *Log) setupAndMigrate(ctx context.Context) error {
 	var version int32
 	var migrateErr error
