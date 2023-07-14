@@ -745,7 +745,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	}
 
 	// Send close envelope to web terminal upon exit without an error.
-	if err := t.stream.SendCloseMessage(); err != nil {
+	if err := t.stream.SendCloseMessage(sessionEndEvent{NodeID: t.sessionData.ServerID}); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 	}
 
@@ -1297,10 +1297,16 @@ func (t *WSStream) Read(out []byte) (int, error) {
 }
 
 // SendCloseMessage sends a close message on the web socket.
-func (t *WSStream) SendCloseMessage() error {
+func (t *WSStream) SendCloseMessage(event sessionEndEvent) error {
+	sessionMetadataPayload, err := json.Marshal(&event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
 		Type:    defaults.WebsocketClose,
+		Payload: string(sessionMetadataPayload),
 	}
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {

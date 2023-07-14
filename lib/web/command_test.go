@@ -19,7 +19,6 @@ package web
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -180,12 +179,20 @@ func TestExecuteCommandSummary(t *testing.T) {
 	// Wait for command execution to complete
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
-	var env Envelope
 	dec := json.NewDecoder(stream)
+
+	// Consume the close message
+	var sessionMetadata sessionEndEvent
+	err = dec.Decode(&sessionMetadata)
+	require.NoError(t, err)
+	require.Equal(t, "node", sessionMetadata.NodeID)
+
+	// Consume the summary message
+	var env outEnvelope
 	err = dec.Decode(&env)
 	require.NoError(t, err)
-	require.Equal(t, envelopeTypeSummary, env.GetType())
-	require.NotEmpty(t, env.GetPayload())
+	require.Equal(t, envelopeTypeSummary, env.Type)
+	require.NotEmpty(t, env.Payload)
 
 	// Wait for the command execution history to be saved
 	var messages *assist.GetAssistantMessagesResponse
@@ -292,28 +299,15 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 		default:
 		}
 
-		out := make([]byte, 100)
-		n, err := stream.Read(out)
-		if err != nil {
-			return trace.Wrap(err)
+		var env outEnvelope
+		dec := json.NewDecoder(stream)
+		if err := dec.Decode(&env); err != nil {
+			return trace.Wrap(err, "decoding envelope JSON from stream")
 		}
 
-		var env Envelope
-		err = json.Unmarshal(out[:n], &env)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		d, err := base64.StdEncoding.DecodeString(env.Payload)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		data := removeSpace(string(d))
-		if n > 0 && strings.Contains(data, substr) {
+		data := removeSpace(string(env.Payload))
+		if strings.Contains(data, substr) {
 			return nil
-		}
-		if err != nil {
-			return trace.Wrap(err)
 		}
 	}
 }
