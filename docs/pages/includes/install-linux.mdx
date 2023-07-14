@@ -1,6 +1,23 @@
 Use the appropriate commands for your environment to install your package:
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
+  <TabItem label="Teleport Team" scope="team">
+
+  ```code
+  $ curl https://goteleport.com/static/install.sh | bash -s (=cloud.version=)
+  ```
+
+  <Details title="Is my Teleport instance compatible with Teleport Team?">
+
+  Before installing a `teleport` binary with a version besides
+  v(=cloud.major_version=), read our compatibility rules to ensure that the
+  binary is compatible with Teleport Cloud.
+
+  (!docs/pages/includes/compatibility.mdx!)
+
+  </Details>
+
+  </TabItem>
   <TabItem label="Open Source" scope="oss">
 
   ```code
@@ -10,7 +27,7 @@ Use the appropriate commands for your environment to install your package:
   </TabItem>
   <TabItem label="Enterprise" scope="enterprise">
   <Tabs>
-  <TabItem label="Debian 8+/Ubuntu 16.04+ (apt)" scope="enterprise">
+  <TabItem label="Debian 8+/Ubuntu 16.04+ (apt)">
 
   ```code
   # Download Teleport's PGP public key
@@ -35,7 +52,7 @@ Use the appropriate commands for your environment to install your package:
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL 7 (yum)" scope="enterprise">
+  <TabItem label="Amazon Linux 2/RHEL 7 (yum)">
 
   ```code
   # Source variables about OS version
@@ -59,7 +76,7 @@ Use the appropriate commands for your environment to install your package:
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2023/RHEL 8+ (dnf)" scope="enterprise">
+  <TabItem label="Amazon Linux 2023/RHEL 8+ (dnf)">
 
   ```code
   # Source variables about OS version
@@ -83,7 +100,7 @@ Use the appropriate commands for your environment to install your package:
   ```
 
   </TabItem>
-  <TabItem label="Tarball" scope="enterprise">
+  <TabItem label="Tarball" >
 
   In the example commands below, update `$SYSTEM_ARCH` with the appropriate
   value (`amd64`, `arm64`, or `arm`). All example commands using this variable
@@ -117,13 +134,13 @@ Use the appropriate commands for your environment to install your package:
   </TabItem>
   </Tabs>
   </TabItem>
-  <TabItem label="Cloud" scope="cloud">
+  <TabItem label="Enterprise Cloud" scope="cloud">
 (!docs/pages/includes/cloud/install-linux-cloud.mdx!)
-  <Details title="Is my Teleport instance compatible with Teleport Cloud?">
+  <Details title="Is my Teleport instance compatible with Teleport Enterprise Cloud?">
 
   Before installing a `teleport` binary with a version besides v(=cloud.major_version=),
   read our compatibility rules to ensure that the binary is compatible with
-  Teleport Cloud.
+  Teleport Enterprise Cloud.
 
   (!docs/pages/includes/compatibility.mdx!)
 

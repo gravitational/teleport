@@ -25,6 +25,7 @@ import {
 } from 'teleport/Assist/Conversation/Typing';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { makeWebauthnAssertionResponse } from 'teleport/services/auth';
+import { TeleportAvatar } from 'teleport/Assist/Conversation/Avatar';
 
 const Container = styled.ul`
   list-style: none;
@@ -40,6 +41,13 @@ const Loading = styled.div`
   justify-content: center;
   height: calc(100% - 10px);
   width: inherit;
+`;
+
+const Typing = styled.div`
+  padding: 0 20px 20px;
+  display: flex;
+  align-items: center;
+  margin-top: -20px;
 `;
 
 export function Conversation() {
@@ -109,6 +117,17 @@ export function Conversation() {
       )}
 
       <Container>{items}</Container>
+
+      {messages.streaming && (
+        <Typing>
+          <TeleportAvatar /> <strong>Teleport</strong>
+          <TypingContainer>
+            <TypingDot style={{ animationDelay: '0s' }} />
+            <TypingDot style={{ animationDelay: '0.2s' }} />
+            <TypingDot style={{ animationDelay: '0.4s' }} />
+          </TypingContainer>
+        </Typing>
+      )}
     </>
   );
 }
