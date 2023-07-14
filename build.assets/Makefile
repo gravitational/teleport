@@ -332,6 +332,11 @@ integration-kube: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
 
+.PHONY:e2e-aws
+e2e-aws: buildbox
+	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' e2e-aws"
+
 #
 # Runs linters on new changes inside a build container.
 #
