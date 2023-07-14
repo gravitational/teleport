@@ -338,7 +338,7 @@ func (l *Log) setupAndMigrate(ctx context.Context) error {
 	return nil
 }
 
-// periodicCleanup removes events past their retention period from the table,
+// periodicCleanup removes events past the retention period from the table,
 // periodically. Returns after the context is done.
 func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPeriod time.Duration) {
 	defer l.wg.Done()
