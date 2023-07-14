@@ -103,10 +103,6 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 		si, err := types.NewServerInfo(types.Metadata{
 			Name: name,
 		}, types.ServerInfoSpecV1{
-			AWS: &types.ServerInfoSpecV1_AWSInfo{
-				AccountID:  i.AccountID,
-				InstanceID: instance.InstanceID,
-			},
 			NewLabels: tags,
 		})
 		if err != nil {
