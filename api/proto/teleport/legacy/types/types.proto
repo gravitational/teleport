@@ -3036,7 +3036,7 @@ message UserSpecV2 {
     (gogoproto.jsontag) = "created_by,omitempty"
   ];
 
-  // LocalAuths hold sensitive data necessary for performing local
+  // LocalAuth holds sensitive data necessary for performing local
   // authentication
   LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
 
