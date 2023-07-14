@@ -47,7 +47,8 @@ Additionally, this feature can be configured to require touch for every Teleport
   To navigate these incompatibilities, we recommend enabling hardware key support only when
   necessary, such as for roles with access to critical infrastructure. These roles can be accessed
   as needed with Access Requests so that users can avoid these issues for their normal login
-  sessions. We also recommend trying Teleport Connect as an alternative to the WebUI.
+  sessions. We also recommend trying [Teleport Connect](../../connect-your-client/teleport-connect/)
+  as an alternative to the WebUI.
 </Admonition>
 
 ## Prerequisites
@@ -107,22 +108,22 @@ cluster auth preference has been updated
 
 Once hardware key support is enforced, affected users will be required to have their login sessions backed by a Hardware Key for all Teleport requests.
 
-These users will be prompted to connect and touch their YubiKey on log in:
+Affected users will be prompted to connect and touch their YubiKey on log in. If this is their first login, they may be required to immediately relogin.
 
 <ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh login --user=dev --proxy=proxy.example.com:3080
 # Enter password for Teleport user dev:
+# Unmet private key policy "hardware_key_touch".
+# Re-initiating login with YubiKey generated private key.
+# Enter password for Teleport user dev:
 # Tap your YubiKey
 # > Profile URL:        https://example.com
 #   Logged in as:       dev
 #   Cluster:            example.com
-#   Roles:              access, editor
-#   Logins:             bjoerger
-#   Kubernetes:         enabled
-#   Valid until:        2022-10-11 01:53:44 -0700 PDT [valid for 8h0m0s]
-#   Extensions:         permit-X11-forwarding, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+#   ...
+
 ```
 
 </ScopedBlock>
@@ -132,15 +133,14 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 ```code
 $ tsh login --user=dev --proxy=proxy.example.com:3080
 # Enter password for Teleport user dev:
+# Unmet private key policy "hardware_key_touch".
+# Re-initiating login with YubiKey generated private key.
+# Enter password for Teleport user dev:
 # Tap your YubiKey
 # > Profile URL:        https://example.com
 #   Logged in as:       dev
 #   Cluster:            example.com
-#   Roles:              access, editor, reviewer
-#   Logins:             bjoerger
-#   Kubernetes:         enabled
-#   Valid until:        2022-10-11 01:53:44 -0700 PDT [valid for 8h0m0s]
-#   Extensions:         permit-X11-forwarding, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+#   ...
 ```
 
 </ScopedBlock>
@@ -148,18 +148,21 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh
+$ tsh login --user=dev --proxy=proxy.example.com:3080
+# Enter password for Teleport user dev:
+# Unmet private key policy "hardware_key_touch".
+# Re-initiating login with YubiKey generated private key.
 # Enter password for Teleport user dev:
 # Tap your YubiKey
 # > Profile URL:        https://example.com
 #   Logged in as:       dev
 #   Cluster:            example.com
-#   Roles:              access, editor, reviewer
-#   Logins:             bjoerger
-#   Kubernetes:         enabled
-#   Valid until:        2022-10-11 01:53:44 -0700 PDT [valid for 8h0m0s]
-#   Extensions:         permit-X11-forwarding, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+#   ...
 ```
+
+<Admonition type="note" title="touch caching">
+  A user's touch is cached on the YubiKey for 15 seconds to prevent excessive touch prompts.
+</Admonition>
 
 </ScopedBlock>
 
@@ -182,7 +185,7 @@ For existing users of per-session MFA, upgrading to `hardware_key_touch` may be 
 
 For users who want this mash-up of functionality, you can use the `require_session_mfa: hardware_key` option in both roles and cluster auth preference settings. This option will continue to use per-session MFA checks while also requiring hardware-based private keys for all Teleport requests.
 
-This prevents basic data exfiltration attacks for Teleport session and non-session requests. However, it does not prevent hacking attacks with non-session Teleport requests, since gaining access to a user's computer would provide both their certificates on disk and a local connection to their YubiKey, assuming its connected.
+This prevents basic data exfiltration attacks for Teleport session and non-session requests. However, it does not prevent hacking attacks with non-session Teleport requests, since gaining access to a user's computer would provide both their certificates on disk and a local connection to their YubiKey, assuming it's connected.
 
 ## Troubleshooting
 
@@ -195,3 +198,53 @@ This error may also appear in the WebUI, since the WebUI does not support hardwa
 ### `ERROR: authenticating with management key: auth challenge: smart card error 6982: security status not satisfied`
 
 Smart card auth challenge errors can appear when the wrong Management key or PIN is used. Teleport clients expect a fresh PIV module with the default Management and PIN keys. You can reset these keys, along with any existing PIV keys and certs, with the [yubikey manager tool command](https://developers.yubico.com/yubikey-manager/) `ykman piv reset`.
+
+### `ERROR: ssh: handshake failed: command failed: transmitting request: an attempt was made to end a non-existent transaction`
+
+Sometimes, PIV interactions with your Yubikey can fail in unexpected ways.
+
+For example, if you tap your Yubikey for MFA and then subsequently tap your
+Yubikey for Hardware Key support, you may get an error on rare occasions.
+
+### Why am I being asked to tap X times to login?
+
+Depending on your settings, you may be asked to tap your Yubikey many times.
+Each tap is necessary in order to perform safely authenticate you given your
+authentication settings.
+
+For example, if you have `second_factor: webauthn` set in your cluster auth
+preference, and `require_session_mfa: hardware_key_touch` set on your role,
+you'll see the following output on initial login:
+
+```
+$ tsh login --user=dev --proxy=root.example.com:3080
+
+# First login as usual, as the unauthenticated client has no way of inferring
+# that "hardware_key_touch" is required by the user's role.
+
+Enter password for Teleport user dev:
+Tap any security key
+Detected security key tap
+
+# Login results in a "hardware_key_touch" error.
+
+Unmet private key policy "hardware_key_touch".
+
+# At this point, tsh can infer from the error that the user's role requires 
+# "hardware_key_touch", so it generates a private key directly on the Yubikey
+# with a tap and re-initiates relogin.
+
+Tap your YubiKey
+Re-initiating login with YubiKey generated private key.
+
+# This time, tsh uses the Yubikey-backed private key in the login request to
+# get certificates which pass the private key policy for the user's role.
+
+Enter password for Teleport user dev:
+Tap any security key
+Detected security key tap
+> Profile URL:        https://root.example.com:3080
+  Logged in as:       dev
+  Cluster:            root.example.com
+  ...
+```
