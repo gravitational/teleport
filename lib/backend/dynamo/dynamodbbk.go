@@ -100,8 +100,8 @@ type Config struct {
 type billingMode string
 
 const (
-	billingModeProvisioned billingMode = "provisioned"
-	billingModeOnDemand    billingMode = "on_demand"
+	billingModeProvisioned   billingMode = "provisioned"
+	billingModePayPerRequest billingMode = "pay_per_request"
 )
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -113,7 +113,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 
 	if cfg.BillingMode == "" {
-		cfg.BillingMode = billingModeOnDemand
+		cfg.BillingMode = billingModePayPerRequest
 	}
 
 	if cfg.ReadCapacityUnits == 0 {
@@ -681,7 +681,7 @@ func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey st
 		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
 		WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
 	}
-	if b.BillingMode == billingModeOnDemand {
+	if b.BillingMode == billingModePayPerRequest {
 		billingMode = aws.String(dynamodb.BillingModePayPerRequest)
 		pThroughput = nil
 	}
