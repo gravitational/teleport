@@ -15,8 +15,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/gravitational/trace"
 	sheets "google.golang.org/api/sheets/v4"
 
@@ -49,8 +47,6 @@ func (g *googleSheetsClient) createRow(ar types.AccessRequest) error {
 		return nil
 	}
 
-	return trace.Wrap(
-		fmt.Errorf("Unexpected response code creating a row: %v\n",
-			resp.HTTPStatusCode),
-	)
+	return trace.Errorf("Unexpected response code creating a row: %v",
+		resp.HTTPStatusCode)
 }
