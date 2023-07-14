@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"sort"
@@ -439,6 +440,9 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 func ConvertS3Error(err error, args ...interface{}) error {
 	if err == nil {
 		return nil
+	}
+	if rerr, ok := err.(awserr.RequestFailure); ok && rerr.StatusCode() == http.StatusForbidden {
+		return trace.AccessDenied(rerr.Message())
 	}
 	if aerr, ok := err.(awserr.Error); ok {
 		switch aerr.Code() {

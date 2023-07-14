@@ -147,8 +147,11 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	for {
 		select {
 		case <-periodic.Next():
-			if err := u.checkUploads(ctx); err != nil {
-				u.log.WithError(err).Warningf("Failed to check uploads.")
+			if err := u.checkUploads(ctx); trace.IsAccessDenied(err) {
+				u.log.Warn("Teleport does not have permission to list uploads. " +
+					"The upload completer will be unable to complete uploads of partial session recordings.")
+			} else if err != nil {
+				u.log.WithError(err).Warn("Failed to check uploads.")
 			}
 		case <-u.closeC:
 			return nil
