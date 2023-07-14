@@ -298,6 +298,8 @@ func (i *downstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStr
 			msg = *oneOf.GetHello()
 		case oneOf.GetPing() != nil:
 			msg = *oneOf.GetPing()
+		case oneOf.GetUpdateLabels() != nil:
+			msg = *oneOf.GetUpdateLabels()
 		default:
 			// TODO: log unknown message variants once we have a better story around
 			// logging in api/* packages.
@@ -502,6 +504,10 @@ func (i *upstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStrea
 			case proto.DownstreamInventoryPing:
 				oneOf.Msg = &proto.DownstreamInventoryOneOf_Ping{
 					Ping: &msg,
+				}
+			case proto.DownstreamInventoryUpdateLabels:
+				oneOf.Msg = &proto.DownstreamInventoryOneOf_UpdateLabels{
+					UpdateLabels: &msg,
 				}
 			default:
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)

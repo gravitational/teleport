@@ -117,8 +117,17 @@ func TestLabelReconciler(t *testing.T) {
 	lr.queueServerInfos(serverInfos)
 	b := minBatchSize
 
+	waitForClock := func() <-chan struct{} {
+		ch := make(chan struct{})
+		go func() {
+			clock.BlockUntil(1)
+			ch <- struct{}{}
+		}()
+		return ch
+	}
+
+	clock.BlockUntil(1)
 	for i := 0; i < 5; i++ {
-		clock.BlockUntil(1)
 		clock.Advance(time.Second)
 		var upsertedServerInfos []types.ServerInfo
 	outer:
@@ -126,7 +135,7 @@ func TestLabelReconciler(t *testing.T) {
 			select {
 			case si := <-ap.upsertedServerInfos:
 				upsertedServerInfos = append(upsertedServerInfos, si)
-			case <-time.After(10 * time.Millisecond):
+			case <-waitForClock():
 				break outer
 			case <-ctx.Done():
 				require.Fail(t, "timed out waiting for server infos")
