@@ -298,8 +298,8 @@ $ tsh config
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `-l, --login` | none | an identity name | The login identity that the Teleport user will use |
-| `-p`, `--port` | 3022 | port | The remote SSH port to use |
+| `-l, --login` | none | Linux username | Default Linux username to use. Will translate to SSH config's `User` option. |
+| `-p`, `--port` | 3022 | port | Default SSH port to use. Will translate to SSH config's `Port` option. |
 
 
 #### Examples
