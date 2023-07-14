@@ -41,13 +41,14 @@ Settings
 
 ![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
 
-2. Collect the `Application ID` and `Secret` in the Application
+1. Collect the `Application ID` and `Secret` in the Application. These will be
+   used in the Teleport OIDC auth connector:
 
 These will be used in the Teleport OIDC Auth Connector.
 
 ![Collection Information](../../../img/sso/gitlab/gitlab-oidc-1.png)
 
-3. Confirm the GitLab Issuer Address
+1. Confirm the GitLab issuer address.
 
 For GitLab cloud that is `https://gitlab.com`. That allows accessing the Open-ID configuration at `https://gitlab.com/.well-known/openid-configuration`.
 If you are self hosting that is likely another local address.

@@ -38,9 +38,9 @@ You'll need the project Jira key to configure the plugin.
 
 Create a new board for tasks in the permission management project. The board has to have at least these three columns:
 
-1. Pending
-2. Approved
-3. Denied
+- Pending
+- Approved
+- Denied
 
 Teleport's Jira plugin will create a new issue for each new permission request in the first available column on the board. When you drag the request task to the Approved column in Jira, the request will be approved. If you drag the request task to the Denied column in Jira, the request will be denied.
 
@@ -159,10 +159,10 @@ plugin to Teleport.
 
 The `[jira]` section requires a few things:
 
-1. Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like `yourcompany.atlassian.net`.
-2. Your username on Jira, i.e. [ben@goteleport.com](mailto:ben@goteleport.com)
-3. Your Jira API token that you've created above.
-4. A Jira Project key, available in Project settings.
+- Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like `yourcompany.atlassian.net`.
+- Your username on Jira, i.e. [ben@goteleport.com](mailto:ben@goteleport.com)
+- Your Jira API token that you've created above.
+- A Jira Project key, available in Project settings.
 
 The `[http]` setting block describes how the plugin's HTTP server works. The HTTP server is responsible for listening for updates from Jira, and processing updates, like when someone drags a task from Inbox to Approved column.
 

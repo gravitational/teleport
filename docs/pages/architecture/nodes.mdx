@@ -130,12 +130,12 @@ helpful when gradually transitioning large server fleets to Teleport.
 
 We consider the "recording proxy mode" to be less secure for two reasons:
 
-1. It grants additional privileges to the Teleport proxy. In the default mode,
+- It grants additional privileges to the Teleport proxy. In the default mode,
    the proxy stores no secrets and cannot "see" the decrypted data. This makes a
    proxy less critical to the security of the overall cluster. But if an
    attacker gains physical access to a proxy Node running in the "recording"
    mode, they will be able to see the decrypted traffic and client keys stored in the proxy's process memory.
-2. Recording proxy mode requires SSH Agent Forwarding. Agent Forwarding is required because without it, a proxy will not be able to establish the 2nd connection to the destination Node.
+- Recording proxy mode requires SSH Agent Forwarding. Agent Forwarding is required because without it, a proxy will not be able to establish the 2nd connection to the destination Node.
 
 However, there are advantages of proxy-based session recording too. When
 sessions are recorded at the Nodes, a root user can add iptables rules to
