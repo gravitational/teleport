@@ -2869,6 +2869,8 @@ message AccessRequestConditions {
   // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
 
+  // Persist is the amount of time to persist an access request, if granted.
+  // If this is zero, the default duration is used.
   int64 Persist = 7 [
     (gogoproto.jsontag) = "persist,omitempty",
     (gogoproto.casttype) = "Duration"

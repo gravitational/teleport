@@ -360,8 +360,8 @@ func ValidateAccessPredicates(role types.Role) error {
 		}
 	}
 
-	persist := role.GetAccessRequestConditions(types.Allow).Persist
-	if persist.Duration() != 0 && persist.Duration() > maxPersistDuration {
+	if persist := role.GetAccessRequestConditions(types.Allow).Persist; persist.Duration() != 0 &&
+		persist.Duration() > maxPersistDuration {
 		return trace.BadParameter("persist duration must be less or equal 7 days")
 	}
 
@@ -944,7 +944,7 @@ type RequestValidator struct {
 	Roles struct {
 		AllowRequest, DenyRequest []parse.Matcher
 		AllowSearch, DenySearch   []string
-		Persist                   map[string]time.Duration // role => expiration
+		Persist                   map[string]time.Duration // role => persist duration
 	}
 	Annotations struct {
 		Allow, Deny map[string][]string
@@ -1098,7 +1098,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		}
 		req.SetExpiry(now.Add(ttl))
 
-		persist, err := m.calculatePersist(ctx, req)
+		persist, err := m.calculatePersist(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1122,7 +1122,9 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 }
 
 // calculatePersist calculates the persist time for the access request.
-func (m *RequestValidator) calculatePersist(ctx context.Context, req types.AccessRequest) (time.Duration, error) {
+// The persist time is the minimum of the persist time set on the request
+// and the persist time set on the request role.
+func (m *RequestValidator) calculatePersist(req types.AccessRequest) (time.Duration, error) {
 	// Check if the persist time is set.
 	persistTime := req.GetPersist()
 	if persistTime.IsZero() {
@@ -1131,15 +1133,15 @@ func (m *RequestValidator) calculatePersist(ctx context.Context, req types.Acces
 
 	persistDuration := persistTime.Sub(req.GetCreationTime())
 	if persistDuration < 0 {
-		return 0, trace.BadParameter("persist must be greater than creation time. Invalid request?")
+		return 0, trace.BadParameter("invalid persist: must be greater than creation time")
 	}
 
 	if persistDuration > maxPersistDuration {
 		return 0, trace.BadParameter("persist must be less or equal 7 days")
 	}
 
-	maxPersist := persistDuration
-	// Adjust the expiration time if the persist value is set.
+	minPersist := persistDuration
+	// Adjust the expiration time if the persist value is set on the request role.
 	for _, roleName := range req.GetRoles() {
 		rolePersist, found := m.Roles.Persist[roleName]
 		if !found {
@@ -1147,11 +1149,11 @@ func (m *RequestValidator) calculatePersist(ctx context.Context, req types.Acces
 		}
 
 		if rolePersist < persistDuration {
-			maxPersist = rolePersist
+			minPersist = rolePersist
 		}
 	}
 
-	return maxPersist, nil
+	return minPersist, nil
 }
 
 // requestTTL calculates the TTL of the Access Request (how long it will await
@@ -1240,7 +1242,7 @@ func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Ident
 // GetRequestableRoles gets the list of all existent roles which the user is
 // able to request.  This operation is expensive since it loads all existent
 // roles in order to determine the role list.  Prefer calling CanRequestRole
-// when checking againt a known role list.
+// when checking against a known role list.
 func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 	allRoles, err := m.getter.GetRoles(context.TODO())
 	if err != nil {

@@ -7163,7 +7163,9 @@ type AccessRequestConditions struct {
 	// they are searching for resources as part of a Resource Access Request, and
 	// defines the underlying roles which will be requested as part of any
 	// Resource Access Request.
-	SearchAsRoles        []string `protobuf:"bytes,6,rep,name=SearchAsRoles,proto3" json:"search_as_roles,omitempty"`
+	SearchAsRoles []string `protobuf:"bytes,6,rep,name=SearchAsRoles,proto3" json:"search_as_roles,omitempty"`
+	// Persist is the amount of time to persist an access request, if granted.
+	// If this is zero, the default duration is used.
 	Persist              Duration `protobuf:"varint,7,opt,name=Persist,proto3,casttype=Duration" json:"persist,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

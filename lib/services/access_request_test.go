@@ -1869,11 +1869,6 @@ func TestGetResourceDetails(t *testing.T) {
 	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(resourceIDs[4])].FriendlyName)
 }
 
-type roleTestSet map[string]struct {
-	condition types.RoleConditions
-	options   types.RoleOptions
-}
-
 func TestDurations(t *testing.T) {
 	// describes a collection of roles and their conditions
 	roleDesc := roleTestSet{
@@ -1986,8 +1981,6 @@ func TestDurations(t *testing.T) {
 				Expires: now.Add(8 * time.Hour),
 			}
 
-			// perform request validation (necessary in order to initialize internal
-			// request variables like annotations and thresholds).
 			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
 			require.NoError(t, err)
 
@@ -1999,6 +1992,11 @@ func TestDurations(t *testing.T) {
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
 		})
 	}
+}
+
+type roleTestSet map[string]struct {
+	condition types.RoleConditions
+	options   types.RoleOptions
 }
 
 func getMockGetter(t *testing.T, roleDesc roleTestSet, userDesc map[string][]string) *mockGetter {

@@ -418,10 +418,12 @@ func (r *AccessRequestV3) GetDryRun() bool {
 	return r.Spec.DryRun
 }
 
+// GetPersist gets the maximum time at which the access should be approved for.
 func (r *AccessRequestV3) GetPersist() time.Time {
 	return r.Spec.Persist
 }
 
+// SetPersist sets the maximum time at which the access should be approved for.
 func (r *AccessRequestV3) SetPersist(t time.Time) {
 	r.Spec.Persist = t
 }
@@ -520,8 +522,6 @@ type AccessRequestUpdate struct {
 	// and must be a subset of the role list originally
 	// present on the request.
 	Roles []string
-
-	Persist time.Time
 }
 
 // Check validates the request's fields
