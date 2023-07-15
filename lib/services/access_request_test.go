@@ -1875,6 +1875,9 @@ func TestDurations(t *testing.T) {
 		"requestedRole": {
 			// ...
 		},
+		"requestedRole2": {
+			// ...
+		},
 		"setMaxTTLRole": {
 			options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(8 * time.Hour),
@@ -1895,15 +1898,12 @@ func TestDurations(t *testing.T) {
 				},
 			},
 		},
-		"maxTTLPersistRole": {
+		"shortPersistReqRole2": {
 			condition: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
-					Roles:   []string{"requestedRole"},
+					Roles:   []string{"requestedRole2"},
 					Persist: types.Duration(day),
 				},
-			},
-			options: types.RoleOptions{
-				MaxSessionTTL: types.Duration(10 * time.Hour),
 			},
 		},
 	}
@@ -1912,9 +1912,7 @@ func TestDurations(t *testing.T) {
 	userDesc := map[string][]string{
 		"alice": {"shortPersistReqRole"},
 		"bob":   {"defaultRole"},
-		"carol": {"defaultRole"},
-		"dave":  {"maxTTLPersistRole"},
-		"erika": {"idealist"},
+		"carol": {"shortPersistReqRole", "shortPersistReqRole2"},
 	}
 
 	g := getMockGetter(t, roleDesc, userDesc)
@@ -1926,9 +1924,9 @@ func TestDurations(t *testing.T) {
 		requestor string
 		// the roles to be requested (defaults to "dictator")
 		roles []string
-
+		// persist is the requested persist duration
 		persist time.Duration
-
+		// expectedAccessDuration is the expected access duration
 		expectedAccessDuration time.Duration
 	}{
 		{
@@ -1953,17 +1951,31 @@ func TestDurations(t *testing.T) {
 		},
 		{
 			desc:                   "persist can exceed maxTTL",
-			requestor:              "carol",
+			requestor:              "bob",
 			roles:                  []string{"setMaxTTLRole"},
 			persist:                day,
 			expectedAccessDuration: day,
 		},
 		{
 			desc:                   "persist shorter than maxTTL",
-			requestor:              "carol",
+			requestor:              "bob",
 			roles:                  []string{"setMaxTTLRole"},
 			persist:                2 * time.Hour,
 			expectedAccessDuration: 2 * time.Hour,
+		},
+		{
+			desc:                   "only required roles are considered for persist",
+			requestor:              "carol",
+			roles:                  []string{"requestedRole"},
+			persist:                5 * day,
+			expectedAccessDuration: 3 * day,
+		},
+		{
+			desc:                   "only required roles are considered for persist #2",
+			requestor:              "carol",
+			roles:                  []string{"requestedRole2"},
+			persist:                6 * day,
+			expectedAccessDuration: day,
 		},
 	}
 
@@ -2000,6 +2012,8 @@ type roleTestSet map[string]struct {
 }
 
 func getMockGetter(t *testing.T, roleDesc roleTestSet, userDesc map[string][]string) *mockGetter {
+	t.Helper()
+
 	roles := make(map[string]types.Role)
 
 	for name, desc := range roleDesc {
