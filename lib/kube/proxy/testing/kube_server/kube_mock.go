@@ -131,19 +131,25 @@ func NewKubeAPIMock() (*KubeMockServer, error) {
 
 func (s *KubeMockServer) setup() {
 	s.router.UseRawPath = true
-	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
-	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
-	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
-	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
+	s.router.POST("/api/:ver/namespaces/:namespace/pods/:name/exec", s.withWriter(s.exec))
+	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name/exec", s.withWriter(s.exec))
+	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name/portforward", s.withWriter(s.portforward))
+	s.router.POST("/api/:ver/namespaces/:namespace/pods/:name/portforward", s.withWriter(s.portforward))
 
 	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles", s.withWriter(s.listClusterRoles))
 	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.getClusterRole))
 	s.router.DELETE("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.deleteClusterRole))
 
-	s.router.GET("/api/:ver/namespaces/:podNamespace/pods", s.withWriter(s.listPods))
+	s.router.GET("/api/:ver/namespaces/:namespace/pods", s.withWriter(s.listPods))
 	s.router.GET("/api/:ver/pods", s.withWriter(s.listPods))
-	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.getPod))
-	s.router.DELETE("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.deletePod))
+	s.router.GET("/api/:ver/namespaces/:namespace/pods/:name", s.withWriter(s.getPod))
+	s.router.DELETE("/api/:ver/namespaces/:namespace/pods/:name", s.withWriter(s.deletePod))
+
+	s.router.GET("/api/:ver/namespaces/:namespace/secrets", s.withWriter(s.listSecrets))
+	s.router.GET("/api/:ver/secrets", s.withWriter(s.listSecrets))
+	s.router.GET("/api/:ver/namespaces/:namespace/secrets/:name", s.withWriter(s.getSecret))
+	s.router.DELETE("/api/:ver/namespaces/:namespace/secrets/:name", s.withWriter(s.deleteSecret))
+
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
@@ -187,8 +193,8 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 	q := req.URL.Query()
 
 	request := remoteCommandRequest{
-		podNamespace:       p.ByName("podNamespace"),
-		podName:            p.ByName("podName"),
+		namespace:          p.ByName("namespace"),
+		name:               p.ByName("name"),
 		containerName:      q.Get("container"),
 		cmd:                q["command"],
 		stdin:              utils.AsBool(q.Get("stdin")),
@@ -265,8 +271,8 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 // remoteCommandRequest is a request to execute a remote command
 type remoteCommandRequest struct {
-	podNamespace       string
-	podName            string
+	namespace          string
+	name               string
 	containerName      string
 	cmd                []string
 	stdin              bool
@@ -596,7 +602,7 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 		errStream.Write([]byte(err.Error()))
 		return nil, nil
 	}
-	fmt.Fprint(data, PortForwardPayload, p.ByName("podName"), string(buf[:n]))
+	fmt.Fprint(data, PortForwardPayload, p.ByName("name"), string(buf[:n]))
 	return nil, nil
 }
 

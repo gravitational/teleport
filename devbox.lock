@@ -27,6 +27,18 @@
     "git@latest": {
       "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#git"
     },
+    "go@1.20.5": {
+      "last_modified": "2023-06-29T16:20:38Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#go",
+      "source": "devbox-search",
+      "version": "1.20.5"
+    },
+    "golangci-lint@1.53.3": {
+      "last_modified": "2023-06-29T16:20:38Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#golangci-lint",
+      "source": "devbox-search",
+      "version": "1.53.3"
+    },
     "libfido2@1.13.0": {
       "last_modified": "2023-05-01T16:53:22Z",
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#libfido2",
