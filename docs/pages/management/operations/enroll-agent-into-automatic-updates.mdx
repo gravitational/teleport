@@ -34,7 +34,7 @@ updates.
 ## Requirements
 
 <Tabs>
-<TabItem label="Self-hosted">
+<TabItem label="Self-hosted" scope="enterprise">
 - A Teleport Enterprise agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
@@ -42,7 +42,7 @@ updates.
   already followed [this guide](./self-hosted-automatic-agent-updates.mdx) and
   know your version server URL and release channel
 </TabItem>
-<TabItem label="Teleport Cloud">
+<TabItem label="Teleport Cloud" scope="cloud">
 - A Teleport Enterprise agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
@@ -53,8 +53,10 @@ updates.
 
 ## Enroll instructions
 
-<Tabs dropdownCaption="Cluster Type" dropdownSelected="Self-hosted">
-<TabItem label="systemd" options="Self-hosted">
+<Tabs dropdownView dropdownCaption="Cluster Type">
+<TabItem label="Self-hosted" scope="enterprise">
+<Tabs>
+<TabItem label="systemd" scope="enterprise">
 
 Confirm you have the Teleport Enterprise edition installed.
 
@@ -118,8 +120,7 @@ not be exported yet.
 </Admonition>
 
 </TabItem>
-
-<TabItem label="teleport-kube-agent chart" options="Self-hosted">
+<TabItem label="teleport-kube-agent chart" scope="enterprise">
 
 Confirm you are using the Teleport Enterprise image. The `enterprise` value setting
 should have been set to `true` for the Helm chart installation.
@@ -154,7 +155,12 @@ $ kubectl logs <your-agent-release>-updater
 ```
 
 </TabItem>
-<TabItem label="systemd " options="Teleport Cloud">
+</Tabs>
+</TabItem>
+
+<TabItem label="Teleport Cloud" scope="cloud">
+<Tabs>
+<TabItem label="systemd" scope="cloud">
 
 Confirm you have the Teleport Enterprise edition installed.
 
@@ -202,7 +208,7 @@ not be exported yet.
 </Admonition>
 
 </TabItem>
-<TabItem label="teleport-kube-agent chart " options="Teleport Cloud">
+<TabItem label="teleport-kube-agent chart" scope="cloud">
 
 Confirm you are using the Teleport Enterprise image. The `enterprise` value setting
 should have been set to `true` for the Helm chart installation.
@@ -234,6 +240,8 @@ $ kubectl logs <your-agent-release>-updater
 2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
 ```
 
+</TabItem>
+</Tabs>
 </TabItem>
 </Tabs>
 
