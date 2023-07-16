@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
 	github.com/bmatcuk/doublestar/v4 v4.6.0
-	github.com/bradleyfalzon/ghinstallation/v2 v2.5.0
+	github.com/bradleyfalzon/ghinstallation/v2 v2.6.0
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.3.0
 	github.com/gravitational/trace v1.2.1
