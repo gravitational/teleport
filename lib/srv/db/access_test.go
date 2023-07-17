@@ -99,83 +99,130 @@ func TestMain(m *testing.M) {
 // on the configured RBAC rules.
 func TestAccessPostgres(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
+		db.SetStaticLabels(map[string]string{"foo": "bar"})
+	}))
 	go testCtx.startHandlingConnections()
 
+	wildCardDBLabels := types.Labels{types.Wildcard: []string{types.Wildcard}}
+	dynamicDBLabels := types.Labels{"echo": {"test"}}
+	staticDBLabels := types.Labels{"foo": {"bar"}}
 	tests := []struct {
-		desc         string
-		user         string
-		role         string
-		allowDbNames []string
-		allowDbUsers []string
-		dbName       string
-		dbUser       string
-		err          string
+		desc          string
+		user          string
+		role          string
+		allowDbNames  []string
+		allowDbUsers  []string
+		allowDbLabels types.Labels
+		denyDbLabels  types.Labels
+		dbName        string
+		dbUser        string
+		err           string
 	}{
 		{
-			desc:         "has access to all database names and users",
-			user:         "alice",
-			role:         "admin",
-			allowDbNames: []string{types.Wildcard},
-			allowDbUsers: []string{types.Wildcard},
-			dbName:       "postgres",
-			dbUser:       "postgres",
+			desc:          "has access to all database names and users",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{types.Wildcard},
+			allowDbUsers:  []string{types.Wildcard},
+			allowDbLabels: wildCardDBLabels,
+			dbName:        "postgres",
+			dbUser:        "postgres",
 		},
 		{
-			desc:         "has access to nothing",
-			user:         "alice",
-			role:         "admin",
-			allowDbNames: []string{},
-			allowDbUsers: []string{},
-			dbName:       "postgres",
-			dbUser:       "postgres",
-			err:          "access to db denied",
+			desc:          "has access to nothing",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{},
+			allowDbUsers:  []string{},
+			allowDbLabels: wildCardDBLabels,
+			dbName:        "postgres",
+			dbUser:        "postgres",
+			err:           "access to db denied",
 		},
 		{
-			desc:         "no access to databases",
-			user:         "alice",
-			role:         "admin",
-			allowDbNames: []string{},
-			allowDbUsers: []string{types.Wildcard},
-			dbName:       "postgres",
-			dbUser:       "postgres",
-			err:          "access to db denied",
+			desc:          "no access to databases",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{},
+			allowDbUsers:  []string{types.Wildcard},
+			allowDbLabels: wildCardDBLabels,
+			dbName:        "postgres",
+			dbUser:        "postgres",
+			err:           "access to db denied",
 		},
 		{
-			desc:         "no access to users",
-			user:         "alice",
-			role:         "admin",
-			allowDbNames: []string{types.Wildcard},
-			allowDbUsers: []string{},
-			dbName:       "postgres",
-			dbUser:       "postgres",
-			err:          "access to db denied",
+			desc:          "no access to users",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{types.Wildcard},
+			allowDbUsers:  []string{},
+			allowDbLabels: wildCardDBLabels,
+			dbName:        "postgres",
+			dbUser:        "postgres",
+			err:           "access to db denied",
 		},
 		{
-			desc:         "access allowed to specific user/database",
-			user:         "alice",
-			role:         "admin",
-			allowDbNames: []string{"metrics"},
-			allowDbUsers: []string{"alice"},
-			dbName:       "metrics",
-			dbUser:       "alice",
+			desc:          "access allowed to specific user/database",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{"metrics"},
+			allowDbUsers:  []string{"alice"},
+			allowDbLabels: wildCardDBLabels,
+			dbName:        "metrics",
+			dbUser:        "alice",
 		},
 		{
-			desc:         "access denied to specific user/database",
-			user:         "alice",
-			role:         "admin",
-			allowDbNames: []string{"metrics"},
-			allowDbUsers: []string{"alice"},
-			dbName:       "postgres",
-			dbUser:       "postgres",
-			err:          "access to db denied",
+			desc:          "access allowed to specific user/database by static label",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{"metrics"},
+			allowDbUsers:  []string{"alice"},
+			allowDbLabels: staticDBLabels,
+			dbName:        "metrics",
+			dbUser:        "alice",
+		},
+		{
+			desc:          "access allowed to specific user/database by dynamic label",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{"metrics"},
+			allowDbUsers:  []string{"alice"},
+			allowDbLabels: dynamicDBLabels,
+			dbName:        "metrics",
+			dbUser:        "alice",
+		},
+		{
+			desc:          "access denied by dynamic label",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{"metrics"},
+			allowDbUsers:  []string{"alice"},
+			allowDbLabels: wildCardDBLabels,
+			denyDbLabels:  dynamicDBLabels,
+			dbName:        "metrics",
+			dbUser:        "alice",
+			err:           "access to db denied",
+		},
+		{
+			desc:          "access denied to specific user/database",
+			user:          "alice",
+			role:          "admin",
+			allowDbNames:  []string{"metrics"},
+			allowDbUsers:  []string{"alice"},
+			allowDbLabels: wildCardDBLabels,
+			dbName:        "postgres",
+			dbUser:        "postgres",
+			err:           "access to db denied",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			// Create user/role with the requested permissions.
-			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+			testCtx.createUserAndRole(ctx, t, test.user, test.role,
+				test.allowDbUsers, test.allowDbNames,
+				withDBLabels(test.allowDbLabels, test.denyDbLabels))
 
 			// Try to connect to the database as this user.
 			pgConn, err := testCtx.postgresClient(ctx, test.user, "postgres", test.dbUser, test.dbName)
@@ -1840,13 +1887,25 @@ func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbServic
 	return db, proxy, nil
 }
 
+type roleOptFn func(types.Role)
+
+func withDBLabels(allowed, denied types.Labels) roleOptFn {
+	return func(role types.Role) {
+		role.SetDatabaseLabels(types.Allow, allowed)
+		role.SetDatabaseLabels(types.Deny, denied)
+	}
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
-func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
+func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
 	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
 	require.NoError(t, err)
 	role.SetDatabaseUsers(types.Allow, dbUsers)
 	role.SetDatabaseNames(types.Allow, dbNames)
+	for _, roleOpt := range roleOpts {
+		roleOpt(role)
+	}
 	err = c.tlsServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role
