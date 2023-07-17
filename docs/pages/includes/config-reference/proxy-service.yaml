@@ -147,3 +147,10 @@ proxy_service:
     # sets client IPs in the "X-Forwarded-For" headers. Requests with more than
     # one IPs will be rejected.
     trust_x_forwarded_for: false
+
+    # Configuration for the Teleport Assist functionality
+    assist:
+      openai:
+        # An absolute path to the file containing the API token for OpenAI.
+        # This is required for Assist functionality.
+        api_token_path: /etc/teleport/openai_key
