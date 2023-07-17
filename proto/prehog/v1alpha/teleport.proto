@@ -600,6 +600,10 @@ message AgentMetadataEvent {
   string container_runtime = 9;
   string container_orchestrator = 10;
   string cloud_environment = 11;
+
+  // external_upgrader is the name of the registered external upgrader. if non-empty, this field indicates
+  // that the associated agent is enrolled in automatic upgrades.
+  string external_upgrader = 12;
 }
 
 // AssistCompletionEvent is an event that is emitted
