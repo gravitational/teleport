@@ -1750,6 +1750,11 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
+	// Provide a warning when the auth connector is SSO and the username is specified.
+	if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.Username != "" {
+		fmt.Fprintf(os.Stderr, "\nwarning: Specifying the Teleport user (%v) is ignored for Single Sign-On (SSO) logins.\nThe SSO authentication will set the user name.\n\n", cf.Username)
+	}
+
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
