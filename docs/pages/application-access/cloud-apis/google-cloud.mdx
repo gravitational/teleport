@@ -385,11 +385,11 @@ In your identity provider, define a custom SAML attribute or OIDC claim called
 must be a list of Google Cloud service account URIs, using the following format:
 
 ```text
-/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/RESOURCE_GROUP_NAME/providers/Microsoft.ManagedIdentity/userAssignedIdentities/IDENTITY_NAME
+<service_account_name>@<project_id>.iam.gserviceaccount.com
 ```
 
 For example, you can set a user's `gcp_service_accounts` to `teleport-vm-viewer`
-by using the following URI, replacing `my-project` with the name of your Google
+by using the following URI, replacing `<project_id>` with the name of your Google
 Cloud project:
 
 ```text
