@@ -247,24 +247,27 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 	var version int32
 	var migrateErr error
 
-	if err := pgcommon.Retry0(ctx, b.log, func() error {
+	// this is split off from the rest because we might not have permissions to
+	// CREATE TABLE, which is checked even if the table exists
+	if _, err := pgcommon.RetryIdempotent(ctx, b.log, func() (struct{}, error) {
 		_, err := b.pool.Exec(ctx,
 			`CREATE TABLE IF NOT EXISTS backend_version (
 				version integer PRIMARY KEY CHECK (version > 0),
 				created timestamptz NOT NULL DEFAULT now()
 			)`, pgx.QueryExecModeExec,
 		)
-		return trace.Wrap(err)
+		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		// the very first SELECT in the next transaction will fail, we don't
 		// need anything higher than debug here
 		b.log.WithError(err).Debug("Failed to confirm the existence of the backend_version table.")
 	}
 
+	const idempotent = true
 	if err := pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{
 		IsoLevel:   pgx.Serializable,
 		AccessMode: pgx.ReadWrite,
-	}, func(tx pgx.Tx) error {
+	}, idempotent, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx,
 			"SELECT COALESCE(max(version), 0) FROM backend_version",
 			pgx.QueryExecModeExec,
@@ -343,13 +346,13 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 // Put implements [backend.Backend].
 func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	revision := newRevision()
-	if err := pgcommon.Retry0(ctx, b.log, func() error {
+	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
 		_, err := b.pool.Exec(ctx,
 			"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)"+
 				" ON CONFLICT (key) DO UPDATE SET"+
 				" value = excluded.value, expires = excluded.expires, revision = excluded.revision",
 			i.Key, i.Value, zeronull.Timestamptz(i.Expires.UTC()), revision)
-		return trace.Wrap(err)
+		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -410,7 +413,7 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 
 // Get implements [backend.Backend].
 func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	item, err := pgcommon.Retry(ctx, b.log, func() (*backend.Item, error) {
+	item, err := pgcommon.RetryIdempotent(ctx, b.log, func() (*backend.Item, error) {
 		batch := new(pgx.Batch)
 		batch.Queue("SET transaction_read_only TO on")
 
@@ -459,7 +462,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		limit = backend.DefaultRangeLimit
 	}
 
-	items, err := pgcommon.Retry(ctx, b.log, func() ([]backend.Item, error) {
+	items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
 		batch := new(pgx.Batch)
 		batch.Queue("SET transaction_read_only TO on")
 		// TODO(espadolini): figure out if we want transaction_deferred enabled
@@ -530,12 +533,12 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 	// ever deletes more than dozens of items at once, and logical decoding
 	// starts having performance issues when a transaction affects _thousands_
 	// of rows at once, so we're good here (but see [Backend.backgroundExpiry])
-	if err := pgcommon.Retry0(ctx, b.log, func() error {
+	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
 		_, err := b.pool.Exec(ctx,
 			"DELETE FROM kv WHERE key BETWEEN $1 AND $2",
 			startKey, endKey,
 		)
-		return trace.Wrap(err)
+		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
 	}

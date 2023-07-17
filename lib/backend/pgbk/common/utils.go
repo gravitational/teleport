@@ -86,13 +86,34 @@ func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 
 // Retry runs the closure potentially more than once, retrying quickly on
 // serialization or deadlock errors, and backing off more on other retryable
-// errors.
+// errors. It will not retry on network errors or other ambiguous errors after
+// any data has been sent.
 func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, error)) (T, error) {
+	const idempotent = false
+	v, err := retry(ctx, log, idempotent, f)
+	return v, trace.Wrap(err)
+}
+
+// RetryIdempotent runs the closure potentially more than once, retrying quickly
+// on serialization or deadlock errors, and backing off more on other errors. It
+// assumes that f is idempotent, so it will retry even in ambiguous situations.
+func RetryIdempotent[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, error)) (T, error) {
+	const idempotent = true
+	v, err := retry(ctx, log, idempotent, f)
+	return v, trace.Wrap(err)
+}
+
+func retry[T any](ctx context.Context, log logrus.FieldLogger, isIdempotent bool, f func() (T, error)) (T, error) {
 	var v T
 	var err error
 	v, err = f()
 	if err == nil {
 		return v, nil
+	}
+
+	if ctx.Err() != nil {
+		var zeroT T
+		return zeroT, trace.Wrap(ctx.Err())
 	}
 
 	retry, retryErr := retryutils.NewLinear(retryutils.LinearConfig{
@@ -107,12 +128,10 @@ func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, erro
 	}
 
 	for i := 1; i < 10; i++ {
-		if ctx.Err() != nil {
-			var zeroT T
-			return zeroT, trace.Wrap(err)
-		}
+		var pgErr *pgconn.PgError
+		_ = errors.As(err, &pgErr)
 
-		if IsCode(err, pgerrcode.SerializationFailure) || IsCode(err, pgerrcode.DeadlockDetected) {
+		if pgErr != nil && (pgErr.Code == pgerrcode.SerializationFailure || pgErr.Code == pgerrcode.DeadlockDetected) {
 			log.WithError(err).
 				WithField("attempt", i).
 				Debug("Operation failed due to conflicts, retrying quickly.")
@@ -121,12 +140,15 @@ func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, erro
 			if i > 1 {
 				retry.Inc()
 			}
-		} else if pgconn.SafeToRetry(err) {
+		} else if (isIdempotent && pgErr == nil) || pgconn.SafeToRetry(err) {
 			log.WithError(err).
 				WithField("attempt", i).
 				Debug("Operation failed, retrying.")
 			retry.Inc()
 		} else {
+			// we either know we shouldn't retry (on a database error), or we
+			// are not in idempotent mode and we don't know if we should retry
+			// (ambiguous error after sending some data)
 			var zeroT T
 			return zeroT, trace.Wrap(err)
 		}
@@ -142,21 +164,19 @@ func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, erro
 		if err == nil {
 			return v, nil
 		}
+
+		if ctx.Err() != nil {
+			var zeroT T
+			return zeroT, trace.Wrap(ctx.Err())
+		}
 	}
 
 	var zeroT T
 	return zeroT, trace.LimitExceeded("too many retries, last error: %v", err)
 }
 
-// Retry0 runs the closure like [retry], but without a returned value.
-func Retry0(ctx context.Context, log logrus.FieldLogger, f func() error) error {
-	_, err := Retry(ctx, log, func() (struct{}, error) {
-		return struct{}{}, trace.Wrap(f())
-	})
-	return trace.Wrap(err)
-}
-
-// RetryTx runs a closure like [retry], wrapped in [pgx.BeginTxFunc].
+// RetryTx runs a closure like [Retry] or [RetryIdempotent], wrapped in
+// [pgx.BeginTxFunc].
 func RetryTx(
 	ctx context.Context,
 	log logrus.FieldLogger,
@@ -164,15 +184,18 @@ func RetryTx(
 		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
 	},
 	txOptions pgx.TxOptions,
+	isIdempotent bool,
 	f func(tx pgx.Tx) error,
 ) error {
-	return trace.Wrap(Retry0(ctx, log, func() error {
-		return trace.Wrap(pgx.BeginTxFunc(ctx, db, txOptions, f))
-	}))
+	_, err := retry(ctx, log, isIdempotent, func() (struct{}, error) {
+		return struct{}{}, trace.Wrap(pgx.BeginTxFunc(ctx, db, txOptions, f))
+	})
+	return trace.Wrap(err)
 }
 
 // IsCode checks if the passed error is a Postgres error with the given code.
 func IsCode(err error, code string) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == code
+	_ = errors.As(err, &pgErr)
+	return pgErr != nil && pgErr.Code == code
 }
