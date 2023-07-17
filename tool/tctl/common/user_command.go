@@ -266,6 +266,12 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	user.SetRoles(u.allowedRoles)
 
 	if err := client.CreateUser(ctx, user); err != nil {
+		if trace.IsAlreadyExists(err) {
+			editUserCmd := fmt.Sprintf("> tctl edit user/%v # edit a YAML representation of the account", u.login)
+			usersUpdateCmd := fmt.Sprintf("> tctl users update %v # replace specific fields with --set flags, e.g. --set-roles", u.login)
+			fmt.Printf("NOTE: This command creates a new user account. To update an existing account, use one of the following:\n%v\n%v\n\n",
+				editUserCmd, usersUpdateCmd)
+		}
 		return trace.Wrap(err)
 	}
 
