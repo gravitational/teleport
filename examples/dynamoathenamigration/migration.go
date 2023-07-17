@@ -331,6 +331,7 @@ func (t *task) getDataObjectsInfo(ctx context.Context, manifestPath string) ([]d
 
 	var out []dataObjectInfo
 	scanner := bufio.NewScanner(bytes.NewBuffer(writeAtBuf.Bytes()))
+	scanner.Buffer([]byte{}, 1024*1024)
 	// manifest-files are JSON lines files, that why it's scanned line by line.
 	for scanner.Scan() {
 		var obj dataObjectInfo
@@ -401,6 +402,7 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 	afterCheckpoint := afterCheckpointIn
 
 	scanner := bufio.NewScanner(gzipReader)
+	scanner.Buffer([]byte{}, 1024*1024)
 	t.Logger.Debugf("Scanning %d events", dataObj.ItemCount)
 	count := 0
 	for scanner.Scan() {
