@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"regexp"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -49,6 +50,8 @@ type Config struct {
 	ProjectID string `json:"project_id,omitempty"`
 	// CollectName is the name of the collection containing events
 	CollectionName string `json:"collection_name,omitempty"`
+	// AuditEventsURIs is the name of the URIs for Audit Events
+	AuditEventsURIs []string `json:"audit_events_uri,omitempty"`
 	// PurgeExpiredDocumentsPollInterval is the poll interval used to purge expired documents
 	PurgeExpiredDocumentsPollInterval time.Duration `json:"purge_expired_documents_poll_interval,omitempty"`
 	// RetryPeriod is a period between retry executions of long-lived document snapshot queries and purging expired records
@@ -74,6 +77,13 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 	// table is not configured?
 	if cfg.CollectionName == "" {
 		return trace.BadParameter("firestore: collection_name is not specified")
+	}
+	// Check the TableName is not being used within the audit uri list
+	googleURI := regexp.MustCompile(`((?i)firestore)://` + cfg.CollectionName)
+	for _, auditURI := range cfg.AuditEventsURIs {
+		if googleURI.MatchString(auditURI) {
+			return trace.BadParameter(("firestore: Same collection name used for collection_name and audit_events_uri. Separate Firestore collections are required."))
+		}
 	}
 	if cfg.ProjectID == "" {
 		return trace.BadParameter("firestore: project_id is not specified")
