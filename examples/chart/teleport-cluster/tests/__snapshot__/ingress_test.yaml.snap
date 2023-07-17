@@ -1,0 +1,38 @@
+does not add additional wildcard publicAddrs when Ingress is enabled and a publicAddr already contains a wildcard:
+  1: |
+    - hosts:
+      - helm-lint.example.com
+      - '*.helm-lint.example.com'
+      - helm-lint-second-domain.example.com
+      - '*.helm-lint-second-domain.example.com'
+does not set a wildcard of clusterName as a hostname when Ingress is enabled and ingress.suppressAutomaticWildcards is true:
+  1: |
+    - hosts:
+      - teleport.example.com
+? does not set a wildcard of publicAddr as a hostname when Ingress is enabled, publicAddr
+  is set and ingress.suppressAutomaticWildcards is true
+: 1: |
+    - hosts:
+      - helm-lint.example.com
+exposes all publicAddrs and wildcard publicAddrs as hostnames when Ingress is enabled and multiple publicAddrs are set:
+  1: |
+    - hosts:
+      - helm-lint.example.com
+      - helm-lint-second-domain.example.com
+      - '*.helm-lint.example.com'
+      - '*.helm-lint-second-domain.example.com'
+sets the clusterName and wildcard of clusterName as hostnames when Ingress is enabled:
+  1: |
+    - hosts:
+      - teleport.example.com
+      - '*.teleport.example.com'
+sets the publicAddr and wildcard of publicAddr as hostnames when Ingress is enabled and publicAddr is set:
+  1: |
+    - hosts:
+      - helm-lint.example.com
+      - '*.helm-lint.example.com'
+trims ports from publicAddr and uses it as the hostname when Ingress is enabled and publicAddr is set:
+  1: |
+    - hosts:
+      - helm-lint.example.com
+      - '*.helm-lint.example.com'
