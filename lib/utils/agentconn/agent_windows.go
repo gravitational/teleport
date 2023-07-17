@@ -93,7 +93,7 @@ func dialCygwin(socket string) (net.Conn, error) {
 
 	sockMatches := cygwinSocket.FindStringSubmatch(string(contents))
 	if len(sockMatches) != 4 {
-		return nil, trace.Errorf("error reading Cygwin socket")
+		return nil, trace.Errorf("could not find necessary information in Cygwin socket file")
 	}
 	port := sockMatches[1]
 	if sockMatches[2] != "s " {
@@ -106,7 +106,7 @@ func dialCygwin(socket string) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var uid int64
+	var uid uint64
 	var unsureOfUID bool
 	if !strings.HasPrefix(u.Uid, wellKnownSIDPrefix) {
 		// the format of the SID isn't supported, fallback to getting
@@ -121,17 +121,17 @@ func dialCygwin(socket string) (net.Conn, error) {
 		sidParts := strings.Split(u.Uid, "-")
 		if len(sidParts) == 4 {
 			// well-known SIDs in the NT_AUTHORITY domain of the S-1-5-RID type
-			uid, err = strconv.ParseInt(sidParts[3], 10, 32)
+			uid, err = strconv.ParseUint(sidParts[3], 10, 32)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 		} else if len(sidParts) == 5 {
 			// other well-known SIDs that aren't groups
-			x, err := strconv.ParseInt(sidParts[3], 10, 32)
+			x, err := strconv.ParseUint(sidParts[3], 10, 32)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			rid, err := strconv.ParseInt(sidParts[4], 10, 32)
+			rid, err := strconv.ParseUint(sidParts[4], 10, 32)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -139,7 +139,7 @@ func dialCygwin(socket string) (net.Conn, error) {
 		} else if len(sidParts) == 8 {
 			// SIDs from the local machine's SAM, the machine's primary
 			// domain, or a trusted domain of the machine's primary domain
-			uid, err = strconv.ParseInt(sidParts[7], 10, 32)
+			uid, err = strconv.ParseUint(sidParts[7], 10, 32)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -166,7 +166,7 @@ func dialCygwin(socket string) (net.Conn, error) {
 	} else {
 		// the Cygwin UID could be built a few different ways; attempt
 		// with all UIDs until one succeeds
-		cygwinRIDNums := []int64{0x30000, 0x100000, 0x80000000}
+		cygwinRIDNums := []uint64{0x30000, 0x100000, 0x80000000}
 		for _, num := range cygwinRIDNums {
 			conn, err = attemptCygwinHandshake(port, key, num+uid)
 			if err == nil {
@@ -189,7 +189,7 @@ func dialCygwin(socket string) (net.Conn, error) {
 }
 
 // use Cygwin 'ps' binary to get the Cygwin UID of the current user
-func getCygwinUIDFromPS() (int64, error) {
+func getCygwinUIDFromPS() (uint64, error) {
 	// Cygwin 'bash' is used to call 'ps' so a Cygwin environment can be
 	// inherited by 'ps'
 	psOutput, err := exec.Command("bash.exe", "-c", "ps").Output()
@@ -198,9 +198,9 @@ func getCygwinUIDFromPS() (int64, error) {
 	}
 	psMatches := psLine.FindStringSubmatch(string(psOutput))
 	if len(psMatches) != 2 {
-		return 0, trace.Errorf("error reading Cygwin ps output")
+		return 0, trace.Errorf("UID not found in Cygwin ps output")
 	}
-	uid, err := strconv.ParseInt(psMatches[1], 10, 32)
+	uid, err := strconv.ParseUint(psMatches[1], 10, 32)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -211,7 +211,7 @@ func getCygwinUIDFromPS() (int64, error) {
 // connect to a listening socket of a Cygwin SSH agent and attempt to
 // preform a successful handshake with it. Handshake details here:
 // https://stackoverflow.com/questions/23086038/what-mechanism-is-used-by-msys-cygwin-to-emulate-unix-domain-sockets
-func attemptCygwinHandshake(port, key string, uid int64) (net.Conn, error) {
+func attemptCygwinHandshake(port, key string, uid uint64) (net.Conn, error) {
 	logrus.Debugf("[KEY AGENT] attempting a handshake with Cygwin ssh-agent socket; port=%s uid=%d", port, uid)
 
 	conn, err := net.Dial("tcp", "localhost:"+port)
