@@ -1543,6 +1543,12 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
+	// If the cluster is using single-sign on, providing the user name
+	// with --user is likely a mistake, so display a warning.
+	if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.Username != "" {
+		fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
+	}
+
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
