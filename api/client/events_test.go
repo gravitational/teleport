@@ -28,8 +28,16 @@ import (
 // primarily to catch potential issues with using our "mixed" gogo + regular protobuf
 // strategy.
 func TestEventEqual(t *testing.T) {
-	app, err := types.NewAppV3(types.Metadata{
-		Name: "app",
+	app1, err := types.NewAppV3(types.Metadata{
+		Name: "app1",
+	}, types.AppSpecV3{
+		URI:        "https://uri.com",
+		PublicAddr: "https://public-addr.com",
+	})
+	require.NoError(t, err)
+
+	app2, err := types.NewAppV3(types.Metadata{
+		Name: "app2",
 	}, types.AppSpecV3{
 		URI:        "https://uri.com",
 		PublicAddr: "https://public-addr.com",
@@ -37,28 +45,68 @@ func TestEventEqual(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name  string
-		event *authpb.Event
+		name     string
+		event1   *authpb.Event
+		event2   *authpb.Event
+		expected bool
 	}{
 		{
-			name:  "empty",
-			event: &authpb.Event{},
+			name:     "empty equal",
+			event1:   &authpb.Event{},
+			event2:   &authpb.Event{},
+			expected: true,
 		},
 		{
-			name: "gogo oneof",
-			event: &authpb.Event{
+			name:   "empty not equal",
+			event1: &authpb.Event{},
+			event2: &authpb.Event{
 				Type: authpb.Operation_PUT,
 				Resource: &authpb.Event_App{
-					App: app,
+					App: app1,
 				},
 			},
+			expected: false,
+		},
+		{
+			name: "gogo oneof equal",
+			event1: &authpb.Event{
+				Type: authpb.Operation_PUT,
+				Resource: &authpb.Event_App{
+					App: app1,
+				},
+			},
+			event2: &authpb.Event{
+				Type: authpb.Operation_PUT,
+				Resource: &authpb.Event_App{
+					App: app1,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "gogo oneof not equal",
+			event1: &authpb.Event{
+				Type: authpb.Operation_PUT,
+				Resource: &authpb.Event_App{
+					App: app1,
+				},
+			},
+			event2: &authpb.Event{
+				Type: authpb.Operation_PUT,
+				Resource: &authpb.Event_App{
+					App: app2,
+				},
+			},
+			expected: false,
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			require.True(t, proto.Equal(test.event, test.event))
+			t.Parallel()
+
+			require.Equal(t, test.expected, proto.Equal(test.event1, test.event2))
 		})
 	}
 }
