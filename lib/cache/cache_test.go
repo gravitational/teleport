@@ -2528,7 +2528,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				event, err := client.EventFromGRPC(*protoEvent)
+				event, err := client.EventFromGRPC(protoEvent)
 				require.NoError(t, err)
 
 				require.Empty(t, cmp.Diff(resource, event.Resource))
