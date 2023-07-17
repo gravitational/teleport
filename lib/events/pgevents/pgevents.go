@@ -46,7 +46,7 @@ const (
 )
 
 const (
-	defaultRetentionPeriod = 8766 * time.Hour // 365.25 days
+	defaultRetentionPeriod = 8766 * time.Hour // 365.25 days, i.e. one year
 	defaultCleanupInterval = time.Hour
 )
 
