@@ -24,11 +24,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
 func TestDeployServiceRequest(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
@@ -136,6 +137,7 @@ func TestDeployServiceRequest(t *testing.T) {
 			errCheck: require.NoError,
 			reqWithDefaults: DeployServiceRequest{
 				TeleportClusterName:  "mycluster",
+				TeleportVersionTag:   teleport.Version,
 				Region:               "r",
 				SubnetIDs:            []string{"1"},
 				TaskRoleARN:          "arn",

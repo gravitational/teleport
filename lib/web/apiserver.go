@@ -199,7 +199,7 @@ type Config struct {
 	AccessPoint auth.ProxyAccessPoint
 
 	// Emitter is event emitter
-	Emitter events.StreamEmitter
+	Emitter apievents.Emitter
 
 	// HostUUID is the UUID of this process.
 	HostUUID string
@@ -358,7 +358,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if err != nil {
 			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
 				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
-
 		} else {
 			sshPortValue = sshPort
 		}
@@ -761,6 +760,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// AWS OIDC Integration Actions
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
+	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration

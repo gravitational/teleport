@@ -1,5 +1,23 @@
 <Tabs>
-<TabItem scope={["oss"]} label="Open Source">
+<TabItem scope="team" label="Teleport Team">
+
+- A Teleport Team account. If you do not have one, visit the [signup
+  page](https://goteleport.com/signup/) to begin your free trial.
+
+- The Enterprise `tctl` admin tool and `tsh` client tool version >=
+  (=teleport.version=), which you can download by visiting your [Teleport
+  account](https://teleport.sh).
+
+  ```code
+  $ tctl version
+  # Teleport Enterprise v(=cloud.version=) go(=teleport.golang=)
+
+  $ tsh version
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 - A running Teleport cluster. For details on how to set this up, see our
   [Getting Started](../index.mdx) guide.
@@ -18,13 +36,14 @@
 
 </TabItem>
 <TabItem
-  scope={["enterprise"]} label="Enterprise">
+  scope={["enterprise"]} label="Teleport Enterprise">
 
 - A running Teleport Enterprise cluster. For details on how to set this up, see our Enterprise
   [Getting Started](../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
 
-- The Enterprise `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting your [Teleport account](https://teleport.sh).
+- The Enterprise `tctl` admin tool and `tsh` client tool version >=
+  (=teleport.version=), which you can download by visiting your [Teleport
+  account](https://teleport.sh).
 
   ```code
   $ tctl version
@@ -36,7 +55,7 @@
 
 </TabItem>
 <TabItem scope={["cloud"]}
-  label="Teleport Cloud">
+  label="Teleport Enterprise Cloud">
 
 - A Teleport Enterprise Cloud account. If you do not have one, visit the [signup
   page](https://goteleport.com/signup/) to begin a free trial of Teleport Team

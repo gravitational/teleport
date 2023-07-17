@@ -25,10 +25,16 @@ export enum ServerMessageType {
   CommandResultStream = 'COMMAND_RESULT_STREAM',
   AssistPartialMessage = 'CHAT_PARTIAL_MESSAGE_ASSISTANT',
   AssistPartialMessageEnd = 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE',
-  AssistThought = 'CHAT_THOUGHT_ASSISTANT',
+  AssistThought = 'CHAT_MESSAGE_PROGRESS_UPDATE',
 }
 
+// ExecutionEnvelopeType is the type of message that is returned when
+// the command summary is returned.
 export const ExecutionEnvelopeType = 'summary';
+
+// ExecutionTeleportErrorType is the type of error that is returned when
+// Teleport returns an error (failed to execute command, failed to connect, etc.)
+export const ExecutionTeleportErrorType = 'teleport-error';
 
 export interface Conversation {
   id: string;
@@ -160,6 +166,10 @@ export interface CommandResultSummaryPayload {
   summary: string;
 }
 
+export interface ThoughtMessagePayload {
+  action: string;
+}
+
 export interface ExecEvent {
   event: EventType.EXEC;
   exitError?: string;
@@ -186,6 +196,10 @@ export interface RawPayload {
 
 export interface SessionData {
   session: { server_id: string };
+}
+
+export interface SessionEndData {
+  node_id: string;
 }
 
 export interface ExecuteRemoteCommandPayload {

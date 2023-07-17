@@ -272,6 +272,9 @@ export class Features extends jspb.Message {
     getAdvancedAccessWorkflows(): boolean;
     setAdvancedAccessWorkflows(value: boolean): Features;
 
+    getIsUsageBasedBilling(): boolean;
+    setIsUsageBasedBilling(value: boolean): Features;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Features.AsObject;
@@ -286,5 +289,6 @@ export class Features extends jspb.Message {
 export namespace Features {
     export type AsObject = {
         advancedAccessWorkflows: boolean,
+        isUsageBasedBilling: boolean,
     }
 }

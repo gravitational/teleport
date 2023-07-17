@@ -37,12 +37,17 @@ import {
 } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
+import { ServiceDeployMethod } from './Database/common';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
+import type {
+  AwsRdsDatabase,
+  Integration,
+} from 'teleport/services/integrations';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -95,9 +100,8 @@ export type DiscoverUrlLocationState = {
     resourceSpec: ResourceSpec;
     currentStep: number;
   };
-  // integrationName is the name of the created integration
-  // resource name (eg: integration subkind "aws-oidc")
-  integrationName: string;
+  // integration is the created aws-oidc integration
+  integration: Integration;
 };
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
@@ -224,9 +228,9 @@ export function DiscoverProvider({
   // The location.state.discover should contain all the state that allows
   // the user to resume from where they left of.
   function resumeDiscoverFlow() {
-    const { discover, integrationName } = location.state;
+    const { discover, integration } = location.state;
 
-    updateAgentMeta({ integrationName } as DbMeta);
+    updateAgentMeta({ integration } as DbMeta);
 
     startDiscoverFlow(
       discover.resourceSpec,
@@ -468,8 +472,12 @@ export type NodeMeta = BaseMeta & {
 export type DbMeta = BaseMeta & {
   // TODO(lisa): when we can enroll multiple RDS's, turn this into an array?
   // The enroll event expects num count of enrolled RDS's, update accordingly.
-  db: Database;
-  integrationName?: string;
+  db?: Database;
+  integration?: Integration;
+  selectedAwsRdsDb?: AwsRdsDatabase;
+  // serviceDeployedMethod flag will be undefined if user skipped
+  // deploying service (service already existed).
+  serviceDeployedMethod?: ServiceDeployMethod;
 };
 
 // KubeMeta describes the fields for a kube resource

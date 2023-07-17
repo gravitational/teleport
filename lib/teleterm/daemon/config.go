@@ -21,7 +21,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/teleterm/cmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
@@ -30,14 +32,15 @@ type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage *clusters.Storage
 	// Log is a component logger
-	Log              *logrus.Entry
-	GatewayCreator   GatewayCreator
-	TCPPortAllocator gateway.TCPPortAllocator
+	Log                    *logrus.Entry
+	GatewayCreator         GatewayCreator
+	TCPPortAllocator       gateway.TCPPortAllocator
+	DBCLICommandProvider   gateway.CLICommandProvider
+	KubeCLICommandProvider gateway.CLICommandProvider
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
 	// Electron app. This is to ensure that the server public key is written to the disk under the
 	// expected location by the time we get around to creating the client.
 	CreateTshdEventsClientCredsFunc CreateTshdEventsClientCredsFunc
-	GatewayCertReissuer             *GatewayCertReissuer
 	// PrehogAddr is the URL where prehog events should be submitted.
 	PrehogAddr string
 }
@@ -62,11 +65,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log = logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "daemon")
 	}
 
-	if c.GatewayCertReissuer == nil {
-		c.GatewayCertReissuer = &GatewayCertReissuer{
-			Log: c.Log,
-		}
+	if c.DBCLICommandProvider == nil {
+		c.DBCLICommandProvider = cmd.NewDBCLICommandProvider(c.Storage, dbcmd.SystemExecer{})
 	}
 
+	if c.KubeCLICommandProvider == nil {
+		c.KubeCLICommandProvider = cmd.NewKubeCLICommandProvider()
+	}
 	return nil
 }

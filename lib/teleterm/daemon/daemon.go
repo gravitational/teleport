@@ -21,10 +21,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -58,9 +61,61 @@ func New(cfg Config) (*Service, error) {
 		cfg:           &cfg,
 		closeContext:  closeContext,
 		cancel:        cancel,
-		gateways:      make(map[string]*gateway.Gateway),
+		gateways:      make(map[string]gateway.Gateway),
 		usageReporter: connectUsageReporter,
 	}, nil
+}
+
+// relogin makes the Electron app display a login modal to trigger re-login.
+func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
+	// The Electron app cannot display two login modals at the same time, so we have to cut short any
+	// concurrent relogin requests.
+	if !s.reloginMu.TryLock() {
+		return trace.AlreadyExists("another relogin request is in progress")
+	}
+	defer s.reloginMu.Unlock()
+
+	const reloginUserTimeout = time.Minute
+	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
+	defer cancelTshdEventsCtx()
+
+	if _, err := s.tshdEventsClient.Relogin(timeoutCtx, req); err != nil {
+		if status.Code(err) == codes.DeadlineExceeded {
+			return trace.Wrap(err, "the user did not refresh the session within %s", reloginUserTimeout.String())
+		}
+
+		return trace.Wrap(err, "could not refresh the session")
+	}
+
+	return nil
+}
+
+// retryWithRelogin tries the given function. If the function returns an error that appears to be
+// resolvable with relogin, then it requests relogin and tries the function a second time.
+//
+// retryWithRelogin is reserved for cases where the retryable request does not originate from the
+// Electron app, for example when the request is made a long-running goroutine such as a gateway.
+// When the request originates from the Electron app and daemon.Service is merely an intermediary,
+// the retry flow is handled by clusters.addMetadataToRetryableError and the JavaScript version of
+// client.RetryWithRelogin with the same name.
+func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
+	err := fn()
+	if err == nil {
+		return nil
+	}
+
+	// Do not ask for relogin if the error cannot be resolved with relogin.
+	if !client.IsErrorResolvableWithRelogin(err) {
+		return trace.Wrap(err)
+	}
+
+	err = s.relogin(ctx, reloginReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = fn()
+	return trace.Wrap(err)
 }
 
 // ListRootClusters returns a list of root clusters
@@ -127,13 +182,18 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 //
 // It doesn't make network requests so the returned clusters.Cluster will not include full
 // information returned from the web/auth servers.
-func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
-	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
+func (s *Service) ResolveCluster(path string) (*clusters.Cluster, error) {
+	resourceURI, err := uri.Parse(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cluster, err := s.resolveCluster(resourceURI)
+	return cluster, trace.Wrap(err)
+}
 
-	return cluster, nil
+func (s *Service) resolveCluster(uri uri.ResourceURI) (*clusters.Cluster, error) {
+	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
+	return cluster, trace.Wrap(err)
 }
 
 // ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
@@ -167,7 +227,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 }
 
 // CreateGateway creates a gateway to given targetURI
-func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -180,20 +240,29 @@ func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams)
 }
 
 type GatewayCreator interface {
-	CreateGateway(context.Context, clusters.CreateGatewayParams) (*gateway.Gateway, error)
+	CreateGateway(context.Context, clusters.CreateGatewayParams) (gateway.Gateway, error)
 }
 
 // createGateway assumes that mu is already held by a public method.
-func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
+func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
+	targetURI, err := uri.ParseGatewayTargetURI(params.TargetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cliCommandProvider, err := s.getGatewayCLICommandProvider(targetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
-		TargetURI:             params.TargetURI,
+		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
 		TCPPortAllocator:      s.cfg.TCPPortAllocator,
-		OnExpiredCert:         s.onExpiredGatewayCert,
+		OnExpiredCert:         s.reissueGatewayCerts,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -212,13 +281,72 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	return gateway, nil
 }
 
-func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gateway) error {
-	cluster, err := s.ResolveCluster(gateway.TargetURI())
-	if err != nil {
+func (s *Service) getGatewayCLICommandProvider(targetURI uri.ResourceURI) (gateway.CLICommandProvider, error) {
+	switch {
+	case targetURI.IsDB():
+		return s.cfg.DBCLICommandProvider, nil
+	case targetURI.IsKube():
+		return s.cfg.KubeCLICommandProvider, nil
+	default:
+		return nil, trace.NotImplemented("gateway not supported for %v", targetURI)
+	}
+}
+
+// reissueGatewayCerts tries to reissue gateway certs.
+func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
+	reloginReq := &api.ReloginRequest{
+		RootClusterUri: g.TargetURI().GetClusterURI().String(),
+		Reason: &api.ReloginRequest_GatewayCertExpired{
+			GatewayCertExpired: &api.GatewayCertExpired{
+				GatewayUri: g.URI().String(),
+				TargetUri:  g.TargetURI().String(),
+			},
+		},
+	}
+
+	reissueDBCerts := func() error {
+		cluster, err := s.resolveCluster(g.TargetURI())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// TODO(greedy52) move cluster.ReissueDBCerts to cluster.ReissueGatewayCerts
+		db, err := gateway.AsDatabase(g)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := cluster.ReissueDBCerts(ctx, db.RouteToDatabase()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(g.ReloadCert())
+	}
+
+	// If the gateway certs have expired but the user cert is active,
+	// new certs can be obtained without having to relogin first.
+	//
+	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
+	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
+	// gateways that subsequently go through this flow.
+	if err := s.retryWithRelogin(ctx, reloginReq, reissueDBCerts); err != nil {
+		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
+			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
+				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
+					GatewayUri: g.URI().String(),
+					TargetUri:  g.TargetURI().String(),
+					Error:      err.Error(),
+				},
+			},
+		})
+		if notifyErr != nil {
+			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
+		}
+
+		// Return the error to the alpn.LocalProxy's middleware.
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster))
+	return nil
 }
 
 // RemoveGateway removes cluster gateway
@@ -239,7 +367,7 @@ func (s *Service) RemoveGateway(gatewayURI string) error {
 }
 
 // removeGateway assumes that mu is already held by a public method.
-func (s *Service) removeGateway(gateway *gateway.Gateway) error {
+func (s *Service) removeGateway(gateway gateway.Gateway) error {
 	// If gateway.Close() fails it most likely means it was called on a gateway that was already
 	// closed and that we have a race condition. Let's return an error in that case.
 	if err := gateway.Close(); err != nil {
@@ -252,7 +380,7 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 }
 
 // findGateway assumes that mu is already held by a public method.
-func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
+func (s *Service) findGateway(gatewayURI string) (gateway.Gateway, error) {
 	if gateway, ok := s.gateways[gatewayURI]; ok {
 		return gateway, nil
 	}
@@ -267,7 +395,7 @@ func (s *Service) ListGateways() []gateway.Gateway {
 
 	gws := make([]gateway.Gateway, 0, len(s.gateways))
 	for _, gateway := range s.gateways {
-		gws = append(gws, *gateway)
+		gws = append(gws, gateway)
 	}
 
 	return gws
@@ -275,7 +403,7 @@ func (s *Service) ListGateways() []gateway.Gateway {
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -298,7 +426,7 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 // correct that mistake and choose a different port.
 //
 // SetGatewayLocalPort is a noop if port is equal to the existing port.
-func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Gateway, error) {
+func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -537,9 +665,8 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	}
 
 	client := api.NewTshdEventsServiceClient(conn)
-	// If the need arises to reuse the client in other places,
-	// read https://github.com/gravitational/teleport/pull/17950#discussion_r1039434456
-	s.cfg.GatewayCertReissuer.TSHDEventsClient = client
+
+	s.tshdEventsClient = client
 
 	return nil
 }
@@ -553,20 +680,35 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 	return cluster.TransferFile(ctx, request, sendProgress)
 }
 
+// notifyApp sends a notification (usually an error) to the Electron App.
+func (s *Service) notifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
+	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
+	defer cancelTshdEventsCtx()
+
+	_, err := s.tshdEventsClient.SendNotification(tshdEventsCtx, notification)
+	return trace.Wrap(err)
+}
+
 // Service is the daemon service
 type Service struct {
 	cfg *Config
 	// mu guards gateways and the creation of tshdEventsClient.
 	mu sync.RWMutex
+
 	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
 	// to the tshd events gRPC client.
 	closeContext context.Context
 	cancel       context.CancelFunc
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
-	gateways map[string]*gateway.Gateway
+	gateways map[string]gateway.Gateway
+	// tshdEventsClient is a client to send events to the Electron App.
+	tshdEventsClient api.TshdEventsServiceClient
 	// usageReporter batches the events and sends them to prehog
 	usageReporter *usagereporter.UsageReporter
+	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the
+	// app can show only one login modal at a time, we need to submit only one request at a time.
+	reloginMu sync.Mutex
 }
 
 type CreateGatewayParams struct {

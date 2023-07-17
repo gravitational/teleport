@@ -26,9 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -51,17 +48,17 @@ func TestProtoStreamer(t *testing.T) {
 		{
 			name:           "5MB similar to S3 min size in bytes",
 			minUploadBytes: 1024 * 1024 * 5,
-			events:         events.GenerateTestSession(events.SessionParams{PrintEvents: 1}),
+			events:         eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1}),
 		},
 		{
 			name:           "get a part per message",
 			minUploadBytes: 1,
-			events:         events.GenerateTestSession(events.SessionParams{PrintEvents: 1}),
+			events:         eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1}),
 		},
 		{
 			name:           "small load test with some uneven numbers",
 			minUploadBytes: 1024,
-			events:         events.GenerateTestSession(events.SessionParams{PrintEvents: 1000}),
+			events:         eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1000}),
 		},
 		{
 			name:           "no events",
@@ -70,7 +67,7 @@ func TestProtoStreamer(t *testing.T) {
 		{
 			name:           "one event using the whole part",
 			minUploadBytes: 1,
-			events:         events.GenerateTestSession(events.SessionParams{PrintEvents: 0})[:1],
+			events:         eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 0})[:1],
 		},
 	}
 
@@ -92,7 +89,7 @@ func TestProtoStreamer(t *testing.T) {
 
 			evts := tc.events
 			for _, event := range evts {
-				err := stream.EmitAuditEvent(ctx, event)
+				err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
 				if tc.err != nil {
 					require.IsType(t, tc.err, err)
 					return
@@ -124,7 +121,7 @@ func TestWriterEmitter(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 0})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 0})
 	buf := &bytes.Buffer{}
 	emitter := events.NewWriterEmitter(utils.NopWriteCloser(buf))
 
@@ -141,7 +138,7 @@ func TestWriterEmitter(t *testing.T) {
 
 func TestAsyncEmitter(t *testing.T) {
 	ctx := context.Background()
-	evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 20})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 20})
 
 	// Slow tests that async emitter does not block
 	// on slow emitters
@@ -224,7 +221,7 @@ func TestAsyncEmitter(t *testing.T) {
 // TestExport tests export to JSON format.
 func TestExport(t *testing.T) {
 	sid := session.NewID()
-	evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1, SessionID: sid.String()})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1, SessionID: sid.String()})
 	uploader := eventstest.NewMemoryUploader()
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: uploader,
@@ -236,7 +233,7 @@ func TestExport(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, event := range evts {
-		err := stream.EmitAuditEvent(ctx, event)
+		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
 		require.NoError(t, err)
 	}
 	err = stream.Complete(ctx)
@@ -276,89 +273,4 @@ func TestExport(t *testing.T) {
 	}
 	require.NoError(t, snl.Err())
 	require.Equal(t, len(outEvents), count)
-}
-
-// TestEnforcesClusterNameDefault validates that different emitter/stream/streamer
-// implementations enforce cluster name defaults
-func TestEnforcesClusterNameDefault(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-
-	t.Run("CheckingStream", func(t *testing.T) {
-		emitter := events.NewCheckingStream(&events.DiscardStream{}, clock, "cluster")
-		event := &apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				ID:   "event.id",
-				Code: "event.code",
-				Type: "event.type",
-			},
-		}
-		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
-		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				ID:          "event.id",
-				Code:        "event.code",
-				Type:        "event.type",
-				Time:        clock.Now(),
-				ClusterName: "cluster",
-			},
-		}, cmpopts.EquateApproxTime(time.Second)))
-	})
-	t.Run("CheckingStreamer.CreateAuditStream", func(t *testing.T) {
-		streamer := &events.CheckingStreamer{
-			CheckingStreamerConfig: events.CheckingStreamerConfig{
-				Inner:        &events.DiscardEmitter{},
-				Clock:        clock,
-				ClusterName:  "cluster",
-				UIDGenerator: utils.NewFakeUID(),
-			},
-		}
-		emitter, err := streamer.CreateAuditStream(context.Background(), "session.id")
-		require.NoError(t, err)
-		event := &apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				ID:   "event.id",
-				Code: "event.code",
-				Type: "event.type",
-			},
-		}
-		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
-		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				ID:          "event.id",
-				Code:        "event.code",
-				Type:        "event.type",
-				Time:        clock.Now(),
-				ClusterName: "cluster",
-			},
-		}, cmpopts.EquateApproxTime(time.Second)))
-	})
-	t.Run("CheckingStreamer.ResumeAuditStream", func(t *testing.T) {
-		streamer := &events.CheckingStreamer{
-			CheckingStreamerConfig: events.CheckingStreamerConfig{
-				Inner:        &events.DiscardEmitter{},
-				Clock:        clock,
-				ClusterName:  "cluster",
-				UIDGenerator: utils.NewFakeUID(),
-			},
-		}
-		emitter, err := streamer.ResumeAuditStream(context.Background(), "session.id", "upload.id")
-		require.NoError(t, err)
-		event := &apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				ID:   "event.id",
-				Code: "event.code",
-				Type: "event.type",
-			},
-		}
-		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
-		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
-			Metadata: apievents.Metadata{
-				ID:          "event.id",
-				Code:        "event.code",
-				Type:        "event.type",
-				Time:        clock.Now(),
-				ClusterName: "cluster",
-			},
-		}, cmpopts.EquateApproxTime(time.Second)))
-	})
 }

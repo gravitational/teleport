@@ -19,7 +19,6 @@ package web
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -148,7 +147,7 @@ func TestExecuteCommandSummary(t *testing.T) {
 
 	openAIMock := mockOpenAISummary(t)
 	openAIConfig := openai.DefaultConfig("test-token")
-	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	openAIConfig.BaseURL = openAIMock.URL
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
@@ -180,12 +179,20 @@ func TestExecuteCommandSummary(t *testing.T) {
 	// Wait for command execution to complete
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
-	var env Envelope
 	dec := json.NewDecoder(stream)
+
+	// Consume the close message
+	var sessionMetadata sessionEndEvent
+	err = dec.Decode(&sessionMetadata)
+	require.NoError(t, err)
+	require.Equal(t, "node", sessionMetadata.NodeID)
+
+	// Consume the summary message
+	var env outEnvelope
 	err = dec.Decode(&env)
 	require.NoError(t, err)
-	require.Equal(t, envelopeTypeSummary, env.GetType())
-	require.NotEmpty(t, env.GetPayload())
+	require.Equal(t, envelopeTypeSummary, env.Type)
+	require.NotEmpty(t, env.Payload)
 
 	// Wait for the command execution history to be saved
 	var messages *assist.GetAssistantMessagesResponse
@@ -292,18 +299,13 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 		default:
 		}
 
-		var env Envelope
+		var env outEnvelope
 		dec := json.NewDecoder(stream)
 		if err := dec.Decode(&env); err != nil {
 			return trace.Wrap(err, "decoding envelope JSON from stream")
 		}
 
-		d, err := base64.StdEncoding.DecodeString(env.Payload)
-		if err != nil {
-			return trace.Wrap(err, "decoding b64 payload")
-		}
-
-		data := removeSpace(string(d))
+		data := removeSpace(string(env.Payload))
 		if strings.Contains(data, substr) {
 			return nil
 		}
@@ -314,6 +316,7 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 // The commands should run in parallel, but we don't have a deterministic way to
 // test that (sleep with checking the execution time in not deterministic).
 func Test_runCommands(t *testing.T) {
+	const numWorkers = 30
 	counter := atomic.Int32{}
 
 	runCmd := func(host *hostInfo) error {
@@ -331,7 +334,7 @@ func Test_runCommands(t *testing.T) {
 	logger := logrus.New()
 	logger.Out = io.Discard
 
-	runCommands(hosts, runCmd, logger)
+	runCommands(hosts, runCmd, numWorkers, logger)
 
 	require.Equal(t, int32(100), counter.Load())
 }

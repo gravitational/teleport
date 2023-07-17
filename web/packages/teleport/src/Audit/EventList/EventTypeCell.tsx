@@ -29,6 +29,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.TRUSTED_CLUSTER_TOKEN_CREATED]: Icons.Info,
   [eventCodes.TRUSTED_CLUSTER_CREATED]: Icons.Info,
   [eventCodes.TRUSTED_CLUSTER_DELETED]: Icons.Info,
+  [eventCodes.PROVISION_TOKEN_CREATED]: Icons.Info,
   [eventCodes.GITHUB_CONNECTOR_CREATED]: Icons.Info,
   [eventCodes.GITHUB_CONNECTOR_DELETED]: Icons.Info,
   [eventCodes.OIDC_CONNECTOR_CREATED]: Icons.Info,

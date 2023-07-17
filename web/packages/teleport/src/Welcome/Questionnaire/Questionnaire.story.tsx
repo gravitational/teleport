@@ -20,8 +20,9 @@ import { Questionnaire } from './Questionnaire';
 
 export default {
   title: 'Teleport/Welcome/Questionnaire',
+  args: { userContext: true },
 };
 
 export const Loaded = () => {
-  return <Questionnaire />;
+  return <Questionnaire username="" />;
 };
