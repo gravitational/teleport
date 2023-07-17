@@ -123,7 +123,15 @@ func checkInstanceRunning(ctx context.Context, instanceID, region, IAMRole strin
 
 // parseAndVerifyIID parses the given Instance Identity Document and checks that
 // the signature is valid.
-func parseAndVerifyIID(iidBytes []byte) (*imds.InstanceIdentityDocument, error) {
+func parseAndVerifyIID(iidBytes []byte) (iid *imds.InstanceIdentityDocument, err error) {
+	// handle potential panic from pkcs7 index out of range panic
+	defer func() {
+		if r := recover(); r != nil {
+			iid = nil
+			err = fmt.Errorf("unable to parse PKCS7")
+		}
+	}()
+
 	sigPEM := fmt.Sprintf("-----BEGIN PKCS7-----\n%s\n-----END PKCS7-----", string(iidBytes))
 	sigBER, _ := pem.Decode([]byte(sigPEM))
 	if sigBER == nil {
@@ -135,8 +143,8 @@ func parseAndVerifyIID(iidBytes []byte) (*imds.InstanceIdentityDocument, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	var iid imds.InstanceIdentityDocument
-	if err := json.Unmarshal(p7.Content, &iid); err != nil {
+	iid = &imds.InstanceIdentityDocument{}
+	if err := json.Unmarshal(p7.Content, iid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -154,7 +162,7 @@ func parseAndVerifyIID(iidBytes []byte) (*imds.InstanceIdentityDocument, error) 
 		return nil, trace.AccessDenied("invalid signature")
 	}
 
-	return &iid, nil
+	return iid, nil
 }
 
 func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken types.ProvisionToken, clock clockwork.Clock) error {
