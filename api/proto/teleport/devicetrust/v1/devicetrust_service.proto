@@ -145,7 +145,7 @@ service DeviceTrustService {
   // "device" permissions (create/update/delete).
   rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
 
-  // GetDevicesUsage retrieves devices limits and usage numbers for the
+  // GetDevicesUsage retrieves device limits and usage numbers for the
   // underlying account/license.
   // Requires an authenticated user with billing/read permissions.
   // See [DevicesUsage] for details.
