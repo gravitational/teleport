@@ -247,15 +247,18 @@ spec:
 
 ## Update: allow the UID and GID of the created user to be specified
 
-This will require adding a new internal traits -- `host_user_uid` and
-`host_user_gid`, new allow/deny settings will be added to roles aswell
-for `host_user_uid` and `host_user_gid`.
+This will require adding new traits to users -- `teleport.dev/uid` and
+`teleport.dev/gid`. These will be settable manually or automatically
+via an SSO provider attributes if one is setup.
 
-If a group does not yet exist for the specified GID, a group with that
-GID will be created with the same name as the user logging in
+Creating a user with a specific GID requires that a group with that
+GID already exists, if it does not yet exist for the specified GID, a
+group with that GID will be created with the same name as the user
+logging in.
 
 ### Example of setting the uid/gid
 
+Role configuration remains the same:
 ```yaml
 kind: role
 version: v5
@@ -267,9 +270,31 @@ spec:
     create_host_user_mode: drop
   allow:
     logins: [ "{{internal.username}}" ]
-    # specify the host user uid/gid from the internal trait
-    host_user_uid: "{{internal.host_user_uid}}"
-    host_user_uid: "{{internal.host_user_gid}}"
+```
+
+```yaml
+kind: user
+metadata:
+  name: alex.mcgrath@goteleport.com
+spec:
+  created_by:
+    connector:
+      id: okta
+      identity: user@okta.com
+      type: saml
+  roles:
+  - editor
+  - access
+  - auditor
+  saml_identities:
+  - connector_id: okta
+    username: ...
+  traits:
+    # new traits included will be used when specifying --gid and --uid in useradd
+    teleport.dev/gid:
+    - "1239"
+    teleport.dev/uid:
+    - "1239"
 ```
 
 When set like this, the user created upon login will have the `--gid`
