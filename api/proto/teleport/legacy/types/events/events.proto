@@ -1296,11 +1296,11 @@ message AccessRequestCreate {
     (gogoproto.nullable) = false
   ];
 
-  // Persist indicates how long the access should be granted for.
-  google.protobuf.Timestamp Persist = 13 [
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 13 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "persist,omitempty"
+    (gogoproto.jsontag) = "max_duration,omitempty"
   ];
 }
 

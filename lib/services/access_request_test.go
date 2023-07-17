@@ -1869,7 +1869,7 @@ func TestGetResourceDetails(t *testing.T) {
 	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(resourceIDs[4])].FriendlyName)
 }
 
-func TestDurations(t *testing.T) {
+func TestMaxDuration(t *testing.T) {
 	// describes a collection of roles and their conditions
 	roleDesc := roleTestSet{
 		"requestedRole": {
@@ -1893,16 +1893,16 @@ func TestDurations(t *testing.T) {
 		"shortPersistReqRole": {
 			condition: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
-					Roles:   []string{"requestedRole"},
-					Persist: types.Duration(3 * day),
+					Roles:       []string{"requestedRole"},
+					MaxDuration: types.Duration(3 * day),
 				},
 			},
 		},
 		"shortPersistReqRole2": {
 			condition: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
-					Roles:   []string{"requestedRole2"},
-					Persist: types.Duration(day),
+					Roles:       []string{"requestedRole2"},
+					MaxDuration: types.Duration(day),
 				},
 			},
 		},
@@ -1997,7 +1997,7 @@ func TestDurations(t *testing.T) {
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
-			req.SetPersist(now.Add(tt.persist))
+			req.SetMaxDuration(now.Add(tt.persist))
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
 

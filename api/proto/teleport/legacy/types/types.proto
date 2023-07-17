@@ -2208,11 +2208,11 @@ message AccessRequestSpecV3 {
   // auth server should only validate the access request.
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
 
-  // Persist indicates how long the access should be granted for.
-  google.protobuf.Timestamp Persist = 17 [
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 17 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "persist,omitempty"
+    (gogoproto.jsontag) = "max_duration,omitempty"
   ];
 }
 
@@ -2869,10 +2869,10 @@ message AccessRequestConditions {
   // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
 
-  // Persist is the amount of time to persist an access request, if granted.
+  // MaxDuration is the amount of time the access will be granted for.
   // If this is zero, the default duration is used.
-  int64 Persist = 7 [
-    (gogoproto.jsontag) = "persist,omitempty",
+  int64 MaxDuration = 7 [
+    (gogoproto.jsontag) = "max_duration,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
 }

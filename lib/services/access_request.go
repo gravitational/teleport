@@ -360,7 +360,7 @@ func ValidateAccessPredicates(role types.Role) error {
 		}
 	}
 
-	if persist := role.GetAccessRequestConditions(types.Allow).Persist; persist.Duration() != 0 &&
+	if persist := role.GetAccessRequestConditions(types.Allow).MaxDuration; persist.Duration() != 0 &&
 		persist.Duration() > maxPersistDuration {
 		return trace.BadParameter("persist duration must be less or equal 7 days")
 	}
@@ -944,7 +944,7 @@ type RequestValidator struct {
 	Roles struct {
 		AllowRequest, DenyRequest []parse.Matcher
 		AllowSearch, DenySearch   []string
-		Persist                   map[string]time.Duration // role => persist duration
+		MaxDuration               map[string]time.Duration // role => max access duration
 	}
 	Annotations struct {
 		Allow, Deny map[string][]string
@@ -978,11 +978,11 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		m.Annotations.Allow = make(map[string][]string)
 		m.Annotations.Deny = make(map[string][]string)
 		// initialize role persist cache
-		m.Roles.Persist = make(map[string]time.Duration)
+		m.Roles.MaxDuration = make(map[string]time.Duration)
 	}
 
 	// initialize role persist cache
-	m.Roles.Persist = make(map[string]time.Duration)
+	m.Roles.MaxDuration = make(map[string]time.Duration)
 
 	// load all statically assigned roles for the user and
 	// use them to build our validation state.
@@ -1129,7 +1129,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 // and the persist time set on the request role.
 func (m *RequestValidator) calculatePersist(req types.AccessRequest) (time.Duration, error) {
 	// Check if the persist time is set.
-	persistTime := req.GetPersist()
+	persistTime := req.GetMaxDuration()
 	if persistTime.IsZero() {
 		return 0, nil
 	}
@@ -1146,7 +1146,7 @@ func (m *RequestValidator) calculatePersist(req types.AccessRequest) (time.Durat
 	minPersist := persistDuration
 	// Adjust the expiration time if the persist value is set on the request role.
 	for _, roleName := range req.GetRoles() {
-		rolePersist, found := m.Roles.Persist[roleName]
+		rolePersist, found := m.Roles.MaxDuration[roleName]
 		if !found {
 			continue
 		}
@@ -1294,9 +1294,9 @@ func (m *RequestValidator) push(role types.Role) error {
 	m.Roles.DenySearch = apiutils.Deduplicate(append(m.Roles.DenySearch, deny.SearchAsRoles...))
 	// convert string duration to time.Duration
 
-	if allow.Persist != 0 {
+	if allow.MaxDuration != 0 {
 		for _, r := range allow.Roles {
-			m.Roles.Persist[r] = allow.Persist.Duration()
+			m.Roles.MaxDuration[r] = allow.MaxDuration.Duration()
 		}
 	}
 

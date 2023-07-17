@@ -98,10 +98,10 @@ type AccessRequest interface {
 	GetLoginHint() string
 	// SetLoginHint sets the requested login hint.
 	SetLoginHint(string)
-	// GetPersist gets the maximum time at which the access should be approved for.
-	GetPersist() time.Time
-	// SetPersist sets the maximum time at which the access should be approved for.
-	SetPersist(time.Time)
+	// GetMaxDuration gets the maximum time at which the access should be approved for.
+	GetMaxDuration() time.Time
+	// SetMaxDuration sets the maximum time at which the access should be approved for.
+	SetMaxDuration(time.Time)
 	// GetDryRun returns true if this request should not be created and is only
 	// a dry run to validate request capabilities.
 	GetDryRun() bool
@@ -418,14 +418,14 @@ func (r *AccessRequestV3) GetDryRun() bool {
 	return r.Spec.DryRun
 }
 
-// GetPersist gets the maximum time at which the access should be approved for.
-func (r *AccessRequestV3) GetPersist() time.Time {
-	return r.Spec.Persist
+// GetMaxDuration gets the maximum time at which the access should be approved for.
+func (r *AccessRequestV3) GetMaxDuration() time.Time {
+	return r.Spec.MaxDuration
 }
 
-// SetPersist sets the maximum time at which the access should be approved for.
-func (r *AccessRequestV3) SetPersist(t time.Time) {
-	r.Spec.Persist = t
+// SetMaxDuration sets the maximum time at which the access should be approved for.
+func (r *AccessRequestV3) SetMaxDuration(t time.Time) {
+	r.Spec.MaxDuration = t
 }
 
 // SetDryRun sets the dry run flag on the request.
