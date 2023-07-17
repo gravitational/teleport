@@ -360,8 +360,8 @@ func ValidateAccessPredicates(role types.Role) error {
 		}
 	}
 
-	if persist := role.GetAccessRequestConditions(types.Allow).MaxDuration; persist.Duration() != 0 &&
-		persist.Duration() > maxAccessDuration {
+	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
+		maxDuration.Duration() > maxAccessDuration {
 		return trace.BadParameter("max access duration must be less or equal 7 days")
 	}
 
@@ -1144,13 +1144,13 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	minAdjDuration := maxDuration
 	// Adjust the expiration time if the max_duration value is set on the request role.
 	for _, roleName := range req.GetRoles() {
-		rolePersist, found := m.Roles.MaxDuration[roleName]
+		roleMaxDuration, found := m.Roles.MaxDuration[roleName]
 		if !found {
 			continue
 		}
 
-		if rolePersist < maxDuration {
-			minAdjDuration = rolePersist
+		if roleMaxDuration < maxDuration {
+			minAdjDuration = roleMaxDuration
 		}
 	}
 
