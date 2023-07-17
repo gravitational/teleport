@@ -91,6 +91,16 @@ $ echo <Var name="version-server-url/path" />/<Var name="release-channel" /> | s
 Make sure not to include `https://` as a prefix to the server address.
 </Admonition>
 
+If the agent was not installed using the system package manager, follow the instructions on the
+[Teleport Enterprise Cloud Downloads page](../../choose-an-edition/teleport-cloud/downloads.mdx)
+to add the teleport package repository and reinstall teleport. To check if teleport
+was installed using the package manager:
+```code
+$ sudo apt list teleport-ent
+# or
+$ sudo yum list teleport-ent
+```
+
 Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
 
 ```code
@@ -177,6 +187,16 @@ Else, you can skip this step:
 $ sudo mkdir -p /etc/teleport-upgrade.d/
 $ sudo touch /etc/teleport-upgrade.d/schedule
 $ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+```
+
+If the agent was not installed using the system package manager, follow the instructions on the
+[Teleport Enterprise Cloud Downloads page](../../choose-an-edition/teleport-cloud/downloads.mdx)
+to add the teleport package repository and reinstall teleport. To check if teleport
+was installed using the package manager:
+```code
+$ sudo apt list teleport-ent
+# or
+$ sudo yum list teleport-ent
 ```
 
 Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
