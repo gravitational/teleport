@@ -279,10 +279,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	if !found {
 		// Create a new session ID. These sessions can not be joined
 		sessionID = rsession.NewID()
+		scx.Tracef("Session not found, creating a new session %s", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
 		sessionID = rsession.ID(sid)
+		scx.Tracef("Session found, reusing it %s", sessionID)
 	}
 
 	_, found = scx.GetEnv(teleport.EnableNonInteractiveSessionRecording)

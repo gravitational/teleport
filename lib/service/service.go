@@ -265,7 +265,7 @@ const (
 	embeddingInitialDelay = 10 * time.Second
 	// embeddingPeriod is the time between two embedding routines.
 	// A seventh jitter is applied on the period.
-	embeddingPeriod = time.Hour
+	embeddingPeriod = 20 * time.Minute
 )
 
 // Connector has all resources process needs to connect to other parts of the
@@ -1627,7 +1627,14 @@ func (process *TeleportProcess) initAuthService() error {
 
 	var embedderClient ai.Embedder
 	if cfg.Auth.AssistAPIKey != "" {
-		embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
+		// Like for proxy, if a custom OpenAIConfig is passed, the token from
+		// cfg.Auth.AssistAPIKey is ignored and the one from the config is used.
+		if cfg.OpenAIConfig != nil {
+			embedderClient = ai.NewClientFromConfig(*cfg.OpenAIConfig)
+		} else {
+			embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+		}
 	}
 
 	embeddingsRetriever := ai.NewSimpleRetriever()
@@ -1959,6 +1966,12 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
+
+	// Periodically update labels on discovered instances.
+	process.RegisterFunc("auth.server_info", func() error {
+		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -3823,7 +3836,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
 				return ctx, trace.Wrap(err)
 			}),
-			PROXYSigner: proxySigner,
+			PROXYSigner:  proxySigner,
+			OpenAIConfig: cfg.OpenAIConfig,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

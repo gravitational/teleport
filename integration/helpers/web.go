@@ -25,8 +25,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
@@ -115,6 +119,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 // DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
 // Status Code and Body are returned.
+// "$site" in the endpoint is substituted by the current site.
 func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
 	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
 	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
@@ -143,4 +148,46 @@ func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload
 	require.NoError(t, err)
 
 	return resp.StatusCode, body
+}
+
+// OpenWebsocket opens a websocket on a given Teleport API endpoint.
+// The endpoint must not contain the host neither the base path ('/v1/webapi/').
+// Raw websocket and HTTP response are returned.
+// "$site" in the endpoint is substituted by the current site.
+func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any) (*websocket.Conn, *http.Response, error) {
+	path, err := url.JoinPath("v1", "webapi", strings.ReplaceAll(endpoint, "$site", w.clusterName))
+	require.NoError(t, err)
+
+	u := url.URL{
+		Host:   w.host,
+		Scheme: client.WSS,
+		Path:   path,
+	}
+
+	data, err := json.Marshal(params)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	q.Set(roundtrip.AccessTokenQueryParam, w.bearerToken)
+	u.RawQuery = q.Encode()
+
+	dialer := websocket.Dialer{}
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	cookie := &http.Cookie{
+		Name:  websession.CookieName,
+		Value: w.webCookie,
+	}
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	header.Add("Cookie", cookie.String())
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	return ws, resp, trace.Wrap(err)
 }
