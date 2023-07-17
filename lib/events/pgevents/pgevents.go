@@ -513,6 +513,10 @@ func (l *Log) searchEvents(
 		endTime = time.Time{}
 		endID = uuid.Nil
 
+		// the query already has 16 options; if we were to add more - by adding
+		// server-side filtering, for instance - we should consider not
+		// preparing them, by passing pgx.QueryExecModeExec here, to avoid
+		// preparing a bunch of statements that might only get executed once
 		if _, err := tx.Exec(ctx, queryString, queryArgs); err != nil {
 			return trace.Wrap(err)
 		}
