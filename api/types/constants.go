@@ -421,6 +421,10 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
+	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
+	// service to match with a single discovered instance.
+	SubKindCloudInfo = "cloud_info"
+
 	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
 	// window singleton resource.
 	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
@@ -598,6 +602,12 @@ const (
 	//
 	// See also TeleportNamespace and TeleportInternalLabelPrefix.
 	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
+	// DiscoveredNameLabel is a resource metadata label name used to identify
+	// the discovered name of a resource, i.e. the name of a resource before a
+	// uniquely distinguishing suffix is added by the discovery service.
+	// See: RFD 129 - Avoid Discovery Resource Name Collisions.
+	DiscoveredNameLabel = TeleportInternalLabelPrefix + "discovered-name"
 
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"

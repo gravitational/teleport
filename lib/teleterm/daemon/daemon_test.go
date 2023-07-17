@@ -43,7 +43,7 @@ type mockGatewayCreator struct {
 	callCount int
 }
 
-func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
+func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
 	m.callCount++
 
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
@@ -88,7 +88,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 }
 
 type gatewayCRUDTestContext struct {
-	nameToGateway        map[string]*gateway.Gateway
+	nameToGateway        map[string]gateway.Gateway
 	mockGatewayCreator   *mockGatewayCreator
 	mockTCPPortAllocator *gatewaytest.MockTCPPortAllocator
 }
@@ -231,7 +231,7 @@ func TestGatewayCRUD(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			nameToGateway := make(map[string]*gateway.Gateway, len(tt.gatewayNamesToCreate))
+			nameToGateway := make(map[string]gateway.Gateway, len(tt.gatewayNamesToCreate))
 
 			for _, gatewayName := range tt.gatewayNamesToCreate {
 				gatewayName := gatewayName
