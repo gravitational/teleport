@@ -23,9 +23,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
-	"github.com/gravitational/trace"
 )
 
 type Config struct {

@@ -26,10 +26,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 const (
