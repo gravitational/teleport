@@ -107,10 +107,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 
 	// Check the TableName is not being used within the audit uri list
-	dynamoDBURI := regexp.MustCompile(`((?i)dynamodb)://` + cfg.TableName)
+	dynamodbUriRe := regexp.MustCompile(`((?i)dynamodb)://` + cfg.TableName)
 	for _, auditURI := range cfg.AuditEventsURIs {
-		if dynamoDBURI.MatchString(auditURI) {
-			return trace.BadParameter(("DynamoDB: Same table used for table_name and audit_events_uri. Separate DynamoDB tables are required."))
+		if dynamodbUriRe.MatchString(auditURI) {
+			return trace.BadParameter("DynamoDB: Same table used for table_name and audit_events_uri. Separate DynamoDB tables are required.")
 		}
 	}
 

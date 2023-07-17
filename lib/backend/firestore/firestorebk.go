@@ -79,10 +79,10 @@ func (cfg *backendConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("firestore: collection_name is not specified")
 	}
 	// Check the TableName is not being used within the audit uri list
-	googleURI := regexp.MustCompile(`((?i)firestore)://` + cfg.CollectionName)
+	googleUriRe := regexp.MustCompile(`((?i)firestore)://` + cfg.CollectionName)
 	for _, auditURI := range cfg.AuditEventsURIs {
-		if googleURI.MatchString(auditURI) {
-			return trace.BadParameter(("firestore: Same collection name used for collection_name and audit_events_uri. Separate Firestore collections are required."))
+		if googleUriRe.MatchString(auditURI) {
+			return trace.BadParameter("firestore: Same collection name used for collection_name and audit_events_uri. Separate Firestore collections are required.")
 		}
 	}
 	if cfg.ProjectID == "" {
