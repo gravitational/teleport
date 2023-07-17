@@ -1,6 +1,6 @@
 ---
-    authors: Anton Miniailo (anton@goteleport.com)
-    state: draft
+authors: Anton Miniailo (anton@goteleport.com)
+state: draft
 ---
 
 # RFD 135 - Kubernetes App discovery
@@ -50,12 +50,12 @@ will be long in that case, there's ongoing work to improve UX when working with 
 see [RFD 129](https://github.com/gravitational/teleport/pull/27258).
 
 We will add capability to use optional annotations to better control transformation of Kubernetes services into Teleport apps.
-By default we will be exposing services as `tcp` apps, since it's the most general type, but annotation or exposed port's `appProtocol` field
-can be used to specify which protocol to use for the app's URI. 
+By default we will be exposing ports on a service that serve HTTP/HTTPS, using different heuristics to determine if it does (described later in
+annotations section). But annotation can be used to specify which protocol to use for the app's URI, including `tcp://...` URIs. 
 
 If Kubernetes service has multiple ports in use, we will expose each port as a separate app, with name of the app including the port's name
-specified in the service. For example, if a service has port 443 exposed with name `tls` and also port `5432` with name `postgres`
-we will create two apps: `testApp-tls-main-cluster-prod`, `testApp-postgres-main-cluster-prod`. Names for ports are mandatory in Kubernetes if more
+specified in the service. For example, if a service has port 443 exposed with name `tls` and also port `4004` with name `metrics`
+we will create two apps: `testApp-tls-main-cluster-prod`, `testApp-metrics-main-cluster-prod`. Names for ports are mandatory in Kubernetes if more
 than one port is exposed for the service, so we always will be able to use it if we need it. User will be able to use annotation to specify
 preferred port, in that case only app with this port will be created, without port info in the app name.
 
@@ -94,20 +94,25 @@ specified in the config `discovery_group` field is required to be set.
 
 #### Annotations
 
-Kubernetes annotations will allow users to fine tune transformation of services into Teleport apps. They will override default behaviour, 
-but they are not required for import of services - by default services without any annotations will also be imported.
+Kubernetes annotations will allow users to fine tune transformation of services into Teleport apps. All annotations are optional - 
+they will override default behaviour, but they are not required for import of services. By default services without any 
+annotations will also be imported.
 
-Annotation `teleport.dev/discovery-type` controls what Teleport entity will be created from this service, for now we will only support value 
+Annotation `teleport.dev/discovery-type` controls what Teleport entity this service is considered to be. If matchers in discovery service
+config match service type it will be imported. Now we will only support value 
 `app` which means Teleport application will be imported from this service. In the future there are plans to expand to database importing.
 If annotation is not set service is treated as an app.
 
-Annotation `teleport.dev/protocol` controls protocol for the access of the Teleport app we create. If annotation is missing
-default fallback for the the app's URI is `tcp`. However, if annotation is not set, additional attempts will be performed to try to 
-determine protocol of an exposed port:
+Annotation `teleport.dev/protocol` controls protocol for the access of the Teleport app we create. If annotation is not set,
+additional attempts will be performed to try to determine protocol of an exposed port:
 -  if kubernetes service port definition has `appProtocol` field, and it contains
 values `http`/`https` we will use it in the URI.
-- if exposed port's name is `http` or it has numeric value 80 or 8080, `http` will be used.
 - if exposed port's name is `https` or it has numeric value 443, `https` will be used.
+- We'll perform HTTP request to the port to see if it serves HTTP/HTTPS requests
+- if exposed port's name is `http` or it has numeric value 80 or 8080, `http` will be used.
+
+If all heuristics mentioned above didn't work, the port will be skipped. For app to be imported with `tcp` protocol, the
+service should have explicit annotation `teleport.dev/protocl: tcp`
 
 Annotation `teleport.dev/port` controls preferred port for the Kubernetes service, only this one will be used even if service
 has multiple exposed ports. Its value should be one of the exposed service ports; otherwise, the app will not be imported. 
@@ -195,7 +200,9 @@ app_service:
 ### Helm chart
 
 We will update helm chart `teleport-kube-agent` to support configuring Kubernetes apps discovery. Ability to configure
-and deploy discovery service will be added by using parameter `kubernetesDiscovery`.
+and deploy discovery service will be added by using helm chart parameter `kubernetesDiscovery`. Kubernetes discovery
+will be enabled by default when users installs kube agent chart and it will try to discover HTTP apps using heuristics 
+described above.
 
 ```yaml
 kubernetesDiscovery:
