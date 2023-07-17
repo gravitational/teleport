@@ -272,24 +272,27 @@ func (l *Log) setupAndMigrate(ctx context.Context) error {
 	var version int32
 	var migrateErr error
 
-	if err := pgcommon.Retry0(ctx, l.log, func() error {
+	// this is split off from the rest because we might not have permissions to
+	// CREATE TABLE, which is checked even if the table exists
+	if _, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
 		_, err := l.pool.Exec(ctx,
 			`CREATE TABLE IF NOT EXISTS audit_version (
 				version integer PRIMARY KEY CHECK (version > 0),
 				created timestamptz NOT NULL DEFAULT now()
 			)`, pgx.QueryExecModeExec,
 		)
-		return trace.Wrap(err)
+		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		// the very first SELECT in the next transaction will fail, we don't
 		// need anything higher than debug here
 		l.log.WithError(err).Debug("Failed to confirm the existence of the audit_version table.")
 	}
 
+	const idempotent = true
 	if err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
 		IsoLevel:   pgx.Serializable,
 		AccessMode: pgx.ReadWrite,
-	}, func(tx pgx.Tx) error {
+	}, idempotent, func(tx pgx.Tx) error {
 		if err := tx.QueryRow(ctx,
 			"SELECT COALESCE(max(version), 0) FROM audit_version",
 			pgx.QueryExecModeExec,
@@ -354,7 +357,7 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 		}
 
 		l.log.Debug("Executing periodic cleanup.")
-		deleted, err := pgcommon.Retry(ctx, l.log, func() (int64, error) {
+		deleted, err := pgcommon.RetryIdempotent(ctx, l.log, func() (int64, error) {
 			tag, err := l.pool.Exec(ctx,
 				"DELETE FROM events WHERE creation_time < (now() - $1::interval)",
 				retentionPeriod,
@@ -366,7 +369,7 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 			return tag.RowsAffected(), nil
 		})
 		if err != nil {
-			l.log.WithError(err).Warn("Failed to execute periodic cleanup.")
+			l.log.WithError(err).Error("Failed to execute periodic cleanup.")
 		} else {
 			l.log.WithField("deleted_rows", deleted).Debug("Executed periodic cleanup.")
 		}
@@ -393,13 +396,16 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 
 	eventID := uuid.New()
 
-	if err := pgcommon.Retry0(ctx, l.log, func() error {
+	// if an event with the same event_id exists, it means that we inserted it
+	// and then failed to receive the success reply from the commit
+	if _, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
 		_, err := l.pool.Exec(ctx,
 			"INSERT INTO events (event_time, event_id, event_type, session_id, event_data)"+
-				" VALUES ($1, $2, $3, $4, $5)",
+				" VALUES ($1, $2, $3, $4, $5)"+
+				" ON CONFLICT DO NOTHING",
 			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
 		)
-		return trace.Wrap(err)
+		return struct{}{}, trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -498,7 +504,10 @@ func (l *Log) searchEvents(
 	var endTime time.Time
 	var endID uuid.UUID
 
-	if err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+	const idempotent = true
+	if err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
+		AccessMode: pgx.ReadOnly,
+	}, idempotent, func(tx pgx.Tx) error {
 		evs = nil
 		sizeLimit = false
 		endTime = time.Time{}
