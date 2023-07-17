@@ -234,6 +234,10 @@ func TestAWSIAM(t *testing.T) {
 				require.True(t, tt.getIAMAuthEnabled())
 				require.Contains(t, aws.StringValue(output.PolicyDocument), tt.wantPolicyContains)
 
+				err = configurator.UpdateIAMStatus(database)
+				require.NoError(t, err)
+				require.True(t, database.GetAWS().IAMPolicyExists, "must be true because iam policy was set up")
+
 				// Deconfigure database, policy should get detached.
 				err = configurator.Teardown(ctx, database)
 				require.NoError(t, err)
@@ -246,6 +250,10 @@ func TestAWSIAM(t *testing.T) {
 					require.Equal(t, []string{meta.ExternalID}, stsClient.GetAssumedRoleExternalIDs())
 					stsClient.ResetAssumeRoleHistory()
 				}
+
+				err = configurator.UpdateIAMStatus(database)
+				require.NoError(t, err)
+				require.False(t, database.GetAWS().IAMPolicyExists, "must be false because iam policy was removed")
 			})
 		}
 	}
@@ -365,11 +373,19 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			err = configurator.UpdateIAMStatus(database)
+			require.NoError(t, err)
+			require.False(t, database.GetAWS().IAMPolicyExists, "iam policy was not created, should return false")
+
 			err = configurator.processTask(ctx, iamTask{
 				isSetup:  false,
 				database: database,
 			})
 			require.NoError(t, err)
+
+			err = configurator.UpdateIAMStatus(database)
+			require.NoError(t, err)
+			require.False(t, database.GetAWS().IAMPolicyExists, "iam policy was not created, should return false")
 		})
 	}
 }
