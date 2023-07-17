@@ -37,7 +37,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.5
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.67
 	github.com/aws/aws-sdk-go-v2/service/athena v1.30.2
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.20.0
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.20.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.28.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.54.0
@@ -225,7 +225,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.14.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.29 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.28 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.29 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.29 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.13 // indirect
