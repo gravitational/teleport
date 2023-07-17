@@ -1244,7 +1244,8 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 	// Note: We don't record collected data here - the device is presently
 	// unenrolled and the client did not pass a device challenge to get here.
 
-	token, err := s.createDeviceEnrollToken(ctx, targetDev.Id)
+	defaultExpire := time.Time{}
+	token, err := s.createDeviceEnrollToken(ctx, targetDev.Id, defaultExpire)
 	if err != nil {
 		return targetDev, trace.Wrap(err)
 	}
@@ -1256,13 +1257,15 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 // CreateDeviceEnrollToken creates or replaces the existing enrollment token for
 // a device. Only one enrollment token is allowed at a time.
 //
-// Enrollment tokens are tied to a particular device and expire in a reasonably
-// short (for a human) amount of time.
+// Enrollment tokens are tied to a particular device. If `expiresAt` is the zero
+// time, tokens are set to expire after a default, reasonably short (for a
+// human) amount of time.
 //
 // The plain token is not stored, instead it is meant to be sent out-of-band (as
 // in outside of Teleport) to the person responsible for enrolling the device.
-// SpendDeviceEnrollToken spends the token for the enrollment ceremony.
-func (s *S) CreateDeviceEnrollToken(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
+// [SpendDeviceEnrollToken] spends the token for the enrollment ceremony.
+func (s *S) CreateDeviceEnrollToken(
+	ctx context.Context, deviceID string, expiresAt time.Time) (*devicepb.DeviceEnrollToken, error) {
 	if deviceID == "" {
 		return nil, trace.BadParameter("device ID required")
 	}
@@ -1272,10 +1275,11 @@ func (s *S) CreateDeviceEnrollToken(ctx context.Context, deviceID string) (*devi
 		return nil, trace.Wrap(err)
 	}
 
-	return s.createDeviceEnrollToken(ctx, deviceID)
+	return s.createDeviceEnrollToken(ctx, deviceID, expiresAt)
 }
 
-func (s *S) createDeviceEnrollToken(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
+func (s *S) createDeviceEnrollToken(
+	ctx context.Context, deviceID string, expiresAt time.Time) (*devicepb.DeviceEnrollToken, error) {
 	// Draw a few random bytes, base64 encode into a valid string and use the
 	// resulting string as the password.
 	// tokenPlain is sent to the client.
@@ -1298,16 +1302,23 @@ func (s *S) createDeviceEnrollToken(ctx context.Context, deviceID string) (*devi
 		return nil, trace.Wrap(err, "marshal enrollment token")
 	}
 
+	// TODO(codingllama): Enforce a max expiration time for tokens?
+	if expiresAt.IsZero() {
+		expiresAt = s.nowUTC().Add(DeviceEnrollTokenExpireDuration)
+	} else {
+		expiresAt = expiresAt.UTC()
+	}
 	if _, err := s.backend.Put(ctx, backend.Item{
 		Key:     deviceTokenKey(deviceID),
 		Value:   val,
-		Expires: s.nowUTC().Add(DeviceEnrollTokenExpireDuration),
+		Expires: expiresAt,
 	}); err != nil {
 		return nil, trace.Wrap(err, "writing enrollment token")
 	}
 
 	return &devicepb.DeviceEnrollToken{
-		Token: tokenPlain,
+		Token:      tokenPlain,
+		ExpireTime: timestamppb.New(expiresAt),
 	}, nil
 }
 

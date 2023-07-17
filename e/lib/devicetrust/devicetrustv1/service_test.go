@@ -2100,6 +2100,87 @@ func (a *userAwareAuthorizer) CheckAccessToRule(ruleCtx services.RuleContext, na
 	return trace.AccessDenied("access denied")
 }
 
+func TestService_DeviceEnrollToken_expireTime(t *testing.T) {
+	env := testenv.NewUsingT(t, testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+		DeviceTrust: &types.DeviceTrust{
+			AutoEnroll: true,
+		},
+	}))
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	createdDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	expireTime := time.Now().Add(244 * time.Minute) // arbitrary, "weird" time
+	expirePB := timestamppb.New(expireTime)
+
+	tests := []struct {
+		name           string
+		rpc            func() (*devicepb.DeviceEnrollToken, error)
+		wantExpireTime time.Time
+	}{
+		{
+			name: "CreateDevice",
+			rpc: func() (*devicepb.DeviceEnrollToken, error) {
+				dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+					Device: &devicepb.Device{
+						OsType:   devicepb.OSType_OS_TYPE_MACOS,
+						AssetTag: "create-device-test",
+					},
+					CreateEnrollToken:     true,
+					EnrollTokenExpireTime: expirePB,
+				})
+				return dev.GetEnrollToken(), err
+			},
+			wantExpireTime: expireTime,
+		},
+		{
+			name: "CreateDeviceEnrollToken",
+			rpc: func() (*devicepb.DeviceEnrollToken, error) {
+				return devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+					DeviceId:   createdDev.Id,
+					ExpireTime: expirePB,
+				})
+			},
+			wantExpireTime: expireTime,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			token, err := test.rpc()
+			if err != nil {
+				t.Fatalf("rpc failed: %v", err)
+			}
+			if token.ExpireTime.AsTime().Unix() != test.wantExpireTime.Unix() {
+				t.Errorf("rpc returned ExpireTime=%v, want %v", token.ExpireTime, test.wantExpireTime)
+			}
+		})
+	}
+
+	t.Run("CreateDeviceEnrollToken: auto-enroll ignores custom expire time", func(t *testing.T) {
+		token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+			DeviceData: defaultCollectData(createdDev),
+			ExpireTime: expirePB,
+		})
+		if err != nil {
+			t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
+		}
+
+		if token.ExpireTime.AsTime().Unix() == expireTime.Unix() {
+			t.Error("CreateDeviceEnrollToken: auto-enroll should ignore custom ExpireTime")
+		}
+	})
+}
+
 func TestService_dataDriftErrorsRedacted(t *testing.T) {
 	env := testenv.NewUsingT(t)
 	defer env.Close()

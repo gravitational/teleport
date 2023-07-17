@@ -12,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -207,7 +208,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	})
 
 	if req.CreateEnrollToken {
-		token, err := s.storage.CreateDeviceEnrollToken(ctx, dev.Id)
+		token, err := s.storage.CreateDeviceEnrollToken(ctx, dev.Id, getExpireTime(req.EnrollTokenExpireTime))
 		s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 			Metadata: apievents.Metadata{
 				Type: events.DeviceEnrollTokenCreateEvent,
@@ -550,7 +551,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 		// Audit information.
 		devMetadata = getDeviceMetadata(dev)
 	} else {
-		token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId)
+		token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId, getExpireTime(req.ExpireTime))
 		// err verified below
 
 		// Audit information.
@@ -904,6 +905,13 @@ func getDeviceMetadata(dev *devicepb.Device) *apievents.DeviceMetadata {
 		AssetTag:     dev.AssetTag,
 		CredentialId: dev.Credential.GetId(),
 	}
+}
+
+func getExpireTime(tpb *timestamppb.Timestamp) time.Time {
+	if !tpb.IsValid() {
+		return time.Time{}
+	}
+	return tpb.AsTime()
 }
 
 func getUserMetadata(ctx context.Context) apievents.UserMetadata {

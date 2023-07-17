@@ -9,6 +9,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -55,6 +56,8 @@ func (c *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 		StringVar(&c.add.assetTag)
 	addCmd.Flag("enroll", "If set, creates a device enrollment token").
 		BoolVar(&c.add.enroll)
+	addCmd.Flag("enroll-ttl", "Time duration for the enrollment token").
+		DurationVar(&c.add.enrollTTL)
 
 	_ = devicesCmd.Command("ls", "Lists managed devices.")
 
@@ -65,6 +68,7 @@ func (c *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	enrollCmd := devicesCmd.Command("enroll", "Creates a new device enrollment token.")
 	enrollCmd.Flag("device-id", "Device identifier").StringVar(&c.enroll.deviceID)
 	enrollCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.enroll.assetTag)
+	enrollCmd.Flag("ttl", "Time duration for the enrollment token").DurationVar(&c.enroll.ttl)
 
 	lockCmd := devicesCmd.Command("lock", "Locks a device.")
 	lockCmd.Flag("device-id", "Device identifier").StringVar(&c.lock.deviceID)
@@ -93,9 +97,10 @@ func (c *Command) TryRun(ctx context.Context, selectedCommand string, authClient
 }
 
 type addCommand struct {
-	os       string
-	assetTag string
-	enroll   bool
+	os        string
+	assetTag  string
+	enroll    bool
+	enrollTTL time.Duration
 }
 
 func (c *addCommand) Run(ctx context.Context, authClient auth.ClientI) error {
@@ -104,12 +109,17 @@ func (c *addCommand) Run(ctx context.Context, authClient auth.ClientI) error {
 		return trace.BadParameter("invalid --os: %v", c.os)
 	}
 
+	var enrollExpireTime *timestamppb.Timestamp
+	if c.enrollTTL > 0 {
+		enrollExpireTime = timestamppb.New(time.Now().Add(c.enrollTTL))
+	}
 	created, err := authClient.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
 		Device: &devicepb.Device{
 			OsType:   osType,
 			AssetTag: c.assetTag,
 		},
-		CreateEnrollToken: c.enroll,
+		CreateEnrollToken:     c.enroll,
+		EnrollTokenExpireTime: enrollExpireTime,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -119,18 +129,24 @@ func (c *addCommand) Run(ctx context.Context, authClient auth.ClientI) error {
 		"Device %v/%v added to the inventory\n",
 		created.AssetTag,
 		devicetrust.FriendlyOSType(created.OsType))
-	if token := created.EnrollToken.GetToken(); token != "" {
-		printEnrollMessage(created.AssetTag, token)
-	}
+	printEnrollMessage(created.AssetTag, created.EnrollToken)
 
 	return nil
 }
 
-func printEnrollMessage(name, token string) {
-	fmt.Printf(""+
-		"Run the command below on device %q to enroll it:\n"+
-		"tsh device enroll --token=%v\n",
-		name, token,
+func printEnrollMessage(name string, token *devicepb.DeviceEnrollToken) {
+	if token.GetToken() == "" {
+		return
+	}
+	expireTime := token.ExpireTime.AsTime()
+
+	fmt.Printf(`The enrollment token: %v
+This token will expire in %v.
+
+Run the command below on device %q to enroll it:
+tsh device enroll --token=%v
+`,
+		token.Token, time.Until(expireTime).Round(time.Second), name, token.Token,
 	)
 }
 
@@ -221,6 +237,7 @@ func (c *rmCommand) Run(ctx context.Context, authClient auth.ClientI) error {
 
 type enrollCommand struct {
 	deviceID, assetTag string
+	ttl                time.Duration
 }
 
 func (c *enrollCommand) Run(ctx context.Context, authClient auth.ClientI) error {
@@ -239,14 +256,19 @@ func (c *enrollCommand) Run(ctx context.Context, authClient auth.ClientI) error 
 		return trace.Wrap(err)
 	}
 
+	var expireTime *timestamppb.Timestamp
+	if c.ttl > 0 {
+		expireTime = timestamppb.New(time.Now().Add(c.ttl))
+	}
 	token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
-		DeviceId: deviceID,
+		DeviceId:   deviceID,
+		ExpireTime: expireTime,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	printEnrollMessage(name, token.Token)
+	printEnrollMessage(name, token)
 	return nil
 }
 

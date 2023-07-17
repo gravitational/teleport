@@ -1664,7 +1664,7 @@ func TestS_ListDevices(t *testing.T) {
 	// Create a couple of enrollment tokens, so we can make sure they don't
 	// pollute the results.
 	for _, deviceID := range []string{fullDevs[0].Id, fullDevs[1].Id} {
-		if _, err := s.CreateDeviceEnrollToken(ctx, deviceID); err != nil {
+		if _, err := s.CreateDeviceEnrollToken(ctx, deviceID, time.Time{} /* expiresAt */); err != nil {
 			t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
 		}
 	}
@@ -3097,7 +3097,8 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 	tests := []struct {
 		name            string
 		deviceID        string
-		createToken     func(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error)
+		expiresAt       time.Time
+		createToken     func(ctx context.Context, deviceID string, expiresAt time.Time) (*devicepb.DeviceEnrollToken, error)
 		spendToken      func(ctx context.Context, deviceID, token string) error
 		assertCreateErr func(err error) bool
 		assertSpendErr  func(err error) bool
@@ -3111,14 +3112,14 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 		{
 			name:     "replace token",
 			deviceID: deviceID,
-			createToken: func(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
-				first, err := s.CreateDeviceEnrollToken(ctx, deviceID)
+			createToken: func(ctx context.Context, deviceID string, expiresAt time.Time) (*devicepb.DeviceEnrollToken, error) {
+				first, err := s.CreateDeviceEnrollToken(ctx, deviceID, expiresAt)
 				if err != nil {
 					return nil, err
 				}
 
 				// Immediately replace initial token.
-				second, err := s.CreateDeviceEnrollToken(ctx, deviceID)
+				second, err := s.CreateDeviceEnrollToken(ctx, deviceID, expiresAt)
 				if err != nil {
 					return nil, err
 				}
@@ -3138,16 +3139,34 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 			spendToken: s.SpendDeviceEnrollToken,
 		},
 		{
-			name:     "token expires",
+			name:     "token expires (default time)",
 			deviceID: deviceID,
-			createToken: func(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
-				token, err := s.CreateDeviceEnrollToken(ctx, deviceID)
+			createToken: func(ctx context.Context, deviceID string, _ time.Time) (*devicepb.DeviceEnrollToken, error) {
+				token, err := s.CreateDeviceEnrollToken(ctx, deviceID, time.Time{})
 				if err != nil {
 					return nil, err
 				}
 
 				// Fast-forward to after the token is expired.
 				clock.Advance(storage.DeviceEnrollTokenExpireDuration + 1)
+
+				return token, nil
+			},
+			spendToken:     s.SpendDeviceEnrollToken,
+			assertSpendErr: trace.IsNotFound,
+		},
+		{
+			name:      "token expires (custom time)",
+			deviceID:  deviceID,
+			expiresAt: clock.Now().Add(2 * time.Minute),
+			createToken: func(ctx context.Context, deviceID string, expiresAt time.Time) (*devicepb.DeviceEnrollToken, error) {
+				token, err := s.CreateDeviceEnrollToken(ctx, deviceID, expiresAt)
+				if err != nil {
+					return nil, err
+				}
+
+				// Fast-forward to after the token is expired.
+				clock.Advance(expiresAt.Sub(clock.Now()) + 1)
 
 				return token, nil
 			},
@@ -3227,7 +3246,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			token, err := test.createToken(ctx, test.deviceID)
+			token, err := test.createToken(ctx, test.deviceID, test.expiresAt)
 			switch {
 			case test.assertCreateErr != nil:
 				if !test.assertCreateErr(err) {
