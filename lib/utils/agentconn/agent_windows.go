@@ -192,9 +192,7 @@ func dialCygwin(socket string) (net.Conn, error) {
 
 // use Cygwin 'ps' binary to get the Cygwin UID of the current user
 func getCygwinUIDFromPS() (uint32, error) {
-	// Cygwin 'bash' is used to call 'ps' so a Cygwin environment can be
-	// inherited by 'ps'
-	psOutput, err := exec.Command("bash.exe", "-c", "ps").Output()
+	psOutput, err := exec.Command("ps").Output()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
