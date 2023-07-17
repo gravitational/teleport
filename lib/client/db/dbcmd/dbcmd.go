@@ -126,10 +126,10 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	// In TLS routing mode a local proxy is started on demand so connect to it.
-	host, port := tc.DatabaseProxyHostPort(db)
-	if options.localProxyPort != 0 && options.localProxyHost != "" {
-		host = options.localProxyHost
-		port = options.localProxyPort
+	host := options.localProxyHost
+	port := options.localProxyPort
+	if host == "" || port == 0 {
+		host, port = tc.DatabaseProxyHostPort(db)
 	}
 
 	if options.log == nil {
