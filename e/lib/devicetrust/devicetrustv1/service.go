@@ -621,8 +621,6 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbEnroll); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Don't start a costly ceremony if we already reached the devices limit.
 	if err := s.storage.VerifyEnrolledDevicesLimit(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -821,6 +819,29 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		},
 	}
 	return trace.Wrap(syncer.SyncInventory(stream))
+}
+
+func (s *Service) GetDevicesUsage(ctx context.Context, req *devicepb.GetDevicesUsageRequest) (*devicepb.DevicesUsage, error) {
+	if err := s.authorizeAccess(ctx, types.KindBilling, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	f := modules.GetModules().Features()
+	if !f.IsUsageBasedBilling {
+		return &devicepb.DevicesUsage{
+			AccountUsageType: devicepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
+		}, nil
+	}
+
+	usage, err := s.storage.GetDevicesUsage(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &devicepb.DevicesUsage{
+		AccountUsageType:  devicepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
+		DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
+		DevicesInUse:      int32(usage.NumEnrolled),
+	}, nil
 }
 
 func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {

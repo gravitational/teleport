@@ -244,6 +244,19 @@ func TestService_authz(t *testing.T) {
 			},
 			assertErr: trace.IsBadParameter,
 		},
+		{
+			name: "GetDevicesUsage",
+			checker: &ruleVerifyingChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindBilling, verb: types.VerbRead},
+				},
+			},
+			rpc: func() error {
+				_, err := devices.GetDevicesUsage(ctx, &devicepb.GetDevicesUsageRequest{})
+				return err
+			},
+			assertErr: func(err error) bool { return err == nil },
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -2250,6 +2263,65 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 			}
 			if gotErr.Error() != devicetrustv1.DataDriftDetectedMessage {
 				t.Errorf("Got err=%v, want %q (redacted data drift message)", gotErr, devicetrustv1.DataDriftDetectedMessage)
+			}
+		})
+	}
+}
+
+func TestService_GetDevicesUsage(t *testing.T) {
+	env := testenv.NewUsingT(t)
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Safe because of NewUsingT.
+	m := modules.GetModules().(*modules.TestModules)
+
+	// Enroll a device so the count is not zero.
+	if _, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	}); err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	tests := []struct {
+		name           string
+		modifyFeatures func(f *modules.Features)
+		want           *devicepb.DevicesUsage
+	}{
+		{
+			name: "unlimited account",
+			want: &devicepb.DevicesUsage{
+				AccountUsageType: devicepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
+			},
+		},
+		{
+			name: "usage-based account",
+			modifyFeatures: func(f *modules.Features) {
+				f.IsUsageBasedBilling = true
+				f.DeviceTrust.DevicesUsageLimit = 5
+			},
+			want: &devicepb.DevicesUsage{
+				AccountUsageType:  devicepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
+				DevicesUsageLimit: 5,
+				DevicesInUse:      1,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.modifyFeatures != nil {
+				test.modifyFeatures(&m.TestFeatures)
+			}
+
+			got, err := devices.GetDevicesUsage(ctx, &devicepb.GetDevicesUsageRequest{})
+			if err != nil {
+				t.Fatalf("GetDevicesUsage failed: %v", err)
+			}
+
+			if diff := cmp.Diff(test.want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("GetDevicesUsage mismatch (-want +got)\n%s", diff)
 			}
 		})
 	}
