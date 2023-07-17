@@ -981,6 +981,9 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		m.Roles.Persist = make(map[string]time.Duration)
 	}
 
+	// initialize role persist cache
+	m.Roles.Persist = make(map[string]time.Duration)
+
 	// load all statically assigned roles for the user and
 	// use them to build our validation state.
 	for _, roleName := range m.user.GetRoles() {
