@@ -100,7 +100,6 @@ type Config struct {
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to DynamoDB
 func (cfg *Config) CheckAndSetDefaults() error {
-
 	// Table name is required.
 	if cfg.TableName == "" {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
