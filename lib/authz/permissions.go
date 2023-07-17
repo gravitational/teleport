@@ -1171,7 +1171,9 @@ func authorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, auth
 
 	// Convert generic aggregate error to AccessDenied (auth_with_roles also does this).
 	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		// Return the auth context even on error. This will allow callers to use
+		// the auth context even if access is denied, allowing for follow on access checks.
+		return authCtx, trace.AccessDenied(err.Error())
 	}
 	return authCtx, nil
 }
