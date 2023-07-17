@@ -2357,6 +2357,10 @@ message DatabaseMetadata {
   string DatabaseGCPProjectID = 9 [(gogoproto.jsontag) = "db_gcp_project_id,omitempty"];
   // DatabaseGCPInstanceID is instance ID for GCP hosted databases.
   string DatabaseGCPInstanceID = 10 [(gogoproto.jsontag) = "db_gcp_instance_id,omitempty"];
+  // DatabaseType is the database type.
+  string DatabaseType = 12 [(gogoproto.jsontag) = "db_type,omitempty"];
+  // DatabaseOrigin is the database origin source.
+  string DatabaseOrigin = 13 [(gogoproto.jsontag) = "db_origin,omitempty"];
 }
 
 // DatabaseCreate is emitted when a new database resource is created.
