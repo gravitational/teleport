@@ -3,7 +3,7 @@ authors: Noah Stride (noah.stride@goteleport.com)
 state: draft
 ---
 
-# RFD 00143 - External Kubernetes joining
+# RFD 00143 - External Kubernetes delegated joining (jwks)
 
 ## Required approvers
 
@@ -44,40 +44,113 @@ experience.
 
 ## Details
 
+### Configuration
+
+This join method will be added to the existing `ProvisionTokenV2` specification.
+
+In order to clearly distinguish this new join method from the existing
+`kubernetes` join method, this method will be named `kubernetes-jwks`.
+
+Similar to other join methods, users will be able to configure a list of allow
+rules. If a joining entities presented token matches any of the allow rules 
+then it will be allowed to join.
+
+Each join token will be linked to a specific Kubernetes Cluster. It will not
+be possible to create a join token which can be used for joining from multiple
+Kubernetes Clusters.
+
+Example token configuration:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: kubernetes-jwks-token
+spec:
+  roles: ["Bot"]
+  bot_name: argocd
+  join_method: "kubernetes-jwks",
+  kubernetes_jwks:
+    # jwks is obtained by the user by following the steps after this example
+    # configuration.
+    jwks: |
+      {"keys":[{"use":"sig","kty":"RSA","kid":"9-MIvttbVaRsRf5ejiOtKguarpDA_dJ2skL81OgY2ck","alg":"RS256","n":"3VRj5e27ne706BVQi4LDNg2x31HJc3vrXnsYmyfOFKfRDP6cPesyteyCcTYWhoIlMy3GCKWO1gzeIINMbZgndM87Dw9Dsl0eJQeL_GFAIXOxMoavraNuptFSrV43qQ8kUVDsiC9gSGJVs6LR9bClL8vksmL7_nbSrMviUygPvj-mf4ngPRT6XnKyldKiePMwXrUnomM4FWskZ_UvPiqwWZu1aXhcuEdNA3yOFFq08H1ys71iiRAMyD2knuJV9sZgt_Ns-28ofrR45yR6nzKhmjIJf1H9Fy33o6jtXdtqxeLdqOseRJm3A8PJE4Zp1NfuCJSjsxIhZYHXXH60EPCmNw","e":"AQAB"}]}
+   # allow rules will be the same as for the `kubernetes` join method.
+    allow:
+      - service_account: "my-namespace:my-service-account"
+```
+
+In order to obtain the `jwks` value for their Kubernetes Cluster, operators
+will need to run the following steps from a machine already authenticated
+with their cluster:
+
+- `kubectl proxy -p 8080`
+- `curl http://localhost:8080/openid/v1/jwks`
+
+### Implementation
+
 ## Security Considerations
+
+It's important to note that this join method will be less secure than the 
+`kubernetes` join method. This should be explicitly mentioned in documentation
+for this join method, and encourage the use of `kubernetes` where possible.
+
+This is because the `kubernetes` join method makes use of the TokenReview 
+endpoint which performs additional checks to the validity of the token. This 
+includes checking that the pod and service account listed within the JWT claims 
+exist and are running. This increases the complexity of falsifying a 
+token and also ensures that a token cannot be used beyond the lifetime of the 
+pod it is bound to.
+
+However, this join method is still more secure than the long-lived secret
+based `token` join method that operators are forced to use due to this
+external Kubernetes join method not existing.
+
+The risk of token reuse will be mitigated by the inclusion of a nonce within
+the audience of the JWT, as described under details.
 
 ## Alternatives
 
-### Extending the existing Kubernetes join method
+### Extending the existing `kubernetes` join method
 
-Extending the existing Kubernetes join method to support external joining
+Extending the existing `kubernetes` join method to support external joining
 has two key issues.
 
-The first issue is connectivity. The existing Kubernetes join method relies on
-the Auth Service's ability to call the TokenReview endpoint exposed by the
-Kubernetes API server. This means there must be some sort of network
-connectivity and the appropriate firewall rules to allow the request to pass.
+The first issue is connectivity. The `kubernetes` join method relies on the Auth
+Service's ability to call the TokenReview endpoint exposed by the Kubernetes API
+server. This means there must be network connectivity and the appropriate 
+firewall rules to allow the request to pass. Many users operate clusters that
+are not exposed to the internet, and this means Teleport Cloud would not work
+without some additional way to pass traffic to the external Kubernetes cluster
+API server.
 
 The second issue is authentication. Calling the TokenReview RPC requires some 
 form of authentication. At the moment, the Auth Service relies on a Kubernetes
-service account available to it by virtue of running in the cluster. 
+service account available to it by virtue of being a workload within the
+cluster.
 
 The issue with authentication could be solved by allowing an operator to
 configure credentials for the Kubernetes cluster as part of the join token
-specification. This, however, does not solve the issue of connectivity.
+specification. This, however, does not solve the issue of connectivity and
+introduces further complexities as to how we would safeguard customer
+credentials in Teleport Cloud.
 
 One solution that would solve the connectivity and authentication problems
 would be to use an existing Teleport Kubernetes Agent deployed into a
-Kubernetes Cluster as a "stepping stone". This Agent would have a service
-account with a role that granted it the ability to call TokenReview, hence
-solving the authentication problem, and the Auth Service would be able to
-communicate with the Kubernetes Agent over the Proxy reverse tunnel.
+Kubernetes Cluster as a "stepping stone". Existing methods for executing a
+Kubernetes request could be leveraged by the Auth Server and identity
+impersonation used to ensure the request is completed with a group that has
+access to the TokenReview RPC.
 
-This solution has two key problems:
+This does raise a few concerns:
 
-- It presents a "chicken and egg" problem. The initial Kubernetes Agent
-  deployed to the cluster would not be able to use the Kubernetes Join method.
-- It grants a potentially dangerous amount of access to the Kubernetes Agent.
-  As it would complete the TokenReview, a hijacked Kubernetes Agent could be
-  used to trick the Auth Service into accepting any token as legitimate for
-  that cluster. This presents a pathway for privilege escalation.
+- This method would not be suitable for deploying the first Kubernetes Agent
+  into a cluster.
+- This raises the potential fallout from a compromised Kubernetes Agent. A
+  compromised agent could be used to impersonate any service account.
+- It is relatively unusual in the Teleport codebase for the Auth Server to
+  rely on connectivity to an agent to function.
+
+We should revisit this in the long term and determine if there are more
+elegant ways for us to allow external Kubernetes cluster joining with the
+`kubernetes` join method.
