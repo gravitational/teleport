@@ -230,7 +230,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Hardware Key Support (Preview)",
+              "title": "Hardware Key Support",
               "slug": "/access-controls/guides/hardware-key-support/",
               "forScopes": ["enterprise", "cloud"]
             },
@@ -491,8 +491,9 @@
 	  "slug": "/management/dynamic-resources/",
 	  "entries": [
 	    {
-              "title": "Kubernetes Operator (Preview)",
-              "slug": "/management/dynamic-resources/teleport-operator/"
+              "title": "Kubernetes Operator",
+              "slug": "/management/dynamic-resources/teleport-operator/",
+              "forScopes": ["oss","enterprise"]
             },
             {
               "title": "Terraform Provider",
@@ -567,7 +568,7 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Proxy Peering Migration (Preview)",
+              "title": "Proxy Peering Migration",
               "slug": "/management/operations/proxy-peering/",
               "forScopes": ["enterprise"]
             },
@@ -862,7 +863,7 @@
               "slug": "/server-access/guides/ssh-pam/"
             },
             {
-              "title": "OpenSSH Guide",
+              "title": "Agentless OpenSSH Integration",
               "slug": "/server-access/guides/openssh/"
             },
             {
@@ -895,11 +896,11 @@
               "slug": "/server-access/guides/auditd/"
             },
             {
-              "title": "EC2 Instance Discovery (Preview)",
+              "title": "EC2 Instance Discovery",
               "slug": "/server-access/guides/ec2-discovery/"
             },
             {
-              "title": "Azure Instance Discovery (Preview)",
+              "title": "Azure Instance Discovery",
               "slug": "/server-access/guides/azure-discovery/"
             },
             {
@@ -927,7 +928,7 @@
           "slug": "/kubernetes-access/getting-started/"
         },
         {
-          "title": "Kubernetes Discovery (Preview)",
+          "title": "Kubernetes Discovery",
           "slug": "/kubernetes-access/discovery/",
           "entries": [
             {
@@ -1043,7 +1044,7 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
-              "title": "Azure SQL Server (Preview)",
+              "title": "Azure SQL Server",
               "slug": "/database-access/guides/azure-sql-server-ad/"
             },
             {
@@ -1067,11 +1068,11 @@
               "slug": "/database-access/guides/mongodb-atlas/"
             },
             {
-              "title": "SQL Server (Preview)",
+              "title": "SQL Server",
               "slug": "/database-access/guides/sql-server-ad/"
             },
             {
-              "title": "SQL Server with PKINIT (Preview)",
+              "title": "SQL Server with PKINIT",
               "slug": "/database-access/guides/sql-server-ad-pkinit/"
             },
             {
@@ -1107,12 +1108,12 @@
               "slug": "/database-access/guides/redis-cluster/"
             },
             {
-              "title": "Self-Hosted Oracle (Preview)",
+              "title": "Self-Hosted Oracle",
               "forScopes": ["enterprise", "cloud"],
               "slug": "/database-access/guides/oracle-self-hosted/"
             },
             {
-              "title": "Snowflake (Preview)",
+              "title": "Snowflake",
               "slug": "/database-access/guides/snowflake/"
             }
           ]
@@ -1474,7 +1475,7 @@
           "slug": "/architecture/tls-routing/"
         },
         {
-          "title": "Proxy Peering (Preview)",
+          "title": "Proxy Peering",
           "slug": "/architecture/proxy-peering/"
         },
         {
@@ -1576,16 +1577,16 @@
     },
     "teleport": {
       "major_version": "13",
-      "version": "13.1.5",
+      "version": "13.2.0",
       "golang": "1.20",
       "plugin": {
-        "version": "13.1.5"
+        "version": "13.2.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.1.5",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.1.5",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.1.5",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.1.5"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.2.0",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.2.0",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.2.0",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.2.0"
     },
     "terraform": {
       "version": "1.0.0"

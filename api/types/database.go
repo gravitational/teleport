@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -563,6 +564,24 @@ func (d *DatabaseV3) MatchSearch(values []string) bool {
 func (d *DatabaseV3) setStaticFields() {
 	d.Kind = KindDatabase
 	d.Version = V3
+}
+
+// validDatabaseNameRegexp filters the allowed characters in database names.
+// This is the (almost) the same regexp used to check for valid DNS 1035 labels,
+// except we allow uppercase chars.
+var validDatabaseNameRegexp = regexp.MustCompile(`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`)
+
+// ValidateDatabaseName returns an error if a given string is not a valid
+// Database name.
+// Unlike application access proxy, database name doesn't necessarily
+// need to be a valid subdomain but use the same validation logic for the
+// simplicity and consistency, except two differences: don't restrict names to
+// 63 chars in length and allow upper case chars.
+// This was added in v14 and backported, except that it's intentionally called
+// in lib/services:ValidateDatabase instead of within CheckAndSetDefaults below
+// for backwards compatibility.
+func ValidateDatabaseName(name string) error {
+	return ValidateResourceName(validDatabaseNameRegexp, name)
 }
 
 // CheckAndSetDefaults checks and sets default values for any missing fields.

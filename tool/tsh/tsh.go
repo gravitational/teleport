@@ -1011,7 +1011,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	}
 
 	// configs
-	setEnvFlags(&cf, os.Getenv)
+	setEnvFlags(&cf)
 
 	confOptions, err := loadAllConfigs(cf)
 	if err != nil {
@@ -1897,17 +1897,9 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Show on-login alerts, all high severity alerts are shown by onStatus
-	// so can be excluded here, except when Hardware Key Touch is required
-	// which skips on-status alerts.
-	alertSeverityMax := types.AlertSeverity_MEDIUM
-	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		alertSeverityMax = types.AlertSeverity_HIGH
-	}
-
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
+	}, types.AlertSeverity_LOW); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -3455,9 +3447,22 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		cf.AuthConnector = constants.HeadlessConnector
 	}
 
-	// When using Headless, user must be provided explicitly.
-	if cf.AuthConnector == constants.HeadlessConnector && !cf.ExplicitUsername {
-		return nil, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable")
+	if cf.AuthConnector == constants.HeadlessConnector {
+		// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
+		if cf.Proxy == "" {
+			cf.Proxy = os.Getenv(teleport.SSHSessionWebProxyAddr)
+		}
+		if cf.Username == "" {
+			cf.Username = os.Getenv(teleport.SSHTeleportUser)
+		}
+		if cf.SiteName == "" {
+			cf.SiteName = os.Getenv(teleport.SSHTeleportClusterName)
+		}
+
+		// When using Headless, user must be provided.
+		if cf.Username == "" {
+			return nil, trace.BadParameter("user must be provided for headless login")
+		}
 	}
 
 	if err := tryLockMemory(cf); err != nil {
@@ -3570,7 +3575,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.ForwardAgent = client.ForwardAgentYes
 	}
 
-	if err := setX11Config(c, cf, options, os.Getenv); err != nil {
+	if err := setX11Config(c, cf, options); err != nil {
 		log.WithError(err).Info("X11 forwarding is not properly configured, continuing without it.")
 	}
 
@@ -3745,11 +3750,11 @@ func parseMFAMode(mode string) (*mfaModeOpts, error) {
 }
 
 // setX11Config sets X11 config using CLI and SSH option flags.
-func setX11Config(c *client.Config, cf *CLIConf, o Options, fn envGetter) error {
+func setX11Config(c *client.Config, cf *CLIConf, o Options) error {
 	// X11 forwarding can be enabled with -X, -Y, or -oForwardX11=yes
 	c.EnableX11Forwarding = cf.X11ForwardingUntrusted || cf.X11ForwardingTrusted || o.ForwardX11
 
-	if c.EnableX11Forwarding && fn(x11.DisplayEnv) == "" {
+	if c.EnableX11Forwarding && os.Getenv(x11.DisplayEnv) == "" {
 		c.EnableX11Forwarding = false
 		return trace.BadParameter("$DISPLAY must be set for X11 forwarding")
 	}
@@ -4047,7 +4052,7 @@ func onStatus(cf *CLIConf) error {
 		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
-			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+			types.AlertSeverity_HIGH); err != nil {
 			log.WithError(err).Warn("Failed to display cluster alerts.")
 		}
 	}
@@ -4619,45 +4624,28 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 	return string(out), trace.Wrap(err)
 }
 
-// envGetter is used to read in the environment. In production "os.Getenv"
-// is used.
-type envGetter func(string) string
-
 // setEnvFlags sets flags that can be set via environment variables.
-func setEnvFlags(cf *CLIConf, getEnv envGetter) {
+func setEnvFlags(cf *CLIConf) {
 	// these can only be set with env vars.
-	if homeDir := getEnv(types.HomeEnvVar); homeDir != "" {
+	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
 		cf.HomePath = path.Clean(homeDir)
 	}
-	if configPath := getEnv(globalTshConfigEnvVar); configPath != "" {
+	if configPath := os.Getenv(globalTshConfigEnvVar); configPath != "" {
 		cf.GlobalTshConfigPath = path.Clean(configPath)
 	}
 
 	// prioritize CLI input for the rest.
 	if cf.SiteName == "" {
 		// check cluster env variables in order of priority.
-		if clusterName := getEnv(clusterEnvVar); clusterName != "" {
+		if clusterName := os.Getenv(clusterEnvVar); clusterName != "" {
 			cf.SiteName = clusterName
-		} else if clusterName = getEnv(siteEnvVar); clusterName != "" {
+		} else if clusterName = os.Getenv(siteEnvVar); clusterName != "" {
 			cf.SiteName = clusterName
 		}
 	}
 
 	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = getEnv(kubeClusterEnvVar)
-	}
-
-	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
-	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
-		if cf.Proxy == "" {
-			cf.Proxy = getEnv(teleport.SSHSessionWebProxyAddr)
-		}
-		if cf.Username == "" {
-			cf.Username = getEnv(teleport.SSHTeleportUser)
-		}
-		if cf.SiteName == "" {
-			cf.SiteName = getEnv(teleport.SSHTeleportClusterName)
-		}
+		cf.KubernetesCluster = os.Getenv(kubeClusterEnvVar)
 	}
 }
 
