@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -1344,6 +1345,16 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
+	if isTeleportEnv(e.Name) {
+		// As a forwarder we want to capture the Teleport environment variables
+		// set by the caller. Environment variables are used to pass existing
+		// session IDs (Assist) and other flags like enabling non-interactive
+		// session recording.
+		// We want to save the environment variables even if the ssh server rejects
+		// them, as we still need their information (e.g. the session ID).
+		scx.SetEnv(e.Name, e.Value)
+	}
+
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
@@ -1364,6 +1375,18 @@ func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Reques
 	var envs map[string]string
 	if err := json.Unmarshal(raw.EnvsJSON, &envs); err != nil {
 		return trace.Wrap(err, "failed to unmarshal envs")
+	}
+
+	for envName, envValue := range envs {
+		if isTeleportEnv(envName) {
+			// As a forwarder we want to capture the Teleport environment variables
+			// set by the caller. Environment variables are used to pass existing
+			// session IDs (Assist) and other flags like enabling non-interactive
+			// session recording.
+			// We want to save the environment variables even if the ssh server rejects
+			// them, as we still need their information (e.g. the session ID).
+			scx.SetEnv(envName, envValue)
+		}
 	}
 
 	if err := scx.RemoteSession.SetEnvs(ctx, envs); err != nil {
@@ -1419,4 +1442,20 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
 	req.WantReply = false
 	return nil
+}
+
+// teleportVarPrefixes contains the list of prefixes used by Teleport environment
+// variables. Matching variables are saved in the session context when forwarding
+// the calls to a remote SSH server as they can contain Teleport-specific
+// information used to process the session properly (e.g. TELEPORT_SESSION or
+// SSH_TELEPORT_RECORD_NON_INTERACTIVE)
+var teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT_"}
+
+func isTeleportEnv(varName string) bool {
+	for _, prefix := range teleportVarPrefixes {
+		if strings.HasPrefix(varName, prefix) {
+			return true
+		}
+	}
+	return false
 }

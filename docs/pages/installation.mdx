@@ -13,7 +13,7 @@ including:
 - `tbot`
 
 If you are new to Teleport, we recommend following our [getting started
-guide](./get-started.mdx).
+guide](./index.mdx).
 
 For best results, Teleport clients (`tsh`, `tctl`, `tbot`) should be the same major
 version as the cluster they are connecting to. Teleport servers are compatible
@@ -153,7 +153,7 @@ either:
   `(=teleport.version=)`.
 
 <Tabs>
-<TabItem label="Open Source" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Team/Community Edition" scope={["oss", "team"]}>
 
 |Image name|Troubleshooting Tools?|Image base|
 |-|-|-|
@@ -169,10 +169,10 @@ repository](https://gallery.ecr.aws/gravitational/teleport-ent).  Their use is
 considered deprecated, and they may be removed in future releases.
 
 </TabItem>
-<TabItem label="Enterprise" scope={["cloud", "enterprise"]}>
+<TabItem label="Teleport Enterprise Cloud/Enterprise" scope={["cloud", "enterprise"]}>
 
-| Image name | Teleport version | Includes troubleshooting tools | Image base |
-| - | - | - | - |
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
 | `(=teleport.latest_ent_docker_image=)` | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
 | `(=teleport.latest_ent_debug_docker_image=)` | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
 
@@ -180,8 +180,8 @@ We also provide the following images for FIPS builds of Teleport Enterprise:
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
-| `gravitational/teleport-ent-fips-distroless` | No | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
-| `gravitational/teleport-ent-fips-distroless-debug` | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `gravitational/teleport-ent-fips-distroless` | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
+| `gravitational/teleport-ent-fips-distroless-debug` | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
 
 For testing, we always recommend that you use the latest release version of
 Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
@@ -253,7 +253,7 @@ Services on a local Docker container using Teleport Community Edition.
 Since this container uses a self-signed certificate, we do not recommend using
 this configuration to protect any infrastructure outside your workstation. You
 can, however, join other local Docker containers to it using the [token
-method](./management/join-services-to-your-cluster/join-token.mdx).
+method](./agents/join-services-to-your-cluster/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
@@ -331,6 +331,39 @@ We are using the `--insecure` flag to trust Teleport's self-signed certificate.
 In production, you will want to provision TLS credentials to the Proxy Service
 from a trusted CA, e.g., Let's Encrypt.
 
+
+## Amazon EC2
+
+We provide pre-built `amd64` Amazon Linux 2023 based EC2 AMIs with Teleport
+pre-installed. 
+
+These images are primarily intended for deploying a Teleport cluster using our 
+[reference Terraform code](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform).
+
+See the [Starter Cluster Terraform](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster)
+and the [Running Teleport Enterprise in High Availability mode on AWS](deploy-a-cluster/deployments/aws-terraform.mdx)
+guide for detailed usage examples.
+
+In order to use these AMIs outside of the reference Terraform, you can configure
+the Teleport installation by setting configuration variables in the 
+`/etc/teleport.d/conf` file on the EC2 instance. See the [Starter Cluster Configuration Template](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/aws/terraform/starter-cluster/data.tpl)
+for a list of the available configuration options.
+
+The image names all include the build timestamp (shown as `$TIMESTAMP` in the table
+below), and are tagged for easier searching.
+
+| Image name | Edition | FIPS support | AMI Tags | Owner Account ID | 
+| - | - | - | - | - |
+| `teleport-oss-(=teleport.version=)-$TIMESTAMP` | OSS | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` | 146628656107 | 
+| `teleport-ent-(=teleport.version=)-$TIMESTAMP` | Enterprise | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` | 146628656107 |
+| `teleport-oss-(=teleport.version=)-fips-$TIMESTAMP` | Enterprise | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` | 146628656107 |
+
+All images are based on Amazon Linux 2023 and have been hardened using the
+Amazon EC2 ImageBuilder [STIG](https://public.cyber.mil/stigs/) hardening 
+component.
+
+Teleport AMIs are automatically published to all [non-opt-in AWS regions](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions).
+
 ## Helm
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
@@ -346,7 +379,7 @@ chart.
 ## macOS
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
-<TabItem label="Open Source" scope="oss">
+<TabItem label="Teleport Team/Community Edition" scope={["oss","team"]}>
   <Tabs>
   <TabItem label="Teleport package" >
   You can download one of the following .pkg installers for macOS:
@@ -418,7 +451,7 @@ chart.
 (!docs/pages/includes/enterprise/install-macos.mdx!)
 
 </TabItem>
-<TabItem label="Cloud" scope="cloud">
+<TabItem label="Enterprise Cloud" scope="cloud">
 
 (!docs/pages/includes/cloud/install-macos.mdx!)
 

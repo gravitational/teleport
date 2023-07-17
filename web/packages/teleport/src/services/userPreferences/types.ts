@@ -14,17 +14,36 @@
  * limitations under the License.
  */
 
+import { DeprecatedThemeOption } from 'design/theme';
+
 import type { AssistUserPreferences } from 'teleport/Assist/types';
+import type { Resource } from 'teleport/Welcome/Questionnaire/types';
 
 export enum ThemePreference {
   Light = 1,
   Dark = 2,
 }
 
+export type OnboardUserPreferences = {
+  preferredResources: Resource[];
+};
+
 export interface UserPreferences {
   theme: ThemePreference;
   assist: AssistUserPreferences;
+  onboard: OnboardUserPreferences;
 }
 
 export type UserPreferencesSubset = Subset<UserPreferences>;
 export type GetUserPreferencesResponse = UserPreferences;
+
+export function deprecatedThemeToThemePreference(
+  theme: DeprecatedThemeOption
+): ThemePreference {
+  switch (theme) {
+    case 'light':
+      return ThemePreference.Light;
+    case 'dark':
+      return ThemePreference.Dark;
+  }
+}

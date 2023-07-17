@@ -106,6 +106,12 @@ type ClusterNetworkingConfig interface {
 
 	// SetProxyPingInterval sets the proxy ping interval.
 	SetProxyPingInterval(time.Duration)
+
+	// GetAssistCommandExecutionWorkers gets the number of parallel command execution workers for Assist
+	GetAssistCommandExecutionWorkers() int32
+
+	// SetAssistCommandExecutionWorkers sets the number of parallel command execution workers for Assist
+	SetAssistCommandExecutionWorkers(n int32)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
@@ -356,6 +362,12 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if c.Spec.AssistCommandExecutionWorkers < 0 {
+		return trace.BadParameter("command_execution_workers must be non-negative")
+	} else if c.Spec.AssistCommandExecutionWorkers == 0 {
+		c.Spec.AssistCommandExecutionWorkers = defaults.AssistCommandExecutionWorkers
+	}
+
 	return nil
 }
 
@@ -367,6 +379,16 @@ func (c *ClusterNetworkingConfigV2) GetProxyPingInterval() time.Duration {
 // SetProxyPingInterval sets the proxy ping interval.
 func (c *ClusterNetworkingConfigV2) SetProxyPingInterval(interval time.Duration) {
 	c.Spec.ProxyPingInterval = Duration(interval)
+}
+
+// GetAssistCommandExecutionWorkers gets the number of parallel command execution workers for Assist
+func (c *ClusterNetworkingConfigV2) GetAssistCommandExecutionWorkers() int32 {
+	return c.Spec.AssistCommandExecutionWorkers
+}
+
+// SetAssistCommandExecutionWorkers sets the number of parallel command execution workers for Assist
+func (c *ClusterNetworkingConfigV2) SetAssistCommandExecutionWorkers(n int32) {
+	c.Spec.AssistCommandExecutionWorkers = n
 }
 
 // MarshalYAML defines how a proxy listener mode should be marshaled to a string

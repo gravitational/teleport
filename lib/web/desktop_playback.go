@@ -23,7 +23,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/websocket"
 
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/desktop"
 )
 
@@ -32,7 +32,7 @@ func (h *Handler) desktopPlaybackHandle(
 	r *http.Request,
 	p httprouter.Params,
 	ctx *SessionContext,
-	site reversetunnel.RemoteSite,
+	site reversetunnelclient.RemoteSite,
 ) (interface{}, error) {
 	sID := p.ByName("sid")
 	if sID == "" {

@@ -32,6 +32,7 @@ export enum CaptureEvent {
 
   PreUserOnboardSetCredentialSubmitEvent = 'tp.ui.onboard.setCredential.submit',
   PreUserOnboardRegisterChallengeSubmitEvent = 'tp.ui.onboard.registerChallenge.submit',
+  PreUserOnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
   PreUserCompleteGoToDashboardClickEvent = 'tp.ui.onboard.completeGoToDashboard.click',
 
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',
@@ -58,6 +59,12 @@ export enum IntegrationEnrollKind {
   OpsGenie = 'INTEGRATION_ENROLL_KIND_OPSGENIE',
   Okta = 'INTEGRATION_ENROLL_KIND_OKTA',
   Jamf = 'INTEGRATION_ENROLL_KIND_JAMF',
+  MachineID = 'INTEGRATION_ENROLL_KIND_MACHINE_ID',
+  MachineIDGitHubActions = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS',
+  MachineIDCircleCI = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI',
+  MachineIDGitLab = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB',
+  MachineIDJenkins = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS',
+  MachineIDAnsible = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE',
 }
 
 export enum DiscoverEvent {
@@ -175,12 +182,33 @@ export type DiscoverEventData = DiscoverEventStepStatus & {
   // in the RDS enrollment screen for event
   // tp.ui.discover.database.enroll.rds
   selectedResourcesCount?: number;
+
+  // serviceDeploy is only considered for 'tp.ui.discover.deployService'
+  // event and describes how an agent got deployed.
+  serviceDeploy?: DiscoverServiceDeploy;
 };
 
 export type DiscoverEventStepStatus = {
   stepStatus: DiscoverEventStatus;
   stepStatusError?: string;
 };
+
+export type DiscoverServiceDeploy = {
+  method: DiscoverServiceDeployMethod;
+  type: DiscoverServiceDeployType;
+};
+
+export enum DiscoverServiceDeployMethod {
+  Unspecified = 'DEPLOY_METHOD_UNSPECIFIED',
+  Auto = 'DEPLOY_METHOD_AUTO',
+  Manual = 'DEPLOY_METHOD_MANUAL',
+}
+
+export enum DiscoverServiceDeployType {
+  Unspecified = 'DEPLOY_TYPE_UNSPECIFIED',
+  InstallScript = 'DEPLOY_TYPE_INSTALL_SCRIPT',
+  AmazonEcs = 'DEPLOY_TYPE_AMAZON_ECS',
+}
 
 export enum CtaEvent {
   CTA_UNSPECIFIED = 0,

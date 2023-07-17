@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -335,6 +336,14 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(
 		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
+}
+
+// AccessListClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessListClient() accesslistv1.AccessListServiceClient {
+	return accesslistv1.NewAccessListServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles"))
 }
 
 // integrationsService returns an Integrations Service.
@@ -921,7 +930,14 @@ func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.Generate
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GenerateToken(ctx, req)
+
+	token, err := a.authServer.GenerateToken(ctx, req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	emitTokenEvent(ctx, a.authServer.emitter, req.Roles, types.JoinMethodToken)
+	return token, nil
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -1111,18 +1127,23 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
-	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) {
-		return proto.InventoryStatusSummary{}, trace.AccessDenied("requires builtin admin role")
+	if err := a.action(apidefaults.Namespace, types.KindInstance, types.VerbList, types.VerbRead); err != nil {
+		return proto.InventoryStatusSummary{}, trace.Wrap(err)
 	}
-	return a.authServer.GetInventoryStatus(ctx, req), nil
+
+	if req.Connected {
+		if !a.hasBuiltinRole(types.RoleAdmin) {
+			return proto.InventoryStatusSummary{}, trace.AccessDenied("requires local tctl, try using 'tctl inventory ls' instead")
+		}
+	}
+	return a.authServer.GetInventoryStatus(ctx, req)
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
 func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryConnectedServiceCounts, error) {
-	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
+	// TODO(fspmarshall): switch this to being scoped to instance:read once we have a sane remote version of
+	// this method. for now we're leaving it as requiring local admin because the returned value is basically
+	// nonsense if you aren't connected locally.
 	if !a.hasBuiltinRole(types.RoleAdmin) {
 		return proto.InventoryConnectedServiceCounts{}, trace.AccessDenied("requires builtin admin role")
 	}
@@ -1130,8 +1151,8 @@ func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryC
 }
 
 func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
+	// this is scoped to admin-only not because we don't have appropriate rbac, but because this method doesn't function
+	// as expected if you aren't connected locally.
 	if !a.hasBuiltinRole(types.RoleAdmin) {
 		return proto.InventoryPingResponse{}, trace.AccessDenied("requires builtin admin role")
 	}
@@ -1402,76 +1423,12 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
-		// Check the permissions for data of each kind. For watching, most
-		// kinds of data just need a Read permission, but some have more
-		// complicated logic.
-		switch kind.Kind {
-		case types.KindCertAuthority:
-			verb := types.VerbReadNoSecrets
-			if kind.LoadSecrets {
-				verb = types.VerbRead
+		err := a.hasWatchPermissionForKind(kind)
+		if err != nil {
+			if watch.AllowPartialSuccess {
+				continue
 			}
-			if err := a.action(apidefaults.Namespace, types.KindCertAuthority, verb); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-		case types.KindAccessRequest:
-			var filter types.AccessRequestFilter
-			if err := filter.FromMap(kind.Filter); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			if filter.User == "" || a.currentUserAction(filter.User) != nil {
-				if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead); err != nil {
-					if watch.AllowPartialSuccess {
-						continue
-					}
-					return nil, trace.Wrap(err)
-				}
-			}
-		case types.KindWebSession:
-			var filter types.WebSessionFilter
-			if err := filter.FromMap(kind.Filter); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			// Allow reading Snowflake sessions to DB service.
-			if !(kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase)) {
-				if filter.User == "" || a.currentUserAction(filter.User) != nil {
-					if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
-						if watch.AllowPartialSuccess {
-							continue
-						}
-						return nil, trace.Wrap(err)
-					}
-				}
-			}
-		case types.KindHeadlessAuthentication:
-			var filter types.HeadlessAuthenticationFilter
-			if err := filter.FromMap(kind.Filter); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-
-			// Only users can watch their own headless authentications.
-			if !hasLocalUserRole(a.context) || filter.Username != a.context.User.GetName() {
-				return nil, trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
-			}
-		default:
-			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
+			return nil, trace.Wrap(err)
 		}
 
 		validKinds = append(validKinds, kind)
@@ -1489,6 +1446,62 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		watch.QueueSize = defaults.NodeQueueSize
 	}
 	return a.authServer.NewWatcher(ctx, watch)
+}
+
+// hasWatchPermissionForKind checks the permissions for data of each kind.
+// For watching, most kinds of data just need a Read permission, but some
+// have more complicated logic.
+func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error {
+	verb := types.VerbRead
+	switch kind.Kind {
+	case types.KindCertAuthority:
+		if !kind.LoadSecrets {
+			verb = types.VerbReadNoSecrets
+		}
+	case types.KindAccessRequest:
+		var filter types.AccessRequestFilter
+		if err := filter.FromMap(kind.Filter); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Users can watch their own access requests.
+		if filter.User != "" && a.currentUserAction(filter.User) == nil {
+			return nil
+		}
+	case types.KindWebSession:
+		var filter types.WebSessionFilter
+		if err := filter.FromMap(kind.Filter); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Allow reading Snowflake sessions to DB service.
+		if kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase) {
+			return nil
+		}
+
+		// Users can watch their own web sessions.
+		if filter.User != "" && a.currentUserAction(filter.User) == nil {
+			return nil
+		}
+	case types.KindHeadlessAuthentication:
+		var filter types.HeadlessAuthenticationFilter
+		if err := filter.FromMap(kind.Filter); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Users can only watch their own headless authentications, meaning we don't fallback to
+		// the generalized verb-kind-action check below.
+		if !hasLocalUserRole(a.context) {
+			return trace.AccessDenied("non-local user roles cannot watch headless authentications")
+		} else if filter.Username == "" {
+			return trace.AccessDenied("user cannot watch headless authentications without a filter for their username")
+		} else if filter.Username != a.context.User.GetName() {
+			return trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
+		}
+
+		return nil
+	}
+	return trace.Wrap(a.action(apidefaults.Namespace, kind.Kind, verb))
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
@@ -1568,6 +1581,10 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+func (a *ServerWithRoles) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
+}
+
 const (
 	// kubeService is a special resource type that is used to keep compatibility
 	// with Teleport 12 clients.
@@ -1576,6 +1593,56 @@ const (
 	// TODO(tigrato): DELETE in 14.0.0
 	kubeService = "kube_service"
 )
+
+// authContextForSearch returns an extended authz.Context which should be used
+// when searching for resources that a user may be able to request access to,
+// but does not already have access to.
+// Extra roles are determined from the user's search_as_roles and
+// preview_as_roles if [req] requested that each be used.
+func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.ListResourcesRequest) (*authz.Context, error) {
+	var extraRoles []string
+	if req.UseSearchAsRoles {
+		extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
+	}
+	if req.UsePreviewAsRoles {
+		extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
+	}
+	if len(extraRoles) == 0 {
+		// Return the current auth context unmodified.
+		return &a.context, nil
+	}
+
+	clusterName, err := a.authServer.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get a new auth context with the additional roles
+	extendedContext, err := a.context.WithExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only emit the event if the role list actually changed
+	if len(extendedContext.Checker.RoleNames()) != len(a.context.Checker.RoleNames()) {
+		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
+			Metadata: apievents.Metadata{
+				Type: events.AccessRequestResourceSearch,
+				Code: events.AccessRequestResourceSearchCode,
+			},
+			UserMetadata:        authz.ClientUserMetadata(ctx),
+			SearchAsRoles:       extendedContext.Checker.RoleNames(),
+			ResourceType:        req.ResourceType,
+			Namespace:           req.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return extendedContext, nil
+}
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -1598,34 +1665,18 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.Wrap(err)
 	}
 
+	// Apply any requested additional search_as_roles and/or preview_as_roles
+	// for the duration of the search.
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
-		var extraRoles []string
-		if req.UseSearchAsRoles {
-			extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
-		}
-		if req.UsePreviewAsRoles {
-			extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
-		}
-		clusterName, err := a.authServer.GetClusterName()
+		extendedContext, err := a.authContextForSearch(ctx, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.context.UseExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
-			Metadata: apievents.Metadata{
-				Type: events.AccessRequestResourceSearch,
-				Code: events.AccessRequestResourceSearchCode,
-			},
-			UserMetadata:        authz.ClientUserMetadata(ctx),
-			SearchAsRoles:       a.context.Checker.RoleNames(),
-			ResourceType:        req.ResourceType,
-			Namespace:           req.Namespace,
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
-		})
+		baseContext := a.context
+		a.context = *extendedContext
+		defer func() {
+			a.context = baseContext
+		}()
 	}
 
 	// ListResources request coming through this auth layer gets request filters
@@ -2048,11 +2099,28 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 }
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
-// events. For now, this just emits trusted_cluster_token.create.
-func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken) {
+// events.
+func emitTokenEvent(
+	ctx context.Context,
+	e apievents.Emitter,
+	roles types.SystemRoles,
+	joinMethod types.JoinMethod,
+) {
 	userMetadata := authz.ClientUserMetadata(ctx)
-	for _, role := range token.GetRoles() {
+	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.ProvisionTokenCreateEvent,
+			Code: events.ProvisionTokenCreateCode,
+		},
+		UserMetadata: userMetadata,
+		Roles:        roles,
+		JoinMethod:   joinMethod,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit join token create event.")
+	}
+	for _, role := range roles {
 		if role == types.RoleTrustedCluster {
+			//nolint:staticcheck // Emit a deprecated event.
 			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
 				Metadata: apievents.Metadata{
 					Type: events.TrustedClusterTokenCreateEvent,
@@ -2076,11 +2144,12 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token)
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
 	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	jm := token.GetJoinMethod()
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2090,7 +2159,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token)
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
 	return nil
 }
 
@@ -3550,7 +3619,8 @@ func (s *streamWithRoles) Close(ctx context.Context) error {
 	return s.stream.Close(ctx)
 }
 
-func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (s *streamWithRoles) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
+	event := pe.GetAuditEvent()
 	err := events.ValidateServerMetadata(event, s.serverID, s.a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
@@ -3561,7 +3631,7 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
 	}
-	return s.stream.EmitAuditEvent(ctx, event)
+	return s.stream.RecordEvent(ctx, pe)
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
@@ -3738,7 +3808,7 @@ func checkRoleFeatureSupport(role types.Role) error {
 	}
 }
 
-type inventoryGetter func(context.Context, proto.InventoryStatusRequest) proto.InventoryStatusSummary
+type inventoryGetter func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
 
 // checkInventorySupportsRole returns an error if any connected servers found in
 // the inventory do not support some features enabled in [role]. This is only a
@@ -3754,7 +3824,10 @@ func checkInventorySupportsRole(ctx context.Context, role types.Role, authVersio
 		return nil
 	}
 
-	inventoryStatus := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
+	inventoryStatus, err := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	for _, hello := range inventoryStatus.Connected {
 		version, err := semver.NewVersion(hello.Version)
 		if err != nil {

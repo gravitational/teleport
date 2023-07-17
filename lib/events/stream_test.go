@@ -43,7 +43,7 @@ func TestStreamerCompleteEmpty(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
 	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 	stream, err := streamer.CreateAuditStream(ctx, sid)
@@ -77,7 +77,7 @@ func TestNewSliceErrors(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1})
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
 	sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 	_, err = streamer.CreateAuditStream(ctx, sid)
@@ -113,7 +113,7 @@ func TestNewStreamErrors(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1})
+				evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
 				sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 				_, err = streamer.CreateAuditStream(ctx, sid)
@@ -144,7 +144,7 @@ func TestNewStreamErrors(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				evts := events.GenerateTestSession(events.SessionParams{PrintEvents: 1})
+				evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1})
 				sid := session.ID(evts[0].(events.SessionMetadataGetter).GetSessionID())
 
 				_, err = streamer.ResumeAuditStream(ctx, sid, uuid.New().String())
@@ -188,7 +188,7 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			test.errAssertion(t, stream.EmitAuditEvent(ctx, test.event))
+			test.errAssertion(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(test.event)))
 		})
 	}
 	require.NoError(t, stream.Complete(ctx))
@@ -233,6 +233,7 @@ func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
 		DatabaseQuery: query,
 	}
 }
+
 func makeAccessRequestEvent(id string, in string) *apievents.AccessRequestDelete {
 	return &apievents.AccessRequestDelete{
 		Metadata: apievents.Metadata{

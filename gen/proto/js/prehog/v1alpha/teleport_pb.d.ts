@@ -118,6 +118,12 @@ export class SessionStartEvent extends jspb.Message {
     setSessionType(value: string): SessionStartEvent;
 
 
+    hasDatabase(): boolean;
+    clearDatabase(): void;
+    getDatabase(): SessionStartDatabaseMetadata | undefined;
+    setDatabase(value?: SessionStartDatabaseMetadata): SessionStartEvent;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
     static toObject(includeInstance: boolean, msg: SessionStartEvent): SessionStartEvent.AsObject;
@@ -132,6 +138,36 @@ export namespace SessionStartEvent {
     export type AsObject = {
         userName: string,
         sessionType: string,
+        database?: SessionStartDatabaseMetadata.AsObject,
+    }
+}
+
+export class SessionStartDatabaseMetadata extends jspb.Message { 
+    getDbType(): string;
+    setDbType(value: string): SessionStartDatabaseMetadata;
+
+    getDbProtocol(): string;
+    setDbProtocol(value: string): SessionStartDatabaseMetadata;
+
+    getDbOrigin(): string;
+    setDbOrigin(value: string): SessionStartDatabaseMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SessionStartDatabaseMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: SessionStartDatabaseMetadata): SessionStartDatabaseMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SessionStartDatabaseMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SessionStartDatabaseMetadata;
+    static deserializeBinaryFromReader(message: SessionStartDatabaseMetadata, reader: jspb.BinaryReader): SessionStartDatabaseMetadata;
+}
+
+export namespace SessionStartDatabaseMetadata {
+    export type AsObject = {
+        dbType: string,
+        dbProtocol: string,
+        dbOrigin: string,
     }
 }
 
@@ -648,6 +684,12 @@ export class UIDiscoverDeployServiceEvent extends jspb.Message {
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDeployServiceEvent;
 
+    getDeployMethod(): UIDiscoverDeployServiceEvent.DeployMethod;
+    setDeployMethod(value: UIDiscoverDeployServiceEvent.DeployMethod): UIDiscoverDeployServiceEvent;
+
+    getDeployType(): UIDiscoverDeployServiceEvent.DeployType;
+    setDeployType(value: UIDiscoverDeployServiceEvent.DeployType): UIDiscoverDeployServiceEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDeployServiceEvent.AsObject;
@@ -664,7 +706,22 @@ export namespace UIDiscoverDeployServiceEvent {
         metadata?: DiscoverMetadata.AsObject,
         resource?: DiscoverResourceMetadata.AsObject,
         status?: DiscoverStepStatus.AsObject,
+        deployMethod: UIDiscoverDeployServiceEvent.DeployMethod,
+        deployType: UIDiscoverDeployServiceEvent.DeployType,
     }
+
+    export enum DeployMethod {
+    DEPLOY_METHOD_UNSPECIFIED = 0,
+    DEPLOY_METHOD_AUTO = 1,
+    DEPLOY_METHOD_MANUAL = 2,
+    }
+
+    export enum DeployType {
+    DEPLOY_TYPE_UNSPECIFIED = 0,
+    DEPLOY_TYPE_INSTALL_SCRIPT = 1,
+    DEPLOY_TYPE_AMAZON_ECS = 2,
+    }
+
 }
 
 export class UIDiscoverDatabaseRegisterEvent extends jspb.Message { 
@@ -2091,6 +2148,12 @@ export enum IntegrationEnrollKind {
     INTEGRATION_ENROLL_KIND_OPSGENIE = 9,
     INTEGRATION_ENROLL_KIND_OKTA = 10,
     INTEGRATION_ENROLL_KIND_JAMF = 11,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID = 12,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS = 13,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI = 14,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB = 15,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS = 16,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17,
 }
 
 export enum EditorChangeStatus {

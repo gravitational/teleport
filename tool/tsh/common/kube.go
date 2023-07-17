@@ -610,7 +610,7 @@ func getKubeCredLockfilePath(homePath, proxy string) (string, error) {
 // errKubeCredLockfileFound is returned when kube credentials lockfile is found and user should resolve login problems manually.
 var errKubeCredLockfileFound = trace.AlreadyExists("Having problems with relogin, please use 'tsh login/tsh kube login' manually")
 
-func takeKubeCredLock(ctx context.Context, homePath, proxy string) (func(bool), error) {
+func takeKubeCredLock(ctx context.Context, homePath, proxy string, lockTimeout time.Duration) (func(bool), error) {
 	kubeCredLockfilePath, err := getKubeCredLockfilePath(homePath, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -627,17 +627,25 @@ func takeKubeCredLock(ctx context.Context, homePath, proxy string) (func(bool), 
 		return nil, trace.Wrap(err)
 	}
 	// Take a lock while we're trying to issue certificate and possibly relogin
-	unlock, err := utils.FSTryWriteLockTimeout(ctx, kubeCredLockfilePath, 5*time.Second)
+	unlock, err := utils.FSTryWriteLockTimeout(ctx, kubeCredLockfilePath, lockTimeout)
 	if err != nil {
 		log.Debugf("could not take kube credentials lock: %v", err.Error())
 		return nil, trace.Wrap(errKubeCredLockfileFound)
 	}
 
 	return func(removeFile bool) {
-		if removeFile {
-			os.Remove(kubeCredLockfilePath)
+		// We must unlock the lockfile before removing it, otherwise unlock operation will fail
+		// on Windows.
+		if err := unlock(); err != nil {
+			log.WithError(err).Warnf("could not unlock kube credentials lock")
 		}
-		unlock()
+		if !removeFile {
+			return
+		}
+		// Remove kube credentials lockfile.
+		if err = os.Remove(kubeCredLockfilePath); err != nil && !os.IsNotExist(err) {
+			log.WithError(err).Warnf("could not remove kube credentials lockfile %q", kubeCredLockfilePath)
+		}
 	}, nil
 }
 
@@ -715,31 +723,52 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	}
 
 	log.Debugf("Requesting TLS cert for Kubernetes cluster %q", c.kubeCluster)
-
-	unlockKubeCred, err := takeKubeCredLock(cf.Context, cf.HomePath, cf.Proxy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var unlockKubeCred func(bool)
 	deleteKubeCredsLock := false
 	defer func() {
-		unlockKubeCred(deleteKubeCredsLock) // by default (in case of an error) we don't delete lockfile.
+		if unlockKubeCred != nil {
+			unlockKubeCred(deleteKubeCredsLock) // by default (in case of an error) we don't delete lockfile.
+		}
 	}()
 
 	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
-	err = client.RetryWithRelogin(ctx, tc, func() error {
-		// The requirement may change after a new login so check again just in
-		// case.
-		if err := c.checkLocalProxyRequirement(tc.Profile()); err != nil {
-			return trace.Wrap(err)
-		}
+	err = client.RetryWithRelogin(
+		ctx,
+		tc,
+		func() error {
+			// The requirement may change after a new login so check again just in
+			// case.
+			if err := c.checkLocalProxyRequirement(tc.Profile()); err != nil {
+				return trace.Wrap(err)
+			}
 
-		var err error
-		k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
-			RouteToCluster:    c.teleportCluster,
-			KubernetesCluster: c.kubeCluster,
-		}, nil /*applyOpts*/)
-		return err
-	})
+			var err error
+			k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+				RouteToCluster:    c.teleportCluster,
+				KubernetesCluster: c.kubeCluster,
+			}, nil /*applyOpts*/)
+			return err
+		},
+		client.WithBeforeLoginHook(
+			// Before login we take a lock on the kube credentials file. This is
+			// done to prevent multiple tsh processes from requesting login and
+			// opening multiple browser tabs.
+			func() error {
+				var err error
+				lockTimeout := 5 * time.Second
+				// If we are under tests, MockSSOLogin is set and we want to allow just one try
+				// to take the lock and fail if the lock is already taken. This is done to prevent
+				// tests from hanging and continue to run once the lock is released.
+				// FSLockRetryDelay is 10ms and we want to fail as fast as possible if the lock is
+				// already taken by another process to validate that the lock is working as expected.
+				if cf.MockSSOLogin != nil {
+					lockTimeout = utils.FSLockRetryDelay
+				}
+				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, cf.Proxy, lockTimeout)
+				return trace.Wrap(err)
+			},
+		),
+	)
 	span.End()
 	if err != nil {
 		// If we've got network error we remove the lockfile, so we could restore from temporary connection
@@ -939,7 +968,7 @@ func formatKubeLabels(cluster types.KubeCluster) string {
 
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
-	cf.UserHost = c.labels
+	cf.Labels = c.labels
 	cf.PredicateExpression = c.predicateExpr
 	cf.SiteName = c.siteName
 

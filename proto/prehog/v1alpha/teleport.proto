@@ -130,6 +130,22 @@ message SessionStartEvent {
   //
   // PostHog property: tp.session_type
   string session_type = 2;
+
+  // if session_type == "db" the database struct contains  additional information
+  // about database session.
+  //
+  // PostHog property: tp.database
+  SessionStartDatabaseMetadata database = 3;
+}
+
+// SessionStartDatabaseMetadata contains additional information about database session.
+message SessionStartDatabaseMetadata {
+  // database type.
+  string db_type = 1;
+  // database protocol.
+  string db_protocol = 2;
+  // database origin source.
+  string db_origin = 3;
 }
 
 // the issuance of a user certificate from the user CA
@@ -372,6 +388,34 @@ message UIDiscoverDeployServiceEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
+
+  // DeployMethod describes the method used to deploy a service.
+  enum DeployMethod {
+    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+    // so deploying step got skipped.
+    DEPLOY_METHOD_UNSPECIFIED = 0;
+    // DEPLOY_METHOD_AUTO means Teleport deployed a service for the user.
+    DEPLOY_METHOD_AUTO = 1;
+    // DEPLOY_METHOD_MANUAL means a user deployed a service by themselves.
+    DEPLOY_METHOD_MANUAL = 2;
+  }
+
+  DeployMethod deploy_method = 4;
+
+  // DeployType describes the type of deployment.
+  enum DeployType {
+    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+    // so deploying step got skipped.
+    DEPLOY_TYPE_UNSPECIFIED = 0;
+    // DEPLOY_TYPE_INSTALL_SCRIPT means service was deployed using an
+    // install script.
+    DEPLOY_TYPE_INSTALL_SCRIPT = 1;
+    // DEPLOY_TYPE_AMAZON_ECS means service was deployed using amazon's
+    // elastic container service.
+    DEPLOY_TYPE_AMAZON_ECS = 2;
+  }
+
+  DeployType deploy_type = 5;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
@@ -591,6 +635,12 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_OPSGENIE = 9;
   INTEGRATION_ENROLL_KIND_OKTA = 10;
   INTEGRATION_ENROLL_KIND_JAMF = 11;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID = 12;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS = 13;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI = 14;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB = 15;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS = 16;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17;
 }
 
 // IntegrationEnrollMetadata contains common metadata

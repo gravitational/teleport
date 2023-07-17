@@ -65,11 +65,15 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 		DomainName: c.cfg.ClusterName,
 	}, false)
 	if err != nil {
-		return trace.Wrap(err, "fetching Teleport CA: %v", err)
+		return trace.Wrap(err, "fetching Teleport CA")
 	}
+
+	keypairs := ca.GetTrustedTLSKeyPairs()
+	c.cfg.Log.Debugf("Teleport CA has %d trusted keypairs", len(keypairs))
+
 	// LDAP stores certs and CRLs in binary DER format, so remove the outer PEM
 	// wrapper.
-	caPEM := ca.GetTrustedTLSKeyPairs()[0].Cert
+	caPEM := keypairs[0].Cert
 	caBlock, _ := pem.Decode(caPEM)
 	if caBlock == nil {
 		return trace.BadParameter("failed to decode CA PEM block")
@@ -78,7 +82,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 
 	crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, types.UserCA)
 	if err != nil {
-		return trace.Wrap(err, "generating CRL: %v", err)
+		return trace.Wrap(err, "generating CRL")
 	}
 
 	// To make the CA trusted, we need 3 things:
@@ -89,10 +93,10 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	//
 	// Below we do #2 and #3.
 	if err := c.updateCAInNTAuthStore(ctx, caDER); err != nil {
-		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
+		return trace.Wrap(err, "updating NTAuth store over LDAP")
 	}
 	if err := c.updateCRL(ctx, crlDER, caType); err != nil {
-		return trace.Wrap(err, "updating CRL over LDAP: %v", err)
+		return trace.Wrap(err, "updating CRL over LDAP")
 	}
 	return nil
 }
@@ -123,7 +127,7 @@ func (c *CertificateStoreClient) updateCAInNTAuthStore(ctx context.Context, caDE
 	ntAuthDN := "CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration," + c.cfg.LDAPConfig.DomainDN()
 	entries, err := c.cfg.LC.Read(ntAuthDN, "certificationAuthority", []string{"cACertificate"})
 	if err != nil {
-		return trace.Wrap(err, "fetching existing CAs: %v", err)
+		return trace.Wrap(err, "fetching existing CAs")
 	}
 	if len(entries) != 1 {
 		return trace.BadParameter("expected exactly 1 NTAuthCertificates CA store at %q, but found %d", ntAuthDN, len(entries))
@@ -151,7 +155,7 @@ func (c *CertificateStoreClient) updateCAInNTAuthStore(ctx context.Context, caDE
 	if err := c.cfg.LC.Update(ntAuthDN, map[string][]string{
 		"cACertificate": updatedCAs,
 	}); err != nil {
-		return trace.Wrap(err, "updating CA entry: %v", err)
+		return trace.Wrap(err, "updating CA entry")
 	}
 	c.cfg.Log.Info("Added Teleport CA to NTAuthStore via LDAP")
 	return nil
@@ -176,7 +180,7 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 
 	// Create the parent container.
 	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {
-		return trace.Wrap(err, "creating CRL container: %v", err)
+		return trace.Wrap(err, "creating CRL container")
 	}
 
 	// Create the CRL object itself.

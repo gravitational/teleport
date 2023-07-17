@@ -9,18 +9,18 @@ There are two components of the audit log:
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
-1. **Cluster Events:** Teleport logs events like successful user logins along
+- **Cluster Events:** Teleport logs events like successful user logins along
    with metadata like remote IP address, time, and the session ID.
-2. **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
+- **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
    can be replayed later. By default, the recording is done by Teleport Nodes,
    but can be configured to be done by the proxy.
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
-1. **Cluster Events:** Teleport logs events like successful user logins along
+- **Cluster Events:** Teleport logs events like successful user logins along
    with metadata like remote IP address, time, and the session ID.
-2. **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
+- **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
    can be replayed later. Teleport Cloud manages the storage of session
    recording data.
 
@@ -72,10 +72,10 @@ $ ls -l /var/lib/teleport/log/
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
-Teleport Cloud manages the storage of audit logs for you. You can access your
-audit logs via the Teleport Web UI by clicking:
+Teleport Team and Teleport Enterprise Cloud manage the storage of audit logs for
+you. You can access your audit logs via the Teleport Web UI by clicking:
 
 **Activity** > **Audit Log**
 
@@ -148,6 +148,7 @@ read [Exporting Teleport Audit Events](../management/export-audit-events.mdx).
 | user.login | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` . |
 | app.session.start | A user accessed an application |
 | app.session.chunk | A record of activity during an app session |
+| join_token.created | A new join token has been created. Adds the following fields: `{"roles": ["Node", "Db"], "join_method": "token"}` |
 
 ## Recorded sessions
 
@@ -180,9 +181,10 @@ $ tsh play 4c146ec8-eab6-11e6-b1b3-40167e68e931 --format=json
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
-Teleport Cloud automatically stores recorded sessions.
+Teleport Team and Teleport Enterprise Cloud automatically store recorded
+sessions.
 
 You can replay recorded sessions using the [`tsh play`](./cli.mdx#tsh-play) command or the Web
 UI.

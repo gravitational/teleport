@@ -3,14 +3,24 @@ version: v2
 metadata:
   name: OneLogin
 spec:
-  acs: https://<cluster-url>/v1/webapi/saml/acs
-  # Controls whether IdP-initiated SSO is allowed. If false, all such requests will be rejected with an error.
-  allow_idp_initiated: false
+  acs: https://teleport.example.com/v1/webapi/saml/acs/onelogin
   attributes_to_roles:
-    - {name: "groups", value: "admin", roles: ["editor"]}
-    - {name: "groups", value: "dev", roles: ["access"]}
+  - name: groups
+    roles:
+    - editor
+    value: admin
+  - name: groups
+    roles:
+    - access
+    value: dev
+  audience: https://teleport.example.com:443/v1/webapi/saml/acs/onelogin
+  cert: ""
   display: OneLogin
   entity_descriptor: |
-    # Paste in downloaded content from OneLogin Dashboard.
     <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="http://www.example.com/00000000000000000000">
       <md:IDPSSODescriptor WantAuthnRequestsSigned="false"
+  entity_descriptor_url: ""
+  issuer: ""
+  service_provider_issuer: https://teleport.example.com:443/v1/webapi/saml/acs/onelogin
+  sso: ""
+version: v2

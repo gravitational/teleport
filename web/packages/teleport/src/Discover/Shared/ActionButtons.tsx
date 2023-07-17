@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Box, ButtonPrimary, ButtonSecondary } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, ButtonText } from 'design';
 
 export const ActionButtons = ({
   onProceed = null,
@@ -71,5 +71,26 @@ export const ActionButtons = ({
         </ButtonSecondary>
       )}
     </Box>
+  );
+};
+
+export const AlternateInstructionButton: React.FC<{
+  onClick(): void;
+  disabled?: boolean;
+}> = ({ onClick, children, disabled = false }) => {
+  return (
+    <ButtonText
+      disabled={disabled}
+      onClick={onClick}
+      css={`
+        padding-left: 1px;
+        color: ${p => p.theme.colors.buttons.link.default};
+        text-decoration: underline;
+        font-weight: normal;
+        font-size: inherit;
+      `}
+    >
+      {children || 'Use these instructions instead.'}
+    </ButtonText>
   );
 };

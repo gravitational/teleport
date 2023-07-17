@@ -61,6 +61,7 @@ Markdown code snippet formatted in the following schema:
 {
 	"action": string \\ The action to take. Must be one of %v
 	"action_input": string \\ The input to the action
+	"reasoning": string \\ Your reasoning for taking this action
 }
 %v
 
@@ -68,14 +69,10 @@ Markdown code snippet formatted in the following schema:
 Use this if you want to respond directly to the human or you want to ask the human a question to gather more information.
 You should avoid asking too many questions when you have other options available to you as it may be perceived as annoying.
 But asking is far better than guessing or making assumptions.
-Markdown code snippet formatted in the following schema:
+Text with the hardcoded header %v followed by your response as below:
 
-%vjson
-{
-    "action": "Final Answer",
-    "action_input": string \\ You should put what you want to return to use here
-}
-%v`, "```", toolnames, "```", "```", "```",
+%v
+YOUR RESPONSE HERE`, "```", toolnames, "```", finalResponseHeader, finalResponseHeader,
 	)
 }
 
@@ -116,4 +113,19 @@ func ConversationCommandResult(result map[string][]byte) string {
 	}
 	message.WriteString("Based on the chat history, extract relevant information out of the command output and write a summary.")
 	return message.String()
+}
+
+func MessageClassificationPrompt(classes map[string]string) string {
+	var classList strings.Builder
+	for name, description := range classes {
+		classList.WriteString(fmt.Sprintf("- `%s` (%s)\n", name, description))
+	}
+
+	return fmt.Sprintf(`Teleport is a tool that provides access to servers, kubernetes clusters, databases, and applications. All connected Teleport resources are called a cluster. Server resources might be called nodes.
+
+Classify the provided message between the following categories:
+
+%v
+
+Answer only with the category name. Nothing else.`, classList.String())
 }

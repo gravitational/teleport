@@ -25,7 +25,7 @@ following use cases:
 - You want Teleport to issue an SSH certificate for the service with additional
   principals, e.g., host names.
 </TabItem>
-<TabItem scope={["cloud"]} label="Cloud-Hosted Teleport">
+<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 All Teleport services (e.g., the Application Service and Database Service) have
 an optional `public_addr` property that you can modify in each service's
@@ -157,7 +157,7 @@ In those cases, they can set up separate listeners in the config file.
 | 3025 | All Teleport services | TLS port used by the Auth Service to serve its gRPC API to other Teleport services in a cluster.|
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Cloud-Hosted Teleport">
+<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 ### Proxy Service ports
 

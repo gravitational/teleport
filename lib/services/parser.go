@@ -741,6 +741,22 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			return predicate.Equals(a, b)
 		}
 	}
+	predPrefix := func(a interface{}, prefix string) predicate.BoolPredicate {
+		switch aval := a.(type) {
+		case label:
+			return func() bool {
+				return strings.HasPrefix(aval.value, prefix)
+			}
+		case string:
+			return func() bool {
+				return strings.HasPrefix(aval, prefix)
+			}
+		default:
+			return func() bool {
+				return false
+			}
+		}
+	}
 
 	p, err := predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{
@@ -753,7 +769,8 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			},
 		},
 		Functions: map[string]interface{}{
-			"equals": predEquals,
+			"hasPrefix": predPrefix,
+			"equals":    predEquals,
 			// search allows fuzzy matching against select field values.
 			"search": func(searchVals ...string) predicate.BoolPredicate {
 				return func() bool {

@@ -19,7 +19,6 @@ package web
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -147,7 +147,7 @@ func TestExecuteCommandSummary(t *testing.T) {
 
 	openAIMock := mockOpenAISummary(t)
 	openAIConfig := openai.DefaultConfig("test-token")
-	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	openAIConfig.BaseURL = openAIMock.URL
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
@@ -173,43 +173,36 @@ func TestExecuteCommandSummary(t *testing.T) {
 	ws, _, err := s.makeCommand(t, authPack, conversationID)
 	require.NoError(t, err)
 
-	// The current Assist execution relies on a hack that multiplexes multiple
-	// streams over a single one. This causes issues when a stream close as the
-	// single stream receiver will consider it should close. We work around by
-	// using a non-closing websocket and initiating a proper stream close.
-	// Then we reopen a new stream on the same websocket and continue reading
-	// the summary.
-	nonClosableWebsocket := &noopCloserWS{ws}
-	stream := NewWStream(ctx, nonClosableWebsocket, utils.NewLoggerForTests(), nil)
+	// For simplicity, use simple WS to io.Reader adapter
+	stream := &wsReader{conn: ws}
 
 	// Wait for command execution to complete
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
-	// Stop the stream consumption
-	err = stream.Close()
-	require.NoError(t, err)
-
-	// Start a new stream and process the summary event
-	var env Envelope
-	stream = NewWStream(ctx, ws, utils.NewLoggerForTests(), nil)
 	dec := json.NewDecoder(stream)
+
+	// Consume the close message
+	var sessionMetadata sessionEndEvent
+	err = dec.Decode(&sessionMetadata)
+	require.NoError(t, err)
+	require.Equal(t, "node", sessionMetadata.NodeID)
+
+	// Consume the summary message
+	var env outEnvelope
 	err = dec.Decode(&env)
 	require.NoError(t, err)
-	require.Equal(t, envelopeTypeSummary, env.GetType())
-	require.NotEmpty(t, env.GetPayload())
-
-	// Close the stream, and the underlying websocket
-	_ = stream.Close()
+	require.Equal(t, envelopeTypeSummary, env.Type)
+	require.NotEmpty(t, env.Payload)
 
 	// Wait for the command execution history to be saved
 	var messages *assist.GetAssistantMessagesResponse
-	// Command execution history is saved in asynchronusly, so we need to wait for it.
+	// Command execution history is saved in asynchronously, so we need to wait for it.
 	require.Eventually(t, func() bool {
 		messages, err = clt.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
 			ConversationId: conversationID.String(),
 			Username:       testUser,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		return len(messagesByType(messages.GetMessages())[assistlib.MessageKindCommandResultSummary]) == 1
 	}, 5*time.Second, 100*time.Millisecond)
@@ -306,18 +299,13 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 		default:
 		}
 
-		var env Envelope
+		var env outEnvelope
 		dec := json.NewDecoder(stream)
 		if err := dec.Decode(&env); err != nil {
 			return trace.Wrap(err, "decoding envelope JSON from stream")
 		}
 
-		d, err := base64.StdEncoding.DecodeString(env.Payload)
-		if err != nil {
-			return trace.Wrap(err, "decoding b64 payload")
-		}
-
-		data := removeSpace(string(d))
+		data := removeSpace(string(env.Payload))
 		if strings.Contains(data, substr) {
 			return nil
 		}
@@ -328,6 +316,7 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 // The commands should run in parallel, but we don't have a deterministic way to
 // test that (sleep with checking the execution time in not deterministic).
 func Test_runCommands(t *testing.T) {
+	const numWorkers = 30
 	counter := atomic.Int32{}
 
 	runCmd := func(host *hostInfo) error {
@@ -345,7 +334,7 @@ func Test_runCommands(t *testing.T) {
 	logger := logrus.New()
 	logger.Out = io.Discard
 
-	runCommands(hosts, runCmd, logger)
+	runCommands(hosts, runCmd, numWorkers, logger)
 
 	require.Equal(t, int32(100), counter.Load())
 }
@@ -363,4 +352,30 @@ func messagesByType(messages []*assist.AssistantMessage) map[assistlib.MessageTy
 		byType[assistlib.MessageType(message.GetType())] = append(byType[assistlib.MessageType(message.GetType())], message)
 	}
 	return byType
+}
+
+// wsReader implements io.Reader interface over websocket connection
+type wsReader struct {
+	conn *websocket.Conn
+}
+
+// Read reads data from websocket connection.
+// The message should be in web.Envelope format and only the payload will be returned.
+// It expects that the passed buffer is big enough to fit the whole message.
+func (r *wsReader) Read(p []byte) (int, error) {
+	_, data, err := r.conn.ReadMessage()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	var envelope Envelope
+	if err := proto.Unmarshal(data, &envelope); err != nil {
+		return 0, trace.Errorf("Unable to parse message payload %v", err)
+	}
+
+	if len(envelope.Payload) > len(p) {
+		return 0, trace.BadParameter("buffer too small")
+	}
+
+	return copy(p, envelope.Payload), nil
 }

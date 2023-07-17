@@ -348,3 +348,60 @@ func TestCollectPages(t *testing.T) {
 		})
 	}
 }
+
+func TestTake(t *testing.T) {
+	t.Parallel()
+
+	intSlice := func(n int) []int {
+		s := make([]int, 0, n)
+		for i := 0; i < n; i++ {
+			s = append(s, i)
+		}
+		return s
+	}
+
+	tests := []struct {
+		name           string
+		input          []int
+		n              int
+		expectedOutput []int
+		expectMore     bool
+	}{
+		{
+			name:           "empty stream",
+			input:          []int{},
+			n:              10,
+			expectedOutput: []int{},
+			expectMore:     false,
+		},
+		{
+			name:           "full stream",
+			input:          intSlice(20),
+			n:              10,
+			expectedOutput: intSlice(10),
+			expectMore:     true,
+		},
+		{
+			name:           "drain stream of size n",
+			input:          intSlice(10),
+			n:              10,
+			expectedOutput: intSlice(10),
+			expectMore:     true,
+		},
+		{
+			name:           "drain stream of size < n",
+			input:          intSlice(5),
+			n:              10,
+			expectedOutput: intSlice(5),
+			expectMore:     false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stream := Slice(tc.input)
+			output, more := Take(stream, tc.n)
+			require.Equal(t, tc.expectedOutput, output)
+			require.Equal(t, tc.expectMore, more)
+		})
+	}
+}
