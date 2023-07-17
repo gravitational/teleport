@@ -1890,7 +1890,7 @@ func TestMaxDuration(t *testing.T) {
 				},
 			},
 		},
-		"shortPersistReqRole": {
+		"shortMaxDurationReqRole": {
 			condition: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles:       []string{"requestedRole"},
@@ -1898,7 +1898,7 @@ func TestMaxDuration(t *testing.T) {
 				},
 			},
 		},
-		"shortPersistReqRole2": {
+		"shortMaxDurationReqRole2": {
 			condition: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles:       []string{"requestedRole2"},
@@ -1910,9 +1910,9 @@ func TestMaxDuration(t *testing.T) {
 
 	// describes a collection of users with various roles
 	userDesc := map[string][]string{
-		"alice": {"shortPersistReqRole"},
+		"alice": {"shortMaxDurationReqRole"},
 		"bob":   {"defaultRole"},
-		"carol": {"shortPersistReqRole", "shortPersistReqRole2"},
+		"carol": {"shortMaxDurationReqRole", "shortMaxDurationReqRole2"},
 	}
 
 	g := getMockGetter(t, roleDesc, userDesc)
@@ -1924,57 +1924,57 @@ func TestMaxDuration(t *testing.T) {
 		requestor string
 		// the roles to be requested (defaults to "dictator")
 		roles []string
-		// persist is the requested persist duration
-		persist time.Duration
+		// maxDuration is the requested maxDuration duration
+		maxDuration time.Duration
 		// expectedAccessDuration is the expected access duration
 		expectedAccessDuration time.Duration
 	}{
 		{
-			desc:                   "role persist is respected",
+			desc:                   "role maxDuration is respected",
 			requestor:              "alice",
 			roles:                  []string{"requestedRole"},
-			persist:                7 * day,
+			maxDuration:            7 * day,
 			expectedAccessDuration: 3 * day,
 		},
 		{
-			desc:                   "persist not set, default maxTTL (8h)",
+			desc:                   "maxDuration not set, default maxTTL (8h)",
 			requestor:              "bob",
 			roles:                  []string{"requestedRole"},
 			expectedAccessDuration: 8 * time.Hour,
 		},
 		{
-			desc:                   "persist inside request is respected",
+			desc:                   "maxDuration inside request is respected",
 			requestor:              "bob",
 			roles:                  []string{"requestedRole"},
-			persist:                5 * time.Hour,
+			maxDuration:            5 * time.Hour,
 			expectedAccessDuration: 5 * time.Hour,
 		},
 		{
-			desc:                   "persist can exceed maxTTL",
+			desc:                   "maxDuration can exceed maxTTL",
 			requestor:              "bob",
 			roles:                  []string{"setMaxTTLRole"},
-			persist:                day,
+			maxDuration:            day,
 			expectedAccessDuration: day,
 		},
 		{
-			desc:                   "persist shorter than maxTTL",
+			desc:                   "maxDuration shorter than maxTTL",
 			requestor:              "bob",
 			roles:                  []string{"setMaxTTLRole"},
-			persist:                2 * time.Hour,
+			maxDuration:            2 * time.Hour,
 			expectedAccessDuration: 2 * time.Hour,
 		},
 		{
-			desc:                   "only required roles are considered for persist",
+			desc:                   "only required roles are considered for maxDuration",
 			requestor:              "carol",
 			roles:                  []string{"requestedRole"},
-			persist:                5 * day,
+			maxDuration:            5 * day,
 			expectedAccessDuration: 3 * day,
 		},
 		{
-			desc:                   "only required roles are considered for persist #2",
+			desc:                   "only required roles are considered for maxDuration #2",
 			requestor:              "carol",
 			roles:                  []string{"requestedRole2"},
-			persist:                6 * day,
+			maxDuration:            6 * day,
 			expectedAccessDuration: day,
 		},
 	}
@@ -1997,7 +1997,7 @@ func TestMaxDuration(t *testing.T) {
 			require.NoError(t, err)
 
 			req.SetCreationTime(now)
-			req.SetMaxDuration(now.Add(tt.persist))
+			req.SetMaxDuration(now.Add(tt.maxDuration))
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
 

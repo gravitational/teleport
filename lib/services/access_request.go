@@ -45,9 +45,9 @@ const maxAccessRequestReasonSize = 4096
 // A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
 const day = 24 * time.Hour
 
-// maxPersistDuration is the maximum duration that an access request can be
+// maxAccessDuration is the maximum duration that an access request can be
 // granted for.
-const maxPersistDuration = 7 * day
+const maxAccessDuration = 7 * day
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
@@ -361,8 +361,8 @@ func ValidateAccessPredicates(role types.Role) error {
 	}
 
 	if persist := role.GetAccessRequestConditions(types.Allow).MaxDuration; persist.Duration() != 0 &&
-		persist.Duration() > maxPersistDuration {
-		return trace.BadParameter("persist duration must be less or equal 7 days")
+		persist.Duration() > maxAccessDuration {
+		return trace.BadParameter("max access duration must be less or equal 7 days")
 	}
 
 	return nil
@@ -977,11 +977,9 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		// before it is inserted into the backend.
 		m.Annotations.Allow = make(map[string][]string)
 		m.Annotations.Deny = make(map[string][]string)
-		// initialize role persist cache
-		m.Roles.MaxDuration = make(map[string]time.Duration)
 	}
 
-	// initialize role persist cache
+	// initialize max duration cache
 	m.Roles.MaxDuration = make(map[string]time.Duration)
 
 	// load all statically assigned roles for the user and
@@ -1101,13 +1099,13 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		}
 		req.SetExpiry(now.Add(ttl))
 
-		persist, err := m.calculatePersist(req)
+		maxDuration, err := m.calculateMaxAccessDuration(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// If the persist flag is set, use it instead of the session TTL.
-		if persist > 0 {
-			ttl = persist
+		// If the maxDuration flag is set, use it instead of the session TTL.
+		if maxDuration > 0 {
+			ttl = maxDuration
 		} else {
 			// Calculate the expiration time of the elevated certificate that will
 			// be issued if the Access Request is approved.
@@ -1124,39 +1122,39 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	return nil
 }
 
-// calculatePersist calculates the persist time for the access request.
-// The persist time is the minimum of the persist time set on the request
-// and the persist time set on the request role.
-func (m *RequestValidator) calculatePersist(req types.AccessRequest) (time.Duration, error) {
-	// Check if the persist time is set.
-	persistTime := req.GetMaxDuration()
-	if persistTime.IsZero() {
+// calculateMaxAccessDuration calculates the maximum time for the access request.
+// The max duration time is the minimum of the max_duration time set on the request
+// and the max_duration time set on the request role.
+func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (time.Duration, error) {
+	// Check if the maxDuration time is set.
+	maxDurationTime := req.GetMaxDuration()
+	if maxDurationTime.IsZero() {
 		return 0, nil
 	}
 
-	persistDuration := persistTime.Sub(req.GetCreationTime())
-	if persistDuration < 0 {
-		return 0, trace.BadParameter("invalid persist: must be greater than creation time")
+	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
+	if maxDuration < 0 {
+		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
 
-	if persistDuration > maxPersistDuration {
-		return 0, trace.BadParameter("persist must be less or equal 7 days")
+	if maxDuration > maxAccessDuration {
+		return 0, trace.BadParameter("max_duration must be less or equal 7 days")
 	}
 
-	minPersist := persistDuration
-	// Adjust the expiration time if the persist value is set on the request role.
+	minAdjDuration := maxDuration
+	// Adjust the expiration time if the max_duration value is set on the request role.
 	for _, roleName := range req.GetRoles() {
 		rolePersist, found := m.Roles.MaxDuration[roleName]
 		if !found {
 			continue
 		}
 
-		if rolePersist < persistDuration {
-			minPersist = rolePersist
+		if rolePersist < maxDuration {
+			minAdjDuration = rolePersist
 		}
 	}
 
-	return minPersist, nil
+	return minAdjDuration, nil
 }
 
 // requestTTL calculates the TTL of the Access Request (how long it will await
