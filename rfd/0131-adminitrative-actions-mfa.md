@@ -44,11 +44,32 @@ action that could be abused.
 
 ### Server configuration
 
-Starting in Teleport 14, MFA for administrative actions will be turned on by
-default for all users with an MFA device registered. This means that when
-a cluster's second factor is set to one of `optional`, `on`, `webauthn`, or
-`otp`, all normal login sessions will require MFA verification to complete
-admin actions.
+Requiring MFA for admin actions will be made configurable through
+`cluster_auth_preference.admin_action_mfa: off | on`.
+
+When set to on, MFA will be required for admin actions for all users.
+
+Caveat: Built in roles will not require MFA to complete admin actions. This
+includes `tctl` operations performed directly on the auth server with the
+built in `Admin` role.
+
+If not set directly, this value will default to on or off based on the value of
+`clsuter_auth_preference.second_factor`:
+
+- `second_factor = off | optional` => `admin_action_mfa = off`
+- `second_factor = on | otp | webauthn` => `admin_action_mfa = on`
+
+#### Backward Compatibility
+
+Once the Auth server begins to require MFA for admin actions, old clients with
+no way of providing MFA verification will fail to carry out admin actions.
+
+In order to maintain backwards compatibility between old clients and an upgraded
+server, we can't actually default `admin_action_mfa = on` as planned above.
+
+Instead, in the first major version of this feature (likely Teleport 14), it will
+always default to `off`. In the next major version (Teleport 15), the defaults
+above will be used.
 
 ### Administrative Actions
 
@@ -60,8 +81,9 @@ For example:
 
 - `tctl rm/create/edit`
 - `tctl users add/rm/reset`
-- Adding a node from the WebUI
+- Enrolling a new resource from the WebUI (Teleport Discover)
 - Modifying a role from the WebUI
+- Modifying a cloud upgrade window (at https://<tenant>.teleport.sh/web/support)
 
 #### Usage Event Creation
 
@@ -83,11 +105,11 @@ authorized based on the identity of the requesting user rather than their
 allow rules. For example:
 
 - Creating, listing, and deleting a user's own access requests.
-- Adding or removing MFA devices.
-- Changing the user's password.
+- Adding or removing MFA devices (already requires MFA).
+- Changing the user's password (already requires MFA).
 
-These actions will continue to be non-administrative actions and will not require
-MFA to complete (if they don't already).
+These actions will remains as non-administrative actions, meaning they will not
+require additional MFA to complete.
 
 ### UX
 
@@ -95,7 +117,7 @@ The UX of this feature will be very similar to Per-session MFA for `tsh`, `tctl`
 and the WebUI, and Teleport Connect.
 
 When a user performs an admin action, they will be prompted to tap their MFA key.
-Each admin action will require a single unique tap.
+Each admin action will require a single unique tap or OTP code.
 
 ```console
 $ tctl rm roles/access
@@ -222,24 +244,23 @@ Cons:
 - Requires users to create a new client with the reissued certificates, resulting
   in additional connections to the Auth server.
 
-##### Option choice: TBD
+##### Option choice: 1
 
-I am slightly in favor of option 2 due to the flexibility of the system compared
-to option 1 and the security benefit over option 3. However, we may favor the
-simplicity of defining MFA requirements on the gRPC layer (option 1) or of
-enforcing MFA based on the user's certificate alone (option 3).
+Option 1 and 2 both guarantee that a user's MFA verification applies to just one
+admin action in the fewest number of API requests, solidifying it as a preferable
+solution over option 3 for both security and implementation complexity.
 
-@Reviewers please offer your opinions and I will update this section once we
-decide on an option.
+Between option 1 and 2, option 1 is more explicit and simple in how and where MFA
+might be required. This will make the feature easier to use and extend for both
+internal and external developers.
 
 #### Server changes
 
-For admin actions, the Auth server will validate MFA for each request, either
-from an `MFAChallengeResponse` passed by the client or an MFA-verified certificate
-used for the request.
+For admin actions, the Auth server will validate MFA for each request using the
+`MFAChallengeResponse` passed in the request.
 
-If the request fails MFA verification, an access denied
-error will be returned to the client.
+If the request fails MFA verification, an access denied error will be returned
+to the client.
 
 ```go
 // ErrAPIMFARequired is returned by AccessChecker when an API request
@@ -247,8 +268,27 @@ error will be returned to the client.
 var ErrAdminActionMFARequired = trace.AccessDenied("administrative action requires MFA")
 ```
 
-The client will check for this error to determine whether it should retry a
-request with MFA verification.
+##### Infer MFA Requirement
+
+Before making an admin action request, Teleport clients can check the server's
+`cluster_auth_preference` settings with a ping request. When set to on, the
+client should first make a `CreateAuthenticateChallenge` request, solve the
+returned challenge, and attach it to the admin action request.
+
+If a user has no MFA device registered, `CreateAuthenticateChallenge` will fail.
+In this case, the client will make the request without the MFA challenge response
+in case we are handling a special case (e.g. Built in `Admin` role, bot user
+for automated use cases).
+
+### Proto Specification
+
+TODO: Describe proto changes necessary for API requests to be turned into
+an admin actions, e.g. how to include `MFAChallengeResponse` in the request.
+
+### Test Plan
+
+The implementation of this feature will include automated unit tests to ensure
+that MFA is required for admin actions across applicable server configurations.
 
 ### Other considerations
 
