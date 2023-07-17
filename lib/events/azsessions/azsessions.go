@@ -406,12 +406,43 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return nil
 	}
 
-	// TODO(espadolini): group deletes together with Blob Batch, not supported
-	// by the SDK
-	for _, part := range parts {
-		b := h.partBlob(upload, part.Number)
-		if _, err := cErr(b.Delete(ctx, nil)); err != nil {
-			log.WithField(fieldPartNumber, part.Number).WithError(err).Warn("Failed to clean up part.")
+	const batchSize = 256 // https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch
+	for i := 0; i < len(parts); i += batchSize {
+		batch, err := cErr(h.inprogress.NewBatchBuilder())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		m := batchSize
+		if len(parts[i:]) < batchSize {
+			m = len(parts[i:])
+		}
+
+		for _, part := range parts[i : i+m] {
+			if err := batch.Delete(partName(upload, part.Number), nil); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		resp, err := cErr(h.inprogress.SubmitBatch(ctx, batch, nil))
+		if err != nil {
+			log.WithField(fieldPartNumber, parts[i].Number).WithError(err).Warn("Failed to clean up part batch.")
+			continue
+		}
+
+		errs := 0
+		for _, r := range resp.Responses {
+			if r.Error != nil {
+				err = r.Error
+				errs++
+			}
+		}
+		if errs > 0 {
+			log.WithFields(logrus.Fields{
+				fieldPartNumber: parts[i].Number,
+				"errors":        errs,
+				"last_error":    err,
+			}).Warn("Failed to clean up part batch.")
 		}
 	}
 
