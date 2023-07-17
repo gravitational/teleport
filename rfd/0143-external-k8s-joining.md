@@ -87,7 +87,73 @@ with their cluster:
 - `kubectl proxy -p 8080`
 - `curl http://localhost:8080/openid/v1/jwks`
 
+In the case that an operator rotates the certificate authority used by their
+Kubernetes Cluster to sign Service Account JWTS, the `jwks` field will also
+need to be updated.
+
+#### Configuring a pod for `kubernetes-jwks` joining
+
+The Pod will require a service account with a role granting it the ability to
+call the TokenRequest endpoint for itself. This allows the creation of a token
+with an audience of our choosing in order to include a nonce during the join
+to prevent token reuse.
+
+E.g for a service account named: "argocd":
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: argocd-token-request
+rules:
+- apiGroups: [""]
+  resources:
+  - "serviceaccounts/token"
+  verbs:
+  - "create"
+  # Only grant the ability to create tokens for itself. Missing this field leads
+  # to a dangerously powerful role.
+  resourceNames:
+    - argocd
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: RoleBinding
+metadata:
+  name: argocd-token-review
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-token-review
+subjects:
+- kind: ServiceAccount
+  name: argocd
+  namespace: default
+```
+
 ### Implementation
+
+<-- TODO: Write this in more detail -->
+<-- TODO: Specs for RegisterUsingKubernetesJWKS RPC -->
+
+The `kubernetes-jwks` flow:
+
+1. The client wishing to join calls the `RegisterUsingKubernetesJWKS` RPC. It
+  submits the name of the token it wishes to join using.
+2. The Auth Server sends a response with the audience that should be set in the 
+  token. This audience is a nonce - which is used to prevent token reuse.
+3. The client uses its Kubernetes Service Account to call TokenRequest. It
+  requests a JWT for its own service account, with the audience specified by
+  the Auth Server and with a short time-to-live.
+4. The client sends a further request up the stream including this token.
+5. The server validates:
+   a. The JWT is signed by the keys present in the `jwks` field of the token 
+    resource.
+   b. The JWT is not expired, and the audience claim matches the nonce sent by 
+    the Auth Server previously.
+   c. The JWT subject claim is for a service account, and this service account 
+    matches one of those configured in the allow rules of the token resource.
+6. If the JWT passes validation, certificates are signed and returned to the 
+  client.
 
 ## Security Considerations
 
