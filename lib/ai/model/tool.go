@@ -77,7 +77,7 @@ func (c *commandExecutionTool) Run(_ context.Context, _ string) (string, error) 
 
 // parseInput is called in a special case if the planned tool is commandExecutionTool.
 // This is because commandExecutionTool is handled differently from most other tools and forcibly terminates the thought loop.
-func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInput, *invalidOutputError) {
+func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInput, error) {
 	output, err := parseJSONFromModel[commandExecutionToolInput](input)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (*embeddingRetrievalTool) parseInput(input string) (*embeddingRetrievalToolInput, *invalidOutputError) {
+func (*embeddingRetrievalTool) parseInput(input string) (*embeddingRetrievalToolInput, error) {
 	output, err := parseJSONFromModel[embeddingRetrievalToolInput](input)
 	if err != nil {
 		return nil, err

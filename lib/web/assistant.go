@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/lib/ai/model"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -313,6 +314,37 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 	return nil, nil
 }
 
+func (h *Handler) reportTokenUsage(usedTokens *model.TokenCount, lookaheadTokens int, conversationID string, authClient auth.ClientI) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	promptTokens, completionTokens := usedTokens.CountAll()
+
+	// Once we know how many tokens were consumed for prompt+completion,
+	// consume the remaining tokens from the rate limiter bucket.
+	extraTokens := promptTokens + completionTokens - lookaheadTokens
+	if extraTokens < 0 {
+		extraTokens = 0
+	}
+	h.assistantLimiter.ReserveN(time.Now(), extraTokens)
+
+	usageEventReq := &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
+				AssistCompletion: &usageeventsv1.AssistCompletionEvent{
+					ConversationId:   conversationID,
+					TotalTokens:      int64(promptTokens + completionTokens),
+					PromptTokens:     int64(promptTokens),
+					CompletionTokens: int64(completionTokens),
+				},
+			},
+		},
+	}
+	if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+		h.log.WithError(err).Warn("Failed to emit usage event")
+	}
+}
+
 func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
 	enabled, err := a.IsAssistEnabled(ctx)
 	if err != nil {
@@ -487,29 +519,9 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 			return trace.Wrap(err)
 		}
 
-		// Once we know how many tokens were consumed for prompt+completion,
-		// consume the remaining tokens from the rate limiter bucket.
-		extraTokens := usedTokens.Prompt + usedTokens.Completion - lookaheadTokens
-		if extraTokens < 0 {
-			extraTokens = 0
-		}
-		h.assistantLimiter.ReserveN(time.Now(), extraTokens)
-
-		usageEventReq := &proto.SubmitUsageEventRequest{
-			Event: &usageeventsv1.UsageEventOneOf{
-				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
-					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
-						ConversationId:   conversationID,
-						TotalTokens:      int64(usedTokens.Prompt + usedTokens.Completion),
-						PromptTokens:     int64(usedTokens.Prompt),
-						CompletionTokens: int64(usedTokens.Completion),
-					},
-				},
-			},
-		}
-		if err := authClient.SubmitUsageEvent(r.Context(), usageEventReq); err != nil {
-			h.log.WithError(err).Warn("Failed to emit usage event")
-		}
+		// Token usage reporting is asynchronous as we might still be streaming
+		// a message, and we don't want to block everything.
+		go h.reportTokenUsage(usedTokens, lookaheadTokens, conversationID, authClient)
 	}
 
 	h.log.Debug("end assistant conversation loop")
