@@ -32,8 +32,8 @@ const (
 	// packetHeaderSize is the size of the protocol packet header.
 	packetHeaderSize = 8
 
-	// packetStatusLast indicates that the packet is the last in the request.
-	packetStatusLast uint8 = 0x01
+	// PacketStatusLast indicates that the packet is the last in the request.
+	PacketStatusLast uint8 = 0x01
 
 	preLoginOptionVersion    = 0x00
 	preLoginOptionEncryption = 0x01

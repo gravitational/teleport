@@ -118,6 +118,21 @@ func ReadPacket(r io.Reader) (*BasicPacket, error) {
 	return p, nil
 }
 
+// NewBasicPacket creates a new BasicPacket instance with the specified
+// PacketHeader and data.
+func NewBasicPacket(header PacketHeader, data []byte) (*BasicPacket, error) {
+	headerBytes, err := header.Marshal()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	raw := bytes.NewBuffer(append(headerBytes, data...))
+	return &BasicPacket{
+		header: header,
+		data:   data,
+		raw:    *raw,
+	}, nil
+}
+
 // ToSQLPacket tries to convert basicPacket to MSServer SQL packet.
 func ToSQLPacket(p *BasicPacket) (out Packet, err error) {
 	defer func() {
@@ -147,7 +162,7 @@ func ToSQLPacket(p *BasicPacket) (out Packet, err error) {
 func makePacket(pktType uint8, pktData []byte) ([]byte, error) {
 	header := PacketHeader{
 		Type:   pktType,
-		Status: packetStatusLast,
+		Status: PacketStatusLast,
 		Length: uint16(packetHeaderSize + len(pktData)),
 	}
 
