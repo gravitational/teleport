@@ -52,10 +52,10 @@ This is useful when the Teleport Web UI is running behind an L7 load balancer
 on a plain TCP load balancer (e.g. NLB in AWS).
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
-In Teleport Cloud, the Proxy Service uses the following ports for
-Database Service client traffic:
+In Teleport Team and Teleport Enterprise Cloud, the Proxy Service uses the
+following ports for Database Service client traffic:
 
 |Configuration setting|Port|
 |---|---|
@@ -114,3 +114,23 @@ check, you can use `mode` under the `tls` option in the Teleport configuration f
 
 For more details please refer to the reference
 [configuration file](./reference/configuration.mdx#database-service-configuration).
+
+## Can I disable read-only and custom endpoints from auto-discovered databases?
+
+Yes, you can use the Teleport generated label `endpoint-type` on your `aws`
+matcher to filter the endpoints. For example, to disable read-only and custom
+endpoints for RDS auto-discovery, you can specify other endpoint types to
+match:
+```
+  aws:
+  - types: ["rds"]
+    regions: ["us-west-1"]
+    tags:
+      "env": "dev"
+      "endpoint-type":
+        - "primary"
+        - "instance"
+```
+
+See [labels reference](./reference/labels.mdx) for a full list of Teleport
+generated labels and values.

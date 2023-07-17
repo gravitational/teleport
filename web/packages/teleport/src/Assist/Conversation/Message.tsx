@@ -196,39 +196,37 @@ export function Message(props: MessageProps) {
   );
 
   const authorIsTeleport = props.message.author === Author.Teleport;
-  const typing = authorIsTeleport && props.lastMessage && messages.streaming;
+  const showFooter = !(
+    authorIsTeleport &&
+    props.lastMessage &&
+    messages.streaming
+  );
 
   return (
     <Container>
       <Entries>{entries}</Entries>
 
-      <Footer
-        style={{
-          justifyContent: authorIsTeleport ? 'flex-start' : 'flex-end',
-        }}
-      >
-        {authorIsTeleport ? (
-          <>
-            <TeleportAvatar /> <strong>Teleport</strong>
-          </>
-        ) : (
-          <>
-            <UserAvatar /> <strong>You</strong>
-          </>
-        )}
+      {showFooter && (
+        <Footer
+          style={{
+            justifyContent: authorIsTeleport ? 'flex-start' : 'flex-end',
+          }}
+        >
+          {authorIsTeleport ? (
+            <>
+              <TeleportAvatar /> <strong>Teleport</strong>
+            </>
+          ) : (
+            <>
+              <UserAvatar /> <strong>You</strong>
+            </>
+          )}
 
-        {typing ? (
-          <TypingContainer>
-            <TypingDot style={{ animationDelay: '0s' }} />
-            <TypingDot style={{ animationDelay: '0.2s' }} />
-            <TypingDot style={{ animationDelay: '0.4s' }} />
-          </TypingContainer>
-        ) : (
           <TimestampContainer>
             <Timestamp timestamp={props.message.timestamp} />
           </TimestampContainer>
-        )}
-      </Footer>
+        </Footer>
+      )}
     </Container>
   );
 }
