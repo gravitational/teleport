@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package clusters
+package cmd
 
 import (
 	"os/exec"
@@ -21,29 +21,30 @@ import (
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// DbcmdCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
+// DBCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
 // fresh profile state from the disk.
-type DbcmdCLICommandProvider struct {
+type DBCLICommandProvider struct {
 	storage StorageByResourceURI
 	execer  dbcmd.Execer
 }
 
 type StorageByResourceURI interface {
-	GetByResourceURI(uri.ResourceURI) (*Cluster, error)
+	GetByResourceURI(uri.ResourceURI) (*clusters.Cluster, error)
 }
 
-func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DbcmdCLICommandProvider {
-	return DbcmdCLICommandProvider{
+func NewDBCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DBCLICommandProvider {
+	return DBCLICommandProvider{
 		storage: storage,
 		execer:  execer,
 	}
 }
 
-func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd, error) {
+func (d DBCLICommandProvider) GetCommand(gateway gateway.Gateway) (*exec.Cmd, error) {
 	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -56,14 +57,7 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd
 		Database:    gateway.TargetSubresourceName(),
 	}
 
-	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, routeToDb,
-		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
-		// clusters.
-		//
-		// At this point it doesn't matter though because this argument is used only for
-		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
-		// included in the returned CLI command.
-		cluster.Name,
+	cmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb,
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
