@@ -574,7 +574,6 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fmt.Println("kubeResource", kubeResource)
 	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, apiResource, kubeResource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
