@@ -1864,8 +1864,42 @@ message TrustedClusterDelete {
   ];
 }
 
-// TrustedClusterTokenCreate is the event for
-// creating new join token for a trusted cluster.
+// ProvisionTokenCreate event is emitted when a provisioning token (a.k.a. join
+// token) of any role is created.
+message ProvisionTokenCreate {
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  repeated string Roles = 4 [
+    (gogoproto.jsontag) = "roles,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+  ];
+
+  string JoinMethod = 5 [
+    (gogoproto.jsontag) = "join_method,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.JoinMethod"
+  ];
+}
+
+// TrustedClusterTokenCreate event is emitted (in addition to
+// ProvisionTokenCreate) when a token of a "Trusted_cluster" role is created.
+//
+// Deprecated: redundant, since we also emit ProvisionTokenCreate.
 message TrustedClusterTokenCreate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -3369,6 +3403,7 @@ message OneOf {
     events.OktaResourcesUpdate OktaResourcesUpdate = 122;
     events.OktaSyncFailure OktaSyncFailure = 123;
     events.OktaAssignmentResult OktaAssignmentResult = 124;
+    events.ProvisionTokenCreate ProvisionTokenCreate = 125;
   }
 }
 

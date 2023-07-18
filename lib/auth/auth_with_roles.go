@@ -931,7 +931,14 @@ func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.Generate
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GenerateToken(ctx, req)
+
+	token, err := a.authServer.GenerateToken(ctx, req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	emitTokenEvent(ctx, a.authServer.emitter, req.Roles, types.JoinMethodToken)
+	return token, nil
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -2075,11 +2082,28 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 }
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
-// events. For now, this just emits trusted_cluster_token.create.
-func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken) {
+// events.
+func emitTokenEvent(
+	ctx context.Context,
+	e apievents.Emitter,
+	roles types.SystemRoles,
+	joinMethod types.JoinMethod,
+) {
 	userMetadata := authz.ClientUserMetadata(ctx)
-	for _, role := range token.GetRoles() {
+	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.ProvisionTokenCreateEvent,
+			Code: events.ProvisionTokenCreateCode,
+		},
+		UserMetadata: userMetadata,
+		Roles:        roles,
+		JoinMethod:   joinMethod,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit join token create event.")
+	}
+	for _, role := range roles {
 		if role == types.RoleTrustedCluster {
+			//nolint:staticcheck // Emit a deprecated event.
 			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
 				Metadata: apievents.Metadata{
 					Type: events.TrustedClusterTokenCreateEvent,
@@ -2103,11 +2127,12 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token)
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
 	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	jm := token.GetJoinMethod()
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2117,7 +2142,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token)
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
 	return nil
 }
 

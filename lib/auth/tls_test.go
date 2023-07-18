@@ -38,6 +38,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -46,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	eventtypes "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -3830,6 +3833,17 @@ func mustNewToken(
 	return tok
 }
 
+func mustNewTokenFromSpec(
+	t *testing.T,
+	token string,
+	expires time.Time,
+	spec types.ProvisionTokenSpecV2,
+) types.ProvisionToken {
+	tok, err := types.NewProvisionTokenFromSpec(token, expires, spec)
+	require.NoError(t, err)
+	return tok
+}
+
 func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
 	require.True(
 		t,
@@ -3888,20 +3902,73 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 
 		requireTokenCreated bool
 		requireError        require.ErrorAssertionFunc
-		requireEventEmitted bool
+		auditEvents         []eventtypes.AuditEvent
 	}{
 		{
 			name:     "success",
 			identity: TestUser(privilegedUser.GetName()),
-			token: mustNewToken(
+			token: mustNewTokenFromSpec(
 				t,
 				"success",
-				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
 				time.Time{},
+				types.ProvisionTokenSpecV2{
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
+				},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
-			requireEventEmitted: true,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-creator",
+					},
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
+				},
+			},
+		},
+		{
+			name:     "success (trusted cluster)",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewTokenFromSpec(
+				t,
+				"success-trusted-cluster",
+				time.Time{},
+				types.ProvisionTokenSpecV2{
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
+				},
+			),
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-creator",
+					},
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
+				},
+				//nolint:staticcheck // Emit a deprecated event.
+				&eventtypes.TrustedClusterTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.TrustedClusterTokenCreateEvent,
+						Code: events.TrustedClusterTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-creator",
+					},
+				},
+			},
 		},
 		{
 			name:     "access denied",
@@ -3940,15 +4007,13 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 			err = client.CreateToken(ctx, tt.token)
 			tt.requireError(t, err)
 
-			if tt.requireEventEmitted {
-				lastEvent := mockEmitter.LastEvent()
-				require.NotNil(t, lastEvent)
-				require.Equal(
-					t,
-					events.TrustedClusterTokenCreateEvent,
-					lastEvent.GetType(),
-				)
-			}
+			require.Empty(t, cmp.Diff(
+				tt.auditEvents,
+				mockEmitter.Events(),
+				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
+				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
+				cmpopts.EquateEmpty(),
+			))
 			if tt.requireTokenCreated {
 				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
 				require.NoError(t, err)
@@ -3995,36 +4060,104 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 		token    types.ProvisionToken
 
 		requireTokenCreated bool
-		requireEventEmitted bool
 		requireError        require.ErrorAssertionFunc
+		auditEvents         []eventtypes.AuditEvent
 	}{
 		{
 			name:     "success",
 			identity: TestUser(privilegedUser.GetName()),
-			token: mustNewToken(
+			token: mustNewTokenFromSpec(
 				t,
 				"success",
-				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
 				time.Time{},
+				types.ProvisionTokenSpecV2{
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
+				},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
-			requireEventEmitted: true,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-upserter",
+					},
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
+				},
+			},
+		},
+		{
+			name:     "success (trusted cluster)",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewTokenFromSpec(
+				t,
+				"success-trusted-cluster",
+				time.Time{},
+				types.ProvisionTokenSpecV2{
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
+				},
+			),
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-upserter",
+					},
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
+				},
+				//nolint:staticcheck // Emit a deprecated event.
+				&eventtypes.TrustedClusterTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.TrustedClusterTokenCreateEvent,
+						Code: events.TrustedClusterTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-upserter",
+					},
+				},
+			},
 		},
 		{
 			name:     "existing token replaced",
 			identity: TestUser(privilegedUser.GetName()),
-			token: mustNewToken(
+			token: mustNewTokenFromSpec(
 				t,
 				alreadyExistsToken.GetName(),
-				// These roles differ from the roles on the already existing
-				// token.
-				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
 				time.Time{},
+				types.ProvisionTokenSpecV2{
+					// These roles differ from the roles on the already existing
+					// token.
+					Roles:      types.SystemRoles{types.RoleNode},
+					JoinMethod: types.JoinMethodToken,
+				},
 			),
-			requireEventEmitted: true,
 			requireTokenCreated: true,
 			requireError:        require.NoError,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-upserter",
+					},
+					Roles:      types.SystemRoles{types.RoleNode},
+					JoinMethod: types.JoinMethodToken,
+				},
+			},
 		},
 		{
 			name:     "access denied",
@@ -4051,15 +4184,13 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 			err = client.UpsertToken(ctx, tt.token)
 			tt.requireError(t, err)
 
-			if tt.requireEventEmitted {
-				lastEvent := mockEmitter.LastEvent()
-				require.NotNil(t, lastEvent)
-				require.Equal(
-					t,
-					events.TrustedClusterTokenCreateEvent,
-					lastEvent.GetType(),
-				)
-			}
+			require.Empty(t, cmp.Diff(
+				tt.auditEvents,
+				mockEmitter.Events(),
+				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
+				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
+				cmpopts.EquateEmpty(),
+			))
 			if tt.requireTokenCreated {
 				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
 				require.NoError(t, err)
@@ -4068,6 +4199,133 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					token,
 					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 				))
+			}
+		})
+	}
+}
+
+// TestGRPCServer_GenerateToken verifies the behavior of a deprecated
+// GenerateToken method that we still need to keep for the time being.
+func TestGRPCServer_GenerateToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Inject mockEmitter to capture audit event for trusted cluster
+	// creation.
+	mockEmitter := &eventstest.MockEmitter{}
+	ac.server.Auth().SetEmitter(mockEmitter)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-generator", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbCreate},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// create a token to conflict with for already having been created
+	alreadyExistsToken := mustNewToken(
+		t, "already-exists", types.SystemRoles{types.RoleNode}, time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, alreadyExistsToken))
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+		roles    types.SystemRoles
+
+		requireTokenCreated bool
+		requireError        require.ErrorAssertionFunc
+		auditEvents         []eventtypes.AuditEvent
+	}{
+		{
+			name:                "success",
+			identity:            TestUser(privilegedUser.GetName()),
+			roles:               types.SystemRoles{types.RoleNode, types.RoleKube},
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-generator",
+					},
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
+				},
+			},
+		},
+		{
+			name:                "success (trusted cluster)",
+			identity:            TestUser(privilegedUser.GetName()),
+			roles:               types.SystemRoles{types.RoleTrustedCluster},
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-generator",
+					},
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
+				},
+				//nolint:staticcheck // Emit a deprecated event.
+				&eventtypes.TrustedClusterTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.TrustedClusterTokenCreateEvent,
+						Code: events.TrustedClusterTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-generator",
+					},
+				},
+			},
+		},
+		{
+			name:     "access denied",
+			identity: TestNop(),
+			roles:    types.SystemRoles{types.RoleNode},
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Equal(t, codes.PermissionDenied, status.Code(err))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+			// The client doesn't expose the deprecated GenerateToken method, so we
+			// need to create a raw AuthService client using the API client's
+			// connection.
+			rawAuthSvcClient := proto.NewAuthServiceClient(client.APIClient.GetConnection())
+
+			mockEmitter.Reset()
+			tokenResp, err := rawAuthSvcClient.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: tt.roles})
+			tt.requireError(t, err)
+
+			require.Empty(t, cmp.Diff(
+				tt.auditEvents,
+				mockEmitter.Events(),
+				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
+				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
+				cmpopts.EquateEmpty(),
+			))
+			if tt.requireTokenCreated {
+				createdToken, err := ac.server.Auth().GetToken(ctx, tokenResp.Token)
+				require.NoError(t, err)
+				assert.Equal(t, tt.roles, createdToken.GetRoles())
 			}
 		})
 	}
