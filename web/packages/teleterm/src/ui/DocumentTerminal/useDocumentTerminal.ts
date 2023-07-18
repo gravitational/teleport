@@ -233,14 +233,16 @@ async function setUpPtyProcess(
   if (doc.kind === 'doc.terminal_tsh_node') {
     ctx.usageService.captureProtocolUse(clusterUri, 'ssh', doc.origin);
   }
-  if (doc.kind === 'doc.terminal_tsh_kube') {
+  if (doc.kind === 'doc.terminal_tsh_kube' || doc.kind === 'doc.gateway_kube') {
     ctx.usageService.captureProtocolUse(clusterUri, 'kube', doc.origin);
   }
 
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
 
   const refreshTitle = async () => {
-    if (cmd.kind !== 'pty.shell') {
+    // TODO(ravicious): Enable updating cwd in doc.gateway_kube titles by
+    // moving title-updating logic to DocumentsService.
+    if (doc.kind !== 'doc.terminal_shell') {
       return;
     }
 
@@ -386,6 +388,26 @@ function createCmd(
       env,
       proxyHost,
       clusterName,
+    };
+  }
+
+  if (doc.kind === 'doc.gateway_kube') {
+    const gateway = clustersService.findGatewayByConnectionParams(
+      doc.targetUri,
+      ''
+    );
+    if (!gateway) {
+      throw new Error(`No gateway found for ${doc.targetUri}`);
+    }
+
+    const env = tshdGateway.getCliCommandEnv(gateway.gatewayCliCommand);
+
+    return {
+      ...doc,
+      kind: 'pty.shell',
+      proxyHost,
+      clusterName,
+      env,
     };
   }
 

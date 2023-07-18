@@ -23,7 +23,7 @@ import {
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 
-import { makeGateway } from 'teleterm/services/tshd/testHelpers';
+import { makeDBGateway } from 'teleterm/services/tshd/testHelpers';
 
 import { DocumentGateway, DocumentGatewayProps } from './DocumentGateway';
 
@@ -31,7 +31,7 @@ export default {
   title: 'Teleterm/DocumentGateway',
 };
 
-const gateway = makeGateway({
+const gateway = makeDBGateway({
   uri: '/gateways/bar',
   targetName: 'sales-production',
   targetUri: '/clusters/bar/dbs/foo',
@@ -63,7 +63,7 @@ export function Online() {
 }
 
 export function OnlineWithLongValues() {
-  const gateway = makeGateway({
+  const gateway = makeDBGateway({
     uri: '/gateways/bar',
     targetName: 'sales-production',
     targetUri: '/clusters/bar/dbs/foo',

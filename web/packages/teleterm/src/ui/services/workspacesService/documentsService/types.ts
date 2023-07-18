@@ -122,7 +122,7 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   //
   // targetUri and targetUser are also needed to find a gateway providing the connection to the
   // target.
-  targetUri: tsh.Gateway['targetUri'];
+  targetUri: uri.DatabaseUri;
   targetUser: tsh.Gateway['targetUser'];
   targetName: tsh.Gateway['targetName'];
   targetProtocol: tsh.Gateway['protocol'];
@@ -131,6 +131,14 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   // type something out immediately after starting while others only after they actually connect to
   // a resource.
   status: '' | 'connecting' | 'connected' | 'error';
+}
+
+export interface DocumentGatewayKube extends DocumentBase {
+  kind: 'doc.gateway_kube';
+  rootClusterId: string;
+  leafClusterId: string | undefined;
+  targetUri: uri.KubeUri;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentCluster extends DocumentBase {
@@ -164,7 +172,8 @@ export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
   | DocumentTshNode
-  | DocumentTshKube;
+  | DocumentTshKube
+  | DocumentGatewayKube;
 
 export type Document =
   | DocumentAccessRequests
@@ -198,6 +207,13 @@ export type CreateGatewayDocumentOpts = {
   targetSubresourceName?: string;
   title?: string;
   port?: string;
+  origin: DocumentOrigin;
+};
+
+export type CreateGatewayKubeDocumentOpts = {
+  gatewayUri?: uri.GatewayUri;
+  targetUri: uri.KubeUri;
+  title?: string;
   origin: DocumentOrigin;
 };
 

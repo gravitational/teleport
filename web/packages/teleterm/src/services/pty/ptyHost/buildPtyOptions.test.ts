@@ -16,7 +16,7 @@
 
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
-import { GatewayCliClientCommand } from '../types';
+import { ShellCommand, GatewayCliClientCommand } from '../types';
 
 import { getPtyProcessOptions } from './buildPtyOptions';
 
@@ -31,6 +31,34 @@ describe('getPtyProcessOptions', () => {
         kind: 'pty.gateway-cli-client',
         path: 'foo',
         args: [],
+        clusterName: 'bar',
+        proxyHost: 'baz',
+        env: {
+          cmdExclusive: 'cmd',
+          shared: 'fromCmd',
+        },
+      };
+
+      const { env } = getPtyProcessOptions(
+        makeRuntimeSettings(),
+        cmd,
+        processEnv
+      );
+
+      expect(env.processExclusive).toBe('process');
+      expect(env.cmdExclusive).toBe('cmd');
+      expect(env.shared).toBe('fromCmd');
+    });
+  });
+
+  describe('pty.shell', () => {
+    it('merges process env with the env from cmd', () => {
+      const processEnv = {
+        processExclusive: 'process',
+        shared: 'fromProcess',
+      };
+      const cmd: ShellCommand = {
+        kind: 'pty.shell',
         clusterName: 'bar',
         proxyHost: 'baz',
         env: {

@@ -16,6 +16,7 @@
 
 import {
   DocumentGateway,
+  DocumentGatewayKube,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
@@ -49,6 +50,13 @@ export function getKubeConnectionByDocument(document: DocumentTshKube) {
     i.kind === 'connection.kube' && i.kubeUri === document.kubeUri;
 }
 
+export function getGatewayKubeConnectionByDocument(
+  document: DocumentGatewayKube
+) {
+  return (i: TrackedKubeConnection) =>
+    i.kind === 'connection.kube' && i.kubeUri === document.targetUri;
+}
+
 export function getGatewayDocumentByConnection(
   connection: TrackedGatewayConnection
 ) {
@@ -56,6 +64,13 @@ export function getGatewayDocumentByConnection(
     i.kind === 'doc.gateway' &&
     i.targetUri === connection.targetUri &&
     i.targetUser === connection.targetUser;
+}
+
+export function getGatewayKubeDocumentByConnection(
+  connection: TrackedKubeConnection
+) {
+  return (i: DocumentGatewayKube) =>
+    i.kind === 'doc.gateway_kube' && i.targetUri === connection.kubeUri;
 }
 
 export function getKubeDocumentByConnection(connection: TrackedKubeConnection) {
@@ -113,5 +128,17 @@ export function createKubeConnection(
     title: document.title,
     kubeConfigRelativePath: document.kubeConfigRelativePath,
     kubeUri: document.kubeUri,
+  };
+}
+
+export function createGatewayKubeConnection(
+  document: DocumentGatewayKube
+): TrackedKubeConnection {
+  return {
+    kind: 'connection.kube',
+    connected: true,
+    id: unique(),
+    title: document.title,
+    kubeUri: document.targetUri,
   };
 }

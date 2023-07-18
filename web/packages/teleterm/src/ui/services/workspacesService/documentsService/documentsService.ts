@@ -33,6 +33,7 @@ import {
   DocumentCluster,
   DocumentConnectMyComputerSetup,
   DocumentGateway,
+  DocumentGatewayKube,
   DocumentGatewayCliClient,
   DocumentOrigin,
   DocumentTshKube,
@@ -185,6 +186,21 @@ export class DocumentsService {
       targetUser,
       targetName,
       targetProtocol,
+    };
+  }
+
+  createGatewayKubeDocument({ targetUri, origin }): DocumentGatewayKube {
+    const uri = routing.getDocUri({ docId: unique() });
+    const { params } = routing.parseKubeUri(targetUri);
+
+    return {
+      uri,
+      kind: 'doc.gateway_kube',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      targetUri,
+      title: `${params.kubeId}`,
+      origin,
     };
   }
 

@@ -41,7 +41,7 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {
   kind: 'connection.kube';
-  kubeConfigRelativePath: string;
+  kubeConfigRelativePath?: string;
   kubeUri: KubeUri;
 }
 

@@ -27,6 +27,7 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
 });
 
 export const databaseUri = '/clusters/teleport-local/dbs/foo';
+export const kubeUri = '/clusters/teleport-local/kubes/foo';
 
 export const makeDatabase = (
   props: Partial<tsh.Database> = {}
@@ -74,7 +75,9 @@ export const makeRootCluster = (
   ...props,
 });
 
-export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
+export const makeDBGateway = (
+  props: Partial<tsh.Gateway> = {}
+): tsh.Gateway => ({
   uri: '/gateways/foo',
   targetName: 'sales-production',
   targetUri: databaseUri,
@@ -89,5 +92,25 @@ export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
     preview: 'psql localhost:1337',
   },
   targetSubresourceName: 'bar',
+  ...props,
+});
+
+export const makeKubeGateway = (
+  props: Partial<tsh.Gateway> = {}
+): tsh.Gateway => ({
+  uri: '/gateways/foo',
+  targetName: 'foo',
+  targetUri: kubeUri,
+  targetUser: '',
+  localAddress: 'localhost',
+  localPort: '1337',
+  protocol: '',
+  gatewayCliCommand: {
+    path: '/bin/kubectl',
+    argsList: ['version'],
+    envList: ['KUBECONFIG=/path/to/kubeconfig'],
+    preview: 'KUBECONFIG=/path/to/kubeconfig /bin/kubectl version',
+  },
+  targetSubresourceName: '',
   ...props,
 });

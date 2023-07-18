@@ -20,7 +20,7 @@ import { Box } from 'design';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
-import { makeGateway } from 'teleterm/services/tshd/testHelpers';
+import { makeDBGateway } from 'teleterm/services/tshd/testHelpers';
 
 import {
   ClusterLoginPresentation,
@@ -323,7 +323,7 @@ const TestContainer: React.FC = ({ children }) => (
   </>
 );
 
-const gateway = makeGateway({
+const gateway = makeDBGateway({
   uri: '/gateways/gateway1',
   targetName: 'postgres',
   targetUri: '/clusters/teleport-local/dbs/postgres',

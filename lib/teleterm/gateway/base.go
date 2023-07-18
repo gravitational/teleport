@@ -193,7 +193,10 @@ func (b *base) CLICommand() (*api.GatewayCLICommand, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return makeCLICommand(cmd), nil
+}
 
+func makeCLICommand(cmd *exec.Cmd) *api.GatewayCLICommand {
 	cmdString := strings.TrimSpace(
 		fmt.Sprintf("%s %s",
 			strings.Join(cmd.Env, " "),
@@ -204,7 +207,7 @@ func (b *base) CLICommand() (*api.GatewayCLICommand, error) {
 		Args:    cmd.Args,
 		Env:     cmd.Env,
 		Preview: cmdString,
-	}, nil
+	}
 }
 
 // ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and updates the cert of the running

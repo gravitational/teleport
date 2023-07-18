@@ -17,7 +17,10 @@
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
-import { makeGateway } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeDBGateway,
+  makeKubeGateway,
+} from 'teleterm/services/tshd/testHelpers';
 
 import { ClustersService } from './clustersService';
 
@@ -67,7 +70,7 @@ const leafClusterMock: tsh.Cluster = {
   },
 };
 
-const gatewayMock = makeGateway({
+const gatewayMock = makeDBGateway({
   uri: '/gateways/gatewayTestUri',
   targetUri: `${clusterUri}/dbs/databaseTestUri`,
 });
@@ -119,15 +122,15 @@ test('add cluster', async () => {
 test('remove cluster', async () => {
   const { removeGateway } = getClientMocks();
   const service = createService({ removeGateway });
-  const gatewayFromRootCluster = makeGateway({
+  const gatewayFromRootCluster = makeDBGateway({
     uri: '/gateways/1',
     targetUri: `${clusterMock.uri}/dbs/foo`,
   });
-  const gatewayFromLeafCluster = makeGateway({
+  const gatewayFromLeafCluster = makeDBGateway({
     uri: '/gateways/2',
     targetUri: `${leafClusterMock.uri}/dbs/foo`,
   });
-  const gatewayFromOtherCluster = makeGateway({
+  const gatewayFromOtherCluster = makeDBGateway({
     uri: '/gateways/3',
     targetUri: `/clusters/bogus-cluster/dbs/foo`,
   });
@@ -240,6 +243,30 @@ test('remove a gateway', async () => {
 
   expect(removeGateway).toHaveBeenCalledWith(gatewayUri);
   expect(service.findGateway(gatewayUri)).toBeUndefined();
+});
+
+test('remove a kube gateway', async () => {
+  const { removeGateway } = getClientMocks();
+  const service = createService({
+    removeGateway,
+  });
+  const kubeGatewayMock = makeKubeGateway({
+    uri: '/gateways/gatewayTestUri',
+    targetUri: `${clusterUri}/kubes/testKubeId`,
+  });
+
+  service.setState(draftState => {
+    draftState.gateways = new Map([[kubeGatewayMock.uri, kubeGatewayMock]]);
+  });
+
+  await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
+  expect(removeGateway).toHaveBeenCalledTimes(1);
+  expect(removeGateway).toHaveBeenCalledWith(kubeGatewayMock.uri);
+  expect(service.findGateway(kubeGatewayMock.uri)).toBeUndefined();
+
+  // Calling it againt should not increase mock calls.
+  await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
+  expect(removeGateway).toHaveBeenCalledTimes(1);
 });
 
 test('sync gateways', async () => {
