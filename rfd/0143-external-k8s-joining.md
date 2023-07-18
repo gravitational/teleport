@@ -182,7 +182,6 @@ subjects:
 
 ### Implementation
 
-<-- TODO: Write this in more detail -->
 <-- TODO: Specs for RegisterUsingKubernetesJWKS RPC -->
 
 The `kubernetes-jwks` flow will leverage a challenge and response flow, similar
