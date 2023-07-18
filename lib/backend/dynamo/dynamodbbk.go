@@ -284,12 +284,12 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	case tableStatusOK:
 		if tableBillingMode == dynamodb.BillingModePayPerRequest {
 			cfg.EnableAutoScaling = false
-			l.Debug("ignoring auto_scaling setting as table is in on-demand mode")
+			l.Info("Ignoring auto_scaling setting as table is in on-demand mode.")
 		}
 	case tableStatusMissing:
-		if tableBillingMode == dynamodb.BillingModePayPerRequest {
+		if cfg.BillingMode == billingModePayPerRequest {
 			cfg.EnableAutoScaling = false
-			l.Debug("ignoring auto_scaling setting as table is being created in on-demand mode")
+			l.Info("Ignoring auto_scaling setting as table is being created in on-demand mode.")
 		}
 		err = b.createTable(ctx, b.TableName, fullPathKey)
 	case tableStatusNeedsMigration:
