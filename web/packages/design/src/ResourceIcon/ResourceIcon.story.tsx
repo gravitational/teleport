@@ -1,10 +1,10 @@
 import React from 'react';
 
-import { ResourceIcon, iconNames } from 'design/ResourceIcons';
-import { Flex } from '..';
+import { ResourceIcon, iconNames } from 'design/ResourceIcon';
+import { Flex } from 'design';
 
 export default {
-  title: 'Design/ResourceIcons',
+  title: 'Design/ResourceIcon',
 };
 
 export const Icons = () => {

@@ -18,7 +18,7 @@ import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
 
-import type { ResourceIconName } from 'design/ResourceIcons';
+import type { ResourceIconName } from 'design/ResourceIcon';
 
 export enum DatabaseLocation {
   Aws,

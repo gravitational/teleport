@@ -1,6 +1,7 @@
 import React, { ComponentProps } from 'react';
 
 import { useTheme } from 'styled-components';
+
 import { Image } from 'design';
 
 import appleDark from './assets/apple-dark.svg';
