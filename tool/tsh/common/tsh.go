@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2021 Gravitational, Inc.
+Copyright 2016-2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -270,6 +270,11 @@ type CLIConf struct {
 
 	// PredicateExpression defines boolean conditions that will be matched against the resource.
 	PredicateExpression string
+
+	// Labels is used to hold labels passed via --labels=k1=v2,k2=v2,,, flag for resource filtering.
+	// explicitly passed --labels overrides user@labels positional arg form.
+	// NOTE: no command currently supports both, try to keep it that way.
+	Labels string
 
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
@@ -730,7 +735,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	lsApps.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
-	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
+	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
@@ -757,7 +762,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
 	exportRecordings := recordings.Command("export", "Export recorded desktop sesions to video.")
 	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
-	exportRecordings.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
+	exportRecordings.Arg("session-id", "ID of the session to export").Required().StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
@@ -765,7 +770,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
-	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
+	// don't require <db> positional argument, user can select with --labels/--query alone.
+	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	// --cert-file and --key-file are deprecated in favor of --tunnel flag.
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyCertFile)
@@ -774,6 +780,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyDB.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	proxyDB.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
@@ -808,20 +816,29 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbList.Flag("all", "List databases from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
-	dbList.Arg("labels", labelHelp).StringVar(&cf.UserHost)
+	dbList.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
-	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
+	// don't require <db> positional argument, user can select with --labels/--query alone.
+	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
+	dbLogin.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbLogin.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)
 	dbLogin.Flag("db-name", "Optional database name to configure as default.").StringVar(&cf.DatabaseName)
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
+	dbLogout.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbLogout.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	dbEnv := db.Command("env", "Print environment variables for the configured database.")
-	dbEnv.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbEnv.Arg("db", "Print environment for the specified database").StringVar(&cf.DatabaseService)
+	dbEnv.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	dbEnv.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbEnv.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbEnv.Flag("db", "Print environment for the specified database.").Hidden().StringVar(&cf.DatabaseService)
 	dbConfig := db.Command("config", "Print database connection information. Useful when configuring GUI clients.")
 	dbConfig.Arg("db", "Print information for the specified database.").StringVar(&cf.DatabaseService)
+	dbConfig.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbConfig.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbConfig.Flag("db", "Print information for the specified database.").Hidden().StringVar(&cf.DatabaseService)
 	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, %q or %q to print in JSON or YAML.",
@@ -830,6 +847,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
 	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
+	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)
+	dbConnect.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
@@ -861,7 +880,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ls.Flag("format", defaults.FormatFlagDescription(
 		teleport.Text, teleport.JSON, teleport.YAML, teleport.Names,
 	)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, teleport.Text, teleport.JSON, teleport.YAML, teleport.Names)
-	ls.Arg("labels", labelHelp).StringVar(&cf.UserHost)
+	ls.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	ls.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	ls.Flag("all", "List nodes from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
@@ -983,7 +1002,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	).Required().EnumVar(&cf.ResourceKind, types.RequestableResourceKinds...)
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
+	reqSearch.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
 	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
@@ -1005,6 +1024,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
+	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 
 	puttyConfig := app.Command("puttyconfig", "Add PuTTY saved session configuration for specified hostname to Windows registry")
 	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
@@ -1793,6 +1813,12 @@ func onLogin(cf *CLIConf) error {
 		default:
 
 		}
+	}
+
+	// If the cluster is using single-sign on, providing the user name
+	// with --user is likely a mistake, so display a warning.
+	if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.Username != "" {
+		fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
 	}
 
 	if cf.Username == "" {
@@ -2786,12 +2812,25 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
+func getDiscoveredName(r types.ResourceWithLabels) (string, bool) {
+	name, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
+	return name, ok
+}
+
 func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
 	name := database.GetName()
+	printName := name
+	if d, ok := getDiscoveredName(database); ok && !verbose && d != name {
+		printName = d
+	}
 	var connect string
 	for _, a := range active {
 		if a.ServiceName == name {
-			name = formatActiveDB(a)
+			a.ServiceName = printName
+			// format the db name with the print name
+			printName = formatActiveDB(a)
+			// then revert it for connect string
+			a.ServiceName = name
 			switch a.Protocol {
 			case defaults.ProtocolDynamoDB:
 				// DynamoDB does not support "tsh db connect", so print the proxy command instead.
@@ -2799,6 +2838,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			default:
 				connect = formatDatabaseConnectCommand(clusterFlag, a)
 			}
+			break
 		}
 	}
 
@@ -2809,7 +2849,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 
 	if verbose {
 		row = append(row,
-			name,
+			printName,
 			database.GetDescription(),
 			database.GetProtocol(),
 			database.GetType(),
@@ -2820,7 +2860,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		)
 	} else {
 		row = append(row,
-			name,
+			printName,
 			database.GetDescription(),
 			formatUsersForDB(database, accessChecker),
 			formatDatabaseLabels(database),
@@ -2877,8 +2917,9 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 
 func formatDatabaseLabels(database types.Database) string {
 	labels := database.GetAllLabels()
-	// Hide the origin label unless printing verbose table.
+	// Hide the origin and discovered-name labels unless printing verbose table.
 	delete(labels, types.OriginLabel)
+	delete(labels, types.DiscoveredNameLabel)
 	return sortedLabels(labels)
 }
 
@@ -3397,6 +3438,15 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			}
 		}
 	}
+
+	// explicitly passed --labels overrides user@labels positional arg form.
+	if cf.Labels != "" {
+		labels, err = client.ParseLabelSpec(cf.Labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	fPorts, err := client.ParsePortForwardSpec(cf.LocalForwardPorts)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -27,8 +27,8 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install devbox
-        run: curl -fsSL https://get.jetpack.io/devbox | FORCE=1 bash
-
-      - name: Install devbox dependencies
-        run: |
-          devbox install
+        uses: jetpack-io/devbox-install-action@v0.4.0
+        with:
+          enable-cache: true
+          devbox-version: 0.5.7
+          sha256-sum: a4f66cacf6091530f3d51148df83a08353906496c8ada001b0edd7ac29226dc5

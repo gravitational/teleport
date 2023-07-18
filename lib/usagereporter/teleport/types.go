@@ -88,12 +88,20 @@ func (u *SSOCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 type SessionStartEvent prehogv1a.SessionStartEvent
 
 func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	sessionStart := &prehogv1a.SessionStartEvent{
+		UserName:    a.AnonymizeString(u.UserName),
+		SessionType: u.SessionType,
+	}
+	if u.Database != nil {
+		sessionStart.Database = &prehogv1a.SessionStartDatabaseMetadata{
+			DbType:     u.Database.DbType,
+			DbProtocol: u.Database.DbProtocol,
+			DbOrigin:   u.Database.DbOrigin,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
-			SessionStartV2: &prehogv1a.SessionStartEvent{
-				UserName:    a.AnonymizeString(u.UserName),
-				SessionType: u.SessionType,
-			},
+			SessionStartV2: sessionStart,
 		},
 	}
 }
@@ -490,6 +498,7 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 				ContainerRuntime:      u.ContainerRuntime,
 				ContainerOrchestrator: u.ContainerOrchestrator,
 				CloudEnvironment:      u.CloudEnvironment,
+				ExternalUpgrader:      u.ExternalUpgrader,
 			},
 		},
 	}

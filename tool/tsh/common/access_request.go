@@ -18,6 +18,7 @@ package common
 
 import (
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -382,7 +383,7 @@ func onRequestSearch(cf *CLIConf) error {
 	if cf.KubernetesCluster == "" {
 		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
 	}
-	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
+	if slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind) && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
 	}
 	// if --all-namespaces flag was provided we search in every namespace.
@@ -459,7 +460,7 @@ func onRequestSearch(cf *CLIConf) error {
 				ClusterName:     tc.SiteName,
 				Kind:            resource.GetKind(),
 				Name:            cf.KubernetesCluster,
-				SubResourceName: fmt.Sprintf("%s/%s", r.Spec.Namespace, resource.GetName()),
+				SubResourceName: path.Join(r.Spec.Namespace, resource.GetName()),
 			})
 			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
 				continue
