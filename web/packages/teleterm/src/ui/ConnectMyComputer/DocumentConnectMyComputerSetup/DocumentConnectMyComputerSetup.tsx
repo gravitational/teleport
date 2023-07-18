@@ -121,13 +121,12 @@ function AgentSetup() {
     )
   );
   const [generateConfigFileAttempt, runGenerateConfigFileAttempt] = useAsync(
-    useRetryWithRelogin(
-      ctx,
-      rootClusterUri,
-      useCallback(
-        () => ctx.connectMyComputerService.createAgentConfigFile(cluster),
-        [cluster, ctx.connectMyComputerService]
-      )
+    useCallback(
+      () =>
+        retryWithRelogin(ctx, rootClusterUri, () =>
+          ctx.connectMyComputerService.createAgentConfigFile(cluster)
+        ),
+      [cluster, ctx, rootClusterUri]
     )
   );
   const [joinClusterAttempt, runJoinClusterAttempt] = useAsync(
