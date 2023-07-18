@@ -34,7 +34,7 @@ updates.
 ## Requirements
 
 <Tabs>
-<TabItem label="Self-hosted">
+<TabItem label="Self-hosted" scope={"enterprise"}>
 - A Teleport Enterprise agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
@@ -42,7 +42,7 @@ updates.
   already followed [this guide](./self-hosted-automatic-agent-updates.mdx) and
   know your version server URL and release channel
 </TabItem>
-<TabItem label="Teleport Cloud">
+<TabItem label="Teleport Cloud"  scope={["cloud", "team"]}>
 - A Teleport Enterprise agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
@@ -81,8 +81,10 @@ Server ID                            Hostname        Services Version Upgrader
 
 </Details>
 
-<Tabs dropdownCaption="Cluster Type" dropdownSelected="Self-hosted">
-<TabItem label="systemd" options="Self-hosted">
+<Tabs dropdownView dropdownCaption="Cluster Type">
+<TabItem label="Self-hosted" scope={"enterprise"}>
+<Tabs>
+<TabItem label="systemd">
 
 Confirm you have the Teleport Enterprise edition installed.
 
@@ -147,7 +149,7 @@ not be exported yet.
 
 </TabItem>
 
-<TabItem label="teleport-kube-agent chart" options="Self-hosted">
+<TabItem label="teleport-kube-agent chart">
 
 Confirm you are using the Teleport Enterprise image. The `enterprise` value setting
 should have been set to `true` for the Helm chart installation.
@@ -182,7 +184,11 @@ $ kubectl logs <your-agent-release>-updater
 ```
 
 </TabItem>
-<TabItem label="systemd " options="Teleport Cloud">
+</Tabs>
+</TabItem>
+<TabItem label="Teleport Cloud" scope={["cloud", "team"]}>
+<Tabs>
+<TabItem label="systemd" >
 
 Confirm you have the Teleport Enterprise edition installed.
 
@@ -230,7 +236,7 @@ not be exported yet.
 </Admonition>
 
 </TabItem>
-<TabItem label="teleport-kube-agent chart " options="Teleport Cloud">
+<TabItem label="teleport-kube-agent chart">
 
 Confirm you are using the Teleport Enterprise image. The `enterprise` value setting
 should have been set to `true` for the Helm chart installation.
@@ -263,6 +269,8 @@ $ kubectl logs <your-agent-release>-updater
 ```
 
 </TabItem>
+</Tabs>
+ </TabItem>
 </Tabs>
 
 ## Troubleshooting
@@ -327,4 +335,3 @@ Either by setting the `annotations.deployment` value in Helm, or by patching
 the deployment directly with `kubectl`.
 </TabItem>
 </Tabs>
- 
