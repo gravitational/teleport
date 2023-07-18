@@ -669,6 +669,9 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	if s.cfg.CloudLabels != nil {
 		s.cfg.CloudLabels.Apply(copy)
 	}
+	if s.cfg.CloudIAM != nil {
+		s.cfg.CloudIAM.UpdateIAMStatus(copy)
+	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
