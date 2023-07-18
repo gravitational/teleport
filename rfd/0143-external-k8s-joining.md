@@ -135,22 +135,29 @@ subjects:
 <-- TODO: Write this in more detail -->
 <-- TODO: Specs for RegisterUsingKubernetesJWKS RPC -->
 
-The `kubernetes-jwks` flow:
+The `kubernetes-jwks` flow will leverage a challenge and response flow, similar
+to that implemented for IAM joining. The flow will run as follows:
 
 1. The client wishing to join calls the `RegisterUsingKubernetesJWKS` RPC. It
-  submits the name of the token it wishes to join using.
+  submits the name of the token it wants to use.
 2. The Auth Server sends a response with the audience that should be set in the 
-  token. This audience is a nonce - which is used to prevent token reuse.
+  token. This audience is a concatenation of the cluster name, and 24 bytes of
+  cryptographically random data encoded in base64 URL encoding, e.g:
+  `example.teleport.sh/YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4`
 3. The client uses its Kubernetes Service Account to call TokenRequest. It
   requests a JWT for its own service account, with the audience specified by
   the Auth Server and with a short time-to-live.
 4. The client sends a further request up the stream including this token.
 5. The server validates:
-   a. The JWT is signed by the keys present in the `jwks` field of the token 
+  a. The JWT is signed by the keys present in the `jwks` field of the token 
     resource.
-   b. The JWT is not expired, and the audience claim matches the nonce sent by 
-    the Auth Server previously.
-   c. The JWT subject claim is for a service account, and this service account 
+  b. The JWT is not expired, and at the time of issue, the JWTs TTL was short
+   (e.g within a similar TTL to the 30s TTL we set)
+  c. The JWTs audience claim matches the one the server challenged the client
+    with.
+  d. The JWT includes the `kubernetes.io` claim which binds it to a specified
+    namespace and pod.
+  e. The JWT subject claim is for a service account, and this service account 
     matches one of those configured in the allow rules of the token resource.
 6. If the JWT passes validation, certificates are signed and returned to the 
   client.
@@ -166,7 +173,8 @@ endpoint which performs additional checks to the validity of the token. This
 includes checking that the pod and service account listed within the JWT claims 
 exist and are running. This increases the complexity of falsifying a 
 token and also ensures that a token cannot be used beyond the lifetime of the 
-pod it is bound to.
+pod it is bound to. We can mimic this by using a very short time to live for 
+the JWT (30 seconds).
 
 However, this join method is still more secure than the long-lived secret
 based `token` join method that operators are forced to use due to this
