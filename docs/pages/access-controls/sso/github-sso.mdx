@@ -60,7 +60,7 @@ for a full reference of flags for this command:
 
 ```code
 $ tctl sso configure github \
---id=<Var name="GITHUB-CLIENT-ID"/>\
+--id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=<Var name="GITHUB-CLIENT-SECRET"/> \
 --teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
 > github.yaml
@@ -95,7 +95,7 @@ file to define multiple mappings. For example:
 
 ```code
 $  tctl sso configure github \
---id=<Var name="GITHUB-CLIENT-ID"/>\
+--id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=<Var name="GITHUB-CLIENT-SECRET"/> \
 --teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
 --teams-to-roles="ORG-NAME,administrators,admins \
@@ -125,12 +125,24 @@ spec.
 
 <Details title="Self-hosting GitHub Enterprise?" scope={["enterprise", "cloud"]} opened>
 
-For self-hosted GitHub Enterprise servers, add `spec.endpoint_url` pointing to your server instance:
+For self-hosted GitHub Enterprise servers, you can specify the server
+instance endpoints with the `--endpoint-url`, `--api-endpoint-url` parameters:
+
+```code
+$ tctl sso configure github \
+--id=<Var name="GITHUB-CLIENT-ID"/> \
+--secret=<Var name="GITHUB-CLIENT-SECRET"/> \
+--teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--endpoint-url=https://<Var name="github-enterprise-server-address"/>
+--api-endpoint-url=https://<Var name="api-github-enterprise-server-address"/>
+> github.yaml
+```
 
 ```yaml
 ...
 spec:
   ...
+  api_endpoint_url: https://<api-github-enterprise-server-address>
   endpoint_url: https://<github-enterprise-server-address>
   ...
 ```
