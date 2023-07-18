@@ -732,7 +732,7 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 	return response, trace.Wrap(err)
 }
 
-// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
+// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes.
 func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (types.ProvisionToken, error) {
 	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
 	if err != nil {

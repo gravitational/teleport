@@ -285,7 +285,7 @@ func (c *RoleSetupConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CreateNodeToken creates a node join token that is valid for 5 minutes
+// CreateNodeToken creates a node join token that is valid for 5 minutes.
 func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (types.ProvisionToken, error) {
 	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 	if err != nil {
@@ -318,12 +318,12 @@ func (t *TokenProvisioner) DeleteToken(ctx context.Context, provisioner Provisio
 	return trace.Wrap(err)
 }
 
-// Provisioner represents [services.Provisioner] methods used by [TokenProvisioner].
-// During a normal operation, [auth.ClientI] is passed as this interface.
+// Provisioner represents services.Provisioner methods used by TokenProvisioner.
+// During a normal operation, auth.ClientI is passed as this interface.
 type Provisioner interface {
-	// See [services.Provisioner.CreateToken].
+	// See services.Provisioner.CreateToken.
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
-	// See [services.Provisioner.DeleteToken].
+	// See services.Provisioner.DeleteToken.
 	DeleteToken(ctx context.Context, token string) error
 }
 
