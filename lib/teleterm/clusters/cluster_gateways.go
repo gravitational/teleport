@@ -42,7 +42,7 @@ type CreateGatewayParams struct {
 }
 
 // CreateGateway creates a gateway
-func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	db, err := c.GetDatabase(ctx, params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)

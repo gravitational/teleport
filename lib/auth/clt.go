@@ -150,17 +150,7 @@ func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority
 	}
 
 	_, err := c.APIClient.UpsertCertAuthority(ctx, ca)
-	switch {
-	case err == nil:
-		return nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		err := c.HTTPClient.UpsertCertAuthority(ctx, ca)
-		return trace.Wrap(err)
-	default:
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(err)
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
@@ -176,17 +166,7 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 	}
 
 	cas, err := c.APIClient.GetCertAuthorities(ctx, caType, loadKeys)
-	switch {
-	case err == nil:
-		return cas, nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		cas, err := c.HTTPClient.GetCertAuthorities(ctx, caType, loadKeys)
-		return cas, trace.Wrap(err)
-	default:
-		return nil, trace.Wrap(err)
-	}
+	return cas, trace.Wrap(err)
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
@@ -197,17 +177,7 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 	}
 
 	ca, err := c.APIClient.GetCertAuthority(ctx, id, loadSigningKeys)
-	switch {
-	case err == nil:
-		return ca, nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		ca, err := c.HTTPClient.GetCertAuthority(ctx, id, loadSigningKeys)
-		return ca, trace.Wrap(err)
-	default:
-		return nil, trace.Wrap(err)
-	}
+	return ca, trace.Wrap(err)
 }
 
 // DeleteCertAuthority deletes cert authority by ID
@@ -217,17 +187,7 @@ func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) e
 	}
 
 	err := c.APIClient.DeleteCertAuthority(ctx, id)
-	switch {
-	case err == nil:
-		return nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		err = c.HTTPClient.DeleteCertAuthority(ctx, id)
-		return trace.Wrap(err)
-	default:
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(err)
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -462,6 +422,10 @@ func (c *Client) DeleteAllLocks(context.Context) error {
 
 func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
 func (c *Client) GetLicense(ctx context.Context) (string, error) {

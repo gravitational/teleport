@@ -43,23 +43,37 @@ type ServiceFile struct {
 	path string
 }
 
-// Load loads Postgres connection service file from the default location.
-func Load() (*ServiceFile, error) {
+// DefaultConfigPath returns the default config path, which is .pg_service.conf
+// file in the user's home directory. Home dir is determined by environment if
+// not supplied as an argument.
+func defaultConfigPath(home string) (string, error) {
 	// Default location is .pg_service.conf file in the user's home directory.
 	// TODO(r0mant): Check PGSERVICEFILE and PGSYSCONFDIR env vars as well.
+	if home != "" {
+		return filepath.Join(home, pgServiceFile), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
-		user, err := utils.CurrentUser()
+		usr, err := utils.CurrentUser()
 		if err != nil {
-			return nil, trace.ConvertSystemError(err)
+			return "", trace.ConvertSystemError(err)
 		}
-		home = user.HomeDir
+		home = usr.HomeDir
 	}
 
-	return LoadFromPath(filepath.Join(home, pgServiceFile))
+	return filepath.Join(home, pgServiceFile), nil
 }
 
-// LoadFromPath loads Posrtgres connection service file from the specified path.
+// Load loads Postgres connection service file from the default location.
+func Load(home string) (*ServiceFile, error) {
+	cnfPath, err := defaultConfigPath(home)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return LoadFromPath(cnfPath)
+}
+
+// LoadFromPath loads Postgres connection service file from the specified path.
 func LoadFromPath(path string) (*ServiceFile, error) {
 	// Loose load will ignore file not found error.
 	iniFile, err := ini.LooseLoad(path)

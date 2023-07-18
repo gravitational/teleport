@@ -38,183 +38,158 @@ import (
 
 // New creates an instance of Gateway. It starts a listener on the specified port but it doesn't
 // start the proxy – that's the job of Serve.
-func New(cfg Config) (*Gateway, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	listener, err := cfg.TCPPortAllocator.Listen(cfg.LocalAddress, cfg.LocalPort)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	closeContext, closeCancel := context.WithCancel(context.Background())
-	// make sure the listener is closed if gateway creation failed
-	ok := false
-	defer func() {
-		if ok {
-			return
-		}
-
-		closeCancel()
-		if err := listener.Close(); err != nil {
-			cfg.Log.WithError(err).Warn("Failed to close listener.")
-		}
-	}()
-
-	// retrieve automatically assigned port number
-	_, port, err := net.SplitHostPort(listener.Addr().String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cfg.LocalPort = port
-
-	gateway := &Gateway{
-		cfg:          &cfg,
-		closeContext: closeContext,
-		closeCancel:  closeCancel,
-	}
-
+func New(cfg Config) (Gateway, error) {
 	switch {
 	case cfg.TargetURI.IsDB():
-		if err := gateway.makeLocalProxyForDB(listener); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		gateway, err := makeDatabaseGateway(cfg)
+		return gateway, trace.Wrap(err)
 
 	case cfg.TargetURI.IsKube():
-		if err := gateway.makeLocalProxiesForKube(listener); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		gateway, err := makeKubeGateway(cfg)
+		return gateway, trace.Wrap(err)
 
 	default:
 		return nil, trace.NotImplemented("gateway not supported for %v", cfg.TargetURI)
 	}
-
-	ok = true
-	return gateway, nil
 }
 
 // NewWithLocalPort initializes a copy of an existing gateway which has all config fields identical
 // to the existing gateway with the exception of the local port.
-func NewWithLocalPort(gateway *Gateway, port string) (*Gateway, error) {
+func NewWithLocalPort(gateway Gateway, port string) (Gateway, error) {
 	if port == gateway.LocalPort() {
 		return nil, trace.BadParameter("port is already set to %s", port)
 	}
 
-	cfg := *gateway.cfg
+	type configCloner interface {
+		cloneConfig() Config
+	}
+
+	cloner, ok := gateway.(configCloner)
+	if !ok {
+		return nil, trace.BadParameter("failed to convert gateway to configCloner")
+	}
+
+	cfg := cloner.cloneConfig()
 	cfg.LocalPort = port
 
 	newGateway, err := New(cfg)
 	return newGateway, trace.Wrap(err)
 }
 
+func newBase(cfg Config) (*base, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	closeContext, closeCancel := context.WithCancel(context.Background())
+	return &base{
+		cfg:          &cfg,
+		closeContext: closeContext,
+		closeCancel:  closeCancel,
+	}, nil
+}
+
 // Close terminates gateway connection. Fails if called on an already closed gateway.
-func (g *Gateway) Close() error {
-	g.closeCancel()
+func (b *base) Close() error {
+	b.closeCancel()
 
 	var errs []error
-	if g.localProxy != nil {
-		errs = append(errs, g.localProxy.Close())
+	if b.localProxy != nil {
+		errs = append(errs, b.localProxy.Close())
 	}
-	if g.forwardProxy != nil {
-		errs = append(errs, g.forwardProxy.Close())
+	if b.forwardProxy != nil {
+		errs = append(errs, b.forwardProxy.Close())
 	}
 
-	for _, cleanup := range g.onCloseFuncs {
+	for _, cleanup := range b.onCloseFuncs {
 		errs = append(errs, cleanup())
 	}
 	return trace.NewAggregate(errs...)
 }
 
 // Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
-func (g *Gateway) Serve() error {
-	g.cfg.Log.Info("Gateway is open.")
-	defer g.cfg.Log.Info("Gateway has closed.")
+func (b *base) Serve() error {
+	b.cfg.Log.Info("Gateway is open.")
+	defer b.cfg.Log.Info("Gateway has closed.")
 
-	if g.forwardProxy != nil {
-		return trace.Wrap(g.serveWithForwardProxy())
+	if b.forwardProxy != nil {
+		return trace.Wrap(b.serveWithForwardProxy())
 	}
-	return trace.Wrap(g.localProxy.Start(g.closeContext))
+	return trace.Wrap(b.localProxy.Start(b.closeContext))
 }
 
-func (g *Gateway) serveWithForwardProxy() error {
+func (b *base) serveWithForwardProxy() error {
 	errChan := make(chan error, 2)
 	go func() {
-		if err := g.forwardProxy.Start(); err != nil {
+		if err := b.forwardProxy.Start(); err != nil {
 			errChan <- err
 		}
 	}()
 	go func() {
-		if err := g.localProxy.Start(g.closeContext); err != nil {
+		if err := b.localProxy.Start(b.closeContext); err != nil {
 			errChan <- err
 		}
 	}()
 
 	select {
 	case err := <-errChan:
-		return trace.NewAggregate(err, g.Close())
-	case <-g.closeContext.Done():
+		return trace.NewAggregate(err, b.Close())
+	case <-b.closeContext.Done():
 		return nil
 	}
 }
 
-func (g *Gateway) URI() uri.ResourceURI {
-	return g.cfg.URI
+func (b *base) URI() uri.ResourceURI {
+	return b.cfg.URI
 }
 
-func (g *Gateway) SetURI(newURI uri.ResourceURI) {
-	g.cfg.URI = newURI
+func (b *base) TargetURI() uri.ResourceURI {
+	return b.cfg.TargetURI
 }
 
-func (g *Gateway) TargetURI() uri.ResourceURI {
-	return g.cfg.TargetURI
+func (b *base) TargetName() string {
+	return b.cfg.TargetName
 }
 
-func (g *Gateway) TargetName() string {
-	return g.cfg.TargetName
+func (b *base) Protocol() string {
+	return b.cfg.Protocol
 }
 
-func (g *Gateway) Protocol() string {
-	return g.cfg.Protocol
+func (b *base) TargetUser() string {
+	return b.cfg.TargetUser
 }
 
-func (g *Gateway) TargetUser() string {
-	return g.cfg.TargetUser
+func (b *base) TargetSubresourceName() string {
+	return b.cfg.TargetSubresourceName
 }
 
-func (g *Gateway) TargetSubresourceName() string {
-	return g.cfg.TargetSubresourceName
+func (b *base) SetTargetSubresourceName(value string) {
+	b.cfg.TargetSubresourceName = value
 }
 
-func (g *Gateway) SetTargetSubresourceName(value string) {
-	g.cfg.TargetSubresourceName = value
+func (b *base) Log() *logrus.Entry {
+	return b.cfg.Log
 }
 
-func (g *Gateway) Log() *logrus.Entry {
-	return g.cfg.Log
+func (b *base) LocalAddress() string {
+	return b.cfg.LocalAddress
 }
 
-func (g *Gateway) LocalAddress() string {
-	return g.cfg.LocalAddress
-}
-
-func (g *Gateway) LocalPort() string {
-	return g.cfg.LocalPort
+func (b *base) LocalPort() string {
+	return b.cfg.LocalPort
 }
 
 // LocalPortInt returns the port of a gateway as an integer rather than a string.
-func (g *Gateway) LocalPortInt() int {
+func (b *base) LocalPortInt() int {
 	// Ignoring the error here as Teleterm allows the user to pick only integer values for the port,
 	// so the string itself will never be a service name that needs actual lookup.
 	// For more details, see https://stackoverflow.com/questions/47992477/why-is-port-a-string-and-not-an-integer
-	port, _ := strconv.Atoi(g.cfg.LocalPort)
+	port, _ := strconv.Atoi(b.cfg.LocalPort)
 	return port
 }
 
 // CLICommand returns a command which launches a CLI client pointed at the gateway.
-func (g *Gateway) CLICommand() (*api.GatewayCLICommand, error) {
-	cmd, err := g.cfg.CLICommandProvider.GetCommand(g)
+func (b *base) CLICommand() (*api.GatewayCLICommand, error) {
+	cmd, err := b.cfg.CLICommandProvider.GetCommand(b)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -237,30 +212,27 @@ func (g *Gateway) CLICommand() (*api.GatewayCLICommand, error) {
 //
 // In the future, we're probably going to make this method accept the cert as an arg rather than
 // reading from disk.
-func (g *Gateway) ReloadCert() error {
-	if len(g.onNewCertFuncs) == 0 {
+func (b *base) ReloadCert() error {
+	if len(b.onNewCertFuncs) == 0 {
 		return nil
 	}
-	g.cfg.Log.Debug("Reloading cert")
+	b.cfg.Log.Debug("Reloading cert")
 
-	tlsCert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
+	tlsCert, err := keys.LoadX509KeyPair(b.cfg.CertPath, b.cfg.KeyPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var errs []error
-	for _, onNewCert := range g.onNewCertFuncs {
+	for _, onNewCert := range b.onNewCertFuncs {
 		errs = append(errs, onNewCert(tlsCert))
 	}
 
 	return trace.NewAggregate(errs...)
 }
 
-func (g *Gateway) onExpiredCert(ctx context.Context) error {
-	if g.cfg.OnExpiredCert == nil {
-		return nil
-	}
-	return trace.Wrap(g.cfg.OnExpiredCert(ctx, g))
+func (b *base) cloneConfig() Config {
+	return *b.cfg
 }
 
 // checkCertSubject checks if the cert subject matches the expected db route.
@@ -285,7 +257,7 @@ func checkCertSubject(tlsCert tls.Certificate, dbRoute tlsca.RouteToDatabase) er
 // daemon.Service which obtains a lock for any operation pertaining to gateways.
 //
 // In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
-type Gateway struct {
+type base struct {
 	cfg          *Config
 	localProxy   *alpn.LocalProxy
 	forwardProxy *alpn.ForwardProxy
@@ -302,7 +274,7 @@ type Gateway struct {
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.
 type CLICommandProvider interface {
-	GetCommand(gateway *Gateway) (*exec.Cmd, error)
+	GetCommand(gateway Gateway) (*exec.Cmd, error)
 }
 
 type TCPPortAllocator interface {

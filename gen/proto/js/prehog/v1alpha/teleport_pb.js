@@ -9804,7 +9804,8 @@ proto.prehog.v1alpha.AgentMetadataEvent.toObject = function(includeInstance, msg
     installMethodsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
     containerRuntime: jspb.Message.getFieldWithDefault(msg, 9, ""),
     containerOrchestrator: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    cloudEnvironment: jspb.Message.getFieldWithDefault(msg, 11, "")
+    cloudEnvironment: jspb.Message.getFieldWithDefault(msg, 11, ""),
+    externalUpgrader: jspb.Message.getFieldWithDefault(msg, 12, "")
   };
 
   if (includeInstance) {
@@ -9884,6 +9885,10 @@ proto.prehog.v1alpha.AgentMetadataEvent.deserializeBinaryFromReader = function(m
     case 11:
       var value = /** @type {string} */ (reader.readString());
       msg.setCloudEnvironment(value);
+      break;
+    case 12:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setExternalUpgrader(value);
       break;
     default:
       reader.skipField();
@@ -9988,6 +9993,13 @@ proto.prehog.v1alpha.AgentMetadataEvent.serializeBinaryToWriter = function(messa
   if (f.length > 0) {
     writer.writeString(
       11,
+      f
+    );
+  }
+  f = message.getExternalUpgrader();
+  if (f.length > 0) {
+    writer.writeString(
+      12,
       f
     );
   }
@@ -10227,6 +10239,24 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.getCloudEnvironment = function
  */
 proto.prehog.v1alpha.AgentMetadataEvent.prototype.setCloudEnvironment = function(value) {
   return jspb.Message.setProto3StringField(this, 11, value);
+};
+
+
+/**
+ * optional string external_upgrader = 12;
+ * @return {string}
+ */
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.getExternalUpgrader = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.AgentMetadataEvent} returns this
+ */
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.setExternalUpgrader = function(value) {
+  return jspb.Message.setProto3StringField(this, 12, value);
 };
 
 

@@ -1358,6 +1358,9 @@ export class AgentMetadataEvent extends jspb.Message {
     getCloudEnvironment(): string;
     setCloudEnvironment(value: string): AgentMetadataEvent;
 
+    getExternalUpgrader(): string;
+    setExternalUpgrader(value: string): AgentMetadataEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AgentMetadataEvent.AsObject;
@@ -1382,6 +1385,7 @@ export namespace AgentMetadataEvent {
         containerRuntime: string,
         containerOrchestrator: string,
         cloudEnvironment: string,
+        externalUpgrader: string,
     }
 }
 

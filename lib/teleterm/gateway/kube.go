@@ -17,9 +17,9 @@ limitations under the License.
 package gateway
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/pem"
-	"net"
 
 	"github.com/gravitational/trace"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -32,51 +32,62 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type kube struct {
+	*base
+}
+
 // KubeconfigPath returns the kubeconfig path that can be used for clients to
 // connect to the local proxy.
-func (g *Gateway) KubeconfigPath() string {
+func (k *kube) KubeconfigPath() string {
 	return keypaths.KubeConfigPath(
-		g.cfg.ProfileDir,
-		g.cfg.TargetURI.GetProfileName(),
-		g.cfg.Username,
-		g.cfg.ClusterName,
-		g.cfg.TargetName,
+		k.cfg.ProfileDir,
+		k.cfg.TargetURI.GetProfileName(),
+		k.cfg.Username,
+		k.cfg.ClusterName,
+		k.cfg.TargetName,
 	)
 }
 
-func (g *Gateway) makeLocalProxiesForKube(listener net.Listener) error {
+func makeKubeGateway(cfg Config) (Kube, error) {
+	base, err := newBase(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	k := &kube{base}
+
 	// A key is required here for generating local CAs. It can be any key.
 	// Reading the provided key path to avoid generating a new one.
-	key, err := keys.LoadPrivateKey(g.cfg.KeyPath)
+	key, err := keys.LoadPrivateKey(k.cfg.KeyPath)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	cas, err := alpnproxy.CreateKubeLocalCAs(key, []string{g.cfg.ClusterName})
+	cas, err := alpnproxy.CreateKubeLocalCAs(key, []string{k.cfg.ClusterName})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	if err := g.makeALPNLocalProxyForKube(cas); err != nil {
-		return trace.Wrap(err)
+	if err := k.makeALPNLocalProxyForKube(cas); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if err := g.makeForwardProxyForKube(listener); err != nil {
-		return trace.NewAggregate(err, g.Close())
+	if err := k.makeForwardProxyForKube(); err != nil {
+		return nil, trace.NewAggregate(err, k.Close())
 	}
 
-	if err := g.writeKubeconfig(key, cas); err != nil {
-		return trace.NewAggregate(err, g.Close())
+	if err := k.writeKubeconfig(key, cas); err != nil {
+		return nil, trace.NewAggregate(err, k.Close())
 	}
 	// make sure kubeconfig is written again on new cert as a relogin may
 	// cleanup profile dir.
-	g.onNewCertFuncs = append(g.onNewCertFuncs, func(_ tls.Certificate) error {
-		return trace.Wrap(g.writeKubeconfig(key, cas))
+	k.onNewCertFuncs = append(k.onNewCertFuncs, func(_ tls.Certificate) error {
+		return trace.Wrap(k.writeKubeconfig(key, cas))
 	})
-	return nil
+	return k, nil
 }
 
-func (g *Gateway) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
+func (k *kube) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 	// ALPN local proxy can use a random port as it receives requests from the
 	// forward proxy so there should be no requests coming from users' clients
 	// directly.
@@ -85,22 +96,22 @@ func (g *Gateway) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) erro
 		return trace.Wrap(err)
 	}
 
-	middleware, err := g.makeKubeMiddleware()
+	middleware, err := k.makeKubeMiddleware()
 	if err != nil {
 		return trace.NewAggregate(err, listener.Close())
 	}
 
-	g.localProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      g.cfg.Insecure,
-		RemoteProxyAddr:         g.cfg.WebProxyAddr,
+	k.localProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		InsecureSkipVerify:      k.cfg.Insecure,
+		RemoteProxyAddr:         k.cfg.WebProxyAddr,
 		Listener:                listener,
-		ParentContext:           g.closeContext,
-		Clock:                   g.cfg.Clock,
-		ALPNConnUpgradeRequired: g.cfg.TLSRoutingConnUpgradeRequired,
+		ParentContext:           k.closeContext,
+		Clock:                   k.cfg.Clock,
+		ALPNConnUpgradeRequired: k.cfg.TLSRoutingConnUpgradeRequired,
 	},
 		alpnproxy.WithHTTPMiddleware(middleware),
-		alpnproxy.WithSNI(client.GetKubeTLSServerName(g.cfg.WebProxyAddr)),
-		alpnproxy.WithClusterCAs(g.closeContext, g.cfg.RootClusterCACertPoolFunc),
+		alpnproxy.WithSNI(client.GetKubeTLSServerName(k.cfg.WebProxyAddr)),
+		alpnproxy.WithClusterCAs(k.closeContext, k.cfg.RootClusterCACertPoolFunc),
 	)
 	if err != nil {
 		return trace.NewAggregate(err, listener.Close())
@@ -108,39 +119,49 @@ func (g *Gateway) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) erro
 	return nil
 }
 
-func (g *Gateway) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) {
-	cert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
+func (k *kube) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) {
+	cert, err := keys.LoadX509KeyPair(k.cfg.CertPath, k.cfg.KeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certReissuer := newKubeCertReissuer(cert, g.onExpiredCert)
-	g.onNewCertFuncs = append(g.onNewCertFuncs, certReissuer.updateCert)
+	certReissuer := newKubeCertReissuer(cert, func(ctx context.Context) error {
+		return trace.Wrap(k.cfg.OnExpiredCert(ctx, k))
+	})
+	k.onNewCertFuncs = append(k.onNewCertFuncs, certReissuer.updateCert)
 
 	certs := make(alpnproxy.KubeClientCerts)
-	certs.Add(g.cfg.ClusterName, g.cfg.TargetName, cert)
-	return alpnproxy.NewKubeMiddleware(certs, certReissuer.reissueCert, g.cfg.Clock, g.cfg.Log), nil
+	certs.Add(k.cfg.ClusterName, k.cfg.TargetName, cert)
+	return alpnproxy.NewKubeMiddleware(certs, certReissuer.reissueCert, k.cfg.Clock, k.cfg.Log), nil
 }
 
-func (g *Gateway) makeForwardProxyForKube(listener net.Listener) (err error) {
+func (k *kube) makeForwardProxyForKube() error {
+	listener, err := k.cfg.makeListener()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Use provided listener with user configured port for the forward proxy.
-	g.forwardProxy, err = alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
-		CloseContext: g.closeContext,
+	k.forwardProxy, err = alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
+		CloseContext: k.closeContext,
 		Listener:     listener,
-		ForwardAddr:  g.localProxy.GetAddr(),
+		ForwardAddr:  k.localProxy.GetAddr(),
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.NewAggregate(err, listener.Close())
+	}
+	return nil
 }
 
-func (g *Gateway) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certificate) error {
-	ca, ok := cas[g.cfg.ClusterName]
+func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certificate) error {
+	ca, ok := cas[k.cfg.ClusterName]
 	if !ok {
-		return trace.BadParameter("CA for teleport cluster %q is missing", g.cfg.ClusterName)
+		return trace.BadParameter("CA for teleport cluster %q is missing", k.cfg.ClusterName)
 	}
 
 	x509Cert, err := utils.TLSCertLeaf(ca)
 	if err != nil {
-		return trace.BadParameter("could not parse CA certificate for cluster %q", g.cfg.ClusterName)
+		return trace.BadParameter("could not parse CA certificate for cluster %q", k.cfg.ClusterName)
 	}
 
 	values := &kubeconfig.LocalProxyValues{
@@ -162,29 +183,29 @@ func (g *Gateway) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certi
 		// necessary.
 		//
 		// In most cases, tc.KubeClusterAddr() is the same as
-		// g.cfg.WebProxyAddr anyway.
-		TeleportKubeClusterAddr: "https://" + g.cfg.WebProxyAddr,
-		LocalProxyURL:           "http://" + g.forwardProxy.GetAddr(),
+		// k.cfg.WebProxyAddr anyway.
+		TeleportKubeClusterAddr: "https://" + k.cfg.WebProxyAddr,
+		LocalProxyURL:           "http://" + k.forwardProxy.GetAddr(),
 		ClientKeyData:           key.PrivateKeyPEM(),
 		Clusters: []kubeconfig.LocalProxyCluster{{
-			TeleportCluster:   g.cfg.ClusterName,
-			KubeCluster:       g.cfg.TargetName,
-			Impersonate:       g.cfg.TargetUser,
-			ImpersonateGroups: g.cfg.TargetGroups,
-			Namespace:         g.cfg.TargetSubresourceName,
+			TeleportCluster:   k.cfg.ClusterName,
+			KubeCluster:       k.cfg.TargetName,
+			Impersonate:       k.cfg.TargetUser,
+			ImpersonateGroups: k.cfg.TargetGroups,
+			Namespace:         k.cfg.TargetSubresourceName,
 		}},
 		LocalProxyCAs: map[string][]byte{
-			g.cfg.ClusterName: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: x509Cert.Raw}),
+			k.cfg.ClusterName: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: x509Cert.Raw}),
 		},
 	}
 
 	config := kubeconfig.CreateLocalProxyConfig(clientcmdapi.NewConfig(), values)
-	if err := kubeconfig.Save(g.KubeconfigPath(), *config); err != nil {
+	if err := kubeconfig.Save(k.KubeconfigPath(), *config); err != nil {
 		return trace.Wrap(err)
 	}
 
-	g.onCloseFuncs = append(g.onCloseFuncs, func() error {
-		return trace.Wrap(utils.RemoveFileIfExist(g.KubeconfigPath()))
+	k.onCloseFuncs = append(k.onCloseFuncs, func() error {
+		return trace.Wrap(utils.RemoveFileIfExist(k.KubeconfigPath()))
 	})
 	return nil
 }
