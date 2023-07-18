@@ -40,6 +40,14 @@ func TestEventEqual(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	app1Dupe, err := types.NewAppV3(types.Metadata{
+		Name: "app1",
+	}, types.AppSpecV3{
+		URI:        "https://uri.com",
+		PublicAddr: "https://public-addr.com",
+	})
+	require.NoError(t, err)
+
 	app2, err := types.NewAppV3(types.Metadata{
 		Name: "app2",
 	}, types.AppSpecV3{
@@ -85,7 +93,7 @@ func TestEventEqual(t *testing.T) {
 			event2: &authpb.Event{
 				Type: authpb.Operation_PUT,
 				Resource: &authpb.Event_App{
-					App: app1,
+					App: app1Dupe,
 				},
 			},
 			expected: true,
@@ -143,9 +151,9 @@ func TestEventEqual(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			require.Equal(t, test.expected, proto.Equal(test.event1, test.event2))
+			event1 := test.event1
+			event2 := test.event2
+			require.Equal(t, test.expected, proto.Equal(event1, event2))
 		})
 	}
 }
@@ -155,7 +163,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
-			Name: "access-list",
+			Name: name,
 		},
 		accesslist.Spec{
 			Description: "test access list",
