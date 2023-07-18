@@ -21,6 +21,8 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -82,20 +84,95 @@ import (
 )
 
 const (
+	mockHeadlessPassword = "password"
+
 	staticToken = "test-static-token"
 	// tshBinMainTestEnv allows to execute tsh main function from test binary.
 	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
+
+	tshBinMockHeadless = "TSH_BIN_MOCK_HEADLESS"
 )
 
 var ports utils.PortList
 
 func init() {
+	var runOpts []CliOption
+
+	// Allows mock headless auth to be implemented when the test binary
+	// is re-executed.
+	if addr := os.Getenv(tshBinMockHeadless); addr != "" {
+		runOpts = append(runOpts, func(c *CLIConf) error {
+			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+				conn, err := net.Dial("tcp", addr)
+				if err != nil {
+					return nil, trace.Wrap(err, "dialing mock headless server")
+				}
+				defer conn.Close()
+
+				// send the server the public key
+				_, err = conn.Write(priv.MarshalSSHPublicKey())
+				log.Println("done writing")
+				if err != nil {
+					return nil, trace.Wrap(err, "writing public key to mock headless server")
+				}
+				// read and decode response from server
+				reply, err := io.ReadAll(conn)
+				if err != nil {
+					return nil, trace.Wrap(err, "reading reply from mock headless server")
+				}
+				log.Println(string(reply))
+				var loginResp auth.SSHLoginResponse
+				if err := json.Unmarshal(reply, &loginResp); err != nil {
+					return nil, trace.Wrap(err, "decoding reply from mock headless server")
+				}
+
+				return &loginResp, nil
+			}
+			return nil
+		})
+
+		// inputReader := prompt.NewFakeReader().
+		// 	AddString(mockHeadlessPassword).
+		// 	AddReply(func(ctx context.Context) (string, error) {
+		// 		panic("this should not be called")
+		// 	})
+
+		// device, err := mocku2f.Create()
+		// if err != nil {
+		// 	panic(fmt.Sprintf("error creating mock U2F key: %v", err))
+		// }
+		// device.SetPasswordless()
+
+		// prompt.SetStdin(inputReader)
+		// *client.PromptWebauthn = func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		// 	car, err := device.SignAssertion("https://127.0.0.1", assertion) // use the fake origin to prevent a mismatch
+		// 	if err != nil {
+		// 		return nil, "", err
+		// 	}
+		// 	return &proto.MFAAuthenticateResponse{
+		// 		Response: &proto.MFAAuthenticateResponse_Webauthn{
+		// 			Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+		// 		},
+		// 	}, "", nil
+		// }
+	}
+
 	// Allows test to refer to tsh binary in tests.
 	// Needed for tests that generate OpenSSH config by tsh config command where
 	// tsh proxy ssh command is used as ProxyCommand.
 	if os.Getenv(tshBinMainTestEnv) != "" {
-		Main()
-		// main will only exit if there is an error.
+		if err := os.Unsetenv(tshBinMainTestEnv); err != nil {
+			panic(fmt.Sprintf("failed to unset env var: %v", err))
+		}
+
+		err := Run(context.Background(), os.Args[1:], runOpts...)
+		if err != nil {
+			var exitError *common.ExitCodeError
+			if errors.As(err, &exitError) {
+				os.Exit(exitError.Code)
+			}
+			utils.FatalError(err)
+		}
 		// since we are here, there was no error, so we must do so ourselves.
 		os.Exit(0)
 		return
@@ -163,7 +240,6 @@ func (p *cliModules) EnablePlugins() {
 }
 
 func (p *cliModules) SetFeatures(f modules.Features) {
-
 }
 
 func TestAlias(t *testing.T) {
@@ -1155,7 +1231,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	failedChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		return func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-
 			car, err := device.SignAssertion(origin(cluster), assertion) // use the fake origin to prevent a mismatch
 			if err != nil {
 				return nil, "", err
@@ -1416,7 +1491,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
-		}, {
+		},
+		{
 			name:      "command runs on a leaf node via root without mfa",
 			target:    sshLeafHostID,
 			proxyAddr: rootProxyAddr.String(),
@@ -1440,7 +1516,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
-		}, {
+		},
+		{
 			name:      "command runs on a leaf node via root with mfa set via role",
 			target:    sshLeafHostID,
 			proxyAddr: rootProxyAddr.String(),
@@ -2049,11 +2126,11 @@ iUK/veLmZ6XoouiWLCdU1VJz/1Fcwe/IEamg6ETfofvsqOCgcNYJ
 `
 		pubKey := `ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyGzVvW7vgsK1P2Rtg55DTjL4We0WjSYYdzXJnVbyTxqrEYDOkhSnw4tZTS9KgALb698g0vrqy5bSJXB90d8uLdTmCmPngPbYpSN+p3P2SbIdkB5cRIMspB22qSkfHUARQlYM4PrMYIznWwQRFBvrRNOVdTdbMywlQGMUb0jdxK7JFBx1LC76qfHJhrD7jZS+MtygFIqhAJS9CQXW314p3FmL9s1cPV5lQfY527np8580qMKPkdeowPd/hVGcPA/C+ZxLcN9LqnuTZEFoDvYtwjfofOGUpANwtENBNZbNTxHDk7shYCRN9aZJ50zdFq3rMNdzFlEyJwm2ca+7aRDLl
 `
-		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com"), []byte(privKey), 0666)
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com"), []byte(privKey), 0o666)
 		require.NoError(t, err)
-		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com.pub"), []byte(pubKey), 0666)
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com.pub"), []byte(pubKey), 0o666)
 		require.NoError(t, err)
-		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com-ssh/localhost-cert.pub"), []byte(expiredSSHCert), 0666)
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com-ssh/localhost-cert.pub"), []byte(expiredSSHCert), 0o666)
 		require.NoError(t, err)
 
 		errChan := make(chan error)

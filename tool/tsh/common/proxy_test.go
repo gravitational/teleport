@@ -34,15 +34,20 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -257,52 +262,220 @@ func TestWithRsync(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newTestSuite(t)
+
+	// login and get host info
 	tshHome, _ := mustLogin(t, s)
 
-	// create ssh client config rsync will use
-	ctx := context.Background()
-	var buf bytes.Buffer
-	err = Run(ctx, []string{"config"}, setHomePath(tshHome), setOverrideStdout(&buf))
+	testBin, err := os.Executable()
 	require.NoError(t, err)
 
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "ssh_config")
-	err = os.WriteFile(configPath, buf.Bytes(), 0o777)
-	require.NoError(t, err)
-
-	// create a source file with random contents
-	srcContents := make([]byte, 1024)
-	_, err = rand.Read(srcContents)
-	require.NoError(t, err)
-
-	srcPath := filepath.Join(dir, "src")
-	err = os.WriteFile(srcPath, srcContents, 0o777)
-	require.NoError(t, err)
-
-	// use rsync to copy from src to dst
 	host, port, err := net.SplitHostPort(s.root.Config.SSH.Addr.String())
 	require.NoError(t, err)
-	dstPath := filepath.Join(dir, "dst")
-
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	t.Cleanup(cancel)
-	cmd := exec.CommandContext(
-		ctx,
-		"rsync",
-		// ensure ssh will use the client config that was generated
-		"-e",
-		fmt.Sprintf("ssh -F %s -p %s", configPath, port),
-		srcPath,
-		fmt.Sprintf("%s:%s", host, dstPath),
-	)
-
-	err = cmd.Run()
+	proxyAddr, err := s.root.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// verify that dst exists and that its contents match src
-	dstContents, err := os.ReadFile(dstPath)
-	require.NoError(t, err)
-	require.Equal(t, srcContents, dstContents)
+	var mockHeadlessAddr string
+
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, dir string)
+		createCmd func(ctx context.Context, dir, src, dst string) *exec.Cmd
+	}{
+		{
+			name: "with OpenSSH ssh",
+			setup: func(t *testing.T, dir string) {
+				// create ssh client config rsync will use
+				var buf bytes.Buffer
+				err = Run(context.Background(), []string{"config"}, setHomePath(tshHome), setOverrideStdout(&buf))
+				require.NoError(t, err)
+
+				configPath := filepath.Join(dir, "ssh_config")
+				err = os.WriteFile(configPath, buf.Bytes(), 0o600)
+				require.NoError(t, err)
+			},
+			createCmd: func(ctx context.Context, dir, src, dst string) *exec.Cmd {
+				return exec.CommandContext(
+					ctx,
+					"rsync",
+					// ensure ssh will use the client config that was generated
+					"-e",
+					fmt.Sprintf("ssh -F %s -p %s", filepath.Join(dir, "ssh_config"), port),
+					src,
+					fmt.Sprintf("%s:%s", host, dst),
+				)
+			},
+		},
+		{
+			name: "with headless tsh",
+			setup: func(t *testing.T, dir string) {
+				// setup webauthn
+				asrv := s.root.GetAuthServer()
+				ctx := context.Background()
+
+				err = asrv.SetAuthPreference(ctx, &types.AuthPreferenceV2{
+					Spec: types.AuthPreferenceSpecV2{
+						Type:         constants.Local,
+						SecondFactor: constants.SecondFactorOptional,
+						Webauthn: &types.Webauthn{
+							RPID: "root",
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				time.Sleep(time.Second)
+
+				token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+					Name: s.user.GetName(),
+				})
+				require.NoError(t, err)
+				tokenID := token.GetName()
+				res, err := asrv.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+					TokenID:     tokenID,
+					DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+				})
+				require.NoError(t, err)
+				cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+
+				device, err := mocku2f.Create()
+				require.NoError(t, err)
+				device.SetPasswordless()
+
+				ccr, err := device.SignCredentialCreation("https://root", cc)
+				require.NoError(t, err)
+				_, err = asrv.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+					TokenID:     tokenID,
+					NewPassword: []byte(mockHeadlessPassword),
+					NewMFARegisterResponse: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				// start a listener to use as a way to implement mock
+				// headless auth on the child tsh ssh --headless process
+				lis, err := net.Listen("tcp", "127.0.0.1:")
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					lis.Close()
+				})
+				mockHeadlessAddr = lis.Addr().String()
+
+				go func() {
+					conn, err := lis.Accept()
+					if !assert.NoError(t, err) {
+						return
+					}
+					t.Cleanup(func() {
+						assert.NoError(t, conn.Close())
+					})
+
+					// the child will send the public key
+					key := make([]byte, 512)
+					_, err = conn.Read(key)
+					if !assert.NoError(t, err) {
+						return
+					}
+
+					// generate certificates for our user
+					clusterName, err := asrv.GetClusterName()
+					if !assert.NoError(t, err) {
+						return
+					}
+					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+						Key:            key,
+						Username:       s.user.GetName(),
+						TTL:            time.Hour,
+						Compatibility:  constants.CertificateFormatStandard,
+						RouteToCluster: clusterName.GetClusterName(),
+						MFAVerified:    "mfa-verified",
+					})
+					if !assert.NoError(t, err) {
+						return
+					}
+
+					// load CA cert
+					authority, err := asrv.GetCertAuthority(
+						ctx, types.CertAuthID{
+							Type:       types.HostCA,
+							DomainName: clusterName.GetClusterName(),
+						}, false)
+					if !assert.NoError(t, err) {
+						return
+					}
+
+					// send login response to the client
+					resp := auth.SSHLoginResponse{
+						Username:    s.user.GetName(),
+						Cert:        sshCert,
+						TLSCert:     tlsCert,
+						HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+					}
+					encResp, err := json.Marshal(resp)
+					if !assert.NoError(t, err) {
+						return
+					}
+
+					_, err = conn.Write(encResp)
+					if !assert.NoError(t, err) {
+						return
+					}
+				}()
+			},
+			createCmd: func(ctx context.Context, dir, src, dst string) *exec.Cmd {
+				cmd := exec.CommandContext(
+					ctx,
+					"rsync",
+					// ensure headless tsh will be used to authenticate
+					"-e",
+					fmt.Sprintf("%s ssh -d --insecure --headless --proxy=%s --user=%s", testBin, proxyAddr, s.user.GetName()),
+					src,
+					fmt.Sprintf("%s:%s", host, dst),
+				)
+				// make the re-exec behave as `tsh` instead of test binary.
+				cmd.Env = []string{
+					fmt.Sprintf("%s=%s", tshBinMockHeadless, mockHeadlessAddr),
+					tshBinMainTestEnv + "=1",
+					fmt.Sprintf("%s=%s", types.HomeEnvVar, tshHome),
+				}
+
+				return cmd
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testDir := t.TempDir()
+			tt.setup(t, testDir)
+
+			// create a source file with random contents
+			srcContents := make([]byte, 1024)
+			_, err = rand.Read(srcContents)
+			require.NoError(t, err)
+
+			srcPath := filepath.Join(testDir, "src")
+			err = os.WriteFile(srcPath, srcContents, 0o644)
+			require.NoError(t, err)
+			dstPath := filepath.Join(testDir, "dst")
+
+			ctx, cancel := context.WithCancel(context.Background()) // context.WithTimeout(context.Background(), 5*time.Second)
+			t.Cleanup(cancel)
+			cmd := tt.createCmd(ctx, testDir, srcPath, dstPath)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			require.NoError(t, err)
+
+			// verify that dst exists and that its contents match src
+			dstContents, err := os.ReadFile(dstPath)
+			require.NoError(t, err)
+			require.Equal(t, srcContents, dstContents)
+		})
+	}
 }
 
 // TestProxySSH verifies "tsh proxy ssh" functionality
