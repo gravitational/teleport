@@ -18,14 +18,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types/accesslist"
-	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	"github.com/gravitational/teleport/api/types/header"
 )
 
 // TestEventEqual will test an event object against a google proto.Equal. This is
