@@ -16,7 +16,6 @@ package daemon
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
@@ -734,12 +733,12 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 }
 
 // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
-func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, req *api.CreateConnectMyComputerNodeTokenRequest) (*api.CreateConnectMyComputerNodeTokenResponse, error) {
-	cluster, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
+func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (types.ProvisionToken, error) {
+	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response := &api.CreateConnectMyComputerNodeTokenResponse{}
+	var provisionToken types.ProvisionToken
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
@@ -753,24 +752,11 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, req *api
 		}
 		defer authClient.Close()
 
-		token, err := s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, authClient, cluster)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		response.Token = token.GetName()
-		suggestedLabelsList := []*api.Label{}
-		for labelName, labelValues := range token.GetSuggestedLabels() {
-			suggestedLabelsList = append(suggestedLabelsList, &api.Label{
-				Name:  labelName,
-				Value: strings.Join(labelValues, " "),
-			})
-		}
-		response.SuggestedLabels = suggestedLabelsList
-		return nil
+		provisionToken, err = s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, authClient, cluster)
+		return trace.Wrap(err)
 	})
 
-	return response, trace.Wrap(err)
+	return provisionToken, trace.Wrap(err)
 }
 
 // DeleteConnectMyComputerToken deletes a join token

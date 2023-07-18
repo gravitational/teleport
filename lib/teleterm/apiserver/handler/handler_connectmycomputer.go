@@ -16,6 +16,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -28,8 +29,25 @@ func (s *Handler) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 }
 
 func (s *Handler) CreateConnectMyComputerNodeToken(ctx context.Context, req *api.CreateConnectMyComputerNodeTokenRequest) (*api.CreateConnectMyComputerNodeTokenResponse, error) {
-	res, err := s.DaemonService.CreateConnectMyComputerNodeToken(ctx, req)
-	return res, trace.Wrap(err)
+	token, err := s.DaemonService.CreateConnectMyComputerNodeToken(ctx, req.GetRootClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	suggestedLabelsList := []*api.Label{}
+	for labelName, labelValues := range token.GetSuggestedLabels() {
+		suggestedLabelsList = append(suggestedLabelsList, &api.Label{
+			Name:  labelName,
+			Value: strings.Join(labelValues, " "),
+		})
+	}
+
+	response := &api.CreateConnectMyComputerNodeTokenResponse{
+		Token:           token.GetName(),
+		SuggestedLabels: suggestedLabelsList,
+	}
+
+	return response, nil
 }
 
 func (s *Handler) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.EmptyResponse, error) {
