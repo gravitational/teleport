@@ -227,7 +227,7 @@ func EventTypeToGRPC(in types.OpType) (proto.Operation, error) {
 }
 
 // EventFromGRPC converts proto.Event to types.Event
-func EventFromGRPC(in proto.Event) (*types.Event, error) {
+func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	eventType, err := EventTypeFromGRPC(in.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
