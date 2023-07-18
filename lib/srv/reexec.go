@@ -58,6 +58,8 @@ const (
 	// it can continue after the parent process assigns a cgroup to the
 	// child process.
 	ContinueFile
+
+	ContinueWriteFile
 	// TerminateFile is used to communicate to the child process that
 	// the interactive terminal should be killed as the client ended the
 	// SSH session and without termination the terminal process will be assigned
@@ -205,6 +207,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if contfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
+	contWfd := os.NewFile(ContinueWriteFile, fdName(ContinueWriteFile))
+	if contfd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue write pipe not found")
+	}
 	termiantefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if termiantefd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
@@ -307,6 +313,11 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 		// Save off any environment variables that come from PAM.
 		pamEnvironment = pamContext.Environment()
+
+		if _, err = contWfd.Write([]byte{0}); err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
+		contWfd.Close() // TODO: Handle error maybe?
 	}
 
 	localUser, err := user.Lookup(c.Login)
@@ -890,6 +901,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
+			ctx.contw,
 			ctx.killShellr,
 			ctx.x11rdyw,
 			ctx.errw,
