@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { ResourceIcon, iconNames } from 'design/ResourceIcons';
 import { Flex } from '..';
 
