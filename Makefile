@@ -1313,13 +1313,14 @@ pkg-tsh: | $(RELEASE_DIR)
 
 # build .rpm
 .PHONY: rpm
-rpm:
+rpm: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cp -a ./build.assets/rpm $(BUILDDIR)/
 	cp -a ./build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cp $(BUILDDIR)/teleport-*.rpm* $(RELEASE_DIR)
 	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
 
 # build unsigned .rpm (for testing)
@@ -1329,11 +1330,12 @@ rpm-unsigned:
 
 # build open source .deb only
 .PHONY: oss-deb
-oss-deb:
+oss-deb: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cp $(BUILDDIR)/teleport_*.deb* $(RELEASE_DIR)
 
 # build .deb
 .PHONY: deb
