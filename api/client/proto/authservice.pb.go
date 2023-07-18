@@ -1386,6 +1386,16 @@ type UserCertsRequest struct {
 	UseRoleRequests bool `protobuf:"varint,14,opt,name=UseRoleRequests,proto3" json:"use_role_requests,omitempty"`
 	// DropAccessRequests is an optional list of request IDs indicating requests
 	// whose escalated privileges should be removed from the certificate.
+	// IDs pointing at non-existent requests are ignored.
+	//
+	// If present, the roles and traits in the generated cert will be based on
+	// the state of the user resource on the backend, active requests (not being
+	// dropped) and new access requests specified through AccessRequests (if any).
+	//
+	// This means that technically sending UserCertsRequest with bogus IDs in
+	// DropAccessRequests can be used to refresh the role list based on backend
+	// state. A better long-term solution would be to add a dedicated field for
+	// this to avoid sending bogus IDs.
 	DropAccessRequests []string `protobuf:"bytes,15,rep,name=DropAccessRequests,proto3" json:"drop_access_requests,omitempty"`
 	// ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
 	// traces as we pass certain checkpoints.
