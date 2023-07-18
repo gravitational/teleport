@@ -133,7 +133,7 @@ The first time users sign in with their hardware key they might be required to i
 $ tsh login --user=dev --proxy=proxy.example.com:3080
 # Enter password for Teleport user dev:
 # Unmet private key policy "hardware_key_touch".
-# Re-initiating login with YubiKey generated private key.
+# Relogging in with hardware-backed private key.
 # Enter password for Teleport user dev:
 # Tap your YubiKey
 # > Profile URL:        https://example.com
@@ -151,7 +151,7 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 $ tsh login --user=dev --proxy=proxy.example.com:3080
 # Enter password for Teleport user dev:
 # Unmet private key policy "hardware_key_touch".
-# Re-initiating login with YubiKey generated private key.
+# Relogging in with hardware-backed private key.
 # Enter password for Teleport user dev:
 # Tap your YubiKey
 # > Profile URL:        https://example.com
@@ -168,7 +168,7 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 $ tsh login --user=dev --proxy=proxy.example.com:3080
 # Enter password for Teleport user dev:
 # Unmet private key policy "hardware_key_touch".
-# Re-initiating login with YubiKey generated private key.
+# Relogging in with hardware-backed private key.
 # Enter password for Teleport user dev:
 # Tap your YubiKey
 # > Profile URL:        https://example.com
@@ -185,7 +185,7 @@ on their next request. For example:
 ```code
 $ tsh clusters
 # Unmet private key policy "hardware_key_touch"
-# Relogging in with YubiKey generated private key.
+# Relogging in with hardware-backed private key.
 # Enter password for Teleport user dev:
 # Tap your YubiKey
 # Cluster Name Status Cluster Type Labels Selected 
@@ -261,7 +261,7 @@ Unmet private key policy "hardware_key_touch".
 # with a tap and re-initiates the sign in process.
 
 Tap your YubiKey
-Re-initiating login with YubiKey generated private key.
+Relogging in with hardware-backed private key.
 
 # This time, `tsh` uses the Yubikey-backed private key in the login request to
 # get certificates which pass the private key policy for the user's role.
