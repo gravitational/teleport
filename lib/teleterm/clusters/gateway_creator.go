@@ -43,6 +43,9 @@ func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayP
 	return gateway, trace.Wrap(err)
 }
 
+// Resolver is a subset of [Storage], mostly so that it's possible to provide a mock implementation
+// in tests.
 type Resolver interface {
+	// ResolveCluster returns a cluster from storage given the URI. See [Storage.ResolveCluster].
 	ResolveCluster(string) (*Cluster, *client.TeleportClient, error)
 }
