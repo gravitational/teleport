@@ -1549,13 +1549,13 @@ func onLogin(cf *CLIConf) error {
 		var displayIgnoreUserWarning = false
 		if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector {
 			displayIgnoreUserWarning = true
-		} else {
+		} else if cf.AuthConnector == "" {
 			// Get the Ping so we check if the default Auth type is SSO
 			pr, err := tc.Ping(cf.Context)
 			if err != nil {
 				return trace.Wrap(err, "Teleport proxy not available at %s.", tc.WebProxyAddr)
 			}
-			if cf.AuthConnector == "" && pr.Auth.Type != constants.LocalConnector {
+			if pr.Auth.Type != constants.LocalConnector {
 				displayIgnoreUserWarning = true
 			}
 		}
