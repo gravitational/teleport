@@ -159,7 +159,7 @@ $ tctl get cluster_auth_preference
   Although `tctl get connectors` will show you every connector, when working with an individual connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each connector's `kind` at the top of its YAML output from `tctl get connectors`.
 </Admonition>
 
-### User
+## User
 
 Teleport supports interactive local users, non-interactive local users (bots)
 and single-sign on users that are represented as a resource.
@@ -195,7 +195,7 @@ spec:
       name: builtin-Admin
 ```
 
-### Role
+## Role
 
 Interactive and non-interactive users (bots) assume one or many roles.
 
@@ -203,25 +203,25 @@ Roles govern access to databases, SSH servers, Kubernetes clusters, web services
 
 (!docs/pages/includes/role-spec.mdx!)
 
-### Login Rules
+## Login Rules
 
 Login rules contain logic to transform SSO user traits during login.
 
 (!docs/pages/includes/login-rule-spec.mdx!)
 
-### Device
+## Device
 
 Device contains information identifying a trusted device.
 
 (!docs/pages/includes/device-spec.mdx!)
 
-### UI config
+## UI config
 
 Global configuration options for the Web UI served by the Proxy Service. This resource is not set by default, which means a `tctl get ui` will result in an error if used before this resource has been set.
 
 (!docs/pages/includes/ui-config-spec.mdx!)
 
-### Cluster Auth Preferences
+## Cluster Auth Preferences
 
 Global cluster configuration options for authentication.
 
