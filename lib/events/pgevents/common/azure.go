@@ -41,14 +41,14 @@ func AzureBeforeConnect(clientID string, log logrus.FieldLogger) (func(ctx conte
 			ID: azidentity.ClientID(clientID),
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "creating Azure managed identity credentials")
 		}
 		cred = c
 	} else {
 		log.Debug("Using Azure AD authentication with default credentials.")
 		c, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "creating default Azure credentials")
 		}
 		cred = c
 	}
@@ -60,7 +60,7 @@ func AzureBeforeConnect(clientID string, log logrus.FieldLogger) (func(ctx conte
 			Scopes: []string{"https://ossrdbms-aad.database.windows.net/.default"},
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "obtaining Azure authentication token")
 		}
 
 		log.WithField("ttl", time.Until(token.ExpiresOn).String()).Debug("Acquired Azure access token.")
