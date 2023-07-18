@@ -37,21 +37,19 @@ Before you get started you’ll need:
 
    ![Select New Applications From Manage](../../../img/azuread/azuread-2-newapp.png)
 
-1. Select **Create your own application**, enter the application name (for example,
-   Teleport), and select **Integrate any other application you don't find in
-   the gallery (Non-gallery)**.
+1. Select a **Non-gallery application**
 
    ![Select Non-gallery application](../../../img/azuread/azuread-3-selectnongalleryapp.png)
 
-1. Select **Properties** under **Manage** and set **Assignment required?** to **No**
+1. Enter the display name (e.g, Teleport)
 
    ![Enter application name](../../../img/azuread/azuread-4-enterappname.png)
 
-5. Select **Properties** under **Manage** and set **User assignment required?** to **No**
+1. Select **Properties** under **Manage** and set **User assignment required?** to **No**
 
-![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
+   ![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
 
-6. Select **Single sign-on** under **Manage** and choose **SAML**
+1. Select **Single sign-on** under **Manage** and choose **SAML**
 
    ![Select SAML](../../../img/azuread/azuread-6-selectsaml.png)
 
@@ -59,9 +57,7 @@ Before you get started you’ll need:
 
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-7-editbasicsaml.png)
 
-1. Enter the URL for your Teleport cluster or Teleport tenant in the **Entity ID** and **Reply URL**  fields. For example:
-   name="mytenant.teleport.sh:443" /> to the host and HTTPS port of your
-   Teleport Proxy Service (or Teleport Team/Enterprise Cloud tenant):
+1. For **Entity ID** and **Reply URL**, enter the same proxy URL.
 
    For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs/connectorName`.
 
@@ -69,8 +65,7 @@ Before you get started you’ll need:
 
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-8-entityandreplyurl.png)
 
-1. In **SAML Certificates** section, copy the **App Federation
-   Metadata URL** link and save it for use in our Teleport connector configuration:
+1. Edit **User Attributes & Claims**
 
    - Edit the claim name.
    - Change the name identifier format to **Default**. Make sure the source attribute is `user.userprincipalname`.
@@ -79,17 +74,15 @@ Before you get started you’ll need:
 
    - Add a group claim to make user security groups available to the connector
 
-1. Change the "name identifier format" to **Default**. Make sure the source
-  attribute is `user.userprincipalname`.
+   ![Put in Security group claim](../../../img/azuread/azuread-9b-groupclaim.png)
 
    - Add a claim that transforms an Azure AD username in order to pass it to Teleport.
 
-1. Add a group claim to make user security groups available to the connector:
+   ![Add a transformed username](../../../img/azuread/azuread-9c-usernameclaim.png)
 
-10. In **SAML Signing Certificate**, click the link to download the **Federation Metadata XML**.
+1. In **SAML Signing Certificate**, click the link to download the **Federation Metadata XML**.
 
-1. Add a claim that transforms the format of the Azure AD username to lower case, in order to pass it to
-   Teleport. Set the Source to "Transformation". In the new panel:
+   ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
 
 <Admonition
   type="warning"

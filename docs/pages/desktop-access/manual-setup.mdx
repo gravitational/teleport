@@ -10,8 +10,7 @@ Desktop Service and log into a Windows desktop from that domain.
 <Admonition type="tip" title="Use The Wizard">
 
 Starting with Teleport 10.2.6, you can install Active Directory and configure
-the Teleport Desktop Service through the Teleport Web UI. See [Desktop Access with Active
-Directory](active-directory.mdx) for more information.
+the Teleport Desktop Service through the Teleport Web UI.
 
 Teleport Enterprise users can configure Windows Access for local users by
 following [Getting Started with Windows Access](getting-started.mdx).
@@ -210,7 +209,7 @@ These steps will need to be repeated if Teleport's user certificate authority is
 $ tctl auth export --type=windows > user-ca.cer
 ```
 
-2. Transfer the `user-ca.cer` file to a Windows machine where you can manage your group policy.
+1. Transfer the `user-ca.cer` file to a Windows machine where you can manage your group policy.
 
 <Admonition type="note" title="Take note of the location">
   Take note of the path to the `user-ca.cer` file, as you will need this in the next step.
@@ -250,18 +249,18 @@ New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
 1. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
 
 1. In the group policy editor, select:
-
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
-```
+   
+   ```text
+   Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
+   ```
 
 1. Right click on `Trusted Root Certification Authorities` and select `Import`.
 
 1. Click through the wizard, selecting your CA file.
 
-<Figure align="left" bordered caption="Import Teleport CA">
-  ![Import Teleport CA](../../img/desktop-access/ca.png)
-</Figure>
+   <Figure align="left" bordered caption="Import Teleport CA">
+   ![Import Teleport CA](../../img/desktop-access/ca.png)
+   </Figure>
 
 ### Publish the Teleport CA to the Active Directory domain
 
@@ -290,17 +289,17 @@ access.
 
 1. Publish the CA to LDAP:
 
-```powershell
-certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
-```
+   ```powershell
+   certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
+   ```
 
 1. Force the retrieval of the CA from LDAP. While this step is not required, it
    speeds up the process and allows you to proceed to the next steps without
    waiting for the certificate to propagate.
 
-```powershell
-certutil -pulse
-```
+   ```powershell
+   certutil -pulse
+   ```
 
 ### Enable the Smart Card service
 
@@ -308,9 +307,9 @@ Teleport performs certificate based authentication by emulating a smart card.
 
 1. Still editing your `Teleport Access Policy`, select:
 
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > System Services
-```
+   ```text
+   Computer Configuration > Policies > Windows Settings > Security Settings > System Services
+   ```
 
 1. Double click on `Smart Card`, select `Define this policy setting` and switch
    to `Automatic` then click `OK`.
@@ -323,17 +322,17 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
 
 1. Next, select:
 
-```text
-Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Connections
-```
+   ```text
+   Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Connections
+   ```
 
 1. Right click on `Allow users to connect remotely by using Remote Desktop Services` and select `Edit`. Select `Enabled` and `OK`.
 
 1. Select:
 
-```text
-Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
-```
+   ```text
+   Computer Configuration > Policies > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security
+   ```
 
 1. Right click `Require user authentication for remote connections by using Network Level Authentication`, edit, select `Disable` and `OK`.
 
@@ -361,9 +360,9 @@ Set to `Disabled` and click `OK`.
 
 1. Select:
 
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security (x2)
-```
+   ```text
+   Computer Configuration > Policies > Windows Settings > Security Settings > Windows Firewall with Advanced Security (x2)
+   ```
 
 1. Right click on `Inbound Rules` and select `New Rule...`.
 
