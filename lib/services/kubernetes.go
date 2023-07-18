@@ -19,7 +19,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go/aws"
@@ -176,32 +175,32 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 	return nil, trace.BadParameter("unsupported kube cluster resource version %q", h.Version)
 }
 
-const (
-	// labelTeleportKubeClusterName is the label key containing the kubernetes cluster name override.
-	labelTeleportKubeClusterName = types.TeleportNamespace + "/kubernetes-name"
-)
+// setAWSKubeName modifies the types.Metadata in place, overriding the first
+// part if the kube cluster override label for AWS is present, and setting the
+// kube cluster name.
+func setAWSKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	return setResourceName(types.AWSKubeClusterNameOverrideLabels, meta, firstNamePart, extraNameParts...)
+}
 
-// setKubeName modifies the types.Metadata argument in place, setting the kubernetes cluster name.
-// The name is calculated based on nameParts arguments which are joined by hyphens "-".
-// If the kube_cluster name override label is present (setKubeName), it will replace the *first* name part.
-func setKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
-	nameParts := append([]string{firstNamePart}, extraNameParts...)
+// setAzureKubeName modifies the types.Metadata in place, overriding the first
+// part if the AKS kube cluster override label is present, and setting the kube
+// cluster name.
+func setAzureKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	return setResourceName([]string{types.AzureKubeClusterNameOverrideLabel}, meta, firstNamePart, extraNameParts...)
+}
 
-	// apply override
-	if override, found := meta.Labels[labelTeleportKubeClusterName]; found && override != "" {
-		nameParts[0] = override
-	}
-
-	meta.Name = strings.Join(nameParts, "-")
-
-	return meta
+// setGCPKubeName modifies the types.Metadata in place, overriding the first
+// part if the GKE kube cluster override label is present, and setting the kube
+// cluster name.
+func setGCPKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	return setResourceName([]string{types.GCPKubeClusterNameOverrideLabel}, meta, firstNamePart, extraNameParts...)
 }
 
 // NewKubeClusterFromAzureAKS creates a kube_cluster resource from an AKSCluster.
 func NewKubeClusterFromAzureAKS(cluster *azure.AKSCluster) (types.KubeCluster, error) {
 	labels := labelsFromAzureKubeCluster(cluster)
 	return types.NewKubernetesClusterV3(
-		setKubeName(types.Metadata{
+		setAzureKubeName(types.Metadata{
 			Description: fmt.Sprintf("Azure AKS cluster %q in %v",
 				cluster.Name,
 				cluster.Location),
@@ -222,17 +221,17 @@ func labelsFromAzureKubeCluster(cluster *azure.AKSCluster) map[string]string {
 	labels := azureTagsToLabels(cluster.Tags)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAzure
-	labels[labelRegion] = cluster.Location
+	labels[types.DiscoveryLabelRegion] = cluster.Location
 
-	labels[labelResourceGroup] = cluster.GroupName
-	labels[labelSubscriptionID] = cluster.SubscriptionID
+	labels[types.DiscoveryLabelAzureResourceGroup] = cluster.GroupName
+	labels[types.DiscoveryLabelAzureSubscriptionID] = cluster.SubscriptionID
 	return labels
 }
 
 // NewKubeClusterFromGCPGKE creates a kube_cluster resource from an GKE cluster.
 func NewKubeClusterFromGCPGKE(cluster gcp.GKECluster) (types.KubeCluster, error) {
 	return types.NewKubernetesClusterV3(
-		setKubeName(types.Metadata{
+		setGCPKubeName(types.Metadata{
 			Description: getOrSetDefaultGCPDescription(cluster),
 			Labels:      labelsFromGCPKubeCluster(cluster),
 		}, cluster.Name),
@@ -261,9 +260,9 @@ func labelsFromGCPKubeCluster(cluster gcp.GKECluster) map[string]string {
 	labels := maps.Clone(cluster.Labels)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudGCP
-	labels[labelLocation] = cluster.Location
+	labels[types.DiscoveryLabelGCPLocation] = cluster.Location
 
-	labels[labelProjectID] = cluster.ProjectID
+	labels[types.DiscoveryLabelGCPProjectID] = cluster.ProjectID
 	return labels
 }
 
@@ -276,7 +275,7 @@ func NewKubeClusterFromAWSEKS(cluster *eks.Cluster) (types.KubeCluster, error) {
 	labels := labelsFromAWSKubeCluster(cluster, parsedARN)
 
 	return types.NewKubernetesClusterV3(
-		setKubeName(types.Metadata{
+		setAWSKubeName(types.Metadata{
 			Description: fmt.Sprintf("AWS EKS cluster %q in %s",
 				aws.StringValue(cluster.Name),
 				parsedARN.Region),
@@ -296,9 +295,9 @@ func labelsFromAWSKubeCluster(cluster *eks.Cluster, parsedARN arn.ARN) map[strin
 	labels := awsEKSTagsToLabels(cluster.Tags)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAWS
-	labels[labelRegion] = parsedARN.Region
+	labels[types.DiscoveryLabelRegion] = parsedARN.Region
 
-	labels[labelAccountID] = parsedARN.AccountID
+	labels[types.DiscoveryLabelAccountID] = parsedARN.AccountID
 	return labels
 }
 
@@ -314,10 +313,3 @@ func awsEKSTagsToLabels(tags map[string]*string) map[string]string {
 	}
 	return labels
 }
-
-const (
-	// labelProjectID is the label key for GCP project ID.
-	labelProjectID = "project-id"
-	// labelLocation is the label key for GCP location.
-	labelLocation = "location"
-)
