@@ -107,6 +107,10 @@ type User interface {
 	SetAzureIdentities(azureIdentities []string)
 	// SetGCPServiceAccounts sets a list of GCP service accounts for the user
 	SetGCPServiceAccounts(accounts []string)
+	// SetHostUserUID sets the UID for host users
+	SetHostUserUID(uid string)
+	// SetHostUserGID sets the GID for host users
+	SetHostUserGID(gid string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -340,6 +344,16 @@ func (u *UserV2) SetGCPServiceAccounts(accounts []string) {
 	u.setTrait(constants.TraitGCPServiceAccounts, accounts)
 }
 
+// SetHostUserUID sets the host user UID
+func (u *UserV2) SetHostUserUID(uid string) {
+	u.setTrait(constants.TraitHostUserUID, []string{uid})
+}
+
+// SetHostUserGID sets the host user GID
+func (u *UserV2) SetHostUserGID(uid string) {
+	u.setTrait(constants.TraitHostUserGID, []string{uid})
+}
+
 // GetStatus returns login status of the user
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
@@ -435,6 +449,24 @@ func (u UserV2) GetAzureIdentities() []string {
 // GetGCPServiceAccounts gets a list of GCP service accounts for the user
 func (u UserV2) GetGCPServiceAccounts() []string {
 	return u.getTrait(constants.TraitGCPServiceAccounts)
+}
+
+// GetHostUserUID retrieves the host user uid
+func (u UserV2) GetHostUserUID() string {
+	uid := u.getTrait(constants.TraitHostUserUID)
+	if len(uid) == 0 {
+		return ""
+	}
+	return uid[0]
+}
+
+// GetHostUserGID retrieves the host user uid
+func (u UserV2) GetHostUserGID() string {
+	gid := u.getTrait(constants.TraitHostUserGID)
+	if len(gid) == 0 {
+		return ""
+	}
+	return gid[0]
 }
 
 // GetUserType indicates if the User was created by an SSO Provider or locally.
