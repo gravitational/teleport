@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package accesslist
 
 import (
 	"encoding/json"
@@ -23,55 +23,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	accesslistpb "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1"
-	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/types/traits"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/types/header"
+	"github.com/gravitational/teleport/lib/types/header/convert/legacy"
+	"github.com/gravitational/teleport/lib/types/trait"
 )
-
-// FromAccessListV1 converts a v1 access list into an internal access list object.
-func FromAccessListV1(msg *accesslistpb.AccessList) (*AccessList, error) {
-	owners := make([]AccessListOwner, len(msg.Spec.Owners))
-	for i, owner := range msg.Spec.Owners {
-		owners[i] = AccessListOwner{
-			Name:        owner.Name,
-			Description: owner.Description,
-		}
-	}
-
-	members := make([]AccessListMember, len(msg.Spec.Members))
-	for i, member := range msg.Spec.Members {
-		members[i] = AccessListMember{
-			Name:    member.Name,
-			Joined:  member.Joined.AsTime(),
-			Expires: member.Expires.AsTime(),
-			Reason:  member.Reason,
-			AddedBy: member.AddedBy,
-		}
-	}
-
-	accessList, err := NewAccessList(header.FromMetadataV1(msg.Header.Metadata), AccessListSpec{
-		Owners: owners,
-		Audit: AccessListAudit{
-			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
-		},
-		MembershipRequires: AccessListRequires{
-			Roles:  msg.Spec.MembershipRequires.Roles,
-			Traits: traits.FromV1(msg.Spec.MembershipRequires.Traits),
-		},
-		OwnershipRequires: AccessListRequires{
-			Roles:  msg.Spec.OwnershipRequires.Roles,
-			Traits: traits.FromV1(msg.Spec.OwnershipRequires.Traits),
-		},
-		Grants: AccessListGrants{
-			Roles:  msg.Spec.Grants.Roles,
-			Traits: traits.FromV1(msg.Spec.Grants.Traits),
-		},
-		Members: members,
-	})
-
-	return accessList, trace.Wrap(err)
-}
 
 // AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be
@@ -81,39 +38,39 @@ type AccessList struct {
 	header.ResourceHeader
 
 	// Spec is the specification for the access list.
-	Spec AccessListSpec `json:"spec" yaml:"spec"`
+	Spec Spec `json:"spec" yaml:"spec"`
 }
 
-// AccessListSpec is the specification for an access list.
-type AccessListSpec struct {
+// Spec is the specification for an access list.
+type Spec struct {
 	// Description is a plaintext description of the access list.
 	Description string `json:"description" yaml:"description"`
 
 	// Owners is a list of owners of the access list.
-	Owners []AccessListOwner `json:"owners" yaml:"owners"`
+	Owners []Owner `json:"owners" yaml:"owners"`
 
 	// Audit describes the frequency that this access list must be audited.
-	Audit AccessListAudit `json:"audit" yaml:"audit"`
+	Audit Audit `json:"audit" yaml:"audit"`
 
 	// MembershipRequires describes the requirements for a user to be a member of the access list.
 	// For a membership to an access list to be effective, the user must meet the requirements of
 	// MembershipRequires and must be in the members list.
-	MembershipRequires AccessListRequires `json:"membership_requires" yaml:"membership_requires"`
+	MembershipRequires Requires `json:"membership_requires" yaml:"membership_requires"`
 
 	// OwnershipRequires describes the requirements for a user to be an owner of the access list.
 	// For ownership of an access list to be effective, the user must meet the requirements of
 	// OwnershipRequires and must be in the owners list.
-	OwnershipRequires AccessListRequires `json:"ownership_requires" yaml:"ownership_requires"`
+	OwnershipRequires Requires `json:"ownership_requires" yaml:"ownership_requires"`
 
 	// Grants describes the access granted by membership to this access list.
-	Grants AccessListGrants `json:"grants" yaml:"grants"`
+	Grants Grants `json:"grants" yaml:"grants"`
 
 	// Members describes the current members of the access list.
-	Members []AccessListMember `json:"members" yaml:"members"`
+	Members []Member `json:"members" yaml:"members"`
 }
 
-// AccessListOwner is an owner of an access list.
-type AccessListOwner struct {
+// Owner is an owner of an access list.
+type Owner struct {
 	// Name is the username of the owner.
 	Name string `json:"name" yaml:"name"`
 
@@ -121,33 +78,33 @@ type AccessListOwner struct {
 	Description string `json:"description" yaml:"description"`
 }
 
-// AccessListAudit describes the audit configuration for an access list.
-type AccessListAudit struct {
+// Audit describes the audit configuration for an access list.
+type Audit struct {
 	// Frequency is a duration that describes how often an access list must be audited.
 	Frequency time.Duration `json:"frequency" yaml:"frequency"`
 }
 
-// AccessListRequires describes a requirement section for an access list. A user must
+// Requires describes a requirement section for an access list. A user must
 // meet the following criteria to obtain the specific access to the list.
-type AccessListRequires struct {
+type Requires struct {
 	// Roles are the user roles that must be present for the user to obtain access.
 	Roles []string `json:"roles" yaml:"roles"`
 
 	// Traits are the traits that must be present for the user to obtain access.
-	Traits map[string][]string `json:"traits" yaml:"traits"`
+	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
-// AccessListGrants describes what access is granted by membership to the access list.
-type AccessListGrants struct {
+// Grants describes what access is granted by membership to the access list.
+type Grants struct {
 	// Roles are the roles that are granted to users who are members of the access list.
 	Roles []string `json:"roles" yaml:"roles"`
 
 	// Traits are the traits that are granted to users who are members of the access list.
-	Traits map[string][]string `json:"traits" yaml:"traits"`
+	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
-// AccessListMember describes a member of an access list.
-type AccessListMember struct {
+// Member describes a member of an access list.
+type Member struct {
 	// Name is the name of the member of the access list.
 	Name string `json:"name" yaml:"name"`
 
@@ -165,7 +122,7 @@ type AccessListMember struct {
 }
 
 // NewAccessList will create a new access list.
-func NewAccessList(metadata header.Metadata, spec AccessListSpec) (*AccessList, error) {
+func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	accessList := &AccessList{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
@@ -180,8 +137,8 @@ func NewAccessList(metadata header.Metadata, spec AccessListSpec) (*AccessList, 
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessList) CheckAndSetDefaults() error {
-	a.SetKind(KindAccessList)
-	a.SetVersion(V1)
+	a.SetKind(types.KindAccessList)
+	a.SetVersion(types.V1)
 
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -235,7 +192,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 }
 
 // GetOwners returns the list of owners from the access list.
-func (a *AccessList) GetOwners() []AccessListOwner {
+func (a *AccessList) GetOwners() []Owner {
 	return a.Spec.Owners
 }
 
@@ -245,39 +202,39 @@ func (a *AccessList) GetAuditFrequency() time.Duration {
 }
 
 // GetMembershipRequires returns the membership requires configuration from the access list.
-func (a *AccessList) GetMembershipRequires() AccessListRequires {
+func (a *AccessList) GetMembershipRequires() Requires {
 	return a.Spec.MembershipRequires
 }
 
 // GetOwnershipRequires returns the ownership requires configuration from the access list.
-func (a *AccessList) GetOwnershipRequires() AccessListRequires {
+func (a *AccessList) GetOwnershipRequires() Requires {
 	return a.Spec.OwnershipRequires
 }
 
 // GetGrants returns the grants from the access list.
-func (a *AccessList) GetGrants() AccessListGrants {
+func (a *AccessList) GetGrants() Grants {
 	return a.Spec.Grants
 }
 
 // GetMembers returns the members from the access list.
-func (a *AccessList) GetMembers() []AccessListMember {
+func (a *AccessList) GetMembers() []Member {
 	return a.Spec.Members
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
 // and should be removed when possible.
-func (a *AccessList) GetMetadata() Metadata {
-	return FromHeaderMetadata(a.Metadata)
+func (a *AccessList) GetMetadata() types.Metadata {
+	return legacy.FromHeaderMetadata(a.Metadata)
 }
 
 // MatchSearch goes through select field values of a resource
 // and tries to match against the list of search values.
 func (a *AccessList) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
-	return MatchSearch(fieldVals, values, nil)
+	return types.MatchSearch(fieldVals, values, nil)
 }
 
-func (a *AccessListAudit) UnmarshalJSON(data []byte) error {
+func (a *Audit) UnmarshalJSON(data []byte) error {
 	var audit map[string]interface{}
 	if err := json.Unmarshal(data, &audit); err != nil {
 		return trace.Wrap(err)
@@ -291,7 +248,7 @@ func (a *AccessListAudit) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (a *AccessListAudit) MarshalJSON() ([]byte, error) {
+func (a *Audit) MarshalJSON() ([]byte, error) {
 	audit := map[string]interface{}{}
 	audit["frequency"] = a.Frequency.String()
 	data, err := json.Marshal(audit)
