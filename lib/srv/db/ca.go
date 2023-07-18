@@ -68,9 +68,6 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	// version checking or downloading.
 	copy := database.Copy()
 	s.mu.RUnlock()
-	// It's not set so download it or see if it's already downloaded.
-	// When initializing the CAs do not update the certificates, instead use the
-	// cached ones.
 	bytes, err := s.getCACerts(ctx, copy)
 	if err != nil {
 		return trace.Wrap(err)
