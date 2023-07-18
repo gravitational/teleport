@@ -194,7 +194,7 @@ have permissions to assume an IAM role in each of those accounts and call
 
 In each AWS account where your EC2 instances will be running:
 
-1. Create the `teleport-DescribeInstances-policy` from [Step 1.1](#step-11-create-the-iam-policy).
+1. Create the `teleport-DescribeInstances-policy` from [Step 1.1](#create-the-iam-policy).
 
 1. Create an IAM role `teleport-DescribeInstances-role` that can be assumed from
    the account where your Teleport Auth Service is running.
@@ -229,7 +229,7 @@ In the AWS account where your Teleport Auth Service is running:
 ```
 
 1. Attach this `teleport-AssumeRole-policy` to the IAM role your Teleport Auth
-   Service has credentials for, see [Step 1.2](#step-12-attach-the-iam-policy).
+   Service has credentials for, see [Step 1.2](#attach-the-iam-policy).
 
 When creating the AWS joining token, include an allow rule for each foreign
 account and specify the AWS ARN for the foreign
