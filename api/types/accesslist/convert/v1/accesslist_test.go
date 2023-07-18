@@ -23,14 +23,77 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/types/accesslist"
-	"github.com/gravitational/teleport/lib/types/header"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 )
 
 func TestRoundtrip(t *testing.T) {
+	accessList := newAccessList(t, "access-list")
+
+	converted, err := FromProto(ToProto(accessList))
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(accessList, converted))
+}
+
+// Make sure that we don't panic if any of the message fields are missing.
+func TestFromProtoNils(t *testing.T) {
+	// Spec is nil
+	accessList := ToProto(newAccessList(t, "access-list"))
+	accessList.Spec = nil
+
+	_, err := FromProto(accessList)
+	require.Error(t, err)
+
+	// Owners is nil
+	accessList = ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.Owners = nil
+
+	_, err = FromProto(accessList)
+	require.Error(t, err)
+
+	// Audit is nil
+	accessList = ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.Audit = nil
+
+	_, err = FromProto(accessList)
+	require.Error(t, err)
+
+	// MembershipRequires is nil
+	accessList = ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.MembershipRequires = nil
+
+	_, err = FromProto(accessList)
+	require.Error(t, err)
+
+	// OwnershipRequires is nil
+	accessList = ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.OwnershipRequires = nil
+
+	_, err = FromProto(accessList)
+	require.Error(t, err)
+
+	// Grants is nil
+	accessList = ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.Grants = nil
+
+	_, err = FromProto(accessList)
+	require.Error(t, err)
+
+	// Members is nil
+	accessList = ToProto(newAccessList(t, "access-list"))
+	accessList.Spec.Members = nil
+
+	_, err = FromProto(accessList)
+	require.NoError(t, err)
+}
+
+func newAccessList(t *testing.T, name string) *accesslist.AccessList {
+	t.Helper()
+
 	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
-			Name: "access-list",
+			Name: name,
 		},
 		accesslist.Spec{
 			Description: "test access list",
@@ -87,9 +150,5 @@ func TestRoundtrip(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-
-	converted, err := FromProto(ToProto(accessList))
-	require.NoError(t, err)
-
-	require.Empty(t, cmp.Diff(accessList, converted))
+	return accessList
 }

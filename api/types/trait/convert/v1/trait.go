@@ -17,8 +17,10 @@ limitations under the License.
 package traitv1
 
 import (
+	"sort"
+
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
-	"github.com/gravitational/teleport/lib/types/trait"
+	"github.com/gravitational/teleport/api/types/trait"
 )
 
 // FromProto converts an array of v1 traits into a map of string to string array.
@@ -33,7 +35,17 @@ func FromProto(traits []*traitv1.Trait) trait.Traits {
 // ToV1 converts a map of string to string array to an array of v1 traits.
 func ToProto(traits trait.Traits) []*traitv1.Trait {
 	out := make([]*traitv1.Trait, 0, len(traits))
-	for key, values := range traits {
+	sortedKeys := make([]string, 0, len(traits))
+
+	// Sort the keys so that the resulting order of the traits is deterministic for equivalent
+	// maps.
+	for key := range traits {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, key := range sortedKeys {
+		values := traits[key]
 		out = append(out, &traitv1.Trait{
 			Key:    key,
 			Values: values,
