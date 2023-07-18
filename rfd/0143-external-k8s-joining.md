@@ -222,8 +222,9 @@ This does raise a few concerns:
   into a cluster.
 - This raises the potential fallout from a compromised Kubernetes Agent. A
   compromised agent could be used to impersonate any service account.
-- It is relatively unusual in the Teleport codebase for the Auth Server to
-  rely on connectivity to an agent to function.
+- There is no prior art for the Auth Server connecting directly to an Agent.
+  It's also possible that a Kubernetes Agent may not live within a Kubernetes
+  Cluster when using auto-discovery.
 
 We should revisit this in the long term and determine if there are more
 elegant ways for us to allow external Kubernetes cluster joining with the
