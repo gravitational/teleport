@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
