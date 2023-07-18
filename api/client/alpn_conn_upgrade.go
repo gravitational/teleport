@@ -101,6 +101,11 @@ func isRemoteNoALPNError(err error) bool {
 	return errors.As(err, &opErr) && opErr.Op == "remote error" && strings.Contains(opErr.Err.Error(), "tls: no application protocol")
 }
 
+// isUnadvertisedALPNError returns true if the error indicates that the server
+// returns an ALPN value that the client does not expect during TLS handshake.
+//
+// Reference:
+// https://github.com/golang/go/blob/2639a17f146cc7df0778298c6039156d7ca68202/src/crypto/tls/handshake_client.go#L838
 func isUnadvertisedALPNError(err error) bool {
 	return strings.Contains(err.Error(), "tls: server selected unadvertised ALPN protocol")
 }
