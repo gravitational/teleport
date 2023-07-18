@@ -176,31 +176,42 @@ func TestAccessPostgres(t *testing.T) {
 			err:          "access to db denied",
 		},
 		{
-			desc:          "access allowed to specific user/database by static label",
-			user:          "alice",
-			role:          "admin",
-			allowDbNames:  []string{"metrics"},
-			allowDbUsers:  []string{"alice"},
+			desc:         "access allowed to specific user/database by static label",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"metrics"},
+			allowDbUsers: []string{"alice"},
+			// The default test role created has wildcard labels allowed.
+			// This tests that specific allowed database labels matching the
+			// test database's static labels allows access.
 			extraRoleOpts: []roleOptFn{withAllowedDBLabels(staticDBLabels)},
 			dbName:        "metrics",
 			dbUser:        "alice",
 		},
 		{
-			desc:          "access allowed to specific user/database by dynamic label",
-			user:          "alice",
-			role:          "admin",
-			allowDbNames:  []string{"metrics"},
-			allowDbUsers:  []string{"alice"},
+			desc:         "access allowed to specific user/database by dynamic label",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"metrics"},
+			allowDbUsers: []string{"alice"},
+			// The default test role created has wildcard labels allowed.
+			// This tests that specific allowed database labels matching the
+			// test database's dynamic labels allows access, to ensure
+			// that RBAC checks against dynamic labels are working.
 			extraRoleOpts: []roleOptFn{withAllowedDBLabels(dynamicDBLabels)},
 			dbName:        "metrics",
 			dbUser:        "alice",
 		},
 		{
-			desc:          "access denied by dynamic label",
-			user:          "alice",
-			role:          "admin",
-			allowDbNames:  []string{"metrics"},
-			allowDbUsers:  []string{"alice"},
+			desc:         "access denied by dynamic label",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"metrics"},
+			allowDbUsers: []string{"alice"},
+			// The default test role created has wildcard labels allowed.
+			// This tests that specific denied database labels matching the
+			// test database's dynamic labels denies access, to ensure
+			// that RBAC checks against dynamic labels are working.
 			extraRoleOpts: []roleOptFn{withDeniedDBLabels(dynamicDBLabels)},
 			dbName:        "metrics",
 			dbUser:        "alice",
