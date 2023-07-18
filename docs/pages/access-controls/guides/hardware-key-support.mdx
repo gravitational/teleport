@@ -9,13 +9,14 @@ description: Hardware Key Support
   Hardware Key Support requires Teleport Enterprise.
 </Admonition>
 
-By default, `tsh`, Teleport Connect, and other Teleport clients store a user's login session directly on the local filesystem. 
-If the filesystem is compromised, any active Teleport login session would also be compromised.
+By default, `tsh`, Teleport Connect, and other Teleport clients store a user's key and certificates directly
+on their filesystem. If a user's filesystem is compromised, any of their active Teleport User keys and certificates
+would also be compromised.
 
 You can configure [per-session MFA](per-session-mfa.mdx) to require a second factor authentication check 
-when users start new sessions with Teleport services, such as SSH, Kube, DB, and so on. 
+when users start new sessions with Teleport services, such as SSH, Kubernetes, DB, and so on. 
 However, per-session MFA doesn't prevent compromised session credentials from taking other actions, such as 
-running administrative commands with `tctl. 
+running administrative commands with `tctl`. 
 
 To prevent these types of attacks, Teleport supports hardware-based private keys. 
 Unlike disk-based private keys, hardware-based private keys are generated and stored directly 
@@ -23,8 +24,8 @@ on a hardware device and are impossible to export.
 With hardware-based private keys, a login session is only functional if there's also access to the 
 hardware device where the key was generated and stored.
 
-Additionally, you can configure this feature to require a touch for every Teleport request, including non-session requests. 
-With touch required, hardware key support provides better security than per-session MFA offering.
+Additionally, you can configure this feature to require a touch for every Teleport request, including non-session requests
+like `tctl edit`. With touch required, hardware key support provides better security than per-session MFA.
 
 <Admonition type="note" title="touch caching">
   A user's touch is cached on the hardware security key for 15 seconds to prevent excessive touch prompts.
@@ -50,9 +51,8 @@ With touch required, hardware key support provides better security than per-sess
     - Application access.
 
   If you require users to have a hardware key to access your infrastructure, they won't be able to
-  use any of the unsupported features either because the hardware key can't be accessed—for example, 
-  through the Teleport Web UI—or because the protocol only supports raw private keys. 
-  For example, agent forwarding. Kubernetes access, and desktop access all currently require raw private keys. 
+  use any of the unsupported features either because the hardware key can't be accessed or because
+  the protocol only supports raw private keys.
 
   To navigate these incompatibilities, we recommend that you enable hardware key support only when
   necessary, such as for roles with access to critical infrastructure. These roles can be accessed
@@ -177,10 +177,6 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 #   ...
 ```
 
-<Admonition type="note" title="touch caching">
-  A user's touch is cached on the hardware security key for 15 seconds to prevent excessive touch prompts.
-</Admonition>
-
 </ScopedBlock>
 
 Affected users with existing sessions that aren't backed by a hardware key are prompted to sign in again
@@ -207,9 +203,11 @@ by combining hardware key support with per-session MFA.
 You can configure this combined functionality by specifying `require_session_mfa: hardware_key` in the `role` and `cluster_auth_preference` settings. 
 This option continues to use per-session MFA checks for starting sessions and requires hardware-based private keys for all Teleport requests.
 
-This configuration prevents basic data exfiltration attacks for Teleport sessions and non-session requests. 
-However, it does not prevent attacks with non-session Teleport requests if an attacker gets access to a 
-user's computer with the certificates on disk and the private key on a connected hardware device.
+This configuration prevents basic data exfiltration attacks for Teleport sessions and requests.
+However, since MFA is only required for sessions, non-session requests like `tctl edit` can still
+be used by an attacker with remote access to the user's computer with the user's private key
+available through the connected hardware device.
+
 ## Troubleshooting
 
 ### `ERROR: private key policy not met`
