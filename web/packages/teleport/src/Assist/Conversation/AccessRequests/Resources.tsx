@@ -98,15 +98,11 @@ export function Resources(props: ResourcesProps) {
 
 function getBadge(type: string, cluster: string, color: string) {
   if (type === 'server') {
-    return (
-      <ServerIcon size={14} fill={color} />
-    );
+    return <ServerIcon size={14} fill={color} />;
   }
 
   if (type === 'application') {
-    return (
-      <ApplicationsIcon size={14} fill={color} />
-    );
+    return <ApplicationsIcon size={14} fill={color} />;
   }
 
   return null;
@@ -128,4 +124,3 @@ function getClusterBadge(type: string, cluster: string, color: string) {
 
   return null;
 }
-

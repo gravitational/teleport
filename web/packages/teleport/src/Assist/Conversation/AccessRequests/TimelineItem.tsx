@@ -21,8 +21,9 @@ import { ApplicationsIcon, LeafIcon, ServerIcon } from 'design/SVGIcon';
 
 import { formatRelative } from 'date-fns';
 
-import type { AccessRequestEvent } from 'teleport/Assist/types';
 import { Resources } from 'teleport/Assist/Conversation/AccessRequests/Resources';
+
+import type { AccessRequestEvent } from 'teleport/Assist/types';
 
 interface TimelineItemProps {
   event: AccessRequestEvent;
