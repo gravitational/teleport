@@ -271,6 +271,135 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			inputName: "invalid-mssql-without-ad",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.goteleport.com:1433",
+				AD:       types.AD{},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-mssql-kerberos-keytabfile",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.goteleport.com:1433",
+				AD: types.AD{
+					KeytabFile: "path-to.keytab",
+					Krb5File:   "path-to.krb5",
+					Domain:     "domain.goteleport.com",
+					SPN:        "MSSQLSvc/sqlserver.goteleport.com:1433",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "valid-mssql-kerberos-kdchostname",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.goteleport.com:1433",
+				AD: types.AD{
+					KDCHostName: "DOMAIN-CONTROLLER.domain.goteleport.com",
+					Krb5File:    "path-to.krb5",
+					Domain:      "domain.goteleport.com",
+					SPN:         "MSSQLSvc/sqlserver.goteleport.com:1433",
+					LDAPCert:    "-----BEGIN CERTIFICATE-----",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-mssql-kerberos-kdchostname-without-ldapcert",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.goteleport.com:1433",
+				AD: types.AD{
+					KDCHostName: "DOMAIN-CONTROLLER.domain.goteleport.com",
+					Krb5File:    "path-to.krb5",
+					Domain:      "domain.goteleport.com",
+					SPN:         "MSSQLSvc/sqlserver.goteleport.com:1433",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-mssql-azure-kerberos",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.database.windows.net:1433",
+				AD: types.AD{
+					KeytabFile: "path-to.keytab",
+					Krb5File:   "path-to.krb5",
+					Domain:     "domain.goteleport.com",
+					SPN:        "MSSQLSvc/sqlserver.database.windows.net:1433",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "valid-mssql-azure-ad",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.database.windows.net:1433",
+				AD:       types.AD{},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "valid-mssql-rds-kerberos-keytab",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.rds.amazonaws.com:1433",
+				AD: types.AD{
+					KeytabFile: "path-to.keytab",
+					Krb5File:   "path-to.krb5",
+					Domain:     "domain.goteleport.com",
+					SPN:        "MSSQLSvc/sqlserver.rds.amazonaws.com:1433",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "valid-mssql-aws-rds-proxy",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.rds.amazonaws.com:1433",
+				AWS: types.AWS{
+					RDSProxy: types.RDSProxy{
+						Name: "sqlserver-proxy",
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-mssql-rds-kerberos-without-ad",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.rds.amazonaws.com:1433",
+				AD:       types.AD{},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-mssql-aws-rds-proxy-kerberos-without-spn",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver.rds.amazonaws.com:1433",
+				AWS: types.AWS{
+					RDSProxy: types.RDSProxy{
+						Name: "sqlserver-proxy",
+					},
+				},
+				AD: types.AD{
+					KeytabFile: "path-to.keytab",
+					Krb5File:   "path-to.krb5",
+					Domain:     "domain.goteleport.com",
+				},
+			},
+			expectError: true,
+		},
 	}
 
 	for _, test := range tests {

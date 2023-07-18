@@ -21,9 +21,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/types/accesslist"
+	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var _ AccessLists = (*accesslistclient.Client)(nil)
 
 // AccessListsGetter defines an interface for reading access lists.
 type AccessListsGetter interface {
