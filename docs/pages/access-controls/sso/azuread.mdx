@@ -58,11 +58,11 @@ Before you get started, you’ll need:
 
 1. Select **Single sign-on** under **Manage** and choose **SAML**
 
-![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
+   ![Select SAML](../../../img/azuread/azuread-5-selectsaml.png)
 
 2. Edit the **Basic SAML Configuration**
 
-   ![Select SAML](../../../img/azuread/azuread-6-selectsaml.png)
+   ![Edit Basic SAML Configuration](../../../img/azuread/azuread-6-editbasicsaml.png)
 
 3. Enter the URL for your Teleport cluster or Teleport tenant in the **Entity ID** and **Reply URL**  fields. For example:
    name="mytenant.teleport.sh:443" /> to the host and HTTPS port of your
@@ -72,21 +72,21 @@ Before you get started, you’ll need:
    https://<Var name="mytenant.teleport.sh:443" />/v1/webapi/saml/acs/ad
    ```
 
-8. For **Entity ID** and **Reply URL**, enter the same proxy URL.
+   ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-7-entityandreplyurl.png)
 
-   Click **Save** before proceeding to the next step.
+ Click **Save** before proceeding to the next step.
 
 4. In **SAML Certificates** section, copy the **App Federation
    Metadata URL** link and save it for use in our Teleport connector configuration:
 
-    ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
+   ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
 
 ### Edit attributes & claims
 
 1. Click on **Unique User Identifier (Name ID)** under **Required claim**.
 
 2. Change the "name identifier format" to **Default**. Make sure the source
-  attribute is `user.userprincipalname`.
+   attribute is `user.userprincipalname`.
 
    ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
 
