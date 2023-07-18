@@ -22,13 +22,29 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	"github.com/gravitational/teleport/lib/types/accesslist"
-	headerv1 "github.com/gravitational/teleport/lib/types/header/convert/v1"
-	traitv1 "github.com/gravitational/teleport/lib/types/trait/convert/v1"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
+	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
 // FromProto converts a v1 access list into an internal access list object.
 func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
+	if msg.Spec == nil {
+		return nil, trace.BadParameter("spec is missing")
+	}
+	if msg.Spec.Audit == nil {
+		return nil, trace.BadParameter("audit is missing")
+	}
+	if msg.Spec.MembershipRequires == nil {
+		return nil, trace.BadParameter("membershipRequires is missing")
+	}
+	if msg.Spec.OwnershipRequires == nil {
+		return nil, trace.BadParameter("ownershipRequires is missing")
+	}
+	if msg.Spec.Grants == nil {
+		return nil, trace.BadParameter("grants is missing")
+	}
+
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
 		owners[i] = accesslist.Owner{
