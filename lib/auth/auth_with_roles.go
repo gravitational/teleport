@@ -2621,6 +2621,10 @@ func (a *ServerWithRoles) GetCurrentUserRoles(ctx context.Context) ([]types.Role
 
 // DeleteUser deletes an existng user in a backend by username.
 func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
+	if err := a.validateMFAResponseFromRequest(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3126,6 +3130,23 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsR
 	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
 }
 
+func (a *ServerWithRoles) validateMFAResponseFromRequest(ctx context.Context) error {
+	if _, ok := a.context.Identity.(authz.BuiltinRole); ok {
+		return nil
+	}
+
+	mfaResponse, err := authz.MFAResponseFromContext(ctx)
+	if err != nil {
+		return trace.Wrap(err, "MFA response is missing in the request")
+	}
+
+	if _, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResponse, a.context.User.GetName(), false); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // CreateBot creates a new certificate renewal bot and returns a join token.
 func (a *ServerWithRoles) CreateBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
 	// Note: this creates a role with role impersonation privileges for all
@@ -3206,6 +3227,24 @@ func (a *ServerWithRoles) UpdateUser(ctx context.Context, user types.User) error
 }
 
 func (a *ServerWithRoles) UpsertUser(u types.User) error {
+	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	createdBy := u.GetCreatedBy()
+	if createdBy.IsEmpty() {
+		u.SetCreatedBy(types.CreatedBy{
+			User: types.UserRef{Name: a.context.User.GetName()},
+		})
+	}
+	return a.authServer.UpsertUser(u)
+}
+
+func (a *ServerWithRoles) UpsertUserV2(ctx context.Context, u types.User) error {
+	if err := a.validateMFAResponseFromRequest(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}

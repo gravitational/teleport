@@ -1089,6 +1089,30 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptyp
 	return &emptypb.Empty{}, nil
 }
 
+// UpsertUser updates an existing user in a backend.
+func (g *GRPCServer) UpsertUser(ctx context.Context, req *authpb.UpsertUserRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUser(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := services.ValidateUserRoles(ctx, req.User, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.ServerWithRoles.UpsertUser(ctx, req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Infof("%q user upserted", req.User.GetName())
+
+	return &emptypb.Empty{}, nil
+}
+
 // DeleteUser deletes an existng user in a backend by username.
 func (g *GRPCServer) DeleteUser(ctx context.Context, req *authpb.DeleteUserRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)

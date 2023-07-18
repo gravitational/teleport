@@ -30,6 +30,7 @@ import (
 	"github.com/vulcand/predicate/builder"
 
 	"github.com/gravitational/teleport"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -262,6 +263,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1010,6 +1012,9 @@ const (
 
 	// contextClientAddr is a client address set in the context of the request
 	contextClientAddr contextKey = "client-addr"
+
+	// contextMFAResponse is an MFA challenge response set in the context of the request
+	contextMFAResponse contextKey = "mfa-response"
 )
 
 // WithDelegator alias for backwards compatibility
@@ -1352,6 +1357,20 @@ func UserFromContext(ctx context.Context) (IdentityGetter, error) {
 	user, ok := ctx.Value(contextUser).(IdentityGetter)
 	if !ok {
 		return nil, trace.BadParameter("expected type IdentityGetter, got %T", user)
+	}
+	return user, nil
+}
+
+// ContextWithMFAResponse returns the context with the user MFA response embedded.
+func ContextWithMFAResponse(ctx context.Context, resp *authpb.MFAAuthenticateResponse) context.Context {
+	return context.WithValue(ctx, contextMFAResponse, resp)
+}
+
+// MFAResponseFromContext returns the MFA response from the context.
+func MFAResponseFromContext(ctx context.Context) (*authpb.MFAAuthenticateResponse, error) {
+	user, ok := ctx.Value(contextMFAResponse).(*authpb.MFAAuthenticateResponse)
+	if !ok {
+		return nil, trace.BadParameter("expected type MFAAuthenticateResponse, got %T", user)
 	}
 	return user, nil
 }

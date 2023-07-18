@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -465,6 +466,33 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 	return handler(srv, &authenticatedStream{ctx: ctx, ServerStream: serverStream})
 }
 
+// withMFAResponseUnaryInterceptor is a gRPC unary server interceptor
+// which sets the ContextMFAResponse field on the request context to the MFA
+// response passed in the request, if applicable.
+func (a *Middleware) withMFAResponseUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	ctx, err := a.withMFAResponse(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return handler(ctx, req)
+}
+
+// mfaRequest is a gRPC request message that includes an MFAResponse field.
+type mfaRequest interface {
+	GetMfaResponse() *authpb.MFAAuthenticateResponse
+}
+
+// withAuthenticatedUser returns a new context with the ContextUser field set to
+// the caller's user identity as authenticated by their client TLS certificate.
+func (a *Middleware) withMFAResponse(ctx context.Context, req interface{}) (context.Context, error) {
+	mfaReq, ok := req.(mfaRequest)
+	if ok {
+		ctx = authz.ContextWithMFAResponse(ctx, mfaReq.GetMfaResponse())
+	}
+
+	return ctx, nil
+}
+
 // UnaryInterceptor returns a gPRC unary interceptor which performs rate
 // limiting, authenticates requests, and passes the user information as context
 // metadata.
@@ -476,6 +504,7 @@ func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 			utils.GRPCServerUnaryErrorInterceptor,
 			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 			a.withAuthenticatedUserUnaryInterceptor,
+			a.withMFAResponseUnaryInterceptor,
 		)
 	}
 	return utils.ChainUnaryServerInterceptors(
@@ -483,6 +512,7 @@ func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 		utils.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
+		a.withMFAResponseUnaryInterceptor,
 	)
 }
 

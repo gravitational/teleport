@@ -504,10 +504,22 @@ message DeviceTrustFeature {
   int32 devices_usage_limit = 2 [(gogoproto.jsontag) = "devices_usage_limit,omitempty"];
 }
 
+// UpsertUserRequest is the input value for the UpsertUser method.
+message UpsertUserRequest {
+  // User is a user to upsert.
+  types.UserV2 user = 1;
+
+  // MfaResponse is a response to MFAChallenge auth challenge.
+  MFAAuthenticateResponse mfa_response = 2;
+}
+
 // DeleteUserRequest is the input value for the DeleteUser method.
 message DeleteUserRequest {
   // Name is the user name to delete.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+
+  // MfaResponse is a response to MFAChallenge auth challenge.
+  MFAAuthenticateResponse mfa_response = 2;
 }
 
 // Semaphores is a sequence of Semaphore resources.
@@ -2397,6 +2409,8 @@ service AuthService {
   rpc CreateUser(types.UserV2) returns (google.protobuf.Empty);
   // UpdateUser updates an existing user in a backend.
   rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty);
+  // UpsertUser upserts a new user entry to a backend.
+  rpc UpsertUser(UpsertUserRequest) returns (google.protobuf.Empty);
   // DeleteUser deletes an existing user in a backend by username.
   rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
   // ChangePassword allows a user to change their own password.
