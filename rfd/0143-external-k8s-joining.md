@@ -229,8 +229,32 @@ However, this join method is still more secure than the long-lived secret
 based `token` join method that operators are forced to use due to this
 external Kubernetes join method not existing.
 
-The risk of token reuse will be mitigated by the inclusion of a nonce within
-the audience of the JWT, as described under details.
+### Token reuse
+
+Token reuse refers to the potential for a malicious actor to intercept
+communications between the client and the server, and to use this interception
+to capture the JWT and then use this elsewhere to obtain credentials.
+
+Token reuse is mitigated in two ways:
+
+- A challenge and solution flow is used with a nonce. This means that each
+  JWT is only valid once for a specific join. In order to use this JWT, the
+  malicious actor would need to cause the real join flow to fail.
+- A short time-to-live will be used on JWTs issued for the join process. This
+  limits the malicious actors options and forces them to use the JWT
+  immediately.
+
+### Kubernetes CA Compromise
+
+One of the largest risks to any delegated join method is the trusted parties
+issuer becoming compromised. This is no different for this new Kubernetes join
+method. If the Kubernetes Cluster's JWT CA is compromised, then a malicious 
+actor will be able to issue a JWT posing as any theoretical service account.
+
+There is no mitigation route for this risk. It is up to the operator to secure
+their Kubernetes cluster appropriately and to ensure that join tokens that
+delegate trust to this cluster are appropriately scoped in privileges to reduce
+the blast radius if their Kubernetes CA were to become compromised.
 
 ## Alternatives
 
