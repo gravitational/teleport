@@ -115,10 +115,10 @@ teleport:
     expiry_batch_size: 1000
 
     audit_events_uri:
-      - postgresql://teleport_auth@testdb.postgres.database.azure.com:5432/teleport_events?sslmode=verify-full&auth_mode=azure&disable_cleanup=false&cleanup_interval=1h&retention_period=8766h
+      - postgresql://teleport_auth@testdb.postgres.database.azure.com:5432/teleport_events?sslmode=verify-full#auth_mode=azure&disable_cleanup=false&cleanup_interval=1h&retention_period=8766h
 ```
 
-The `conn_string` used by the backend is a [`libpq`-compatible Postgres connection string](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING), and can be specified in both keyword-value format and as a URI. The audit log URI can only be specified as a URI. In addition to the standard Postgres options, the options supported by [`pgxpool`](https://pkg.go.dev/github.com/jackc/pgx/v5/pgxpool#ParseConfig) are also supported - `pool_max_conns` being the most useful.
+The `conn_string` used by the backend is a [`libpq`-compatible Postgres connection string](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING), and can be specified in both keyword-value format and as a URI. The audit log URI can only be specified as a URI. In addition to the standard Postgres options, the options supported by [`pgxpool`](https://pkg.go.dev/github.com/jackc/pgx/v5/pgxpool#ParseConfig) are also supported - `pool_max_conns` being the most useful. Non-Postgres parameters for the audit log are passed as query parameters in the fragment of the URI.
 
 The `auth_mode: azure` field for the backend and the `auth_mode=azure` query parameter enable authentication to the database via Azure AD. The optional `azure_client_id` field (for both the backend and the audit log) override the default azure credential selection and the selection in the `AZURE_CLIENT_ID` envvar, so it's possible to select two different managed identities for backend and audit log. A blank (or unset) `auth_mode` will use the default Postgres authentication methods.
 
