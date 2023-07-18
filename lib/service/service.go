@@ -3817,13 +3817,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:                   lockWatcher,
 				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			},
-			TLS:             tlsConfig,
-			LimiterConfig:   cfg.Proxy.Limiter,
-			AccessPoint:     accessPoint,
-			GetRotation:     process.getRotation,
-			OnHeartbeat:     process.onHeartbeat(component),
-			Log:             log,
-			IngressReporter: ingressReporter,
+			TLS:                 tlsConfig,
+			LimiterConfig:       cfg.Proxy.Limiter,
+			AccessPoint:         accessPoint,
+			GetRotation:         process.getRotation,
+			OnHeartbeat:         process.onHeartbeat(component),
+			Log:                 log,
+			IngressReporter:     ingressReporter,
+			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 		})
 		if err != nil {
 			return trace.Wrap(err)

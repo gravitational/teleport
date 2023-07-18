@@ -90,6 +90,8 @@ type TLSServerConfig struct {
 	CloudLabels labels.Importer
 	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
+	// EnableProxyProtocol enables proxy protocol support
+	EnableProxyProtocol bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -242,7 +244,7 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Context:             t.Context,
 		Listener:            listener,
 		Clock:               t.Clock,
-		EnableProxyProtocol: true,
+		EnableProxyProtocol: t.EnableProxyProtocol,
 		ID:                  t.Component,
 		// Increases deadline until the agent receives the first byte to 10s.
 		// It's required to accommodate setups with high latency and where the time
