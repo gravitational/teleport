@@ -570,7 +570,11 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	// kubeResource is the Kubernetes Resource the request is targeted at.
 	// Currently only supports Pods and it includes the pod name and namespace.
-	kubeResource, apiResource := getResourceFromRequest(req)
+	kubeResource, apiResource, err := getResourceFromRequest(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fmt.Println("kubeResource", kubeResource)
 	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, apiResource, kubeResource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
