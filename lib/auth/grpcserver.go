@@ -3055,7 +3055,7 @@ func (g *GRPCServer) GetSSODiagnosticInfo(ctx context.Context, req *authpb.GetSS
 }
 
 // GetServerInfos returns a stream of ServerInfos.
-func (g *GRPCServer) GetServerInfos(_ *emptypb.Empty, stream proto.AuthService_GetServerInfosServer) error {
+func (g *GRPCServer) GetServerInfos(_ *emptypb.Empty, stream authpb.AuthService_GetServerInfosServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
