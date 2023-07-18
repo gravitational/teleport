@@ -602,6 +602,19 @@ const (
 	// kubernetes cluster name override for discovered GCP kube clusters.
 	GCPKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
 
+	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
+	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
+
+	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
+	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
+	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
+	DiscoveryPortLabel = TeleportNamespace + "/port"
+	// DiscoveryProtocolLabel specifies protocol for a discovered app created from Kubernetes service.
+	DiscoveryProtocolLabel = TeleportNamespace + "/protocol"
+	// DiscoveryAppRewriteLabel specifies rewrite rules for a discovered app created from Kubernetes service.
+	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
+
+
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
 
