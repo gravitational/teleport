@@ -285,6 +285,10 @@ func (c *RoleSetupConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+type TokenProvisioner struct {
+	Log *logrus.Entry
+}
+
 // CreateNodeToken creates a node join token that is valid for 5 minutes.
 func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (types.ProvisionToken, error) {
 	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
@@ -325,8 +329,4 @@ type Provisioner interface {
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
 	// See services.Provisioner.DeleteToken.
 	DeleteToken(ctx context.Context, token string) error
-}
-
-type TokenProvisioner struct {
-	Log *logrus.Entry
 }
