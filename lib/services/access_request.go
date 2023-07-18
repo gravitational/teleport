@@ -944,7 +944,6 @@ type RequestValidator struct {
 	Roles struct {
 		AllowRequest, DenyRequest []parse.Matcher
 		AllowSearch, DenySearch   []string
-		MaxDuration               map[string]time.Duration // role => max access duration
 	}
 	Annotations struct {
 		Allow, Deny map[string][]string
@@ -953,7 +952,11 @@ type RequestValidator struct {
 		Matchers   []parse.Matcher
 		Thresholds []types.AccessReviewThreshold
 	}
-	SuggestedReviewers []string
+	SuggestedReviewers  []string
+	MaxDurationMatchers []struct {
+		Matchers    []parse.Matcher
+		MaxDuration time.Duration
+	}
 }
 
 // NewRequestValidator configures a new RequestValidator for the specified user.
@@ -978,9 +981,6 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		m.Annotations.Allow = make(map[string][]string)
 		m.Annotations.Deny = make(map[string][]string)
 	}
-
-	// initialize max duration cache
-	m.Roles.MaxDuration = make(map[string]time.Duration)
 
 	// load all statically assigned roles for the user and
 	// use them to build our validation state.
@@ -1143,14 +1143,15 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 
 	minAdjDuration := maxDuration
 	// Adjust the expiration time if the max_duration value is set on the request role.
-	for _, roleName := range req.GetRoles() {
-		roleMaxDuration, found := m.Roles.MaxDuration[roleName]
-		if !found {
-			continue
-		}
-
-		if roleMaxDuration < maxDuration {
-			minAdjDuration = roleMaxDuration
+	for _, tms := range m.MaxDurationMatchers {
+		for _, matcher := range tms.Matchers {
+			for _, roleName := range req.GetRoles() {
+				if matcher.Match(roleName) {
+					if tms.MaxDuration < minAdjDuration {
+						minAdjDuration = tms.MaxDuration
+					}
+				}
+			}
 		}
 	}
 
@@ -1290,13 +1291,6 @@ func (m *RequestValidator) push(role types.Role) error {
 
 	m.Roles.AllowSearch = apiutils.Deduplicate(append(m.Roles.AllowSearch, allow.SearchAsRoles...))
 	m.Roles.DenySearch = apiutils.Deduplicate(append(m.Roles.DenySearch, deny.SearchAsRoles...))
-	// convert string duration to time.Duration
-
-	if allow.MaxDuration != 0 {
-		for _, r := range allow.Roles {
-			m.Roles.MaxDuration[r] = allow.MaxDuration.Duration()
-		}
-	}
 
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship
@@ -1313,6 +1307,16 @@ func (m *RequestValidator) push(role types.Role) error {
 			}{
 				Matchers:   newMatchers,
 				Thresholds: allow.Thresholds,
+			})
+		}
+
+		if allow.MaxDuration != 0 {
+			m.MaxDurationMatchers = append(m.MaxDurationMatchers, struct {
+				Matchers    []parse.Matcher
+				MaxDuration time.Duration
+			}{
+				Matchers:    newMatchers,
+				MaxDuration: allow.MaxDuration.Duration(),
 			})
 		}
 
