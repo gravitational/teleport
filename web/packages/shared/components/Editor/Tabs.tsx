@@ -32,9 +32,7 @@ export function Tabs(props: TabsProps) {
       active={index === props.activeIndex}
       onClick={() => props.onSelect(index)}
     >
-      <TabIcon>
-        <Icons.Code color="white" />
-      </TabIcon>
+      <Icons.Code color="white" size="small" mr={2} />
       {name}
     </Tab>
   ));
@@ -53,6 +51,8 @@ export const Tab = styled.div<{ active: boolean }>`
   cursor: pointer;
   position: relative;
   color: white;
+  display: flex;
+  align-items: center;
 
   &:after {
     content: '';
@@ -64,11 +64,4 @@ export const Tab = styled.div<{ active: boolean }>`
     background: ${p =>
       p.active ? 'linear-gradient(to right, #ec008c, #fc6767)' : 'transparent'};
   }
-`;
-
-const TabIcon = styled('span')`
-  font-size: 14px;
-  margin-right: 10px;
-  position: relative;
-  top: 1px;
 `;

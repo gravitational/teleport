@@ -21,7 +21,7 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
-import { Close } from 'design/Icon';
+import { Cross } from 'design/Icon';
 
 interface DocumentsReopenProps {
   onCancel(): void;
@@ -58,7 +58,7 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
             onClick={props.onCancel}
             color="text.slightlyMuted"
           >
-            <Close fontSize={5} />
+            <Cross size="medium" />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>

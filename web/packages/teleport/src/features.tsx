@@ -17,25 +17,25 @@ limitations under the License.
 import React, { lazy } from 'react';
 
 import {
-  ActiveSessionsIcon,
-  AddIcon,
-  ApplicationsIcon,
-  AuditLogIcon,
-  AuthConnectorsIcon,
-  LockIcon,
-  DatabasesIcon,
-  DesktopsIcon,
-  IntegrationsIcon,
-  KubernetesIcon,
-  ManageClustersIcon,
-  RolesIcon,
-  ServersIcon,
-  SessionRecordingsIcon,
-  SupportIcon,
-  TrustedClustersIcon,
-  UserSettingsIcon,
-  UsersIcon,
-} from 'design/SVGIcon';
+  Server,
+  Application,
+  Desktop,
+  Kubernetes,
+  Database,
+  Terminal,
+  Users as UsersIcon,
+  ClipboardUser,
+  ShieldCheck,
+  Lock,
+  AddCircle,
+  CirclePlay,
+  ListThin,
+  SlidersVertical,
+  UserCircleGear,
+  Question,
+  Cluster,
+  Integrations as IntegrationsIcon,
+} from 'design/Icon';
 
 import cfg from 'teleport/config';
 
@@ -83,7 +83,7 @@ export class FeatureNodes implements TeleportFeature {
 
   navigationItem = {
     title: 'Servers',
-    icon: <ServersIcon />,
+    icon: <Server />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getNodesRoute(clusterId);
@@ -113,7 +113,7 @@ export class FeatureApps implements TeleportFeature {
 
   navigationItem = {
     title: 'Applications',
-    icon: <ApplicationsIcon />,
+    icon: <Application />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getAppsRoute(clusterId);
@@ -137,7 +137,7 @@ export class FeatureKubes implements TeleportFeature {
 
   navigationItem = {
     title: 'Kubernetes',
-    icon: <KubernetesIcon />,
+    icon: <Kubernetes />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getKubernetesRoute(clusterId);
@@ -161,7 +161,7 @@ export class FeatureDatabases implements TeleportFeature {
 
   navigationItem = {
     title: 'Databases',
-    icon: <DatabasesIcon />,
+    icon: <Database />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getDatabasesRoute(clusterId);
@@ -185,7 +185,7 @@ export class FeatureDesktops implements TeleportFeature {
 
   navigationItem = {
     title: 'Desktops',
-    icon: <DesktopsIcon />,
+    icon: <Desktop />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getDesktopsRoute(clusterId);
@@ -209,7 +209,7 @@ export class FeatureSessions implements TeleportFeature {
 
   navigationItem = {
     title: 'Active Sessions',
-    icon: <ActiveSessionsIcon />,
+    icon: <Terminal />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getSessionsRoute(clusterId);
@@ -265,7 +265,7 @@ export class FeatureRoles implements TeleportFeature {
 
   navigationItem = {
     title: 'Roles',
-    icon: <RolesIcon />,
+    icon: <ClipboardUser />,
     exact: true,
     getLink() {
       return cfg.routes.roles;
@@ -290,7 +290,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
 
   navigationItem = {
     title: 'Auth Connectors',
-    icon: <AuthConnectorsIcon />,
+    icon: <ShieldCheck />,
     exact: false,
     getLink() {
       return cfg.routes.sso;
@@ -315,7 +315,7 @@ export class FeatureLocks implements TeleportFeature {
 
   navigationItem = {
     title: 'Session & Identity Locks',
-    icon: <LockIcon />,
+    icon: <Lock />,
     exact: false,
     getLink() {
       return cfg.getLocksRoute();
@@ -352,7 +352,7 @@ export class FeatureDiscover implements TeleportFeature {
 
   navigationItem = {
     title: 'Enroll New Resource',
-    icon: <AddIcon />,
+    icon: <AddCircle />,
     exact: true,
     getLink() {
       return cfg.routes.discover;
@@ -417,7 +417,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   navigationItem = {
     title: 'Enroll New Integration',
-    icon: <AddIcon />,
+    icon: <AddCircle />,
     getLink() {
       return cfg.getIntegrationEnrollRoute(null);
     },
@@ -449,7 +449,7 @@ export class FeatureRecordings implements TeleportFeature {
 
   navigationItem = {
     title: 'Session Recordings',
-    icon: <SessionRecordingsIcon />,
+    icon: <CirclePlay />,
     exact: true,
     getLink(clusterId: string) {
       return cfg.getRecordingsRoute(clusterId);
@@ -473,7 +473,7 @@ export class FeatureAudit implements TeleportFeature {
 
   navigationItem = {
     title: 'Audit Log',
-    icon: <AuditLogIcon />,
+    icon: <ListThin />,
     getLink(clusterId: string) {
       return cfg.getAuditRoute(clusterId);
     },
@@ -499,7 +499,7 @@ export class FeatureClusters implements TeleportFeature {
 
   navigationItem = {
     title: 'Manage Clusters',
-    icon: <ManageClustersIcon />,
+    icon: <SlidersVertical />,
     exact: false,
     getLink() {
       return cfg.routes.clusters;
@@ -523,7 +523,7 @@ export class FeatureTrust implements TeleportFeature {
 
   navigationItem = {
     title: 'Trusted Clusters',
-    icon: <TrustedClustersIcon />,
+    icon: <Cluster />,
     getLink() {
       return cfg.routes.trustedClusters;
     },
@@ -547,7 +547,7 @@ export class FeatureAccount implements TeleportFeature {
 
   topMenuItem = {
     title: 'Account Settings',
-    icon: <UserSettingsIcon size={16} />,
+    icon: <UserCircleGear />,
     getLink() {
       return cfg.routes.account;
     },
@@ -568,7 +568,7 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 
   topMenuItem = {
     title: 'Help & Support',
-    icon: <SupportIcon size={16} />,
+    icon: <Question />,
     exact: true,
     getLink() {
       return cfg.routes.support;
