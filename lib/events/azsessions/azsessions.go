@@ -177,13 +177,13 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 			ID: azidentity.ClientID(cfg.ClientID),
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "creating Azure managed identity credentials")
 		}
 		cred = c
 	} else {
 		c, err := azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "creating default Azure credentials")
 		}
 		cred = c
 	}
@@ -213,6 +213,8 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 			return cntClient, nil
 		}
 		if trace.IsAccessDenied(err) {
+			// we might not have permissions to read the container or to create
+			// it, but we might have permissions to use it
 			cfg.Log.WithError(err).Warnf(
 				"Could not create the %v container, please ensure it exists or session recordings will not be stored correctly.", name)
 			return cntClient, nil
@@ -346,7 +348,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		Scopes: []string{"https://storage.azure.com/.default"},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "obtaining Azure authentication token")
 	}
 	copySourceAuthorization := "Bearer " + token.Token
 	stageOptions := &blockblob.StageBlockFromURLOptions{

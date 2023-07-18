@@ -45,7 +45,7 @@ func cErr0(err error) error {
 	return trace.WrapWithMessage(trace.ReadError(stErr.StatusCode, nil), stErr.ErrorCode)
 }
 
-// cErr converts the error as in cErr, leaving the first argument untouched.
+// cErr converts the error as in [cErr0], leaving the first argument untouched.
 func cErr[T any](v T, err error) (T, error) {
 	return v, cErr0(err)
 }
