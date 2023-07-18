@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package proto;
 
+import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
@@ -123,5 +124,7 @@ message Event {
     types.IntegrationV1 Integration = 42;
     // WatchStatus is an WatchStatus resource.
     types.WatchStatusV1 WatchStatus = 43;
+    // AccessList is an AccessList resource.
+    teleport.accesslist.v1.AccessList AccessList = 45;
   }
 }

@@ -14,20 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package legacy
+package traitv1
 
 import (
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/types/header"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/trait"
 )
 
-// FromHeaderMetadata will convert a *header.Metadata object to this metadata object.
-// TODO: Remove this once we get rid of the old Metadata object.
-func FromHeaderMetadata(metadata header.Metadata) types.Metadata {
-	return types.Metadata{
-		ID:          metadata.ID,
-		Name:        metadata.Name,
-		Description: metadata.Description,
-		Labels:      metadata.Labels,
+func TestRoundtrip(t *testing.T) {
+	traits := trait.Traits{
+		"trait1": {"value1", "value2"},
+		"trait2": {"value3", "value4"},
+		"trait3": {"value5", "value6"},
 	}
+
+	converted := FromProto(ToProto(traits))
+
+	require.Empty(t, cmp.Diff(traits, converted))
 }

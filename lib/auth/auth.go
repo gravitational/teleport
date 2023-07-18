@@ -228,6 +228,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.AccessLists == nil {
+		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -291,6 +297,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Integrations:            cfg.Integrations,
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
+		AccessLists:             cfg.AccessLists,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
@@ -407,6 +414,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.Okta
+	services.AccessLists
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
@@ -429,6 +437,11 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
+	return r
+}
+
+// AccessListClient returns the access list client.
+func (r *Services) AccessListClient() services.AccessLists {
 	return r
 }
 

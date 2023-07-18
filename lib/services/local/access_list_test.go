@@ -27,9 +27,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/types/accesslist"
-	"github.com/gravitational/teleport/lib/types/header"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
