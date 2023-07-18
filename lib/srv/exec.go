@@ -75,6 +75,10 @@ type Exec interface {
 	// Wait will block while the command executes.
 	Wait() *ExecResult
 
+	// WaitForChild blocks until the child process has completed any required
+	// setup operations before proceeding with execution.
+	WaitForChild() error
+
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
@@ -214,6 +218,14 @@ func (e *localExec) Wait() *ExecResult {
 	}
 
 	return execResult
+}
+
+func (e *localExec) WaitForChild() error {
+	_, err := io.ReadFull(e.Ctx.readyr, make([]byte, 1))
+	closeErr := e.Ctx.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	e.Ctx.readyr = nil
+	return trace.Wrap(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -361,6 +373,8 @@ func (e *remoteExec) Wait() *ExecResult {
 		Code:    exitCode(err),
 	}
 }
+
+func (e *remoteExec) WaitForChild() error { return nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}

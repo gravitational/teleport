@@ -116,9 +116,11 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 		errors <- err
 	}()
 
+	// Wait for the child process to indicate its completed initialization.
+	require.NoError(t, scx.execRequest.WaitForChild())
+
 	// Continue execution
-	err = scx.contw.Close()
-	require.NoError(t, err)
+	scx.execRequest.Continue()
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)

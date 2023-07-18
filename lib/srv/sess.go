@@ -1021,7 +1021,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
-	if err := s.term.WaitForPam(); err != nil {
+	if err := s.term.WaitForChild(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1223,7 +1223,9 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
-	// TODO Wait for PAM?
+	if err := execRequest.WaitForChild(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {

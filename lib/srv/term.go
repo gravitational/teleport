@@ -60,7 +60,9 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
-	WaitForPam() error
+	// WaitForChild blocks until the child process has completed any required
+	// setup operations before proceeding with execution.
+	WaitForChild() error
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
@@ -237,8 +239,8 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *terminal) WaitForPam() error {
-	_, err := io.ReadFull(t.serverContext.contr, make([]byte, 1))
+func (t *terminal) WaitForChild() error {
+	_, err := io.ReadFull(t.serverContext.readyr, make([]byte, 1))
 	return trace.Wrap(err)
 }
 
@@ -598,7 +600,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *remoteTerminal) WaitForPam() error {
+func (t *remoteTerminal) WaitForChild() error {
 	return nil
 }
 

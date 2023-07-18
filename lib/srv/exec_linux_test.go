@@ -145,10 +145,11 @@ func TestContinue(t *testing.T) {
 	case <-time.After(5 * time.Second):
 	}
 
-	// Close the continue and terminate pipe to signal to Teleport to now execute the
-	// requested program.
-	err = scx.contw.Close()
-	require.NoError(t, err)
+	// Wait for the child process to indicate its completed initialization.
+	require.NoError(t, scx.execRequest.WaitForChild())
+
+	// Signal to child that it may execute the requested program.
+	scx.execRequest.Continue()
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
