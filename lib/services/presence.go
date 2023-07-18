@@ -127,6 +127,21 @@ type Presence interface {
 	// DeleteNamespace deletes namespace by name
 	DeleteNamespace(name string) error
 
+	// GetServerInfos returns a stream of ServerInfos.
+	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
+
+	// GetServerInfo returns a ServerInfo by name.
+	GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error)
+
+	// UpsertServerInfo upserts a ServerInfo.
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+
+	// DeleteServerInfo deletes a ServerInfo by name.
+	DeleteServerInfo(ctx context.Context, name string) error
+
+	// DeleteAllServerInfos deletes all ServerInfos.
+	DeleteAllServerInfos(ctx context.Context) error
+
 	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
 	UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
 

@@ -3054,6 +3054,84 @@ func (g *GRPCServer) GetSSODiagnosticInfo(ctx context.Context, req *authpb.GetSS
 	return info, nil
 }
 
+// GetServerInfos returns a stream of ServerInfos.
+func (g *GRPCServer) GetServerInfos(_ *emptypb.Empty, stream proto.AuthService_GetServerInfosServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	infos := auth.GetServerInfos(stream.Context())
+	for infos.Next() {
+		si, ok := infos.Item().(*types.ServerInfoV1)
+		if !ok {
+			log.Warnf("Skipping unexpected instance type %T, expected %T.", infos.Item(), si)
+		}
+		if err := stream.Send(si); err != nil {
+			infos.Done()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(infos.Done())
+}
+
+// GetServerInfo returns a ServerInfo by name.
+func (g *GRPCServer) GetServerInfo(ctx context.Context, req *types.ResourceRequest) (*types.ServerInfoV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	si, err := auth.ServerWithRoles.GetServerInfo(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serverInfoV1, ok := si.(*types.ServerInfoV1)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected Server Info type %T", si)
+	}
+	return serverInfoV1, nil
+}
+
+// UpsertServerInfo upserts a ServerInfo.
+func (g *GRPCServer) UpsertServerInfo(ctx context.Context, si *types.ServerInfoV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.UpsertServerInfo(ctx, si); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteServerInfo deletes a ServerInfo by name.
+func (g *GRPCServer) DeleteServerInfo(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.DeleteServerInfo(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllServerInfos deletes all ServerInfos.
+func (g *GRPCServer) DeleteAllServerInfos(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.DeleteAllServerInfos(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // GetTrustedCluster retrieves a Trusted Cluster by name.
 func (g *GRPCServer) GetTrustedCluster(ctx context.Context, req *types.ResourceRequest) (*types.TrustedClusterV2, error) {
 	auth, err := g.authenticate(ctx)
