@@ -63,11 +63,11 @@ a healthy start before continuing to the next version.
 1. **Upgrade the Auth Service first to the next Major version**. The Auth Service keeps the cluster state
    and, if there are data format changes introduced in the new version, will
    perform necessary migrations.  Confirm the start of the Auth Service and a healthy state.
-2. Upgrade Proxy Service instances to the same version number. These are stateless and can be upgraded in
+1. Upgrade Proxy Service instances to the same version number. These are stateless and can be upgraded in
    any sequence or at the same time.
-3. Finally, upgrade your Teleport resource services in any sequence or at the
+1. Finally, upgrade your Teleport resource services in any sequence or at the
    same time to the same version number.
-4. If you are upgrading more then one version number then repeat Step 1 to 3 until you have reached your target
+1. If you are upgrading more then one version number then repeat Step 1 to 3 until you have reached your target
    major version.
 
 <Admonition
