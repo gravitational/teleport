@@ -329,10 +329,25 @@ conflicts.
 1. Push the changes for the backport to the fork.
 
    ```code 
+   $ git push origin my-branch-backport-v11
+   ```
+
+   If you see a warning that prevents you from pushing the backport, retry using the
+   following command:
+
+   ```code 
    $ git push --set-upstream origin my-branch-backport-v11
    ```
 
-1. Create a pull request in the [Teleport repository](https://github.com/gravitational/teleport) for your backport.
+1. Create a pull request in the [Teleport repository](https://github.com/gravitational/teleport) to
+merge your backport in the branch you are backporting the fix into.
+   
+   For example, select `branch/v11` as the base branch to backport your change into Teleport version 11.x.
+   Include a reference to the original pull release identifier in the title for the backport.
+   For example, create the pull request for a backport with a title similar to the following with the 
+   backport version number 11.x and the original pull request identifier 29210:
+   
+   [v11] Fix lint warning, make these unordered lists #29210
 
 </TabItem>
 <TabItem label="Select commits (external)">
