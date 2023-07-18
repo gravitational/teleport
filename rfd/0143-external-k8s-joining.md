@@ -71,13 +71,63 @@ spec:
   bot_name: argocd
   join_method: "kubernetes-jwks",
   kubernetes_jwks:
-    # jwks is obtained by the user by following the steps after this example
-    # configuration.
-    jwks: |
-      {"keys":[{"use":"sig","kty":"RSA","kid":"9-MIvttbVaRsRf5ejiOtKguarpDA_dJ2skL81OgY2ck","alg":"RS256","n":"3VRj5e27ne706BVQi4LDNg2x31HJc3vrXnsYmyfOFKfRDP6cPesyteyCcTYWhoIlMy3GCKWO1gzeIINMbZgndM87Dw9Dsl0eJQeL_GFAIXOxMoavraNuptFSrV43qQ8kUVDsiC9gSGJVs6LR9bClL8vksmL7_nbSrMviUygPvj-mf4ngPRT6XnKyldKiePMwXrUnomM4FWskZ_UvPiqwWZu1aXhcuEdNA3yOFFq08H1ys71iiRAMyD2knuJV9sZgt_Ns-28ofrR45yR6nzKhmjIJf1H9Fy33o6jtXdtqxeLdqOseRJm3A8PJE4Zp1NfuCJSjsxIhZYHXXH60EPCmNw","e":"AQAB"}]}
-   # allow rules will be the same as for the `kubernetes` join method.
+    clusters:
+    - name: my-cluster
+      # static_jwks is obtained by the user by following the steps after this 
+      # example configuration.
+      static_jwks: |
+        {"keys":[{"use":"sig","kty":"RSA","kid":"-snip-","alg":"RS256","n":"-snip-","e":"-snip-"}]}
+    - name: my-other-cluster
+      static_jwks: |
+        {"keys":[{"use":"sig","kty":"RSA","kid":"-snip-","alg":"RS256","n":"-snip-","e":"-snip-"}]}
     allow:
-      - service_account: "my-namespace:my-service-account"
+    # Matches a SA JWT from any configured cluster in the namespace
+    # `my-namespace` and named `my-service-account`.
+    - service_account: "my-namespace:my-service-account"
+    # Matches only SA JWT signed by the configured cluster above named
+    # `my-other-cluster` and from the `my-namespace` namespace and named
+    # `my-other-service-account`.
+    - service_account: "my-namespace:my-other-service-account"
+      cluster: my-other-cluster
+```
+
+This configuration is defined in Protobuf form as:
+
+```protobuf
+syntax = "proto3";
+message ProvisionTokenSpecV2KubernetesJWKS {
+  // Rule is a set of properties the Kubernetes-issued token might have to be
+  // allowed to use this ProvisionToken
+  message Rule {
+    // ServiceAccount is the namespaced name of the Kubernetes service account.
+    // Its format is "namespace:service-account".
+    string ServiceAccount = 1;
+  }
+
+  // Cluster is a set of properties that describe a cluster that an entity may
+  // attempt to join from.
+  message Cluster {
+    // Name is an identifier configured for the cluster. This value is chosen
+    // by the user, and does not have to match a specific value configured in
+    // Kubernetes.
+    string Name = 1;
+    // Source is how the public signing keys for the cluster will be obtained
+    // to use for validating a provided JWT.
+    oneof Source {
+      // StaticJWKS allows the public signing keys for a cluster to be
+      // specified statically with the JSON body of the JWKS endpoint.
+      string StaticJWKS = 2;
+    }
+  }
+  
+  // Clusters is a list of Cluster that are accepted sources of JWTs to use
+  // against this token. A Service Account JWT signed by a cluster not listed
+  // here will be rejected.
+  repeated Cluster Clusters = 1;
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 2;
+}
 ```
 
 In order to obtain the `jwks` value for their Kubernetes Cluster, operators
