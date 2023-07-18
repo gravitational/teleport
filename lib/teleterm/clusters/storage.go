@@ -75,19 +75,14 @@ func (s *Storage) GetByURI(clusterURI uri.ResourceURI) (*Cluster, *client.Telepo
 	return cluster, clusterClient, nil
 }
 
-// GetByResourceURI returns a cluster by a string URI of its resource. Accepts both root and leaf
-// cluster resources and will return a root or a leaf cluster accordingly.
+// GetByResourceURI returns a cluster by a URI of its resource. Accepts both root and leaf cluster
+// resources and will return a root or a leaf cluster accordingly.
 //
 // clusterClient being returned as the second return value is a stopgap in an effort to make
 // clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
 // https://github.com/gravitational/teleport/issues/13278
-func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, *client.TeleportClient, error) {
-	clusterURI, err := uri.ParseClusterURI(resourceURI)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	cluster, clusterClient, err := s.GetByURI(clusterURI)
+func (s *Storage) GetByResourceURI(resourceURI uri.ResourceURI) (*Cluster, *client.TeleportClient, error) {
+	cluster, clusterClient, err := s.GetByURI(resourceURI.GetClusterURI())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -100,7 +95,7 @@ func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, *client.Telepo
 // clusterClient being returned as the second return value is a stopgap in an effort to make
 // clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
 // https://github.com/gravitational/teleport/issues/13278
-func (s *Storage) ResolveCluster(resourceURI string) (*Cluster, *client.TeleportClient, error) {
+func (s *Storage) ResolveCluster(resourceURI uri.ResourceURI) (*Cluster, *client.TeleportClient, error) {
 	cluster, clusterClient, err := s.GetByResourceURI(resourceURI)
 	return cluster, clusterClient, trace.Wrap(err)
 }

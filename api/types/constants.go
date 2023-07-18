@@ -421,6 +421,10 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
+	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
+	// service to match with a single discovered instance.
+	SubKindCloudInfo = "cloud_info"
+
 	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
 	// window singleton resource.
 	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
@@ -603,6 +607,12 @@ const (
 	// See also TeleportNamespace and TeleportInternalLabelPrefix.
 	TeleportHiddenLabelPrefix = "teleport.hidden/"
 
+	// DiscoveredNameLabel is a resource metadata label name used to identify
+	// the discovered name of a resource, i.e. the name of a resource before a
+	// uniquely distinguishing suffix is added by the discovery service.
+	// See: RFD 129 - Avoid Discovery Resource Name Collisions.
+	DiscoveredNameLabel = TeleportInternalLabelPrefix + "discovered-name"
+
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"
 
@@ -672,6 +682,16 @@ const (
 	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
 	// to them, but user changes to these resources will be preserved.
 	PresetResource = "preset"
+
+	// ProxyGroupIDLabel is the internal-use label for proxy heartbeats that's
+	// used by reverse tunnel agents to keep track of multiple independent sets
+	// of proxies in proxy peering mode.
+	ProxyGroupIDLabel = TeleportInternalLabelPrefix + "proxygroup-id"
+
+	// ProxyGroupGenerationLabel is the internal-use label for proxy heartbeats
+	// that's used by reverse tunnel agents to know which proxies in each proxy
+	// group they should attempt to be connected to.
+	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

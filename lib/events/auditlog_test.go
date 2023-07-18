@@ -154,7 +154,7 @@ func TestConcurrentStreaming(t *testing.T) {
 
 func TestExternalLog(t *testing.T) {
 	m := &eventstest.MockAuditLog{
-		Emitter: &eventstest.MockEmitter{},
+		Emitter: &eventstest.MockRecorderEmitter{},
 	}
 
 	fakeClock := clockwork.NewFakeClock()

@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
@@ -33,7 +34,7 @@ func NewGatewayCreator(resolver Resolver) GatewayCreator {
 	}
 }
 
-func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	cluster, _, err := g.resolver.ResolveCluster(params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -47,5 +48,5 @@ func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayP
 // in tests.
 type Resolver interface {
 	// ResolveCluster returns a cluster from storage given the URI. See [Storage.ResolveCluster].
-	ResolveCluster(string) (*Cluster, *client.TeleportClient, error)
+	ResolveCluster(uri.ResourceURI) (*Cluster, *client.TeleportClient, error)
 }

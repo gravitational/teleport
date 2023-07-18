@@ -18,13 +18,13 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -48,7 +48,7 @@ func TestConnectorSelection(t *testing.T) {
 
 	connector := &connector{DBAuth: &mockDBAuth{}}
 
-	for _, tt := range []struct {
+	for i, tt := range []struct {
 		desc         string
 		databaseSpec types.DatabaseSpecV3
 		errAssertion require.ErrorAssertionFunc
@@ -118,7 +118,7 @@ func TestConnectorSelection(t *testing.T) {
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
-				Name: uuid.NewString(),
+				Name: fmt.Sprintf("db-%v", i),
 			}, tt.databaseSpec)
 			require.NoError(t, err)
 
@@ -240,7 +240,7 @@ func TestConnectorKInitClient(t *testing.T) {
 	err := os.WriteFile(krbConfPath, []byte(krb5Conf), 0664)
 	require.NoError(t, err)
 
-	for _, tt := range []struct {
+	for i, tt := range []struct {
 		desc         string
 		databaseSpec types.DatabaseSpecV3
 		errAssertion require.ErrorAssertionFunc
@@ -301,7 +301,7 @@ func TestConnectorKInitClient(t *testing.T) {
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{
-				Name: uuid.NewString(),
+				Name: fmt.Sprintf("db-%v", i),
 			}, tt.databaseSpec)
 			require.NoError(t, err)
 

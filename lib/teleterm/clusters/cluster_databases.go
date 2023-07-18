@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -43,7 +44,7 @@ type Database struct {
 }
 
 // GetDatabase returns a database
-func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, error) {
+func (c *Cluster) GetDatabase(ctx context.Context, dbURI uri.ResourceURI) (*Database, error) {
 	// TODO(ravicious): Fetch a single db instead of filtering the response from GetDatabases.
 	// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
 	dbs, err := c.getAllDatabases(ctx)
@@ -52,7 +53,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 	}
 
 	for _, db := range dbs {
-		if db.URI.String() == dbURI {
+		if db.URI == dbURI {
 			return &db, nil
 		}
 	}
@@ -202,7 +203,11 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
 	var authClient auth.ClientI
 	var proxyClient *client.ProxyClient
-	var err error
+
+	dbResourceURI, err := uri.ParseDBURI(dbURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
@@ -228,7 +233,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 		return nil, trace.Wrap(err)
 	}
 
-	db, err := c.GetDatabase(ctx, dbURI)
+	db, err := c.GetDatabase(ctx, dbResourceURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -244,4 +249,22 @@ type GetDatabasesResponse struct {
 	StartKey string
 	// // TotalCount is the total number of resources available as a whole.
 	TotalCount int
+}
+
+// NewDBCLICmdBuilder creates a dbcmd.CLICommandBuilder with provided cluster,
+// db route, and options.
+func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
+	return dbcmd.NewCmdBuilder(
+		cluster.clusterClient,
+		&cluster.status,
+		routeToDb,
+		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
+		// clusters.
+		//
+		// At this point it doesn't matter though because this argument is used only for
+		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
+		// included in the returned CLI command.
+		cluster.Name,
+		options...,
+	)
 }

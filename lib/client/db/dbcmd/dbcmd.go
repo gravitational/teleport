@@ -60,6 +60,8 @@ const (
 	redisBin = "redis-cli"
 	// mssqlBin is the SQL Server client program name.
 	mssqlBin = "mssql-cli"
+	// sqlcmd is the SQL Server client program name.
+	sqlcmdBin = "sqlcmd"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
 	// cqlshBin is the Cassandra client program name.
@@ -124,10 +126,10 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	// In TLS routing mode a local proxy is started on demand so connect to it.
-	host, port := tc.DatabaseProxyHostPort(db)
-	if options.localProxyPort != 0 && options.localProxyHost != "" {
-		host = options.localProxyHost
-		port = options.localProxyPort
+	host := options.localProxyHost
+	port := options.localProxyPort
+	if host == "" || port == 0 {
+		host, port = tc.DatabaseProxyHostPort(db)
 	}
 
 	if options.log == nil {
@@ -328,7 +330,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 		// We save configuration to ~/.my.cnf, but on Windows that file is not read,
 		// see tables 4.1 and 4.2 on https://dev.mysql.com/doc/refman/8.0/en/option-files.html.
 		// We instruct mysql client to use use that file with --defaults-extra-file.
-		configPath, err := mysql.DefaultConfigPath()
+		configPath, err := mysql.DefaultConfigPath(c.tc.HomePath)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -427,6 +429,12 @@ func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	// MariaDB:
 	// mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
+}
+
+// isSqlcmdAvailable returns true if "sqlcmd" binary is fouind in the system
+// PATH.
+func (c *CLICommandBuilder) isSqlcmdAvailable() bool {
+	return c.isBinAvailable(sqlcmdBin)
 }
 
 func (c *CLICommandBuilder) shouldUseMongoshBin() bool {
@@ -554,6 +562,8 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 	return exec.Command(redisBin, args...)
 }
 
+// getSQLServerCommand returns a command to connect to SQL Server.
+// mssql-cli and sqlcmd commands have the same argument names.
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	args := []string{
 		// Host and port must be comma-separated.
@@ -566,6 +576,10 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 
 	if c.db.Database != "" {
 		args = append(args, "-d", c.db.Database)
+	}
+
+	if c.isSqlcmdAvailable() {
+		return exec.Command(sqlcmdBin, args...)
 	}
 
 	return exec.Command(mssqlBin, args...)

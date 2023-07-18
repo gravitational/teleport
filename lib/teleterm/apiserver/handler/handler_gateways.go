@@ -38,7 +38,7 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -82,7 +82,7 @@ func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
 
 	return &api.Gateway{
 		Uri:                   gateway.URI().String(),
-		TargetUri:             gateway.TargetURI(),
+		TargetUri:             gateway.TargetURI().String(),
 		TargetName:            gateway.TargetName(),
 		TargetUser:            gateway.TargetUser(),
 		TargetSubresourceName: gateway.TargetSubresourceName(),
@@ -103,7 +103,7 @@ func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,7 +118,7 @@ func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLo
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

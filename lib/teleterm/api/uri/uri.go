@@ -19,7 +19,6 @@ package uri
 import (
 	"fmt"
 
-	"github.com/gravitational/trace"
 	"github.com/ucarion/urlpath"
 )
 
@@ -44,27 +43,6 @@ func NewClusterURI(profileName string) ResourceURI {
 	return ResourceURI{
 		path: fmt.Sprintf("/clusters/%v", profileName),
 	}
-}
-
-// ParseClusterURI parses a string and returns a cluster URI.
-//
-// If given a resource URI, it'll return the URI of the cluster to which the resource belongs to.
-// If given a leaf cluster resource URI, it'll return the URI of the leaf cluster.
-func ParseClusterURI(path string) (ResourceURI, error) {
-	URI := New(path)
-	profileName := URI.GetProfileName()
-	leafClusterName := URI.GetLeafClusterName()
-
-	if profileName == "" {
-		return URI, trace.BadParameter("missing root cluster name")
-	}
-
-	clusterURI := NewClusterURI(profileName)
-	if leafClusterName != "" {
-		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
-	}
-
-	return clusterURI, nil
 }
 
 // NewGatewayURI creates a gateway URI for a given ID
@@ -158,6 +136,21 @@ func (r ResourceURI) GetServerUUID() string {
 // GetRootClusterURI trims the existing ResourceURI into a URI that points solely at the root cluster.
 func (r ResourceURI) GetRootClusterURI() ResourceURI {
 	return NewClusterURI(r.GetProfileName())
+}
+
+// GetClusterURI strips any resource-specific information other than the cluster
+// to which a given resource belongs to.
+//
+// If called on a root cluster resource URI, it'll return the URI of the root cluster.
+// If called on a leaf cluster resource URI, it'll return the URI of the leaf cluster.
+// If called on a root cluster URI or a leaf cluster URI, it's a noop.
+func (r ResourceURI) GetClusterURI() ResourceURI {
+	clusterURI := r.GetRootClusterURI()
+
+	if leafClusterName := r.GetLeafClusterName(); leafClusterName != "" {
+		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
+	}
+	return clusterURI
 }
 
 // AppendServer appends server segment to the URI

@@ -89,12 +89,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))
 
-	srv.POST("/:version/authorities/:type", srv.WithAuth(srv.upsertCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate", srv.WithAuth(srv.rotateCertAuthority))
 	srv.POST("/:version/authorities/:type/rotate/external", srv.WithAuth(srv.rotateExternalCertAuthority))
-	srv.DELETE("/:version/authorities/:type/:domain", srv.WithAuth(srv.deleteCertAuthority))
-	srv.GET("/:version/authorities/:type/:domain", srv.WithAuth(srv.getCertAuthority))
-	srv.GET("/:version/authorities/:type", srv.WithAuth(srv.getCertAuthorities))
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.WithAuth(srv.generateHostCert))
@@ -102,7 +98,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Operations on users
 	srv.GET("/:version/users", srv.WithAuth(srv.getUsers))
 	srv.GET("/:version/users/:user", srv.WithAuth(srv.getUser))
-	srv.DELETE("/:version/users/:user", srv.WithAuth(srv.deleteUser)) // DELETE IN: 5.2 REST method is replaced by grpc method with context.
 
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.WithAuth(srv.upsertUser))
@@ -551,15 +546,6 @@ func (s *APIServer) getUsers(auth ClientI, w http.ResponseWriter, r *http.Reques
 	return out, nil
 }
 
-// DELETE IN: 5.2 REST method is replaced by grpc method with context.
-func (s *APIServer) deleteUser(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user := p.ByName("user")
-	if err := auth.DeleteUser(r.Context(), user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("user %q deleted", user)), nil
-}
-
 type generateHostCertReq struct {
 	Key         []byte            `json:"key"`
 	HostID      string            `json:"hostname"`
@@ -616,33 +602,6 @@ func (s *APIServer) rotateCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	return message("ok"), nil
 }
 
-type upsertCertAuthorityRawReq struct {
-	CA  json.RawMessage `json:"ca"`
-	TTL time.Duration   `json:"ttl"`
-}
-
-// upsertCertAuthority creates or updates a cert authority.
-// Deprecated: Replaced by teleport.v1.trust.TrustService/UpsertCertAuthority
-// DELETE IN 14.0.0
-func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertCertAuthorityRawReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ca, err := services.UnmarshalCertAuthority(req.CA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if req.TTL != 0 {
-		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
-	}
-
-	if err := auth.UpsertCertAuthority(r.Context(), ca); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
 type rotateExternalCertAuthorityRawReq struct {
 	CA json.RawMessage `json:"ca"`
 }
@@ -660,62 +619,6 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-// getCertAuthorities returns all cert authorities that match the provided type.
-// Deprecated: Replaced by teleport.v1.trust.TrustService/GetCertAuthorities
-// DELETE IN 14.0.0
-func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := auth.GetCertAuthorities(r.Context(), types.CertAuthType(p.ByName("type")), loadKeys)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := make([]json.RawMessage, len(certs))
-	for i, cert := range certs {
-		data, err := services.MarshalCertAuthority(cert, services.WithVersion(version), services.PreserveResourceID())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		items[i] = data
-	}
-	return items, nil
-}
-
-// getCertAuthority returns a single matching cert authority.
-// Deprecated: Replaced by teleport.v1.trust.TrustService/GetCertAuthority
-// DELETE IN 14.0.0
-func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	id := types.CertAuthID{
-		Type:       types.CertAuthType(p.ByName("type")),
-		DomainName: p.ByName("domain"),
-	}
-	ca, err := auth.GetCertAuthority(r.Context(), id, loadKeys)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
-}
-
-// deleteCertAuthority removes the matching cert authority.
-// Deprecated: Replaced by teleport.v1.trust.TrustService/DeleteCertAuthority.
-// DELETE IN 14.0.0
-func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	id := types.CertAuthID{
-		DomainName: p.ByName("domain"),
-		Type:       types.CertAuthType(p.ByName("type")),
-	}
-	if err := auth.DeleteCertAuthority(r.Context(), id); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
 }
 
 // validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback

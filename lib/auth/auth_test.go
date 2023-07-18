@@ -75,7 +75,7 @@ type testPack struct {
 	bk          backend.Backend
 	clusterName types.ClusterName
 	a           *Server
-	mockEmitter *eventstest.MockEmitter
+	mockEmitter *eventstest.MockRecorderEmitter
 }
 
 func newTestPack(
@@ -96,7 +96,7 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	p.mockEmitter = &eventstest.MockEmitter{}
+	p.mockEmitter = &eventstest.MockRecorderEmitter{}
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
@@ -760,27 +760,6 @@ func TestLocalControlStream(t *testing.T) {
 	}
 }
 
-func TestGenerateTokenEventsEmitted(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	ctx := context.Background()
-	// test trusted cluster token emit
-	_, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
-	s.mockEmitter.Reset()
-
-	// test emit with multiple roles
-	_, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{
-		types.RoleNode,
-		types.RoleTrustedCluster,
-		types.RoleAuth,
-	}})
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
-}
-
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -1081,7 +1060,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 }
 
 func TestEmitSSOLoginFailureEvent(t *testing.T) {
-	mockE := &eventstest.MockEmitter{}
+	mockE := &eventstest.MockRecorderEmitter{}
 
 	emitSSOLoginFailureEvent(context.Background(), mockE, "test", trace.BadParameter("some error"), false)
 
@@ -2094,7 +2073,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	authServer.emitter = mockEmitter
 
 	ctx := context.Background()
@@ -2409,7 +2388,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
