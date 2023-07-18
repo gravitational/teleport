@@ -239,7 +239,8 @@ func (s *RoleSetup) syncResourceUpdate(ctx context.Context, accessAndIdentity Ac
 				continue
 			}
 
-			if event.Resource.GetKind() == resource.GetKind() && event.Resource.GetMetadata().Name == resource.GetName() {
+			// Kind + name combo is enough to uniquely identify a resource within a single cluster.
+			if event.Resource.GetKind() == resource.GetKind() && event.Resource.GetName() == resource.GetName() {
 				return nil
 			}
 		}
