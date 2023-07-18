@@ -15,9 +15,7 @@
  */
 
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
-
-import { ApplicationsIcon, LeafIcon, ServerIcon } from 'design/SVGIcon';
+import styled from 'styled-components';
 
 import { formatRelative } from 'date-fns';
 
@@ -87,8 +85,6 @@ const Roles = styled.div`
 `;
 
 export function TimelineItem(props: TimelineItemProps) {
-  const theme = useTheme();
-
   return (
     <Container>
       <div>
