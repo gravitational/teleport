@@ -861,6 +861,13 @@ type ClientI interface {
 
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+
 	// ListUnifiedResources returns a paginated list of unified resources.
 	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
+
+	// GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
+	// returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
+	// which is what we want when handling things like ambiguous host errors and resource-based access requests,
+	// but may result in confusing behavior if it is used outside of those contexts.
+	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 }

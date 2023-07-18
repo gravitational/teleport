@@ -1588,6 +1588,9 @@ message ClusterNetworkingConfigSpecV2 {
   // AssistCommandExecutionWorkers determines the number of workers that will
   // execute arbitrary Assist commands on servers in parallel
   int32 AssistCommandExecutionWorkers = 11 [(gogoproto.jsontag) = "assist_command_execution_workers,omitempty"];
+
+  // CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
+  bool CaseInsensitiveRouting = 12 [(gogoproto.jsontag) = "case_insensitive_routing,omitempty"];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.

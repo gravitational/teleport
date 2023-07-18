@@ -2985,88 +2985,30 @@ func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInf
 
 // findByHost return a host matching by the host name.
 func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
-	var host hostInfo
-
-	if _, err := uuid.Parse(serverName); err != nil {
-		// The requested server is either a hostname or an address. Get all
-		// servers that may fuzzily match by populating SearchKeywords
-		servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
-			ResourceType:   types.KindNode,
-			Namespace:      apidefaults.Namespace,
-			SearchKeywords: []string{serverName},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if len(servers) == 0 {
-			// If we didn't find the resource set host and port,
-			// so we can try direct dial.
-			host.hostName, host.port, err = serverHostPort(serverName)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			host.id = host.hostName
-		}
-
-		matches := 0
-		for _, server := range servers {
-			// match by hostname
-			if server.GetHostname() == serverName {
-				if matches > 0 {
-					matches++
-					continue
-				}
-
-				host.hostName = server.GetHostname()
-				host.id = server.GetName()
-				host.port = 0
-
-				matches++
-				continue
-			}
-
-			// exact match by address
-			if server.GetAddr() == serverName {
-				if matches > 0 {
-					matches++
-					continue
-				}
-
-				host.hostName = serverName
-				host.id = server.GetName()
-				host.port = 0
-
-				matches++
-				continue
-			}
-		}
-
-		// there was either at least one partial match or multiple
-		// exact matches on the server. connect with the resolved
-		// host and port of the requested server.
-		if matches > 1 || host.hostName == "" && host.id == "" {
-			host.hostName, host.port, err = serverHostPort(serverName)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			host.id = serverName
-		}
-	} else {
-		// Even though the UUID was provided and can be dialed directly, the UI
-		// requires the hostname to populate the title of the session window.
-		// Looking the node up directly by UUID is the most efficient we can be until
-		// the UI is modified to remember the hostname when the connect button is
-		// used to establish a session.
-		server, err := clt.GetNode(ctx, apidefaults.Namespace, serverName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		host.hostName = server.GetHostname()
-		host.port = 0
-		host.id = serverName
+	initialHost, initialPort, err := serverHostPort(serverName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: initialHost,
+		Port: strconv.Itoa(initialPort),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var host hostInfo
+	if len(rsp.Servers) == 1 {
+		host.hostName = rsp.Servers[0].GetHostname()
+		host.id = rsp.Servers[0].GetName()
+		host.port = 0
+	} else {
+		host.hostName = initialHost
+		host.id = initialHost
+		host.port = initialPort
+	}
+
 	return &host, nil
 }
 
