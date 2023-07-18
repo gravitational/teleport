@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -76,4 +77,48 @@ func TestPostgresEvents(t *testing.T) {
 		setup(t)
 		suite.SearchSessionEventsBySessionID(t)
 	})
+}
+
+func TestConfig(t *testing.T) {
+	configs := map[string]*Config{
+		"postgres://foo#auth_mode=azure": {
+			AuthMode:        AzureADAuth,
+			RetentionPeriod: defaultRetentionPeriod,
+			CleanupInterval: defaultCleanupInterval,
+		},
+		"postgres://foo": {
+			RetentionPeriod: defaultRetentionPeriod,
+			CleanupInterval: defaultCleanupInterval,
+		},
+		"postgres://foo#retention_period=2160h": {
+			RetentionPeriod: 2160 * time.Hour,
+			CleanupInterval: defaultCleanupInterval,
+		},
+		"postgres://foo#disable_cleanup=true": {
+			DisableCleanup:  true,
+			RetentionPeriod: defaultRetentionPeriod,
+			CleanupInterval: defaultCleanupInterval,
+		},
+
+		"postgres://foo#azure_client_id=not-in-azure-auth-mode": nil,
+		"postgres://foo#auth_mode=invalid-auth-mode":            nil,
+	}
+
+	for u, expectedConfig := range configs {
+		u, err := url.Parse(u)
+		require.NoError(t, err)
+		var actualConfig Config
+		require.NoError(t, actualConfig.SetFromURL(u))
+
+		if expectedConfig == nil {
+			require.Error(t, actualConfig.CheckAndSetDefaults())
+			continue
+		}
+
+		require.NoError(t, actualConfig.CheckAndSetDefaults())
+		actualConfig.Log = nil
+		actualConfig.PoolConfig = nil
+
+		require.Equal(t, expectedConfig, &actualConfig)
+	}
 }

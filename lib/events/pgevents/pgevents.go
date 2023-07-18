@@ -97,35 +97,31 @@ type Config struct {
 }
 
 // SetFromURL sets config params from the URL, as per [pgxpool.ParseConfig]
-// (with some additional query params for our own options).
+// (with some additional query params in the fragment for our own options).
 func (c *Config) SetFromURL(u *url.URL) error {
 	if u == nil {
 		return nil
 	}
 
-	poolConfig, err := pgxpool.ParseConfig(u.String())
+	configURL := *u
+
+	params, err := url.ParseQuery(configURL.EscapedFragment())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	configURL.Fragment = ""
+	configURL.RawFragment = ""
+
+	poolConfig, err := pgxpool.ParseConfig(configURL.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	c.PoolConfig = poolConfig
 
-	popParam := func(k string) (string, bool) {
-		if v, ok := poolConfig.ConnConfig.RuntimeParams[k]; ok {
-			delete(poolConfig.ConnConfig.RuntimeParams, k)
-			return v, true
-		}
-		return "", false
-	}
+	c.AuthMode = AuthMode(params.Get(authModeParam))
+	c.AzureClientID = params.Get(azureClientIDParam)
 
-	if s, ok := popParam(authModeParam); ok {
-		c.AuthMode = AuthMode(s)
-	}
-
-	if s, ok := popParam(azureClientIDParam); ok {
-		c.AzureClientID = s
-	}
-
-	if s, ok := popParam(disableCleanupParam); ok {
+	if s := params.Get(disableCleanupParam); s != "" {
 		b, err := strconv.ParseBool(s)
 		if err != nil {
 			return trace.Wrap(err)
@@ -133,7 +129,7 @@ func (c *Config) SetFromURL(u *url.URL) error {
 		c.DisableCleanup = b
 	}
 
-	if s, ok := popParam(cleanupIntervalParam); ok {
+	if s := params.Get(cleanupIntervalParam); s != "" {
 		d, err := time.ParseDuration(s)
 		if err != nil {
 			return trace.Wrap(err)
@@ -141,7 +137,7 @@ func (c *Config) SetFromURL(u *url.URL) error {
 		c.CleanupInterval = d
 	}
 
-	if s, ok := popParam(retentionPeriodParam); ok {
+	if s := params.Get(retentionPeriodParam); s != "" {
 		d, err := time.ParseDuration(s)
 		if err != nil {
 			return trace.Wrap(err)
