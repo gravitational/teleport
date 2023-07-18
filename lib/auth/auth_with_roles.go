@@ -34,11 +34,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -335,6 +337,14 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(
 		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
+}
+
+// AccessListClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessListClient() services.AccessLists {
+	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
 }
 
 // integrationsService returns an Integrations Service.
@@ -4276,6 +4286,52 @@ func (a *ServerWithRoles) DeleteAllRoles() error {
 // DeleteAllUsers not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetServerInfos returns a stream of ServerInfos.
+func (a *ServerWithRoles) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbList, types.VerbRead); err != nil {
+		return stream.Fail[types.ServerInfo](trace.Wrap(err))
+	}
+
+	return a.authServer.GetServerInfos(ctx)
+}
+
+// GetServerInfo returns a ServerInfo by name.
+func (a *ServerWithRoles) GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error) {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	info, err := a.authServer.GetServerInfo(ctx, name)
+	return info, trace.Wrap(err)
+}
+
+// UpsertServerInfo upserts a ServerInfo.
+func (a *ServerWithRoles) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.UpsertServerInfo(ctx, si))
+}
+
+// DeleteServerInfo deletes a ServerInfo by name.
+func (a *ServerWithRoles) DeleteServerInfo(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteServerInfo(ctx, name))
+}
+
+// DeleteAllServerInfos deletes all ServerInfos.
+func (a *ServerWithRoles) DeleteAllServerInfos(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAllServerInfos(ctx))
 }
 
 func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {

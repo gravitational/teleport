@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -167,6 +168,7 @@ type cacheCollections struct {
 	// byKind is a map of registered collections by resource Kind/SubKind
 	byKind map[resourceKind]collection
 
+	accessLists              collectionReader[services.AccessListsGetter]
 	apps                     collectionReader[services.AppGetter]
 	nodes                    collectionReader[nodeGetter]
 	tunnelConnections        collectionReader[tunnelConnectionGetter]
@@ -589,6 +591,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.integrations
+		case types.KindAccessList:
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
+			}
+			collections.accessLists = &genericCollection[*accesslist.AccessList, services.AccessListsGetter, accessListsExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessLists
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2299,3 +2307,34 @@ func (integrationsExecutor) getReader(cache *Cache, cacheOK bool) services.Integ
 }
 
 var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExecutor{}
+
+type accessListsExecutor struct{}
+
+func (accessListsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessList, error) {
+	resources, err := cache.accessListsCache.GetAccessLists(ctx)
+	return resources, trace.Wrap(err)
+}
+
+func (accessListsExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
+	_, err := cache.accessListsCache.UpsertAccessList(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListsCache.DeleteAllAccessLists(ctx)
+}
+
+func (accessListsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.accessListsCache.DeleteAccessList(ctx, resource.GetName())
+}
+
+func (accessListsExecutor) isSingleton() bool { return false }
+
+func (accessListsExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListsGetter {
+	if cacheOK {
+		return cache.accessListsCache
+	}
+	return cache.Config.AccessLists
+}
+
+var _ executor[*accesslist.AccessList, services.AccessListsGetter] = accessListsExecutor{}

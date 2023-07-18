@@ -436,6 +436,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "opensearch,omitempty"
   ];
+
+  // IAMPolicyExists indicates whether the IAM Policy is configured properly for database access.
+  // If not, the user must update the AWS profile identity to allow access to the Database.
+  // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database
+  bool IAMPolicyExists = 13 [(gogoproto.jsontag) = "iam_policy_exists"];
 }
 
 // SecretStore contains secret store configurations.

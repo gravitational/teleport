@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -3082,6 +3083,100 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func TestServerInfoCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	serverInfo1, err := types.NewServerInfo(types.Metadata{
+		Name: "serverInfo1",
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfo2, err := types.NewServerInfo(types.Metadata{
+		Name: "serverInfo2",
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+
+	createServerInfos := func(t *testing.T) {
+		// Initially expect no server info to be returned.
+		serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+		require.NoError(t, err)
+		require.Empty(t, serverInfos)
+
+		// Create server info.
+		require.NoError(t, clt.UpsertServerInfo(ctx, serverInfo1))
+		require.NoError(t, clt.UpsertServerInfo(ctx, serverInfo2))
+	}
+
+	deleteAllServerInfos := func(t *testing.T) {
+		// Delete server infos.
+		require.NoError(t, clt.DeleteAllServerInfos(ctx))
+
+		// Expect no server infos to be returned.
+		serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+		require.NoError(t, err)
+		require.Empty(t, serverInfos)
+	}
+
+	requireResourcesEqual := func(t *testing.T, expected, actual interface{}) {
+		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	}
+
+	t.Run("ServerInfoGetters", func(t *testing.T) {
+		createServerInfos(t)
+		t.Cleanup(func() { deleteAllServerInfos(t) })
+
+		t.Run("GetServerInfos", func(t *testing.T) {
+			t.Parallel()
+			// Get all server infos.
+			serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+			require.NoError(t, err)
+			require.Len(t, serverInfos, 2)
+			requireResourcesEqual(t, []types.ServerInfo{serverInfo1, serverInfo2}, serverInfos)
+		})
+
+		t.Run("GetServerInfo", func(t *testing.T) {
+			t.Parallel()
+			// Get server info.
+			si, err := clt.GetServerInfo(ctx, serverInfo1.GetName())
+			require.NoError(t, err)
+			requireResourcesEqual(t, serverInfo1, si)
+
+			// GetServerInfo should fail if name isn't provided.
+			_, err = clt.GetServerInfo(ctx, "")
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+		})
+	})
+
+	t.Run("DeleteServerInfo", func(t *testing.T) {
+		createServerInfos(t)
+		t.Cleanup(func() { deleteAllServerInfos(t) })
+
+		// DeleteServerInfo should fail if name isn't provided.
+		err := clt.DeleteServerInfo(ctx, "")
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+
+		// Delete server info.
+		err = clt.DeleteServerInfo(ctx, serverInfo1.GetName())
+		require.NoError(t, err)
+
+		// Expect server info not found.
+		_, err = clt.GetServerInfo(ctx, serverInfo1.GetName())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+
+		// Expect other server info still exists.
+		si, err := clt.GetServerInfo(ctx, serverInfo2.GetName())
+		require.NoError(t, err)
+		requireResourcesEqual(t, serverInfo2, si)
+	})
 }
 
 // TestSAMLIdPServiceProvidersCRUD tests SAMLIdPServiceProviders resource operations.

@@ -89,6 +89,8 @@ type TLSServerConfig struct {
 	CloudLabels labels.Importer
 	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
+	// EnableProxyProtocol enables proxy protocol support
+	EnableProxyProtocol bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -258,7 +260,7 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Context:                     t.Context,
 		Listener:                    listener,
 		Clock:                       t.Clock,
-		EnableExternalProxyProtocol: true,
+		EnableExternalProxyProtocol: t.EnableProxyProtocol,
 		ID:                          t.Component,
 		CertAuthorityGetter:         caGetter,
 		LocalClusterName:            t.ClusterName,
