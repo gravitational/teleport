@@ -39,14 +39,15 @@ Teleport supports network restrictions with more types coming in the future.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Network Restrictions
+## Network restrictions
 
 Network restrictions work similarly to a firewall but with several differences:
-1. Firewall rules apply to the entire machine whereas network restrictions are applied
+
+- Firewall rules apply to the entire machine whereas network restrictions are applied
    only to SSH sessions.
-2. Whereas firewall typically blocks ingress (inbound) connections, network restrictions
+- Whereas firewall typically blocks ingress (inbound) connections, network restrictions
    block egress (outbound) connections.
-3. Firewall rules are typically static but Teleport provides an API for
+- Firewall rules are typically static but Teleport provides an API for
    Restricted Sessions that allows the rules to be dynamically updated across
    the entire fleet.
 
