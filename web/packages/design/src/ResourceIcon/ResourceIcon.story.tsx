@@ -1,11 +1,11 @@
 /**
- * Copyright 2023 Gravitational, Inc.
+ * Copyright 2023 Gravitational, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,12 +16,23 @@
 
 import React from 'react';
 
-import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
+import { ResourceIcon, iconNames } from 'design/ResourceIcon';
+import { Flex } from 'design';
 
-interface DiscoverIconProps {
-  name: ResourceIconName;
-}
+export default {
+  title: 'Design/ResourceIcon',
+};
 
-export const DiscoverIcon = ({ name }: DiscoverIconProps) => (
-  <ResourceIcon name={name} width="23.9px" height="24px" />
-);
+export const Icons = () => {
+  return (
+    <>
+      {iconNames.map(name => (
+        <Flex gap={3} alignItems="center">
+          <ResourceIcon name={name} width="100px" />{' '}
+          <ResourceIcon name={name} width="25px" />
+          {name}
+        </Flex>
+      ))}
+    </>
+  );
+};
