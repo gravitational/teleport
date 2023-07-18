@@ -240,7 +240,7 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		if trace.IsAlreadyExists(err) {
 			usersUpdateCmd := fmt.Sprintf("> tctl users update %v --set-roles %v # replace roles",
 				u.login, strings.Join(u.allowedRoles, ","))
-			fmt.Printf("NOTE: Use tctl users update to update an existing account:\n%v\n\n", usersUpdateCmd)
+			fmt.Printf("NOTE: To update an existing local user:\n%v\n\n", usersUpdateCmd)
 		}
 		return trace.Wrap(err)
 	}
