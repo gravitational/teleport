@@ -488,9 +488,9 @@ teleport:
     audit_retention_period: 365d
 
     # Enables either On-Demand or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
-    # Possible values: "on_demand" and "provisioned"
-    # default: "on_demand"
-    billing_mode: "on_demand"
+    # Possible values: "pay_per_request" and "provisioned"
+    # default: "pay_per_request"
+    billing_mode: "pay_per_request"
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
@@ -554,10 +554,10 @@ teleport:
     # default: false
     auto_scaling:  [true|false]
     # Enables either On-Demand or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
-    # If billing_mode is set to "on_demand", read/write capacity and auto_scaling settings will be ignored.
-    # Possible values: "on_demand" and "provisioned"
-    # default: "on_demand"
-    billing_mode: ["on_demand"|"provisioned"]
+    # If billing_mode is set to "pay_per_request", read/write capacity and auto_scaling settings will be ignored.
+    # Possible values: "pay_per_request" and "provisioned"
+    # default: "pay_per_request"
+    billing_mode: ["pay_per_request"|"provisioned"]
     # Minimum/maximum read capacity in units
     read_min_capacity: int
     read_max_capacity: int
@@ -597,9 +597,9 @@ To enable these options you will need to update the IAM Policy for Teleport.
 
 <Admonition
   type="warning"
-  title="on_demand with autoscaling"
+  title="pay_per_request with autoscaling"
 >
-  If `on_demand` is set to true, the settings for read/write capacity and auto scaling will be ignored.
+  If `pay_per_request` is set to true, the settings for read/write capacity and auto scaling will be ignored.
 </Admonition>
 
 ### Configuring AWS FIPS endpoints
