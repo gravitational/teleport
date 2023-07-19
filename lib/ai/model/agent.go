@@ -246,7 +246,7 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 	stream, err := state.llm.CreateChatCompletionStream(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:       openai.GPT3Dot5Turbo16K,
+			Model:       openai.GPT432K,
 			Messages:    prompt,
 			Temperature: 0.3,
 			Stream:      true,
