@@ -95,6 +95,10 @@ type Server interface {
 	GetCloudMetadata() *CloudMetadata
 	// SetCloudMetadata sets the server's cloud metadata.
 	SetCloudMetadata(meta *CloudMetadata)
+
+	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
+	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEphemeralKeyNode.
+	IsOpenSSHNode() bool
 }
 
 // NewServer creates an instance of Server.
@@ -107,6 +111,24 @@ func NewServer(name, kind string, spec ServerSpecV2) (Server, error) {
 func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
 	server := &ServerV2{
 		Kind: kind,
+		Metadata: Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
+// NewNode is a convenience method to create a Server of Kind Node.
+// It accepts a SubKind, ServerSpec and labels.
+func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindNode,
+		SubKind: subKind,
 		Metadata: Metadata{
 			Name:   name,
 			Labels: labels,
@@ -397,6 +419,64 @@ func (s *ServerV2) setStaticFields() {
 	s.Version = V2
 }
 
+// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
+// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEphemeralKeyNode.
+func (s *ServerV2) IsOpenSSHNode() bool {
+	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEphemeralKeyNode
+}
+
+// openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
+// They include SubKindOpenSSHNode and SubKindOpenSSHEphemeralKeyNode.
+func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
+	if s.Spec.Addr == "" {
+		return trace.BadParameter(`Addr must be set when server SubKind is "openssh"`)
+	}
+	if len(s.GetPublicAddrs()) != 0 {
+		return trace.BadParameter(`PublicAddrs must not be set when server SubKind is "openssh"`)
+	}
+	if s.Spec.Hostname == "" {
+		return trace.BadParameter(`Hostname must be set when server SubKind is "openssh"`)
+	}
+
+	_, _, err := net.SplitHostPort(s.Spec.Addr)
+	if err != nil {
+		return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
+	}
+	return nil
+}
+
+// openSSHEphemeralKeyNodeCheckAndSetDefaults are validations for SubKindOpenSSHEphemeralKeyNode.
+func (s *ServerV2) openSSHEphemeralKeyNodeCheckAndSetDefaults() error {
+	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Currently, only AWS EC2 is supported for EphemeralKey mode.
+	if s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil {
+		return trace.BadParameter("AWS CloudMetadata is required for %q SubKind", s.SubKind)
+	}
+	if s.Spec.CloudMetadata.AWS.AccountID == "" {
+		return trace.BadParameter("AWS Account ID is required for %q SubKind", s.SubKind)
+	}
+	if s.Spec.CloudMetadata.AWS.Region == "" {
+		return trace.BadParameter("AWS Region is required for %q SubKind", s.SubKind)
+	}
+	if s.Spec.CloudMetadata.AWS.Integration == "" {
+		return trace.BadParameter("AWS OIDC Integration is required for %q SubKind", s.SubKind)
+	}
+	if s.Spec.CloudMetadata.AWS.InstanceID == "" {
+		return trace.BadParameter("AWS InstanceID is required for %q SubKind", s.SubKind)
+	}
+	if s.Spec.CloudMetadata.AWS.AvailabilityZone == "" {
+		return trace.BadParameter("AWS Availability Zone is required for %q SubKind", s.SubKind)
+	}
+	if s.Spec.CloudMetadata.AWS.VPCID == "" {
+		return trace.BadParameter("AWS VPC ID is required for %q SubKind", s.SubKind)
+	}
+
+	return nil
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
@@ -405,7 +485,7 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 
 	// if the server is a registered OpenSSH node, allow the name to be
 	// randomly generated
-	if s.SubKind == SubKindOpenSSHNode && s.Metadata.Name == "" {
+	if s.Metadata.Name == "" && s.IsOpenSSHNode() {
 		s.Metadata.Name = uuid.New().String()
 	}
 
@@ -424,20 +504,15 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	case "", SubKindTeleportNode:
 		// allow but do nothing
 	case SubKindOpenSSHNode:
-		if s.Spec.Addr == "" {
-			return trace.BadParameter(`Addr must be set when server SubKind is "openssh"`)
-		}
-		if len(s.GetPublicAddrs()) != 0 {
-			return trace.BadParameter(`PublicAddrs must not be set when server SubKind is "openssh"`)
-		}
-		if s.Spec.Hostname == "" {
-			return trace.BadParameter(`Hostname must be set when server SubKind is "openssh"`)
+		if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 
-		_, _, err := net.SplitHostPort(s.Spec.Addr)
-		if err != nil {
-			return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
+	case SubKindOpenSSHEphemeralKeyNode:
+		if err := s.openSSHEphemeralKeyNodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
+
 	default:
 		return trace.BadParameter("invalid SubKind %q", s.SubKind)
 	}
