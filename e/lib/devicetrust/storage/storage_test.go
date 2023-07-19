@@ -301,13 +301,14 @@ func TestS_CreateDevice(t *testing.T) {
 			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
 		},
 		Profile: &devicepb.DeviceProfile{
-			UpdateTime:        timestamppb.Now(),
-			ModelIdentifier:   "MacBookPro9,2",
-			OsVersion:         "13.2.1",
-			OsBuild:           "22D68",
-			OsUsernames:       []string{"admin", "codingllama", "alpaca"},
-			JamfBinaryVersion: "10.44.1-t1677509507",
-			ExternalId:        "99",
+			UpdateTime:          timestamppb.Now(),
+			ModelIdentifier:     "MacBookPro9,2",
+			OsVersion:           "13.4.1",
+			OsBuild:             "22F82",
+			OsBuildSupplemental: "22F770820d",
+			OsUsernames:         []string{"admin", "codingllama", "alpaca"},
+			JamfBinaryVersion:   "10.44.1-t1677509507",
+			ExternalId:          "99",
 		},
 	}
 
@@ -340,6 +341,18 @@ func TestS_CreateDevice(t *testing.T) {
 					OsUsernames:       []string{"admin", "alpaca"},
 					JamfBinaryVersion: "10.44.1",
 					ExternalId:        "99",
+				},
+			},
+		},
+		{
+			name: "ok with supplemental build",
+			dev: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "devSup1",
+				Profile: &devicepb.DeviceProfile{
+					OsVersion:           "13.4.1",
+					OsBuild:             "22F82",
+					OsBuildSupplemental: "22F770820d",
 				},
 			},
 		},

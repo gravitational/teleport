@@ -217,13 +217,14 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 	var storedProfile *storedDeviceProfile
 	if (createAsResource && d.Profile != nil) || !isDeviceProfileEmpty(d.Profile) {
 		storedProfile = &storedDeviceProfile{
-			UpdateTime:        now,
-			ModelIdentifier:   d.Profile.ModelIdentifier,
-			OSVersion:         d.Profile.OsVersion,
-			OSBuild:           d.Profile.OsBuild,
-			OSUsernames:       d.Profile.OsUsernames,
-			JamfBinaryVersion: d.Profile.JamfBinaryVersion,
-			ExternalID:        d.Profile.ExternalId,
+			UpdateTime:          now,
+			ModelIdentifier:     d.Profile.ModelIdentifier,
+			OSVersion:           d.Profile.OsVersion,
+			OSBuild:             d.Profile.OsBuild,
+			OSBuildSupplemental: d.Profile.OsBuildSupplemental,
+			OSUsernames:         d.Profile.OsUsernames,
+			JamfBinaryVersion:   d.Profile.JamfBinaryVersion,
+			ExternalID:          d.Profile.ExternalId,
 		}
 	}
 
@@ -1466,13 +1467,14 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 	var profile *devicepb.DeviceProfile
 	if sd.Profile != nil {
 		profile = &devicepb.DeviceProfile{
-			UpdateTime:        timestamppb.New(sd.Profile.UpdateTime),
-			ModelIdentifier:   sd.Profile.ModelIdentifier,
-			OsVersion:         sd.Profile.OSVersion,
-			OsBuild:           sd.Profile.OSBuild,
-			OsUsernames:       sd.Profile.OSUsernames,
-			JamfBinaryVersion: sd.Profile.JamfBinaryVersion,
-			ExternalId:        sd.Profile.ExternalID,
+			UpdateTime:          timestamppb.New(sd.Profile.UpdateTime),
+			ModelIdentifier:     sd.Profile.ModelIdentifier,
+			OsVersion:           sd.Profile.OSVersion,
+			OsBuild:             sd.Profile.OSBuild,
+			OsBuildSupplemental: sd.Profile.OSBuildSupplemental,
+			OsUsernames:         sd.Profile.OSUsernames,
+			JamfBinaryVersion:   sd.Profile.JamfBinaryVersion,
+			ExternalId:          sd.Profile.ExternalID,
 		}
 	}
 

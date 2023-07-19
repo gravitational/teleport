@@ -466,15 +466,27 @@ func validateCollectedDataAgainstDeviceStrict(cd *devicepb.DeviceCollectedData, 
 	}
 
 	// Strict profile checks.
-	switch p := dev.Profile; {
+	p := dev.Profile
+	switch {
 	case p == nil:
 		return nil // Nothing to check!
 	case p.OsVersion != "" && !isVersionEqual(p.OsVersion, cd.OsVersion):
 		return NewCollectedDataDriftError("device OS version drift")
-	case p.OsBuild != "" && p.OsBuild != cd.OsBuild:
-		return NewCollectedDataDriftError("device OS build drift")
 	case p.JamfBinaryVersion != "" && !isVersionEqual(p.JamfBinaryVersion, cd.JamfBinaryVersion):
 		return NewCollectedDataDriftError("jamf binary version drift")
+	}
+
+	// Match either p.OsBuild or p.OsBuildSupplemental against cd.OsBuild.
+	// p.OsBuild and p.OsBuildSupplemental works as fallbacks for each other, as
+	// sometimes the build cleanly matches OsBuild and sometimes it matches
+	// OsBuildSupplemental (for exampple, when a rapid security response patch is
+	// in effect).
+	if p.OsBuild != "" || p.OsBuildSupplemental != "" {
+		matchesBuild := p.OsBuild != "" && p.OsBuild == cd.OsBuild
+		matchesBuildSupplemental := p.OsBuildSupplemental != "" && p.OsBuildSupplemental == cd.OsBuild
+		if !matchesBuild && !matchesBuildSupplemental {
+			return NewCollectedDataDriftError("device OS build drift")
+		}
 	}
 
 	return nil

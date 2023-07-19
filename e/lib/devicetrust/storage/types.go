@@ -80,13 +80,14 @@ type storedDeviceSource struct {
 
 // storedDeviceProfile represents a devicepb.DeviceProfile in storage.
 type storedDeviceProfile struct {
-	UpdateTime        time.Time `json:"update_time"`                   // Required.
-	ModelIdentifier   string    `json:"model_identifier,omitempty"`    // Optional.
-	OSVersion         string    `json:"os_version,omitempty"`          // Optional.
-	OSBuild           string    `json:"os_build,omitempty"`            // Optional.
-	OSUsernames       []string  `json:"os_usernames,omitempty"`        // Optional.
-	JamfBinaryVersion string    `json:"jamf_binary_version,omitempty"` // Optional.
-	ExternalID        string    `json:"external_id,omitempty"`         // Optional.
+	UpdateTime          time.Time `json:"update_time"`                     // Required.
+	ModelIdentifier     string    `json:"model_identifier,omitempty"`      // Optional.
+	OSVersion           string    `json:"os_version,omitempty"`            // Optional.
+	OSBuild             string    `json:"os_build,omitempty"`              // Optional.
+	OSBuildSupplemental string    `json:"os_build_supplemental,omitempty"` // Optional.
+	OSUsernames         []string  `json:"os_usernames,omitempty"`          // Optional.
+	JamfBinaryVersion   string    `json:"jamf_binary_version,omitempty"`   // Optional.
+	ExternalID          string    `json:"external_id,omitempty"`           // Optional.
 }
 
 type tpmPlatformAttestation struct {

@@ -669,6 +669,7 @@ func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, err
 	if c.OperatingSystem != nil {
 		profile.OsVersion = c.OperatingSystem.Version
 		profile.OsBuild = c.OperatingSystem.Build
+		profile.OsBuildSupplemental = c.OperatingSystem.SupplementalBuildVersion
 	}
 
 	return &devicepb.Device{

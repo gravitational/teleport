@@ -236,6 +236,11 @@ func TestValidateCollectedDataAgainstDeviceStrict(t *testing.T) {
 		return cp
 	}
 
+	devSupplemental := proto.Clone(dev).(*devicepb.Device)
+	devSupplemental.Profile.OsVersion = "13.4.1"
+	devSupplemental.Profile.OsBuild = "22F82"
+	devSupplemental.Profile.OsBuildSupplemental = "22F770820d"
+
 	tests := []struct {
 		name    string
 		cd      *devicepb.DeviceCollectedData
@@ -283,6 +288,52 @@ func TestValidateCollectedDataAgainstDeviceStrict(t *testing.T) {
 			dev: modifyDev(func(d *devicepb.Device) {
 				d.Profile.JamfBinaryVersion = "10.46.1-t1683911857"
 			}),
+		},
+		{
+			name: "cd.OsBuild matches Profile.OsBuildSupplemental",
+			cd: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(devSupplemental)
+				cd.OsBuild = devSupplemental.Profile.OsBuildSupplemental
+				return cd
+			}(),
+			dev: devSupplemental,
+		},
+		{
+			name: "ok - Profile.OsBuildSupplemental without Profile.OsBuild",
+			cd: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(devSupplemental)
+				cd.OsBuild = devSupplemental.Profile.OsBuildSupplemental
+				return cd
+			}(),
+			dev: func() *devicepb.Device {
+				d := proto.Clone(devSupplemental).(*devicepb.Device)
+				d.Profile.OsBuild = "" // Unusual, but allowed.
+				return d
+			}(),
+		},
+		{
+			name: "nok - Profile.OsBuildSupplemental without Profile.OsBuild",
+			cd: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(devSupplemental)
+				cd.OsBuild = "bad" // Doesn't match any build.
+				return cd
+			}(),
+			dev: func() *devicepb.Device {
+				d := proto.Clone(devSupplemental).(*devicepb.Device)
+				d.Profile.OsBuild = "" // Unusual, but allowed.
+				return d
+			}(),
+			wantErr: "OS build drift",
+		},
+		{
+			name: "cd.OsBuild matches neither OsBuild",
+			cd: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(devSupplemental)
+				cd.OsBuild = "bad" // Doesn't match any build.
+				return cd
+			}(),
+			dev:     devSupplemental,
+			wantErr: "OS build drift",
 		},
 		// Similar to TestS_CreateDeviceEnrollTokenUsingData_errors
 		{

@@ -124,6 +124,15 @@ type ComputerOperatingSystemSection struct {
 	// Build is the build of the operating system.
 	// Example: "13A603".
 	Build string `json:"build"`
+	// SupplementalBuildVersion is the supplemental build of the operating system.
+	// May match `sw_vers` BuildVersion more closely in certain situations, like
+	// macOS rapid security response builds.
+	// Example: "13A953".
+	SupplementalBuildVersion string `json:"supplementalBuildVersion"`
+	// RapidSecurityResponse is the rapid security response denominator.
+	// Matches `sw_vers` ProductVersionExtra.
+	// Example: "(a)".
+	RapidSecurityResponse string `json:"rapidSecurityResponse"`
 }
 
 // GetComputersInventory returns paginated computer inventory records.

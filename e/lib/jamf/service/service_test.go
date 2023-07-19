@@ -315,9 +315,11 @@ func TestS_Run_syncDefaults(t *testing.T) {
 				},
 			},
 			OperatingSystem: &jamf.ComputerOperatingSystemSection{
-				Name:    "Mac OS X",
-				Version: "10.9.5",
-				Build:   "13A603",
+				Name:                     "Mac OS X",
+				Version:                  "13.4.1",
+				Build:                    "22F82",
+				SupplementalBuildVersion: "22F770820d",
+				RapidSecurityResponse:    "(c)",
 			},
 		},
 		// "Minimal" device #1. Unexpected, but carries enough info to be created.
@@ -442,9 +444,10 @@ func TestS_Run_syncDefaults(t *testing.T) {
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 			Source:       source,
 			Profile: &devicepb.DeviceProfile{
-				ModelIdentifier: jamfDevs[0].Hardware.ModelIdentifier,
-				OsVersion:       jamfDevs[0].OperatingSystem.Version,
-				OsBuild:         jamfDevs[0].OperatingSystem.Build,
+				ModelIdentifier:     jamfDevs[0].Hardware.ModelIdentifier,
+				OsVersion:           jamfDevs[0].OperatingSystem.Version,
+				OsBuild:             jamfDevs[0].OperatingSystem.Build,
+				OsBuildSupplemental: jamfDevs[0].OperatingSystem.SupplementalBuildVersion,
 				OsUsernames: []string{
 					jamfDevs[0].LocalUserAccounts[0].Username,
 					jamfDevs[0].LocalUserAccounts[1].Username,
