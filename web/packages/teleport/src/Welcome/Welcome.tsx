@@ -21,17 +21,13 @@ import history from 'teleport/services/history';
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 
-import { NewCredentials } from './NewCredentials';
 import { CardWelcome } from './CardWelcome';
 
-/**
- *
- * @remarks
- * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
- * equivalent change should be applied in Enterprise
- *
- */
-export default function Welcome() {
+type WelcomeProps = {
+  NewCredentials: ({ tokenId, resetMode }: { tokenId?: string; resetMode?: boolean; }) => JSX.Element
+}
+
+export default function Welcome({NewCredentials}: WelcomeProps) {
   const { tokenId } = useParams<{ tokenId: string }>();
 
   const handleOnInviteContinue = () => {
