@@ -60,6 +60,7 @@ func (s *Server) startDatabaseWatchers() error {
 		Fetchers:       s.databaseFetchers,
 		Log:            s.Log.WithField("kind", types.KindDatabase),
 		DiscoveryGroup: s.DiscoveryGroup,
+		Interval:       s.PollInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)

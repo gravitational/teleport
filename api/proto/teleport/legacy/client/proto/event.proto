@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package proto;
 
+import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
@@ -125,5 +126,7 @@ message Event {
     types.WatchStatusV1 WatchStatus = 43;
     // HeadlessAuthentication is a HeadlessAuthentication resource.
     types.HeadlessAuthentication HeadlessAuthentication = 44;
+    // AccessList is an AccessList resource.
+    teleport.accesslist.v1.AccessList AccessList = 45;
   }
 }
