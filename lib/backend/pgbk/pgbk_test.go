@@ -35,7 +35,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestPostgresBackend(t *testing.T) {
-	// recommended: "expiry_interval":"500ms","change_feed_poll_interval":"500ms"
+	// expiry_interval needs to be really short to pass some of the tests, and a
+	// faster poll interval helps a bit with runtime:
+	// {"conn_string":"...","expiry_interval":"500ms","change_feed_poll_interval":"500ms"}
 	paramString := os.Getenv("TELEPORT_PGBK_TEST_PARAMS_JSON")
 	if paramString == "" {
 		t.Skip("Postgres backend tests are disabled. Enable them by setting the TELEPORT_PGBK_TEST_PARAMS_JSON variable.")
