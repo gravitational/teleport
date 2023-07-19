@@ -698,6 +698,7 @@
     "subgroups",
     "subkind",
     "sudoer",
+    "suppress",
     "syscalls",
     "sysvinit",
     "tadmin",
