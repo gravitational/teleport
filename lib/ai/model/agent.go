@@ -55,6 +55,7 @@ func NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string)
 				assistClient: assistClient,
 				currentUser:  username,
 			},
+			&accessRequestListRequestableRolesTool{},
 			&accessRequestCreateTool{},
 			&accessRequestListTool{},
 			&accessRequestDeleteTool{},

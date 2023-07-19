@@ -100,6 +100,21 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 	return &output, nil
 }
 
+// TODO: investigate integrating this into embeddingRetrievalTool
+type accessRequestListRequestableRolesTool struct{}
+
+func (*accessRequestListRequestableRolesTool) Name() string {
+	return "List Requestable Roles"
+}
+
+func (*accessRequestListRequestableRolesTool) Description() string {
+	return "List all roles that can be requested via access requests."
+}
+
+func (*accessRequestListRequestableRolesTool) Run(ctx context.Context, input string) (string, error) {
+	return "No requestable roles available.", nil
+}
+
 type accessRequestCreateTool struct{}
 
 func (*accessRequestCreateTool) Name() string {
@@ -113,7 +128,7 @@ The input must be a JSON object with the following schema:
 %vjson
 {
 	"roles": []string, \\ The optional set of roles being requested
-	"reason": string, \\ An optional reason for the request
+	"reason": string, \\ A reason for the request; attempt to ask the user for this if not provided
 	"suggested_reviewers": []string \\ An optional list of suggested reviewers; these must be Teleport usernames
 	"resource_ids": []string \\ An optional list of resource IDs that the user is requesting access to
 }
@@ -122,7 +137,7 @@ The input must be a JSON object with the following schema:
 }
 
 func (*accessRequestCreateTool) Run(ctx context.Context, input string) (string, error) {
-	return "", nil
+	return "Cannot create access requests at the moment.", nil
 }
 
 // TODO: investigate integrating this into embeddingRetrievalTool
@@ -137,7 +152,7 @@ func (*accessRequestListTool) Description() string {
 }
 
 func (*accessRequestListTool) Run(ctx context.Context, input string) (string, error) {
-	return "", nil
+	return "No access requests open.", nil
 }
 
 type accessRequestDeleteTool struct{}
@@ -159,7 +174,7 @@ The input must be a JSON object with the following schema:
 }
 
 func (*accessRequestDeleteTool) Run(ctx context.Context, input string) (string, error) {
-	return "", nil
+	return "Cannot delete access requests at the moment.", nil
 }
 
 type embeddingRetrievalTool struct {
