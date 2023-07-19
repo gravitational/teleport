@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,33 +25,30 @@ import (
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
 func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context) (watcher types.Watcher, close func(), err error) {
-	err = addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
-		rootClient, err := proxyClient.ConnectToRootCluster(ctx)
-		if err != nil {
-			proxyClient.Close()
-			return trace.Wrap(err)
-		}
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		proxyClient.Close()
+		return nil, nil, trace.Wrap(err)
+	}
 
-		watcher, err = rootClient.WatchPendingHeadlessAuthentications(ctx)
-		if err != nil {
-			proxyClient.Close()
-			rootClient.Close()
-			return trace.Wrap(err)
-		}
+	watcher, err = rootClient.WatchPendingHeadlessAuthentications(ctx)
+	if err != nil {
+		proxyClient.Close()
+		rootClient.Close()
+		return nil, nil, trace.Wrap(err)
+	}
 
-		close = func() {
-			watcher.Close()
-			proxyClient.Close()
-			rootClient.Close()
-		}
+	close = func() {
+		watcher.Close()
+		proxyClient.Close()
+		rootClient.Close()
+	}
 
-		return nil
-	})
 	return watcher, close, trace.Wrap(err)
 }
 

@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -230,6 +230,7 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 }
 
 func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	t.Helper()
 	ctx := context.Background()
 
 	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
@@ -268,26 +269,24 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 	require.NoError(t, err)
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
 
-	upsertAndWaitForEvent := func() bool {
-		tshdEventsService.setCallCount("SendPendingHeadlessAuthentication", 0)
+	eventuallyCatchAndSendHeadlessAuthn := func(t require.TestingT) {
+		tshdEventsService.sendPendingHeadlessAuthenticationCount.Store(0)
 
 		err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
 		require.NoError(t, err)
 
-		// Wait for the watcher to relay the SendPendingHeadlessAuthentication message.
-		for i := 0; i < 5; i++ {
-			time.Sleep(20 * time.Millisecond)
-			if tshdEventsService.readCallCount("SendPendingHeadlessAuthentication") == 1 {
-				return true
-			}
-		}
-
-		return false
+		assert.Eventually(t, func() bool {
+			return tshdEventsService.sendPendingHeadlessAuthenticationCount.Load() == 1
+		}, 100*time.Millisecond, 20*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
 	}
 
 	// The watcher takes some amount of time to set up, so if we immediately upsert a headless
 	// authentication, it may not be caught by the watcher.
-	require.Eventually(t, upsertAndWaitForEvent, time.Second, 100*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
+	// require.Eventually(t, upsertAndWaitForEvent, time.Second, 100*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		eventuallyCatchAndSendHeadlessAuthn(collect)
+	}, time.Second, 100*time.Millisecond)
 
 	// Stop and restart the watcher twice to simulate logout + login + relogin. Ensure the watcher catches events.
 
@@ -300,7 +299,9 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 
 	// Ensure the watcher catches events and sends them to the Electron App.
 
-	require.Eventually(t, upsertAndWaitForEvent, time.Second, 50*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		eventuallyCatchAndSendHeadlessAuthn(collect)
+	}, time.Second, 100*time.Millisecond)
 }
 
 func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
@@ -316,20 +317,18 @@ func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, cred
 
 type mockTSHDEventsService struct {
 	*api.UnimplementedTshdEventsServiceServer
-	callCounts   map[string]int
-	callCountsMu sync.Mutex
+	sendPendingHeadlessAuthenticationCount atomic.Uint32
 }
 
 func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
-	tshdEventsService := &mockTSHDEventsService{
-		callCounts: make(map[string]int),
-	}
+	tshdEventsService := &mockTSHDEventsService{}
 
 	ls, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
+	t.Cleanup(grpcServer.GracefulStop)
 
 	go func() {
 		err := grpcServer.Serve(ls)
@@ -340,23 +339,6 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 }
 
 func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
-	c.callCountsMu.Lock()
-	defer c.callCountsMu.Unlock()
-
-	c.callCounts["SendPendingHeadlessAuthentication"]++
+	c.sendPendingHeadlessAuthenticationCount.Add(1)
 	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
-}
-
-func (c *mockTSHDEventsService) readCallCount(name string) int {
-	c.callCountsMu.Lock()
-	defer c.callCountsMu.Unlock()
-
-	return c.callCounts[name]
-}
-
-func (c *mockTSHDEventsService) setCallCount(name string, val int) {
-	c.callCountsMu.Lock()
-	defer c.callCountsMu.Unlock()
-
-	c.callCounts[name] = val
 }

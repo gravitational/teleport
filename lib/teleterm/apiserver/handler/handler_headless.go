@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,19 +19,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 )
 
 // UpdateHeadlessAuthenticationState logs in a user to a cluster
 func (s *Handler) UpdateHeadlessAuthenticationState(ctx context.Context, req *api.UpdateHeadlessAuthenticationStateRequest) (*api.UpdateHeadlessAuthenticationStateResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	state := types.HeadlessAuthenticationState(req.State)
-	if err := cluster.UpdateHeadlessAuthenticationState(ctx, req.HeadlessAuthenticationId, state); err != nil {
+	if err := s.DaemonService.UpdateHeadlessAuthenticationState(ctx, req.RootClusterUri, req.HeadlessAuthenticationId, req.State); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -59,7 +59,7 @@ func New(cfg Config) (*Service, error) {
 		cfg:                    &cfg,
 		closeContext:           closeContext,
 		cancel:                 cancel,
-		gateways:      	        make(map[string]gateway.Gateway),
+		gateways:               make(map[string]gateway.Gateway),
 		usageReporter:          connectUsageReporter,
 		headlessWatcherClosers: make(map[string]context.CancelFunc),
 	}, nil

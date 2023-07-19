@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,20 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, clusterURI, headlessID string, state api.HeadlessAuthenticationState) error {
+	cluster, err := s.ResolveCluster(clusterURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := cluster.UpdateHeadlessAuthenticationState(ctx, headlessID, types.HeadlessAuthenticationState(state)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
 
 // StartHeadlessHandlers starts a headless watcher for the given cluster URI.
 func (s *Service) StartHeadlessWatcher(uri string) error {
@@ -131,6 +145,9 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 		for {
 			if !cluster.Connected() {
 				log.Debugf("Not connected to cluster. Returning from headless watch loop.")
+				if err := s.StopHeadlessWatcher(cluster.URI.String()); err != nil {
+					log.WithError(err).Debugf("Failed to remove headless watcher.")
+				}
 				return
 			}
 
