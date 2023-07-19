@@ -44,9 +44,6 @@ func MarshalUserLoginState(userLoginState *userloginstate.UserLoginState, opts .
 
 // UnmarshalUserLoginState unmarshals the user login state resource from JSON.
 func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstate.UserLoginState, error) {
-	//if len(data) == 0 {
-	//	return nil, trace.BadParameter("missing user login state data")
-	//}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
