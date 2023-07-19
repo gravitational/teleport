@@ -100,21 +100,6 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 	return &output, nil
 }
 
-// TODO: investigate integrating this into embeddingRetrievalTool
-type listAppsTool struct{}
-
-func (*listAppsTool) Name() string {
-	return "List Apps"
-}
-
-func (*listAppsTool) Description() string {
-	return "Get a list of apps that are available to the user."
-}
-
-func (*listAppsTool) Run(ctx context.Context, input string) (string, error) {
-	return "", nil
-}
-
 type accessRequestCreateTool struct{}
 
 func (*accessRequestCreateTool) Name() string {
