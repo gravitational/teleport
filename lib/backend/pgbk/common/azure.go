@@ -26,8 +26,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO(espadolini): delete in favor of lib/backend/pgbk/common
-
 // AzureBeforeConnect will return a pgx BeforeConnect function suitable for
 // Azure AD authentication. The returned function will set the password of the
 // pgx.ConnConfig to a token for the relevant scope. If a client ID is provided,

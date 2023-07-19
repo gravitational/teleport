@@ -30,8 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
-// TODO(espadolini): delete in favor of lib/backend/pgbk/common
-
 // ConnectPostgres will open a single connection to the "postgres" database in
 // the database cluster specified in poolConfig.
 func ConnectPostgres(ctx context.Context, poolConfig *pgxpool.Config) (*pgx.Conn, error) {

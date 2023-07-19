@@ -31,9 +31,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	pgcommon "github.com/gravitational/teleport/lib/events/pgevents/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
