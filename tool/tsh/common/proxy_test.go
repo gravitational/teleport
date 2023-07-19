@@ -434,8 +434,9 @@ func TestWithRsync(t *testing.T) {
 				)
 				// make the re-exec behave as `tsh` instead of test binary.
 				cmd.Env = []string{
-					fmt.Sprintf("%s=%s", tshBinMockHeadlessAddr, mockHeadlessAddr),
+					fmt.Sprintf("%s=%s", tshBinMockHeadlessAddrEnv, mockHeadlessAddr),
 					tshBinMainTestEnv + "=1",
+					tshBinMainTestOneshotEnv + "=1",
 					fmt.Sprintf("%s=%s", types.HomeEnvVar, tshHome),
 				}
 

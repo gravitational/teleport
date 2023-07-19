@@ -88,19 +88,39 @@ const (
 	staticToken          = "test-static-token"
 	// tshBinMainTestEnv allows to execute tsh main function from test binary.
 	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
+
+	// tshBinMainTestOneshotEnv allows child processes of a tsh reexec process
+	// to call teleport instead of tsh to support 'tsh ssh'.
+	tshBinMainTestOneshotEnv = "TSH_BIN_MAIN_TEST_ONESHOT"
 	// tshBinMockHeadlessAddr allows tests to mock headless auth when the
 	// test binary is re-executed.
-	tshBinMockHeadlessAddr = "TSH_BIN_MOCK_HEADLESS_ADDR"
+	tshBinMockHeadlessAddrEnv = "TSH_BIN_MOCK_HEADLESS_ADDR"
 )
 
 var ports utils.PortList
 
-func init() {
+func TestMain(m *testing.M) {
+	handleReexec()
+
+	var err error
+	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
+	if err != nil {
+		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
+	}
+
+	modules.SetModules(&cliModules{})
+
+	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
+	os.Exit(m.Run())
+}
+
+func handleReexec() {
 	var runOpts []CliOption
 
 	// Allows mock headless auth to be implemented when the test binary
 	// is re-executed.
-	if addr := os.Getenv(tshBinMockHeadlessAddr); addr != "" {
+	if addr := os.Getenv(tshBinMockHeadlessAddrEnv); addr != "" {
 		runOpts = append(runOpts, func(c *CLIConf) error {
 			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 				conn, err := net.Dial("tcp", addr)
@@ -134,10 +154,12 @@ func init() {
 	// Needed for tests that generate OpenSSH config by tsh config command where
 	// tsh proxy ssh command is used as ProxyCommand.
 	if os.Getenv(tshBinMainTestEnv) != "" {
-		// unset this env var so child processes started by 'tsh ssh'
-		// will be executed correctly below.
-		if err := os.Unsetenv(tshBinMainTestEnv); err != nil {
-			panic(fmt.Sprintf("failed to unset env var: %v", err))
+		if os.Getenv(tshBinMainTestOneshotEnv) != "" {
+			// unset this env var so child processes started by 'tsh ssh'
+			// will be executed correctly below.
+			if err := os.Unsetenv(tshBinMainTestEnv); err != nil {
+				panic(fmt.Sprintf("failed to unset env var: %v", err))
+			}
 		}
 
 		err := Run(context.Background(), os.Args[1:], runOpts...)
@@ -149,29 +171,13 @@ func init() {
 			utils.FatalError(err)
 		}
 		os.Exit(0)
-		return
 	}
 
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe. Used to test tsh ssh command.
 	if srv.IsReexec() {
 		srv.RunAndExit(os.Args[1])
-		return
 	}
-
-	var err error
-	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
-	if err != nil {
-		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
-	}
-
-	modules.SetModules(&cliModules{})
-}
-
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
-	os.Exit(m.Run())
 }
 
 type cliModules struct{}
