@@ -180,6 +180,11 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := pgcommon.SetupAndMigrate(ctx, log, pool, "backend_version", schemas); err != nil {
+		pool.Close()
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	b := &Backend{
 		cfg:    cfg,
@@ -187,11 +192,6 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		pool:   pool,
 		buf:    backend.NewCircularBuffer(),
 		cancel: cancel,
-	}
-
-	if err := b.setupAndMigrate(ctx); err != nil {
-		b.Close()
-		return nil, trace.Wrap(err)
 	}
 
 	if !cfg.DisableExpiry {
@@ -239,81 +239,6 @@ var schemas = []string{
 		CONSTRAINT kv_pkey PRIMARY KEY (key)
 	);
 	CREATE INDEX kv_expires_idx ON kv (expires) WHERE expires IS NOT NULL;`,
-}
-
-// setupAndMigrate sets up the database schema, applying the migrations in the
-// [schemas] slice starting from the first non-applied one.
-func (b *Backend) setupAndMigrate(ctx context.Context) error {
-	var version int32
-	var migrateErr error
-
-	// this is split off from the rest because we might not have permissions to
-	// CREATE TABLE, which is checked even if the table exists
-	if _, err := pgcommon.RetryIdempotent(ctx, b.log, func() (struct{}, error) {
-		_, err := b.pool.Exec(ctx,
-			`CREATE TABLE IF NOT EXISTS backend_version (
-				version integer PRIMARY KEY CHECK (version > 0),
-				created timestamptz NOT NULL DEFAULT now()
-			)`, pgx.QueryExecModeExec,
-		)
-		return struct{}{}, trace.Wrap(err)
-	}); err != nil {
-		// the very first SELECT in the next transaction will fail, we don't
-		// need anything higher than debug here
-		b.log.WithError(err).Debug("Failed to confirm the existence of the backend_version table.")
-	}
-
-	const idempotent = true
-	if err := pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{
-		IsoLevel:   pgx.Serializable,
-		AccessMode: pgx.ReadWrite,
-	}, idempotent, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx,
-			"SELECT COALESCE(max(version), 0) FROM backend_version",
-			pgx.QueryExecModeExec,
-		).Scan(&version); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if int(version) > len(schemas) {
-			migrateErr = trace.BadParameter("unsupported schema version %v", version)
-			return nil
-		}
-
-		if int(version) == len(schemas) {
-			return nil
-		}
-
-		for _, s := range schemas[version:] {
-			if _, err := tx.Exec(ctx, s, pgx.QueryExecModeExec); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if _, err := tx.Exec(ctx,
-			"INSERT INTO backend_version (version) VALUES ($1)",
-			pgx.QueryExecModeExec, len(schemas),
-		); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if migrateErr != nil {
-		return migrateErr
-	}
-
-	if int(version) != len(schemas) {
-		b.log.WithFields(logrus.Fields{
-			"previous_version": version,
-			"current_version":  len(schemas),
-		}).Info("Migrated database schema.")
-	}
-
-	return nil
 }
 
 var _ backend.Backend = (*Backend)(nil)
