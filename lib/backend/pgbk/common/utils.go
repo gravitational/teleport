@@ -74,7 +74,7 @@ func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 		// will fail immediately if we can't connect, anyway, so we can log
 		// permission errors at debug level here.
 		if IsCode(err, pgerrcode.InsufficientPrivilege) {
-			log.WithError(err).Debug("Error creating database.")
+			log.WithError(err).Debug("Error creating database due to insufficient privileges.")
 		} else {
 			log.WithError(err).Warn("Error creating database.")
 		}
