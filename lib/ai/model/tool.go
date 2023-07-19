@@ -122,7 +122,7 @@ func (*accessRequestCreateTool) Name() string {
 }
 
 func (*accessRequestCreateTool) Description() string {
-	return fmt.Sprintf(`Create an access request with a set of roles, a reason, a set of suggested reviewers and a set of resource IDs.
+	return fmt.Sprintf(`Create an access request with a set of roles, a reason, and a set of suggested reviewers.
 The input must be a JSON object with the following schema:
 
 %vjson
@@ -130,7 +130,6 @@ The input must be a JSON object with the following schema:
 	"roles": []string, \\ The optional set of roles being requested
 	"reason": string, \\ A reason for the request; attempt to ask the user for this if not provided
 	"suggested_reviewers": []string \\ An optional list of suggested reviewers; these must be Teleport usernames
-	"resource_ids": []string \\ An optional list of resource IDs that the user is requesting access to
 }
 %v
 `, "```", "```")
