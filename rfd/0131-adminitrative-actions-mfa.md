@@ -147,6 +147,7 @@ gRPC:
 - ExportUpgradeWindows
 - UpdateClusterMaintenanceConfig
 - UpdatePluginData
+- CreateDevice, UpdateDevice, UpsertDevice, DeleteDevice, BulkCreateDevices, CreateDeviceEnrollToken
 
 HTTP:
 
