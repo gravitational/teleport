@@ -356,6 +356,19 @@ Between option 1 and 2, option 1 is more explicit and simple in how and where MF
 might be required. This will make the feature easier to use and extend for both
 internal and external developers.
 
+#### MFA prompt for non-`tsh` clients
+
+Currently `tsh` is the only client with a universal MFA prompt logic. We will
+need to implement similar logic in `tctl`, the Web UI, and Teleport Connect.
+
+`tctl` can reuse the same logic used in `tsh`, making it the easiest change.
+However, we will also need to start creating a signed `tctl.app` in order to
+support Touch ID in `tctl`.
+
+For the Web UI and Teleport Connect, MFA prompt logic is handled on a case by
+case basis. We will develop reusable logic and modals for these Apps to prompt
+for MFA when necessary.
+
 #### Server changes
 
 For admin actions, the Auth server will validate MFA for each request using the
