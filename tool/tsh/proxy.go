@@ -892,10 +892,15 @@ func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStat
 	return nil
 }
 
+const dbProxyConnectAd = `Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
+`
+
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
 var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use following credentials to connect to the {{.database}} proxy:
   ca_file={{.ca}}
   cert_file={{.cert}}
@@ -911,6 +916,7 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ {{.command}}
 `))
@@ -920,6 +926,7 @@ var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunction
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use the following command to connect to the Oracle database server using CLI:
   $ {{.command}}
 
@@ -936,6 +943,7 @@ var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+` + dbProxyConnectAd + `
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 {{range $item := .commands}}
   * {{$item.Description}}: 
