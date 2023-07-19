@@ -30,13 +30,6 @@ import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import Welcome from './Welcome';
 
-/**
- *
- * @remarks
- * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
- * equivalent change should be applied in Enterprise
- *
- */
 const invitePath = '/web/invite/5182';
 const inviteContinuePath = '/web/invite/5182/continue';
 const resetPath = '/web/reset/5182';

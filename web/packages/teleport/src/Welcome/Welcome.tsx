@@ -20,14 +20,15 @@ import { Route, Switch, useParams } from 'teleport/components/Router';
 import history from 'teleport/services/history';
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
+import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
 
 import { CardWelcome } from './CardWelcome';
 
 type WelcomeProps = {
-  NewCredentials: ({ tokenId, resetMode }: { tokenId?: string; resetMode?: boolean; }) => JSX.Element
-}
+  NewCredentials: (props: NewCredentialsContainerProps) => JSX.Element;
+};
 
-export default function Welcome({NewCredentials}: WelcomeProps) {
+export default function Welcome({ NewCredentials }: WelcomeProps) {
   const { tokenId } = useParams<{ tokenId: string }>();
 
   const handleOnInviteContinue = () => {

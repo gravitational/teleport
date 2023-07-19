@@ -33,7 +33,7 @@ import { RegisterSuccess } from './Success';
 /**
  *
  * @remarks
- * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
+ * This container component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
  * equivalent change should be applied in Enterprise
  *
  */
@@ -60,6 +60,9 @@ export function NewCredentials(props: NewCredentialsProps) {
     finishedRegister,
     privateKeyPolicyEnabled,
     isDashboard,
+    displayOnboardingQuestionnaire = false,
+    setDisplayOnboardingQuestionnaire = false,
+    Questionnaire = undefined,
   } = props;
 
   // Check which flow to render as default.
@@ -84,6 +87,23 @@ export function NewCredentials(props: NewCredentialsProps) {
     return (
       <PrivateKeyLoginDisabledCard
         title={resetMode ? 'Reset Complete' : 'Registration Complete'}
+      />
+    );
+  }
+
+  if (
+    success &&
+    !resetMode &&
+    displayOnboardingQuestionnaire &&
+    setDisplayOnboardingQuestionnaire &&
+    Questionnaire
+  ) {
+    // todo (michellescripts) check cluster config to determine if all or partial questions are asked
+    return (
+      <Questionnaire
+        full={true}
+        username={resetToken.user}
+        onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
       />
     );
   }

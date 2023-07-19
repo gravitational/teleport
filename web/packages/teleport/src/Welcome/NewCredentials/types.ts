@@ -20,6 +20,8 @@ import { Auth2faType, PrimaryAuthType } from 'shared/services';
 
 import { NewFlow, StepComponentProps } from 'design/StepSlider';
 
+import { ReactElement } from 'react';
+
 import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 
 export type UseTokenState = {
@@ -39,9 +41,21 @@ export type UseTokenState = {
   privateKeyPolicyEnabled: boolean;
 };
 
+// duplicated from E
+export type QuestionnaireProps = {
+  full: boolean;
+  username: string;
+  onSubmit?: () => void;
+};
+
 export type NewCredentialsProps = UseTokenState & {
   resetMode?: boolean;
   isDashboard: boolean;
+
+  // support E questionnaire
+  displayOnboardingQuestionnaire?: boolean;
+  setDisplayOnboardingQuestionnaire?: (bool: boolean) => void;
+  Questionnaire?: (props: QuestionnaireProps) => ReactElement;
 };
 
 export type RegisterSuccessProps = {
@@ -54,4 +68,9 @@ export type RegisterSuccessProps = {
 export type LoginFlow = Extract<PrimaryAuthType, 'passwordless' | 'local'>;
 export type SliderProps = StepComponentProps & {
   changeFlow(f: NewFlow<LoginFlow>): void;
+};
+
+export type NewCredentialsContainerProps = {
+  tokenId?: string;
+  resetMode?: boolean;
 };

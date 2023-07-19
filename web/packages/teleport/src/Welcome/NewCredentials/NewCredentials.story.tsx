@@ -21,13 +21,6 @@ import { NewCredentials } from './NewCredentials';
 import { NewMfaDevice } from './NewMfaDevice';
 import { NewCredentialsProps, SliderProps } from './types';
 
-/**
- *
- * @remarks
- * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
- * equivalent change should be applied in Enterprise
- *
- */
 export default {
   title: 'Teleport/Welcome/Form',
   component: NewCredentials,
