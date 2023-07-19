@@ -134,6 +134,9 @@ func (c *Config) SetFromURL(u *url.URL) error {
 		c.ServiceURL.Scheme = "https"
 	case teleport.SchemeAZBlobHTTP:
 		c.ServiceURL.Scheme = "http"
+	case "http", "https":
+	default:
+		return trace.BadParameter("unsupported URL scheme %v", c.ServiceURL.Scheme)
 	}
 
 	params, err := url.ParseQuery(c.ServiceURL.EscapedFragment())
