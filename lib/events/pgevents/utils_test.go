@@ -26,6 +26,8 @@ import (
 )
 
 func TestPaginationKeyRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	for i := 0; i < 1000; i++ {
 		var b [24]byte
 		_, err := rand.Read(b[:])
