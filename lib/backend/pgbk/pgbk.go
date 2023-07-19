@@ -360,7 +360,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 				Key:     key,
 				Value:   value,
 				Expires: time.Time(expires).UTC(),
-				// Revision: crockfordLowercaseBase32.EncodeToString(revision.Bytes[:]),
+				// revision isn't supported in backend.Item yet
 			}
 			return nil
 		})
@@ -412,7 +412,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 					Key:     key,
 					Value:   value,
 					Expires: time.Time(expires).UTC(),
-					// Revision: crockfordLowercaseBase32.EncodeToString(revision.Bytes[:]),
+					// revision isn't supported in backend.Item yet
 				}, nil
 			})
 			return trace.Wrap(err)
