@@ -47,17 +47,18 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 		// catching up
 		for i := 0; i < backend.DefaultRangeLimit/b.cfg.ExpiryBatchSize; i++ {
 			t0 := time.Now()
+			// TODO(espadolini): try getting keys in a read-only deferrable
+			// transaction and deleting them later to reduce potential
+			// serialization issues
 			deleted, err := pgcommon.RetryIdempotent(ctx, b.log, func() (int64, error) {
-				// TODO(espadolini): try other alternatives:
-				// - `DELETE FROM kv WHERE key IN (SELECT ...)`, might be faster
-				//   or slower depending on the batch size
-				// - `WITH to_delete AS (SELECT ...) DELETE FROM ... USING to_delete WHERE key = to_delete.key`
-				//   could be equivalent as the above, it's postgres-specific
-				// - reading keys in application code in read-only deferred
-				//   mode, then deleting them if they're still expired
+				// LIMIT without ORDER BY might get executed poorly because the
+				// planner doesn't have any idea of how many rows will be chosen
+				// or skipped, and it's not necessary but it's a nice touch that
+				// we'll be deleting expired items in expiration order
 				tag, err := b.pool.Exec(ctx,
-					"DELETE FROM kv WHERE key = ANY(ARRAY("+
-						"SELECT key FROM kv WHERE expires IS NOT NULL AND expires <= now() LIMIT $1 FOR UPDATE))",
+					"DELETE FROM kv WHERE key IN (SELECT key FROM kv"+
+						" WHERE expires IS NOT NULL AND expires <= now()"+
+						" ORDER BY expires LIMIT $1 FOR UPDATE)",
 					b.cfg.ExpiryBatchSize,
 				)
 				if err != nil {
