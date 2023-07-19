@@ -693,6 +693,7 @@
     "subkind",
     "subgroups",
     "sudoer",
+    "suppress",
     "syscalls",
     "sysvinit",
     "SIGQUIT",
