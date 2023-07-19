@@ -130,7 +130,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	defer func() {
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		if err := conn.Close(context.Background()); err != nil && ctx.Err() != nil {
+		if err := conn.Close(ctx); err != nil && ctx.Err() != nil {
 			b.log.WithError(err).Warn("Error closing change feed connection.")
 		}
 	}()
