@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/api/client"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -60,7 +59,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := client.GetResourcePage[types.AppServer](r.Context(), clt, req)
+	page, err := apiclient.GetResourcePage[types.AppServer](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,15 +85,15 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 
 		app := server.GetApp()
 
-		ugs := make(types.UserGroups, len(app.GetUserGroups()))
-		for i, userGroupName := range app.GetUserGroups() {
+		ugs := types.UserGroups{}
+		for _, userGroupName := range app.GetUserGroups() {
 			userGroup := userGroupLookup[userGroupName]
 			if userGroup == nil {
 				h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
 				continue
 			}
 
-			ugs[i] = userGroup
+			ugs = append(ugs, userGroup)
 		}
 		sort.Sort(ugs)
 		appsToUserGroups[app.GetName()] = ugs
