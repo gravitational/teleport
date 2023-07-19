@@ -416,6 +416,12 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 		if ev.GetID() == "" || ev.GetID() == uuid.Nil.String() {
 			ev.SetID(uuid.NewString())
 		}
+		// Typically there should not be event without time, however it happen
+		// in past due to some bugs. We decided it's better to keep in athena
+		// then drop it. 1970-01-01 is used to provide valid unix timestamp.
+		if ev.GetTime().IsZero() {
+			ev.SetTime(time.Unix(0, 0))
+		}
 
 		// if checkpoint is present, it means that previous run ended with error
 		// and we want to continue from last valid checkpoint.
