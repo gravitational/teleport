@@ -85,12 +85,12 @@ import (
 
 const (
 	mockHeadlessPassword = "password"
-
-	staticToken = "test-static-token"
+	staticToken          = "test-static-token"
 	// tshBinMainTestEnv allows to execute tsh main function from test binary.
 	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
-
-	tshBinMockHeadless = "TSH_BIN_MOCK_HEADLESS"
+	// tshBinMockHeadlessAddr allows tests to mock headless auth when the
+	// test binary is re-executed.
+	tshBinMockHeadlessAddr = "TSH_BIN_MOCK_HEADLESS_ADDR"
 )
 
 var ports utils.PortList
@@ -100,7 +100,7 @@ func init() {
 
 	// Allows mock headless auth to be implemented when the test binary
 	// is re-executed.
-	if addr := os.Getenv(tshBinMockHeadless); addr != "" {
+	if addr := os.Getenv(tshBinMockHeadlessAddr); addr != "" {
 		runOpts = append(runOpts, func(c *CLIConf) error {
 			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 				conn, err := net.Dial("tcp", addr)
@@ -111,7 +111,6 @@ func init() {
 
 				// send the server the public key
 				_, err = conn.Write(priv.MarshalSSHPublicKey())
-				log.Println("done writing")
 				if err != nil {
 					return nil, trace.Wrap(err, "writing public key to mock headless server")
 				}
@@ -120,7 +119,6 @@ func init() {
 				if err != nil {
 					return nil, trace.Wrap(err, "reading reply from mock headless server")
 				}
-				log.Println(string(reply))
 				var loginResp auth.SSHLoginResponse
 				if err := json.Unmarshal(reply, &loginResp); err != nil {
 					return nil, trace.Wrap(err, "decoding reply from mock headless server")
@@ -130,37 +128,14 @@ func init() {
 			}
 			return nil
 		})
-
-		// inputReader := prompt.NewFakeReader().
-		// 	AddString(mockHeadlessPassword).
-		// 	AddReply(func(ctx context.Context) (string, error) {
-		// 		panic("this should not be called")
-		// 	})
-
-		// device, err := mocku2f.Create()
-		// if err != nil {
-		// 	panic(fmt.Sprintf("error creating mock U2F key: %v", err))
-		// }
-		// device.SetPasswordless()
-
-		// prompt.SetStdin(inputReader)
-		// *client.PromptWebauthn = func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-		// 	car, err := device.SignAssertion("https://127.0.0.1", assertion) // use the fake origin to prevent a mismatch
-		// 	if err != nil {
-		// 		return nil, "", err
-		// 	}
-		// 	return &proto.MFAAuthenticateResponse{
-		// 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-		// 			Webauthn: wanlib.CredentialAssertionResponseToProto(car),
-		// 		},
-		// 	}, "", nil
-		// }
 	}
 
 	// Allows test to refer to tsh binary in tests.
 	// Needed for tests that generate OpenSSH config by tsh config command where
 	// tsh proxy ssh command is used as ProxyCommand.
 	if os.Getenv(tshBinMainTestEnv) != "" {
+		// unset this env var so child processes started by 'tsh ssh'
+		// will be executed correctly below.
 		if err := os.Unsetenv(tshBinMainTestEnv); err != nil {
 			panic(fmt.Sprintf("failed to unset env var: %v", err))
 		}
@@ -173,7 +148,6 @@ func init() {
 			}
 			utils.FatalError(err)
 		}
-		// since we are here, there was no error, so we must do so ourselves.
 		os.Exit(0)
 		return
 	}

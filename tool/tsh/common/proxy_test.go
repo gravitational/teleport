@@ -308,7 +308,7 @@ func TestWithRsync(t *testing.T) {
 		{
 			name: "with headless tsh",
 			setup: func(t *testing.T, dir string) {
-				// setup webauthn
+				// setup webauthn for headless auth
 				asrv := s.root.GetAuthServer()
 				ctx := context.Background()
 
@@ -356,7 +356,7 @@ func TestWithRsync(t *testing.T) {
 				require.NoError(t, err)
 
 				// start a listener to use as a way to implement mock
-				// headless auth on the child tsh ssh --headless process
+				// headless auth on the child 'tsh ssh --headless' process
 				lis, err := net.Listen("tcp", "127.0.0.1:")
 				require.NoError(t, err)
 				t.Cleanup(func() {
@@ -369,9 +369,7 @@ func TestWithRsync(t *testing.T) {
 					if !assert.NoError(t, err) {
 						return
 					}
-					t.Cleanup(func() {
-						assert.NoError(t, conn.Close())
-					})
+					defer conn.Close()
 
 					// the child will send the public key
 					key := make([]byte, 512)
@@ -418,11 +416,10 @@ func TestWithRsync(t *testing.T) {
 					if !assert.NoError(t, err) {
 						return
 					}
-
 					_, err = conn.Write(encResp)
-					if !assert.NoError(t, err) {
-						return
-					}
+					assert.NoError(t, err)
+
+					assert.NoError(t, conn.Close())
 				}()
 			},
 			createCmd: func(ctx context.Context, dir, src, dst string) *exec.Cmd {
@@ -437,7 +434,7 @@ func TestWithRsync(t *testing.T) {
 				)
 				// make the re-exec behave as `tsh` instead of test binary.
 				cmd.Env = []string{
-					fmt.Sprintf("%s=%s", tshBinMockHeadless, mockHeadlessAddr),
+					fmt.Sprintf("%s=%s", tshBinMockHeadlessAddr, mockHeadlessAddr),
 					tshBinMainTestEnv + "=1",
 					fmt.Sprintf("%s=%s", types.HomeEnvVar, tshHome),
 				}
@@ -462,7 +459,7 @@ func TestWithRsync(t *testing.T) {
 			require.NoError(t, err)
 			dstPath := filepath.Join(testDir, "dst")
 
-			ctx, cancel := context.WithCancel(context.Background()) // context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
 			cmd := tt.createCmd(ctx, testDir, srcPath, dstPath)
 			cmd.Stdout = os.Stdout
