@@ -577,4 +577,10 @@ func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 func (b *Backend) CloseWatchers() { b.buf.Clear() }
 
 // Clock implements implements [backend.Backend].
-func (b *Backend) Clock() clockwork.Clock { return clockwork.NewRealClock() }
+func (b *Backend) Clock() clockwork.Clock {
+	// we don't support a custom clock, because deciding which items still exist
+	// in the backend depends on which items are still stored but expired, and
+	// it's much cleaner to just rely on the server transaction time (which is
+	// shared between all auth servers) for that
+	return clockwork.NewRealClock()
+}
