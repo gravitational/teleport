@@ -199,3 +199,89 @@ func IsCode(err error, code string) bool {
 	_ = errors.As(err, &pgErr)
 	return pgErr != nil && pgErr.Code == code
 }
+
+// SetupAndMigrate sets up the database schema, applying the migrations in the
+// schemas slice in order, starting from the first non-applied one. tableName is
+// the name of a table used to hold schema version numbers.
+func SetupAndMigrate(
+	ctx context.Context,
+	log logrus.FieldLogger,
+	db interface {
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+		Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	},
+	tableName string,
+	schemas []string,
+) error {
+	var version int32
+	var migrateErr error
+
+	// this is split off from the rest because we might not have permissions to
+	// CREATE TABLE, which is checked even if the table exists
+	if _, err := RetryIdempotent(ctx, log, func() (struct{}, error) {
+		_, err := db.Exec(ctx,
+			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (
+				version integer PRIMARY KEY CHECK (version > 0),
+				created timestamptz NOT NULL DEFAULT now()
+			)`, tableName), pgx.QueryExecModeExec,
+		)
+		return struct{}{}, trace.Wrap(err)
+	}); err != nil {
+		// the very first SELECT in the next transaction will fail, we don't
+		// need anything higher than debug here
+		log.WithError(err).Debugf("Failed to confirm the existence of the %v table.", tableName)
+	}
+
+	const idempotent = true
+	if err := RetryTx(ctx, log, db, pgx.TxOptions{
+		IsoLevel:   pgx.Serializable,
+		AccessMode: pgx.ReadWrite,
+	}, idempotent, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx,
+			fmt.Sprintf("SELECT COALESCE(max(version), 0) FROM %v", tableName),
+			pgx.QueryExecModeExec,
+		).Scan(&version); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if int(version) > len(schemas) {
+			migrateErr = trace.BadParameter("unsupported schema version %v", version)
+			// the transaction succeeded, the error is outside of the transaction
+			return nil
+		}
+
+		if int(version) == len(schemas) {
+			return nil
+		}
+
+		for _, s := range schemas[version:] {
+			if _, err := tx.Exec(ctx, s, pgx.QueryExecModeExec); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if _, err := tx.Exec(ctx,
+			fmt.Sprintf("INSERT INTO %v (version) VALUES ($1)", tableName),
+			pgx.QueryExecModeExec, len(schemas),
+		); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if migrateErr != nil {
+		return trace.Wrap(migrateErr)
+	}
+
+	if int(version) != len(schemas) {
+		log.WithFields(logrus.Fields{
+			"previous_version": version,
+			"current_version":  len(schemas),
+		}).Info("Migrated database schema.")
+	}
+
+	return nil
+}

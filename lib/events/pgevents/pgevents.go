@@ -208,16 +208,16 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := pgcommon.SetupAndMigrate(ctx, cfg.Log, pool, "audit_version", schemas); err != nil {
+		pool.Close()
+		return nil, trace.Wrap(err)
+	}
+
 	periodicCtx, cancel := context.WithCancel(context.Background())
 	l := &Log{
 		log:    cfg.Log,
 		pool:   pool,
 		cancel: cancel,
-	}
-
-	if err := l.setupAndMigrate(ctx); err != nil {
-		l.Close()
-		return nil, trace.Wrap(err)
 	}
 
 	if !cfg.DisableCleanup {
@@ -260,81 +260,6 @@ var schemas = []string{
 	CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);
 	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
 		WHERE session_id != '00000000-0000-0000-0000-000000000000';`,
-}
-
-// setupAndMigrate sets up the database schema, applying the migrations in the
-// [schemas] slice starting from the first non-applied one.
-func (l *Log) setupAndMigrate(ctx context.Context) error {
-	var version int32
-	var migrateErr error
-
-	// this is split off from the rest because we might not have permissions to
-	// CREATE TABLE, which is checked even if the table exists
-	if _, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {
-		_, err := l.pool.Exec(ctx,
-			`CREATE TABLE IF NOT EXISTS audit_version (
-				version integer PRIMARY KEY CHECK (version > 0),
-				created timestamptz NOT NULL DEFAULT now()
-			)`, pgx.QueryExecModeExec,
-		)
-		return struct{}{}, trace.Wrap(err)
-	}); err != nil {
-		// the very first SELECT in the next transaction will fail, we don't
-		// need anything higher than debug here
-		l.log.WithError(err).Debug("Failed to confirm the existence of the audit_version table.")
-	}
-
-	const idempotent = true
-	if err := pgcommon.RetryTx(ctx, l.log, l.pool, pgx.TxOptions{
-		IsoLevel:   pgx.Serializable,
-		AccessMode: pgx.ReadWrite,
-	}, idempotent, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx,
-			"SELECT COALESCE(max(version), 0) FROM audit_version",
-			pgx.QueryExecModeExec,
-		).Scan(&version); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if int(version) > len(schemas) {
-			migrateErr = trace.BadParameter("unsupported schema version %v", version)
-			return nil
-		}
-
-		if int(version) == len(schemas) {
-			return nil
-		}
-
-		for _, s := range schemas[version:] {
-			if _, err := tx.Exec(ctx, s, pgx.QueryExecModeExec); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if _, err := tx.Exec(ctx,
-			"INSERT INTO audit_version (version) VALUES ($1)",
-			pgx.QueryExecModeExec, len(schemas),
-		); err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if migrateErr != nil {
-		return migrateErr
-	}
-
-	if int(version) != len(schemas) {
-		l.log.WithFields(logrus.Fields{
-			"previous_version": version,
-			"current_version":  len(schemas),
-		}).Info("Migrated database schema.")
-	}
-
-	return nil
 }
 
 // periodicCleanup removes events past the retention period from the table,
