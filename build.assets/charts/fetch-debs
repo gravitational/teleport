@@ -1,4 +1,5 @@
 #!/bin/bash 
+set -e
 mkdir -p /opt/staging/root
 mkdir -p /opt/staging/status
 
@@ -9,3 +10,6 @@ for pkg in "$@"; do
     cp -r /tmp/$pkg/* /opt/staging/root
     rm -rf /tmp/$pkg
 done
+
+rm -rf /opt/staging/root/usr/share/locale
+rm -rf /opt/staging/root/usr/share/doc

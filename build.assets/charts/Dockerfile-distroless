@@ -1,9 +1,9 @@
 ARG BASE_IMAGE=gcr.io/distroless/cc-debian11
 
 FROM debian:11 AS staging
-RUN apt-get update 
-COPY fetch-debs ./
-RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0
+RUN apt-get update
+RUN --mount=type=bind,target=/context \
+    /context/fetch-debs dumb-init libpam0g libaudit1 libcap-ng0 libacl1 libselinux1 libpcre2-8-0 tar
 
 FROM debian:11 AS teleport
 # Install the teleport binary from an architecture-specific debian package. Note
@@ -21,8 +21,8 @@ ARG TELEPORT_VERSION
 # TARGETARCH is supplied by the `buildx` mechanics
 ARG TARGETARCH
 ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_INFIX}_${TELEPORT_VERSION}${TELEPORT_FIPS_INFIX}_${TARGETARCH}.deb
-COPY $TELEPORT_DEB_FILE_NAME ./$TELEPORT_DEB_FILE_NAME
-RUN dpkg-deb -R $TELEPORT_DEB_FILE_NAME /opt/staging && \
+RUN --mount=type=bind,target=/context \
+    dpkg-deb -R /context/${TELEPORT_DEB_FILE_NAME} /opt/staging && \
     mkdir -p /opt/staging/etc/teleport && \
     mkdir -p /opt/staging/var/lib/dpkg/status.d/ && \
     mv /opt/staging/DEBIAN/control /opt/staging/var/lib/dpkg/status.d/teleport && \
