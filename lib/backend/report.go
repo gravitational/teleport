@@ -373,7 +373,7 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 		key:       keyLabel,
 		isRange:   rangeSuffix,
 	}
-	// we need to do ContainsOrAdd and then Get because if we do Add we hit
+	// We need to do ContainsOrAdd and then Get because if we do Add we hit
 	// https://github.com/hashicorp/golang-lru/issues/141 which can cause a
 	// memory leak in certain workloads (where we keep overwriting the same
 	// key); it's not clear if Add to overwrite would be the correct thing to do
@@ -381,7 +381,7 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 	// overwriting might cause an eviction of the same metric we are about to
 	// bump up in freshness, which is obviously wrong
 	if ok, _ := s.topRequestsCache.ContainsOrAdd(cacheKey, struct{}{}); ok {
-		// refresh the key's position in the LRU cache if it was already in it
+		// Refresh the key's position in the LRU cache, if it was already in it.
 		s.topRequestsCache.Get(cacheKey)
 	}
 
