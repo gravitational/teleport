@@ -137,6 +137,11 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	// we don't need to run the AfterConnect here, we don't care about isolation
 	// mode for pg_logical_slot_get_changes
 
+	// reading from a replication slot adds to the postgres log at "log" level
+	// (right below "fatal") for every poll, and we poll every second here, so
+	// we try to silence the logs for this connection; this can fail because of
+	// permission issues, which would delete the temporary slot (it's deleted on
+	// any error), so we have to do it before that
 	if _, err := conn.Exec(ctx, "SET log_min_messages TO fatal", pgx.QueryExecModeExec); err != nil {
 		b.log.WithError(err).Debug("Failed to silence log messages for change feed session.")
 	}
