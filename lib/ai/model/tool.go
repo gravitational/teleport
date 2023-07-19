@@ -100,6 +100,83 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 	return &output, nil
 }
 
+// TODO: investigate integrating this into embeddingRetrievalTool
+type listAppsTool struct{}
+
+func (*listAppsTool) Name() string {
+	return "List Apps"
+}
+
+func (*listAppsTool) Description() string {
+	return "Get a list of apps that are available to the user."
+}
+
+func (*listAppsTool) Run(ctx context.Context, input string) (string, error) {
+	return "", nil
+}
+
+type accessRequestCreateTool struct{}
+
+func (*accessRequestCreateTool) Name() string {
+	return "Create Access Requests"
+}
+
+func (*accessRequestCreateTool) Description() string {
+	return fmt.Sprintf(`Create an access request with a set of roles, a reason, a set of suggested reviewers and a set of resource IDs.
+The input must be a JSON object with the following schema:
+
+%vjson
+{
+	"roles": []string, \\ The optional set of roles being requested
+	"reason": string, \\ An optional reason for the request
+	"suggested_reviewers": []string \\ An optional list of suggested reviewers; these must be Teleport usernames
+	"resource_ids": []string \\ An optional list of resource IDs that the user is requesting access to
+}
+%v
+`, "```", "```")
+}
+
+func (*accessRequestCreateTool) Run(ctx context.Context, input string) (string, error) {
+	return "", nil
+}
+
+// TODO: investigate integrating this into embeddingRetrievalTool
+type accessRequestListTool struct{}
+
+func (*accessRequestListTool) Name() string {
+	return "List Access Requests"
+}
+
+func (*accessRequestListTool) Description() string {
+	return "List all access requests created by the user."
+}
+
+func (*accessRequestListTool) Run(ctx context.Context, input string) (string, error) {
+	return "", nil
+}
+
+type accessRequestDeleteTool struct{}
+
+func (*accessRequestDeleteTool) Name() string {
+	return "Delete Access Requests"
+}
+
+func (*accessRequestDeleteTool) Description() string {
+	return fmt.Sprintf(`Delete an access request with a given UUID.
+The input must be a JSON object with the following schema:
+
+%vjson
+{
+	"uuid": string \\ UUID of the access request to delete
+}
+%v
+`, "```", "```")
+}
+
+func (*accessRequestDeleteTool) Run(ctx context.Context, input string) (string, error) {
+	return "", nil
+}
+
 type embeddingRetrievalTool struct {
 	assistClient assist.AssistEmbeddingServiceClient
 	currentUser  string

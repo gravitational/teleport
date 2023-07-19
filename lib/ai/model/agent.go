@@ -55,6 +55,10 @@ func NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string)
 				assistClient: assistClient,
 				currentUser:  username,
 			},
+			&listAppsTool{},
+			&accessRequestCreateTool{},
+			&accessRequestListTool{},
+			&accessRequestDeleteTool{},
 		},
 	}
 }
@@ -242,7 +246,7 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 	stream, err := state.llm.CreateChatCompletionStream(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:       openai.GPT4,
+			Model:       openai.GPT3Dot5Turbo16K,
 			Messages:    prompt,
 			Temperature: 0.3,
 			Stream:      true,
