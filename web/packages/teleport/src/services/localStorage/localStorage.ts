@@ -131,13 +131,6 @@ const storage = {
     const json = JSON.stringify(survey);
 
     window.localStorage.setItem(KeysEnum.ONBOARD_SURVEY, json);
-
-    window.dispatchEvent(
-      new StorageEvent('storage', {
-        key: KeysEnum.ONBOARD_SURVEY,
-        newValue: json,
-      })
-    );
   },
 
   clearOnboardSurvey() {
