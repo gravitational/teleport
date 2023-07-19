@@ -542,6 +542,7 @@ const (
 	kubeClusterEnvVar         = "TELEPORT_KUBE_CLUSTER"
 	loginEnvVar               = "TELEPORT_LOGIN"
 	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
+	browserEnvVar             = "TELEPORT_LOGIN_BROWSER"
 	proxyEnvVar               = "TELEPORT_PROXY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
@@ -658,6 +659,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
@@ -1813,6 +1815,12 @@ func onLogin(cf *CLIConf) error {
 		default:
 
 		}
+	}
+
+	// If the cluster is using single-sign on, providing the user name
+	// with --user is likely a mistake, so display a warning.
+	if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.Username != "" {
+		fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
 	}
 
 	if cf.Username == "" {

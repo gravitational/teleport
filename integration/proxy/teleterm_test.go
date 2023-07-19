@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // testTeletermGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
@@ -74,6 +75,7 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 		testGatewayCertRenewal(t, pack, albProxy.Addr().String(), creds, databaseURI)
 	})
 }
+
 func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, creds *helpers.UserCreds, databaseURI uri.ResourceURI) {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   pack.Root.User.GetName(),
@@ -122,9 +124,14 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr 
 	require.NoError(t, err, trace.DebugReport(err))
 
 	// Open a new connection.
+	route := tlsca.RouteToDatabase{
+		ServiceName: pack.Root.MysqlService.Name,
+		Protocol:    pack.Root.MysqlService.Protocol,
+		Username:    "root",
+	}
 	client, err := mysql.MakeTestClientWithoutTLS(
 		net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort()),
-		gateway.RouteToDatabase())
+		route)
 	require.NoError(t, err)
 
 	// Execute a query.
@@ -154,7 +161,7 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr 
 	// will let the connection through.
 	client, err = mysql.MakeTestClientWithoutTLS(
 		net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort()),
-		gateway.RouteToDatabase())
+		route)
 	require.NoError(t, err)
 
 	// Execute a query.

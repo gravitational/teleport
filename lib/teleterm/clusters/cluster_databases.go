@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -248,4 +249,22 @@ type GetDatabasesResponse struct {
 	StartKey string
 	// // TotalCount is the total number of resources available as a whole.
 	TotalCount int
+}
+
+// NewDBCLICmdBuilder creates a dbcmd.CLICommandBuilder with provided cluster,
+// db route, and options.
+func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
+	return dbcmd.NewCmdBuilder(
+		cluster.clusterClient,
+		&cluster.status,
+		routeToDb,
+		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
+		// clusters.
+		//
+		// At this point it doesn't matter though because this argument is used only for
+		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
+		// included in the returned CLI command.
+		cluster.Name,
+		options...,
+	)
 }

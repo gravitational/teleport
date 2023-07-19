@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -43,7 +42,7 @@ type mockGatewayCreator struct {
 	callCount int
 }
 
-func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
+func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
 	m.callCount++
 
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
@@ -88,7 +87,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 }
 
 type gatewayCRUDTestContext struct {
-	nameToGateway        map[string]*gateway.Gateway
+	nameToGateway        map[string]gateway.Gateway
 	mockGatewayCreator   *mockGatewayCreator
 	mockTCPPortAllocator *gatewaytest.MockTCPPortAllocator
 }
@@ -231,7 +230,7 @@ func TestGatewayCRUD(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			nameToGateway := make(map[string]*gateway.Gateway, len(tt.gatewayNamesToCreate))
+			nameToGateway := make(map[string]gateway.Gateway, len(tt.gatewayNamesToCreate))
 
 			for _, gatewayName := range tt.gatewayNamesToCreate {
 				gatewayName := gatewayName
@@ -451,12 +450,22 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
-	t.Cleanup(grpcServer.GracefulStop)
 
+	serveErr := make(chan error)
 	go func() {
-		err := grpcServer.Serve(ls)
-		assert.NoError(t, err)
+		serveErr <- grpcServer.Serve(ls)
 	}()
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+
+		// For test cases that did not send any grpc calls, test may finish
+		// before grpcServer.Serve is called and grpcServer.Serve will return
+		// grpc.ErrServerStopped.
+		err := <-serveErr
+		if len(tshdEventsService.callCounts) > 0 || err != grpc.ErrServerStopped {
+			require.NoError(t, err)
+		}
+	})
 
 	return tshdEventsService, ls.Addr().String()
 }
