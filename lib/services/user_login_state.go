@@ -17,30 +17,11 @@ limitations under the License.
 package services
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// UserLoginStateGetter defines an interface for reading user login states.
-type UserLoginStateGetter interface {
-	// GetUserLoginState returns the specified user login state resource.
-	GetUserLoginState(context.Context, string) (*userloginstate.UserLoginState, error)
-}
-
-// UserLoginStates defines an interface for managing user login states.
-type UserLoginStates interface {
-	UserLoginStateGetter
-
-	// UpsertUserLoginState creates or updates a user login state resource.
-	UpsertUserLoginState(context.Context, *userloginstate.UserLoginState) (*userloginstate.UserLoginState, error)
-
-	// DeletetUserLoginState deletes a user login state resource.
-	DeleteUserLoginState(context.Context, string) error
-}
 
 // MarshalUserLoginState marshals the user login state resource to JSON.
 func MarshalUserLoginState(userLoginState *userloginstate.UserLoginState, opts ...MarshalOption) ([]byte, error) {
@@ -54,34 +35,32 @@ func MarshalUserLoginState(userLoginState *userloginstate.UserLoginState, opts .
 	}
 
 	if !cfg.PreserveResourceID {
-		copy := *userLoginState
-		copy.SetResourceID(0)
-		userLoginState = &copy
+		prevID := userLoginState.GetResourceID()
+		defer func() { userLoginState.SetResourceID(prevID) }()
+		userLoginState.SetResourceID(0)
 	}
 	return utils.FastMarshal(userLoginState)
 }
 
 // UnmarshalUserLoginState unmarshals the user login state resource from JSON.
 func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstate.UserLoginState, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing user login state data")
-	}
+	//if len(data) == 0 {
+	//	return nil, trace.BadParameter("missing user login state data")
+	//}
 	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var userLoginState *userloginstate.UserLoginState
-	if err := utils.FastUnmarshal(data, &userLoginState); err != nil {
+	uls := &userloginstate.UserLoginState{}
+	if err := utils.FastUnmarshal(data, &uls); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
-	if err := userLoginState.CheckAndSetDefaults(); err != nil {
+	if err := uls.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cfg.ID != 0 {
-		userLoginState.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		userLoginState.SetExpiry(cfg.Expires)
-	}
-	return userLoginState, nil
+
+	uls.SetResourceID(cfg.ID)
+	uls.SetExpiry(cfg.Expires)
+
+	return uls, nil
 }

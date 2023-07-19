@@ -26,7 +26,11 @@ import (
 )
 
 // UserLoginState is the ephemeral user login state. This will hold data to differentiate
-// from the User object.
+// from the User object. This will allow us to store derived roles and traits from
+// access lists, login rules, and other mechanisms to more easily incorporate these
+// bits of data into user created certificates. It will also allow us to leave the user
+// object itself unmodified despite this ephemeral data, which is frequently needed
+// despite the dynamic nature of user access.
 type UserLoginState struct {
 	// ResourceHeader is the common resource header for all resources.
 	header.ResourceHeader
@@ -35,7 +39,7 @@ type UserLoginState struct {
 	Spec Spec `json:"spec" yaml:"spec"`
 }
 
-// Spec is the specification for the user login st ate.
+// Spec is the specification for the user login state.
 type Spec struct {
 	// Roles is the list of roles attached to the user login state.
 	Roles []string `json:"roles" yaml:"roles"`
@@ -44,7 +48,7 @@ type Spec struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
-// New will create a new user login state.
+// New creates a new user login state.
 func New(metadata header.Metadata, spec Spec) (*UserLoginState, error) {
 	userLoginState := &UserLoginState{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
@@ -63,11 +67,7 @@ func (u *UserLoginState) CheckAndSetDefaults() error {
 	u.SetKind(types.KindUserLoginState)
 	u.SetVersion(types.V1)
 
-	if err := u.ResourceHeader.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(u.ResourceHeader.CheckAndSetDefaults())
 }
 
 // GetRoles returns the roles attached to the user login state.

@@ -27,7 +27,7 @@ import (
 )
 
 // TestUserLoginStateUnmarshal verifies a user login state resource can be unmarshaled.
-func TestUserLoginState(t *testing.T) {
+func TestUserLoginStateUnmarshal(t *testing.T) {
 	expected, err := userloginstate.New(
 		header.Metadata{
 			Name: "test-user",
@@ -45,7 +45,24 @@ func TestUserLoginState(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	data, err := utils.ToJSON([]byte(userLoginStateYAML))
+	data, err := utils.ToJSON([]byte(`---
+kind: user_login_state
+version: v1
+metadata:
+  name: test-user
+spec:
+  roles:
+  - role1
+  - role2
+  - role3
+  traits:
+    trait1:
+    - value1
+    - value2
+    trait2:
+    - value3
+    - value4
+`))
 	require.NoError(t, err)
 	actual, err := UnmarshalUserLoginState(data)
 	require.NoError(t, err)
@@ -77,22 +94,3 @@ func TestUserLoginStateMarshal(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
-
-var userLoginStateYAML = `---
-kind: user_login_state
-version: v1
-metadata:
-  name: test-user
-spec:
-  roles:
-  - role1
-  - role2
-  - role3
-  traits:
-    trait1:
-    - value1
-    - value2
-    trait2:
-    - value3
-    - value4
-`
