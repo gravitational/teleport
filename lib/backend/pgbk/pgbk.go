@@ -340,6 +340,7 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	item, err := pgcommon.RetryIdempotent(ctx, b.log, func() (*backend.Item, error) {
 		batch := new(pgx.Batch)
+		// batches run in an implicit transaction
 		batch.Queue("SET transaction_read_only TO on")
 
 		var item *backend.Item
@@ -389,6 +390,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 	items, err := pgcommon.RetryIdempotent(ctx, b.log, func() ([]backend.Item, error) {
 		batch := new(pgx.Batch)
+		// batches run in an implicit transaction
 		batch.Queue("SET transaction_read_only TO on")
 		// TODO(espadolini): figure out if we want transaction_deferred enabled
 		// for GetRange
