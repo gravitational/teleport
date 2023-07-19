@@ -58,7 +58,7 @@ const (
 )
 
 // errMissingAnnotation is used for cases where request annotations are not set
-var errMissingAnnotation = errors.New("")
+var errMissingAnnotation = errors.New("access request is missing annotations")
 
 // App is a wrapper around the base app to allow for extra functionality.
 type App struct {
@@ -252,7 +252,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 }
 
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
-	if len(req.GetSystemAnnotations()) == 0 {
+	if len(req.GetResolveAnnotations()()) == 0 {
 		logger.Get(ctx).Debug("Cannot proceed further. Request is missing any annotations")
 		return nil
 	}
