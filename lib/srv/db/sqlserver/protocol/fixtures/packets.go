@@ -100,8 +100,8 @@ var (
 		// End transaction description.
 	}
 
-	// FieldCollation defintion for data parameters. Using "raw collation" is ok
-	// for testing because the server is not processing it.
+	// FieldCollation definition for data parameters. Using "raw collation" is
+	// ok for testing because the server is not processing it.
 	//
 	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/3d29e8dc-218a-42c6-9ba4-947ebca9fd7e
 	FieldCollation = []byte{0x00, 0x00, 0x00, 0x00, 0x00}
