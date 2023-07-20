@@ -28,19 +28,19 @@ describe('emptyList', () => {
   test('renders properly', () => {
     renderComponent();
     expect(
-      screen.getByText('Create Your First Auth Connector')
+      screen.getByText('Select a service provider below')
     ).toBeInTheDocument();
   });
 
   test('calls onCreate with correct AuthProviderType when connectors are clicked', () => {
     renderComponent();
-    fireEvent.click(screen.getByText('GitHub Connector'));
+    fireEvent.click(screen.getByText('GitHub'));
     expect(dummyOnCreate).toHaveBeenCalledWith('github');
 
-    fireEvent.click(screen.getByText('OIDC Connector'));
+    fireEvent.click(screen.getByText('OIDC'));
     expect(dummyOnCreate).toHaveBeenCalledWith('oidc');
 
-    fireEvent.click(screen.getByText('SAML Connector'));
+    fireEvent.click(screen.getByText('SAML'));
     expect(dummyOnCreate).toHaveBeenCalledWith('saml');
   });
 

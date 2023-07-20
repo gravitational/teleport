@@ -20,11 +20,7 @@ export default function EmptyList({ onCreate, showLockedFeature }: Props) {
       style={{ boxShadow: 'none' }}
     >
       <Text typography="h3" textAlign="center">
-        Create Your First Auth Connector
-        <Text typography="subtitle1" mt="2">
-          Select a service provider below to create your first Authentication
-          Connector.
-        </Text>
+        Select a service provider below
       </Text>
       <Flex
         flexWrap="wrap"

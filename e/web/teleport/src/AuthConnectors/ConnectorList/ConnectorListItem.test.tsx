@@ -34,12 +34,12 @@ describe('connectorListItem', () => {
   test('displays correct name and description', () => {
     renderComponent();
     expect(screen.getByText(defaultProps.name)).toBeInTheDocument();
-    expect(screen.getByText('OIDC Connector')).toBeInTheDocument();
+    expect(screen.getByText('OIDC')).toBeInTheDocument();
   });
 
   test('changes connector type', () => {
     const newKind = 'github';
     renderComponent({ kind: newKind });
-    expect(screen.getByText(`GitHub Connector`)).toBeInTheDocument();
+    expect(screen.getByText(`GitHub`)).toBeInTheDocument();
   });
 });

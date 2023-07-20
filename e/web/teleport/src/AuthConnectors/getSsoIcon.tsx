@@ -36,11 +36,13 @@ export default function getSsoIcon(
         />
       ),
       desc,
-      info: isFeatureLocked && (
+      info: isFeatureLocked ? (
         <Flex alignItems="center">
           <Check fontSize="16px" color="#00bfa5"></Check>
           <Text ml="2">Included with Teleport Team Plan</Text>
         </Flex>
+      ) : (
+        'Sign in using your GitHub account'
       ),
     };
   }
@@ -94,10 +96,9 @@ export default function getSsoIcon(
 function formatConnectorTypeDesc(kind) {
   kind = kind || '';
   if (kind == 'github') {
-    return `GitHub Connector`;
+    return `GitHub`;
   }
-  kind = kind.toUpperCase();
-  return `${kind} Connector`;
+  return kind.toUpperCase();
 }
 
 const MultiIconContainer = styled(Flex)`
