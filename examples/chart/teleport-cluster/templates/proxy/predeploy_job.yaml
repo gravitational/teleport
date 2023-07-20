@@ -20,6 +20,10 @@ spec:
 {{- if $proxy.tolerations }}
       tolerations: {{- toYaml $proxy.tolerations | nindent 6 }}
 {{- end }}
+{{- if $proxy.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $proxy.imagePullSecrets | nindent 6 }}
+{{- end }}
       restartPolicy: Never
       containers:
       - name: "teleport"

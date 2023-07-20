@@ -87,3 +87,25 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 2Gi
+
+  - it: should set imagePullSecrets on proxy predeploy job when set in values
+    template: proxy/predeploy_job.yaml
+    values:
+      - ../.lint/imagepullsecrets.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: myRegistryKeySecretName
+      - matchSnapshot:
+          path: spec.template.spec.imagePullSecrets
+
+  - it: should set imagePullSecrets on auth predeploy job when set in values
+    template: auth/predeploy_job.yaml
+    values:
+      - ../.lint/imagepullsecrets.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: myRegistryKeySecretName
+      - matchSnapshot:
+          path: spec.template.spec.imagePullSecrets
