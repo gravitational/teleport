@@ -203,7 +203,7 @@ SELECT
   data->>'action',
   decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
   decode(data->'columns'->1->>'value', 'hex'),
-  (data->'columns'->2->>'value')::timestamp,
+  (data->'columns'->2->>'value')::timestamptz,
   (data->'columns'->3->>'value')::uuid
 FROM jdata`, slotName, b.cfg.ChangeFeedBatchSize)
 
