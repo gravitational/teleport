@@ -44,7 +44,7 @@ type Config struct {
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
 	// Electron app. This is to ensure that the server public key is written to the disk under the
 	// expected location by the time we get around to creating the client.
-	CreateTshdEventsClientCredsFunc   CreateTshdEventsClientCredsFunc
+	CreateTshdEventsClientCredsFunc CreateTshdEventsClientCredsFunc
 
 	ConnectMyComputerRoleSetup        *connectmycomputer.RoleSetup
 	ConnectMyComputerTokenProvisioner *connectmycomputer.TokenProvisioner
@@ -87,7 +87,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.ConnectMyComputerTokenProvisioner == nil {
-		c.ConnectMyComputerTokenProvisioner = &connectmycomputer.TokenProvisioner{}
+		c.ConnectMyComputerTokenProvisioner = connectmycomputer.NewTokenProvisioner(&connectmycomputer.TokenProvisionerConfig{Clock: c.Storage.Clock})
 	}
 
 	return nil
