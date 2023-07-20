@@ -44,7 +44,7 @@ const (
 )
 
 const (
-	defaultChangeFeedBatchSize = 10000
+	defaultChangeFeedBatchSize = 1000
 	defaultChangeFeedInterval  = backend.DefaultPollStreamPeriod
 
 	defaultExpiryBatchSize = 1000
