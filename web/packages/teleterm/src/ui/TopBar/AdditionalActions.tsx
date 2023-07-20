@@ -63,29 +63,6 @@ function useMenuItems(): MenuItem[] {
 
   const menuItems: MenuItem[] = [
     {
-      title: 'Create Connect My Computer role',
-      isVisible: true,
-      isDisabled: hasNoActiveWorkspace,
-      disabledText:
-        'You need to be logged in to a cluster to use Connect My Computer.',
-      Icon: icons.Share,
-      onNavigate: async () => {
-        try {
-          const response = await ctx.connectMyComputerService.createRole(
-            activeRootCluster.uri
-          );
-
-          if (response.certsReloaded) {
-            await ctx.clustersService.syncRootCluster(activeRootCluster.uri);
-          }
-
-          notificationsService.notifyInfo('Role created');
-        } catch (err) {
-          notificationsService.notifyError(err.message);
-        }
-      },
-    },
-    {
       title: 'Open new terminal',
       isVisible: true,
       isDisabled: hasNoActiveWorkspace,
