@@ -432,7 +432,7 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	}
 	if u.hostUserGIDProvided {
 		user.SetHostUserGID(u.hostUserGID)
-		updateMessages["Host user gid"] = []string{u.hostUserGID}
+		updateMessages["Host user GID"] = []string{u.hostUserGID}
 	}
 
 	if len(updateMessages) == 0 {
