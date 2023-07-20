@@ -46,7 +46,7 @@ export TF_VAR_cluster_name="teleport.example.com"
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
 # FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-export TF_VAR_ami_name="gravitational-teleport-ami-ent-13.2.2"
+export TF_VAR_ami_name="gravitational-teleport-ami-ent-13.2.3"
 
 # AWS SSH key name to provision in installed instances, should be available in the region
 export TF_VAR_key_name="example"
