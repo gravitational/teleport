@@ -59,7 +59,7 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 		UseSearchAsRoles:    r.SearchAsRoles == "yes",
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -108,7 +108,7 @@ type GetKubesResponse struct {
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
 func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) error {
-	return trace.Wrap(addMetadataToRetryableError(ctx, func() error {
+	return trace.Wrap(AddMetadataToRetryableError(ctx, func() error {
 		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 		err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 			RouteToCluster: c.clusterClient.SiteName,

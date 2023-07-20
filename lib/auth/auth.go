@@ -50,6 +50,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -59,6 +60,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -225,6 +227,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.AccessLists == nil {
+		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -288,6 +296,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Integrations:            cfg.Integrations,
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
+		AccessLists:             cfg.AccessLists,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
@@ -404,6 +413,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.Okta
+	services.AccessLists
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
@@ -426,6 +436,11 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
+	return r
+}
+
+// AccessListClient returns the access list client.
+func (r *Services) AccessListClient() services.AccessLists {
 	return r
 }
 
@@ -490,10 +505,36 @@ var (
 		[]string{teleport.TagMigration},
 	)
 
+	totalInstancesMetric = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricTotalInstances,
+			Help:      "Total teleport instances",
+		},
+	)
+
+	enrolledInUpgradesMetric = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricEnrolledInUpgrades,
+			Help:      "Number of instances enrolled in automatic upgrades",
+		},
+	)
+
+	upgraderCountsMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricUpgraderCounts,
+			Help:      "Tracks the number of instances advertising each upgrader",
+		},
+		[]string{teleport.TagUpgrader},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
+		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 	}
 )
 
@@ -867,6 +908,13 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer localReleaseCheck.Stop()
 
+	instancePeriodics := interval.New(interval.Config{
+		Duration:      time.Minute * 9,
+		FirstDuration: utils.HalfJitter(time.Minute),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer instancePeriodics.Stop()
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -923,7 +971,115 @@ func (a *Server) runPeriodicOperations() {
 			a.syncReleaseAlerts(ctx, true)
 		case <-localReleaseCheck.Next():
 			a.syncReleaseAlerts(ctx, false)
+		case <-instancePeriodics.Next():
+			// instance periodics are rate-limited and may be time-consuming in large
+			// clusters, so launch them in the background.
+			go a.doInstancePeriodics(ctx)
 		}
+	}
+}
+
+func (a *Server) doInstancePeriodics(ctx context.Context) {
+	const slowRate = time.Millisecond * 200 // 5 reads per second
+	const fastRate = time.Millisecond * 5   // 200 reads per second
+	const dynamicPeriod = time.Minute * 3
+
+	instances := a.GetInstances(ctx, types.InstanceFilter{})
+
+	// dynamically scale the rate-limiting we apply to reading instances
+	// s.t. we read at a progressively faster rate as we observe larger
+	// connected instance counts. this isn't a perfect metric, but it errs
+	// on the side of slowness, which is preferable for this kind of periodic.
+	instanceRate := slowRate
+	if ci := a.inventory.ConnectedInstances(); ci > 0 {
+		localDynamicRate := dynamicPeriod / time.Duration(ci)
+		if localDynamicRate < fastRate {
+			localDynamicRate = fastRate
+		}
+
+		if localDynamicRate < instanceRate {
+			instanceRate = localDynamicRate
+		}
+	}
+
+	limiter := rate.NewLimiter(rate.Every(instanceRate), 100)
+	instances = stream.RateLimit(instances, func() error {
+		return limiter.Wait(ctx)
+	})
+
+	// cloud deployments shouldn't include control-plane elements in
+	// metrics since information about them is not actionable and may
+	// produce misleading/confusing results.
+	skipControlPlane := modules.GetModules().Features().Cloud
+
+	// set up aggregators for our periodics
+	imp := newInstanceMetricsPeriodic()
+	uep := newUpgradeEnrollPeriodic()
+
+	// stream all instances to all aggregators
+	for instances.Next() {
+		if skipControlPlane {
+			for _, service := range instances.Item().GetServices() {
+				if service.IsControlPlane() {
+					continue
+				}
+			}
+		}
+
+		imp.VisitInstance(instances.Item())
+		uep.VisitInstance(instances.Item())
+	}
+
+	if err := instances.Done(); err != nil {
+		log.Warnf("Failed stream instances for periodics: %v", err)
+		return
+	}
+
+	// set instance metric values
+	totalInstancesMetric.Set(float64(imp.TotalInstances()))
+	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
+	for _, upgrader := range []string{types.UpgraderKindKubeController, types.UpgraderKindSystemdUnit} {
+		upgraderCountsMetric.WithLabelValues(upgrader).Set(float64(imp.InstancesWithUpgrader(upgrader)))
+	}
+
+	// create/delete upgrade enroll prompt as appropriate
+	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
+	a.handleUpgradeEnrollPrompt(ctx, enrollMsg, shouldPrompt)
+}
+
+const (
+	upgradeEnrollAlertID = "auto-upgrade-enroll"
+)
+
+func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shouldPrompt bool) {
+	const alertTTL = time.Minute * 30
+
+	if !shouldPrompt {
+		if err := a.DeleteClusterAlert(ctx, upgradeEnrollAlertID); err != nil {
+			log.Warnf("Failed to delete %s alert: %v", upgradeEnrollAlertID, err)
+		}
+		return
+	}
+	alert, err := types.NewClusterAlert(
+		upgradeEnrollAlertID,
+		msg,
+		// Defaulting to "low" severity level. We may want to make this dynamic
+		// in the future depending on the distance from up-to-date.
+		types.WithAlertSeverity(types.AlertSeverity_LOW),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindInstance, types.VerbRead)),
+		// hide the normal upgrade alert for users who can see this alert as it is
+		// generally more actionable/specific.
+		types.WithAlertLabel(types.AlertSupersedes, releaseAlertID),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
+	)
+	if err != nil {
+		log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
+		return
+	}
+	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+		log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
+		return
 	}
 }
 

@@ -160,6 +160,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
 					types.NewRule(types.KindClusterAlert, RW()),
+					types.NewRule(types.KindAccessList, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},

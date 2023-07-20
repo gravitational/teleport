@@ -21,6 +21,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
+import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
@@ -31,114 +32,6 @@ option go_package = "github.com/gravitational/teleport/api/client/proto";
 option (gogoproto.goproto_getters_all) = true;
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
-
-// Operation identifies type of operation
-enum Operation {
-  // INIT is sent as a first sentinel event
-  // on the watch channel
-  INIT = 0;
-  // PUT identifies created or updated object
-  PUT = 1;
-  // DELETE identifies deleted object
-  DELETE = 2;
-}
-
-// Event returns cluster event
-message Event {
-  reserved 7;
-
-  // Operation identifies operation
-  Operation Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
-  // Resource contains the updated resource
-  oneof Resource {
-    // ResourceHeader is specified in delete events,
-    // the full object is not available, so resource
-    // header is used to provide information about object type
-    types.ResourceHeader ResourceHeader = 2 [(gogoproto.jsontag) = "resource,omitempty"];
-    // CertAuthority is filled in certificate-authority related events
-    types.CertAuthorityV2 CertAuthority = 3 [(gogoproto.jsontag) = "cert_authority,omitempty"];
-    // StaticTokens is filled in static-tokens related events
-    types.StaticTokensV2 StaticTokens = 4 [(gogoproto.jsontag) = "static_tokens,omitempty"];
-    // ProvisionToken is filled in provision-token related events
-    types.ProvisionTokenV2 ProvisionToken = 5 [(gogoproto.jsontag) = "provision_token,omitempty"];
-    // ClusterNameV2 is a cluster name resource
-    types.ClusterNameV2 ClusterName = 6 [(gogoproto.jsontag) = "cluster_name,omitempty"];
-    // User is a user resource
-    types.UserV2 User = 8 [(gogoproto.jsontag) = "user,omitempty"];
-    // Role is a role resource
-    types.RoleV6 Role = 9 [(gogoproto.jsontag) = "role,omitempty"];
-    // Namespace is a namespace resource
-    types.Namespace Namespace = 10 [(gogoproto.jsontag) = "namespace,omitempty"];
-    // Server is a node or proxy resource
-    types.ServerV2 Server = 11 [(gogoproto.jsontag) = "server,omitempty"];
-    // ReverseTunnel is a resource with reverse tunnel
-    types.ReverseTunnelV2 ReverseTunnel = 12 [(gogoproto.jsontag) = "reverse_tunnel,omitempty"];
-    // TunnelConnection is a resource for tunnel connnections
-    types.TunnelConnectionV2 TunnelConnection = 13 [(gogoproto.jsontag) = "tunnel_connection,omitempty"];
-    // AccessRequest is a resource for access requests
-    types.AccessRequestV3 AccessRequest = 14 [(gogoproto.jsontag) = "access_request,omitempty"];
-    // AppSession is an application web session.
-    types.WebSessionV2 AppSession = 15 [(gogoproto.jsontag) = "app_session,omitempty"];
-    // RemoteCluster is a resource for remote clusters
-    types.RemoteClusterV3 RemoteCluster = 16 [(gogoproto.jsontag) = "remote_cluster,omitempty"];
-    // DatabaseServer is a resource for database servers.
-    types.DatabaseServerV3 DatabaseServer = 17 [(gogoproto.jsontag) = "database_server,omitempty"];
-    // WebSession is a regular web session.
-    types.WebSessionV2 WebSession = 18 [(gogoproto.jsontag) = "web_session,omitempty"];
-    // WebToken is a web token.
-    types.WebTokenV3 WebToken = 19 [(gogoproto.jsontag) = "web_token,omitempty"];
-    // ClusterNetworkingConfig is a resource for cluster networking configuration.
-    types.ClusterNetworkingConfigV2 ClusterNetworkingConfig = 20 [(gogoproto.jsontag) = "cluster_networking_config,omitempty"];
-    // SessionRecordingConfig is a resource for session recording configuration.
-    types.SessionRecordingConfigV2 SessionRecordingConfig = 21 [(gogoproto.jsontag) = "session_recording_config,omitempty"];
-    // AuthPreference is cluster auth preference.
-    types.AuthPreferenceV2 AuthPreference = 22 [(gogoproto.jsontag) = "auth_preference,omitempty"];
-    // ClusterAuditConfig is a resource for cluster audit configuration.
-    types.ClusterAuditConfigV2 ClusterAuditConfig = 23 [(gogoproto.jsontag) = "cluster_audit_config,omitempty"];
-    // Lock is a lock resource.
-    types.LockV2 Lock = 24 [(gogoproto.jsontag) = "lock,omitempty"];
-    // NetworkRestrictions is a resource for network restrictions
-    types.NetworkRestrictionsV4 NetworkRestrictions = 25 [(gogoproto.jsontag) = "network_restrictions,omitempty"];
-    // WindowsDesktopService is a resource for Windows desktop services.
-    types.WindowsDesktopServiceV3 WindowsDesktopService = 26 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
-    // WindowsDesktop is a resource for Windows desktop host.
-    types.WindowsDesktopV3 WindowsDesktop = 27 [(gogoproto.jsontag) = "windows_desktop,omitempty"];
-    // Database is a database resource.
-    types.DatabaseV3 Database = 28 [(gogoproto.jsontag) = "database,omitempty"];
-    // AppServer is an application server resource.
-    types.AppServerV3 AppServer = 29 [(gogoproto.jsontag) = "app_server,omitempty"];
-    // App is an application resource.
-    types.AppV3 App = 30 [(gogoproto.jsontag) = "app,omitempty"];
-    // SnowflakeSession is a Snowflake web session.
-    types.WebSessionV2 SnowflakeSession = 31 [(gogoproto.jsontag) = "snowflake_session,omitempty"];
-    // KubernetesServer is an Kubernetes server resource.
-    types.KubernetesServerV3 KubernetesServer = 32 [(gogoproto.jsontag) = "kubernetes_server,omitempty"];
-    // KubernetesCluster is an Kubernetes cluster resource.
-    types.KubernetesClusterV3 KubernetesCluster = 33 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
-    // Installer is an installer resource
-    types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
-    // DatabaseService is a DatabaseService resource
-    types.DatabaseServiceV1 DatabaseService = 35 [(gogoproto.jsontag) = "database_service,omitempty"];
-    // SAMLIdPServiceProvider is a SAMLIdPServiceProvider resource
-    types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 36 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
-    // SAMLIdPSession is a SAML IdP session.
-    types.WebSessionV2 SAMLIdPSession = 37 [(gogoproto.jsontag) = "saml_idp_session,omitempty"];
-    // UserGroup is a UserGroup resource
-    types.UserGroupV1 UserGroup = 38 [(gogoproto.jsontag) = "user_group,omitempty"];
-    // UIConfig provides a way for users to adjust settings of the UI served by the proxy service.
-    types.UIConfigV1 UIConfig = 39 [(gogoproto.jsontag) = "ui_config,omitempty"];
-    // OktaImportRule is an OktaImportRule resource.
-    types.OktaImportRuleV1 OktaImportRule = 40 [(gogoproto.jsontag) = "okta_import_rule,omitempty"];
-    // OktaAssignment is an OktaAssignment resource.
-    types.OktaAssignmentV1 OktaAssignment = 41 [(gogoproto.jsontag) = "okta_assignment,omitempty"];
-    // Integration is an Integration resource.
-    types.IntegrationV1 Integration = 42 [(gogoproto.jsontag) = "integration,omitempty"];
-    // WatchStatus is an WatchStatus resource.
-    types.WatchStatusV1 WatchStatus = 43 [(gogoproto.jsontag) = "watch_status,omitempty"];
-    // HeadlessAuthentication is a HeadlessAuthentication resource.
-    types.HeadlessAuthentication HeadlessAuthentication = 44 [(gogoproto.jsontag) = "headless_authentication,omitempty"];
-  }
-}
 
 // Watch specifies watch parameters
 message Watch {
@@ -312,6 +205,16 @@ message UserCertsRequest {
 
   // DropAccessRequests is an optional list of request IDs indicating requests
   // whose escalated privileges should be removed from the certificate.
+  // IDs pointing at non-existent requests are ignored.
+  //
+  // If present, the roles and traits in the generated cert will be based on
+  // the state of the user resource on the backend, active requests (not being
+  // dropped) and new access requests specified through AccessRequests (if any).
+  //
+  // This means that technically sending UserCertsRequest with bogus IDs in
+  // DropAccessRequests can be used to refresh the role list based on backend
+  // state. A better long-term solution would be to add a dedicated field for
+  // this to avoid sending bogus IDs.
   repeated string DropAccessRequests = 15 [(gogoproto.jsontag) = "drop_access_requests,omitempty"];
 
   // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add

@@ -21,6 +21,7 @@ lint:
   ignore:
     - teleport/legacy/client/proto/authservice.proto
     - teleport/legacy/client/proto/certs.proto
+    - teleport/legacy/client/proto/event.proto
     - teleport/legacy/client/proto/proxyservice.proto
     - teleport/legacy/types/events/events.proto
     - teleport/legacy/types/events/athena.proto

@@ -1213,6 +1213,10 @@ func (i *TeleInstance) Start() error {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
 
+	if i.Config.Discovery.Enabled {
+		expectedEvents = append(expectedEvents, service.DiscoveryReady)
+	}
+
 	expectedEvents = append(expectedEvents, service.InstanceReady)
 
 	// Start the process and block until the expected events have arrived.
