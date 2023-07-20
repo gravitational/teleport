@@ -54,12 +54,12 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := convertListResourcesRequest(r, types.KindAppServer)
+	req, err := convertListResourcesRequest(r, types.KindAppOrSAMLIdPServiceProvider)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := apiclient.GetResourcePage[types.AppServer](r.Context(), clt, req)
+	page, err := apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,35 +78,37 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		userGroupLookup[userGroup.GetName()] = userGroup
 	}
 
-	var apps types.Apps
+	var appsAndSPs types.AppServersOrSAMLIdPServiceProviders
 	appsToUserGroups := map[string]types.UserGroups{}
-	for _, server := range page.Resources {
-		apps = append(apps, server.GetApp())
+	for _, appOrSP := range page.Resources {
+		appsAndSPs = append(appsAndSPs, appOrSP)
 
-		app := server.GetApp()
+		if appOrSP.IsAppServer() {
+			app := appOrSP.GetAppServer().GetApp()
 
-		ugs := types.UserGroups{}
-		for _, userGroupName := range app.GetUserGroups() {
-			userGroup := userGroupLookup[userGroupName]
-			if userGroup == nil {
-				h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
-				continue
+			ugs := types.UserGroups{}
+			for _, userGroupName := range app.GetUserGroups() {
+				userGroup := userGroupLookup[userGroupName]
+				if userGroup == nil {
+					h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+					continue
+				}
+
+				ugs = append(ugs, userGroup)
 			}
-
-			ugs = append(ugs, userGroup)
+			sort.Sort(ugs)
+			appsToUserGroups[app.GetName()] = ugs
 		}
-		sort.Sort(ugs)
-		appsToUserGroups[app.GetName()] = ugs
 	}
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
-			LocalClusterName:  h.auth.clusterName,
-			LocalProxyDNSName: h.proxyDNSName(),
-			AppClusterName:    site.GetName(),
-			Identity:          identity,
-			Apps:              apps,
-			AppsToUserGroups:  appsToUserGroups,
+			LocalClusterName:                     h.auth.clusterName,
+			LocalProxyDNSName:                    h.proxyDNSName(),
+			AppClusterName:                       site.GetName(),
+			Identity:                             identity,
+			AppsToUserGroups:                     appsToUserGroups,
+			AppServersAndSAMLIdPServiceProviders: appsAndSPs,
 		}),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
