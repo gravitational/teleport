@@ -330,6 +330,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-2899140136 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '1' },
       { name: 'cluster', value: 'one' },
@@ -347,6 +348,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-396777662 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '2' },
       { name: 'cluster', value: 'one' },
@@ -364,6 +366,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-1292837400 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '3' },
       { name: 'cluster', value: 'one' },
@@ -381,6 +384,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-1084121588 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '4' },
       { name: 'cluster', value: 'one' },
@@ -398,6 +402,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-1282159128 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '5' },
       { name: 'cluster', value: 'one' },
@@ -415,6 +420,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-786788850 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '6' },
       { name: 'cluster', value: 'one' },
@@ -432,6 +438,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-1640056423 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '7' },
       { name: 'cluster', value: 'one' },
@@ -449,6 +456,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-2620747129 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '8' },
       { name: 'cluster', value: 'one' },
@@ -466,6 +474,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-2000000720 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '9' },
       { name: 'cluster', value: 'one' },
@@ -483,6 +492,7 @@ const appsFirstPage: App[] = [
     awsRoles: [],
     description: 'This is dummy-2657854175 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '10' },
       { name: 'cluster', value: 'one' },
@@ -503,6 +513,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-2899140136 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '1' },
       { name: 'cluster', value: 'one' },
@@ -520,6 +531,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-396777662 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '2' },
       { name: 'cluster', value: 'one' },
@@ -537,6 +549,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-1292837400 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '3' },
       { name: 'cluster', value: 'one' },
@@ -554,6 +567,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-1084121588 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '4' },
       { name: 'cluster', value: 'one' },
@@ -571,6 +585,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-1282159128 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '5' },
       { name: 'cluster', value: 'one' },
@@ -588,6 +603,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-786788850 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '6' },
       { name: 'cluster', value: 'one' },
@@ -605,6 +621,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-1640056423 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '7' },
       { name: 'cluster', value: 'one' },
@@ -622,6 +639,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-2620747129 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '8' },
       { name: 'cluster', value: 'one' },
@@ -639,6 +657,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-2000000720 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '9' },
       { name: 'cluster', value: 'one' },
@@ -656,6 +675,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-2657854175 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '10' },
       { name: 'cluster', value: 'one' },
@@ -673,6 +693,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-1543743690 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '11' },
       { name: 'cluster', value: 'one' },
@@ -690,6 +711,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-2009353871 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '12' },
       { name: 'cluster', value: 'one' },
@@ -707,6 +729,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-2996867063 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '13' },
       { name: 'cluster', value: 'one' },
@@ -724,6 +747,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-1838805940 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '14' },
       { name: 'cluster', value: 'one' },
@@ -741,6 +765,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-783255194 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '15' },
       { name: 'cluster', value: 'one' },
@@ -758,6 +783,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-1540764346 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '16' },
       { name: 'cluster', value: 'one' },
@@ -775,6 +801,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-3882585031 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '17' },
       { name: 'cluster', value: 'one' },
@@ -792,6 +819,7 @@ const allApps: App[] = [
     awsRoles: [],
     description: 'This is dummy-1681746825 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '18' },
       { name: 'cluster', value: 'one' },
@@ -812,6 +840,7 @@ const appsWithUserGroups: App[] = [
     awsRoles: [],
     description: 'This is dummy-2899140136 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '1' },
       { name: 'cluster', value: 'one' },
@@ -829,6 +858,7 @@ const appsWithUserGroups: App[] = [
     awsRoles: [],
     description: 'This is dummy-396777662 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '2' },
       { name: 'cluster', value: 'one' },
@@ -846,6 +876,7 @@ const appsWithUserGroups: App[] = [
     awsRoles: [],
     description: 'This is dummy-1292837400 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '3' },
       { name: 'cluster', value: 'one' },
@@ -863,6 +894,7 @@ const appsWithUserGroups: App[] = [
     awsRoles: [],
     description: 'This is dummy-1681746825 app',
     awsConsole: false,
+    samlApp: false,
     labels: [
       { name: 'number', value: '18' },
       { name: 'cluster', value: 'one' },

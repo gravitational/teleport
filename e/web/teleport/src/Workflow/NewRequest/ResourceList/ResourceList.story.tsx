@@ -74,6 +74,7 @@ const apps: App[] = [
     ],
     description: 'This is an AWS Console app',
     awsConsole: true,
+    samlApp: false,
     awsRoles: [],
     clusterId: 'one',
     fqdn: 'awsconsole-1.com',
