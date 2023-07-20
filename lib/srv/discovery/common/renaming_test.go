@@ -36,6 +36,82 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// TestMakeDiscoverySuffix tests makeDiscoverySuffix in isolation.
+func TestMakeDiscoverySuffix(t *testing.T) {
+	tests := []struct {
+		name         string
+		resourceName string
+		extraParts   []string
+		wantSuffix   string
+	}{
+		{
+			name:         "no suffix made without extra parts",
+			resourceName: "foo",
+			wantSuffix:   "",
+		},
+		{
+			name:         "simple parts",
+			resourceName: "foo",
+			extraParts:   []string{"one", "two", "three"},
+			wantSuffix:   "one-two-three",
+		},
+		{
+			name:         "skips empty parts",
+			resourceName: "foo",
+			extraParts:   []string{"one", "", "three"},
+			wantSuffix:   "one-three",
+		},
+		{
+			name:         "converts extra whitespace to hyphens",
+			resourceName: "foo",
+			extraParts:   []string{"one", "t w o", "three"},
+			wantSuffix:   "one-t-w-o-three",
+		},
+		{
+			name:         "removes repeated hypens",
+			resourceName: "foo",
+			extraParts:   []string{"one---", "t w  --  o  ", "---three"},
+			wantSuffix:   "one-t-w-o-three",
+		},
+		{
+			name:         "removes leading and trailing hypens",
+			resourceName: "foo",
+			extraParts:   []string{"one---", "t w  --  o  ", "---three"},
+			wantSuffix:   "one-t-w-o-three",
+		},
+		{
+			name:         "skips adding redundant info",
+			resourceName: "PostgreSQL-RDS-us-west-1",
+			// suffixes are added to make resource names unique.
+			// Adding info as a suffix when that info is already contained in
+			// the resource name verbatim would pointlessly make a resource name
+			// longer and ugly, i.e. we don't want users to see like
+			// "PostgreSQL-RDS-us-west-1-rds-us-west-1-123456789012" as a resource
+			// name.
+			extraParts: []string{"rds", "us-west-1", "123456789012"},
+			wantSuffix: "123456789012",
+		},
+		{
+			name:         "skips invalid parts",
+			resourceName: "foo",
+			// parentheses are illegal in both database and kube cluster names in Teleport.
+			extraParts: []string{"mysql", "EastUS", "weird)(group-name", "11111111-2222-3333-4444-555555555555"},
+			wantSuffix: "mysql-EastUS-11111111-2222-3333-4444-555555555555",
+		},
+	}
+	for validatorKind, validatorFn := range map[string]suffixValidatorFn{
+		"databases":     databaseNameValidator,
+		"kube clusters": kubeClusterNameValidator,
+	} {
+		for _, test := range tests {
+			t.Run(fmt.Sprintf("%s/%s", validatorKind, test.name), func(t *testing.T) {
+				got := makeDiscoverySuffix(validatorFn, test.resourceName, test.extraParts...)
+				require.Equal(t, test.wantSuffix, got)
+			})
+		}
+	}
+}
+
 // renameFunc is a callback to specialize on the renaming func to use for a
 // resource under test.
 type renameFunc func(types.ResourceWithLabels)
