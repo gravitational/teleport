@@ -150,7 +150,7 @@ func (l *CloudImporter) Sync(ctx context.Context) error {
 			l.Log.Debugf("Skipping cloud tag %q, not a valid label key.", key)
 			continue
 		}
-		m[formatKey(l.namespace, key)] = value
+		m[FormatCloudLabelKey(l.namespace, key)] = value
 	}
 
 	l.muLabels.Lock()
@@ -180,7 +180,7 @@ func (l *CloudImporter) periodicUpdateLabels(ctx context.Context) {
 	}
 }
 
-// formatKey formats label keys coming from a cloud instance.
-func formatKey(namespace, key string) string {
+// FormatCloudLabelKey formats label keys coming from a cloud instance.
+func FormatCloudLabelKey(namespace, key string) string {
 	return fmt.Sprintf("%s/%s", namespace, key)
 }

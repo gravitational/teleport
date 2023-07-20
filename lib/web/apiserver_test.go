@@ -4284,7 +4284,7 @@ func TestClusterAppsGet(t *testing.T) {
 				Spec: types.AppSpecV3{
 					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
 					PublicAddr: "publicaddrs",
-					UserGroups: []string{"ug1"},
+					UserGroups: []string{"ug1", "ug2"}, // ug2 doesn't exist in the backend, so its lookup will fail.
 				},
 			},
 		},
