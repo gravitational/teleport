@@ -36,9 +36,9 @@ export default function EmptyList({ onCreate }: Props) {
           Create Your First GitHub Connector
         </Text>
         <Text typography="subtitle1" mb={3}>
-          Authentication connectors allow Teleport to authenticate users via an
-          external identity source such as Okta, Active Directory, GitHub, etc.
-          This authentication method is frequently called single sign-on (SSO).
+          Auth connectors allow Teleport to authenticate users via an external
+          identity source such as Okta, Active Directory, GitHub, etc. This
+          authentication method is commonly known as single sign-on (SSO).
         </Text>
         <Text typography="subtitle1">
           Open Source Teleport supports only GitHub connectors. Please{' '}
