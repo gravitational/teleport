@@ -37,6 +37,9 @@ type GeneratorConfig struct {
 	// AccessLists is a service for retrieving access lists from the backend.
 	AccessLists services.AccessListsGetter
 
+	// Roles is a service for retrieving roles from the backend.
+	Roles services.RoleGetter
+
 	// Clock is the clock to use for the generator.
 	Clock clockwork.Clock
 }
@@ -44,6 +47,10 @@ type GeneratorConfig struct {
 func (g *GeneratorConfig) CheckAndSetDefaults() error {
 	if g.AccessLists == nil {
 		return trace.BadParameter("missing access lists")
+	}
+
+	if g.Roles == nil {
+		return trace.BadParameter("missing roles")
 	}
 
 	if g.Clock == nil {
@@ -56,6 +63,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 // Generator will generate a user login state from a user.
 type Generator struct {
 	accessLists services.AccessListsGetter
+	roles       services.RoleGetter
 	clock       clockwork.Clock
 }
 
@@ -67,6 +75,7 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 
 	return &Generator{
 		accessLists: config.AccessLists,
+		roles:       config.Roles,
 		clock:       config.Clock,
 	}, nil
 }
@@ -90,6 +99,19 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	}
 
 	deduplicateRolesAndTraits(uls)
+
+	// Remove roles that don't exist in the backend so that we don't generate certs for non-existent roles.
+	// Doing so can prevent login from working properly. This could occur if access lists refer to roles that
+	// no longer exist, for example.
+	existingRoles := []string{}
+	for _, role := range uls.Spec.Roles {
+		if _, err := g.roles.GetRole(ctx, role); err == nil {
+			existingRoles = append(existingRoles, role)
+		} else if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	uls.Spec.Roles = existingRoles
 
 	return uls, nil
 }

@@ -76,6 +76,7 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -248,7 +249,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
 	if cfg.UserLoginState == nil {
-		cfg.UserLoginState, err = local.NewUserLoginStateService(cfg.Backend)
+		// The user login state will use an in memory cache as opposed to using the
+		// backend directly.
+		mem, err := memory.New(memory.Config{
+			Clock: cfg.Clock,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.UserLoginState, err = local.NewUserLoginStateService(mem)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -401,6 +410,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	// Add in a login hook for generating state during user login.
 	ulsGenerator, err := userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		AccessLists: services,
+		Roles:       services,
 		Clock:       cfg.Clock,
 	})
 	if err != nil {
