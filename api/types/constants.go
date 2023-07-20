@@ -435,6 +435,9 @@ const (
 	// KindAccessList is an AccessList resource
 	KindAccessList = "access_list"
 
+	// KindUserLoginState is a UserLoginState resource
+	KindUserLoginState = "user_login_state"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
