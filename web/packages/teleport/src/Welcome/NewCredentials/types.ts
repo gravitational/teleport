@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-import React from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import { Auth2faType, PrimaryAuthType } from 'shared/services';
+
 import { NewFlow, StepComponentProps } from 'design/StepSlider';
+
+import { ReactElement } from 'react';
 
 import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 
@@ -52,7 +55,7 @@ export type NewCredentialsProps = UseTokenState & {
   // support E questionnaire
   displayOnboardingQuestionnaire?: boolean;
   setDisplayOnboardingQuestionnaire?: (bool: boolean) => void;
-  Questionnaire?: React.ComponentType<QuestionnaireProps>;
+  Questionnaire?: (props: QuestionnaireProps) => ReactElement;
 };
 
 export type RegisterSuccessProps = {
