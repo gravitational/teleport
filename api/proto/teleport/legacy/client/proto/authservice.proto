@@ -2050,8 +2050,11 @@ message DownstreamInventoryHello {
 
 // LabelUpdateKind is the type of service to update labels for.
 enum LabelUpdateKind {
-  // SSHServer is an SSH server.
+  // SSHServer is a label update for an SSH server.
   SSHServer = 0;
+  // SSHServerCloudLabels is a label update for an SSH server coming from a
+  // cloud provider.
+  SSHServerCloudLabels = 1;
 }
 
 // InventoryUpdateLabelsRequest is used to request that a specified instance

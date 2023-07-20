@@ -368,6 +368,10 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
+	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
+	// service to match with a single discovered instance.
+	SubKindCloudInfo = "cloud_info"
+
 	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
 	// window singleton resource.
 	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
