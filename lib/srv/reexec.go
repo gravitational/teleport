@@ -211,18 +211,16 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
 	if readyfd == nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue write pipe not found")
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
 	}
 
-	var ready bool
 	// Ensure that the ready signal is sent if a failure causes execution
 	// to terminate prior to actually becoming ready to unblock the parent process.
 	defer func() {
-		if ready {
+		if readyfd == nil {
 			return
 		}
 
-		_, _ = readyfd.Write([]byte{0})
 		_ = readyfd.Close()
 	}()
 
@@ -333,14 +331,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// Alert the parent process that the child process has completed any setup operations,
 	// and that we are now waiting for the continue signal before proceeding. This is needed
 	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
-	ready = true
-	if _, err := readyfd.Write([]byte{0}); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
 	if err := readyfd.Close(); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+	readyfd = nil
 
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
@@ -355,7 +349,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
-	err = waitForContinue(contfd)
+	err = waitForSignal(contfd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}

@@ -1022,6 +1022,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	}
 
 	if err := s.term.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
 		return trace.Wrap(err)
 	}
 
@@ -1224,6 +1225,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	}
 
 	if err := execRequest.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
 		return trace.Wrap(err)
 	}
 

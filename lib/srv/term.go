@@ -211,6 +211,13 @@ func (t *terminal) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// Close our half of the write pipe since it is only to be used by the child process.
+	// Not closing prevents being signaled when the child closes its half.
+	if err := t.serverContext.readyw.Close(); err != nil {
+		t.serverContext.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
+	}
+	t.serverContext.readyw = nil
+
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid
 
@@ -240,8 +247,11 @@ func (t *terminal) Wait() (*ExecResult, error) {
 }
 
 func (t *terminal) WaitForChild() error {
-	_, err := io.ReadFull(t.serverContext.readyr, make([]byte, 1))
-	return trace.Wrap(err)
+	err := waitForSignal(t.serverContext.readyr)
+	closeErr := t.serverContext.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	t.serverContext.readyr = nil
+	return trace.NewAggregate(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its

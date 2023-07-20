@@ -182,6 +182,12 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
+	// Close our half of the write pipe since it is only to be used by the child process.
+	// Not closing prevents being signaled when the child closes its half.
+	if err := e.Ctx.readyw.Close(); err != nil {
+		e.Ctx.Logger.WithError(err).Warn("Failed to close parent process ready signal write fd")
+	}
+	e.Ctx.readyw = nil
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {
@@ -221,11 +227,11 @@ func (e *localExec) Wait() *ExecResult {
 }
 
 func (e *localExec) WaitForChild() error {
-	_, err := io.ReadFull(e.Ctx.readyr, make([]byte, 1))
+	err := waitForSignal(e.Ctx.readyr)
 	closeErr := e.Ctx.readyr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
 	e.Ctx.readyr = nil
-	return trace.Wrap(err, closeErr)
+	return trace.NewAggregate(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -279,28 +285,26 @@ func (e *localExec) transformSecureCopy() error {
 	return nil
 }
 
-// waitForContinue will wait 10 seconds for the continue signal, if not
+// waitForSignal will wait 10 seconds for the continue signal, if not
 // received, it will stop waiting and exit.
-func waitForContinue(contfd *os.File) error {
+func waitForSignal(fd *os.File) error {
 	waitCh := make(chan error, 1)
 	go func() {
-		// Reading from the continue file descriptor will block until it's closed. It
-		// won't be closed until the parent has placed it in a cgroup.
-		buf := make([]byte, 1)
-		_, err := contfd.Read(buf)
+		// Reading from the file descriptor will block until it's closed.
+		_, err := fd.Read(make([]byte, 1))
 		if errors.Is(err, io.EOF) {
 			err = nil
 		}
 		waitCh <- err
 	}()
 
-	// Wait for 10 seconds and then timeout if no continue signal has been sent.
+	// Wait for 10 seconds and then timeout if no signal has been sent.
 	timeout := time.NewTimer(10 * time.Second)
 	defer timeout.Stop()
 
 	select {
 	case <-timeout.C:
-		return trace.BadParameter("timed out waiting for continue signal")
+		return trace.LimitExceeded("timed out waiting for continue signal")
 	case err := <-waitCh:
 		return err
 	}
