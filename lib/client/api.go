@@ -375,6 +375,16 @@ type Config struct {
 	// MockHeadlessLogin is used in tests for mocking the Headless login response.
 	MockHeadlessLogin SSHLoginFunc
 
+	// OverrideMySQLOptionFilePath overrides the MySQL option file path to use.
+	// Useful in parallel tests so they don't all use the default path in the
+	// user home dir.
+	OverrideMySQLOptionFilePath string
+
+	// OverridePostgresServiceFilePath overrides the Postgres service file path.
+	// Useful in parallel tests so they don't all use the default path in the
+	// user home dir.
+	OverridePostgresServiceFilePath string
+
 	// HomePath is where tsh stores profiles
 	HomePath string
 
