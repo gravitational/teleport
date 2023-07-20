@@ -2207,6 +2207,13 @@ message AccessRequestSpecV3 {
   // DryRun indicates that the request should not actually be created, the
   // auth server should only validate the access request.
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
+
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 17 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "max_duration,omitempty"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2861,6 +2868,13 @@ message AccessRequestConditions {
   // defines the underlying roles which will be requested as part of any
   // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
+
+  // MaxDuration is the amount of time the access will be granted for.
+  // If this is zero, the default duration is used.
+  int64 MaxDuration = 7 [
+    (gogoproto.jsontag) = "max_duration,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on

@@ -4123,7 +4123,8 @@ func TestSerializeAccessRequests(t *testing.T) {
       ],
       "state": 1,
       "created": "0001-01-01T00:00:00Z",
-      "expires": "0001-01-01T00:00:00Z"
+      "expires": "0001-01-01T00:00:00Z",
+      "max_duration": "0001-01-01T00:00:00Z"
     }
   }
 	`
