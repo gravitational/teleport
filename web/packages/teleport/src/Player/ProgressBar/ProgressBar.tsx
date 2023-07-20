@@ -169,7 +169,9 @@ const StyledProgessBar = styled.div`
   .grv-slider .handle {
     background-color: ${props => props.theme.colors.text.main};
     border-radius: 200px;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.12), 0 4px 4px rgba(0, 0, 0, 0.24);
+    box-shadow:
+      0 0 4px rgba(0, 0, 0, 0.12),
+      0 4px 4px rgba(0, 0, 0, 0.24);
     width: 16px;
     height: 16px;
     left: -8px;

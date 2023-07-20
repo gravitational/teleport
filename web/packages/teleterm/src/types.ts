@@ -57,7 +57,7 @@ export type SubscribeToTshdEvent = <
   RpcHandlerServerCall extends Parameters<RpcHandler>[0],
   RpcHandlerRequestObject extends ReturnType<
     RpcHandlerServerCall['request']['toObject']
-  >
+  >,
 >(
   eventName: RpcName,
   listener: (eventData: {

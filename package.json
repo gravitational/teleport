@@ -20,7 +20,7 @@
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --noEmit",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
-    "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx}'",
+    "prettier-write": "yarn prettier --write --log-level silent '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "nop": "exit 0"
   },
   "private": true,
@@ -32,7 +32,7 @@
     "x-default-browser": "^0.5.2"
   },
   "devDependencies": {
-    "prettier": "^2.5.0",
+    "prettier": "^3.0.0",
     "typescript": "^5.1.3"
   },
   "workspaces": {

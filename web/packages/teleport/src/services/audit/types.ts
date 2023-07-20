@@ -1310,7 +1310,7 @@ export type RawEvents = {
 /**
  * Event Code
  */
-export type EventCode = typeof eventCodes[keyof typeof eventCodes];
+export type EventCode = (typeof eventCodes)[keyof typeof eventCodes];
 
 type HasName = {
   name: string;

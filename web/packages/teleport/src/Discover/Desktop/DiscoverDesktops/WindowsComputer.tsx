@@ -43,7 +43,12 @@ const SuccessMessage = styled.div`
 const SuccessTick = styled.span`
   margin-right: 5px;
   font-size: 14px;
-  font-family: Menlo, DejaVu Sans Mono, Consolas, Lucida Console, monospace;
+  font-family:
+    Menlo,
+    DejaVu Sans Mono,
+    Consolas,
+    Lucida Console,
+    monospace;
 `;
 
 const Application = styled.div`
@@ -143,7 +148,12 @@ const ComputerOSVersion = styled.div`
 `;
 
 const ComputerAddress = styled.div`
-  font-family: Menlo, DejaVu Sans Mono, Consolas, Lucida Console, monospace;
+  font-family:
+    Menlo,
+    DejaVu Sans Mono,
+    Consolas,
+    Lucida Console,
+    monospace;
   font-size: 13px;
   color: rgba(0, 0, 0, 0.8);
 `;

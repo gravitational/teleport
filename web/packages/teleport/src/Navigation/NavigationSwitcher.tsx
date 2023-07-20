@@ -67,7 +67,9 @@ const Dropdown = styled.div<OpenProps>`
   opacity: ${p => (p.open ? 1 : 0)};
   visibility: ${p => (p.open ? 'visible' : 'hidden')};
   transform-origin: top center;
-  transition: opacity 0.2s ease, visibility 0.2s ease,
+  transition:
+    opacity 0.2s ease,
+    visibility 0.2s ease,
     transform 0.3s cubic-bezier(0.45, 0.6, 0.5, 1.25);
   transform: translate3d(0, ${p => (p.open ? '12px' : 0)}, 0);
 `;
@@ -80,7 +82,9 @@ const DropdownItem = styled.div<ActiveProps & OpenProps>`
   box-sizing: border-box;
   cursor: pointer;
   opacity: ${p => (p.open ? 1 : 0)};
-  transition: transform 0.3s ease, opacity 0.7s ease;
+  transition:
+    transform 0.3s ease,
+    opacity 0.7s ease;
   transform: translate3d(0, ${p => (p.open ? 0 : '-10px')}, 0);
 
   &:hover,

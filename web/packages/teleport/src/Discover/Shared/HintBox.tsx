@@ -28,7 +28,7 @@ const HintBoxContainer = styled(Box)`
   background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
-  border: 2px solid ${props => props.theme.colors.warning.main}; ;
+  border: 2px solid ${props => props.theme.colors.warning.main};
 `;
 
 export const WaitingInfo = styled(Box)`

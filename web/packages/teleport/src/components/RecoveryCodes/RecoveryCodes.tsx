@@ -43,9 +43,9 @@ export default function RecoveryCodesDialog({
 
   const onCopyClick = () => {
     copyToClipboard(
-      `${recoveryCodes?.codes.join('\n')} \n\nCreated: ${
-        recoveryCodes?.createdDate
-      }`
+      `${recoveryCodes?.codes.join(
+        '\n'
+      )} \n\nCreated: ${recoveryCodes?.createdDate}`
     ).then(() => {
       selectElementContent(codesRef.current);
     });

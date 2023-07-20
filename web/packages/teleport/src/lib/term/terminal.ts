@@ -46,7 +46,10 @@ export default class TtyTerminal {
   _fitAddon = new FitAddon();
   _webLinksAddon = new WebLinksAddon();
 
-  constructor(tty: Tty, private options: Options) {
+  constructor(
+    tty: Tty,
+    private options: Options
+  ) {
     const { el, scrollBack, fontFamily, fontSize } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;

@@ -1,6 +1,6 @@
 # Ignore directories:
-*/packages/design/src/assets/**
-*/packages/**/dist/**
+web/packages/design/src/assets/**
+web/packages/**/dist/**
 
 # Ignore protobuf files:
 **/*_pb.*

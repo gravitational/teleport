@@ -34,7 +34,7 @@ it('do not log sensitive info like password', () => {
     () =>
       ({
         sendMessageWithContext: () => {},
-      } as unknown as InterceptingCall)
+      }) as unknown as InterceptingCall
   );
 
   loggingMiddleware.sendMessage({

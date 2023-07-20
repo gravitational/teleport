@@ -61,7 +61,8 @@ const Content = styled.div`
   background: var(--content-background);
   color: var(--content-color);
   border-radius: var(--content-border-radius);
-  box-shadow: 0 6px 12px -2px rgba(50, 50, 93, 0.05),
+  box-shadow:
+    0 6px 12px -2px rgba(50, 50, 93, 0.05),
     0 3px 7px -3px rgba(0, 0, 0, 0.1);
   max-width: 90%;
   border: 1px solid ${p => p.theme.colors.spotBackground[1]};

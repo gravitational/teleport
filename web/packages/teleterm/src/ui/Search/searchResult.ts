@@ -23,7 +23,7 @@ import type { SearchResultResource } from 'teleterm/ui/services/resources';
 export { SearchResultResource };
 
 type ResourceSearchResultBase<
-  Result extends resourcesServiceTypes.SearchResult
+  Result extends resourcesServiceTypes.SearchResult,
 > = Result & {
   labelMatches: LabelMatch[];
   resourceMatches: ResourceMatch<Result['kind']>[];
@@ -70,7 +70,7 @@ export type LabelMatch = {
 };
 
 export type ResourceMatch<Kind extends ResourceSearchResult['kind']> = {
-  field: typeof searchableFields[Kind][number];
+  field: (typeof searchableFields)[Kind][number];
   searchTerm: string;
 };
 

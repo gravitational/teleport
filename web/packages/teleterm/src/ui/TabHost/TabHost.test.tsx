@@ -79,7 +79,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 
   const mainProcessClient: Partial<MainProcessClient> = {
     openTabContextMenu: jest.fn(),
-    getRuntimeSettings: () => ({} as RuntimeSettings),
+    getRuntimeSettings: () => ({}) as RuntimeSettings,
   };
 
   const docsService: Partial<DocumentsService> = {

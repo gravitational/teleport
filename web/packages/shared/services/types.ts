@@ -47,4 +47,4 @@ export type AuthProvider = {
 
 export type PrivateKeyPolicy =
   | 'none'
-  | typeof privateKeyEnablingPolicies[number];
+  | (typeof privateKeyEnablingPolicies)[number];
