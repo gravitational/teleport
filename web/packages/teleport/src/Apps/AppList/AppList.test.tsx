@@ -65,6 +65,8 @@ test('correct launch url is generated for a selected role', () => {
           id: 'one-aws-console-1-awsconsole-1.teleport-proxy.com',
           launchUrl: '',
           userGroups: [],
+          samlApp: false,
+          samlAppSsoUrl: '',
         },
       ]}
     />
