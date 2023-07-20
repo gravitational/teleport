@@ -471,6 +471,7 @@ rpm:
 	chmod +x $(BUILDDIR)/build-package.sh
 	cp -a ../build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cp $(BUILDDIR)/teleport-ent-*.rpm* $(RELEASE_DIR)
 
 # build unsigned .rpm (for testing)
 .PHONY: rpm-unsigned
@@ -484,6 +485,7 @@ ent-deb:
 	cp ../build.assets/build-package.sh ../build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cp $(BUILDDIR)/teleport-ent_*.deb* $(RELEASE_DIR)
 
 # Left here for compatiblity reasons
 # build .deb
