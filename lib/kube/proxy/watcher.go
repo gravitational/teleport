@@ -186,6 +186,7 @@ func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluste
 		checker:          s.CheckImpersonationPermissions,
 		resourceMatchers: s.ResourceMatchers,
 		clock:            s.Clock,
+		component:        s.KubeServiceType,
 	}
 }
 

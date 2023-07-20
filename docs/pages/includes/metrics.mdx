@@ -105,11 +105,77 @@
 | `teleport_reverse_tunnels_connected`      | gauge     | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances.                                             |
 | `trusted_clusters`                        | gauge     | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                         |
 
+### Kubernetes Access
+
+The following tables identify all metrics available in the proxy service if Kubernetes access is enabled.
+
+#### Client
+
+The following table identifies all metrics available when the service connects to upstream servers.
+In the case of `proxy`, the upstream server can be a `kubernetes_service` or Kubernetes Cluster if it's running
+in legacy mode.
+
+| Name                                                              | Type      | Component                 | Description                                                                                               |
+| ----------------------------------------------------------------- | --------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `teleport_kubernetes_client_in_flight_requests`                   | gauge     | Teleport Kubernetes Proxy | In-flight requests waiting for the upstream response.                                                     |
+| `teleport_kubernetes_client_requests_total`                       | counter   | Teleport Kubernetes Proxy | Total number of requests sent to the upstream teleport proxy, kube_service or Kubernetes Cluster servers. |
+| `teleport_kubernetes_client_tls_duration_seconds`                 | histogram | Teleport Kubernetes Proxy | Latency distribution of TLS handshakes.                                                                   |
+| `teleport_kubernetes_client_got_conn_duration_seconds`            | histogram | Teleport Kubernetes Proxy | Latency distribution of time to dial to the upstream server - using reversetunnel or direct dialer.       |
+| `teleport_kubernetes_client_first_byte_response_duration_seconds` | histogram | Teleport Kubernetes Proxy | Latency distribution of time to receive the first response byte from the upstream server.                 |
+| `teleport_kubernetes_client_request_duration_seconds`             | histogram | Teleport Kubernetes Proxy | Latency distribution of the upstream request time.                                                        |
+
+#### Server
+
+The following table identifies all metrics available for incoming connections.
+
+| Name                                                        | Type      | Component                 | Description                                         |
+| ----------------------------------------------------------- | --------- | ------------------------- | --------------------------------------------------- |
+| `teleport_kubernetes_server_in_flight_requests`             | gauge     | Teleport Kubernetes Proxy | In-flight requests currently handled by the server. |
+| `teleport_kubernetes_server_api_requests_total`             | counter   | Teleport Kubernetes Proxy | Total number of requests handled by the server.     |
+| `teleport_kubernetes_server_request_duration_seconds`       | histogram | Teleport Kubernetes Proxy | Latency distribution of the total request time.     |
+| `teleport_kubernetes_server_response_size_bytes`            | histogram | Teleport Kubernetes Proxy | Distribution of the response size.                  |
+| `teleport_kubernetes_server_exec_in_flight_sessions`        | gauge     | Teleport Kubernetes Proxy | Number of active kubectl exec sessions.             |
+| `teleport_kubernetes_server_exec_sessions_total`            | counter   | Teleport Kubernetes Proxy | Total number of kubectl exec sessions.              |
+| `teleport_kubernetes_server_portforward_in_flight_sessions` | gauge     | Teleport Kubernetes Proxy | Number of active kubectl portforward sessions.      |
+| `teleport_kubernetes_server_portforward_sessions_total`     | counter   | Teleport Kubernetes Proxy | Number of active kubectl portforward sessions.      |
+| `teleport_kubernetes_server_join_in_flight_sessions`        | gauge     | Teleport Kubernetes Proxy | Number of active joining sessions,                  |
+| `teleport_kubernetes_server_join_sessions_total`            | counter   | Teleport Kubernetes Proxy | Total number of joining sessions.                   |
+
+
 ## Teleport SSH Service
 
 | Name | Type | Component | Description |
 | - | - | - | - |
 | `user_max_concurrent_sessions_hit_total` | counter | Teleport SSH | Number of times a user exceeded their concurrent session limit. |
+
+## Teleport Kubernetes Service
+
+The following table identifies all metrics available when the service connects to upstream servers.
+In the case of `kubernetes_service`, the upstream server is always a Kubernetes cluster.
+
+| Name                                                              | Type      | Component                   | Description                                                                                               |
+| ----------------------------------------------------------------- | --------- | --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `teleport_kubernetes_client_in_flight_requests`                   | gauge     | Teleport Kubernetes Service | In-flight requests waiting for the upstream response. |
+| `teleport_kubernetes_client_requests_total`                       | counter   | Teleport Kubernetes Service | Total number of requests sent to the upstream teleport proxy, kube_service or Kubernetes Cluster servers. |
+| `teleport_kubernetes_client_tls_duration_seconds`                 | histogram | Teleport Kubernetes Service | Latency distribution of TLS handshakes.                                                                   |
+| `teleport_kubernetes_client_got_conn_duration_seconds`            | histogram | Teleport Kubernetes Service | Latency distribution of time to dial to the upstream server - using reversetunnel or direct dialer.       |
+| `teleport_kubernetes_client_first_byte_response_duration_seconds` | histogram | Teleport Kubernetes Service | Latency distribution of time to receive the first response byte from the upstream server.                 |
+| `teleport_kubernetes_client_request_duration_seconds`             | histogram | Teleport Kubernetes Service | Latency distribution of the upstream request time.                                                        |
+
+The following table identifies all metrics available for incoming connections.
+
+| Name                                                        | Type      | Component                   | Description                                         |
+| ----------------------------------------------------------- | --------- | --------------------------- | --------------------------------------------------- |
+| `teleport_kubernetes_server_in_flight_requests`             | gauge     | Teleport Kubernetes Service | In-flight requests currently handled by the server. |
+| `teleport_kubernetes_server_api_requests_total`             | counter   | Teleport Kubernetes Service | Total number of requests handled by the server.     |
+| `teleport_kubernetes_server_request_duration_seconds`       | histogram | Teleport Kubernetes Service | Latency distribution of the total request time.     |
+| `teleport_kubernetes_server_response_size_bytes`            | histogram | Teleport Kubernetes Service | Distribution of the response size.                  |
+| `teleport_kubernetes_server_exec_in_flight_sessions`        | gauge     | Teleport Kubernetes Service | Number of active kubectl exec sessions.             |
+| `teleport_kubernetes_server_exec_sessions_total`            | counter   | Teleport Kubernetes Service | Total number of kubectl exec sessions.              |
+| `teleport_kubernetes_server_portforward_in_flight_sessions` | gauge     | Teleport Kubernetes Service | Number of active kubectl portforward sessions.      |
+| `teleport_kubernetes_server_portforward_sessions_total`     | counter   | Teleport Kubernetes Service | Number of active kubectl portforward sessions.      |
+| `teleport_kubernetes_server_join_in_flight_sessions`        | gauge     | Teleport Kubernetes Service | Number of active joining sessions,                  |
+| `teleport_kubernetes_server_join_sessions_total`            | counter   | Teleport Kubernetes Service | Total number of joining sessions.                   |
 
 ## All Teleport instances
 

@@ -1067,9 +1067,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 				transportConfig: &transport.Config{
 					WrapTransport: checkTransportProxy,
 				},
-				transport: httpTransport{
-					transport: h2Transport,
-				},
+				transport: h2Transport,
 			},
 		},
 	}
