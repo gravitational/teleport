@@ -451,24 +451,6 @@ func (u UserV2) GetGCPServiceAccounts() []string {
 	return u.getTrait(constants.TraitGCPServiceAccounts)
 }
 
-// GetHostUserUID retrieves the host user uid
-func (u UserV2) GetHostUserUID() string {
-	uid := u.getTrait(constants.TraitHostUserUID)
-	if len(uid) == 0 {
-		return ""
-	}
-	return uid[0]
-}
-
-// GetHostUserGID retrieves the host user uid
-func (u UserV2) GetHostUserGID() string {
-	gid := u.getTrait(constants.TraitHostUserGID)
-	if len(gid) == 0 {
-		return ""
-	}
-	return gid[0]
-}
-
 // GetUserType indicates if the User was created by an SSO Provider or locally.
 func (u UserV2) GetUserType() UserType {
 	if u.GetCreatedBy().Connector == nil {

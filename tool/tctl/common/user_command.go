@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,8 +93,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
 	u.userAdd.Flag("azure-identities", "List of allowed Azure identities for the new user").StringsVar(&u.allowedAzureIdentities)
 	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
-	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").StringVar(&u.hostUserUID)
-	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").StringVar(&u.hostUserGID)
+	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
+	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -255,6 +256,17 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	for _, account := range gcpServiceAccounts {
 		if err := gcp.ValidateGCPServiceAccountName(account); err != nil {
 			return trace.Wrap(err, "GCP service account %q is invalid", account)
+		}
+	}
+
+	if u.hostUserUIDProvided && u.hostUserUID != "" {
+		if _, err := strconv.Atoi(u.hostUserUID); err != nil {
+			return trace.BadParameter("host user UID must be a numeric ID")
+		}
+	}
+	if u.hostUserGIDProvided && u.hostUserGID != "" {
+		if _, err := strconv.Atoi(u.hostUserGID); err != nil {
+			return trace.BadParameter("host user GID must be a numeric ID")
 		}
 	}
 
@@ -427,10 +439,21 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	}
 
 	if u.hostUserUIDProvided {
+		if u.hostUserUIDProvided && u.hostUserUID != "" {
+			if _, err := strconv.Atoi(u.hostUserUID); err != nil {
+				return trace.BadParameter("host user UID must be a numeric ID")
+			}
+		}
+
 		user.SetHostUserUID(u.hostUserUID)
 		updateMessages["Host user UID"] = []string{u.hostUserUID}
 	}
 	if u.hostUserGIDProvided {
+		if u.hostUserGIDProvided && u.hostUserGID != "" {
+			if _, err := strconv.Atoi(u.hostUserGID); err != nil {
+				return trace.BadParameter("host user GID must be a numeric ID")
+			}
+		}
 		user.SetHostUserGID(u.hostUserGID)
 		updateMessages["Host user GID"] = []string{u.hostUserGID}
 	}

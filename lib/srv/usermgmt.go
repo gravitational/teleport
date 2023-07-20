@@ -228,8 +228,8 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 		if ui.GID != "" {
 			// if gid is specified a group must already exist
-			err := u.createGroupWithGIDIfNotExist(ui.GID, name)
-			if err != nil {
+			err := u.backend.CreateGroup(name, ui.GID)
+			if err != nil && !trace.IsAlreadyExists(err) {
 				return trace.Wrap(err)
 			}
 		}
@@ -298,18 +298,6 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 		return trace.Wrap(err)
 	}
 	err = u.backend.CreateGroup(group, "")
-	if trace.IsAlreadyExists(err) {
-		return nil
-	}
-	return trace.Wrap(err)
-}
-
-func (u *HostUserManagement) createGroupWithGIDIfNotExist(gid string, groupname string) error {
-	_, err := u.backend.LookupGroupId(gid)
-	if err != nil && !isUnknownGroupError(err, gid) {
-		return trace.Wrap(err)
-	}
-	err = u.backend.CreateGroup(groupname, gid)
 	if trace.IsAlreadyExists(err) {
 		return nil
 	}
