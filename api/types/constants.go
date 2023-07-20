@@ -144,6 +144,11 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
+	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
+	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
+	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
+	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -434,6 +439,9 @@ const (
 
 	// KindAccessList is an AccessList resource
 	KindAccessList = "access_list"
+
+	// KindUserLoginState is a UserLoginState resource
+	KindUserLoginState = "user_login_state"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"

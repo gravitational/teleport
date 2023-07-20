@@ -1730,6 +1730,8 @@ message PaginatedResource {
     types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
     // UserGroup represents a UserGroup resource.
     types.UserGroupV1 UserGroup = 10 [(gogoproto.jsontag) = "user_group,omitempty"];
+    // AppServerOrSAMLIdPServiceProvider represents either an AppServer or a SAML IdP Service Provider resource.
+    types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11;
   }
 
   reserved 4;
