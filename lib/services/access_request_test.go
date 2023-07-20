@@ -1890,6 +1890,21 @@ func TestMaxDuration(t *testing.T) {
 				},
 			},
 		},
+		"defaultShortRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"requestedRole", "setMaxTTLRole"},
+				},
+			},
+		},
+		"maxDurationReqRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:       []string{"requestedRole", "setMaxTTLRole"},
+					MaxDuration: types.Duration(7 * day),
+				},
+			},
+		},
 		"shortMaxDurationReqRole": {
 			condition: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
@@ -1913,6 +1928,7 @@ func TestMaxDuration(t *testing.T) {
 		"alice": {"shortMaxDurationReqRole"},
 		"bob":   {"defaultRole"},
 		"carol": {"shortMaxDurationReqRole", "shortMaxDurationReqRole2"},
+		"david": {"maxDurationReqRole"},
 	}
 
 	g := getMockGetter(t, roleDesc, userDesc)
@@ -1947,18 +1963,39 @@ func TestMaxDuration(t *testing.T) {
 			requestor:              "bob",
 			roles:                  []string{"requestedRole"},
 			maxDuration:            5 * time.Hour,
-			expectedAccessDuration: 5 * time.Hour,
+			expectedAccessDuration: 8 * time.Hour,
 		},
 		{
-			desc:                   "maxDuration can exceed maxTTL",
+			desc:                   "users with no MaxDuration are constrained by normal maxTTL logic",
 			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			maxDuration:            2 * day,
+			expectedAccessDuration: 8 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration can't exceed maxTTL by default",
+			requestor:              "bob",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            day,
+			expectedAccessDuration: 8 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration is ignored if max_duration is not set in role",
+			requestor:              "bob",
+			roles:                  []string{"setMaxTTLRole"},
+			maxDuration:            2 * time.Hour,
+			expectedAccessDuration: 8 * time.Hour,
+		},
+		{
+			desc:                   "maxDuration can exceed maxTTL if max_duration is set in role",
+			requestor:              "david",
 			roles:                  []string{"setMaxTTLRole"},
 			maxDuration:            day,
 			expectedAccessDuration: day,
 		},
 		{
-			desc:                   "maxDuration shorter than maxTTL",
-			requestor:              "bob",
+			desc:                   "maxDuration shorter than maxTTL if max_duration is set in role",
+			requestor:              "david",
 			roles:                  []string{"setMaxTTLRole"},
 			maxDuration:            2 * time.Hour,
 			expectedAccessDuration: 2 * time.Hour,
@@ -2000,7 +2037,6 @@ func TestMaxDuration(t *testing.T) {
 			req.SetMaxDuration(now.Add(tt.maxDuration))
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
-
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
 		})
 	}
