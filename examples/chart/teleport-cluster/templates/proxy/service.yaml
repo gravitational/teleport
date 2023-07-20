@@ -37,6 +37,12 @@ spec:
     port: 443
     targetPort: 3080
     protocol: TCP
+{{- if $proxy.exposeDiagPort }}
+  - name: health
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+{{- end }}
 {{- if ne $proxy.proxyListenerMode "multiplex" }}
   - name: sshproxy
     port: 3023

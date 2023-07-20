@@ -149,6 +149,9 @@ authentication:
 # Possible values are 'separate' and 'multiplex'
 proxyListenerMode: "separate"
 
+# Expose the healthcheck port in the Kubernetes Service, to make /healthz and /readyz available externally
+exposeDiagPort: false
+
 # Optional setting for configuring session recording.
 # See `session_recording` under https://goteleport.com/docs/setup/reference/config/#teleportyaml
 sessionRecording: ""
