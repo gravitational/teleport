@@ -76,7 +76,6 @@
     "jest-styled-components": "^7.0.8",
     "msw": "^0.47.4",
     "optimist": "^0.6.1",
-    "prettier": "^2.5.0",
     "react": "^16.8.4",
     "react-dom": "^16.8.4",
     "react-is": "^16.8.0",
