@@ -40,6 +40,7 @@ The following steps are required to configure Google Workspace to work with Tele
 - Enable the required APIs.
 - Create an OAuth client ID to allow Google Workspace users to log in to your Teleport cluster.
 - Create a service account for Teleport to access additional Google Groups information.
+- Configure domain-wide delegation for the service account.
 
 ### Review your Google Workspace edition
 
@@ -49,7 +50,7 @@ there are fundamental differences in how Teleport integrates with Google Workspa
 the Google Workspace edition you use. 
 
 The key property that Teleport relies on to support Google Workspace is **transitive group membership**.
-With transitive group membership, a user be a member of one group by virtue of being in another group. 
+With transitive group membership, a user can be a member of one group by virtue of being in another group. 
 For example, if there is a child group nested within a parent group, every member of the child group is also
 a member of the parent group.
 
@@ -124,7 +125,7 @@ from users about their OAuth consent, and setting other application options.
 
 1. Click **Save and continue**.
 
-1. Click on **Add or remove scopes**.
+1. Click **Add or remove scopes**.
 
 1. Select the `.../auth/userinfo.email` and `openid` scopes, then click **Update**..
 
@@ -240,7 +241,7 @@ To configure delegation:
 
 1. Click **Add new**.
 
-1. Paste the numeric Unique ID that you' copied from the service account:
+1. Paste the numeric Unique ID that you copied from the service account:
 
    ![domain-wide delegation](../../../img/sso/googleoidc/domainwidedelegation.png)
 
@@ -255,7 +256,7 @@ To configure delegation:
 
 ## Step 2/4. Create an OIDC connector
 
-After you have prepared your Google Workspace environment, you can create the OIDC
+After you have prepared Google Workspace, you can create the OIDC
 connector by running the `tctl sso configure oidc` command. Depending on how you have deployed
 your Teleport cluster, you can create the OIDC connector resource in one of two ways:
 
@@ -275,7 +276,7 @@ running the Teleport Auth Service.
 <TabItem label="Embed JSON">
 
 The following command defines the service account by embedding JSON in the command used to create the connector resource.
-With this method, you don't have to provide the JSON file to all of the host(s) running the Teleport sAuth Service.
+With this method, you don't have to provide the JSON file to all of the hosts running the Teleport Auth Service.
 
 ```code
 $ tctl sso configure oidc --preset google --id <CLIENT-ID> \
@@ -301,7 +302,7 @@ $ tctl sso configure oidc --preset google --id <CLIENT-ID> \
 
 After copying this command, be sure to remove the brackets (< >) and replace the placeholder strings with the 
 appropriate information for your Google Workspace. For example, replace `<GOOGLE-WORKSPACE-ADMIN-EMAIL>` with 
-`admin@yourdomain.com`.
+the email address for the domsin sdministrator similar to `admin@yourdomain.com`.
 
 This command creates a file similar to the following:
 
@@ -361,7 +362,7 @@ $ tctl sso configure oidc --preset google --id <CLIENT-ID> \
 
 After copying this command, be sure to remove the brackets (< >) and replace the placeholder strings with the 
 appropriate information for your Google Workspace. For example, replace `<GOOGLE-WORKSPACE-ADMIN-EMAIL>` with 
-`admin@yourdomain.com`.
+the email address for the domsin sdministrator similar to `admin@yourdomain.com`.
 
 This command creates a file similar to the following:
 
