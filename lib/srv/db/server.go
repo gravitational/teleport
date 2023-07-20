@@ -573,6 +573,42 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	return databases
 }
 
+// getProxiedDatabase returns a proxied database by name with updated dynamic
+// and cloud labels.
+func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// don't call s.getProxiedDatabases() as this will call RLock and
+	// potentially deadlock.
+	for _, db := range s.proxiedDatabases {
+		if db.GetName() == name {
+			return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
+		}
+	}
+	return nil, trace.NotFound("%q not found among registered databases: %v",
+		name, s.proxiedDatabases)
+}
+
+// copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
+// a database object.
+// The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) copyDatabaseWithUpdatedLabelsLocked(database types.Database) *types.DatabaseV3 {
+	// create a copy of the database to modify.
+	copy := database.Copy()
+
+	// Update dynamic labels if the database has them.
+	labels, ok := s.dynamicLabels[copy.GetName()]
+	if ok && labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+
+	// Add in the cloud labels if the db has them.
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Apply(copy)
+	}
+	return copy
+}
+
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
@@ -628,16 +664,8 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := database.Copy()
+	copy := s.copyDatabaseWithUpdatedLabelsLocked(database)
 	s.mu.RUnlock()
-	// Update dynamic labels if the database has them.
-	labels := s.getDynamicLabels(copy.GetName())
-	if labels != nil {
-		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.cfg.CloudLabels != nil {
-		s.cfg.CloudLabels.Apply(copy)
-	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -1003,17 +1031,9 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 
 	// Fetch the requested database server.
-	var database types.Database
-	registeredDatabases := s.getProxiedDatabases()
-	for _, db := range registeredDatabases {
-		if db.GetName() == identity.RouteToDatabase.ServiceName {
-			database = db
-			break
-		}
-	}
-	if database == nil {
-		return nil, trace.NotFound("%q not found among registered databases: %v",
-			identity.RouteToDatabase.ServiceName, registeredDatabases)
+	database, err := s.getProxiedDatabase(identity.RouteToDatabase.ServiceName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
