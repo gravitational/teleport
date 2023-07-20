@@ -1957,6 +1957,8 @@ type Database struct {
 	Azure DatabaseAzure `yaml:"azure"`
 	// AdminUser describes database privileged user for auto-provisioning.
 	AdminUser DatabaseAdminUser `yaml:"admin_user"`
+	// Oracle is Database Oracle settings
+	Oracle DatabaseOracle `yaml:"oracle,omitempty"`
 }
 
 // DatabaseAdminUser describes database privileged user for auto-provisioning.
@@ -1997,6 +1999,12 @@ type DatabaseTLS struct {
 type DatabaseMySQL struct {
 	// ServerVersion is the MySQL version reported by DB proxy instead of default Teleport string.
 	ServerVersion string `yaml:"server_version,omitempty"`
+}
+
+// DatabaseOracle are an additional Oracle database options.
+type DatabaseOracle struct {
+	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+	AuditUser string `yaml:"audit_user,omitempty"`
 }
 
 // SecretStore contains settings for managing secrets.

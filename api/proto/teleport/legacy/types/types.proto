@@ -316,6 +316,11 @@ message DatabaseSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "mongo_atlas,omitempty"
   ];
+  // Oracle is an additional Oracle configuration options.
+  OracleOptions Oracle = 13 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "oracle,omitempty"
+  ];
 }
 
 // DatabaseAdminUser contains information about privileged database user used
@@ -323,6 +328,13 @@ message DatabaseSpecV3 {
 message DatabaseAdminUser {
   // Name is the username of the privileged database user.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// OracleOptions contains information about privileged database user used
+// for database audit.
+message OracleOptions {
+  // AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.

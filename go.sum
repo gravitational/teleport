@@ -797,6 +797,8 @@ github.com/gravitational/go-mysql v1.5.0-teleport.1 h1:EyFryeiTYyP6KslLVp0Q5QTKw
 github.com/gravitational/go-mysql v1.5.0-teleport.1/go.mod h1:GX0clmylJLdZEYAojPCDTCvwZxbTBrke93dV55715u0=
 github.com/gravitational/go-oidc v0.1.0 h1:qZkEZCuD7DfPbpFfewvRmDvq82XoDsmZtqgpQ0Ep2i4=
 github.com/gravitational/go-oidc v0.1.0/go.mod h1:sLGirtIOd+3KGTw9aE44Ej9vYzoiZzkHXIopMu7603A=
+github.com/gravitational/go-ora/v2 v2.0.0-20230821114616-e2a9f1131a46 h1:k/tkK7NDSH7gjNbA5pdUfAalJXyIVazycM0RW7ZboxM=
+github.com/gravitational/go-ora/v2 v2.0.0-20230821114616-e2a9f1131a46/go.mod h1:EHxlY6x7y9HAsdfumurRfTd+v8NrEOTR3Xl4FWlH6xk=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8FcGwRACSHortU1UxCSo9nF0t34rPWjk9Nef3j2Ic=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFER/+0TfRypJhc9XeuggTtEZzhhe75DSVqMv/avHEU=
