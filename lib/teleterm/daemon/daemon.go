@@ -129,7 +129,7 @@ func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, er
 
 // ListLeafClusters returns a list of leaf clusters
 func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.LeafCluster, error) {
-	cluster, err := s.ResolveCluster(uri)
+	cluster, _, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -149,7 +149,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 
 // AddCluster adds a cluster
 func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clusters.Cluster, error) {
-	cluster, err := s.cfg.Storage.Add(ctx, webProxyAddress)
+	cluster, _, err := s.cfg.Storage.Add(ctx, webProxyAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -159,7 +159,7 @@ func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clus
 
 // RemoveCluster removes cluster
 func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
-	cluster, err := s.ResolveCluster(uri)
+	cluster, _, err := s.ResolveCluster(uri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -181,39 +181,39 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 //
 // It doesn't make network requests so the returned clusters.Cluster will not include full
 // information returned from the web/auth servers.
-func (s *Service) ResolveCluster(path string) (*clusters.Cluster, error) {
+func (s *Service) ResolveCluster(path string) (*clusters.Cluster, *client.TeleportClient, error) {
 	resourceURI, err := uri.Parse(path)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	cluster, err := s.resolveCluster(resourceURI)
-	return cluster, trace.Wrap(err)
+	cluster, clusterClient, err := s.resolveCluster(resourceURI)
+	return cluster, clusterClient, trace.Wrap(err)
 }
 
-func (s *Service) resolveCluster(uri uri.ResourceURI) (*clusters.Cluster, error) {
-	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
-	return cluster, trace.Wrap(err)
+func (s *Service) resolveCluster(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
+	cluster, clusterClient, err := s.cfg.Storage.GetByResourceURI(uri)
+	return cluster, clusterClient, trace.Wrap(err)
 }
 
 // ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
 // details about the cluster and logged in user.
-func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, error) {
-	cluster, err := s.ResolveCluster(uri)
+func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, *client.TeleportClient, error) {
+	cluster, clusterClient, err := s.ResolveCluster(uri)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	withDetails, err := cluster.GetWithDetails(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return withDetails, nil
+	return withDetails, clusterClient, nil
 }
 
 // ClusterLogout logs a user out from the cluster
 func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
-	cluster, err := s.ResolveCluster(uri)
+	cluster, _, err := s.ResolveCluster(uri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -308,7 +308,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 	}
 
 	reissueDBCerts := func() error {
-		cluster, err := s.resolveCluster(g.TargetURI())
+		cluster, _, err := s.resolveCluster(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -475,7 +475,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 // GetServers accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -489,7 +489,7 @@ func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*
 }
 
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -507,7 +507,7 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 
 // GetAccessRequests returns all access requests with filtered input
 func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) ([]clusters.AccessRequest, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -525,7 +525,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 		return nil, trace.BadParameter("missing request id")
 	}
 
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -542,7 +542,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 
 // CreateAccessRequest creates an access request
 func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -555,7 +555,7 @@ func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 }
 
 func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -572,7 +572,7 @@ func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		return trace.BadParameter("missing request id")
 	}
 
-	cluster, err := s.ResolveCluster((req.RootClusterUri))
+	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -586,7 +586,7 @@ func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 }
 
 func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
-	cluster, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -601,7 +601,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -681,15 +681,6 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	return nil
 }
 
-func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
-	cluster, err := s.ResolveCluster(request.GetServerUri())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return cluster.TransferFile(ctx, request, sendProgress)
-}
-
 // notifyApp sends a notification (usually an error) to the Electron App.
 func (s *Service) notifyApp(ctx context.Context, notification *api.SendNotificationRequest) error {
 	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
@@ -697,6 +688,48 @@ func (s *Service) notifyApp(ctx context.Context, notification *api.SendNotificat
 
 	_, err := s.tshdEventsClient.SendNotification(tshdEventsCtx, notification)
 	return trace.Wrap(err)
+}
+
+func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
+	cluster, _, err := s.ResolveCluster(request.GetServerUri())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return cluster.TransferFile(ctx, request, sendProgress)
+}
+
+// CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+// the current system user.
+func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.CreateConnectMyComputerRoleRequest) (*api.CreateConnectMyComputerRoleResponse, error) {
+	cluster, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := &api.CreateConnectMyComputerRoleResponse{}
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		result, err := s.cfg.ConnectMyComputerRoleSetup.Run(ctx, authClient, proxyClient, cluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		response.CertsReloaded = result.CertsReloaded
+		return nil
+	})
+
+	return response, trace.Wrap(err)
 }
 
 // Service is the daemon service
