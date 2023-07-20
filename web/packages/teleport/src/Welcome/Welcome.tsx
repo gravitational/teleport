@@ -24,11 +24,9 @@ import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
 
 import { CardWelcome } from './CardWelcome';
 
-type WelcomeProps = {
-  NewCredentials: (props: NewCredentialsContainerProps) => JSX.Element;
-};
-
-export default function Welcome({ NewCredentials }: WelcomeProps) {
+export default function Welcome(
+  NewCredentials: React.ComponentType<NewCredentialsContainerProps>
+) {
   const { tokenId } = useParams<{ tokenId: string }>();
 
   const handleOnInviteContinue = () => {
