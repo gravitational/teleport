@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -134,7 +135,13 @@ func TestContinue(t *testing.T) {
 	// Re-execute Teleport and run "ls". Signal over the context when execution
 	// is complete.
 	go func() {
-		cmdDone <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			cmdDone <- err
+		}
+
+		// Close the read half of the pipe to unblock the ready signal.
+		closeErr := scx.readyw.Close()
+		cmdDone <- trace.NewAggregate(closeErr, cmd.Wait())
 	}()
 
 	// Wait for the process. Since the continue pipe has not been closed, the
