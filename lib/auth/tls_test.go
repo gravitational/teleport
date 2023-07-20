@@ -4207,9 +4207,10 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 	require.NoError(t, testSrv.Auth().CreateToken(ctx, alreadyExistsToken))
 
 	tests := []struct {
-		name     string
-		identity TestIdentity
-		roles    types.SystemRoles
+		name              string
+		identity          TestIdentity
+		roles             types.SystemRoles
+		overrideTokenName string
 
 		requireTokenCreated bool
 		requireError        require.ErrorAssertionFunc
@@ -4266,6 +4267,15 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 			},
 		},
 		{
+			name:              "failure (already exists)",
+			identity:          TestUser(privilegedUser.GetName()),
+			overrideTokenName: alreadyExistsToken.GetName(),
+			roles:             types.SystemRoles{types.RoleTrustedCluster},
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.Equal(t, codes.AlreadyExists, status.Code(err))
+			},
+		},
+		{
 			name:     "access denied",
 			identity: TestNop(),
 			roles:    types.SystemRoles{types.RoleNode},
@@ -4285,7 +4295,11 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 			rawAuthSvcClient := proto.NewAuthServiceClient(client.APIClient.GetConnection())
 
 			mockEmitter.Reset()
-			tokenResp, err := rawAuthSvcClient.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: tt.roles})
+			req := &proto.GenerateTokenRequest{Roles: tt.roles}
+			if tt.overrideTokenName != "" {
+				req.Token = tt.overrideTokenName
+			}
+			tokenResp, err := rawAuthSvcClient.GenerateToken(ctx, req)
 			tt.requireError(t, err)
 
 			require.Empty(t, cmp.Diff(
