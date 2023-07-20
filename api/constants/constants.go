@@ -387,11 +387,11 @@ const (
 
 	// TraitHostUserUID is the name of the variable used to specify
 	// the uid to create host user account with.
-	TraitHostUserUID = "teleport.dev/uid"
+	TraitHostUserUID = "host_user_uid"
 
 	// TraitHostUserUID is the name of the variable used to specify
 	// the gid to create host user account with.
-	TraitHostUserGID = "teleport.dev/gid"
+	TraitHostUserGID = "host_user_gid"
 )
 
 const (
