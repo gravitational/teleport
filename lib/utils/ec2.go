@@ -26,9 +26,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// GetEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
+// GetRawEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
 // from the IMDS for this EC2 instance.
-func GetEC2IdentityDocument(ctx context.Context) ([]byte, error) {
+func GetRawEC2IdentityDocument(ctx context.Context) ([]byte, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -50,20 +50,29 @@ func GetEC2IdentityDocument(ctx context.Context) ([]byte, error) {
 	return iidBytes, nil
 }
 
-// GetEC2NodeID returns the node ID to use for this EC2 instance when using
-// Simplified Node Joining.
-func GetEC2NodeID(ctx context.Context) (string, error) {
+func GetEC2InstanceIdentityDocument(ctx context.Context) (*imds.InstanceIdentityDocument, error) {
 	// fetch the raw IID
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	imdsClient := imds.NewFromConfig(cfg)
 	output, err := imdsClient.GetInstanceIdentityDocument(ctx, nil)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &output.InstanceIdentityDocument, nil
+}
+
+// GetEC2NodeID returns the node ID to use for this EC2 instance when using
+// Simplified Node Joining.
+func GetEC2NodeID(ctx context.Context) (string, error) {
+	// fetch the raw IID
+	iid, err := GetEC2InstanceIdentityDocument(ctx)
+	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return NodeIDFromIID(&output.InstanceIdentityDocument), nil
+	return NodeIDFromIID(iid), nil
 }
 
 // EC2 Node IDs are {AWS account ID}-{EC2 resource ID} eg:

@@ -180,6 +180,11 @@ function createService(logger: Logger): {
         }
       );
     },
+    sendPendingHeadlessAuthentication: () => {
+      // TODO (joerger): Handle pending headless authentications with an
+      // approve/deny modal, followed by an MFA prompt for approval.
+      logger.info('Received pending headless authentication');
+    },
   };
 
   return { service, subscribeToTshdEvent };

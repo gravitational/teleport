@@ -118,6 +118,12 @@ export class SessionStartEvent extends jspb.Message {
     setSessionType(value: string): SessionStartEvent;
 
 
+    hasDatabase(): boolean;
+    clearDatabase(): void;
+    getDatabase(): SessionStartDatabaseMetadata | undefined;
+    setDatabase(value?: SessionStartDatabaseMetadata): SessionStartEvent;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
     static toObject(includeInstance: boolean, msg: SessionStartEvent): SessionStartEvent.AsObject;
@@ -132,6 +138,36 @@ export namespace SessionStartEvent {
     export type AsObject = {
         userName: string,
         sessionType: string,
+        database?: SessionStartDatabaseMetadata.AsObject,
+    }
+}
+
+export class SessionStartDatabaseMetadata extends jspb.Message { 
+    getDbType(): string;
+    setDbType(value: string): SessionStartDatabaseMetadata;
+
+    getDbProtocol(): string;
+    setDbProtocol(value: string): SessionStartDatabaseMetadata;
+
+    getDbOrigin(): string;
+    setDbOrigin(value: string): SessionStartDatabaseMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SessionStartDatabaseMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: SessionStartDatabaseMetadata): SessionStartDatabaseMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SessionStartDatabaseMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SessionStartDatabaseMetadata;
+    static deserializeBinaryFromReader(message: SessionStartDatabaseMetadata, reader: jspb.BinaryReader): SessionStartDatabaseMetadata;
+}
+
+export namespace SessionStartDatabaseMetadata {
+    export type AsObject = {
+        dbType: string,
+        dbProtocol: string,
+        dbOrigin: string,
     }
 }
 
@@ -1322,6 +1358,9 @@ export class AgentMetadataEvent extends jspb.Message {
     getCloudEnvironment(): string;
     setCloudEnvironment(value: string): AgentMetadataEvent;
 
+    getExternalUpgrader(): string;
+    setExternalUpgrader(value: string): AgentMetadataEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AgentMetadataEvent.AsObject;
@@ -1346,6 +1385,7 @@ export namespace AgentMetadataEvent {
         containerRuntime: string,
         containerOrchestrator: string,
         cloudEnvironment: string,
+        externalUpgrader: string,
     }
 }
 

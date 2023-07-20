@@ -24,6 +24,19 @@ Prior versions of Teleport would return an error from `tsh db` commands if those
 flags were empty (the only exception is Redis, where it would choose the Redis
 username "default" for `--db-user`).
 
+#### Auto-Discovered Database Names
+
+In Teleport 14, database discovery via `db_service` config will enforce the same
+name validation that we enforce for databases created via `tctl`, static config,
+and `discovery_service`.
+
+The regex used to constrain database names is: `^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+
+So databases in AWS and Azure must:
+1. start with a letter (uppercase and lowercase are both allowed).
+2. contain only letters, digits, and hyphens.
+3. end with a letter or digit (no trailing hyphens).
+
 ## 13.0.1 (05/xx/23)
 
 * Helm Charts

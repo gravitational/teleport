@@ -436,6 +436,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "opensearch,omitempty"
   ];
+
+  // IAMPolicyExists indicates whether the IAM Policy is configured properly for database access.
+  // If not, the user must update the AWS profile identity to allow access to the Database.
+  // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database
+  bool IAMPolicyExists = 13 [(gogoproto.jsontag) = "iam_policy_exists"];
 }
 
 // SecretStore contains secret store configurations.
@@ -789,10 +794,28 @@ message ServerSpecV2 {
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
   // PublicAddrs is a list of public addresses where this server can be reached.
   repeated string public_addrs = 13;
+  // CloudMetadata contains info about the cloud instance the server is running
+  // on, if any.
+  CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
 
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
+}
+
+// AWSInfo contains attributes to match to an EC2 instance.
+message AWSInfo {
+  // AccountID is an AWS account ID.
+  string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+  // InstanceID is an EC2 instance ID.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+}
+
+// CloudMetadata contains info about the cloud instance a server is running
+// on, if any.
+message CloudMetadata {
+  // AWSInfo contains attributes to match to an EC2 instance.
+  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -5823,8 +5846,8 @@ message WatchStatusSpecV1 {
 message ServerInfoV1 {
   // Kind is the resource kind.
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // SubKind is an optional resource subkind. Currently unused for this resource.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind"];
   // Version is the resource version.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the resource metadata.
@@ -5841,15 +5864,10 @@ message ServerInfoV1 {
 
 // ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
 message ServerInfoSpecV1 {
-  // AWSInfo contains attributes to match to an EC2 instance.
-  message AWSInfo {
-    // AccountID is an AWS account ID.
-    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
-    // InstanceID is an EC2 instance ID.
-    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
-  }
-  // AWS matches an EC2 instance.
-  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  reserved 1;
+  reserved "AWS";
+  // NewLabels is the set of labels to add to nodes matching this ServerInfo.
+  map<string, string> NewLabels = 2 [(gogoproto.jsontag) = "new_labels,omitempty"];
 }
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
@@ -6044,4 +6062,18 @@ message GCPMatcher {
   ];
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
+}
+
+// KubernetesMatcher matches Kubernetes services.
+message KubernetesMatcher {
+  // Types are Kubernetes services types to match. Currently only 'app' is supported.
+  repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
+  // Namespaces are Kubernetes namespaces in which to discover services
+  repeated string Namespaces = 2 [(gogoproto.jsontag) = "namespaces,omitempty"];
+  // Labels are Kubernetes services labels to match.
+  wrappers.LabelValues Labels = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }

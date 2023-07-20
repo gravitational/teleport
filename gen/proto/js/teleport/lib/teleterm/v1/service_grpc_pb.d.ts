@@ -44,6 +44,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     logout: ITerminalServiceService_ILogout;
     transferFile: ITerminalServiceService_ITransferFile;
     reportUsageEvent: ITerminalServiceService_IReportUsageEvent;
+    updateHeadlessAuthenticationState: ITerminalServiceService_IUpdateHeadlessAuthenticationState;
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
@@ -298,6 +299,15 @@ interface ITerminalServiceService_IReportUsageEvent extends grpc.MethodDefinitio
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
+interface ITerminalServiceService_IUpdateHeadlessAuthenticationState extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -330,6 +340,7 @@ export interface ITerminalServiceServer {
     logout: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.LogoutRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     transferFile: grpc.handleServerStreamingCall<teleport_lib_teleterm_v1_service_pb.FileTransferRequest, teleport_lib_teleterm_v1_service_pb.FileTransferProgress>;
     reportUsageEvent: grpc.handleUnaryCall<teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
+    updateHeadlessAuthenticationState: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -416,6 +427,9 @@ export interface ITerminalServiceClient {
     reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -502,4 +516,7 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    public updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    public updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
 }

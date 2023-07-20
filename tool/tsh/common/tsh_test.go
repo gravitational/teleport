@@ -3512,7 +3512,7 @@ func TestSerializeDatabases(t *testing.T) {
     "kind": "db",
     "version": "v3",
     "metadata": {
-      "name": "my db",
+      "name": "my-db",
       "description": "this is the description",
       "labels": {"a": "1", "b": "2"}
     },
@@ -3524,6 +3524,7 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
+        "iam_policy_exists": false,
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
@@ -3552,6 +3553,7 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
+        "iam_policy_exists": false,
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
@@ -3566,7 +3568,7 @@ func TestSerializeDatabases(t *testing.T) {
   }]
 	`
 	db, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "my db",
+		Name:        "my-db",
 		Description: "this is the description",
 		Labels:      map[string]string{"a": "1", "b": "2"},
 	}, types.DatabaseSpecV3{

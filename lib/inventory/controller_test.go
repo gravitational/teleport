@@ -445,10 +445,10 @@ func TestUpdateLabels(t *testing.T) {
 
 	// Update labels.
 	labels := map[string]string{"a": "1", "b": "2"}
-	require.NoError(t, upstreamHandle.UpdateLabels(ctx, proto.LabelUpdateKind_SSHServer, labels))
+	require.NoError(t, upstreamHandle.UpdateLabels(ctx, proto.LabelUpdateKind_SSHServerCloudLabels, labels))
 
 	require.Eventually(t, func() bool {
-		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServer))
+		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
 		return true
 	}, time.Second, 100*time.Millisecond)
 }
