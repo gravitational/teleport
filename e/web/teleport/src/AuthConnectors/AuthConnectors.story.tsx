@@ -1,5 +1,9 @@
 import React from 'react';
 
+import { ContextProvider } from 'teleport';
+
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+
 import { AuthConnectors } from './AuthConnectors';
 
 export default {
@@ -8,33 +12,58 @@ export default {
 
 export function Processing() {
   return (
-    <AuthConnectors {...sample} attempt={{ status: 'processing' as any }} />
+    <ContextWrapper>
+      <AuthConnectors {...sample} attempt={{ status: 'processing' as any }} />
+    </ContextWrapper>
   );
 }
 
 export function Loaded() {
-  return <AuthConnectors {...sample} />;
+  return (
+    <ContextWrapper>
+      <AuthConnectors {...sample} />
+    </ContextWrapper>
+  );
 }
 
 export function Empty() {
-  return <AuthConnectors {...sample} items={[]} />;
+  return (
+    <ContextWrapper>
+      <AuthConnectors {...sample} items={[]} />
+    </ContextWrapper>
+  );
 }
 
 export function EmptyWithCTA() {
-  return <AuthConnectors {...sample} items={[]} showAuthConnectorsCTA={true} />;
+  return (
+    <ContextWrapper>
+      <AuthConnectors {...sample} items={[]} showAuthConnectorsCTA={true} />
+    </ContextWrapper>
+  );
 }
 
 export function LoadedWithCTA() {
-  return <AuthConnectors {...sample} showAuthConnectorsCTA={true} />;
+  return (
+    <ContextWrapper>
+      <AuthConnectors {...sample} showAuthConnectorsCTA={true} />
+    </ContextWrapper>
+  );
 }
 
 export function Failed() {
   return (
-    <AuthConnectors
-      {...sample}
-      attempt={{ status: 'failed', statusText: 'some error message' }}
-    />
+    <ContextWrapper>
+      <AuthConnectors
+        {...sample}
+        attempt={{ status: 'failed', statusText: 'some error message' }}
+      />
+    </ContextWrapper>
   );
+}
+
+function ContextWrapper({ children }: { children: JSX.Element }) {
+  const ctx = createTeleportContextE();
+  return <ContextProvider ctx={ctx}>{children}</ContextProvider>;
 }
 
 const connectors = [

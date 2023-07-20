@@ -89,24 +89,17 @@ const ConnectorBox = styled(Box)(
   min-width: 224px;
   padding: 24px;
   margin: 16px 8px;
-  backgroundColor: ${props.theme.colors.levels.surface};
+  background: transparent;
   display: flex;
   flex-direction: column;
   transition: all 0.3s;
   border-radius: 4px;
   min-height: 190px;
-  border: 2px solid ${props.theme.colors.spotBackground[2]};
-  &:focus {
-    opacity: .24;
-    box-shadow: none;
-  }
-  &:hover:not([disabled]) {
-    border: 2px solid ${props.theme.colors.brand.main};
-  }
-  &:hover {
-    border: 2px solid ${props.theme.colors.brand};
-    background: ${props.theme.colors.levels.elevated};
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.56);
+  border: 2px solid ${props.theme.colors.spotBackground[0]};
+  &:hover, &:focus {
+    border: 2px solid ${props.theme.colors.spotBackground[2]};
+    background: ${props.theme.colors.spotBackground[0]};
+    box-shadow: ${props.theme.boxShadow[3]};
     cursor: pointer;
   }
   color: inherit;

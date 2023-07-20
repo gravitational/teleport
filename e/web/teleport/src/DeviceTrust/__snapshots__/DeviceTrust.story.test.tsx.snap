@@ -75,7 +75,7 @@ exports[`empty state 1`] = `
 .c5 {
   box-sizing: border-box;
   max-width: 700px;
-  padding: 32px;
+  padding: 24px;
   display: flex;
   align-items: center;
 }
