@@ -11,7 +11,7 @@
     "typescript": "^5.1.6"
   },
   "scripts": {
-    "codegen": "playwright codegen https://ubuntu.example.com:3080",
+    "codegen": "playwright codegen https://localhost:3080",
     "test": "playwright test"
   }
 }

@@ -10,10 +10,9 @@ services:
     volumes:
       - teleport-config:/etc/teleport
       - ./config/teleport.yaml:/etc/teleport/teleport.yaml
-#      - ./config/openai_key:/etc/teleport/openai_key
       - teleport-data:/var/lib/teleport
     ports:
-      - 3080:3080
+      - "3080:3080"
 
   e2e:
     image: mcr.microsoft.com/playwright:v1.36.0-jammy
@@ -42,13 +41,12 @@ services:
     volumes:
         - teleport-config:/etc/teleport
         - ./config/teleport.yaml:/etc/teleport/teleport.yaml
-#        - ./config/openai_key:/etc/teleport/openai_key
         - ./config/create-user.sh:/create-user.sh
         - teleport-data:/var/lib/teleport
     entrypoint:
       - bash
       - -c
-    command:
+    command: # Sleep is needed to keep the container running, otherwise all containers will be stopped by docker-compose
       - /create-user.sh && sleep infinity
 
 volumes:

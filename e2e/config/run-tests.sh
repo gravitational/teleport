@@ -18,12 +18,14 @@
 
 set -e
 
-cp /etc/teleport/certs/tls.crt /usr/local/share/ca-certificates/teleport.crt
+# Add generated certificates to system CA.
+cp /etc/teleport/certs/rootCA.pem /usr/local/share/ca-certificates/teleport.crt
 update-ca-certificates
 
 yarn install
 
+# Wait for the user to be created
 while [ ! -f /var/lib/teleport/user-create ]; do sleep 1; done
 
 npx playwright install chromium
-npx playwright test --workers 1 --repeat-each 1 --timeout 10000 --project=chromium
+npx playwright test --workers 1 --repeat-each 1 --timeout 15000 --project=chromium

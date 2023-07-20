@@ -14,7 +14,8 @@ RUN curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64" && \
 RUN mkdir -p /etc/teleport/certs && \
     mkcert -install && \
     mkcert -cert-file /etc/teleport/certs/tls.crt -key-file /etc/teleport/certs/tls.key localhost \
-    "*.localhost" "teleport"
+    "*.localhost" "teleport" && \
+    cp $(mkcert -CAROOT)/rootCA.pem /etc/teleport/certs/
 
 COPY ./build/teleport /usr/local/bin/teleport
 COPY ./build/tctl /usr/local/bin/tctl

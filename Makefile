@@ -856,6 +856,10 @@ test-sh:
 	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
 
 
+.PHONY: test-e2e
+test-e2e:
+	make -C e2e test
+
 .PHONY: run-etcd
 run-etcd:
 	examples/etcd/start-etcd.sh

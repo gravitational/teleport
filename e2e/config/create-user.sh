@@ -18,7 +18,7 @@
 
 set -e
 
-# check if the user is already created
+# Check if the user is already created
 if [ -f /var/lib/teleport/user-create ]; then
     echo "User already created"
     exit 0
@@ -26,8 +26,13 @@ fi
 
 echo "Creating user"
 
+# Give the auth server some time to start
 sleep 5
+
+# Create the user
 tctl -d users add bob --roles=access,editor --logins=root
+# Set the password - 'secret'.
+# TODO(jakule): I was not able to figure out how to set the password using WebUI in automated way, so I'm doing it directly in the database.
 sqlite3 /var/lib/teleport/backend/sqlite.db "UPDATE kv SET value='\$2a\$10\$w0K2pwK/cF8BG0kKZ7X1qe1uU7w3mwZ2S46PO6SlaiVjiTkbNGQp6' where key = '/web/users/bob/pwd';"
 
 touch /var/lib/teleport/user-create

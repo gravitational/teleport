@@ -18,9 +18,6 @@ auth_service:
   listen_addr: 0.0.0.0:3025
   proxy_listener_mode: multiplex
 
-#  assist:
-#    openai:
-#      api_token_path: /etc/teleport/openai_key
   tokens:
     - "node,auth,proxy,db,trusted_cluster:foo"
   authentication:
@@ -40,9 +37,6 @@ proxy_service:
   acme: {}
 
   web_listen_addr: 0.0.0.0:3080
-#  assist:
-#    openai:
-#      api_token_path: /etc/teleport/openai_key
 
   https_keypairs:
     - key_file: /etc/teleport/certs/tls.key
