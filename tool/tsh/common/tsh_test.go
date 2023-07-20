@@ -3367,6 +3367,20 @@ func setHomePath(path string) CliOption {
 	}
 }
 
+func setOverrideMySQLConfigPath(path string) CliOption {
+	return func(cf *CLIConf) error {
+		cf.overrideMySQLOptionFilePath = path
+		return nil
+	}
+}
+
+func setOverridePostgresConfigPath(path string) CliOption {
+	return func(cf *CLIConf) error {
+		cf.overridePostgresServiceFilePath = path
+		return nil
+	}
+}
+
 func setKubeConfigPath(path string) CliOption {
 	return func(cf *CLIConf) error {
 		cf.KubeConfigPath = path
