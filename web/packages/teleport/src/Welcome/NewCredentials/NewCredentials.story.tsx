@@ -17,8 +17,9 @@ limitations under the License.
 import React from 'react';
 import { Card } from 'design';
 
-import { Props, NewCredentials, SliderProps } from './NewCredentials';
+import { NewCredentials } from './NewCredentials';
 import { NewMfaDevice } from './NewMfaDevice';
+import { NewCredentialsProps, SliderProps } from './types';
 
 export default {
   title: 'Teleport/Welcome/Form',
@@ -184,7 +185,7 @@ const sliderProps: SliderProps & {
   password: '',
   updatePassword: () => null,
 };
-const props: Props = {
+const props: NewCredentialsProps = {
   auth2faType: 'off',
   primaryAuthType: 'local',
   isPasswordlessEnabled: true,
