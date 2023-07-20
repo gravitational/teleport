@@ -4294,7 +4294,7 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 			},
 		},
 		{
-			name:              "failure (already exists)",
+			name:              "can't override existing token",
 			identity:          TestUser(privilegedUser.GetName()),
 			overrideTokenName: alreadyExistsToken.GetName(),
 			roles:             types.SystemRoles{types.RoleTrustedCluster},
