@@ -98,18 +98,23 @@ func TestMain(m *testing.M) {
 // on the configured RBAC rules.
 func TestAccessPostgres(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
+		db.SetStaticLabels(map[string]string{"foo": "bar"})
+	}))
 	go testCtx.startHandlingConnections()
 
+	dynamicDBLabels := types.Labels{"echo": {"test"}}
+	staticDBLabels := types.Labels{"foo": {"bar"}}
 	tests := []struct {
-		desc         string
-		user         string
-		role         string
-		allowDbNames []string
-		allowDbUsers []string
-		dbName       string
-		dbUser       string
-		err          string
+		desc          string
+		user          string
+		role          string
+		allowDbNames  []string
+		allowDbUsers  []string
+		extraRoleOpts []roleOptFn
+		dbName        string
+		dbUser        string
+		err           string
 	}{
 		{
 			desc:         "has access to all database names and users",
@@ -169,12 +174,55 @@ func TestAccessPostgres(t *testing.T) {
 			dbUser:       "postgres",
 			err:          "access to db denied",
 		},
+		{
+			desc:         "access allowed to specific user/database by static label",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"metrics"},
+			allowDbUsers: []string{"alice"},
+			// The default test role created has wildcard labels allowed.
+			// This tests that specific allowed database labels matching the
+			// test database's static labels allows access.
+			extraRoleOpts: []roleOptFn{withAllowedDBLabels(staticDBLabels)},
+			dbName:        "metrics",
+			dbUser:        "alice",
+		},
+		{
+			desc:         "access allowed to specific user/database by dynamic label",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"metrics"},
+			allowDbUsers: []string{"alice"},
+			// The default test role created has wildcard labels allowed.
+			// This tests that specific allowed database labels matching the
+			// test database's dynamic labels allows access, to ensure
+			// that RBAC checks against dynamic labels are working.
+			extraRoleOpts: []roleOptFn{withAllowedDBLabels(dynamicDBLabels)},
+			dbName:        "metrics",
+			dbUser:        "alice",
+		},
+		{
+			desc:         "access denied by dynamic label",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"metrics"},
+			allowDbUsers: []string{"alice"},
+			// The default test role created has wildcard labels allowed.
+			// This tests that specific denied database labels matching the
+			// test database's dynamic labels denies access, to ensure
+			// that RBAC checks against dynamic labels are working.
+			extraRoleOpts: []roleOptFn{withDeniedDBLabels(dynamicDBLabels)},
+			dbName:        "metrics",
+			dbUser:        "alice",
+			err:           "access to db denied",
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			// Create user/role with the requested permissions.
-			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+			testCtx.createUserAndRole(ctx, t, test.user, test.role,
+				test.allowDbUsers, test.allowDbNames, test.extraRoleOpts...)
 
 			// Try to connect to the database as this user.
 			pgConn, err := testCtx.postgresClient(ctx, test.user, "postgres", test.dbUser, test.dbName)
@@ -1837,13 +1885,30 @@ func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbServic
 	return db, proxy, nil
 }
 
+type roleOptFn func(types.Role)
+
+func withAllowedDBLabels(labels types.Labels) roleOptFn {
+	return func(role types.Role) {
+		role.SetDatabaseLabels(types.Allow, labels)
+	}
+}
+
+func withDeniedDBLabels(labels types.Labels) roleOptFn {
+	return func(role types.Role) {
+		role.SetDatabaseLabels(types.Deny, labels)
+	}
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
-func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
+func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string, roleOpts ...roleOptFn) (types.User, types.Role) {
 	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
 	require.NoError(t, err)
 	role.SetDatabaseUsers(types.Allow, dbUsers)
 	role.SetDatabaseNames(types.Allow, dbNames)
+	for _, roleOpt := range roleOpts {
+		roleOpt(role)
+	}
 	err = c.tlsServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role
