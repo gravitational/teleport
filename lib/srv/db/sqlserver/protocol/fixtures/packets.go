@@ -26,8 +26,8 @@ const (
 	// does not contain more chunks.
 	packetStatusFinalMessage = 0x01
 	// packetStatusNotFinalMessage packet status value used to indicate the
-	// message is not the final one.  The documentation doesn't mention a proper
-	// value. Here we're using the same status used by Azure Data Studio (0x04).
+	// message is not the final one. It must not contain the final message flag
+	// bit.
 	packetStatusNotFinalMessage = 0x04
 	// packetTypeSQLBatch is the packet type for SQL Batch.
 	packetTypeSQLBatch = 0x01

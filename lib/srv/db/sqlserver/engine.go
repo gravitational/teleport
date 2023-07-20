@@ -150,13 +150,10 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			return
 		}
 
-		if p.Header().Status != protocol.PacketStatusLast {
-			if chunkData.Len() == 0 {
-				initialPacketHeader = p.Header()
-			}
-
-			chunkData.Write(p.Data())
-		} else {
+		// Audit events are going to be emitted only on final messages, this way
+		// the packet parsing can be complete and provide the query/RPC
+		// contents.
+		if protocol.IsFinalPacket(p) {
 			sqlPacket, err := e.toSQLPacket(initialPacketHeader, p, &chunkData)
 			switch {
 			case err != nil:
@@ -165,6 +162,12 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			default:
 				e.auditPacket(e.Context, sessionCtx, sqlPacket)
 			}
+		} else {
+			if chunkData.Len() == 0 {
+				initialPacketHeader = p.Header()
+			}
+
+			chunkData.Write(p.Data())
 		}
 
 		_, err = serverConn.Write(p.Bytes())
