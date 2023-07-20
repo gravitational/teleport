@@ -1770,12 +1770,20 @@ func TestExtractTargetConfig(t *testing.T) {
 	role7 := "arn:aws:iam::123456789012:role/role-7"
 	roleTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:role/target-role")
 	require.NoError(t, err)
+	manualModeRoleTarget, err := awslib.IdentityFromArn(
+		buildIAMARN(
+			targetIdentityARNSectionPlaceholder,
+			targetIdentityARNSectionPlaceholder,
+			"role", "target-role",
+		))
+	require.NoError(t, err)
 
 	tests := map[string]struct {
-		target awslib.Identity
-		flags  configurators.BootstrapFlags
-		cfg    *servicecfg.Config
-		want   targetConfig
+		target  awslib.Identity
+		flags   configurators.BootstrapFlags
+		cfg     *servicecfg.Config
+		want    targetConfig
+		wantErr string
 	}{
 		"target in assume roles": {
 			target: roleTarget,
@@ -1935,10 +1943,69 @@ func TestExtractTargetConfig(t *testing.T) {
 				},
 			},
 		},
+		"manual mode role name target assuming config roles is an error": {
+			target: manualModeRoleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, Manual: true},
+			cfg: &servicecfg.Config{
+				Discovery: servicecfg.DiscoveryConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+					},
+				},
+				Databases: servicecfg.DatabasesConfig{
+					Databases: []servicecfg.Database{
+						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role2}},
+					},
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
+					},
+				},
+			},
+			wantErr: "please specify the full role ARN",
+		},
+		"manual mode role name target assuming only forced roles is ok": {
+			target: manualModeRoleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, Manual: true},
+			cfg: &servicecfg.Config{
+				Databases: servicecfg.DatabasesConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}},
+					},
+				},
+			},
+			want: targetConfig{
+				identity:        roleTarget,
+				assumesAWSRoles: []string{role1},
+				awsMatchers: []types.AWSMatcher{
+					{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}},
+				},
+			},
+		},
+		"manual mode role name target without any assume roles is ok": {
+			target: manualModeRoleTarget,
+			flags:  configurators.BootstrapFlags{Manual: true},
+			cfg: &servicecfg.Config{
+				Databases: servicecfg.DatabasesConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}},
+					},
+				},
+			},
+			want: targetConfig{
+				identity: roleTarget,
+				awsMatchers: []types.AWSMatcher{
+					{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}},
+				},
+			},
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := getTargetConfig(tt.flags, tt.cfg, tt.target)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			require.Equal(t, tt.target, got.identity)
 			// for test convenience, use cmp.Diff to equate []Type(nil) and []Type{}.

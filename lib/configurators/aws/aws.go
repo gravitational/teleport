@@ -63,6 +63,11 @@ const (
 	policyTeleportTagValue = ""
 	// defaultAttachUser default user that the policy will be attached to.
 	defaultAttachUser = "username"
+	// targetIdentityARNSectionPlaceholder is the placeholder to use in a target
+	// AWS IAM identity ARN when the full ARN is not given by the user and the
+	// configurator is running in --manual mode.
+	// e.g. arn:*:iam::*:user/username (placeholder for partition and account).
+	targetIdentityARNSectionPlaceholder = "*"
 )
 
 type databaseActions struct {
@@ -524,8 +529,8 @@ func buildCommonActions(config ConfiguratorConfig, targetCfg targetConfig) ([]co
 func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction, error) {
 	// Identity is going to be empty (`nil`) when running the command on
 	// `Manual` mode, place a wildcard to keep the generated policies valid.
-	accountID := "*"
-	partitionID := "*"
+	accountID := targetIdentityARNSectionPlaceholder
+	partitionID := targetIdentityARNSectionPlaceholder
 	if config.Identity != nil {
 		accountID = config.Identity.GetAccountID()
 		partitionID = config.Identity.GetPartition()
@@ -1097,12 +1102,44 @@ func getTargetConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config,
 	databases := databasesFromConfig(flags, cfg)
 	resourceMatchers := resourceMatchersFromConfig(flags, cfg)
 	targetIsAssumeRole := isTargetAWSAssumeRole(flags, awsMatchers, databases, resourceMatchers, target)
+	assumesRoles := rolesForTarget(forcedRoles, awsMatchers, databases, resourceMatchers, targetIsAssumeRole)
+	err = checkStubRoleAssumingRolesFromConfig(forcedRoles, assumesRoles, target)
+	if err != nil {
+		return targetConfig{}, trace.Wrap(err)
+	}
 	return targetConfig{
 		identity:        target,
 		awsMatchers:     matchersForTarget(awsMatchers, target, targetIsAssumeRole),
 		databases:       databasesForTarget(databases, target, targetIsAssumeRole),
-		assumesAWSRoles: rolesForTarget(forcedRoles, awsMatchers, databases, resourceMatchers, targetIsAssumeRole),
+		assumesAWSRoles: assumesRoles,
 	}, nil
+}
+
+// checkStubRoleAssumingRolesFromConfig returns an error if a policy attachment
+// target is a stub AWS IAM role target (contains placeholders in its ARN)
+// that assumes at least one role from config not given in --assumes-roles.
+//
+// The configurator can be given a role name as the policy attachment target
+// instead of a full ARN, but in --manual mode, the configurator constructs a
+// stub ARN using "*" as a placeholder for the AWS account and partition.
+// The stub role ARN will not match any `assume_role_arn` in config, so the
+// configurator will not have enough information to correctly determine the
+// required permissions policies for the target.
+// We check for this scenario to avoid printing the wrong permissions in
+// --manual mode, and advise users to specify a full role ARN instead of just
+// the role's name.
+func checkStubRoleAssumingRolesFromConfig(forcedRoles []string, assumesRoles []string, target awslib.Identity) error {
+	isRole := target.GetType() == "role"
+	isStub := target.GetAccountID() == targetIdentityARNSectionPlaceholder ||
+		target.GetPartition() == targetIdentityARNSectionPlaceholder
+	assumesRolesFromConfig := len(assumesRoles) > len(forcedRoles)
+	if isRole && isStub && assumesRolesFromConfig {
+		return trace.BadParameter(
+			"unable to determine required permissions for policy attachment "+
+				"target %q in manual mode, please specify the full role ARN",
+			target.GetName())
+	}
+	return nil
 }
 
 // awsMatchersFromConfig is a helper function that extracts database AWS matchers
