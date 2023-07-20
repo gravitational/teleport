@@ -4052,6 +4052,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
+		MaxDuration:          req.GetMaxDuration(),
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -4153,6 +4154,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ProposedState: params.Review.ProposedState.String(),
 		Reason:        params.Review.Reason,
 		Reviewer:      params.Review.Author,
+		MaxDuration:   req.GetMaxDuration(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
