@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -232,4 +233,33 @@ func TestEC2Watcher(t *testing.T) {
 		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
 	}, *result.EC2Instances)
+}
+
+func TestConvertEC2InstancesToServerInfos(t *testing.T) {
+	t.Parallel()
+	expected, err := types.NewServerInfo(types.Metadata{
+		Name: "myaccount-myinstance",
+	}, types.ServerInfoSpecV1{
+		AWS: &types.ServerInfoSpecV1_AWSInfo{
+			AccountID:  "myaccount",
+			InstanceID: "myinstance",
+		},
+		NewLabels: map[string]string{"aws/foo": "bar"},
+	})
+	require.NoError(t, err)
+
+	ec2Instances := &EC2Instances{
+		AccountID: "myaccount",
+		Instances: []EC2Instance{
+			{
+				InstanceID: "myinstance",
+				Tags:       map[string]string{"foo": "bar"},
+			},
+		},
+	}
+	serverInfos, err := ec2Instances.ServerInfos()
+	require.NoError(t, err)
+	require.Len(t, serverInfos, 1)
+
+	require.Empty(t, cmp.Diff(expected, serverInfos[0]))
 }

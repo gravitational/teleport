@@ -159,7 +159,7 @@ func NewShared() (*Backend, error) {
 	return NewSharedWithClient(restClient)
 }
 
-// NewSharedWithClient returns a new instance of the shared kuberenetes secret store with the provided client (equivalent
+// NewSharedWithClient returns a new instance of the shared kubernetes secret store with the provided client (equivalent
 // to NewWithClient() except that this backend can be written to by any teleport agent within the helm release. used for propagating
 // relevant state to controllers).
 func NewSharedWithClient(restClient kubernetes.Interface) (*Backend, error) {
