@@ -95,6 +95,7 @@ This configuration is defined in Protobuf form as:
 
 ```protobuf
 syntax = "proto3";
+
 message ProvisionTokenSpecV2KubernetesJWKS {
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
@@ -182,8 +183,6 @@ subjects:
 
 ### Implementation
 
-<-- TODO: Specs for RegisterUsingKubernetesJWKS RPC -->
-
 The `kubernetes-jwks` flow will leverage a challenge and response flow, similar
 to that implemented for IAM joining. The flow will run as follows:
 
@@ -210,6 +209,12 @@ to that implemented for IAM joining. The flow will run as follows:
     matches one of those configured in the allow rules of the token resource.
 6. If the JWT passes validation, certificates are signed and returned to the 
   client.
+
+This flow leverages the follow gRPC RPCs and Protobuf messages:
+
+```protobuf
+syntax = "proto3";
+```
 
 ## Security Considerations
 
