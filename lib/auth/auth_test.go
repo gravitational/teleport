@@ -569,17 +569,6 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry time.Duration) {
-	t.Helper()
-	actualTTL := time.Until(token.Expiry())
-	diff := actualTTL - expectExpiry
-	require.True(
-		t,
-		diff <= time.Minute && diff >= (-1*time.Minute),
-		"Token TTL should be within one minute of the desired TTL",
-	)
-}
-
 func TestAuth_SetStaticTokens(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
