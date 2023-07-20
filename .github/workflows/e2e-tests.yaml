@@ -3,7 +3,6 @@ run-name: E2E Tests
 on:
   # Only allow manual triggers
   workflow_dispatch:
-  pull_request: # TODO: remove
 
 jobs:
   build:
