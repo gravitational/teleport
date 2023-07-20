@@ -1476,6 +1476,23 @@ export namespace DeleteConnectMyComputerTokenRequest {
     }
 }
 
+export class DeleteConnectMyComputerTokenResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeleteConnectMyComputerTokenResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: DeleteConnectMyComputerTokenResponse): DeleteConnectMyComputerTokenResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeleteConnectMyComputerTokenResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeleteConnectMyComputerTokenResponse;
+    static deserializeBinaryFromReader(message: DeleteConnectMyComputerTokenResponse, reader: jspb.BinaryReader): DeleteConnectMyComputerTokenResponse;
+}
+
+export namespace DeleteConnectMyComputerTokenResponse {
+    export type AsObject = {
+    }
+}
+
 export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,

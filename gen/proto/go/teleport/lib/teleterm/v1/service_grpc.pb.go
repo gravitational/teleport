@@ -163,7 +163,7 @@ type TerminalServiceClient interface {
 	// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
 	CreateConnectMyComputerNodeToken(ctx context.Context, in *CreateConnectMyComputerNodeTokenRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerNodeTokenResponse, error)
 	// DeleteConnectMyComputerToken deletes a join token
-	DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerTokenResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -498,8 +498,8 @@ func (c *terminalServiceClient) CreateConnectMyComputerNodeToken(ctx context.Con
 	return out, nil
 }
 
-func (c *terminalServiceClient) DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
+func (c *terminalServiceClient) DeleteConnectMyComputerToken(ctx context.Context, in *DeleteConnectMyComputerTokenRequest, opts ...grpc.CallOption) (*DeleteConnectMyComputerTokenResponse, error) {
+	out := new(DeleteConnectMyComputerTokenResponse)
 	err := c.cc.Invoke(ctx, TerminalService_DeleteConnectMyComputerToken_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -603,7 +603,7 @@ type TerminalServiceServer interface {
 	// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
 	CreateConnectMyComputerNodeToken(context.Context, *CreateConnectMyComputerNodeTokenRequest) (*CreateConnectMyComputerNodeTokenResponse, error)
 	// DeleteConnectMyComputerToken deletes a join token
-	DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*EmptyResponse, error)
+	DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*DeleteConnectMyComputerTokenResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -704,7 +704,7 @@ func (UnimplementedTerminalServiceServer) CreateConnectMyComputerRole(context.Co
 func (UnimplementedTerminalServiceServer) CreateConnectMyComputerNodeToken(context.Context, *CreateConnectMyComputerNodeTokenRequest) (*CreateConnectMyComputerNodeTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateConnectMyComputerNodeToken not implemented")
 }
-func (UnimplementedTerminalServiceServer) DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*EmptyResponse, error) {
+func (UnimplementedTerminalServiceServer) DeleteConnectMyComputerToken(context.Context, *DeleteConnectMyComputerTokenRequest) (*DeleteConnectMyComputerTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteConnectMyComputerToken not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}

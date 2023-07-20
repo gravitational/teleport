@@ -132,7 +132,7 @@ service TerminalService {
   // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes
   rpc CreateConnectMyComputerNodeToken(CreateConnectMyComputerNodeTokenRequest) returns (CreateConnectMyComputerNodeTokenResponse);
   // DeleteConnectMyComputerToken deletes a join token
-  rpc DeleteConnectMyComputerToken(DeleteConnectMyComputerTokenRequest) returns (EmptyResponse);
+  rpc DeleteConnectMyComputerToken(DeleteConnectMyComputerTokenRequest) returns (DeleteConnectMyComputerTokenResponse);
 }
 
 message EmptyResponse {}
@@ -471,3 +471,5 @@ message DeleteConnectMyComputerTokenRequest {
   string root_cluster_uri = 1;
   string token = 2;
 }
+
+message DeleteConnectMyComputerTokenResponse {}

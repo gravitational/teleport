@@ -760,12 +760,12 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClus
 }
 
 // DeleteConnectMyComputerToken deletes a join token
-func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.EmptyResponse, error) {
+func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
 	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response := &api.EmptyResponse{}
+	response := &api.DeleteConnectMyComputerTokenResponse{}
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
