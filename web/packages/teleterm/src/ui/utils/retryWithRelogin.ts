@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { useCallback } from 'react';
-
 import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
 import Logger from 'teleterm/logger';
