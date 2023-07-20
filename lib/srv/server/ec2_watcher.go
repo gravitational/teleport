@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -62,12 +63,20 @@ type EC2Instances struct {
 // discovered.
 type EC2Instance struct {
 	InstanceID string
+	Tags       map[string]string
 }
 
-func toEC2Instance(inst *ec2.Instance) EC2Instance {
-	return EC2Instance{
-		InstanceID: aws.StringValue(inst.InstanceId),
+func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
+	inst := EC2Instance{
+		InstanceID: aws.StringValue(originalInst.InstanceId),
+		Tags:       make(map[string]string, len(originalInst.Tags)),
 	}
+	for _, tag := range originalInst.Tags {
+		if key := aws.StringValue(tag.Key); key != "" {
+			inst.Tags[key] = aws.StringValue(tag.Value)
+		}
+	}
+	return inst
 }
 
 // ToEC2Instances converts aws []*ec2.Instance to []EC2Instance
@@ -78,21 +87,57 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 		ec2Insts = append(ec2Insts, toEC2Instance(inst))
 	}
 	return ec2Insts
+}
 
+// ServerInfos creates a ServerInfo resource for each discovered instance.
+func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
+	serverInfos := make([]types.ServerInfo, 0, len(i.Instances))
+	for _, instance := range i.Instances {
+		name := i.AccountID + "-" + instance.InstanceID
+		tags := make(map[string]string, len(instance.Tags))
+		for k, v := range instance.Tags {
+			tags[labels.FormatCloudLabelKey(labels.AWSLabelNamespace, k)] = v
+		}
+
+		si, err := types.NewServerInfo(types.Metadata{
+			Name: name,
+		}, types.ServerInfoSpecV1{
+			NewLabels: tags,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serverInfos = append(serverInfos, si)
+	}
+
+	return serverInfos, nil
+}
+
+// Option is a functional option for the Watcher.
+type Option func(*Watcher)
+
+// WithPollInterval sets the interval at which the watcher will fetch
+// instances from AWS.
+func WithPollInterval(interval time.Duration) Option {
+	return func(w *Watcher) {
+		w.pollInterval = interval
+	}
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server) (*Watcher, error) {
+func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
 		fetchers:       []Fetcher{},
 		ctx:            cancelCtx,
 		cancel:         cancelFn,
-		fetchInterval:  time.Minute,
+		pollInterval:   time.Minute,
 		InstancesC:     make(chan Instances),
 		missedRotation: missedRotation,
 	}
-
+	for _, opt := range opts {
+		opt(&watcher)
+	}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
@@ -320,7 +365,6 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 			}
 			return true
 		})
-
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}

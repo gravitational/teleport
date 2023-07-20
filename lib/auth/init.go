@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -146,6 +147,9 @@ type InitConfig struct {
 	// Assist is a service that implements the Teleport Assist functionality.
 	Assist services.Assistant
 
+	// UserPreferences is a service that manages user preferences.
+	UserPreferences services.UserPreferences
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 
@@ -225,6 +229,9 @@ type InitConfig struct {
 	// Okta is a service that manages Okta resources.
 	Okta services.Okta
 
+	// AccessLists is a service that manages access list resources.
+	AccessLists services.AccessLists
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
@@ -232,6 +239,12 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// EmbeddingRetriever is a retriever for embeddings.
+	EmbeddingRetriever *ai.SimpleRetriever
+
+	// EmbeddingClient is a client that allows generating embeddings.
+	EmbeddingClient ai.Embedder
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
@@ -231,6 +232,33 @@ func TestConvertUsageEvent(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name: "discover deploy service event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
+				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
+					Metadata:     &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource:     &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:       &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					DeployMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DEPLOY_METHOD_AUTO,
+					DeployType:   usageeventsv1.UIDiscoverDeployServiceEvent_DEPLOY_TYPE_AMAZON_ECS,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverDeployServiceEvent{
+				UiDiscoverDeployServiceEvent: &prehogv1a.UIDiscoverDeployServiceEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Sso:      false,
+					},
+					Resource:     &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:       &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					DeployMethod: prehogv1a.UIDiscoverDeployServiceEvent_DEPLOY_METHOD_AUTO,
+					DeployType:   prehogv1a.UIDiscoverDeployServiceEvent_DEPLOY_TYPE_AMAZON_ECS,
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
@@ -249,6 +277,112 @@ func TestConvertUsageEvent(t *testing.T) {
 			got := usageEvent.Anonymize(anonymizer)
 
 			require.Equal(t, tt.expected, &got)
+		})
+	}
+}
+
+func TestEmitEditorChangeEvent(t *testing.T) {
+	tt := []struct {
+		name           string
+		username       string
+		prevRoles      []string
+		newRoles       []string
+		expectedStatus prehogv1a.EditorChangeStatus
+	}{
+		{
+			name:           "Role is granted to user",
+			username:       "user1",
+			prevRoles:      []string{"role1", "role2"},
+			newRoles:       []string{"role1", "role2", teleport.PresetEditorRoleName},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED,
+		},
+		{
+			name:           "Role is removed from user",
+			username:       "user2",
+			prevRoles:      []string{"role1", "role2", teleport.PresetEditorRoleName},
+			newRoles:       []string{"role1", "role2"},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED,
+		},
+		{
+			name:      "Role remains the same",
+			username:  "user3",
+			prevRoles: []string{"role1", "role2", teleport.PresetEditorRoleName},
+			newRoles:  []string{"role1", "role2", teleport.PresetEditorRoleName},
+		},
+		{
+			name:      "Role is not granted or removed",
+			username:  "user4",
+			prevRoles: []string{"role1", "role2"},
+			newRoles:  []string{"role1", "role2"},
+		},
+		{
+			name:           "User is granted the editor role but had other roles",
+			username:       "user5",
+			prevRoles:      []string{"role1", "role2"},
+			newRoles:       []string{"role1", "role2", teleport.PresetEditorRoleName},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED,
+		},
+		{
+			name:           "User is removed from the editor role but still has other roles",
+			username:       "user6",
+			prevRoles:      []string{"role1", "role2", teleport.PresetEditorRoleName},
+			newRoles:       []string{"role1", "role2"},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED,
+		},
+		{
+			name:           "No previous roles, editor role granted",
+			username:       "user7",
+			prevRoles:      nil,
+			newRoles:       []string{teleport.PresetEditorRoleName},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED,
+		},
+		{
+			name:           "Only had editor role, role removed",
+			username:       "user8",
+			prevRoles:      []string{teleport.PresetEditorRoleName},
+			newRoles:       nil,
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED,
+		},
+		{
+			name:      "Nil roles",
+			username:  "user9",
+			prevRoles: nil,
+			newRoles:  nil,
+		},
+		{
+			name:           "Granted multiple roles, including editor",
+			username:       "user10",
+			prevRoles:      []string{"role1", "role2"},
+			newRoles:       []string{"role1", "role2", "role3", teleport.PresetEditorRoleName},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED,
+		},
+		{
+			name:           "Removed from multiple roles, including editor",
+			username:       "user11",
+			prevRoles:      []string{"role1", "role2", "role3", teleport.PresetEditorRoleName},
+			newRoles:       []string{"role1", "role2"},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			var submittedEvents []Anonymizable
+			mockSubmit := func(a ...Anonymizable) {
+				submittedEvents = append(submittedEvents, a...)
+			}
+
+			EmitEditorChangeEvent(tc.username, tc.prevRoles, tc.newRoles, mockSubmit)
+
+			if tc.expectedStatus == prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED || tc.expectedStatus == prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED {
+				require.NotEmpty(t, submittedEvents)
+				event, ok := submittedEvents[0].(*EditorChangeEvent)
+				require.True(t, ok, "event is not of type *EditorChangeEvent")
+				require.Equal(t, tc.expectedStatus, event.Status)
+				require.Equal(t, tc.username, event.UserName)
+			} else {
+				require.Empty(t, submittedEvents, "No event should have been submitted")
+			}
 		})
 	}
 }

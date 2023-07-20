@@ -18,9 +18,9 @@ RUN apt-get update && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.2 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = '04a727df50fde3f69127aed4bc48e6cff5430175' ] && \
+    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
     make install-static && \
     make clean
 
@@ -114,7 +114,7 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
-# Latest git 2.18+ is required for GitHub actions
+# Latest git 2.18+ is required for GitHub actions.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get -y update && \
     apt-get -y install software-properties-common && \
@@ -144,11 +144,12 @@ RUN apt-get -y update && \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
-        osslsigncode \
         python3-pip \
         python3-setuptools \
         python3-wheel \
         pkg-config \
+        # rsync is required for some integration tests
+        rsync \
         softhsm2 \
         sudo \
         tree \
@@ -173,6 +174,18 @@ RUN apt-get -y update && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Install osslsigncode for Windows Code Signing. The format of our 
+# Code Signing Certificate needs us to use osslsigncode >= 2.6, which
+# allows the use of legacy OpenSSL algorithms. This is not yet provided
+# by Ubuntu, so we will have to fetch it ourselves.   
+RUN --mount=type=bind,target=/context \
+    curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
+    && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
+    && unzip -d /tmp/osslsigncode osslsigncode.zip \
+    && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
+    && rm -rf /tmp/osslsigncode \
+    && rm osslsigncode.zip
+    
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \

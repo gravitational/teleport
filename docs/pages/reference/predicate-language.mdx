@@ -68,6 +68,7 @@ The language also supports the following functions:
 | `exists(labels["env"])`               | resources with a label key `env`; label value unchecked    |
 | `!exists(labels["env"])`              | resources without a label key `env`; label value unchecked |
 | `search("foo", "bar", "some phrase")` | fuzzy match against common resource fields                 |
+| `hasPrefix(name, "foo")`              | resources with a name that starts with the prefix `foo`    |
 
 See some [examples](cli.mdx#filter-examples) of the different ways you can filter resources.
 

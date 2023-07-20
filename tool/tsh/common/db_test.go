@@ -23,21 +23,21 @@ import (
 	"crypto/rsa"
 	"encoding/pem"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -47,91 +47,130 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
-// TestDatabaseLogin tests "tsh db login" command and verifies "tsh db
+func TestTshDB(t *testing.T) {
+	// this speeds up test suite setup substantially, which is where
+	// tests spend the majority of their time, especially when leaf
+	// clusters are setup.
+	testenv.WithResyncInterval(t, 0)
+	// Proxy uses self-signed certificates in tests.
+	testenv.WithInsecureDevMode(t, true)
+	t.Run("Login", testDatabaseLogin)
+	t.Run("List", testListDatabase)
+	t.Run("FilterActiveDatabases", testFilterActiveDatabases)
+}
+
+// testDatabaseLogin tests "tsh db login" command and verifies "tsh db
 // env/config" after login.
-func TestDatabaseLogin(t *testing.T) {
-	tmpHomePath := t.TempDir()
-
-	connector := mockConnector(t)
-
+func testDatabaseLogin(t *testing.T) {
+	t.Parallel()
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
+	// to use default --db-user and --db-name selection, make a user with just
+	// one of each allowed.
 	alice.SetDatabaseUsers([]string{"admin"})
 	alice.SetDatabaseNames([]string{"default"})
 	alice.SetRoles([]string{"access"})
-
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
-		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
-			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-		}),
-		withConfig(func(cfg *servicecfg.Config) {
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
-			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-		}))
-	makeTestDatabaseServer(t, authProcess, proxyProcess,
-		servicecfg.Database{
-			Name:     "postgres",
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-		}, servicecfg.Database{
-			Name:     "mysql",
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "localhost:3306",
-		}, servicecfg.Database{
-			Name:     "cassandra",
-			Protocol: defaults.ProtocolCassandra,
-			URI:      "localhost:9042",
-		}, servicecfg.Database{
-			Name:     "snowflake",
-			Protocol: defaults.ProtocolSnowflake,
-			URI:      "localhost.snowflakecomputing.com",
-		}, servicecfg.Database{
-			Name:     "mongo",
-			Protocol: defaults.ProtocolMongoDB,
-			URI:      "localhost:27017",
-		}, servicecfg.Database{
-			Name:     "mssql",
-			Protocol: defaults.ProtocolSQLServer,
-			URI:      "localhost:1433",
-		}, servicecfg.Database{
-			Name:     "dynamodb",
-			Protocol: defaults.ProtocolDynamoDB,
-			URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
-			AWS: servicecfg.DatabaseAWS{
-				AccountID:  "123456789012",
-				ExternalID: "123123123",
-				Region:     "us-west-1",
-			},
-		})
-
-	authServer := authProcess.GetAuthServer()
-	require.NotNil(t, authServer)
-
-	proxyAddr, err := proxyProcess.ProxyWebAddr()
-	require.NoError(t, err)
+			// set the public address to be sure even on v2+, tsh clients will see the separate port.
+			mySQLAddr := localListenerAddr()
+			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
+			cfg.Proxy.MySQLPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				{
+					Name:     "postgres-local",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+					StaticLabels: map[string]string{
+						"env": "local",
+					},
+				}, {
+					Name:     "postgres-rds-us-west-1-123456789012",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+					StaticLabels: map[string]string{
+						types.DiscoveredNameLabel: "postgres",
+						"region":                  "us-west-1",
+						"env":                     "prod",
+					},
+					AWS: servicecfg.DatabaseAWS{
+						AccountID: "123456789012",
+						Region:    "us-west-1",
+						RDS: servicecfg.DatabaseAWSRDS{
+							InstanceID: "postgres",
+						},
+					},
+				}, {
+					Name:     "postgres-rds-us-west-2-123456789012",
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "localhost:5432",
+					StaticLabels: map[string]string{
+						types.DiscoveredNameLabel: "postgres",
+						"region":                  "us-west-2",
+						"env":                     "prod",
+					},
+					AWS: servicecfg.DatabaseAWS{
+						AccountID: "123456789012",
+						Region:    "us-west-2",
+						RDS: servicecfg.DatabaseAWSRDS{
+							InstanceID: "postgres",
+						},
+					},
+				}, {
+					Name:     "mysql",
+					Protocol: defaults.ProtocolMySQL,
+					URI:      "localhost:3306",
+				}, {
+					Name:     "cassandra",
+					Protocol: defaults.ProtocolCassandra,
+					URI:      "localhost:9042",
+				}, {
+					Name:     "snowflake",
+					Protocol: defaults.ProtocolSnowflake,
+					URI:      "localhost.snowflakecomputing.com",
+				}, {
+					Name:     "mongo",
+					Protocol: defaults.ProtocolMongoDB,
+					URI:      "localhost:27017",
+				}, {
+					Name:     "mssql",
+					Protocol: defaults.ProtocolSQLServer,
+					URI:      "localhost:1433",
+				}, {
+					Name:     "dynamodb",
+					Protocol: defaults.ProtocolDynamoDB,
+					URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+					AWS: servicecfg.DatabaseAWS{
+						AccountID:  "123456789012",
+						ExternalID: "123123123",
+						Region:     "us-west-1",
+					},
+				}}
+		}),
+	)
+	s.user = alice
 
 	// Log into Teleport cluster.
-	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
-	require.NoError(t, err)
+	tmpHomePath, _ := mustLogin(t, s)
 
 	testCases := []struct {
-		databaseName          string
+		// databaseName should be the full database name.
+		databaseName string
+		// dbSelectors can be any of db name, --labels, --query predicate,
+		// and defaults to be databaseName if not set.
+		dbSelectors           []string
 		expectCertsLen        int
 		expectKeysLen         int
 		expectErrForConfigCmd bool
 		expectErrForEnvCmd    bool
 	}{
-		{
-			databaseName:   "postgres",
-			expectCertsLen: 1,
-		},
 		{
 			databaseName:       "mongo",
 			expectCertsLen:     1,
@@ -168,6 +207,24 @@ func TestDatabaseLogin(t *testing.T) {
 			expectErrForConfigCmd: true, // "tsh db config" not supported for DynamoDB.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for DynamoDB.
 		},
+		{
+			databaseName: "postgres-local",
+			// select by labels alone.
+			dbSelectors:    []string{"--labels", "env=local"},
+			expectCertsLen: 1,
+		},
+		{
+			databaseName: "postgres-rds-us-west-1-123456789012",
+			// select by query alone.
+			dbSelectors:    []string{"--query", `labels.env=="prod" && labels.region == "us-west-1"`},
+			expectCertsLen: 1,
+		},
+		{
+			databaseName: "postgres-rds-us-west-2-123456789012",
+			// select by uniquely identifying prefix.
+			dbSelectors:    []string{"postgres-rds-us-west-2"},
+			expectCertsLen: 1,
+		},
 	}
 
 	// Note: keystore currently races when multiple tsh clients work in the
@@ -178,51 +235,72 @@ func TestDatabaseLogin(t *testing.T) {
 	// Copying the profile dir is faster than sequential login for each database.
 	for _, test := range testCases {
 		test := test
-		t.Run(fmt.Sprintf("%v/%v", "tsh db login", test.databaseName), func(t *testing.T) {
+		t.Run(test.databaseName, func(t *testing.T) {
 			t.Parallel()
 			tmpHomePath := mustCloneTempDir(t, tmpHomePath)
-			err := Run(context.Background(), []string{
+			selectors := test.dbSelectors
+			if len(selectors) == 0 {
+				selectors = []string{test.databaseName}
+			}
+			args := append([]string{
 				// default --db-user and --db-name are selected from roles.
-				"db", "login", test.databaseName,
-			}, setHomePath(tmpHomePath))
+				"db", "login",
+			}, selectors...)
+			err := Run(context.Background(), args, setHomePath(tmpHomePath))
 			require.NoError(t, err)
 
 			// Fetch the active profile.
 			clientStore := client.NewFSClientStore(tmpHomePath)
-			profile, err := clientStore.ReadProfileStatus(proxyAddr.Host())
+			profile, err := clientStore.ReadProfileStatus(s.root.Config.Proxy.WebAddr.String())
 			require.NoError(t, err)
-			require.Equal(t, alice.GetName(), profile.Username)
+			require.Equal(t, s.user.GetName(), profile.Username)
 
 			// Verify certificates.
+			// grab the certs using the actual database name to verify certs.
 			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
 			require.NoError(t, err)
 			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
 			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
 
-			t.Run(fmt.Sprintf("%v/%v", "tsh db config", test.databaseName), func(t *testing.T) {
-				t.Parallel()
-				err := Run(context.Background(), []string{
-					"db", "config", test.databaseName,
-				}, setHomePath(tmpHomePath))
+			t.Run("print info", func(t *testing.T) {
+				// organize these as parallel subtests in a group, so we can run
+				// them in parallel together before the logout test runs below.
+				t.Run("config", func(t *testing.T) {
+					t.Parallel()
+					args := append([]string{
+						"db", "config",
+					}, selectors...)
+					err := Run(context.Background(), args, setHomePath(tmpHomePath))
 
-				if test.expectErrForConfigCmd {
-					require.Error(t, err)
-				} else {
-					require.NoError(t, err)
-				}
+					if test.expectErrForConfigCmd {
+						require.Error(t, err)
+						require.NotContains(t, err.Error(), "matches multiple", "should not be ambiguity error")
+					} else {
+						require.NoError(t, err)
+					}
+				})
+				t.Run("env", func(t *testing.T) {
+					t.Parallel()
+					args := append([]string{
+						"db", "env",
+					}, selectors...)
+					err := Run(context.Background(), args, setHomePath(tmpHomePath))
+
+					if test.expectErrForEnvCmd {
+						require.Error(t, err)
+						require.NotContains(t, err.Error(), "matches multiple", "should not be ambiguity error")
+					} else {
+						require.NoError(t, err)
+					}
+				})
 			})
 
-			t.Run(fmt.Sprintf("%v/%v", "tsh db env", test.databaseName), func(t *testing.T) {
-				t.Parallel()
-				err := Run(context.Background(), []string{
-					"db", "env", test.databaseName,
-				}, setHomePath(tmpHomePath))
-
-				if test.expectErrForEnvCmd {
-					require.Error(t, err)
-				} else {
-					require.NoError(t, err)
-				}
+			t.Run("logout", func(t *testing.T) {
+				args := append([]string{
+					"db", "logout",
+				}, selectors...)
+				err := Run(context.Background(), args, setHomePath(tmpHomePath))
+				require.NoError(t, err)
 			})
 		})
 	}
@@ -315,6 +393,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 				Context:         ctx,
 				TracingProvider: tracing.NoopProvider(),
 				HomePath:        tmpHomePath,
+				tracer:          tracing.NoopTracer(teleport.ComponentTSH),
 			}
 			tc, err := makeClient(cf)
 			require.NoError(t, err)
@@ -338,22 +417,34 @@ func TestLocalProxyRequirement(t *testing.T) {
 	}
 }
 
-func TestListDatabase(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
-
+func testListDatabase(t *testing.T) {
+	t.Parallel()
+	discoveredName := "root-postgres"
+	fullName := "root-postgres-rds-us-west-1-123456789012"
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{{
-				Name:     "root-postgres",
+				Name:     fullName,
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
+				StaticLabels: map[string]string{
+					types.DiscoveredNameLabel: discoveredName,
+				},
+				AWS: servicecfg.DatabaseAWS{
+					AccountID: "123456789012",
+					Region:    "us-west-1",
+					RDS: servicecfg.DatabaseAWSRDS{
+						InstanceID: "root-postgres",
+					},
+				},
 			}}
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{{
 				Name:     "leaf-postgres",
@@ -363,7 +454,7 @@ func TestListDatabase(t *testing.T) {
 		}),
 	)
 
-	mustLoginSetEnv(t, s)
+	tshHome, _ := mustLogin(t, s)
 
 	captureStdout := new(bytes.Buffer)
 	err := Run(context.Background(), []string{
@@ -371,10 +462,34 @@ func TestListDatabase(t *testing.T) {
 		"ls",
 		"--insecure",
 		"--debug",
-	}, setCopyStdout(captureStdout))
+	}, setCopyStdout(captureStdout), setHomePath(tshHome))
 
 	require.NoError(t, err)
-	require.Contains(t, captureStdout.String(), "root-postgres")
+	lines := strings.Split(captureStdout.String(), "\n")
+	require.Greater(t, len(lines), 2,
+		"there should be two lines of header followed by data rows")
+	require.True(t,
+		strings.HasPrefix(lines[2], discoveredName),
+		"non-verbose listing should print the discovered db name")
+	require.False(t,
+		strings.HasPrefix(lines[2], fullName),
+		"non-verbose listing should not print full db name")
+
+	captureStdout.Reset()
+	err = Run(context.Background(), []string{
+		"db",
+		"ls",
+		"--verbose",
+		"--insecure",
+		"--debug",
+	}, setCopyStdout(captureStdout), setHomePath(tshHome))
+	require.NoError(t, err)
+	lines = strings.Split(captureStdout.String(), "\n")
+	require.Greater(t, len(lines), 2,
+		"there should be two lines of header followed by data rows")
+	require.True(t,
+		strings.HasPrefix(lines[2], fullName),
+		"verbose listing should print full db name")
 
 	captureStdout.Reset()
 	err = Run(context.Background(), []string{
@@ -384,13 +499,15 @@ func TestListDatabase(t *testing.T) {
 		"leaf1",
 		"--insecure",
 		"--debug",
-	}, setCopyStdout(captureStdout))
+	}, setCopyStdout(captureStdout), setHomePath(tshHome))
 
 	require.NoError(t, err)
 	require.Contains(t, captureStdout.String(), "leaf-postgres")
 }
 
 func TestFormatDatabaseListCommand(t *testing.T) {
+	t.Parallel()
+
 	t.Run("default", func(t *testing.T) {
 		require.Equal(t, "tsh db ls", formatDatabaseListCommand(""))
 	})
@@ -401,6 +518,8 @@ func TestFormatDatabaseListCommand(t *testing.T) {
 }
 
 func TestFormatConfigCommand(t *testing.T) {
+	t.Parallel()
+
 	db := tlsca.RouteToDatabase{
 		ServiceName: "example-db",
 	}
@@ -415,6 +534,8 @@ func TestFormatConfigCommand(t *testing.T) {
 }
 
 func TestDBInfoHasChanged(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		databaseUserName   string
@@ -522,38 +643,6 @@ func TestDBInfoHasChanged(t *testing.T) {
 			require.Equal(t, tc.wantUserHasChanged, got)
 		})
 	}
-}
-
-func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
-	// Proxy uses self-signed certificates in tests.
-	lib.SetInsecureDevMode(true)
-
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.Hostname = "localhost"
-	cfg.DataDir = t.TempDir()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-
-	proxyAddr, err := proxy.ProxyWebAddr()
-	require.NoError(t, err)
-
-	cfg.SetAuthServerAddress(*proxyAddr)
-
-	token, err := proxy.Config.Token()
-	require.NoError(t, err)
-
-	cfg.SetToken(token)
-	cfg.SSH.Enabled = false
-	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = false
-	cfg.Databases.Enabled = true
-	cfg.Databases.Databases = dbs
-	cfg.Log = utils.NewLoggerForTests()
-
-	db = runTeleport(t, cfg)
-
-	// Wait for all databases to register to avoid races.
-	waitForDatabases(t, auth, dbs)
-	return db
 }
 
 func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
@@ -799,4 +888,185 @@ func TestGetDefaultDBNameAndUser(t *testing.T) {
 			require.Equal(t, test.expectDBName, dbName)
 		})
 	}
+}
+
+func testFilterActiveDatabases(t *testing.T) {
+	t.Parallel()
+	// setup some databases and "active" routes to test filtering
+	db1, route1 := makeDBConfigAndRoute("foobar", map[string]string{"env": "dev", "svc": "fooer"})
+	db1AWS, route1AWS := makeDBConfigAndRoute("foobar-us-west-1-123456789012", map[string]string{"env": "prod", "region": "us-west-1"})
+	db1Azure, route1Azure := makeDBConfigAndRoute("foobar-westus-11111", map[string]string{"env": "prod", "region": "westus"})
+	db2, route2 := makeDBConfigAndRoute("bazqux", map[string]string{"env": "dev", "svc": "bazzer"})
+	db2AWS, route2AWS := makeDBConfigAndRoute("bazqux-us-west-1-123456789012", map[string]string{"env": "prod", "region": "us-west-1"})
+	db3, route3 := makeDBConfigAndRoute("some-unique-name", map[string]string{"env": "dev"})
+	routes := []tlsca.RouteToDatabase{route1, route1AWS, route1Azure, route2, route2AWS, route3}
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{
+				db1, db1AWS, db1Azure, db2, db2AWS, db3,
+			}
+		}),
+	)
+
+	// Log into Teleport cluster.
+	tmpHomePath, _ := mustLogin(t, s)
+
+	tests := []struct {
+		name,
+		dbName,
+		labels,
+		query string
+		wantAPICall bool
+		wantRoutes  []tlsca.RouteToDatabase
+	}{
+		{
+			name:        "by exact name",
+			dbName:      route1.ServiceName,
+			wantAPICall: false,
+			wantRoutes:  []tlsca.RouteToDatabase{route1},
+		},
+		{
+			name:        "by name prefix",
+			dbName:      "foo",
+			wantAPICall: false,
+			wantRoutes:  []tlsca.RouteToDatabase{route1, route1AWS, route1Azure},
+		},
+		{
+			name:        "by labels",
+			labels:      "env=dev",
+			wantAPICall: true,
+			wantRoutes:  []tlsca.RouteToDatabase{route1, route2, route3},
+		},
+		{
+			name:        "by query",
+			query:       `labels.env == "dev"`,
+			wantAPICall: true,
+			wantRoutes:  []tlsca.RouteToDatabase{route1, route2, route3},
+		},
+		{
+			name:        "by name prefix and labels",
+			dbName:      "foo",
+			labels:      "env=prod",
+			wantAPICall: true,
+			wantRoutes:  []tlsca.RouteToDatabase{route1AWS, route1Azure},
+		},
+		{
+			name:        "by name prefix and query",
+			dbName:      "foo",
+			query:       `labels.region == "us-west-1"`,
+			wantAPICall: true,
+			wantRoutes:  []tlsca.RouteToDatabase{route1AWS},
+		},
+		{
+			name:        "by labels and query",
+			labels:      "env=dev",
+			query:       `hasPrefix(name, "some-uniq")`,
+			wantAPICall: true,
+			wantRoutes:  []tlsca.RouteToDatabase{route3},
+		},
+		{
+			name:        "by name prefix and labels and query",
+			dbName:      "foo",
+			labels:      "env=prod",
+			query:       `labels.region == "westus"`,
+			wantAPICall: true,
+			wantRoutes:  []tlsca.RouteToDatabase{route1Azure},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			cf := &CLIConf{
+				Context:             ctx,
+				HomePath:            tmpHomePath,
+				DatabaseService:     tt.dbName,
+				Labels:              tt.labels,
+				PredicateExpression: tt.query,
+			}
+			tc, err := makeClient(cf)
+			require.NoError(t, err)
+			routes, dbs, err := filterActiveDatabases(ctx, tc, routes)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tt.wantRoutes, routes))
+			if tt.wantAPICall {
+				require.Equal(t, len(routes), len(dbs),
+					"returned routes should have corresponding types.Databases")
+				return
+			}
+			require.Zero(t, len(dbs), "unexpected API call to ListDatabases")
+		})
+	}
+}
+
+func TestResourceSelectorsFormatting(t *testing.T) {
+	tests := []struct {
+		testName  string
+		selectors resourceSelectors
+		want      string
+	}{
+		{
+			testName: "no selectors",
+			selectors: resourceSelectors{
+				kind: "database",
+			},
+			want: "database",
+		},
+		{
+			testName: "by name",
+			selectors: resourceSelectors{
+				kind: "database",
+				name: "foo",
+			},
+			want: `database "foo"`,
+		},
+		{
+			testName: "by labels",
+			selectors: resourceSelectors{
+				kind:   "database",
+				labels: "env=dev,region=us-west-1",
+			},
+			want: `database with labels "env=dev,region=us-west-1"`,
+		},
+		{
+			testName: "by predicate",
+			selectors: resourceSelectors{
+				kind:  "database",
+				query: `labels["env"]=="dev" && labels.region == "us-west-1"`,
+			},
+			want: `database with query (labels["env"]=="dev" && labels.region == "us-west-1")`,
+		},
+		{
+			testName: "by name and labels and predicate",
+			selectors: resourceSelectors{
+				kind:   "app",
+				name:   "foo",
+				labels: "env=dev,region=us-west-1",
+				query:  `labels["env"]=="dev" && labels.region == "us-west-1"`,
+			},
+			want: `app "foo" with labels "env=dev,region=us-west-1" with query (labels["env"]=="dev" && labels.region == "us-west-1")`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			require.Equal(t, tt.want, fmt.Sprintf("%v", tt.selectors))
+		})
+	}
+}
+
+// makeDBConfigAndRoute is a helper func that makes a db config and
+// corresponding cert encoded route to that db - protocol etc not important.
+func makeDBConfigAndRoute(name string, staticLabels map[string]string) (servicecfg.Database, tlsca.RouteToDatabase) {
+	db := servicecfg.Database{
+		Name:         name,
+		Protocol:     defaults.ProtocolPostgres,
+		URI:          "localhost:5432",
+		StaticLabels: staticLabels,
+	}
+	route := tlsca.RouteToDatabase{ServiceName: name}
+	return db, route
 }

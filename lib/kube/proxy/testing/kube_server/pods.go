@@ -27,6 +27,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 var podList = corev1.PodList{
@@ -63,7 +65,7 @@ func newPod(name, namespace string) corev1.Pod {
 func (s *KubeMockServer) listPods(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	items := []corev1.Pod{}
 
-	namespace := p.ByName("podNamespace")
+	namespace := p.ByName("namespace")
 	filter := func(pod corev1.Pod) bool {
 		return len(namespace) == 0 || namespace == pod.Namespace
 	}
@@ -85,8 +87,8 @@ func (s *KubeMockServer) listPods(w http.ResponseWriter, req *http.Request, p ht
 }
 
 func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	namespace := p.ByName("podNamespace")
-	name := p.ByName("podName")
+	namespace := p.ByName("namespace")
+	name := p.ByName("name")
 	filter := func(pod corev1.Pod) bool {
 		return pod.Name == name && namespace == pod.Namespace
 	}
@@ -99,8 +101,8 @@ func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p http
 }
 
 func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	namespace := p.ByName("podNamespace")
-	name := p.ByName("podName")
+	namespace := p.ByName("namespace")
+	name := p.ByName("name")
 	deleteOpts, err := parseDeleteCollectionBody(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,7 +117,7 @@ func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p h
 	for _, pod := range podList.Items {
 		if filter(pod) {
 			s.mu.Lock()
-			s.deletedPods[reqID] = append(s.deletedPods[reqID], filepath.Join(namespace, name))
+			s.deletedResources[deletedResource{kind: types.KindKubePod, requestID: reqID}] = append(s.deletedResources[deletedResource{kind: types.KindKubePod, requestID: reqID}], filepath.Join(namespace, name))
 			s.mu.Unlock()
 			return pod, nil
 		}
@@ -125,8 +127,9 @@ func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p h
 
 func (s *KubeMockServer) DeletedPods(reqID string) []string {
 	s.mu.Lock()
-	deleted := make([]string, len(s.deletedPods[reqID]))
-	copy(deleted, s.deletedPods[reqID])
+	key := deletedResource{kind: types.KindKubePod, requestID: reqID}
+	deleted := make([]string, len(s.deletedResources[key]))
+	copy(deleted, s.deletedResources[key])
 	s.mu.Unlock()
 	sort.Strings(deleted)
 	return deleted

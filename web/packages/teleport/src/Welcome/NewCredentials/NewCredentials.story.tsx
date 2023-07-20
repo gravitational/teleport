@@ -152,6 +152,17 @@ export const SuccessAndPrivateKeyEnabledReset = () => (
     privateKeyPolicyEnabled={true}
   />
 );
+export const SuccessRegisterDashboard = () => (
+  <NewCredentials {...props} success={true} isDashboard={true} />
+);
+export const SuccessResetDashboard = () => (
+  <NewCredentials
+    {...props}
+    success={true}
+    resetMode={true}
+    isDashboard={true}
+  />
+);
 
 function CardWrapper({ children }) {
   return (
@@ -233,4 +244,5 @@ const props: Props = {
       'QUKIICFEkBAiSAgRJIQ8GZ3rjnbtD76d3X92ber60v0xsClnB9/OsnUO3pAgIUSQECJICBEkhAgSQgQJ' +
       'IYKEEEFCiCAh5KMwdgQ8OCEhRJAQ8v8AAAD//1QuL6EmJFBiAAAAAElFTkSuQmCC',
   },
+  isDashboard: false,
 };

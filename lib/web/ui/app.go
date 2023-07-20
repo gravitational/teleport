@@ -47,6 +47,16 @@ type App struct {
 	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
 	// FriendlyName is a friendly name for the app.
 	FriendlyName string `json:"friendlyName,omitempty"`
+	// UserGroups is a list of associated user groups.
+	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
+}
+
+// UserGroupAndDescription is a user group name and its description.
+type UserGroupAndDescription struct {
+	// Name is the name of the user group.
+	Name string `json:"name"`
+	// Description is the description of the user group.
+	Description string `json:"description"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -59,6 +69,8 @@ type MakeAppsConfig struct {
 	AppClusterName string
 	// Apps is a list of registered apps.
 	Apps types.Apps
+	// AppsToUserGroups is a mapping of application names to user groups.
+	AppsToUserGroups map[string]types.UserGroups
 	// Identity is identity of the logged in user.
 	Identity *tlsca.Identity
 }
@@ -70,6 +82,16 @@ func MakeApps(c MakeAppsConfig) []App {
 		fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, teleApp)
 		labels := makeLabels(teleApp.GetAllLabels())
 
+		userGroups := c.AppsToUserGroups[teleApp.GetName()]
+
+		userGroupAndDescriptions := make([]UserGroupAndDescription, len(userGroups))
+		for i, userGroup := range userGroups {
+			userGroupAndDescriptions[i] = UserGroupAndDescription{
+				Name:        userGroup.GetName(),
+				Description: userGroup.GetMetadata().Description,
+			}
+		}
+
 		app := App{
 			Name:         teleApp.GetName(),
 			Description:  teleApp.GetDescription(),
@@ -80,6 +102,7 @@ func MakeApps(c MakeAppsConfig) []App {
 			FQDN:         fqdn,
 			AWSConsole:   teleApp.IsAWSConsole(),
 			FriendlyName: services.FriendlyName(teleApp),
+			UserGroups:   userGroupAndDescriptions,
 		}
 
 		if teleApp.IsAWSConsole() {

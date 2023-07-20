@@ -1015,7 +1015,7 @@ type Auth struct {
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 
 	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AssistOptions `yaml:"assist,omitempty"`
+	Assist *AuthAssistOptions `yaml:"assist,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.
@@ -1044,7 +1044,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval
+		a.ProxyPingInterval != empty.ProxyPingInterval ||
+		(a.Assist != nil && a.Assist.CommandExecutionWorkers != 0)
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -1379,10 +1380,23 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 	}, nil
 }
 
-// AssistOptions is a set of options related to the Teleport Assist feature.
+// AssistOptions is a set of options common to both Auth and Proxy related to the Teleport Assist feature.
 type AssistOptions struct {
 	// OpenAI is a set of options related to the OpenAI assist backend.
 	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
+}
+
+// ProxyAssistOptions is a set of proxy service options related to the Assist feature
+type ProxyAssistOptions struct {
+	AssistOptions `yaml:",inline"`
+}
+
+// AuthAssistOptions is a set of auth service options related to the Assist feature
+type AuthAssistOptions struct {
+	AssistOptions `yaml:",inline"`
+	// CommandExecutionWorkers determines the number of workers that will
+	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
+	CommandExecutionWorkers int32 `yaml:"command_execution_workers,omitempty"`
 }
 
 // OpenAIOptions stores options related to the OpenAI assist backend.
@@ -1575,6 +1589,9 @@ type Discovery struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
+	// PollInterval is the cadence at which the discovery server will run each of its
+	// discovery cycles.
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
@@ -1714,7 +1731,7 @@ type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 	// AWS contains AWS specific settings.
-	AWS ResourceMatcherAWS `yaml:"aws"`
+	AWS ResourceMatcherAWS `yaml:"aws,omitempty"`
 }
 
 // ResourceMatcherAWS contains AWS specific settings for resource matcher.
@@ -2120,7 +2137,12 @@ type Proxy struct {
 	UI *UIConfig `yaml:"ui,omitempty"`
 
 	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AssistOptions `yaml:"assist,omitempty"`
+	Assist *ProxyAssistOptions `yaml:"assist,omitempty"`
+
+	// TrustXForwardedFor enables the service to take client source IPs from
+	// the "X-Forwarded-For" headers for web APIs received from layer 7 load
+	// balancers or reverse proxies.
+	TrustXForwardedFor types.Bool `yaml:"trust_x_forwarded_for,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

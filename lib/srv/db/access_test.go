@@ -56,12 +56,13 @@ import (
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -1254,7 +1255,7 @@ type testContext struct {
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
 	webListener    *multiplexer.WebListener
-	fakeRemoteSite *reversetunnel.FakeRemoteSite
+	fakeRemoteSite *reversetunnelclient.FakeRemoteSite
 	server         *Server
 	emitter        *eventstest.ChannelEmitter
 	databaseCA     types.CertAuthority
@@ -1990,10 +1991,10 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeRemoteSite = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
+	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
 	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
-	tunnel := &reversetunnel.FakeServer{
-		Sites: []reversetunnel.RemoteSite{
+	tunnel := &reversetunnelclient.FakeServer{
+		Sites: []reversetunnelclient.RemoteSite{
 			testCtx.fakeRemoteSite,
 		},
 	}
@@ -2157,7 +2158,6 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		DataDir:          t.TempDir(),
 		AuthClient:       c.authClient,
 		AccessPoint:      c.authClient,
-		StreamEmitter:    c.authClient,
 		Authorizer:       dbAuthorizer,
 		Hostname:         constants.APIDomain,
 		HostID:           p.HostID,
@@ -2176,7 +2176,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 			// Use the same audit logger implementation but substitute the
 			// underlying emitter so events can be tracked in tests.
 			return common.NewAudit(common.AuditConfig{
-				Emitter: c.emitter,
+				Emitter:  c.emitter,
+				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
 			})
 		},
 		CADownloader:             p.CADownloader,
@@ -2185,6 +2186,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		CloudClients:             p.CloudClients,
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
+		ShutdownPollPeriod:       100 * time.Millisecond,
 		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
 	})
 	require.NoError(t, err)
@@ -2713,8 +2715,7 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 	}
 }
 
-type fakeDiscoveryResourceChecker struct {
-}
+type fakeDiscoveryResourceChecker struct{}
 
 func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
 }

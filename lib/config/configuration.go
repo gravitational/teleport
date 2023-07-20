@@ -32,6 +32,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -193,6 +194,25 @@ type CommandLineFlags struct {
 	AdditionalPrincipals string
 	// Directory to store
 	DataDir string
+
+	// IntegrationConfDeployServiceIAMArguments contains the arguments of
+	// `teleport integration configure deployservice-iam` command
+	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
+}
+
+// IntegrationConfDeployServiceIAM contains the arguments of
+// `teleport integration configure deployservice-iam` command
+type IntegrationConfDeployServiceIAM struct {
+	// Cluster is the teleport cluster name.
+	Cluster string
+	// Name is the integration name.
+	Name string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+	// TaskRole is the AWS Role to be used by the deployed service.
+	TaskRole string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -702,8 +722,11 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		key, err := os.ReadFile(keyPath)
 		if err != nil {
 			return trace.Errorf("failed to read OpenAI API key file: %w", err)
-		} else {
-			cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+		}
+		cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+
+		if fc.Auth.Assist.CommandExecutionWorkers < 0 {
+			return trace.BadParameter("command_execution_workers must not be negative")
 		}
 	}
 
@@ -721,17 +744,22 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
+		var assistCommandExecutionWorkers int32
+		if fc.Auth.Assist != nil {
+			assistCommandExecutionWorkers = fc.Auth.Assist.CommandExecutionWorkers
+		}
 		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
-			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
-			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
-			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
-			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
-			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
-			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
-			RoutingStrategy:          fc.Auth.RoutingStrategy,
-			TunnelStrategy:           fc.Auth.TunnelStrategy,
-			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
+			ClientIdleTimeout:             fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage:      fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:                fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:             fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:             fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:         fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:             fc.Auth.ProxyListenerMode,
+			RoutingStrategy:               fc.Auth.RoutingStrategy,
+			TunnelStrategy:                fc.Auth.TunnelStrategy,
+			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
+			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1100,7 +1128,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Proxy.ACME = *acme
-
+	cfg.Proxy.TrustXForwardedFor = fc.Proxy.TrustXForwardedFor.Value()
 	return nil
 }
 
@@ -1250,6 +1278,7 @@ func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
 func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
+	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		installParams, err := matcher.InstallParams.Parse()
 		if err != nil {
@@ -1323,12 +1352,13 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Kube.ResourceMatchers {
-		if matcher.AWS.AssumeRoleARN != "" {
-			return trace.NotImplemented("assume_role_arn is not supported for kube resource matchers")
-		}
 		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 
@@ -2173,6 +2203,17 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	// set the default proxy listener addresses for config v1, if not already set
 	applyDefaultProxyListenerAddresses(cfg)
+
+	// not publicly documented or supported for now (thus the
+	// "TELEPORT_UNSTABLE_" prefix); the group with an empty ID is a valid
+	// group, and generation zero is a valid generation for any group
+	cfg.Proxy.ProxyGroupID = os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID")
+	if proxyGroupGeneration := os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_GEN"); proxyGroupGeneration != "" {
+		cfg.Proxy.ProxyGroupGeneration, err = strconv.ParseUint(proxyGroupGeneration, 10, 64)
+		if err != nil {
+			return trace.Wrap(err, "invalid proxygroup generation %q: %v", proxyGroupGeneration, err)
+		}
+	}
 
 	return nil
 }

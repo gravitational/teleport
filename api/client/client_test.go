@@ -19,14 +19,17 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -698,4 +701,12 @@ func TestGetResourcesWithFilters(t *testing.T) {
 			require.Empty(t, cmp.Diff(expectedResources, resources))
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+	if testing.Verbose() {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+	os.Exit(m.Run())
 }

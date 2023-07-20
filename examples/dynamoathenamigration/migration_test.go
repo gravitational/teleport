@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"path"
 	"sort"
 	"strings"
@@ -152,7 +153,17 @@ func (m *mockEmitter) EmitAuditEvent(ctx context.Context, in apievents.AuditEven
 		return errors.New("emitter failure")
 	}
 	m.events = append(m.events, in)
-	return nil
+	// Simulate some work by sleeping during emitting.
+	// It helps redistribute task processing among all workers and requires
+	// less iterations in tests to generate checkpoint file from all workers.
+	// Without it, in rare cases after 50 events still some worker were not able
+	// to read message because of other processing it immediately.
+	select {
+	case <-time.After(time.Duration(rand.Intn(50)+50) * time.Microsecond):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // requireEventsEqualInAnyOrder compares slices of auditevents ignoring order.
@@ -176,7 +187,7 @@ func TestMigrationCheckpoint(t *testing.T) {
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
 
-	noOfWorkers := 10
+	noOfWorkers := 3
 	defaultConfig := Config{
 		Logger:          utils.NewLoggerForTests(),
 		NoOfEmitWorkers: noOfWorkers,
@@ -256,8 +267,8 @@ func TestMigrationCheckpoint(t *testing.T) {
 		// There was 200 events, first migration finished after 50, so this one should emit at least 150.
 		// We are using range (150,199) to check because of checkpoint is stored per worker and we are using
 		// first from list so we expect up to noOfWorkers-1 more events, but in some condition it can be more (on worker processing faster).
-		require.GreaterOrEqual(t, len(newEmitter.events), 150, float64(noOfWorkers), "unexpected number of emitted events")
-		require.Less(t, len(newEmitter.events), 199, float64(noOfWorkers), "unexpected number of emitted events")
+		require.GreaterOrEqual(t, len(newEmitter.events), 150, "unexpected number of emitted events")
+		require.Less(t, len(newEmitter.events), 199, "unexpected number of emitted events")
 	})
 	t.Run("failure after 150 calls (from 2nd export file), reuse checkpoint", func(t *testing.T) {
 		// y to prompt on if reuse checkpoint
@@ -306,8 +317,8 @@ func TestMigrationCheckpoint(t *testing.T) {
 		// There was 200 events, first migration finished after 150, so this one should emit at least 50.
 		// We are using range (50,99) to check because of checkpoint is stored per worker and we are using
 		// first from list so we expect up to noOfWorkers-1 more events, but in some condition it can be more (on worker processing faster).
-		require.GreaterOrEqual(t, len(newEmitter.events), 50, float64(noOfWorkers), "unexpected number of emitted events")
-		require.Less(t, len(newEmitter.events), 99, float64(noOfWorkers), "unexpected number of emitted events")
+		require.GreaterOrEqual(t, len(newEmitter.events), 50, "unexpected number of emitted events")
+		require.Less(t, len(newEmitter.events), 99, "unexpected number of emitted events")
 	})
 	t.Run("checkpoint from export1 is not reused on export2", func(t *testing.T) {
 		prompt.SetStdin(prompt.NewFakeReader())
@@ -418,4 +429,84 @@ func generateDynamoExportData(n int) string {
 		sb.WriteString(fmt.Sprintf(lineFmt+"\n", uuid.NewString()))
 	}
 	return sb.String()
+}
+
+func TestMigrationDryRunValidation(t *testing.T) {
+	validEvent := func() apievents.AuditEvent {
+		return &apievents.AppCreate{
+			Metadata: apievents.Metadata{
+				Time: time.Date(2023, 5, 1, 12, 15, 0, 0, time.UTC),
+				ID:   uuid.NewString(),
+			},
+		}
+	}
+	tests := []struct {
+		name    string
+		events  func() []apievents.AuditEvent
+		wantLog string
+		wantErr string
+	}{
+		{
+			name: "valid events",
+			events: func() []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					validEvent(), validEvent(),
+				}
+			},
+		},
+		{
+			name: "event without time",
+			events: func() []apievents.AuditEvent {
+				eventWithoutTime := validEvent()
+				eventWithoutTime.SetTime(time.Time{})
+				return []apievents.AuditEvent{
+					validEvent(), eventWithoutTime,
+				}
+			},
+			wantLog: "is invalid: empty event time",
+			wantErr: "1 invalid",
+		},
+		{
+			name: "event with wrong uuid",
+			events: func() []apievents.AuditEvent {
+				eventWithInvalidUUID := validEvent()
+				eventWithInvalidUUID.SetID("invalid-uuid")
+				return []apievents.AuditEvent{
+					validEvent(), eventWithInvalidUUID,
+				}
+			},
+			wantLog: "is invalid: invalid uid format: invalid UUID length",
+			wantErr: "1 invalid",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Migration cli logs output from validation to logger.
+			var logBuffer bytes.Buffer
+			log := utils.NewLoggerForTests()
+			log.SetOutput(&logBuffer)
+
+			tr := &task{
+				Config: Config{
+					Logger: log,
+					DryRun: true,
+				},
+			}
+			c := make(chan apievents.AuditEvent, 10)
+			for _, e := range tt.events() {
+				c <- e
+			}
+			close(c)
+			err := tr.emitEvents(context.Background(), c, "" /* exportARN not used in dryRun */)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.wantLog != "" {
+				require.Contains(t, logBuffer.String(), tt.wantLog)
+			}
+		})
+	}
 }

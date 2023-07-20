@@ -208,23 +208,32 @@ Loop:
 	return lockTargets
 }
 
-// UseExtraRoles extends the roles of the Checker on the current Context with
-// the given extra roles.
-func (c *Context) UseExtraRoles(access services.RoleGetter, clusterName string, roles []string) error {
+// WithExtraRoles returns a shallow copy of [c], where the users roles have been
+// extended with [roles]. It may return [c] unmodified.
+func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string, roles []string) (*Context, error) {
 	var newRoleNames []string
 	newRoleNames = append(newRoleNames, c.Checker.RoleNames()...)
 	newRoleNames = append(newRoleNames, roles...)
 	newRoleNames = utils.Deduplicate(newRoleNames)
 
-	// set new roles on the context user and create a new access checker
-	c.User.SetRoles(newRoleNames)
-	accessInfo := services.AccessInfoFromUser(c.User)
+	// Return early if there are no extra roles.
+	if len(newRoleNames) == len(c.Checker.RoleNames()) {
+		return c, nil
+	}
+
+	accessInfo := &services.AccessInfo{
+		Roles:              newRoleNames,
+		Traits:             c.User.GetTraits(),
+		AllowedResourceIDs: c.Checker.GetAllowedResourceIDs(),
+	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	c.Checker = checker
-	return nil
+
+	newContext := *c
+	newContext.Checker = checker
+	return &newContext, nil
 }
 
 // GetAccessState returns the AccessState based on the underlying
@@ -625,7 +634,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 	}
 }
 
-// RoleSetForBuiltinRole returns RoleSet for embedded builtin role
+// RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
 func RoleSetForBuiltinRoles(clusterName string, recConfig types.SessionRecordingConfig, roles ...types.SystemRole) (services.RoleSet, error) {
 	var definitions []types.Role
 	for _, role := range roles {
@@ -863,6 +872,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindNode, services.RO()),
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
+						types.NewRule(types.KindServerInfo, services.RW()),
 					},
 					// wildcard any cluster available.
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},

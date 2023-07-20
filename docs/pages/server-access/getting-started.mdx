@@ -10,8 +10,8 @@ issuing commands through a CLI or programmatically to an API.
 This guide introduces some of these common scenarios and how to interact with
 Teleport to accomplish them:
 
-1. SSH into a cluster using Teleport.
-2. Introspect the cluster using Teleport features.
+- SSH into a cluster using Teleport.
+- Introspect the cluster using Teleport features.
 
 <Admonition type="tip" title="Tip">
 This guide also demonstrates how to configure Teleport Nodes using the **bastion
@@ -278,17 +278,22 @@ into a server using a third-party tool. Compare the two equivalent commands:
   </TabItem>
   <TabItem label="ssh">
 
+  To use the `ssh` client generate a SSH configuration file and postfix
+  the cluster name after the node name.
+
   <ScopedBlock scope={["oss", "enterprise"]}>
 
     ```code
-    $ ssh -J tele.example.com root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.tele.example.com
     ```
 
    </ScopedBlock>
   <ScopedBlock scope={["cloud"]}>
 
     ```code
-    $ ssh -J mytenant.teleport.sh root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.mytenant.teleport.sh
     ```
 
    </ScopedBlock>

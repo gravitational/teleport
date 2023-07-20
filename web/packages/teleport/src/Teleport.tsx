@@ -24,6 +24,7 @@ import Authenticated from 'teleport/components/Authenticated';
 import { getOSSFeatures } from 'teleport/features';
 
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { UserContextProvider } from 'teleport/User';
 
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
@@ -48,15 +49,17 @@ const Teleport: React.FC<Props> = props => {
                 {createPublicRoutes()}
                 <Route path={cfg.routes.root}>
                   <Authenticated>
-                    <TeleportContextProvider ctx={ctx}>
-                      <Switch>
-                        <Route
-                          path={cfg.routes.appLauncher}
-                          component={AppLauncher}
-                        />
-                        <Route>{createPrivateRoutes()}</Route>
-                      </Switch>
-                    </TeleportContextProvider>
+                    <UserContextProvider>
+                      <TeleportContextProvider ctx={ctx}>
+                        <Switch>
+                          <Route
+                            path={cfg.routes.appLauncher}
+                            component={AppLauncher}
+                          />
+                          <Route>{createPrivateRoutes()}</Route>
+                        </Switch>
+                      </TeleportContextProvider>
+                    </UserContextProvider>
                   </Authenticated>
                 </Route>
               </Switch>

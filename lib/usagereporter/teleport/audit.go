@@ -19,6 +19,7 @@ package usagereporter
 import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -86,6 +87,11 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.DatabaseSessionKind),
+			Database: &prehogv1a.SessionStartDatabaseMetadata{
+				DbType:     e.DatabaseType,
+				DbProtocol: e.DatabaseProtocol,
+				DbOrigin:   e.DatabaseOrigin,
+			},
 		}
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
@@ -130,6 +136,17 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
+		}
+
+	case *apievents.BotJoin:
+		// Only count successful joins.
+		if !e.Success {
+			return nil
+		}
+		return &BotJoinEvent{
+			BotName:       e.BotName,
+			JoinMethod:    e.Method,
+			JoinTokenName: e.TokenName,
 		}
 	}
 

@@ -2,11 +2,11 @@
   "packages": [
     "addlicense@1.0.0",
     "bats@1.3.0",
-    "github:nixos/nixpkgs/d7f28652048b3bed6a512542e62ea1a50691e349#buf",
-    "clang@11.1.0",
+    "github:nixos/nixpkgs/2920b6fc16a9ed5d51429e94238b28306ceda79e#buf",
+    "llvmPackages_14.clangUseLLVM@14.0.6",
     "gci@0.9.1",
-    "github:nixos/nixpkgs/deb3d80ae0ccafe4f19d3edf32e2eb7fda283978#go",
-    "github:nixos/nixpkgs/22540da6c19a41512dd6bc575858e1215baeb3f9#golangci-lint",
+    "go@1.20.5",
+    "golangci-lint@1.53.3",
     "libiconvReal@1.16",
     "libfido2@1.13.0",
     "nodejs@16.18.1",
@@ -31,6 +31,7 @@
   "shell": {
     "init_hook": [
       "export TELEPORT_DEVBOX=1",
+      "export PATH=\"$HOME/.cargo/bin:$PATH\"",
       "unset GOROOT"
     ]
   },

@@ -76,7 +76,7 @@ func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterReque
 
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
-	cluster, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -108,10 +108,12 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) *api.Clu
 
 	apiCluster.Features = &api.Features{
 		AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
+		IsUsageBasedBilling:     cluster.Features.GetIsUsageBased(),
 	}
 	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
 	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
 	apiCluster.AuthClusterId = cluster.AuthClusterID
+	apiCluster.LoggedInUser.Acl = cluster.ACL
 
 	return apiCluster
 }

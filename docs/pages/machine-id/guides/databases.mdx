@@ -3,6 +3,8 @@ title: Machine ID with Databases
 description: Protecting your databases with Machine ID
 ---
 
+(!docs/pages/includes/machine-id/v2-config-warning.mdx!)
+
 In this guide, we will demonstrate how to use Machine ID to access a database
 protected by Teleport from a custom application.
 
@@ -91,8 +93,8 @@ credentials.
 
 Start by creating a configuration file for Machine ID at `/etc/tbot.yaml`:
 
-<ScopedBlock scope={["cloud"]}>
 ```yaml
+version: v2
 auth_server: "example.teleport.sh:443"
 onboarding:
   join_method: "token"
@@ -100,48 +102,42 @@ onboarding:
   ca_pins:
   - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 storage:
-  directory: /var/lib/teleport/bot
-destinations:
-  - directory: /opt/machine-id
+  type: directory
+  path: /var/lib/teleport/bot
+outputs:
+  - type: database
+    destination:
+      type: directory
+      path: /opt/machine-id
+    # Specify the details of the database you wish to connect to.
+    service: example-server
+    username: alice
+    database: example
+    # Specify a format to use for the output credentials. For most databases,
+    # this configuration field can be omitted. See the table below for the
+    # databases that require a value to be specified here.
+    # format: mongo
 
-    database:
-      service: example-server
-      username: alice
-      database: example
+```
 
-    # If using MongoDB, be sure to include the Mongo-formatted certificates:
-    configs:
-      - mongo
-```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
-```yaml
-auth_server: "teleport.example.com:443"
-onboarding:
-  join_method: "token"
-  token: "(=presets.tokens.first=)"
-  ca_pins:
-  - "(=presets.ca_pin=)"
-storage:
-  directory: /var/lib/teleport/bot
-destinations:
-  - directory: /opt/machine-id
-    
-    database:
-      service: example-server
-      username: alice
-      database: example
-    
-    # If using MongoDB, be sure to include the Mongo-formatted certificates:
-    configs:
-      - mongo
-```
-</ScopedBlock>
+The `outputs` field controls the what certificates `tbot` will produce when it
+runs and where these certificates should be written.
+
+The `format` field in the database output controls the format of the generated
+credentials. This setting allows the credentials to work with database clients
+that require a specific format. When this field is not specified, a sensible
+default option is used that is compatible with most clients. The full list of
+supported `format` options is below:
+
+| Client        | `format`      | Description                          |
+|---------------|---------------|--------------------------------------|
+| Default       | Unspecified   | Provides a certificate in `tlscert`, a private key in `key` and the CA in `teleport-database-ca.crt`. This is compatible with most clients. |
+| MongoDB       | `mongo`       | Provides `mongo.crt` and `mongo.cas`. |
+| CockroachDB   | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt`. |
+| Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` for generic clients that require specific file extensions. |
 
 Be sure to configure the `token` and `ca_pins` fields to match the output from
-`tctl bots add ...`. We've also included the `mongo` config template in the
-`configs` section to generate additional certificates for MongoDB; you can
-remove it if using a different database type.
+`tctl bots add ...`.
 
 Machine ID also allows you to use Linux ACLs to control access to certificates
 on disk. You will use this to ensure only your application has access to the
@@ -149,7 +145,7 @@ short-lived certificates Machine ID uses.
 
 We'll work with the assumption you will be running Machine ID as the Linux user
 `teleport` and your application as the Linux user `app`. Create and initialize
-the destination directory by running this `tbot init` command either as `root`
+the output destination by running this `tbot init` command either as `root`
 or as the `teleport` user:
 
 ```code
@@ -238,27 +234,6 @@ In the default proxy mode, database clients must also be configured to use
 `tbot`'s generated TLS certificates. This ensures no other users of the system
 can access the database via the local proxy, and ensures the connection between
 your database client and server is never unencrypted, even over localhost.
-
-The standard TLS credentials may be found in your configured destination
-directory, which in this example is `/opt/machine-id`. The certificate may be
-found at `/opt/machine-id/tlscert` along with the private key
-`/opt/machine-id/key` and CA at `/opt/machine-id/teleport-database-ca.crt`.
-These are compatible with most database clients.
-
-Certain databases may require specially-formatted certificates. Where
-supported, `tbot` provides configuration templates you may configure via the
-`tbot.yaml` config file on a per-destination basis:
-
-| Database Type | Template Name | Description                          |
-|---------------|---------------|--------------------------------------|
-| MongoDB       | `mongo`       | Provides `mongo.crt` and `mongo.cas` |
-| CockroachDB   | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt` |
-| Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` (for generic clients that require specific file extensions) |
-
-The `mongo` template is enabled in the example `tbot.yaml` shown
-above. If config template changes are needed, be sure to re-run `tbot init ...`
-to configure the new output files, then restart `tbot` with
-`systemctl restart machine-id machine-id-proxy`.
 
 <Admonition type="note" title="TLS Configuration Note">
 If desired, you can add the `--tunnel` flag to the `tbot proxy db ...` command in the `machine-id-proxy.service` systemd unit file to

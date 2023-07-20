@@ -50,6 +50,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -58,6 +59,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -65,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -87,7 +91,6 @@ import (
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -183,7 +186,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Emitter = events.NewDiscardEmitter()
 	}
 	if cfg.Streamer == nil {
-		cfg.Streamer = events.NewDiscardEmitter()
+		cfg.Streamer = events.NewDiscardStreamer()
 	}
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
@@ -224,6 +227,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.AccessLists == nil {
+		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -232,6 +241,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.Embeddings == nil {
 		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
+	}
+	if cfg.UserPreferences == nil {
+		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -284,9 +296,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Integrations:            cfg.Integrations,
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
+		AccessLists:             cfg.AccessLists,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
+		UserPreferences:         cfg.UserPreferences,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -301,7 +315,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cancelFunc:          cancelFunc,
 		closeCtx:            closeCtx,
 		emitter:             cfg.Emitter,
-		streamer:            cfg.Streamer,
+		Streamer:            cfg.Streamer,
 		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:            services,
 		Cache:               services,
@@ -310,6 +324,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		fips:                cfg.FIPS,
 		loadAllCAs:          cfg.LoadAllCAs,
 		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
+		embeddingsRetriever: cfg.EmbeddingRetriever,
+		embedder:            cfg.EmbeddingClient,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -397,8 +413,10 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.Okta
+	services.AccessLists
 	services.Assistant
 	services.Embeddings
+	services.UserPreferences
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -418,6 +436,11 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
+	return r
+}
+
+// AccessListClient returns the access list client.
+func (r *Services) AccessListClient() services.AccessLists {
 	return r
 }
 
@@ -482,10 +505,36 @@ var (
 		[]string{teleport.TagMigration},
 	)
 
+	totalInstancesMetric = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricTotalInstances,
+			Help:      "Total teleport instances",
+		},
+	)
+
+	enrolledInUpgradesMetric = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricEnrolledInUpgrades,
+			Help:      "Number of instances enrolled in automatic upgrades",
+		},
+	)
+
+	upgraderCountsMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricUpgraderCounts,
+			Help:      "Tracks the number of instances advertising each upgrader",
+		},
+		[]string{teleport.TagUpgrader},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
+		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 	}
 )
 
@@ -557,9 +606,9 @@ type Server struct {
 	// Emitter is events emitter, used to submit discrete events
 	emitter apievents.Emitter
 
-	// streamer is events sessionstreamer, used to create continuous
+	// Streamer is an events session streamer, used to create continuous
 	// session related streams
-	streamer events.Streamer
+	events.Streamer
 
 	// keyStore manages all CA private keys, which  may or may not be backed by
 	// HSMs
@@ -625,6 +674,12 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
+
+	// embeddingRetriever is a retriever used to retrieve embeddings from the backend.
+	embeddingsRetriever *ai.SimpleRetriever
+
+	// embedder is an embedder client used to generate embeddings.
+	embedder ai.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -864,6 +919,13 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer localReleaseCheck.Stop()
 
+	instancePeriodics := interval.New(interval.Config{
+		Duration:      time.Minute * 9,
+		FirstDuration: utils.HalfJitter(time.Minute),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer instancePeriodics.Stop()
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -920,7 +982,115 @@ func (a *Server) runPeriodicOperations() {
 			a.syncReleaseAlerts(ctx, true)
 		case <-localReleaseCheck.Next():
 			a.syncReleaseAlerts(ctx, false)
+		case <-instancePeriodics.Next():
+			// instance periodics are rate-limited and may be time-consuming in large
+			// clusters, so launch them in the background.
+			go a.doInstancePeriodics(ctx)
 		}
+	}
+}
+
+func (a *Server) doInstancePeriodics(ctx context.Context) {
+	const slowRate = time.Millisecond * 200 // 5 reads per second
+	const fastRate = time.Millisecond * 5   // 200 reads per second
+	const dynamicPeriod = time.Minute * 3
+
+	instances := a.GetInstances(ctx, types.InstanceFilter{})
+
+	// dynamically scale the rate-limiting we apply to reading instances
+	// s.t. we read at a progressively faster rate as we observe larger
+	// connected instance counts. this isn't a perfect metric, but it errs
+	// on the side of slowness, which is preferable for this kind of periodic.
+	instanceRate := slowRate
+	if ci := a.inventory.ConnectedInstances(); ci > 0 {
+		localDynamicRate := dynamicPeriod / time.Duration(ci)
+		if localDynamicRate < fastRate {
+			localDynamicRate = fastRate
+		}
+
+		if localDynamicRate < instanceRate {
+			instanceRate = localDynamicRate
+		}
+	}
+
+	limiter := rate.NewLimiter(rate.Every(instanceRate), 100)
+	instances = stream.RateLimit(instances, func() error {
+		return limiter.Wait(ctx)
+	})
+
+	// cloud deployments shouldn't include control-plane elements in
+	// metrics since information about them is not actionable and may
+	// produce misleading/confusing results.
+	skipControlPlane := modules.GetModules().Features().Cloud
+
+	// set up aggregators for our periodics
+	imp := newInstanceMetricsPeriodic()
+	uep := newUpgradeEnrollPeriodic()
+
+	// stream all instances to all aggregators
+	for instances.Next() {
+		if skipControlPlane {
+			for _, service := range instances.Item().GetServices() {
+				if service.IsControlPlane() {
+					continue
+				}
+			}
+		}
+
+		imp.VisitInstance(instances.Item())
+		uep.VisitInstance(instances.Item())
+	}
+
+	if err := instances.Done(); err != nil {
+		log.Warnf("Failed stream instances for periodics: %v", err)
+		return
+	}
+
+	// set instance metric values
+	totalInstancesMetric.Set(float64(imp.TotalInstances()))
+	enrolledInUpgradesMetric.Set(float64(imp.TotalEnrolledInUpgrades()))
+	for _, upgrader := range []string{types.UpgraderKindKubeController, types.UpgraderKindSystemdUnit} {
+		upgraderCountsMetric.WithLabelValues(upgrader).Set(float64(imp.InstancesWithUpgrader(upgrader)))
+	}
+
+	// create/delete upgrade enroll prompt as appropriate
+	enrollMsg, shouldPrompt := uep.GenerateEnrollPrompt()
+	a.handleUpgradeEnrollPrompt(ctx, enrollMsg, shouldPrompt)
+}
+
+const (
+	upgradeEnrollAlertID = "auto-upgrade-enroll"
+)
+
+func (a *Server) handleUpgradeEnrollPrompt(ctx context.Context, msg string, shouldPrompt bool) {
+	const alertTTL = time.Minute * 30
+
+	if !shouldPrompt {
+		if err := a.DeleteClusterAlert(ctx, upgradeEnrollAlertID); err != nil {
+			log.Warnf("Failed to delete %s alert: %v", upgradeEnrollAlertID, err)
+		}
+		return
+	}
+	alert, err := types.NewClusterAlert(
+		upgradeEnrollAlertID,
+		msg,
+		// Defaulting to "low" severity level. We may want to make this dynamic
+		// in the future depending on the distance from up-to-date.
+		types.WithAlertSeverity(types.AlertSeverity_LOW),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindInstance, types.VerbRead)),
+		// hide the normal upgrade alert for users who can see this alert as it is
+		// generally more actionable/specific.
+		types.WithAlertLabel(types.AlertSupersedes, releaseAlertID),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
+	)
+	if err != nil {
+		log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
+		return
+	}
+	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+		log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
+		return
 	}
 }
 
@@ -3237,21 +3407,6 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		return "", trace.Wrap(err)
 	}
 
-	userMetadata := authz.ClientUserMetadata(ctx)
-	for _, role := range req.Roles {
-		if role == types.RoleTrustedCluster {
-			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
-				Metadata: apievents.Metadata{
-					Type: events.TrustedClusterTokenCreateEvent,
-					Code: events.TrustedClusterTokenCreateCode,
-				},
-				UserMetadata: userMetadata,
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
-			}
-		}
-	}
-
 	return req.Token, nil
 }
 
@@ -3501,14 +3656,41 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 	return downstream
 }
 
-func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary {
+func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
 	var rsp proto.InventoryStatusSummary
 	if req.Connected {
 		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
 		})
+
+		// connected instance list is a special case, don't bother aggregating heartbeats
+		return rsp, nil
 	}
-	return rsp
+
+	rsp.VersionCounts = make(map[string]uint32)
+	rsp.UpgraderCounts = make(map[string]uint32)
+	rsp.ServiceCounts = make(map[string]uint32)
+
+	ins := a.GetInstances(ctx, types.InstanceFilter{})
+
+	for ins.Next() {
+		rsp.InstanceCount++
+
+		rsp.VersionCounts[vc.Normalize(ins.Item().GetTeleportVersion())]++
+
+		upgrader := ins.Item().GetExternalUpgrader()
+		if upgrader == "" {
+			upgrader = "none"
+		}
+
+		rsp.UpgraderCounts[upgrader]++
+
+		for _, service := range ins.Item().GetServices() {
+			rsp.ServiceCounts[string(service)]++
+		}
+	}
+
+	return rsp, ins.Done()
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
@@ -3864,6 +4046,49 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	expandOpts := services.ExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Look for user groups and associated applications to the request.
+	requestedResourceIDs := req.GetRequestedResourceIDs()
+	var additionalResources []types.ResourceID
+
+	var userGroups []types.ResourceID
+	existingApps := map[string]struct{}{}
+	for _, resource := range requestedResourceIDs {
+		switch resource.Kind {
+		case types.KindApp:
+			existingApps[resource.Name] = struct{}{}
+		case types.KindUserGroup:
+			userGroups = append(userGroups, resource)
+		}
+	}
+
+	for _, resource := range userGroups {
+		if resource.Kind != types.KindUserGroup {
+			continue
+		}
+
+		userGroup, err := a.GetUserGroup(ctx, resource.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, app := range userGroup.GetApplications() {
+			// Only add to the request if we haven't already added it.
+			if _, ok := existingApps[app]; !ok {
+				additionalResources = append(additionalResources, types.ResourceID{
+					ClusterName: resource.ClusterName,
+					Kind:        types.KindApp,
+					Name:        app,
+				})
+				existingApps[app] = struct{}{}
+			}
+		}
+	}
+
+	if len(additionalResources) > 0 {
+		requestedResourceIDs = append(requestedResourceIDs, additionalResources...)
+		req.SetRequestedResourceIDs(requestedResourceIDs)
 	}
 
 	if req.GetDryRun() {
@@ -4268,42 +4493,6 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 		req.StartKey = resp.NextKey
 	}
-}
-
-// CreateAuditStream creates audit event stream
-func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	streamer, err := a.modeStreamer(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return streamer.CreateAuditStream(ctx, sid)
-}
-
-// ResumeAuditStream resumes the stream that has been created
-func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	streamer, err := a.modeStreamer(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return streamer.ResumeAuditStream(ctx, sid, uploadID)
-}
-
-// modeStreamer creates streamer based on the event mode
-func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
-	recConfig, err := a.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// In sync mode, auth server forwards session control to the event log
-	// in addition to sending them and data events to the record storage.
-	if services.IsRecordSync(recConfig.GetMode()) {
-		return events.NewTeeStreamer(a.streamer, a.emitter), nil
-	}
-	// In async mode, clients submit session control events
-	// during the session in addition to writing a local
-	// session recording to be uploaded at the end of the session,
-	// so forwarding events here will result in duplicate events.
-	return a.streamer, nil
 }
 
 // CreateApp creates a new application resource.
@@ -5273,31 +5462,35 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
-// GetHeadlessAuthentication returns a headless authentication from the backend by name.
-// If it does not yet exist, a stub will be created to signal the login process to upsert
-// login details. This method will wait for the updated headless authentication and return it.
-func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	// Try to create a stub if it doesn't already exist, then wait for full login details.
-	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil && !trace.IsAlreadyExists(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, name)
+// GetHeadlessAuthenticationFromWatcher gets a headless authentication from the headless
+// authentication watcher.
+func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error) {
+	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, username, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer sub.Close()
 
-	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
-	defer cancel()
-
-	// wait for the headless authentication to be updated with valid login details
-	// by the login process. If the headless authentication is already updated,
-	// Wait will return it immediately.
-	headlessAuthn, err := a.headlessAuthenticationWatcher.WaitForUpdate(waitCtx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
+	// Wait for the login process to insert the headless authentication resource into the backend.
+	// If it already exists and passes the condition, WaitForUpdate will return it immediately.
+	headlessAuthn, err := sub.WaitForUpdate(ctx, func(ha *types.HeadlessAuthentication) (bool, error) {
 		return services.ValidateHeadlessAuthentication(ha) == nil, nil
 	})
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// UpsertHeadlessAuthenticationStub creates a headless authentication stub for the user
+// that will expire after the standard callback timeout.
+func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username string) error {
+	// Create the stub. If it already exists, update its expiration.
+	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	stub, err := types.NewHeadlessAuthentication(username, services.HeadlessAuthenticationUserStubID, expires)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.Services.UpsertHeadlessAuthentication(ctx, stub)
+	return trace.Wrap(err)
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
@@ -5338,6 +5531,17 @@ func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assis
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// GetUserPreferences returns the user preferences for a given user.
+func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
+	resp, err := a.Services.GetUserPreferences(ctx, request)
+	return resp, trace.Wrap(err)
+}
+
+// UpsertUserPreferences creates or updates user preferences for a given username.
+func (a *Server) UpsertUserPreferences(ctx context.Context, request *userpreferencesv1.UpsertUserPreferencesRequest) error {
+	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, request))
 }
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it

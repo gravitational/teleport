@@ -38,6 +38,7 @@ import (
 	dynamoTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -145,12 +146,7 @@ type eventsEmitter interface {
 	EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
-func newMigrateTask(ctx context.Context, cfg Config) (*task, error) {
-	awsCfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, error) {
 	s3Client := s3.NewFromConfig(awsCfg)
 	return &task{
 		Config:       cfg,
@@ -179,7 +175,21 @@ func Migrate(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
-	t, err := newMigrateTask(ctx, cfg)
+	awsCfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(MigrateWithAWS(ctx, cfg, awsCfg))
+}
+
+// MigrateWithAWS executed dynamodb -> athena migration. Provide your own awsCfg
+func MigrateWithAWS(ctx context.Context, cfg Config, awsCfg aws.Config) error {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	t, err := newMigrateTask(ctx, cfg, awsCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -269,9 +279,11 @@ func (t *task) waitForCompletedExport(ctx context.Context, exportARN string) (ex
 			select {
 			case <-ctx.Done():
 				return "", trace.Wrap(ctx.Err())
-			case <-time.After(10 * time.Second):
+			case <-time.After(30 * time.Second):
 				t.Logger.Debug("Export job still in progress...")
 			}
+		default:
+			return "", trace.Errorf("dynamo DescribeExport returned unexpected status: %v", exportStatus)
 		}
 
 	}
@@ -401,6 +413,10 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 			return false, trace.Wrap(err)
 		}
 
+		if ev.GetID() == "" || ev.GetID() == uuid.Nil.String() {
+			ev.SetID(uuid.NewString())
+		}
+
 		// if checkpoint is present, it means that previous run ended with error
 		// and we want to continue from last valid checkpoint.
 		// We have list of checkpoints because processing is done in async way with
@@ -424,7 +440,7 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 			return false, ctx.Err()
 		}
 
-		if count%100 == 0 {
+		if count%1000 == 0 && !t.DryRun {
 			t.Logger.Debugf("Sent on buffer %d/%d events from %s", count, dataObj.ItemCount, dataObj.DataFileS3Key)
 		}
 	}
@@ -525,13 +541,22 @@ func (t *task) loadEmitterCheckpoint(ctx context.Context, exportARN string) (*ch
 	return &out, nil
 }
 
+type eventWithErr struct {
+	event apievents.AuditEvent
+	err   error
+}
+
 func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEvent, exportARN string) error {
 	if t.DryRun {
-		// in dryRun we just want to count events, validation is done when reading from file.
+		var invalidEvents []eventWithErr
 		var count int
 		var oldest, newest apievents.AuditEvent
 		for event := range eventsC {
 			count++
+			if validateErr := validateEvent(event); validateErr != nil {
+				invalidEvents = append(invalidEvents, eventWithErr{event: event, err: validateErr})
+				continue
+			}
 			if oldest == nil && newest == nil {
 				// first iteration, initialize values with first event.
 				oldest = event
@@ -546,6 +571,12 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 		}
 		if count == 0 {
 			return errors.New("there were not events from export")
+		}
+		if len(invalidEvents) > 0 {
+			for _, eventWithErr := range invalidEvents {
+				t.Logger.Debugf("Event %q %q %v is invalid: %v", eventWithErr.event.GetType(), eventWithErr.event.GetID(), eventWithErr.event.GetTime().Format(time.RFC3339), eventWithErr.err)
+			}
+			return trace.Errorf("there are %d invalid items", len(invalidEvents))
 		}
 		t.Logger.Infof("Dry run: there are %d events from %v to %v", count, oldest.GetTime(), newest.GetTime())
 		return nil
@@ -599,4 +630,19 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 		t.Logger.Errorf("Failed to store checkpoint: %v", err)
 	}
 	return trace.Wrap(workersErr)
+}
+
+func validateEvent(event apievents.AuditEvent) error {
+	if event.GetTime().IsZero() {
+		return trace.BadParameter("empty event time")
+	}
+	if _, err := uuid.Parse(event.GetID()); err != nil {
+		return trace.BadParameter("invalid uid format: %v", err)
+	}
+	oneOf, err := apievents.ToOneOf(event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = oneOf.Marshal()
+	return trace.Wrap(err)
 }

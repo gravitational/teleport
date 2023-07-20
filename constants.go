@@ -635,6 +635,11 @@ const (
 	// SystemAutomaticAccessApprovalRoleName names a preset role that may
 	// automatically approve any Role Access Request
 	SystemAutomaticAccessApprovalRoleName = "@teleport-access-approver"
+
+	// ConnectMyComputerRoleNamePrefix is the prefix used for roles prepared for individual users
+	// during the setup of Connect My Computer. The prefix is followed by the name of the cluster
+	// user. See [teleterm.connectmycomputer.RoleSetup].
+	ConnectMyComputerRoleNamePrefix = "connect-my-computer-"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

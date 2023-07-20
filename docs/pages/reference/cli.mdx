@@ -294,6 +294,14 @@ as a bastion host.
 $ tsh config
 ```
 
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-l, --login` | none | Linux username | Default Linux username to use. Will translate to SSH config's `User` option. |
+| `-p`, `--port` | 3022 | port | Default SSH port to use. Will translate to SSH config's `Port` option. |
+
+
 #### Examples
 
 ```code
@@ -1575,7 +1583,7 @@ which could result in the error,
 `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
   </TabItem>
-  <TabItem scope={["cloud"]} label="Teleport Cloud">
+  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 When running `tctl` commands, administrators must authenticate to a Teleport
 cluster. This can be done in two ways:
@@ -2982,7 +2990,7 @@ Starts the Machine ID client `tbot`, fetching and writing certificates to disk a
 
 #### Examples
 <Tabs>
-  <TabItem scope={["Cloud"]} label="Teleport Cloud">
+  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 ```code
 $ tbot start \
@@ -2995,7 +3003,7 @@ $ tbot start \
 ```
 
   </TabItem>
-  <TabItem scope={["Enterprise/OSS"]} label="Enterprise/OSS">
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 ```code
 $ tbot start \

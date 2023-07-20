@@ -20,7 +20,7 @@ OS ?= linux
 ARCH ?= amd64
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.20.5
+GOLANG_VERSION ?= go1.20.6
 
 # Sync with devbox.json.
 NODE_VERSION ?= 16.18.1
@@ -33,7 +33,7 @@ LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 # Sync any version changes below with devbox.json.
 # Protogen related versions.
-BUF_VERSION ?= 1.21.0
+BUF_VERSION ?= 1.24.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4
@@ -331,6 +331,11 @@ integration-root: buildbox
 integration-kube: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
+
+.PHONY:e2e-aws
+e2e-aws: buildbox
+	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' e2e-aws"
 
 #
 # Runs linters on new changes inside a build container.

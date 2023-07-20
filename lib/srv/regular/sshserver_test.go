@@ -344,7 +344,10 @@ func TestMultipleExecCommands(t *testing.T) {
 
 	// Set up a mock emitter so we can capture audit events.
 	emitter := eventstest.NewChannelEmitter(32)
-	f.ssh.srv.StreamEmitter = emitter
+	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
+		Streamer: events.NewDiscardStreamer(),
+		Emitter:  emitter,
+	}
 
 	// Manually open an ssh channel
 	channel, _, err := f.ssh.clt.OpenChannel(ctx, "session", nil)

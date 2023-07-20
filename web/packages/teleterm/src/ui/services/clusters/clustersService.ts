@@ -149,7 +149,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    * syncRootCluster is useful in situations where we want to sync the cluster _and_ propagate any
    * errors up.
    */
-  private async syncRootCluster(clusterUri: uri.RootClusterUri) {
+  async syncRootCluster(clusterUri: uri.RootClusterUri) {
     await Promise.all([
       this.syncClusterInfo(clusterUri),
       this.syncLeafClustersList(clusterUri),

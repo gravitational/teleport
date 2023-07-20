@@ -1,5 +1,5 @@
 ---
-title: Kubernetes Auto-Discovery (Preview)
+title: Kubernetes Auto-Discovery
 description: Detailed guides for configuring Kubernetes Auto-Discovery.
 layout: tocless-doc
 ---
@@ -38,8 +38,8 @@ cloud provider such as:
 
 <Notice type="tip">
 You can import the cluster under a different name into Teleport's registry.
-To achieve this, you must attach the following tag to the resources — EKS and AKS — in your cloud provider:
- - ***key***: `teleport.dev/kubernetes-name`
+To achieve this, you must attach the following tag to the resources — EKS, AKS, GKE — in your cloud provider:
+ - ***key***: `TeleportKubernetesName`
  - ***value***: desired name
 
 The Discovery Service will check if the cluster includes the tag and use its value

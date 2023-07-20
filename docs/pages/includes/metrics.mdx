@@ -16,6 +16,7 @@
 | `backend_read_requests_total`                            | counter   | cache               | Number of read requests to the backend.                                                            |
 | `backend_read_seconds`                                   | histogram | cache               | Latency for read operations.                                                                       |
 | `backend_requests`                                       | counter   | cache               | Number of requests to the backend (reads, writes, and keepalives).                                                           |
+| `backend_write_requests_total`                           | counter   | cache               | Number of write requests to the backend. |
 | `backend_write_seconds`                                  | histogram | cache               | Latency for backend write operations.                                                              |
 | `cluster_name_not_found_total`                           | counter   | Teleport Auth       | Number of times a cluster was not found.                                                           |
 | `dynamo_requests_total`                                  | counter   | DynamoDB            | Total number of requests to the DynamoDB API.                                                      |
@@ -114,6 +115,7 @@
 
 | Name | Type | Component | Description |
 | - | - | - | - |
+| `process_state` | gauge | Teleport | State of the teleport process: 0 - ok, 1 - recovering, 2 - degraded, 3 - starting. |
 | `certificate_mismatch_total` | counter | Teleport | Number of SSH server login failures due to a certificate mismatch. |
 | `reversetunnel_connected_proxies` | gauge | Teleport | Number of known proxies being sought. |
 | `rx` | counter | Teleport | Number of bytes received during an SSH connection. |

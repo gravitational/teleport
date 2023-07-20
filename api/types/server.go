@@ -90,6 +90,11 @@ type Server interface {
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
+
+	// GetCloudMetadata gets the cloud metadata for the server.
+	GetCloudMetadata() *CloudMetadata
+	// SetCloudMetadata sets the server's cloud metadata.
+	SetCloudMetadata(meta *CloudMetadata)
 }
 
 // NewServer creates an instance of Server.
@@ -469,6 +474,16 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
 	return utils.CloneProtoMsg(s)
+}
+
+// GetCloudMetadata gets the cloud metadata for the server.
+func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
+	return s.Spec.CloudMetadata
+}
+
+// SetCloudMetadata sets the server's cloud metadata.
+func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
+	s.Spec.CloudMetadata = meta
 }
 
 // IsAWSConsole returns true if this app is AWS management console.

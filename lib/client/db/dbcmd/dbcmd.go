@@ -60,6 +60,8 @@ const (
 	redisBin = "redis-cli"
 	// mssqlBin is the SQL Server client program name.
 	mssqlBin = "mssql-cli"
+	// sqlcmd is the SQL Server client program name.
+	sqlcmdBin = "sqlcmd"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
 	// cqlshBin is the Cassandra client program name.
@@ -124,10 +126,10 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	// In TLS routing mode a local proxy is started on demand so connect to it.
-	host, port := tc.DatabaseProxyHostPort(db)
-	if options.localProxyPort != 0 && options.localProxyHost != "" {
-		host = options.localProxyHost
-		port = options.localProxyPort
+	host := options.localProxyHost
+	port := options.localProxyPort
+	if host == "" || port == 0 {
+		host, port = tc.DatabaseProxyHostPort(db)
 	}
 
 	if options.log == nil {
@@ -328,7 +330,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 		// We save configuration to ~/.my.cnf, but on Windows that file is not read,
 		// see tables 4.1 and 4.2 on https://dev.mysql.com/doc/refman/8.0/en/option-files.html.
 		// We instruct mysql client to use use that file with --defaults-extra-file.
-		configPath, err := mysql.DefaultConfigPath()
+		configPath, err := mysql.DefaultConfigPath(c.tc.HomePath)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -375,40 +377,39 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	return c.getMySQLOracleCommand()
 }
 
+func (c *CLICommandBuilder) isBinAvailable(file string) bool {
+	_, err := c.options.exe.LookPath(file)
+	return err == nil
+}
+
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMariaDBBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mariadbBin)
-	return err == nil
+	return c.isBinAvailable(mariadbBin)
 }
 
 // isMySQLBinAvailable returns true if "mysql" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMySQLBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mysqlBin)
-	return err == nil
+	return c.isBinAvailable(mysqlBin)
 }
 
 // isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mongoshBin)
-	return err == nil
+	return c.isBinAvailable(mongoshBin)
 }
 
 // isElasticsearchSQLBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
 func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
-	_, err := c.options.exe.LookPath(elasticsearchSQLBin)
-	return err == nil
+	return c.isBinAvailable(elasticsearchSQLBin)
 }
 
 // isOpenSearchCLIBinAvailable returns true if "opensearch-cli" binary is found in the system PATH.
 func (c *CLICommandBuilder) isOpenSearchCLIBinAvailable() bool {
-	_, err := c.options.exe.LookPath(openSearchCLIBin)
-	return err == nil
+	return c.isBinAvailable(openSearchCLIBin)
 }
 
 // isOpenSearchCLIBinAvailable returns true if "opensearchsql" binary is found in the system PATH.
 func (c *CLICommandBuilder) isOpenSearchSQLBinAvailable() bool {
-	_, err := c.options.exe.LookPath(openSearchSQLBin)
-	return err == nil
+	return c.isBinAvailable(openSearchSQLBin)
 }
 
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
@@ -430,9 +431,22 @@ func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
+// isSqlcmdAvailable returns true if "sqlcmd" binary is fouind in the system
+// PATH.
+func (c *CLICommandBuilder) isSqlcmdAvailable() bool {
+	return c.isBinAvailable(sqlcmdBin)
+}
+
+func (c *CLICommandBuilder) shouldUseMongoshBin() bool {
+	// Use "mongosh" if available.
+	// If not, use legacy "mongo" if available.
+	// If both are not available, pick "mongosh" in print out.
+	return c.isMongoshBinAvailable() || !c.isBinAvailable(mongoBin)
+}
+
 func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 	// look for `mongosh`
-	hasMongosh := c.isMongoshBinAvailable()
+	useMongosh := c.shouldUseMongoshBin()
 
 	var args []string
 
@@ -447,7 +461,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 
 		var flags tlsFlags
 
-		if hasMongosh {
+		if useMongosh {
 			flags = tlsFlags{tls: "--tls", tlsCertKeyFile: "--tlsCertificateKeyFile", tlsCAFile: "--tlsCAFile"}
 		} else {
 			flags = tlsFlags{tls: "--ssl", tlsCertKeyFile: "--sslPEMKeyFile", tlsCAFile: "--sslCAFile"}
@@ -466,7 +480,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 			// mongosh does not load system CAs by default which will cause issues if
 			// the proxy presents a certificate signed by a non-recognized authority
 			// which your system trusts (e.g. mkcert).
-			if hasMongosh {
+			if useMongosh {
 				args = append(args, "--tlsUseSystemCA")
 			}
 		}
@@ -477,7 +491,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 	args = append(args, c.getMongoAddress())
 
 	// use `mongosh` if available
-	if hasMongosh {
+	if useMongosh {
 		return exec.Command(mongoshBin, args...)
 	}
 
@@ -548,6 +562,8 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 	return exec.Command(redisBin, args...)
 }
 
+// getSQLServerCommand returns a command to connect to SQL Server.
+// mssql-cli and sqlcmd commands have the same argument names.
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	args := []string{
 		// Host and port must be comma-separated.
@@ -560,6 +576,10 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 
 	if c.db.Database != "" {
 		args = append(args, "-d", c.db.Database)
+	}
+
+	if c.isSqlcmdAvailable() {
+		return exec.Command(sqlcmdBin, args...)
 	}
 
 	return exec.Command(mssqlBin, args...)
