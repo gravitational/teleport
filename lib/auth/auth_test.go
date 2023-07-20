@@ -580,85 +580,26 @@ func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry t
 	)
 }
 
-func TestTokensCRUD(t *testing.T) {
+func TestAuth_SetStaticTokens(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
 	ctx := context.Background()
 
-	t.Run("GenerateToken: default TTL", func(t *testing.T) {
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-		})
-		require.NoError(t, err)
-		require.Len(t, tokenName, 2*TokenLenBytes)
-
-		// Ensure GetTokens returns token
-		tokens, err := s.a.GetTokens(ctx)
-		require.NoError(t, err)
-		require.Len(t, tokens, 1)
-		require.Equal(t, tokens[0].GetName(), tokenName)
-
-		tokenResource, err := s.a.ValidateToken(ctx, tokenName)
-		require.NoError(t, err)
-		roles := tokenResource.GetRoles()
-		require.True(t, roles.Include(types.RoleNode))
-		require.False(t, roles.Include(types.RoleProxy))
-		// Check that GenerateToken applies a default TTL
-		requireTokenExpiry(t, tokenResource, defaults.ProvisioningTokenTTL)
+	roles := types.SystemRoles{types.RoleProxy}
+	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Token:   "static-token-value",
+			Roles:   roles,
+			Expires: time.Unix(0, 0).UTC(),
+		}},
 	})
-
-	t.Run("GenerateToken: defined TTL", func(t *testing.T) {
-		// generate persistent token with defined TTL
-		desiredTTL := 6 * time.Hour
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-			TTL:   proto.Duration(desiredTTL),
-		})
-		require.NoError(t, err)
-		token, err := s.a.GetToken(ctx, tokenName)
-		require.NoError(t, err)
-		requireTokenExpiry(t, token, desiredTTL)
-		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
-	})
-
-	t.Run("GenerateToken: defined token name", func(t *testing.T) {
-		customToken := "custom-token"
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-			Token: customToken,
-		})
-		require.NoError(t, err)
-		require.Equal(t, tokenName, customToken)
-		token, err := s.a.ValidateToken(ctx, tokenName)
-		require.NoError(t, err)
-		roles := token.GetRoles()
-		require.True(t, roles.Include(types.RoleNode))
-		require.False(t, roles.Include(types.RoleProxy))
-		err = s.a.DeleteToken(ctx, customToken)
-		require.NoError(t, err)
-	})
-
-	// TODO(strideynet): In Teleport 14.0.0 when GenerateToken is removed
-	// break this SetStaticTokens test out into its own test as the rest of
-	// this test is removed.
-	t.Run("SetStaticTokens", func(t *testing.T) {
-		// lets use static tokens now
-		roles := types.SystemRoles{types.RoleProxy}
-		st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-			StaticTokens: []types.ProvisionTokenV1{{
-				Token:   "static-token-value",
-				Roles:   roles,
-				Expires: time.Unix(0, 0).UTC(),
-			}},
-		})
-		require.NoError(t, err)
-		err = s.a.SetStaticTokens(st)
-		require.NoError(t, err)
-		token, err := s.a.ValidateToken(ctx, "static-token-value")
-		require.NoError(t, err)
-		fetchesRoles := token.GetRoles()
-		require.Equal(t, fetchesRoles, roles)
-	})
+	require.NoError(t, err)
+	err = s.a.SetStaticTokens(st)
+	require.NoError(t, err)
+	token, err := s.a.ValidateToken(ctx, "static-token-value")
+	require.NoError(t, err)
+	fetchesRoles := token.GetRoles()
+	require.Equal(t, fetchesRoles, roles)
 }
 
 type tokenCreatorAndDeleter interface {
