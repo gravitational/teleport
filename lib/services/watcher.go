@@ -38,8 +38,8 @@ import (
 // resourceCollector is a generic interface for maintaining an up-to-date view
 // of a resource set being monitored. Used in conjunction with resourceWatcher.
 type resourceCollector interface {
-	// resourceKind specifies the resource kind to watch.
-	resourceKind() []types.WatchKind
+	// resourceKinds specifies the resource kind to watch.
+	resourceKinds() []types.WatchKind
 	// getResourcesAndUpdateCurrent is called when the resources should be
 	// (re-)fetched directly.
 	getResourcesAndUpdateCurrent(context.Context) error
@@ -109,7 +109,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cfg.Log = cfg.Log.WithField("resource-kind", collector.resourceKind())
+	cfg.Log = cfg.Log.WithField("resource-kind", collector.resourceKinds())
 	ctx, cancel := context.WithCancel(ctx)
 	p := &resourceWatcher{
 		ResourceWatcherConfig: cfg,
@@ -183,10 +183,10 @@ func (p *resourceWatcher) WaitInitialization() error {
 		case <-p.collector.initializationChan():
 			return nil
 		case <-t.C:
-			p.Log.Debugf("ResourceWatcher %s is not yet initialized.", p.collector.resourceKind())
+			p.Log.Debugf("ResourceWatcher %s is not yet initialized.", p.collector.resourceKinds())
 		case <-p.ctx.Done():
 			var kindStrings []string
-			for _, kind := range p.collector.resourceKind() {
+			for _, kind := range p.collector.resourceKinds() {
 				kindStrings = append(kindStrings, kind.Kind)
 			}
 			return trace.BadParameter("ResourceWatcher %s failed to initialize.", strings.Join(kindStrings, ", "))
@@ -265,7 +265,7 @@ func (p *resourceWatcher) watch() error {
 	watcher, err := p.Client.NewWatcher(p.ctx, types.Watch{
 		Name:            p.Component,
 		MetricComponent: p.Component,
-		Kinds:           p.collector.resourceKind(),
+		Kinds:           p.collector.resourceKinds(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -394,8 +394,8 @@ func (p *proxyCollector) GetCurrent() []types.Server {
 	return serverMapValues(p.current)
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *proxyCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (p *proxyCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindProxy}}
 }
 
@@ -536,7 +536,7 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit(collector.resourceKind())
+	collector.fanout.SetInit(collector.resourceKinds())
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -633,8 +633,8 @@ func (p *lockCollector) GetCurrent() []types.Lock {
 	return lockMapValues(p.current)
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *lockCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (p *lockCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindLock}}
 }
 
@@ -813,8 +813,8 @@ type databaseCollector struct {
 	once            sync.Once
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *databaseCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (p *databaseCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindDatabase}}
 }
 
@@ -957,8 +957,8 @@ type appCollector struct {
 	once            sync.Once
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *appCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (p *appCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindApp}}
 }
 
@@ -1111,8 +1111,8 @@ func (k *kubeCollector) initializationChan() <-chan struct{} {
 	return k.initializationC
 }
 
-// resourceKind specifies the resource kind to watch.
-func (k *kubeCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (k *kubeCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindKubernetesCluster}}
 }
 
@@ -1305,8 +1305,8 @@ func (k *kubeServerCollector) initializationChan() <-chan struct{} {
 	return k.initializationC
 }
 
-// resourceKind specifies the resource kind to watch.
-func (k *kubeServerCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (k *kubeServerCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindKubeServer}}
 }
 
@@ -1463,7 +1463,7 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit(collector.resourceKind())
+	collector.fanout.SetInit(collector.resourceKinds())
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1517,8 +1517,8 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 	return sub, nil
 }
 
-// resourceKind specifies the resource kind to watch.
-func (c *caCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (c *caCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindCertAuthority}}
 }
 
@@ -1780,8 +1780,8 @@ func (n *nodeCollector) NodeCount() int {
 	return len(n.current)
 }
 
-// resourceKind specifies the resource kind to watch.
-func (n *nodeCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (n *nodeCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindNode}}
 }
 
@@ -1932,8 +1932,8 @@ type accessRequestCollector struct {
 	once            sync.Once
 }
 
-// resourceKind specifies the resource kind to watch.
-func (p *accessRequestCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (p *accessRequestCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindAccessRequest}}
 }
 
@@ -2095,8 +2095,8 @@ type oktaAssignmentCollector struct {
 	once            sync.Once
 }
 
-// resourceKind specifies the resource kind to watch.
-func (*oktaAssignmentCollector) resourceKind() []types.WatchKind {
+// resourceKinds specifies the resource kind to watch.
+func (*oktaAssignmentCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{Kind: types.KindOktaAssignment}}
 }
 

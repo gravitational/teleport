@@ -57,11 +57,11 @@ func NewUnifiedResourceCache(cfg config) (*UnifiedResourceCache, error) {
 	)
 	buf.SetInit()
 	m := &UnifiedResourceCache{
-		Mutex: &sync.Mutex{},
-		Entry: log.WithFields(log.Fields{
+		mu: &sync.Mutex{},
+		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentMemory,
 		}),
-		config: cfg,
+		cfg: cfg,
 		tree: btree.NewG(cfg.BTreeDegree, func(a, b *btreeItem) bool {
 			return a.Less(b)
 		}),
@@ -130,9 +130,9 @@ type Item struct {
 }
 
 type UnifiedResourceCache struct {
-	*sync.Mutex
-	*log.Entry
-	config
+	mu  *sync.Mutex
+	log *log.Entry
+	cfg config
 	// tree is a BTree with items
 	tree *btree.BTreeG[*btreeItem]
 	// cancel is a function that cancels
@@ -153,15 +153,15 @@ type Event struct {
 // Close closes memory backend
 func (c *UnifiedResourceCache) Close() error {
 	c.cancel()
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.buf.Close()
 	return nil
 }
 
 // Clock returns clock used by this backend
 func (c *UnifiedResourceCache) Clock() clockwork.Clock {
-	return c.config.Clock
+	return c.cfg.Clock
 }
 
 // Create creates item if it does not exist
@@ -169,8 +169,8 @@ func (c *UnifiedResourceCache) Create(ctx context.Context, i Item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.tree.Has(&btreeItem{Item: i}) {
 		return trace.AlreadyExists("key %q already exists", string(i.Key))
 	}
@@ -187,8 +187,8 @@ func (c *UnifiedResourceCache) Get(ctx context.Context, key []byte) (*Item, erro
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	i, found := c.tree.Get(&btreeItem{Item: Item{Key: key}})
 	if !found {
 		return nil, trace.NotFound("key %q is not found", string(key))
@@ -201,8 +201,8 @@ func (c *UnifiedResourceCache) Update(ctx context.Context, i Item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if !c.tree.Has(&btreeItem{Item: i}) {
 		return trace.NotFound("key %q is not found", string(i.Key))
 	}
@@ -220,8 +220,8 @@ func (c *UnifiedResourceCache) Put(ctx context.Context, i Item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	event := Event{
 		Type: types.OpPut,
 		Item: i,
@@ -238,8 +238,8 @@ func (c *UnifiedResourceCache) PutRange(ctx context.Context, items []Item) error
 			return trace.BadParameter("missing parameter key in item %v", i)
 		}
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for _, item := range items {
 		event := Event{
 			Type: types.OpPut,
@@ -256,8 +256,8 @@ func (c *UnifiedResourceCache) Delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if !c.tree.Has(&btreeItem{Item: Item{Key: key}}) {
 		return trace.NotFound("key %q is not found", string(key))
 	}
@@ -280,8 +280,8 @@ func (c *UnifiedResourceCache) DeleteRange(ctx context.Context, startKey, endKey
 	if len(endKey) == 0 {
 		return trace.BadParameter("missing parameter endKey")
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	re := c.getRange(ctx, startKey, endKey, backend.NoLimit)
 	for _, item := range re.Items {
 		event := Event{
@@ -304,11 +304,11 @@ func (c *UnifiedResourceCache) GetRange(ctx context.Context, startKey []byte, en
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	re := c.getRange(ctx, startKey, endKey, limit)
 	if len(re.Items) == backend.DefaultRangeLimit {
-		c.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+		c.log.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
 	return &re, nil
 }
@@ -324,8 +324,8 @@ func (c *UnifiedResourceCache) CompareAndSwap(ctx context.Context, expected Item
 	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return trace.BadParameter("expected and replaceWith keys should match")
 	}
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	i, found := c.tree.Get(&btreeItem{Item: expected})
 	if !found {
 		return trace.CompareFailed("key %q is not found", string(expected.Key))
@@ -388,8 +388,12 @@ type UnifiedResourceWatcher struct {
 	*unifiedResourceCollector
 }
 
+func (u *UnifiedResourceWatcher) Close() {
+	// DO NOT MERGE: implement
+}
+
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
-func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context, namespace string) ([]types.ResourceWithLabels, error) {
+func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	result, err := u.current.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -559,7 +563,7 @@ func (u *unifiedResourceCollector) processEventAndUpdateCurrent(ctx context.Cont
 	}
 }
 
-func (u *unifiedResourceCollector) resourceKind() []types.WatchKind {
+func (u *unifiedResourceCollector) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{
 		{Kind: types.KindNode},
 		{Kind: types.KindDatabaseServer},
