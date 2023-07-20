@@ -1698,6 +1698,8 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	fmt.Fprint(os.Stderr, "Did you know? Teleport Connect offers the power of tsh in a desktop app.\nLearn more at https://goteleport.com/docs/connect-your-client/teleport-connect/\n\n")
+
 	// Show on-login alerts, all high severity alerts are shown by onStatus
 	// so can be excluded here, except when Hardware Key Touch is required
 	// which skips on-status alerts.

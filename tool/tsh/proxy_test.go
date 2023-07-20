@@ -902,6 +902,9 @@ func Test_chooseProxyCommandTemplate(t *testing.T) {
 			wantTemplateArgs: map[string]any{"command": "echo \"hello world\""},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
+
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ echo "hello world"
 `,
@@ -926,6 +929,9 @@ Use the following command to connect to the database or to the address above usi
 				},
 			},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
+
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
@@ -953,6 +959,9 @@ Use one of the following commands to connect to the database or to the address a
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 To avoid port randomization, you can choose the listening port using the --port flag.
 
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
+
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ echo "hello world"
 `,
@@ -979,6 +988,9 @@ Use the following command to connect to the database or to the address above usi
 			},
 			wantOutput: `Started authenticated tunnel for the MySQL database "mydb" in cluster "mycluster" on 127.0.0.1:64444.
 To avoid port randomization, you can choose the listening port using the --port flag.
+
+Teleport Connect is a desktop app that can manage database proxies for you.
+Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
