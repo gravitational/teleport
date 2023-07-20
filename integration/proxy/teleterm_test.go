@@ -50,18 +50,14 @@ import (
 // cost of setting up clusters in tests.
 func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack) {
 	t.Run("root cluster", func(t *testing.T) {
-		profileName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
-		require.NoError(t, err)
-
+		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
 		testDBGatewayCertRenewal(t, pack, "", databaseURI)
 	})
 	t.Run("leaf cluster", func(t *testing.T) {
-		profileName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
-		require.NoError(t, err)
-
+		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
 		leafClusterName := pack.Leaf.Cluster.Secrets.SiteName
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendLeafCluster(leafClusterName).
@@ -77,9 +73,7 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 		// Note that profile name is taken from tc.WebProxyAddr. Use
 		// albProxy.Addr() as profile name in case it's different from
 		// pack.Root.Cluster.Web (e.g. 127.0.0.1 vs localhost).
-		profileName, _, err := net.SplitHostPort(albProxy.Addr().String())
-		require.NoError(t, err)
-
+		profileName := mustGetProfileName(t, albProxy.Addr().String())
 		databaseURI := uri.NewClusterURI(profileName).
 			AppendDB(pack.Root.MysqlService.Name)
 
@@ -114,8 +108,10 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 		ALBAddr: albAddr,
 	})
 	require.NoError(t, err)
+
 	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
-	tc.SaveProfile(false /* makeCurrent */)
+	err = tc.SaveProfile(false /* makeCurrent */)
+	require.NoError(t, err)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	storage, err := clusters.NewStorage(clusters.Config{
@@ -238,7 +234,7 @@ func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotif
 // gateway and reissuing certs.
 //
 // Note that this test does NOT reuse existing kube test setups as IP Pinning
-// is enabled in those tests. Use certs with pinned IPs are injected during
+// is enabled in those tests. User certs with pinned IPs are injected during
 // those tests, which is not feasible for Teleterm daemon flow.
 func TestTeletermKubeGateway(t *testing.T) {
 	lib.SetInsecureDevMode(true)
@@ -293,16 +289,12 @@ func TestTeletermKubeGateway(t *testing.T) {
 	)
 
 	t.Run("root", func(t *testing.T) {
-		profileName, _, err := net.SplitHostPort(suite.root.Web)
-		require.NoError(t, err)
-
+		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
 		testKubeGatewayCertRenewal(t, suite, "", kubeURI)
 	})
 	t.Run("leaf", func(t *testing.T) {
-		profileName, _, err := net.SplitHostPort(suite.root.Web)
-		require.NoError(t, err)
-
+		profileName := mustGetProfileName(t, suite.root.Web)
 		kubeURI := uri.NewClusterURI(profileName).AppendLeafCluster(suite.leaf.Secrets.SiteName).AppendKube(kubeClusterName)
 		testKubeGatewayCertRenewal(t, suite, "", kubeURI)
 	})
@@ -314,8 +306,7 @@ func TestTeletermKubeGateway(t *testing.T) {
 		// Note that profile name is taken from tc.WebProxyAddr. Use
 		// albProxy.Addr() as profile name in case it's different from
 		// suite.root.Web (e.g. 127.0.0.1 vs localhost).
-		profileName, _, err := net.SplitHostPort(albProxy.Addr().String())
-		require.NoError(t, err)
+		profileName := mustGetProfileName(t, albProxy.Addr().String())
 
 		kubeURI := uri.NewClusterURI(profileName).AppendKube(kubeClusterName)
 		testKubeGatewayCertRenewal(t, suite, albProxy.Addr().String(), kubeURI)
@@ -344,7 +335,7 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 			client = kubeClientForLocalProxy(t, kubeGateway.KubeconfigPath(), teleportCluster, kubeCluster)
 		})
 
-		mustGetPodFromKubeClient(t, client, kubePodName)
+		mustGetKubePod(t, client, kubePodName)
 	}
 
 	testGatewayCertRenewal(

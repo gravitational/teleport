@@ -769,11 +769,19 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 	return client
 }
 
-func mustGetPodFromKubeClient(t *testing.T, client *kubernetes.Clientset, wantPodName string) {
+func mustGetKubePod(t *testing.T, client *kubernetes.Clientset, wantPodName string) {
 	t.Helper()
 
 	resp, err := client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Equal(t, len(resp.Items), 1)
 	require.Equal(t, wantPodName, resp.Items[0].GetName())
+}
+
+func mustGetProfileName(t *testing.T, webProxyAddr string) string {
+	t.Helper()
+
+	profileName, _, err := net.SplitHostPort(webProxyAddr)
+	require.NoError(t, err)
+	return profileName
 }

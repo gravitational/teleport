@@ -99,18 +99,18 @@ type gatewayCRUDTestContext struct {
 func TestGatewayCRUD(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name                 string
-		gatewayNamesToCreate []string
-		gatewayTargetURI     func(name string) uri.ResourceURI
+		name                   string
+		gatewayNamesToCreate   []string
+		appendGatewayTargetURI func(name string) uri.ResourceURI
 		// tcpPortAllocator is an optional field which lets us provide a custom
 		// gatewaytest.MockTCPPortAllocator with some ports already in use.
 		tcpPortAllocator *gatewaytest.MockTCPPortAllocator
 		testFunc         func(*testing.T, *gatewayCRUDTestContext, *Service)
 	}{
 		{
-			name:                 "create then find",
-			gatewayNamesToCreate: []string{"gateway"},
-			gatewayTargetURI:     uri.NewClusterURI("foo").AppendDB,
+			name:                   "create then find",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
 				foundGateway, err := daemon.findGateway(createdGateway.URI().String())
@@ -119,9 +119,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "ListGateways",
-			gatewayNamesToCreate: []string{"gateway1", "gateway2"},
-			gatewayTargetURI:     uri.NewClusterURI("foo").AppendDB,
+			name:                   "ListGateways",
+			gatewayNamesToCreate:   []string{"gateway1", "gateway2"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateways := daemon.ListGateways()
 				gatewayURIs := map[uri.ResourceURI]struct{}{}
@@ -136,9 +136,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "RemoveGateway",
-			gatewayNamesToCreate: []string{"gatewayToRemove", "gatewayToKeep"},
-			gatewayTargetURI:     uri.NewClusterURI("foo").AppendDB,
+			name:                   "RemoveGateway",
+			gatewayNamesToCreate:   []string{"gatewayToRemove", "gatewayToKeep"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gatewayToRemove := c.nameToGateway["gatewayToRemove"]
 				gatewayToKeep := c.nameToGateway["gatewayToKeep"]
@@ -153,9 +153,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort closes previous gateway if new port is free",
-			gatewayNamesToCreate: []string{"gateway"},
-			gatewayTargetURI:     uri.NewClusterURI("foo").AppendDB,
+			name:                   "SetGatewayLocalPort closes previous gateway if new port is free",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				oldGateway := c.nameToGateway["gateway"]
 				oldListener := c.mockTCPPortAllocator.RecentListener()
@@ -180,10 +180,10 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
-			gatewayNamesToCreate: []string{"gateway"},
-			gatewayTargetURI:     uri.NewClusterURI("foo").AppendDB,
-			tcpPortAllocator:     &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
+			name:                   "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			tcpPortAllocator:       &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
@@ -200,9 +200,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort is a noop if new port is equal to old port",
-			gatewayNamesToCreate: []string{"gateway"},
-			gatewayTargetURI:     uri.NewClusterURI("foo").AppendDB,
+			name:                   "SetGatewayLocalPort is a noop if new port is equal to old port",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				localPort := gateway.LocalPort()
@@ -215,9 +215,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "CreateGateway returns existing kube gateway if targetURI is the same",
-			gatewayNamesToCreate: []string{"kube-gateway"},
-			gatewayTargetURI:     uri.NewClusterURI("foo").AppendKube,
+			name:                   "CreateGateway returns existing kube gateway if targetURI is the same",
+			gatewayNamesToCreate:   []string{"kube-gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendKube,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				wantGateway := c.nameToGateway["kube-gateway"]
 				actualGateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
@@ -261,7 +261,7 @@ func TestGatewayCRUD(t *testing.T) {
 			for _, gatewayName := range tt.gatewayNamesToCreate {
 				gatewayName := gatewayName
 				gateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
-					TargetURI:             tt.gatewayTargetURI(gatewayName).String(),
+					TargetURI:             tt.appendGatewayTargetURI(gatewayName).String(),
 					TargetUser:            "alice",
 					TargetSubresourceName: "",
 					LocalPort:             "",

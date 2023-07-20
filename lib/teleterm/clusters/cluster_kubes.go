@@ -106,7 +106,7 @@ type GetKubesResponse struct {
 	TotalCount int
 }
 
-// reissueKubeCert issue new certificates for kube cluster and saves then to disk.
+// reissueKubeCert issue new certificates for kube cluster and saves them to disk.
 func (c *Cluster) reissueKubeCert(ctx context.Context, kubeCluster string) error {
 	return trace.Wrap(addMetadataToRetryableError(ctx, func() error {
 		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.

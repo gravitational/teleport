@@ -434,7 +434,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		mustGetPodFromKubeClient(t, k8Client, kubePodName)
+		mustGetKubePod(t, k8Client, kubePodName)
 	})
 }
 
@@ -505,7 +505,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mustGetPodFromKubeClient(t, k8Client, kubePodName)
+	mustGetKubePod(t, k8Client, kubePodName)
 }
 
 func TestKubeIPPinning(t *testing.T) {
