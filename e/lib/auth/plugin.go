@@ -10,11 +10,13 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/e/lib/accesslist"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
@@ -216,6 +218,21 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	accessListStorage, err := local.NewAccessListService(p.authServer.GetBackend(), p.authServer.AuthServer.GetClock())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	accessListSvc, err := accesslist.NewService(accesslist.ServiceConfig{
+		Authorizer:  p.authServer.Authorizer,
+		AccessLists: accessListStorage,
+		Clock:       p.authServer.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	accesslistv1.RegisterAccessListServiceServer(gRPCServer, accessListSvc)
 
 	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
 
