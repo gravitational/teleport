@@ -171,3 +171,75 @@ Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
   log:
     severity: DEBUG
   ```
+
+## `annotations.config`
+
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `object` | `{}`          | None                       |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    config:
+      kubernetes.io/annotation: value
+  ```
+
+## `annotations.deployment`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Deployment` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    deployment:
+      kubernetes.io/annotation: value
+  ```
+
+## `annotations.pod`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to each `Pod` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    pod:
+      kubernetes.io/annotation: value
+  ```
+
+## `annotations.secret`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Secret` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    secret:
+      kubernetes.io/annotation: value
+  ```
