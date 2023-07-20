@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -40,10 +41,12 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		serverProtos   []string
-		insecure       bool
-		expectedResult bool
+		name             string
+		serverProtos     []string
+		dialOpts         []DialOption
+		skipProxyURLTest bool
+		insecure         bool
+		expectedResult   bool
 	}{
 		{
 			name:           "upgrade required (handshake success)",
@@ -64,6 +67,18 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 			expectedResult: true,
 		},
 		{
+			name: "upgrade required (unadvertised ALPN error)",
+			dialOpts: []DialOption{
+				// Use a fake dialer to simulate this error.
+				withBaseDialer(ContextDialerFunc(func(context.Context, string, string) (net.Conn, error) {
+					return nil, trace.Errorf("tls: server selected unadvertised ALPN protocol")
+				})),
+			},
+			serverProtos:     []string{"h2"}, // Doesn't matter here since not hitting server.
+			expectedResult:   true,
+			skipProxyURLTest: true,
+		},
+		{
 			name:           "upgrade not required (other handshake error)",
 			serverProtos:   []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 			insecure:       false, // to cause handshake error
@@ -77,13 +92,19 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server := mustStartMockALPNServer(t, test.serverProtos)
+
 			t.Run("direct", func(t *testing.T) {
-				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(ctx, server.Addr().String(), test.insecure))
+				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(ctx, server.Addr().String(), test.insecure, test.dialOpts...))
 			})
+
+			if test.skipProxyURLTest {
+				return
+			}
 
 			t.Run("with ProxyURL", func(t *testing.T) {
 				countBeforeTest := forwardProxy.Count()
-				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(ctx, server.Addr().String(), test.insecure, withProxyURL(forwardProxyURL)))
+				dialOpts := append(test.dialOpts, withProxyURL(forwardProxyURL))
+				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(ctx, server.Addr().String(), test.insecure, dialOpts...))
 				require.Equal(t, countBeforeTest+1, forwardProxy.Count())
 			})
 		})

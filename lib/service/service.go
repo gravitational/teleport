@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
 	"github.com/gravitational/teleport/lib/events/gcssessions"
+	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -1397,6 +1398,17 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			return nil, trace.Wrap(err)
 		}
 		switch uri.Scheme {
+		case pgevents.Schema, pgevents.AltSchema:
+			hasNonFileLog = true
+			var cfg pgevents.Config
+			if err := cfg.SetFromURL(uri); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			logger, err := pgevents.New(ctx, cfg)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			loggers = append(loggers, logger)
 		case firestore.GetName():
 			hasNonFileLog = true
 			cfg := firestoreevents.EventsConfig{}
@@ -2105,6 +2117,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		SAMLIdPServiceProviders: cfg.services,
 		UserGroups:              cfg.services,
 		Okta:                    cfg.services.OktaClient(),
+		AccessLists:             cfg.services.AccessListClient(),
 		Integrations:            cfg.services,
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
@@ -4214,6 +4227,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Log:                      log,
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
+			EnableProxyProtocol:      cfg.Proxy.EnableProxyProtocol,
 		})
 		if err != nil {
 			return trace.Wrap(err)

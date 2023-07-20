@@ -6063,3 +6063,17 @@ message GCPMatcher {
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
 }
+
+// KubernetesMatcher matches Kubernetes services.
+message KubernetesMatcher {
+  // Types are Kubernetes services types to match. Currently only 'app' is supported.
+  repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
+  // Namespaces are Kubernetes namespaces in which to discover services
+  repeated string Namespaces = 2 [(gogoproto.jsontag) = "namespaces,omitempty"];
+  // Labels are Kubernetes services labels to match.
+  wrappers.LabelValues Labels = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+}

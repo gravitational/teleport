@@ -120,6 +120,10 @@ service TerminalService {
   // ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
   rpc ReportUsageEvent(ReportUsageEventRequest) returns (EmptyResponse);
 
+  // UpdateHeadlessAuthenticationState updates a headless authentication resource's state.
+  // An MFA challenge will be prompted when approving a headless authentication.
+  rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (UpdateHeadlessAuthenticationStateResponse);
+
   // CreateConnectMyComputerRole creates a role which allows access to nodes with the label
   // teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
   // the current system user.
@@ -424,6 +428,22 @@ message UpdateTshdEventsServerAddressRequest {
   string address = 1;
 }
 message UpdateTshdEventsServerAddressResponse {}
+
+message UpdateHeadlessAuthenticationStateRequest {
+  string root_cluster_uri = 1;
+  string headless_authentication_id = 2;
+  HeadlessAuthenticationState state = 3;
+}
+
+// HeadlessAuthenticationState is a headless authentication state.
+enum HeadlessAuthenticationState {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0;
+  HEADLESS_AUTHENTICATION_STATE_PENDING = 1;
+  HEADLESS_AUTHENTICATION_STATE_DENIED = 2;
+  HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
+}
+
+message UpdateHeadlessAuthenticationStateResponse {}
 
 message CreateConnectMyComputerRoleRequest {
   string root_cluster_uri = 1;

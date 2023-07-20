@@ -33,13 +33,11 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
-const (
-	// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
-	// wait for a response from the tshd events server managed by the Electron app. This timeout
-	// should be used for quick one-off calls where the client doesn't need the server or the user to
-	// perform any additional work, such as the SendNotification RPC.
-	tshdEventsTimeout = time.Second
-)
+// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
+// wait for a response from the tshd events server managed by the Electron app. This timeout
+// should be used for quick one-off calls where the client doesn't need the server or the user to
+// perform any additional work, such as the SendNotification RPC.
+const tshdEventsTimeout = time.Second
 
 // New creates an instance of Daemon service
 func New(cfg Config) (*Service, error) {
@@ -58,11 +56,12 @@ func New(cfg Config) (*Service, error) {
 	go connectUsageReporter.Run(closeContext)
 
 	return &Service{
-		cfg:           &cfg,
-		closeContext:  closeContext,
-		cancel:        cancel,
-		gateways:      make(map[string]gateway.Gateway),
-		usageReporter: connectUsageReporter,
+		cfg:                    &cfg,
+		closeContext:           closeContext,
+		cancel:                 cancel,
+		gateways:               make(map[string]gateway.Gateway),
+		usageReporter:          connectUsageReporter,
+		headlessWatcherClosers: make(map[string]context.CancelFunc),
 	}, nil
 }
 
@@ -220,6 +219,10 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 	}
 
 	if err := cluster.Logout(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.StopHeadlessWatcher(uri); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -631,6 +634,8 @@ func (s *Service) Stop() {
 		gateway.Close()
 	}
 
+	s.StopHeadlessWatchers()
+
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
@@ -667,6 +672,11 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	client := api.NewTshdEventsServiceClient(conn)
 
 	s.tshdEventsClient = client
+
+	// Resume headless watchers for any active login sessions.
+	if err := s.StartHeadlessWatchers(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -742,6 +752,9 @@ type Service struct {
 	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the
 	// app can show only one login modal at a time, we need to submit only one request at a time.
 	reloginMu sync.Mutex
+	// headlessWatcherClosers holds a map of root cluster URIs to headless watchers.
+	headlessWatcherClosers   map[string]context.CancelFunc
+	headlessWatcherClosersMu sync.Mutex
 }
 
 type CreateGatewayParams struct {

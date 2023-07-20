@@ -20,10 +20,15 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/lib/types/accesslist"
+	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var _ AccessLists = (*accesslistclient.Client)(nil)
 
 // AccessListsGetter defines an interface for reading access lists.
 type AccessListsGetter interface {
@@ -87,4 +92,88 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 		accessList.SetExpiry(cfg.Expires)
 	}
 	return accessList, nil
+}
+
+// IsOwner will return true if the user is an owner for the current list.
+func IsOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
+	isOwner := false
+	for _, owner := range accessList.Spec.Owners {
+		if owner.Name == identity.Username {
+			isOwner = true
+			break
+		}
+	}
+
+	// An opaque access denied error.
+	accessDenied := trace.AccessDenied("access denied")
+
+	// User is not an owner, so we'll access denied.
+	if !isOwner {
+		return accessDenied
+	}
+
+	if !userMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
+		return accessDenied
+	}
+
+	// We've gotten through all the checks, so the user is an owner.
+	return nil
+}
+
+// IsMember will return true if the user is a member for the current list.
+func IsMember(identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList) error {
+	username := identity.Username
+	for _, member := range accessList.Spec.Members {
+		if member.Name == username && clock.Now().Before(member.Expires) {
+			if !userMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
+				return trace.AccessDenied("user %s does not meet membership requirements", username)
+			}
+			return nil
+		}
+	}
+
+	return trace.NotFound("user %s is not a member of the access list", username)
+}
+
+func userMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
+	// Assemble the user's roles for easy look up.
+	userRolesMap := map[string]struct{}{}
+	for _, role := range identity.Groups {
+		userRolesMap[role] = struct{}{}
+	}
+
+	// Check that the user meets the role requirements.
+	for _, role := range requires.Roles {
+		if _, ok := userRolesMap[role]; !ok {
+			return false
+		}
+	}
+
+	// Assemble traits for easy lookyp.
+	userTraitsMap := map[string]map[string]struct{}{}
+	for k, values := range identity.Traits {
+		if _, ok := userTraitsMap[k]; !ok {
+			userTraitsMap[k] = map[string]struct{}{}
+		}
+
+		for _, v := range values {
+			userTraitsMap[k][v] = struct{}{}
+		}
+	}
+
+	// Check that user meets trait requirements.
+	for k, values := range requires.Traits {
+		if _, ok := userTraitsMap[k]; !ok {
+			return false
+		}
+
+		for _, v := range values {
+			if _, ok := userTraitsMap[k][v]; !ok {
+				return false
+			}
+		}
+	}
+
+	// The user meets all requirements.
+	return true
 }

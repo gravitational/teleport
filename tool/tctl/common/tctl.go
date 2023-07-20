@@ -199,8 +199,9 @@ func TryRun(commands []CLICommand, args []string) error {
 		if utils.IsUntrustedCertErr(err) {
 			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
-		log.Errorf("Cannot connect to the auth server. Is the auth server running on %q? %v",
-			cfg.AuthServerAddresses()[0].Addr, err)
+		fmt.Fprintf(os.Stderr,
+			"ERROR: Cannot connect to the auth server. Is the auth server running on %q?\n",
+			cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
 
