@@ -45,6 +45,7 @@ jobs:
 
   build-artifacts:
     name: Build Artifacts
+    secrets: inherit
     uses: ./.github/workflows/build-linux.yaml
     with:
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
