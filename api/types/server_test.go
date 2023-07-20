@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -377,7 +378,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node without cloud metadata but missing aws info",
+			name: "OpenSSHEphemeralKey node with cloud metadata but missing aws info",
 			server: &ServerV2{
 				Kind:    KindNode,
 				SubKind: SubKindOpenSSHEphemeralKeyNode,
@@ -565,7 +566,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing accountid",
+			name: "valid OpenSSHEphemeralKey node",
 			server: &ServerV2{
 				Kind:    KindNode,
 				SubKind: SubKindOpenSSHEphemeralKeyNode,
@@ -614,7 +615,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 						},
 					},
 				}
-				require.Equal(t, expectedServer, s)
+				assert.Equal(t, expectedServer, s)
 
 				require.True(t, s.IsOpenSSHNode(), "IsOpenSSHNode must be true for this node")
 			},

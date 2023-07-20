@@ -124,7 +124,6 @@ func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string
 }
 
 // NewNode is a convenience method to create a Server of Kind Node.
-// It accepts a SubKind, ServerSpec and labels.
 func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
 	server := &ServerV2{
 		Kind:    KindNode,
@@ -429,13 +428,13 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // They include SubKindOpenSSHNode and SubKindOpenSSHEphemeralKeyNode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	if s.Spec.Addr == "" {
-		return trace.BadParameter(`Addr must be set when server SubKind is "openssh"`)
+		return trace.BadParameter(`addr must be set when server SubKind is "openssh"`)
 	}
 	if len(s.GetPublicAddrs()) != 0 {
-		return trace.BadParameter(`PublicAddrs must not be set when server SubKind is "openssh"`)
+		return trace.BadParameter(`publicAddrs must not be set when server SubKind is "openssh"`)
 	}
 	if s.Spec.Hostname == "" {
-		return trace.BadParameter(`Hostname must be set when server SubKind is "openssh"`)
+		return trace.BadParameter(`hostname must be set when server SubKind is "openssh"`)
 	}
 
 	_, _, err := net.SplitHostPort(s.Spec.Addr)
