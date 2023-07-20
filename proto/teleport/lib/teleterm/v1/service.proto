@@ -464,7 +464,7 @@ message CreateConnectMyComputerNodeTokenRequest {
 }
 message CreateConnectMyComputerNodeTokenResponse {
   string token = 1;
-  repeated Label suggested_labels = 6;
+  repeated Label labels = 2;
 }
 
 message DeleteConnectMyComputerTokenRequest {

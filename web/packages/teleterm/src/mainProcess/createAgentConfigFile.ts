@@ -27,7 +27,7 @@ export interface AgentConfigFileClusterProperties {
   profileName: string;
   proxy: string;
   token: string;
-  suggestedLabels: tsh.Label[];
+  labels: tsh.Label[];
 }
 
 export async function createAgentConfigFile(
@@ -61,9 +61,7 @@ export async function createAgentConfigFile(
       `--data-dir=${dataDirectory}`,
       `--proxy=${clusterProperties.proxy}`,
       `--token=${clusterProperties.token}`,
-      `--labels=${clusterProperties.suggestedLabels
-        .map(toNameAndValue)
-        .join(',')}`,
+      `--labels=${clusterProperties.labels.map(toNameAndValue).join(',')}`,
     ],
     {
       timeout: 10_000, // 10 seconds

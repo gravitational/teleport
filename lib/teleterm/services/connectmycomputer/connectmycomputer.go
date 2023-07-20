@@ -297,7 +297,7 @@ func NewTokenProvisioner(cfg *TokenProvisionerConfig) *TokenProvisioner {
 }
 
 // CreateNodeToken creates a node join token that is valid for 5 minutes.
-func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (types.ProvisionToken, error) {
+func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (*NodeToken, error) {
 	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -305,9 +305,6 @@ func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Prov
 
 	var req types.ProvisionTokenSpecV2
 	req.Roles = types.SystemRoles{types.RoleNode}
-	req.SuggestedLabels = types.Labels{
-		types.ConnectMyComputerNodeOwnerLabel: apiutils.Strings{cluster.GetLoggedInUser().Name},
-	}
 	expires := t.cfg.Clock.Now().UTC().Add(5 * time.Minute)
 
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
@@ -320,7 +317,12 @@ func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Prov
 		return nil, trace.Wrap(err)
 	}
 
-	return provisionToken, nil
+	return &NodeToken{
+		Token: tokenName,
+		Labels: types.Labels{
+			types.ConnectMyComputerNodeOwnerLabel: apiutils.Strings{cluster.GetLoggedInUser().Name},
+		},
+	}, nil
 }
 
 // DeleteToken deletes a join token
@@ -331,6 +333,11 @@ func (t *TokenProvisioner) DeleteToken(ctx context.Context, provisioner Provisio
 
 type TokenProvisionerConfig struct {
 	Clock clockwork.Clock
+}
+
+type NodeToken struct {
+	Token  string
+	Labels types.Labels
 }
 
 func (c *TokenProvisionerConfig) checkAndSetDefaults() {

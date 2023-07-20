@@ -41,12 +41,15 @@ test('teleport configure is called with proper arguments', async () => {
   const token = '8f50fd5d-38e8-4e96-baea-e9b882bb433b';
   const proxy = 'cluster.local:3080';
   const profileName = 'cluster.local';
-  const suggestedLabels = [
+  const labels = [
     {
       name: 'teleport.dev/connect-my-computer/owner',
       value: 'testuser@acme.com',
     },
-    { name: 'env', value: 'dev' },
+    {
+      name: 'env',
+      value: 'dev',
+    },
   ];
 
   await expect(
@@ -59,7 +62,7 @@ test('teleport configure is called with proper arguments', async () => {
         token,
         proxy,
         profileName,
-        suggestedLabels,
+        labels,
       }
     )
   ).resolves.toBeUndefined();
@@ -73,7 +76,7 @@ test('teleport configure is called with proper arguments', async () => {
       `--data-dir=${userDataDir}/agents/${profileName}/data`,
       `--proxy=${proxy}`,
       `--token=${token}`,
-      `--labels=${suggestedLabels[0].name}=${suggestedLabels[0].value},${suggestedLabels[1].name}=${suggestedLabels[1].value}`,
+      `--labels=${labels[0].name}=${labels[0].value},${labels[1].name}=${labels[1].value}`,
     ],
     {
       timeout: 10_000, // 10 seconds
@@ -95,7 +98,7 @@ test('previous config file is removed before calling teleport configure', async 
         token: '',
         proxy: '',
         profileName,
-        suggestedLabels: [],
+        labels: [],
       }
     )
   ).resolves.toBeUndefined();
@@ -115,7 +118,7 @@ test('throws when profileName is not a valid path segment', async () => {
         token: '',
         proxy: '',
         profileName: '/cluster',
-        suggestedLabels: [],
+        labels: [],
       }
     )
   ).rejects.toThrow('The agent config file path is incorrect');
@@ -131,7 +134,7 @@ test('throws when profileName is undefined', async () => {
         token: '',
         proxy: '',
         profileName: undefined,
-        suggestedLabels: [],
+        labels: [],
       }
     )
   ).rejects.toThrow('The "path" argument must be of type string');

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -733,12 +734,12 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 }
 
 // CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes.
-func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (types.ProvisionToken, error) {
+func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (*connectmycomputer.NodeToken, error) {
 	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var provisionToken types.ProvisionToken
+	var nodeToken *connectmycomputer.NodeToken
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := clusterClient.ConnectToProxy(ctx)
 		if err != nil {
@@ -752,11 +753,11 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClus
 		}
 		defer authClient.Close()
 
-		provisionToken, err = s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, authClient, cluster)
+		nodeToken, err = s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, authClient, cluster)
 		return trace.Wrap(err)
 	})
 
-	return provisionToken, trace.Wrap(err)
+	return nodeToken, trace.Wrap(err)
 }
 
 // DeleteConnectMyComputerToken deletes a join token

@@ -44,14 +44,14 @@ export class ConnectMyComputerService {
   async createAgentConfigFile(cluster: Cluster): Promise<void> {
     const { rootClusterId } = routing.parseClusterUri(cluster.uri).params;
 
-    const { token, suggestedLabelsList } =
+    const { token, labelsList } =
       await this.tshClient.createConnectMyComputerNodeToken(cluster.uri);
 
     await this.mainProcessClient.createAgentConfigFile({
       profileName: rootClusterId,
       proxy: cluster.proxyHost,
       token: token,
-      suggestedLabels: suggestedLabelsList,
+      labels: labelsList,
     });
   }
 }

@@ -313,7 +313,7 @@ export default class MainProcess {
           proxy: args.proxy,
           token: args.token,
           profileName: args.profileName,
-          suggestedLabels: args.suggestedLabels,
+          labels: args.labels,
         })
     );
 

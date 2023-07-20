@@ -1428,10 +1428,10 @@ export class CreateConnectMyComputerNodeTokenResponse extends jspb.Message {
     getToken(): string;
     setToken(value: string): CreateConnectMyComputerNodeTokenResponse;
 
-    clearSuggestedLabelsList(): void;
-    getSuggestedLabelsList(): Array<teleport_lib_teleterm_v1_label_pb.Label>;
-    setSuggestedLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): CreateConnectMyComputerNodeTokenResponse;
-    addSuggestedLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
+    clearLabelsList(): void;
+    getLabelsList(): Array<teleport_lib_teleterm_v1_label_pb.Label>;
+    setLabelsList(value: Array<teleport_lib_teleterm_v1_label_pb.Label>): CreateConnectMyComputerNodeTokenResponse;
+    addLabels(value?: teleport_lib_teleterm_v1_label_pb.Label, index?: number): teleport_lib_teleterm_v1_label_pb.Label;
 
 
     serializeBinary(): Uint8Array;
@@ -1447,7 +1447,7 @@ export class CreateConnectMyComputerNodeTokenResponse extends jspb.Message {
 export namespace CreateConnectMyComputerNodeTokenResponse {
     export type AsObject = {
         token: string,
-        suggestedLabelsList: Array<teleport_lib_teleterm_v1_label_pb.Label.AsObject>,
+        labelsList: Array<teleport_lib_teleterm_v1_label_pb.Label.AsObject>,
     }
 }
 
