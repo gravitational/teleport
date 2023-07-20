@@ -49,7 +49,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -1956,6 +1960,77 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	// Locks targeting server IDs should apply to other system roles.
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
 	require.Error(t, err)
+}
+
+func TestGenerateUserCertWithUserLoginState(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+	accessInfo := services.AccessInfoFromUser(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	require.NoError(t, err)
+	keygen := testauthority.New()
+	_, pub, err := keygen.GetNewKeyPairFromPool()
+	require.NoError(t, err)
+
+	// Generate cert with no user login state.
+	certReq := certRequest{
+		user:      user,
+		checker:   accessChecker,
+		publicKey: pub,
+	}
+	resp, err := p.a.generateUserCert(certReq)
+	require.NoError(t, err)
+
+	sshCert, err := sshutils.ParseCertificate(resp.SSH)
+	require.NoError(t, err)
+
+	roles, err := services.UnmarshalCertRoles(sshCert.Extensions[teleport.CertExtensionTeleportRoles])
+	require.NoError(t, err)
+	require.Equal(t, []string{role.GetName()}, roles)
+
+	traits := wrappers.Traits{}
+	err = wrappers.UnmarshalTraits([]byte(sshCert.Extensions[teleport.CertExtensionTeleportTraits]), &traits)
+	require.NoError(t, err)
+	require.Empty(t, traits)
+
+	uls, err := userloginstate.New(
+		header.Metadata{
+			Name: user.GetName(),
+		},
+		userloginstate.Spec{
+			Roles: []string{"uls-role1", "uls-role2"},
+			Traits: trait.Traits{
+				"uls-trait1": []string{"value1", "value2"},
+				"uls-trait2": []string{"value3", "value4"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = p.a.UpsertUserLoginState(ctx, uls)
+	require.NoError(t, err)
+
+	resp, err = p.a.generateUserCert(certReq)
+	require.NoError(t, err)
+
+	sshCert, err = sshutils.ParseCertificate(resp.SSH)
+	require.NoError(t, err)
+
+	roles, err = services.UnmarshalCertRoles(sshCert.Extensions[teleport.CertExtensionTeleportRoles])
+	require.NoError(t, err)
+	require.Equal(t, []string{role.GetName(), "uls-role1", "uls-role2"}, roles)
+
+	traits = wrappers.Traits{}
+	err = wrappers.UnmarshalTraits([]byte(sshCert.Extensions[teleport.CertExtensionTeleportTraits]), &traits)
+	require.NoError(t, err)
+	require.Equal(t, map[string][]string{
+		"uls-trait1": {"value1", "value2"},
+		"uls-trait2": {"value3", "value4"},
+	}, map[string][]string(traits))
 }
 
 func TestNewWebSession(t *testing.T) {

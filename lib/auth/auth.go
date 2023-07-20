@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -246,6 +247,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.UserPreferences == nil {
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
+	if cfg.UserLoginState == nil {
+		cfg.UserLoginState, err = local.NewUserLoginStateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -298,6 +305,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
 		AccessLists:             cfg.AccessLists,
+		UserLoginStateService:   cfg.UserLoginState,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
@@ -390,6 +398,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		)
 	}
 
+	// Add in a login hook for generating state during user login.
+	ulsGenerator, err := userloginstate.NewGenerator(userloginstate.GeneratorConfig{
+		AccessLists: services,
+		Clock:       cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	as.RegisterLoginHook(userloginstate.NewLoginHook(ulsGenerator, services.UserLoginStateService))
+
 	return &as, nil
 }
 
@@ -415,7 +434,11 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.AccessLists
+<<<<<<< HEAD
 	services.UserLoginStates
+=======
+	*local.UserLoginStateService
+>>>>>>> 22d5a7da96 (Generate user login state from access lists and integrate into certificates.)
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
@@ -2304,6 +2327,28 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		return nil, trace.Wrap(err)
 	}
 
+	traits := req.traits
+	roles := req.checker.RoleNames()
+
+	// Add in the user login state if it exists.
+	uls, err := a.GetUserLoginState(ctx, req.user.GetName())
+	if err == nil {
+		// Copy roles to the roles from the request.
+		roles = append(roles, uls.GetRoles()...)
+
+		// Copy traits to the traits from the request.
+		if len(uls.GetTraits()) > 0 {
+			if traits == nil {
+				traits = map[string][]string{}
+			}
+			for k, v := range uls.GetTraits() {
+				traits[k] = append(traits[k], v...)
+			}
+		}
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	params := services.UserCertParams{
 		CASigner:                sshSigner,
 		PublicUserKey:           req.publicKey,
@@ -2311,13 +2356,13 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		Impersonator:            req.impersonator,
 		AllowedLogins:           allowedLogins,
 		TTL:                     sessionTTL,
-		Roles:                   req.checker.RoleNames(),
+		Roles:                   roles,
 		CertificateFormat:       certificateFormat,
 		PermitPortForwarding:    req.checker.CanPortForward(),
 		PermitAgentForwarding:   req.checker.CanForwardAgents(),
 		PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
 		RouteToCluster:          req.routeToCluster,
-		Traits:                  req.traits,
+		Traits:                  traits,
 		ActiveRequests:          req.activeRequests,
 		MFAVerified:             req.mfaVerified,
 		PreviousIdentityExpires: req.previousIdentityExpires,
@@ -2385,12 +2430,12 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
-		Groups:            req.checker.RoleNames(),
+		Groups:            roles,
 		Principals:        allowedLogins,
 		Usage:             req.usage,
 		RouteToCluster:    req.routeToCluster,
 		KubernetesCluster: req.kubernetesCluster,
-		Traits:            req.traits,
+		Traits:            traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
