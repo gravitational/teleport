@@ -326,6 +326,22 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       });
     });
     await this.removeClusterKubeConfigs(clusterUri);
+    await this.removeClusterGateways(clusterUri);
+  }
+
+  // TODO(ravicious): Create a single RPC for this rather than sending a separate request for each
+  // gateway.
+  private async removeClusterGateways(clusterUri: uri.RootClusterUri) {
+    for (const [, gateway] of this.state.gateways) {
+      if (routing.belongsToProfile(clusterUri, gateway.targetUri)) {
+        try {
+          await this.removeGateway(gateway.uri);
+        } catch {
+          // Ignore errors as removeGateway already creates a notification for each error.
+          // Any gateways that we failed to remove will be forcibly closed on tshd exit.
+        }
+      }
+    }
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
