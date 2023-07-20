@@ -1,16 +1,11 @@
 # Changelog
 
-## 13.2.3 (07/19/23)
+## 13.2.3 (07/20/23)
 
-* Automatic Upgrades
-  * Upgrader monitoring and alerts [#29206](https://github.com/gravitational/teleport/pull/29206)
-* CLI
-  * AWS DBs Heartbeat: return IAM status (#28952) [#29196](https://github.com/gravitational/teleport/pull/29196)
-  * Provide warning on tsh sso login with Teleport user specified [#29221](https://github.com/gravitational/teleport/pull/29221)
-* Hosted Plugins
-  * Restores default API endpoint for PagerDuty plugin [#29295](https://github.com/gravitational/teleport/pull/29295)
-* Kubernetes Access
-  * Fix proxy protocol support for Kube access flow [#29274](https://github.com/gravitational/teleport/pull/29274)
+  * Fixed TLS routing bug [#29098](https://github.com/gravitational/teleport/issues/29098) [#29312](https://github.com/gravitational/teleport/pull/29312)
+  * Provided warning when `tsh` ignores the `--user` flag due to SSO [#29221](https://github.com/gravitational/teleport/pull/29221)
+  * Addressed vulnerability in Kubernetes Access preview [#29274](https://github.com/gravitational/teleport/pull/29274)
+  * Restored default API endpoint for PagerDuty plugin [#29295](https://github.com/gravitational/teleport/pull/29295)
 
 ## 13.2.2 (07/14/23)
 
