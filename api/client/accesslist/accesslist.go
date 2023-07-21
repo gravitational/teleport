@@ -56,6 +56,28 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 	return accessLists, nil
 }
 
+// ListAccessLists returns a paginated list of access lists.
+func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
+	resp, err := c.grpcClient.ListAccessLists(ctx, &accesslistv1.ListAccessListsRequest{
+		PageSize:  int32(pageSize),
+		NextToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
+	for i, accessList := range resp.AccessLists {
+		var err error
+		accessLists[i], err = conv.FromProto(accessList)
+		if err != nil {
+			return nil, "", trail.FromGRPC(err)
+		}
+	}
+
+	return accessLists, resp.GetNextToken(), nil
+}
+
 // GetAccessList returns the specified access list resource.
 func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{

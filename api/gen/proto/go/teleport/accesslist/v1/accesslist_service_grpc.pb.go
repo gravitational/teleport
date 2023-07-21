@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	AccessListService_GetAccessLists_FullMethodName       = "/teleport.accesslist.v1.AccessListService/GetAccessLists"
+	AccessListService_ListAccessLists_FullMethodName      = "/teleport.accesslist.v1.AccessListService/ListAccessLists"
 	AccessListService_GetAccessList_FullMethodName        = "/teleport.accesslist.v1.AccessListService/GetAccessList"
 	AccessListService_UpsertAccessList_FullMethodName     = "/teleport.accesslist.v1.AccessListService/UpsertAccessList"
 	AccessListService_DeleteAccessList_FullMethodName     = "/teleport.accesslist.v1.AccessListService/DeleteAccessList"
@@ -47,6 +48,8 @@ const (
 type AccessListServiceClient interface {
 	// GetAccessLists returns a list of all access lists.
 	GetAccessLists(ctx context.Context, in *GetAccessListsRequest, opts ...grpc.CallOption) (*GetAccessListsResponse, error)
+	// ListAccessLists returns a paginated list of all access lists.
+	ListAccessLists(ctx context.Context, in *ListAccessListsRequest, opts ...grpc.CallOption) (*ListAccessListsResponse, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(ctx context.Context, in *GetAccessListRequest, opts ...grpc.CallOption) (*AccessList, error)
 	// UpsertAccessList creates or updates an access list resource.
@@ -68,6 +71,15 @@ func NewAccessListServiceClient(cc grpc.ClientConnInterface) AccessListServiceCl
 func (c *accessListServiceClient) GetAccessLists(ctx context.Context, in *GetAccessListsRequest, opts ...grpc.CallOption) (*GetAccessListsResponse, error) {
 	out := new(GetAccessListsResponse)
 	err := c.cc.Invoke(ctx, AccessListService_GetAccessLists_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accessListServiceClient) ListAccessLists(ctx context.Context, in *ListAccessListsRequest, opts ...grpc.CallOption) (*ListAccessListsResponse, error) {
+	out := new(ListAccessListsResponse)
+	err := c.cc.Invoke(ctx, AccessListService_ListAccessLists_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +128,8 @@ func (c *accessListServiceClient) DeleteAllAccessLists(ctx context.Context, in *
 type AccessListServiceServer interface {
 	// GetAccessLists returns a list of all access lists.
 	GetAccessLists(context.Context, *GetAccessListsRequest) (*GetAccessListsResponse, error)
+	// ListAccessLists returns a paginated list of all access lists.
+	ListAccessLists(context.Context, *ListAccessListsRequest) (*ListAccessListsResponse, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, *GetAccessListRequest) (*AccessList, error)
 	// UpsertAccessList creates or updates an access list resource.
@@ -133,6 +147,9 @@ type UnimplementedAccessListServiceServer struct {
 
 func (UnimplementedAccessListServiceServer) GetAccessLists(context.Context, *GetAccessListsRequest) (*GetAccessListsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessLists not implemented")
+}
+func (UnimplementedAccessListServiceServer) ListAccessLists(context.Context, *ListAccessListsRequest) (*ListAccessListsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAccessLists not implemented")
 }
 func (UnimplementedAccessListServiceServer) GetAccessList(context.Context, *GetAccessListRequest) (*AccessList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessList not implemented")
@@ -173,6 +190,24 @@ func _AccessListService_GetAccessLists_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccessListServiceServer).GetAccessLists(ctx, req.(*GetAccessListsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccessListService_ListAccessLists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAccessListsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).ListAccessLists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_ListAccessLists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).ListAccessLists(ctx, req.(*ListAccessListsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -259,6 +294,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAccessLists",
 			Handler:    _AccessListService_GetAccessLists_Handler,
+		},
+		{
+			MethodName: "ListAccessLists",
+			Handler:    _AccessListService_ListAccessLists_Handler,
 		},
 		{
 			MethodName: "GetAccessList",
