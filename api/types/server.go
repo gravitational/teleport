@@ -467,9 +467,6 @@ func (s *ServerV2) openSSHEphemeralKeyNodeCheckAndSetDefaults() error {
 	case s.Spec.CloudMetadata.AWS.InstanceID == "":
 		return trace.BadParameter("missing AWS InstanceID (required for %q SubKind)", s.SubKind)
 
-	case s.Spec.CloudMetadata.AWS.AvailabilityZone == "":
-		return trace.BadParameter("missing AWS Availability Zone (required for %q SubKind)", s.SubKind)
-
 	case s.Spec.CloudMetadata.AWS.VPCID == "":
 		return trace.BadParameter("missing AWS VPC ID (required for %q SubKind)", s.SubKind)
 	}

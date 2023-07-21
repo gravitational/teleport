@@ -811,14 +811,12 @@ message AWSInfo {
   string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
   // Region is the AWS EC2 Instance Region.
   string Region = 3 [(gogoproto.jsontag) = "region,omitempty"];
-  // AvailabilityZone is the Availability Zone for the EC2 instance.
-  string AvailabilityZone = 4 [(gogoproto.jsontag) = "availability_zone,omitempty"];
   // VPCID is the AWS VPC ID where the Instance is running.
-  string VPCID = 5 [(gogoproto.jsontag) = "vpc_id,omitempty"];
+  string VPCID = 4 [(gogoproto.jsontag) = "vpc_id,omitempty"];
   // Integration is the integration name that added this Node.
   // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
   // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
-  string Integration = 6 [(gogoproto.jsontag) = "integration,omitempty"];
+  string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // CloudMetadata contains info about the cloud instance a server is running

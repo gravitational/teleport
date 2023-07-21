@@ -120,12 +120,11 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				Hostname: "openssh-node",
 				CloudMetadata: &CloudMetadata{
 					AWS: &AWSInfo{
-						AccountID:        "123456789012",
-						InstanceID:       "i-123456789012",
-						Region:           "us-east-1",
-						AvailabilityZone: "us-east-1b",
-						VPCID:            "vpc-abcd",
-						Integration:      "teleportdev",
+						AccountID:   "123456789012",
+						InstanceID:  "i-123456789012",
+						Region:      "us-east-1",
+						VPCID:       "vpc-abcd",
+						Integration: "teleportdev",
 					},
 				},
 			},
@@ -434,15 +433,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing availability zone",
-			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
-				s.Spec.CloudMetadata.AWS.AvailabilityZone = ""
-			}),
-			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.ErrorContains(t, err, "missing AWS Availability Zone")
-			},
-		},
-		{
 			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing vpc id",
 			server: &ServerV2{
 				Kind:    KindNode,
@@ -457,11 +447,10 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					Hostname: "openssh-node",
 					CloudMetadata: &CloudMetadata{
 						AWS: &AWSInfo{
-							AccountID:        "123456789012",
-							InstanceID:       "i-123456789012",
-							Region:           "us-east-1",
-							AvailabilityZone: "us-east-1b",
-							Integration:      "teleportdev",
+							AccountID:   "123456789012",
+							InstanceID:  "i-123456789012",
+							Region:      "us-east-1",
+							Integration: "teleportdev",
 						},
 					},
 				},
@@ -485,11 +474,10 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					Hostname: "openssh-node",
 					CloudMetadata: &CloudMetadata{
 						AWS: &AWSInfo{
-							AccountID:        "123456789012",
-							InstanceID:       "i-123456789012",
-							Region:           "us-east-1",
-							AvailabilityZone: "us-east-1b",
-							VPCID:            "vpc-abcd",
+							AccountID:  "123456789012",
+							InstanceID: "i-123456789012",
+							Region:     "us-east-1",
+							VPCID:      "vpc-abcd",
 						},
 					},
 				},
@@ -516,12 +504,11 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 						Hostname: "openssh-node",
 						CloudMetadata: &CloudMetadata{
 							AWS: &AWSInfo{
-								AccountID:        "123456789012",
-								InstanceID:       "i-123456789012",
-								Region:           "us-east-1",
-								AvailabilityZone: "us-east-1b",
-								VPCID:            "vpc-abcd",
-								Integration:      "teleportdev",
+								AccountID:   "123456789012",
+								InstanceID:  "i-123456789012",
+								Region:      "us-east-1",
+								VPCID:       "vpc-abcd",
+								Integration: "teleportdev",
 							},
 						},
 					},
