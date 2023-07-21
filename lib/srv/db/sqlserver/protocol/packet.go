@@ -176,5 +176,5 @@ func makePacket(pktType uint8, pktData []byte) ([]byte, error) {
 
 // IsFinalPacket returns true there are no more packets on the message.
 func IsFinalPacket(packet Packet) bool {
-	return packet.Header().Status&PacketStatusLast != 0
+	return packet.Header().Status&PacketStatusLast == 1
 }

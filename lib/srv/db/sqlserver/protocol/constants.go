@@ -33,6 +33,7 @@ const (
 	packetHeaderSize = 8
 
 	// PacketStatusLast indicates that the packet is the last in the request.
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/ce398f9a-7d47-4ede-8f36-9dd6fc21ca43
 	PacketStatusLast uint8 = 0x01
 
 	preLoginOptionVersion    = 0x00
