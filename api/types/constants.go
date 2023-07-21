@@ -138,7 +138,7 @@ const (
 	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
 	SubKindOpenSSHNode = "openssh"
 
-	// SubKindOpenSSHEphemeralKeyNode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
+	// SubKindOpenSSHEC2InstanceConnectEndpointNode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
 	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
 	//
 	// For Amazon EC2 Instances, it uploads the key using:
@@ -146,7 +146,7 @@ const (
 	// This Key is valid for 60 seconds.
 	//
 	// It uses the private key created above to SSH into the host.
-	SubKindOpenSSHEphemeralKeyNode = "openssh-ephemeral-key"
+	SubKindOpenSSHEC2InstanceConnectEndpointNode = "openssh-ec2-ice"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"

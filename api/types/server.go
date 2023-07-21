@@ -97,7 +97,7 @@ type Server interface {
 	SetCloudMetadata(meta *CloudMetadata)
 
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEphemeralKeyNode.
+	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
 	IsOpenSSHNode() bool
 }
 
@@ -419,13 +419,13 @@ func (s *ServerV2) setStaticFields() {
 }
 
 // IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEphemeralKeyNode.
+// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
 func (s *ServerV2) IsOpenSSHNode() bool {
-	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEphemeralKeyNode
+	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEC2InstanceConnectEndpointNode
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
-// They include SubKindOpenSSHNode and SubKindOpenSSHEphemeralKeyNode.
+// They include SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	if s.Spec.Addr == "" {
 		return trace.BadParameter(`addr must be set when server SubKind is "openssh"`)
@@ -444,13 +444,13 @@ func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	return nil
 }
 
-// openSSHEphemeralKeyNodeCheckAndSetDefaults are validations for SubKindOpenSSHEphemeralKeyNode.
-func (s *ServerV2) openSSHEphemeralKeyNodeCheckAndSetDefaults() error {
+// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEC2InstanceConnectEndpointNode.
+func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() error {
 	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Currently, only AWS EC2 is supported for EphemeralKey mode.
+	// AWS fields are required for SubKindOpenSSHEC2InstanceConnectEndpointNode.
 	switch {
 	case s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil:
 		return trace.BadParameter("missing AWS CloudMetadata (required for %q SubKind)", s.SubKind)
@@ -505,8 +505,8 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 
-	case SubKindOpenSSHEphemeralKeyNode:
-		if err := s.openSSHEphemeralKeyNodeCheckAndSetDefaults(); err != nil {
+	case SubKindOpenSSHEC2InstanceConnectEndpointNode:
+		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 

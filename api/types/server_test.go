@@ -106,10 +106,10 @@ func TestServerSorter(t *testing.T) {
 func TestServerCheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
-	makeOpenSSHEphemeralKeyNode := func(fn func(s *ServerV2)) *ServerV2 {
+	makeOpenSSHEC2InstanceConnectEndpointNode := func(fn func(s *ServerV2)) *ServerV2 {
 		s := &ServerV2{
 			Kind:    KindNode,
-			SubKind: SubKindOpenSSHEphemeralKeyNode,
+			SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
 			Version: V2,
 			Metadata: Metadata{
 				Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
@@ -388,8 +388,8 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node without cloud metadata",
-			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+			name: "OpenSSHEC2InstanceConnectEndpoint node without cloud metadata",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
 				s.Spec.CloudMetadata = nil
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
@@ -397,8 +397,8 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node with cloud metadata but missing aws info",
-			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+			name: "OpenSSHEC2InstanceConnectEndpoint node with cloud metadata but missing aws info",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
 				s.Spec.CloudMetadata.AWS = nil
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
@@ -406,8 +406,8 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing accountid",
-			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing accountid",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
 				s.Spec.CloudMetadata.AWS.AccountID = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
@@ -415,8 +415,8 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing instanceid",
-			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing instanceid",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
 				s.Spec.CloudMetadata.AWS.InstanceID = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
@@ -424,8 +424,8 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing region",
-			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing region",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
 				s.Spec.CloudMetadata.AWS.Region = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
@@ -433,10 +433,10 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing vpc id",
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing vpc id",
 			server: &ServerV2{
 				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
+				SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
 				Version: V2,
 				Metadata: Metadata{
 					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
@@ -460,10 +460,10 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing integration",
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing integration",
 			server: &ServerV2{
 				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
+				SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
 				Version: V2,
 				Metadata: Metadata{
 					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
@@ -487,13 +487,13 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name:   "valid OpenSSHEphemeralKey node",
-			server: makeOpenSSHEphemeralKeyNode(nil),
+			name:   "valid OpenSSHEC2InstanceConnectEndpoint node",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(nil),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
 				require.NoError(t, err)
 				expectedServer := &ServerV2{
 					Kind:    KindNode,
-					SubKind: SubKindOpenSSHEphemeralKeyNode,
+					SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
 					Version: V2,
 					Metadata: Metadata{
 						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
