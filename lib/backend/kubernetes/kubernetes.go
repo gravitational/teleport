@@ -200,6 +200,10 @@ func NewWithConfig(conf Config) (*Backend, error) {
 	}, nil
 }
 
+func (b *Backend) GetName() string {
+	return "kubernetes"
+}
+
 // Exists checks if the secret already exists in Kubernetes.
 // It's used to determine if the agent never created a secret and might upgrade from
 // local SQLite database. In that case, the agent reads local database and
