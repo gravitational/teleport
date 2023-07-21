@@ -39,9 +39,38 @@ import (
 // initCACert initializes the provided server's CA certificate in case of a
 // cloud hosted database instance.
 func (s *Server) initCACert(ctx context.Context, database types.Database) error {
+	s.mu.RLock()
+	if !s.shouldInitCACertLocked(database) {
+		s.mu.RUnlock()
+		return nil
+	}
+	// make a copy so we can safely unlock before doing expensive CA cert
+	// version checking or downloading.
+	copy := database.Copy()
+	s.mu.RUnlock()
+	bytes, err := s.getCACerts(ctx, copy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Make sure the cert we got is valid just in case.
+	if _, err := tlsca.ParseCertificatePEM(bytes); err != nil {
+		return trace.Wrap(err, "CA certificate for %v doesn't appear to be a valid x509 certificate: %s",
+			copy, bytes)
+	}
+	s.mu.Lock()
+	// update the original database under a lock, since we're mutating it.
+	database.SetStatusCA(string(bytes))
+	s.mu.Unlock()
+	return nil
+}
+
+// shouldInitCACertLocked returns whether a given database needs to have its
+// CA cert initialized.
+// The caller must call RLock on `s.mu` before calling this function.
+func (s *Server) shouldInitCACertLocked(database types.Database) bool {
 	// CA certificate may be set explicitly via configuration.
 	if len(database.GetCA()) != 0 {
-		return nil
+		return false
 	}
 	// Can only download it for cloud-hosted instances.
 	switch database.GetType() {
@@ -52,22 +81,10 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		types.DatabaseTypeAWSKeyspaces,
 		types.DatabaseTypeCloudSQL,
 		types.DatabaseTypeAzure:
-
+		return true
 	default:
-		return nil
+		return false
 	}
-	// It's not set so download it or see if it's already downloaded.
-	bytes, err := s.getCACerts(ctx, database)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Make sure the cert we got is valid just in case.
-	if _, err := tlsca.ParseCertificatePEM(bytes); err != nil {
-		return trace.Wrap(err, "CA certificate for %v doesn't appear to be a valid x509 certificate: %s",
-			database, bytes)
-	}
-	database.SetStatusCA(string(bytes))
-	return nil
 }
 
 // getCACerts returns automatically downloaded root certificate for the provided
