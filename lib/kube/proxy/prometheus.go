@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 const (
@@ -35,7 +36,7 @@ const (
 )
 
 func init() {
-	prometheus.MustRegister(
+	metrics.RegisterPrometheusCollectors(
 		clientRequestCounter,
 		clientTLSLatencyVec,
 		clientRequestDurationHistVec,
