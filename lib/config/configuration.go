@@ -198,6 +198,10 @@ type CommandLineFlags struct {
 	// IntegrationConfDeployServiceIAMArguments contains the arguments of
 	// `teleport integration configure deployservice-iam` command
 	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
+
+	// SelfTerminateWhenOrphaned makes the start command terminate the process if it detects that its
+	// parent has been terminated. See common.selfTerminateWhenOrphaned.
+	SelfTerminateWhenOrphaned bool
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of

@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/url"
@@ -26,10 +27,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -184,6 +187,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("db-aws-region",
 		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
+	start.Flag("self-terminate-when-orphaned",
+		"Terminate the process when the parent dies.").Hidden().BoolVar(&ccf.SelfTerminateWhenOrphaned)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -551,12 +556,66 @@ func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
 		configFileUsed = defaults.ConfigFilePath
 	}
 
+	if clf.SelfTerminateWhenOrphaned {
+		if err := selfTerminateWhenOrphaned(config.Log); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if configFileUsed == "" {
 		config.Log.Infof("Starting Teleport v%s", teleport.Version)
 	} else {
 		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
 	}
 	return service.Run(context.TODO(), *config, nil)
+}
+
+// selfTerminateWhenOrphaned sends SIGTERM to the current process as soon as it detects that the
+// parent process has been terminated.
+//
+// It assumes that os.Stdin is piped from the parent and attempts to read from os.Stdin. The pipe
+// gets closed when the parent gets terminated, letting selfTerminateWhenOrphaned sends a signal to
+// the agent to shut down immediately.
+//
+// It is used in Connect My Computer in Teleport Connect, where the lifecycle of the agent is
+// managed by the Electron app. During normal operation, the Electron app shuts down the agent
+// before exiting. However, if it's unexpectedly killed, we want to shut down the agent as well.
+func selfTerminateWhenOrphaned(logger utils.Logger) error {
+	stdinFileInfo, err := os.Stdin.Stat()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	isStdinPiped := (stdinFileInfo.Mode() & os.ModeCharDevice) == 0
+	if !isStdinPiped {
+		return trace.BadParameter("expected the parent to pipe stdin")
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+
+		for scanner.Scan() {
+		}
+
+		if err := scanner.Err(); err != nil {
+			logger.WithError(err).Error("Unexpected scanner error, terminating.")
+		} else {
+			logger.Info("The parent process has died, terminating.")
+		}
+
+		if err := unix.Kill(unix.Getpid(), unix.SIGTERM); err != nil {
+			logger.WithError(err).Error("Failed to send SIGTERM, exiting immediately.")
+			os.Exit(1)
+		}
+
+		// Forcibly kill the agent if it doesn't exit within 15 seconds of receiving SIGTERM.
+		sigtermTimeout := time.Second * 15
+		time.Sleep(sigtermTimeout)
+		logger.Infof("Exiting immediately after %v of sending SIGTERM.", sigtermTimeout.String())
+		os.Exit(1)
+	}()
+
+	return nil
 }
 
 // onStatus is the handler for "status" CLI command
