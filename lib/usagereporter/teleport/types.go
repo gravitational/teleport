@@ -260,6 +260,20 @@ func (u *UIOnboardSetCredentialSubmitEvent) Anonymize(a utils.Anonymizer) prehog
 	}
 }
 
+// UIOnboardQuestionnaireSubmitEvent is a UI event sent during registration when
+// user submit their onboarding questionnaire.
+type UIOnboardQuestionnaireSubmitEvent prehogv1a.UIOnboardQuestionnaireSubmitEvent
+
+func (u *UIOnboardQuestionnaireSubmitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiOnboardQuestionnaireSubmit{
+			UiOnboardQuestionnaireSubmit: &prehogv1a.UIOnboardQuestionnaireSubmitEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
 // UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
 // when the MFA challenge is completed.
 type UIOnboardRegisterChallengeSubmitEvent prehogv1a.UIOnboardRegisterChallengeSubmitEvent
@@ -603,6 +617,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 	case *usageeventsv1.UsageEventOneOf_UiOnboardSetCredentialSubmit:
 		return &UIOnboardSetCredentialSubmitEvent{
 			UserName: e.UiOnboardSetCredentialSubmit.Username,
+		}, nil
+	case *usageeventsv1.UsageEventOneOf_UiOnboardQuestionnaireSubmit:
+		return &UIOnboardQuestionnaireSubmitEvent{
+			UserName: e.UiOnboardQuestionnaireSubmit.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiOnboardRegisterChallengeSubmit:
 		return &UIOnboardRegisterChallengeSubmitEvent{
