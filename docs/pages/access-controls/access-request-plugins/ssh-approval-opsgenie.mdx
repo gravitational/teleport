@@ -69,14 +69,14 @@ alerts as well as list users, services, and on-call policies.
 In your Opsgenie dashboard, go to **SETTINGS → API SETTINGS** and click
 **API key management**. Enable 'read' and 'create and update'.
 
-key](../../../img/enterprise/plugins/opsgenie/opsgenie-api-key.png)
+![Create API key](../../../img/enterprise/plugins/opsgenie/opsgenie-api-key.png)
 
 ## Step 4/5. Configure the Opsgenie plugin
 
 At this point, you have generated credentials that the Opsgenie plugin will use
 to connect to the Opsgenie API.
 
-// TODO: Add image showing integrations page.
+![Integrations page](../../../img/enterprise/plugins/opsgenie/opsgenie-integration-page.png)
 
 ## Step 5/5. Test the Opsgenie plugin
 
@@ -86,16 +86,8 @@ As the Teleport user `myuser`, create an Access Request for the `editor` role:
 
 (!docs/pages/includes/plugins/create-request.mdx!)
 
-You should see a log resembling the following on your Opsgenie plugin host:
-
-```
-// TODO
-```
-
 In Opsgenie, you will see a new alert containing information about the
 Access Request:
-
-// TODO: Add picture
 
 ### Resolve the request
 
@@ -115,10 +107,6 @@ Request Reviewed` in the Teleport Web UI <ScopedBlock scope={[
 Auth Service host</ScopedBlock>.
 
 </Admonition>
-
-### Trigger an auto-approval
-
-// TODO
 
 ## Feedback
 
