@@ -3084,7 +3084,7 @@ func onSSH(cf *CLIConf) error {
 		}
 		if err != nil {
 			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
 		}
 		err = &common.ExitCodeError{Code: tc.ExitStatus}
 		return trace.Wrap(err)
