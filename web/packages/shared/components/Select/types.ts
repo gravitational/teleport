@@ -76,14 +76,16 @@ export type ActionMeta = {
  *
  * @template CustomOption - the data type used for react-select `options`
  */
-export type CustomSelectComponentProps<CustomProps, CustomOption = Option> =
-  CustomOption & {
-    /**
-     * selectProps is the field to use to access the props that were
-     * passed down to react-select's component.
-     *
-     * Use `customProps` field to easily identify non react-select props
-     * that are intended to be used in custom components.
-     */
-    selectProps: { customProps: CustomProps };
-  };
+export type CustomSelectComponentProps<
+  CustomProps,
+  CustomOption = Option
+> = CustomOption & {
+  /**
+   * selectProps is the field to use to access the props that were
+   * passed down to react-select's component.
+   *
+   * Use `customProps` field to easily identify non react-select props
+   * that are intended to be used in custom components.
+   */
+  selectProps: { customProps: CustomProps };
+};

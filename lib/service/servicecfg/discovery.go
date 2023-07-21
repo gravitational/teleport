@@ -15,6 +15,8 @@
 package servicecfg
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -34,6 +36,9 @@ type DiscoveryConfig struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string
+	// PollInterval is the cadence at which the discovery server will run each of its
+	// discovery cycles.
+	PollInterval time.Duration
 }
 
 // IsEmpty validates if the Discovery Service config has no cloud matchers.

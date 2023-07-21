@@ -42,6 +42,9 @@ const (
 // Item keys are assumed to be valid UTF8, which may be enforced by the
 // various Backend implementations.
 type Backend interface {
+	// GetName returns the implementation driver name.
+	GetName() string
+
 	// Create creates item if it does not exist
 	Create(ctx context.Context, i Item) (*Lease, error)
 

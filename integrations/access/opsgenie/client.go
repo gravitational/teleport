@@ -123,7 +123,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 		SetContext(ctx).
 		SetBody(body).
 		SetResult(&result).
-		Post("alerts")
+		Post("v2/alerts")
 
 	if err != nil {
 		return OpsgenieData{}, trace.Wrap(err)
@@ -166,7 +166,7 @@ func (og Client) PostReviewNote(ctx context.Context, alertID string, review type
 		SetBody(body).
 		SetPathParams(map[string]string{"alertID": alertID}).
 		SetQueryParams(map[string]string{"identifierType": "id"}).
-		Post("alerts/{alertID}/notes")
+		Post("v2/alerts/{alertID}/notes")
 
 	if err != nil {
 		return trace.Wrap(err)
@@ -192,7 +192,7 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 		SetBody(body).
 		SetPathParams(map[string]string{"alertID": alertID}).
 		SetQueryParams(map[string]string{"identifierType": "id"}).
-		Post("alerts/{alertID}/close")
+		Post("v2/alerts/{alertID}/close")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,7 +215,7 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 			"flat": "true",
 		}).
 		SetResult(&result).
-		Post("schedules/{scheduleName}/on-calls")
+		Post("v2/schedules/{scheduleName}/on-calls")
 	if err != nil {
 		return RespondersResult{}, trace.Wrap(err)
 	}
@@ -232,7 +232,7 @@ func (og Client) CheckHealth(ctx context.Context) error {
 	resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetPathParams(map[string]string{"heartbeat": heartbeatName}).
-		Get("heartbeats/{heatbeat}/ping")
+		Get("v2/heartbeats/teleport-access-heartbeat/ping")
 
 	if err != nil {
 		return trace.Wrap(err)
