@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -159,7 +161,7 @@ type testDynamicallyConfigurableParams struct {
 
 func testDynamicallyConfigurable(t *testing.T, p testDynamicallyConfigurableParams) {
 	initAuthServer := func(t *testing.T, conf InitConfig) *Server {
-		authServer, err := Init(conf)
+		authServer, err := Init(context.Background(), conf)
 		require.NoError(t, err)
 		t.Cleanup(func() { authServer.Close() })
 		return authServer
@@ -398,7 +400,7 @@ func TestSessionRecordingConfig(t *testing.T) {
 
 func TestClusterID(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -408,7 +410,7 @@ func TestClusterID(t *testing.T) {
 	require.NotEqual(t, clusterID, "")
 
 	// do it again and make sure cluster ID hasn't changed
-	authServer, err = Init(conf)
+	authServer, err = Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -420,7 +422,7 @@ func TestClusterID(t *testing.T) {
 // TestClusterName ensures that a cluster can not be renamed.
 func TestClusterName(t *testing.T) {
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -431,7 +433,7 @@ func TestClusterName(t *testing.T) {
 		ClusterName: "dev.localhost",
 	})
 	require.NoError(t, err)
-	authServer, err = Init(newConfig)
+	authServer, err = Init(context.Background(), newConfig)
 	require.NoError(t, err)
 	defer authServer.Close()
 
@@ -503,9 +505,9 @@ func TestPresets(t *testing.T) {
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
 
-		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
+		// Create a new set of rules based on the Editor Role, excluding the ConnectionDiagnostic.
 		// ConnectionDiagnostic is part of the default allow rules
-		outdatedRules := []types.Rule{}
+		var outdatedRules []types.Rule
 		for _, r := range rules {
 			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
 				continue
@@ -661,6 +663,7 @@ func TestPresets(t *testing.T) {
 }
 
 type mockRoleManager struct {
+	mu                   sync.Mutex
 	roles                map[string]types.Role
 	getRoleCallsCount    int
 	createRoleCallsCount int
@@ -669,6 +672,9 @@ type mockRoleManager struct {
 
 // ResetCallCounters resets the method call counters.
 func (m *mockRoleManager) ResetCallCounters() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.getRoleCallsCount = 0
 	m.createRoleCallsCount = 0
 	m.upsertRoleCallsCount = 0
@@ -676,6 +682,9 @@ func (m *mockRoleManager) ResetCallCounters() {
 
 // GetRole returns role by name.
 func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.getRoleCallsCount = m.getRoleCallsCount + 1
 
 	role, ok := m.roles[name]
@@ -687,6 +696,9 @@ func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role,
 
 // CreateRole creates a role.
 func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.createRoleCallsCount = m.createRoleCallsCount + 1
 
 	_, ok := m.roles[role.GetName()]
@@ -700,6 +712,9 @@ func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) error
 
 // UpsertRole creates or updates a role and emits a related audit event.
 func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.upsertRoleCallsCount = m.upsertRoleCallsCount + 1
 	m.roles[role.GetName()] = role
 
@@ -735,6 +750,7 @@ func setupConfig(t *testing.T) InitConfig {
 				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 			},
 		},
+		Tracer: tracing.NoopTracer(teleport.ComponentAuth),
 	}
 }
 
@@ -1010,7 +1026,7 @@ func TestInit_bootstrap(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
-			_, err := Init(cfg)
+			_, err := Init(context.Background(), cfg)
 			test.assertError(t, err)
 		})
 	}
@@ -1068,7 +1084,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			cfg := setupConfig(t)
 			test.modifyConfig(&cfg)
 
-			_, err := Init(cfg)
+			_, err := Init(context.Background(), cfg)
 			test.assertError(t, err)
 		})
 	}
@@ -1098,7 +1114,7 @@ func TestIdentityChecker(t *testing.T) {
 	ctx := context.Background()
 
 	conf := setupConfig(t)
-	authServer, err := Init(conf)
+	authServer, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
@@ -1189,15 +1205,15 @@ func TestIdentityChecker(t *testing.T) {
 }
 
 func TestInitCreatesCertsIfMissing(t *testing.T) {
+	ctx := context.Background()
 	conf := setupConfig(t)
-	auth, err := Init(conf)
+	auth, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = auth.Close()
 		require.NoError(t, err)
 	})
 
-	ctx := context.Background()
 	for _, caType := range types.CertAuthTypes {
 		cert, err := auth.GetCertAuthorities(ctx, caType, false)
 		require.NoError(t, err)
@@ -1206,6 +1222,7 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 }
 
 func TestMigrateDatabaseCA(t *testing.T) {
+	ctx := context.Background()
 	conf := setupConfig(t)
 
 	// Create only HostCA and UserCA. DatabaseCA should be created on Init().
@@ -1215,14 +1232,14 @@ func TestMigrateDatabaseCA(t *testing.T) {
 	conf.Authorities = []types.CertAuthority{hostCA, userCA}
 
 	// Here is where migration happens.
-	auth, err := Init(conf)
+	auth, err := Init(ctx, conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = auth.Close()
 		require.NoError(t, err)
 	})
 
-	dbCAs, err := auth.GetCertAuthorities(context.Background(), types.DatabaseCA, true)
+	dbCAs, err := auth.GetCertAuthorities(ctx, types.DatabaseCA, true)
 	require.NoError(t, err)
 	require.Len(t, dbCAs, 1)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
@@ -1247,7 +1264,7 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 
 	conf.Authorities = []types.CertAuthority{hostCA, userCA, databaseCA}
 
-	auth, err := Init(conf)
+	auth, err := Init(context.Background(), conf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err = auth.Close()
