@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.4.10-dev-enhanced-recording
+VERSION=12.4.10-dev-enhanced-recording.1
 
 DOCKER_IMAGE ?= teleport
 
