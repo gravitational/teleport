@@ -177,6 +177,19 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		specResource = server.GetDatabase()
 		resourceKey.name = specResource.GetName()
 
+	case types.KindAppOrSAMLIdPServiceProvider:
+		switch appOrSP := resource.(type) {
+		case types.AppServer:
+			app := appOrSP.GetApp()
+			specResource = app
+			resourceKey.name = app.GetName()
+			resourceKey.addr = app.GetPublicAddr()
+		case types.SAMLIdPServiceProvider:
+			specResource = appOrSP
+			resourceKey.name = appOrSP.GetName()
+		default:
+			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
+		}
 	default:
 		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
 		// of cases we need to handle. If the resource type didn't match any arm before

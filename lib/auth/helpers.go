@@ -507,6 +507,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: pub,
+				SystemRoles:  id.AdditionalSystemRoles,
 			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

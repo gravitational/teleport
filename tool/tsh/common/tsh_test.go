@@ -21,6 +21,8 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -82,31 +84,23 @@ import (
 )
 
 const (
-	staticToken = "test-static-token"
+	mockHeadlessPassword = "password"
+	staticToken          = "test-static-token"
 	// tshBinMainTestEnv allows to execute tsh main function from test binary.
 	tshBinMainTestEnv = "TSH_BIN_MAIN_TEST"
+
+	// tshBinMainTestOneshotEnv allows child processes of a tsh reexec process
+	// to call teleport instead of tsh to support 'tsh ssh'.
+	tshBinMainTestOneshotEnv = "TSH_BIN_MAIN_TEST_ONESHOT"
+	// tshBinMockHeadlessAddr allows tests to mock headless auth when the
+	// test binary is re-executed.
+	tshBinMockHeadlessAddrEnv = "TSH_BIN_MOCK_HEADLESS_ADDR"
 )
 
 var ports utils.PortList
 
-func init() {
-	// Allows test to refer to tsh binary in tests.
-	// Needed for tests that generate OpenSSH config by tsh config command where
-	// tsh proxy ssh command is used as ProxyCommand.
-	if os.Getenv(tshBinMainTestEnv) != "" {
-		Main()
-		// main will only exit if there is an error.
-		// since we are here, there was no error, so we must do so ourselves.
-		os.Exit(0)
-		return
-	}
-
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe. Used to test tsh ssh command.
-	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
-		return
-	}
+func TestMain(m *testing.M) {
+	handleReexec()
 
 	var err error
 	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
@@ -115,12 +109,75 @@ func init() {
 	}
 
 	modules.SetModules(&cliModules{})
-}
 
-func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
+}
+
+func handleReexec() {
+	var runOpts []CliOption
+
+	// Allows mock headless auth to be implemented when the test binary
+	// is re-executed.
+	if addr := os.Getenv(tshBinMockHeadlessAddrEnv); addr != "" {
+		runOpts = append(runOpts, func(c *CLIConf) error {
+			c.MockHeadlessLogin = func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+				conn, err := net.Dial("tcp", addr)
+				if err != nil {
+					return nil, trace.Wrap(err, "dialing mock headless server")
+				}
+				defer conn.Close()
+
+				// send the server the public key
+				_, err = conn.Write(priv.MarshalSSHPublicKey())
+				if err != nil {
+					return nil, trace.Wrap(err, "writing public key to mock headless server")
+				}
+				// read and decode response from server
+				reply, err := io.ReadAll(conn)
+				if err != nil {
+					return nil, trace.Wrap(err, "reading reply from mock headless server")
+				}
+				var loginResp auth.SSHLoginResponse
+				if err := json.Unmarshal(reply, &loginResp); err != nil {
+					return nil, trace.Wrap(err, "decoding reply from mock headless server")
+				}
+
+				return &loginResp, nil
+			}
+			return nil
+		})
+	}
+
+	// Allows test to refer to tsh binary in tests.
+	// Needed for tests that generate OpenSSH config by tsh config command where
+	// tsh proxy ssh command is used as ProxyCommand.
+	if os.Getenv(tshBinMainTestEnv) != "" {
+		if os.Getenv(tshBinMainTestOneshotEnv) != "" {
+			// unset this env var so child processes started by 'tsh ssh'
+			// will be executed correctly below.
+			if err := os.Unsetenv(tshBinMainTestEnv); err != nil {
+				panic(fmt.Sprintf("failed to unset env var: %v", err))
+			}
+		}
+
+		err := Run(context.Background(), os.Args[1:], runOpts...)
+		if err != nil {
+			var exitError *common.ExitCodeError
+			if errors.As(err, &exitError) {
+				os.Exit(exitError.Code)
+			}
+			utils.FatalError(err)
+		}
+		os.Exit(0)
+	}
+
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe. Used to test tsh ssh command.
+	if srv.IsReexec() {
+		srv.RunAndExit(os.Args[1])
+	}
 }
 
 type cliModules struct{}
@@ -163,7 +220,6 @@ func (p *cliModules) EnablePlugins() {
 }
 
 func (p *cliModules) SetFeatures(f modules.Features) {
-
 }
 
 func TestAlias(t *testing.T) {
@@ -1155,7 +1211,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	failedChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		return func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-
 			car, err := device.SignAssertion(origin(cluster), assertion) // use the fake origin to prevent a mismatch
 			if err != nil {
 				return nil, "", err
@@ -1416,7 +1471,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
-		}, {
+		},
+		{
 			name:      "command runs on a leaf node via root without mfa",
 			target:    sshLeafHostID,
 			proxyAddr: rootProxyAddr.String(),
@@ -1440,7 +1496,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
-		}, {
+		},
+		{
 			name:      "command runs on a leaf node via root with mfa set via role",
 			target:    sshLeafHostID,
 			proxyAddr: rootProxyAddr.String(),
@@ -2049,11 +2106,11 @@ iUK/veLmZ6XoouiWLCdU1VJz/1Fcwe/IEamg6ETfofvsqOCgcNYJ
 `
 		pubKey := `ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCyGzVvW7vgsK1P2Rtg55DTjL4We0WjSYYdzXJnVbyTxqrEYDOkhSnw4tZTS9KgALb698g0vrqy5bSJXB90d8uLdTmCmPngPbYpSN+p3P2SbIdkB5cRIMspB22qSkfHUARQlYM4PrMYIznWwQRFBvrRNOVdTdbMywlQGMUb0jdxK7JFBx1LC76qfHJhrD7jZS+MtygFIqhAJS9CQXW314p3FmL9s1cPV5lQfY527np8580qMKPkdeowPd/hVGcPA/C+ZxLcN9LqnuTZEFoDvYtwjfofOGUpANwtENBNZbNTxHDk7shYCRN9aZJ50zdFq3rMNdzFlEyJwm2ca+7aRDLl
 `
-		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com"), []byte(privKey), 0666)
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com"), []byte(privKey), 0o666)
 		require.NoError(t, err)
-		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com.pub"), []byte(pubKey), 0666)
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com.pub"), []byte(pubKey), 0o666)
 		require.NoError(t, err)
-		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com-ssh/localhost-cert.pub"), []byte(expiredSSHCert), 0666)
+		err = os.WriteFile(fmt.Sprintf("%s/%s", tmpHomePath, "keys/127.0.0.1/alice@example.com-ssh/localhost-cert.pub"), []byte(expiredSSHCert), 0o666)
 		require.NoError(t, err)
 
 		errChan := make(chan error)
@@ -3367,6 +3424,20 @@ func setHomePath(path string) CliOption {
 	}
 }
 
+func setOverrideMySQLConfigPath(path string) CliOption {
+	return func(cf *CLIConf) error {
+		cf.overrideMySQLOptionFilePath = path
+		return nil
+	}
+}
+
+func setOverridePostgresConfigPath(path string) CliOption {
+	return func(cf *CLIConf) error {
+		cf.overridePostgresServiceFilePath = path
+		return nil
+	}
+}
+
 func setKubeConfigPath(path string) CliOption {
 	return func(cf *CLIConf) error {
 		cf.KubeConfigPath = path
@@ -4052,7 +4123,8 @@ func TestSerializeAccessRequests(t *testing.T) {
       ],
       "state": 1,
       "created": "0001-01-01T00:00:00Z",
-      "expires": "0001-01-01T00:00:00Z"
+      "expires": "0001-01-01T00:00:00Z",
+      "max_duration": "0001-01-01T00:00:00Z"
     }
   }
 	`

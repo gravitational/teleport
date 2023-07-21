@@ -1360,6 +1360,48 @@ export namespace UpdateHeadlessAuthenticationStateResponse {
     }
 }
 
+export class CreateConnectMyComputerRoleRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): CreateConnectMyComputerRoleRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CreateConnectMyComputerRoleRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: CreateConnectMyComputerRoleRequest): CreateConnectMyComputerRoleRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CreateConnectMyComputerRoleRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CreateConnectMyComputerRoleRequest;
+    static deserializeBinaryFromReader(message: CreateConnectMyComputerRoleRequest, reader: jspb.BinaryReader): CreateConnectMyComputerRoleRequest;
+}
+
+export namespace CreateConnectMyComputerRoleRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class CreateConnectMyComputerRoleResponse extends jspb.Message { 
+    getCertsReloaded(): boolean;
+    setCertsReloaded(value: boolean): CreateConnectMyComputerRoleResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CreateConnectMyComputerRoleResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: CreateConnectMyComputerRoleResponse): CreateConnectMyComputerRoleResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CreateConnectMyComputerRoleResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CreateConnectMyComputerRoleResponse;
+    static deserializeBinaryFromReader(message: CreateConnectMyComputerRoleResponse, reader: jspb.BinaryReader): CreateConnectMyComputerRoleResponse;
+}
+
+export namespace CreateConnectMyComputerRoleResponse {
+    export type AsObject = {
+        certsReloaded: boolean,
+    }
+}
+
 export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,
