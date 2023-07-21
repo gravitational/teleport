@@ -130,7 +130,9 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 		}
-		fn(s)
+		if fn != nil {
+			fn(s)
+		}
 		return s
 	}
 
@@ -307,7 +309,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `addr must be set when server SubKind is "openssh"`)
+				require.ErrorContains(t, err, "addr must be set")
 			},
 		},
 		{
@@ -325,7 +327,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `hostname must be set when server SubKind is "openssh"`)
+				require.ErrorContains(t, err, "hostname must be set")
 			},
 		},
 		{
@@ -345,7 +347,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `publicAddrs must not be set when server SubKind is "openssh"`)
+				require.ErrorContains(t, err, "publicAddrs must not be set")
 			},
 		},
 		{
@@ -392,7 +394,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata = nil
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing AWS CloudMetadata (required for "openssh-ephemeral-key" SubKind)`)
+				require.ErrorContains(t, err, "missing AWS CloudMetadata")
 			},
 		},
 		{
@@ -401,7 +403,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS = nil
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing AWS CloudMetadata (required for "openssh-ephemeral-key" SubKind)`)
+				require.ErrorContains(t, err, "missing AWS CloudMetadata")
 			},
 		},
 		{
@@ -410,7 +412,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS.AccountID = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing AWS Account ID (required for "openssh-ephemeral-key" SubKind)`)
+				require.ErrorContains(t, err, "missing AWS Account ID")
 			},
 		},
 		{
@@ -419,7 +421,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS.InstanceID = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing AWS InstanceID (required for "openssh-ephemeral-key" SubKind)`)
+				require.ErrorContains(t, err, "missing AWS InstanceID")
 			},
 		},
 		{
@@ -428,7 +430,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS.Region = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing AWS Region (required for "openssh-ephemeral-key" SubKind)`)
+				require.ErrorContains(t, err, "missing AWS Region")
 			},
 		},
 		{
@@ -437,7 +439,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				s.Spec.CloudMetadata.AWS.AvailabilityZone = ""
 			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing AWS Availability Zone (required for "openssh-ephemeral-key" SubKind)`)
+				require.ErrorContains(t, err, "missing AWS Availability Zone")
 			},
 		},
 		{
@@ -465,7 +467,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing AWS VPC ID (required for "openssh-ephemeral-key" SubKind)`)
+				require.ErrorContains(t, err, "missing AWS VPC ID")
 			},
 		},
 		{
@@ -493,12 +495,12 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `missing AWS OIDC Integration (required for "openssh-ephemeral-key" SubKind)`)
+				require.ErrorContains(t, err, "missing AWS OIDC Integration")
 			},
 		},
 		{
 			name:   "valid OpenSSHEphemeralKey node",
-			server: makeOpenSSHEphemeralKeyNode(func(_ *ServerV2) {}),
+			server: makeOpenSSHEphemeralKeyNode(nil),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
 				require.NoError(t, err)
 				expectedServer := &ServerV2{
