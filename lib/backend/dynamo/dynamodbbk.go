@@ -321,6 +321,10 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	return b, nil
 }
 
+func (b *Backend) GetName() string {
+	return GetName()
+}
+
 // Create creates item if it does not exist
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	err := b.create(ctx, item, modeCreate)
