@@ -24,6 +24,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -190,7 +191,8 @@ func initSvc(t *testing.T) (*Generator, *svc) {
 	require.NoError(t, err)
 	accessSvc := local.NewAccessService(mem)
 
-	return &Generator{accessLists: accessListsSvc, access: accessSvc, clock: clock},
+	log := logrus.WithField("test", "logger")
+	return &Generator{log: log, accessLists: accessListsSvc, access: accessSvc, clock: clock},
 		&svc{AccessLists: accessListsSvc, Access: accessSvc}
 }
 

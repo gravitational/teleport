@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
@@ -34,6 +35,9 @@ import (
 
 // GeneratorConfig is the configuration for the user login state generator.
 type GeneratorConfig struct {
+	// Log is a logger to use for the generator.
+	Log *logrus.Entry
+
 	// AccessLists is a service for retrieving access lists from the backend.
 	AccessLists services.AccessListsGetter
 
@@ -45,6 +49,10 @@ type GeneratorConfig struct {
 }
 
 func (g *GeneratorConfig) CheckAndSetDefaults() error {
+	if g.Log == nil {
+		return trace.BadParameter("missing log")
+	}
+
 	if g.AccessLists == nil {
 		return trace.BadParameter("missing access lists")
 	}
@@ -62,6 +70,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 
 // Generator will generate a user login state from a user.
 type Generator struct {
+	log         *logrus.Entry
 	accessLists services.AccessListsGetter
 	access      services.Access
 	clock       clockwork.Clock
@@ -74,6 +83,7 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 	}
 
 	return &Generator{
+		log:         config.Log,
 		accessLists: config.AccessLists,
 		access:      config.Access,
 		clock:       config.Clock,
@@ -167,6 +177,8 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 	for _, role := range state.Spec.Roles {
 		if roleLookup[role] {
 			existingRoles = append(existingRoles, role)
+		} else {
+			g.log.Warnf("Role %s does not exist when trying to add user login state, will be skipped", role)
 		}
 	}
 	state.Spec.Roles = existingRoles
