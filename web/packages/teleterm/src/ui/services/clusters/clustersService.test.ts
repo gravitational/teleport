@@ -117,12 +117,30 @@ test('add cluster', async () => {
 });
 
 test('remove cluster', async () => {
-  const service = createService({});
+  const { removeGateway } = getClientMocks();
+  const service = createService({ removeGateway });
+  const gatewayFromRootCluster = makeGateway({
+    uri: '/gateways/1',
+    targetUri: `${clusterMock.uri}/dbs/foo`,
+  });
+  const gatewayFromLeafCluster = makeGateway({
+    uri: '/gateways/2',
+    targetUri: `${leafClusterMock.uri}/dbs/foo`,
+  });
+  const gatewayFromOtherCluster = makeGateway({
+    uri: '/gateways/3',
+    targetUri: `/clusters/bogus-cluster/dbs/foo`,
+  });
 
   service.setState(draftState => {
     draftState.clusters = new Map([
       [clusterMock.uri, clusterMock],
       [leafClusterMock.uri, leafClusterMock],
+    ]);
+    draftState.gateways = new Map([
+      [gatewayFromRootCluster.uri, gatewayFromRootCluster],
+      [gatewayFromLeafCluster.uri, gatewayFromLeafCluster],
+      [gatewayFromOtherCluster.uri, gatewayFromOtherCluster],
     ]);
   });
 
@@ -130,6 +148,13 @@ test('remove cluster', async () => {
 
   expect(service.findCluster(clusterUri)).toBeUndefined();
   expect(service.findCluster(leafClusterMock.uri)).toBeUndefined();
+  expect(service.state.gateways).toEqual(
+    new Map([[gatewayFromOtherCluster.uri, gatewayFromOtherCluster]])
+  );
+
+  expect(removeGateway).toHaveBeenCalledWith(gatewayFromRootCluster.uri);
+  expect(removeGateway).toHaveBeenCalledWith(gatewayFromLeafCluster.uri);
+  expect(removeGateway).not.toHaveBeenCalledWith(gatewayFromOtherCluster.uri);
 });
 
 test('sync root cluster', async () => {
