@@ -253,6 +253,10 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		return nil, trace.Wrap(err)
 	}
 
+	if gateway, ok := s.shouldReuseGateway(targetURI); ok {
+		return gateway, nil
+	}
+
 	cliCommandProvider, err := s.getGatewayCLICommandProvider(targetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -264,7 +268,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
-		TCPPortAllocator:      s.cfg.TCPPortAllocator,
 		OnExpiredCert:         s.reissueGatewayCerts,
 	}
 
@@ -313,12 +316,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 			return trace.Wrap(err)
 		}
 
-		// TODO(greedy52) move cluster.ReissueDBCerts to cluster.ReissueGatewayCerts
-		db, err := gateway.AsDatabase(g)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := cluster.ReissueDBCerts(ctx, db.RouteToDatabase()); err != nil {
+		if err := cluster.ReissueGatewayCerts(ctx, g); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -730,6 +728,24 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 	})
 
 	return response, trace.Wrap(err)
+}
+
+func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
+	// A single gateway can be shared for all terminals of the same kube
+	// cluster.
+	if targetURI.IsKube() {
+		return s.findGatewayByTargetURI(targetURI)
+	}
+	return nil, false
+}
+
+func (s *Service) findGatewayByTargetURI(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
+	for _, gateway := range s.gateways {
+		if gateway.TargetURI() == targetURI {
+			return gateway, true
+		}
+	}
+	return nil, false
 }
 
 // Service is the daemon service

@@ -3403,7 +3403,7 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		token.SetMetadata(meta)
 	}
 
-	if err := a.UpsertToken(ctx, token); err != nil {
+	if err := a.CreateToken(ctx, token); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -3602,18 +3602,6 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
-}
-
-// UnstableAssertSystemRole is not a stable part of the public API. Used by older
-// instances to prove that they hold a given system role.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
-}
-
-func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
-	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
-	return set, trace.Wrap(err)
 }
 
 func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
@@ -4116,6 +4104,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
+		MaxDuration:          req.GetMaxDuration(),
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -4217,6 +4206,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ProposedState: params.Review.ProposedState.String(),
 		Reason:        params.Review.Reason,
 		Reviewer:      params.Review.Author,
+		MaxDuration:   req.GetMaxDuration(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
@@ -5391,63 +5381,6 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 		return trace.Wrap(err)
 	}
 	log.Infof("Successfully added locally usable additional trusted keys to %s CA.", ca.GetType())
-	return nil
-}
-
-// createSelfSignedCA creates a new self-signed CA and writes it to the
-// backend, with the type and clusterName given by the argument caID.
-func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) error {
-	keySet, err := newKeySet(ctx, a.keyStore, caID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        caID.Type,
-		ClusterName: caID.DomainName,
-		ActiveKeys:  keySet,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.CreateCertAuthority(ctx, ca); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
-// auth server which are not currently used in any CAs.
-func (a *Server) deleteUnusedKeys(ctx context.Context) error {
-	clusterName, err := a.Services.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var activeKeys [][]byte
-	for _, caType := range types.CertAuthTypes {
-		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
-		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
-			for _, sshKeyPair := range keySet.SSH {
-				activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
-			}
-			for _, tlsKeyPair := range keySet.TLS {
-				activeKeys = append(activeKeys, tlsKeyPair.Key)
-			}
-			for _, jwtKeyPair := range keySet.JWT {
-				activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
-			}
-		}
-	}
-	if err := a.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
-		// Key deletion is best-effort, log a warning if it fails and carry on.
-		// We don't want to prevent a CA rotation, which may be necessary in
-		// some cases where this would fail.
-		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
-	}
 	return nil
 }
 

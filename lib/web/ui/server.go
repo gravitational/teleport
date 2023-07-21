@@ -52,6 +52,8 @@ type Server struct {
 	Labels []Label `json:"tags"`
 	// SSHLogins is the list of logins this user can use on this server
 	SSHLogins []string `json:"sshLogins"`
+	// AWS contains metadata for instances hosted in AWS.
+	AWS *types.AWSInfo `json:"aws,omitempty"`
 }
 
 // sortedLabels is a sort wrapper that sorts labels by name
@@ -82,7 +84,7 @@ func MakeServers(clusterName string, servers []types.Server, accessChecker servi
 			return nil, trace.Wrap(err)
 		}
 
-		uiServers = append(uiServers, Server{
+		s := Server{
 			ClusterName: clusterName,
 			Labels:      uiLabels,
 			Name:        server.GetName(),
@@ -90,7 +92,12 @@ func MakeServers(clusterName string, servers []types.Server, accessChecker servi
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
 			SSHLogins:   serverLogins,
-		})
+		}
+		if server.GetCloudMetadata() != nil {
+			s.AWS = server.GetCloudMetadata().AWS
+		}
+
+		uiServers = append(uiServers, s)
 	}
 
 	return uiServers, nil

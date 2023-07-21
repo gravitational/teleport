@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -167,6 +168,10 @@ func ValidateDatabase(db types.Database) error {
 		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
+	} else if db.GetProtocol() == defaults.ProtocolClickHouse || db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
+		if err := validateClickhouseURI(db); err != nil {
+			return trace.Wrap(err)
+		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
 			return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
@@ -240,6 +245,24 @@ func needsADValidation(db types.Database) bool {
 	}
 
 	return true
+}
+
+func validateClickhouseURI(db types.Database) error {
+	u, err := url.Parse(db.GetURI())
+	if err != nil {
+		return trace.BadParameter("failed to parse uri: %v", err)
+	}
+	var requiredSchema string
+	if db.GetProtocol() == defaults.ProtocolClickHouse {
+		requiredSchema = "clickhouse"
+	}
+	if db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
+		requiredSchema = "https"
+	}
+	if u.Scheme != requiredSchema {
+		return trace.BadParameter("invalid uri schema: %s for %v database protocol", u.Scheme, db.GetProtocol())
+	}
+	return nil
 }
 
 // needsURIValidation returns whether a database URI needs to be validated.
