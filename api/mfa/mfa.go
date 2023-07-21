@@ -59,7 +59,7 @@ func CredentialsFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse
 func getMFACredentialsFromContext(ctx context.Context) (*proto.MFAAuthenticateResponse, error) {
 	values := metadata.ValueFromIncomingContext(ctx, mfaResponseToken)
 	if len(values) == 0 {
-		return nil, trace.BadParameter("request metadata missing MFA credentials")
+		return nil, trace.NotFound("request metadata missing MFA credentials")
 	}
 	mfaChallengeResponseEnc := values[0]
 
