@@ -232,12 +232,12 @@ groups, users or service accounts to enable impersonation for.
 
 Kubernetes Users and Groups are entities that exist in
 the Kubernetes Cluster and for which permissions are controlled through
-`ClusterRoleBindings` or `RoleBindings` resources. If by any chance they do not
+`ClusterRoleBinding` or `RoleBinding` resources. If by any chance they do not
 exist in the cluster, Kubernetes RBAC will ignore them.
 
 An example of a `ClusterRoleBinding` resource that assigns the built-in `view`
 `ClusterRole` to a Group `cluster-viewer-group` and to a User `cluster-viewer-user`
-can be found bellow.
+can be found below.
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -264,19 +264,19 @@ the impersonation principals used in the request.
 
 #### Kubernetes Service Accounts
 
-Teleport supports Service Account impersonation by using the Service Account
-fully qualified name in the `kubernetes_users` field.
+Teleport supports Service Account impersonation by using the fully-qualified
+name of the Service Account in the `kubernetes_users` field.
 
-The Service Account fully qualified name consists of the following pattern:
+The Service Account's fully-qualified name consists of the following pattern:
 
 ```
 system:serviceaccount:<namespace>:<service_account_name>
 ```
 
 The FQN must be prefixed with `system:serviceaccount:`, otherwise Kubernetes will
-consider it as a normal User.
+evaluate it as a normal User.
 
-An example of a role that impersonates a Service Account can be found bellow.
+An example of a role that impersonates a Service Account can be found below.
 
 ```yaml
 kind: role
