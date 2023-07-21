@@ -85,10 +85,11 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 		return trace.Wrap(err)
 	}
 
+	maxBackoffDuration := defaults.MaxWatcherBackoff
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(defaults.HighResPollingPeriod / 10),
-		Step:   defaults.HighResPollingPeriod / 5,
-		Max:    defaults.HighResPollingPeriod,
+		First:  utils.FullJitter(maxBackoffDuration / 10),
+		Step:   maxBackoffDuration / 5,
+		Max:    maxBackoffDuration,
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  s.cfg.Storage.Clock,
 	})
@@ -131,7 +132,7 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 					return trace.Wrap(err)
 				}
 			case <-watcher.Done():
-				return trace.Wrap(err)
+				return trace.Wrap(watcher.Error())
 			case <-watchCtx.Done():
 				return nil
 			}
@@ -152,6 +153,12 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 			}
 
 			err := watch()
+			switch {
+			case trace.IsNotImplemented(err):
+				// Don't retry watch if we are connecting to an old Auth Server.
+				log.WithError(err).Debug("Headless watcher not supported.")
+				return
+			}
 
 			startedWaiting := s.cfg.Storage.Clock.Now()
 			select {
