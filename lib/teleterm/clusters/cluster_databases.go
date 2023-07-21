@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -65,7 +66,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI uri.ResourceURI) (*Data
 // https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
 func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 	var dbs []types.Database
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -116,7 +117,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 		UseSearchAsRoles:    r.SearchAsRoles == "yes",
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -150,8 +151,8 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 	return response, nil
 }
 
-// ReissueDBCerts issues new certificates for specific DB access and saves them to disk.
-func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) error {
+// reissueDBCerts issues new certificates for specific DB access and saves them to disk.
+func (c *Cluster) reissueDBCerts(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
@@ -159,7 +160,7 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 		return trace.BadParameter("the username must be present for MongoDB connections")
 	}
 
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 		err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 			RouteToCluster: c.clusterClient.SiteName,
@@ -208,7 +209,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 		return nil, trace.Wrap(err)
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -248,4 +249,22 @@ type GetDatabasesResponse struct {
 	StartKey string
 	// // TotalCount is the total number of resources available as a whole.
 	TotalCount int
+}
+
+// NewDBCLICmdBuilder creates a dbcmd.CLICommandBuilder with provided cluster,
+// db route, and options.
+func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
+	return dbcmd.NewCmdBuilder(
+		cluster.clusterClient,
+		&cluster.status,
+		routeToDb,
+		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
+		// clusters.
+		//
+		// At this point it doesn't matter though because this argument is used only for
+		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
+		// included in the returned CLI command.
+		cluster.Name,
+		options...,
+	)
 }

@@ -968,7 +968,7 @@ func formatKubeLabels(cluster types.KubeCluster) string {
 
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
-	cf.UserHost = c.labels
+	cf.Labels = c.labels
 	cf.PredicateExpression = c.predicateExpr
 	cf.SiteName = c.siteName
 

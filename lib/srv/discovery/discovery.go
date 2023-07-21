@@ -73,6 +73,9 @@ type Config struct {
 	DiscoveryGroup string
 	// ClusterName is the name of the Teleport cluster.
 	ClusterName string
+	// PollInterval is the cadence at which the discovery server will run each of its
+	// discovery cycles.
+	PollInterval time.Duration
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -94,6 +97,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Log == nil {
 		c.Log = logrus.New()
+	}
+
+	if c.PollInterval == 0 {
+		c.PollInterval = 5 * time.Minute
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
@@ -176,7 +183,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	var err error
 	if len(ec2Matchers) > 0 {
 		s.caRotationCh = make(chan []types.Server)
-		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients, s.caRotationCh)
+		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients, s.caRotationCh, server.WithPollInterval(s.PollInterval))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -255,7 +262,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	// VM watcher.
 	if len(vmMatchers) > 0 {
 		var err error
-		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients)
+		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients, server.WithPollInterval(s.PollInterval))
 		if err != nil {
 			return trace.Wrap(err)
 		}

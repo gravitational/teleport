@@ -43,6 +43,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -903,16 +904,6 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trail.FromGRPC(err)
 	}
 	return cert, nil
-}
-
-// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
-// instances to prove that they hold a given system role.
-//
-// DELETE IN: 11.0 (server side method should continue to exist until 12.0 for back-compat reasons,
-// but v11 clients should no longer need this method)
-func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req)
-	return trail.FromGRPC(err)
 }
 
 // EmitAuditEvent sends an auditable event to the auth server.
@@ -3089,6 +3080,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubernetesServer()
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
+		case types.KindAppOrSAMLIdPServiceProvider:
+			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3181,6 +3174,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubernetesServer()
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
+			case types.KindAppOrSAMLIdPServiceProvider:
+				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -3880,8 +3875,8 @@ func (c *Client) OktaClient() *okta.Client {
 // Clients connecting to  older Teleport versions, still get an access list client
 // when calling this method, but all RPCs will return "not implemented" errors
 // (as per the default gRPC behavior).
-func (c *Client) AccessListClient() accesslistv1.AccessListServiceClient {
-	return accesslistv1.NewAccessListServiceClient(c.conn)
+func (c *Client) AccessListClient() *accesslist.Client {
+	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

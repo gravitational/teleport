@@ -63,6 +63,28 @@ function deserialize_teleport_lib_teleterm_v1_SendNotificationResponse(buffer_ar
   return teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_SendPendingHeadlessAuthenticationRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.SendPendingHeadlessAuthenticationRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_SendPendingHeadlessAuthenticationRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_tshd_events_service_pb.SendPendingHeadlessAuthenticationRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_SendPendingHeadlessAuthenticationResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.SendPendingHeadlessAuthenticationResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_SendPendingHeadlessAuthenticationResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_tshd_events_service_pb.SendPendingHeadlessAuthenticationResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 
 // TshdEventsService is served by the Electron app. The tsh daemon calls this service to notify the
 // app about actions that happen outside of the app itself.
@@ -93,6 +115,19 @@ sendNotification: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_SendNotificationRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_SendNotificationResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_SendNotificationResponse,
+  },
+  // SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
+// which it can use to initiate headless authentication resolution in the UI.
+sendPendingHeadlessAuthentication: {
+    path: '/teleport.lib.teleterm.v1.TshdEventsService/SendPendingHeadlessAuthentication',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_tshd_events_service_pb.SendPendingHeadlessAuthenticationRequest,
+    responseType: teleport_lib_teleterm_v1_tshd_events_service_pb.SendPendingHeadlessAuthenticationResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_SendPendingHeadlessAuthenticationRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_SendPendingHeadlessAuthenticationRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_SendPendingHeadlessAuthenticationResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_SendPendingHeadlessAuthenticationResponse,
   },
 };
 

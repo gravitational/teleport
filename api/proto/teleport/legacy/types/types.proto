@@ -436,6 +436,11 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "opensearch,omitempty"
   ];
+
+  // IAMPolicyExists indicates whether the IAM Policy is configured properly for database access.
+  // If not, the user must update the AWS profile identity to allow access to the Database.
+  // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database
+  bool IAMPolicyExists = 13 [(gogoproto.jsontag) = "iam_policy_exists"];
 }
 
 // SecretStore contains secret store configurations.
@@ -789,10 +794,36 @@ message ServerSpecV2 {
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
   // PublicAddrs is a list of public addresses where this server can be reached.
   repeated string public_addrs = 13;
+  // CloudMetadata contains info about the cloud instance the server is running
+  // on, if any.
+  CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
 
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
+}
+
+// AWSInfo contains attributes to match to an EC2 instance.
+message AWSInfo {
+  // AccountID is an AWS account ID.
+  string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+  // InstanceID is an EC2 instance ID.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  // Region is the AWS EC2 Instance Region.
+  string Region = 3 [(gogoproto.jsontag) = "region,omitempty"];
+  // VPCID is the AWS VPC ID where the Instance is running.
+  string VPCID = 4 [(gogoproto.jsontag) = "vpc_id,omitempty"];
+  // Integration is the integration name that added this Node.
+  // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
+  // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
+  string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+// CloudMetadata contains info about the cloud instance a server is running
+// on, if any.
+message CloudMetadata {
+  // AWSInfo contains attributes to match to an EC2 instance.
+  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -887,6 +918,22 @@ message AppSpecV3 {
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
   // UserGroups are a list of user group IDs that this app is associated with.
   repeated string UserGroups = 8;
+}
+
+// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
+// Used in application listings that request both app servers and saml apps.
+message AppServerOrSAMLIdPServiceProviderV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Kind is the resource kind. Always "app_server_saml_idp_sp".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // The AppServer or SAMLIdPServiceProvider resource.
+  oneof Resource {
+    // AppServer is the AppServer resource.
+    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
+    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource.
+    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+  }
 }
 
 // App is a specific application that a server proxies.
@@ -2168,6 +2215,13 @@ message AccessRequestSpecV3 {
   // DryRun indicates that the request should not actually be created, the
   // auth server should only validate the access request.
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
+
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 17 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "max_duration,omitempty"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2822,6 +2876,13 @@ message AccessRequestConditions {
   // defines the underlying roles which will be requested as part of any
   // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
+
+  // MaxDuration is the amount of time the access will be granted for.
+  // If this is zero, the default duration is used.
+  int64 MaxDuration = 7 [
+    (gogoproto.jsontag) = "max_duration,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
@@ -5823,8 +5884,8 @@ message WatchStatusSpecV1 {
 message ServerInfoV1 {
   // Kind is the resource kind.
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // SubKind is an optional resource subkind. Currently unused for this resource.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind"];
   // Version is the resource version.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the resource metadata.
@@ -5841,15 +5902,8 @@ message ServerInfoV1 {
 
 // ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
 message ServerInfoSpecV1 {
-  // AWSInfo contains attributes to match to an EC2 instance.
-  message AWSInfo {
-    // AccountID is an AWS account ID.
-    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
-    // InstanceID is an EC2 instance ID.
-    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
-  }
-  // AWS matches an EC2 instance.
-  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  reserved 1;
+  reserved "AWS";
   // NewLabels is the set of labels to add to nodes matching this ServerInfo.
   map<string, string> NewLabels = 2 [(gogoproto.jsontag) = "new_labels,omitempty"];
 }
@@ -6046,4 +6100,18 @@ message GCPMatcher {
   ];
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
+}
+
+// KubernetesMatcher matches Kubernetes services.
+message KubernetesMatcher {
+  // Types are Kubernetes services types to match. Currently only 'app' is supported.
+  repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
+  // Namespaces are Kubernetes namespaces in which to discover services
+  repeated string Namespaces = 2 [(gogoproto.jsontag) = "namespaces,omitempty"];
+  // Labels are Kubernetes services labels to match.
+  wrappers.LabelValues Labels = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
