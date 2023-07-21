@@ -18,7 +18,7 @@ or the Teleport identity provider, and prevent unauthorized use of organization 
 
 ```mermaid
 flowchart LR
-subgraph team["Teleport Team tenant"]
+subgraph team["Teleport Team cluster"]
   direction LR
   proxy["Teleport Proxy Service"]
   auth["Teleport Auth Service"]
@@ -56,7 +56,7 @@ You can also record your sessions, so you can review them later.
 
   After you sign up, you receive an email invitation to activate your account.
   Use this account to authenticate your identity when you access the Teleport
-  Team tenant.
+  Team cluster.
 
 - Docker installed on your workstation. 
 
@@ -81,7 +81,7 @@ To spin up a new server using Docker:
 1. Open a terminal shell on your workstation.
 
 2. Start a Docker container on your workstation to prepare a server that you want enroll 
-as a resource in your Teleport Team tenant:
+as a resource in your Teleport Team cluster:
    
    ```code
    $ docker run --interactive --tty ubuntu:22.10 /bin/bash
@@ -103,8 +103,8 @@ as a resource in your Teleport Team tenant:
 
 To install the Teleport SSH Service on your server:
 
-1. Open a browser and go to the address for your Teleport Team tenant, 
-<Var name="tenant-url"/>`.teleport.sh` (for example, `mytenant.teleport.sh`).
+1. Open a browser and go to the address for your Teleport Team cluster, 
+<Var name="cluster-url"/>`.teleport.sh` (for example, `mycluster.teleport.sh`).
 
 2. Sign in with the account credentials you used to activate your Teleport Team account.
    
@@ -207,20 +207,20 @@ To access the server using commands in a terminal:
 
 1. Open a new terminal window.
 
-2. Sign in to your Teleport Team tenant by running the `tsh login` command  with the URL 
-of your tenant and the name of your Teleport user:
+2. Sign in to your Teleport Team cluster by running the `tsh login` command  with the URL 
+of your cluster and the name of your Teleport user:
    
    ```code
-   $ tsh login --proxy=<Var name="tenant-url" />.teleport.sh --user=<Var name="username" />
+   $ tsh login --proxy=<Var name="cluster-url" />.teleport.sh --user=<Var name="username" />
    ```
    
    When prompted, authenticate using your password, authenticator app, or hardware key.
-   The command displays information about your Teleport Team tenant and account. For example:
+   The command displays information about your Teleport Team cluster and account. For example:
    
    ```code
-   > Profile URL:      https://tenant-url.teleport.sh:443
+   > Profile URL:      https://cluster-url.teleport.sh:443
    Logged in as:       admin@teleport.example.com
-   Cluster:            tenant-url.teleport.sh
+   Cluster:            cluster-url.teleport.sh
    Roles:              access, auditor, editor
    Logins:             root
    Kubernetes:         enabled
@@ -251,7 +251,7 @@ of your tenant and the name of your Teleport user:
 
 This guide introduced how you can use Teleport Team to protect your
 infrastructure by demonstrating how to register a server with your Teleport Team 
-tenant. 
+cluster. 
 
 You can provide secure access to more of your infrastructure through 
 Teleport Team by deploying one or more Teleport **agents** and configuring
