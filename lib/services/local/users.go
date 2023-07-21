@@ -193,6 +193,41 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) error
 	return nil
 }
 
+// UpdateUserFunc reads an existing user, runs `fn` against it and writes the
+// result to storage. Return `false` from `fn` to avoid storage changes.
+// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+// Returns the storage user.
+func (s *IdentityService) UpdateUserFunc(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
+	u, items, err := s.getUser(ctx, user, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Take a "copy" of `u`. It is never modified.
+	existing, err := userFromUserItems(user, *items)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch changed, err := fn(u); {
+	case err != nil:
+		return nil, trace.Wrap(err)
+	case !changed:
+		// Return user before modifications.
+		return existing, nil
+	}
+
+	// Don't write secrets if we didn't read secrets.
+	if !withSecrets {
+		u = u.WithoutSecrets().(types.User)
+	}
+
+	if err := s.CompareAndSwapUser(ctx, u, existing); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u, nil
+}
+
 // UpsertUser updates parameters about user, or creates an entry if not exist.
 func (s *IdentityService) UpsertUser(user types.User) error {
 	if err := services.ValidateUser(user); err != nil {
@@ -276,46 +311,55 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 // GetUser returns a user by name
 func (s *IdentityService) GetUser(user string, withSecrets bool) (types.User, error) {
-	if withSecrets {
-		return s.getUserWithSecrets(user)
-	}
-	if user == "" {
-		return nil, trace.BadParameter("missing user name")
-	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, paramsPrefix))
-	if err != nil {
-		return nil, trace.NotFound("user %q is not found", user)
-	}
-	u, err := services.UnmarshalUser(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	u, _, err := s.getUser(context.TODO(), user, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if !withSecrets {
-		u.SetLocalAuth(nil)
 	}
 	return u, nil
 }
 
-func (s *IdentityService) getUserWithSecrets(user string) (types.User, error) {
+func (s *IdentityService) getUser(ctx context.Context, user string, withSecrets bool) (types.User, *userItems, error) {
 	if user == "" {
-		return nil, trace.BadParameter("missing user name")
+		return nil, nil, trace.BadParameter("missing user name")
 	}
-	startKey := backend.Key(webPrefix, usersPrefix, user)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
+
+	if withSecrets {
+		u, items, err := s.getUserWithSecrets(ctx, user)
+		return u, items, trace.Wrap(err)
+	}
+
+	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, user, paramsPrefix))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.NotFound("user %q not found", user)
 	}
-	var uitems userItems
+
+	u, err := services.UnmarshalUser(
+		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if !withSecrets {
+		u.SetLocalAuth(nil)
+	}
+	return u, &userItems{params: item}, nil
+}
+
+func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (types.User, *userItems, error) {
+	startKey := backend.Key(webPrefix, usersPrefix, user)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	var items userItems
 	for _, item := range result.Items {
 		suffix := bytes.TrimPrefix(item.Key, append(startKey, byte(backend.Separator)))
-		uitems.Set(string(suffix), item) // Result of Set i
+		items.Set(string(suffix), item) // Result of Set i
 	}
-	u, err := userFromUserItems(user, uitems)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return u, nil
+
+	u, err := userFromUserItems(user, items)
+	return u, &items, trace.Wrap(err)
 }
 
 func (s *IdentityService) upsertLocalAuthSecrets(user string, auth types.LocalAuthSecrets) error {
