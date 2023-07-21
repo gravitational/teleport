@@ -451,26 +451,27 @@ func (s *ServerV2) openSSHEphemeralKeyNodeCheckAndSetDefaults() error {
 	}
 
 	// Currently, only AWS EC2 is supported for EphemeralKey mode.
-	if s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil {
-		return trace.BadParameter("AWS CloudMetadata is required for %q SubKind", s.SubKind)
-	}
-	if s.Spec.CloudMetadata.AWS.AccountID == "" {
-		return trace.BadParameter("AWS Account ID is required for %q SubKind", s.SubKind)
-	}
-	if s.Spec.CloudMetadata.AWS.Region == "" {
-		return trace.BadParameter("AWS Region is required for %q SubKind", s.SubKind)
-	}
-	if s.Spec.CloudMetadata.AWS.Integration == "" {
-		return trace.BadParameter("AWS OIDC Integration is required for %q SubKind", s.SubKind)
-	}
-	if s.Spec.CloudMetadata.AWS.InstanceID == "" {
-		return trace.BadParameter("AWS InstanceID is required for %q SubKind", s.SubKind)
-	}
-	if s.Spec.CloudMetadata.AWS.AvailabilityZone == "" {
-		return trace.BadParameter("AWS Availability Zone is required for %q SubKind", s.SubKind)
-	}
-	if s.Spec.CloudMetadata.AWS.VPCID == "" {
-		return trace.BadParameter("AWS VPC ID is required for %q SubKind", s.SubKind)
+	switch {
+	case s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil:
+		return trace.BadParameter("missing AWS CloudMetadata (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.AccountID == "":
+		return trace.BadParameter("missing AWS Account ID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.Region == "":
+		return trace.BadParameter("missing AWS Region (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.Integration == "":
+		return trace.BadParameter("missing AWS OIDC Integration (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.InstanceID == "":
+		return trace.BadParameter("missing AWS InstanceID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.AvailabilityZone == "":
+		return trace.BadParameter("missing AWS Availability Zone (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.VPCID == "":
+		return trace.BadParameter("missing AWS VPC ID (required for %q SubKind)", s.SubKind)
 	}
 
 	return nil

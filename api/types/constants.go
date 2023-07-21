@@ -145,7 +145,7 @@ const (
 	// https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
 	// This Key is valid for 60 seconds.
 	//
-	// It uses the private key to SSH into the host.
+	// It uses the private key created above to SSH into the host.
 	SubKindOpenSSHEphemeralKeyNode = "openssh-ephemeral-key"
 
 	// KindAppServer is an application server resource.

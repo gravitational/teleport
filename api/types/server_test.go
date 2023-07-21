@@ -106,6 +106,34 @@ func TestServerSorter(t *testing.T) {
 func TestServerCheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
+	makeOpenSSHEphemeralKeyNode := func(fn func(s *ServerV2)) *ServerV2 {
+		s := &ServerV2{
+			Kind:    KindNode,
+			SubKind: SubKindOpenSSHEphemeralKeyNode,
+			Version: V2,
+			Metadata: Metadata{
+				Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+				Namespace: defaults.Namespace,
+			},
+			Spec: ServerSpecV2{
+				Addr:     "example:22",
+				Hostname: "openssh-node",
+				CloudMetadata: &CloudMetadata{
+					AWS: &AWSInfo{
+						AccountID:        "123456789012",
+						InstanceID:       "i-123456789012",
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1b",
+						VPCID:            "vpc-abcd",
+						Integration:      "teleportdev",
+					},
+				},
+			},
+		}
+		fn(s)
+		return s
+	}
+
 	tests := []struct {
 		name      string
 		server    *ServerV2
@@ -279,7 +307,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `Addr must be set when server SubKind is "openssh"`)
+				require.EqualError(t, err, `addr must be set when server SubKind is "openssh"`)
 			},
 		},
 		{
@@ -297,7 +325,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `Hostname must be set when server SubKind is "openssh"`)
+				require.EqualError(t, err, `hostname must be set when server SubKind is "openssh"`)
 			},
 		},
 		{
@@ -317,7 +345,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `PublicAddrs must not be set when server SubKind is "openssh"`)
+				require.EqualError(t, err, `publicAddrs must not be set when server SubKind is "openssh"`)
 			},
 		},
 		{
@@ -360,153 +388,56 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "OpenSSHEphemeralKey node without cloud metadata",
-			server: &ServerV2{
-				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
-				Version: V2,
-				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					Addr:     "example:22",
-					Hostname: "openssh-node",
-				},
-			},
+			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata = nil
+			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `AWS CloudMetadata is required for "openssh-ephemeral-key" SubKind`)
+				require.EqualError(t, err, `missing AWS CloudMetadata (required for "openssh-ephemeral-key" SubKind)`)
 			},
 		},
 		{
 			name: "OpenSSHEphemeralKey node with cloud metadata but missing aws info",
-			server: &ServerV2{
-				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
-				Version: V2,
-				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					Addr:          "example:22",
-					Hostname:      "openssh-node",
-					CloudMetadata: &CloudMetadata{},
-				},
-			},
+			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS = nil
+			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `AWS CloudMetadata is required for "openssh-ephemeral-key" SubKind`)
+				require.EqualError(t, err, `missing AWS CloudMetadata (required for "openssh-ephemeral-key" SubKind)`)
 			},
 		},
 		{
 			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing accountid",
-			server: &ServerV2{
-				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
-				Version: V2,
-				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					Addr:     "example:22",
-					Hostname: "openssh-node",
-					CloudMetadata: &CloudMetadata{
-						AWS: &AWSInfo{
-							InstanceID:       "i-123456789012",
-							Region:           "us-east-1",
-							AvailabilityZone: "us-east-1b",
-							VPCID:            "vpc-abcd",
-							Integration:      "teleportdev",
-						},
-					},
-				},
-			},
+			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS.AccountID = ""
+			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `AWS Account ID is required for "openssh-ephemeral-key" SubKind`)
+				require.EqualError(t, err, `missing AWS Account ID (required for "openssh-ephemeral-key" SubKind)`)
 			},
 		},
 		{
 			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing instanceid",
-			server: &ServerV2{
-				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
-				Version: V2,
-				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					Addr:     "example:22",
-					Hostname: "openssh-node",
-					CloudMetadata: &CloudMetadata{
-						AWS: &AWSInfo{
-							AccountID:        "123456789012",
-							Region:           "us-east-1",
-							AvailabilityZone: "us-east-1b",
-							VPCID:            "vpc-abcd",
-							Integration:      "teleportdev",
-						},
-					},
-				},
-			},
+			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS.InstanceID = ""
+			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `AWS InstanceID is required for "openssh-ephemeral-key" SubKind`)
+				require.EqualError(t, err, `missing AWS InstanceID (required for "openssh-ephemeral-key" SubKind)`)
 			},
 		},
 		{
 			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing region",
-			server: &ServerV2{
-				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
-				Version: V2,
-				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					Addr:     "example:22",
-					Hostname: "openssh-node",
-					CloudMetadata: &CloudMetadata{
-						AWS: &AWSInfo{
-							AccountID:        "123456789012",
-							InstanceID:       "i-123456789012",
-							AvailabilityZone: "us-east-1b",
-							VPCID:            "vpc-abcd",
-							Integration:      "teleportdev",
-						},
-					},
-				},
-			},
+			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS.Region = ""
+			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `AWS Region is required for "openssh-ephemeral-key" SubKind`)
+				require.EqualError(t, err, `missing AWS Region (required for "openssh-ephemeral-key" SubKind)`)
 			},
 		},
 		{
 			name: "OpenSSHEphemeralKey node with aws cloud metadata but missing availability zone",
-			server: &ServerV2{
-				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
-				Version: V2,
-				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					Addr:     "example:22",
-					Hostname: "openssh-node",
-					CloudMetadata: &CloudMetadata{
-						AWS: &AWSInfo{
-							AccountID:   "123456789012",
-							InstanceID:  "i-123456789012",
-							Region:      "us-east-1",
-							VPCID:       "vpc-abcd",
-							Integration: "teleportdev",
-						},
-					},
-				},
-			},
+			server: makeOpenSSHEphemeralKeyNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS.AvailabilityZone = ""
+			}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `AWS Availability Zone is required for "openssh-ephemeral-key" SubKind`)
+				require.EqualError(t, err, `missing AWS Availability Zone (required for "openssh-ephemeral-key" SubKind)`)
 			},
 		},
 		{
@@ -534,7 +465,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `AWS VPC ID is required for "openssh-ephemeral-key" SubKind`)
+				require.EqualError(t, err, `missing AWS VPC ID (required for "openssh-ephemeral-key" SubKind)`)
 			},
 		},
 		{
@@ -562,34 +493,12 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `AWS OIDC Integration is required for "openssh-ephemeral-key" SubKind`)
+				require.EqualError(t, err, `missing AWS OIDC Integration (required for "openssh-ephemeral-key" SubKind)`)
 			},
 		},
 		{
-			name: "valid OpenSSHEphemeralKey node",
-			server: &ServerV2{
-				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEphemeralKeyNode,
-				Version: V2,
-				Metadata: Metadata{
-					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-					Namespace: defaults.Namespace,
-				},
-				Spec: ServerSpecV2{
-					Addr:     "example:22",
-					Hostname: "openssh-node",
-					CloudMetadata: &CloudMetadata{
-						AWS: &AWSInfo{
-							AccountID:        "123456789012",
-							InstanceID:       "i-123456789012",
-							Region:           "us-east-1",
-							AvailabilityZone: "us-east-1b",
-							VPCID:            "vpc-abcd",
-							Integration:      "teleportdev",
-						},
-					},
-				},
-			},
+			name:   "valid OpenSSHEphemeralKey node",
+			server: makeOpenSSHEphemeralKeyNode(func(_ *ServerV2) {}),
 			assertion: func(t *testing.T, s *ServerV2, err error) {
 				require.NoError(t, err)
 				expectedServer := &ServerV2{
