@@ -614,7 +614,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(s.getUserOrLoginState(ctx, user))
 	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -650,7 +650,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		publicKey:            req.PublicKey,
 		compatibility:        req.CompatibilityMode,
 		checker:              checker,
-		traits:               user.GetTraits(),
+		traits:               checker.Traits(),
 		routeToCluster:       req.RouteToCluster,
 		kubernetesCluster:    req.KubernetesCluster,
 		loginIP:              clientIP,

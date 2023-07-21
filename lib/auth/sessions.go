@@ -266,7 +266,10 @@ func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, pu
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
-	accessInfo := services.AccessInfoFromUser(user)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	accessInfo := services.AccessInfoFromUserState(s.getUserOrLoginState(ctx, user))
 	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -282,7 +285,7 @@ func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, pu
 		publicKey:            publicKey,
 		compatibility:        compatibility,
 		checker:              checker,
-		traits:               user.GetTraits(),
+		traits:               checker.Traits(),
 		routeToCluster:       routeToCluster,
 		kubernetesCluster:    kubernetesCluster,
 		attestationStatement: attestationReq,

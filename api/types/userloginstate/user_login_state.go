@@ -76,7 +76,7 @@ func (u *UserLoginState) GetRoles() []string {
 }
 
 // GetTraits returns the traits attached to the user login state.
-func (u *UserLoginState) GetTraits() trait.Traits {
+func (u *UserLoginState) GetTraits() map[string][]string {
 	return u.Spec.Traits
 }
 

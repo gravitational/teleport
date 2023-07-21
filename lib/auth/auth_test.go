@@ -1778,7 +1778,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
@@ -1864,7 +1864,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 	const mfaID = "test-mfa-id"
@@ -1970,7 +1970,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 	keygen := testauthority.New()
@@ -2017,6 +2017,16 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	require.NoError(t, err)
 	_, err = p.a.UpsertUserLoginState(ctx, uls)
 	require.NoError(t, err)
+
+	accessInfo = services.AccessInfoFromUserState(user)
+	accessChecker, err = services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
+	require.NoError(t, err)
+
+	certReq = certRequest{
+		user:      user,
+		checker:   accessChecker,
+		publicKey: pub,
+	}
 
 	resp, err = p.a.generateUserCert(certReq)
 	require.NoError(t, err)

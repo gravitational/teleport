@@ -39,6 +39,10 @@ import (
 
 func TestAccessLists(t *testing.T) {
 	user, err := types.NewUser("user")
+	user.SetRoles([]string{"orole1"})
+	user.SetTraits(map[string][]string{
+		"otrait1": {"value1", "value2"},
+	})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -48,8 +52,13 @@ func TestAccessLists(t *testing.T) {
 		expected    *userloginstate.UserLoginState
 	}{
 		{
-			name:     "access lists are empty",
-			expected: newUserLoginState(t, "user", []string{}, map[string][]string{}),
+			name:  "access lists are empty",
+			roles: []string{"orole1"},
+			expected: newUserLoginState(t, "user", []string{
+				"orole1",
+			}, map[string][]string{
+				"otrait1": {"value1", "value2"},
+			}),
 		},
 		{
 			name: "access lists add roles and traits",
@@ -62,14 +71,16 @@ func TestAccessLists(t *testing.T) {
 					"trait2": []string{"value3"},
 				}),
 			},
-			roles: []string{"role1", "role2"},
+			roles: []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
 				[]string{
+					"orole1",
 					"role1",
 					"role2",
 				}, trait.Traits{
-					"trait1": []string{"value1", "value2"},
-					"trait2": []string{"value3"},
+					"otrait1": []string{"value1", "value2"},
+					"trait1":  []string{"value1", "value2"},
+					"trait2":  []string{"value3"},
 				}),
 		},
 		{
@@ -83,10 +94,12 @@ func TestAccessLists(t *testing.T) {
 					"trait2": []string{"value3"},
 				}),
 			},
+			roles: []string{"orole1"},
 			expected: newUserLoginState(t, "user",
-				[]string{}, trait.Traits{
-					"trait1": []string{"value1", "value2"},
-					"trait2": []string{"value3"},
+				[]string{"orole1"}, trait.Traits{
+					"otrait1": []string{"value1", "value2"},
+					"trait1":  []string{"value1", "value2"},
+					"trait2":  []string{"value3"},
 				}),
 		},
 		{
@@ -100,12 +113,14 @@ func TestAccessLists(t *testing.T) {
 					"trait2": []string{"value3"},
 				}),
 			},
-			roles: []string{"role1", "role2"},
+			roles: []string{"orole1", "role1", "role2"},
 			expected: newUserLoginState(t, "user",
 				[]string{
+					"orole1",
 					"role1",
 				}, trait.Traits{
-					"trait1": []string{"value1"},
+					"otrait1": []string{"value1", "value2"},
+					"trait1":  []string{"value1"},
 				}),
 		},
 		{
@@ -114,13 +129,16 @@ func TestAccessLists(t *testing.T) {
 				newAccessList(t, "1", []string{"user"}, []string{"role1", "role2"}, trait.Traits{}),
 				newAccessList(t, "2", []string{"user"}, []string{"role2", "role3"}, trait.Traits{}),
 			},
-			roles: []string{"role1", "role2", "role3"},
+			roles: []string{"orole1", "role1", "role2", "role3"},
 			expected: newUserLoginState(t, "user",
 				[]string{
+					"orole1",
 					"role1",
 					"role2",
 					"role3",
-				}, trait.Traits{}),
+				}, trait.Traits{
+					"otrait1": []string{"value1", "value2"},
+				}),
 		},
 		{
 			name: "access lists add traits with duplicates",
@@ -138,11 +156,16 @@ func TestAccessLists(t *testing.T) {
 					},
 				),
 			},
-			expected: newUserLoginState(t, "user", []string{},
+			roles: []string{"orole1"},
+			expected: newUserLoginState(t, "user",
+				[]string{
+					"orole1",
+				},
 				trait.Traits{
-					"trait1": []string{"value1", "value2"},
-					"trait2": []string{"value3", "value4", "value1"},
-					"trait3": []string{"value5", "value6"},
+					"otrait1": []string{"value1", "value2"},
+					"trait1":  []string{"value1", "value2"},
+					"trait2":  []string{"value3", "value4", "value1"},
+					"trait3":  []string{"value5", "value6"},
 				}),
 		},
 	}

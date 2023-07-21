@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -92,13 +91,17 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 
 // Generate will generate the user login state for the given user.
 func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
+	traits := make(map[string][]string, len(user.GetTraits()))
+	for k, v := range user.GetTraits() {
+		traits[k] = utils.CopyStrings(v)
+	}
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
 			Name: user.GetName(),
 		}, userloginstate.Spec{
-			Roles:  []string{},
-			Traits: trait.Traits{},
+			Roles:  utils.CopyStrings(user.GetRoles()),
+			Traits: traits,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

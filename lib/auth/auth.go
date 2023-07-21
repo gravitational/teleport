@@ -1664,6 +1664,15 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
+// getUserOrLoginState will return the given user or the login state associated with the user.
+func (a *Server) getUserOrLoginState(ctx context.Context, user types.User) services.UserState {
+	if uls, _ := a.GetUserLoginState(ctx, user.GetName()); uls != nil {
+		return uls
+	}
+
+	return user
+}
+
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
 	if req.User == nil {
 		return nil, trace.BadParameter("user is empty")
@@ -1686,7 +1695,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 
 	// add implicit roles to the set and build a checker
-	accessInfo := services.AccessInfoFromUser(req.User)
+	accessInfo := services.AccessInfoFromUserState(a.getUserOrLoginState(ctx, req.User))
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
 		var err error
@@ -1709,7 +1718,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
 		ttl:             time.Duration(req.TTL),
-		traits:          req.User.GetTraits(),
+		traits:          checker.Traits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
 	})
@@ -1739,7 +1748,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1755,7 +1764,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		publicKey:      req.Key,
 		routeToCluster: req.RouteToCluster,
 		checker:        checker,
-		traits:         user.GetTraits(),
+		traits:         checker.Traits(),
 		loginIP:        req.PinnedIP,
 		pinIP:          req.PinnedIP != "",
 		mfaVerified:    req.MFAVerified,
@@ -1799,7 +1808,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1869,7 +1878,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(user)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2339,17 +2348,6 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		return nil, trace.Wrap(err)
 	}
 
-	traits := req.traits
-	roles := req.checker.RoleNames()
-
-	// Add in the user login state if it exists.
-	uls, err := a.GetUserLoginState(ctx, req.user.GetName())
-	if uls != nil {
-		traits, roles = addUserLoginStateToTraitsAndRoles(uls, traits, roles)
-	} else if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
 	params := services.UserCertParams{
 		CASigner:                sshSigner,
 		PublicUserKey:           req.publicKey,
@@ -2357,13 +2355,13 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		Impersonator:            req.impersonator,
 		AllowedLogins:           allowedLogins,
 		TTL:                     sessionTTL,
-		Roles:                   roles,
+		Roles:                   req.checker.RoleNames(),
 		CertificateFormat:       certificateFormat,
 		PermitPortForwarding:    req.checker.CanPortForward(),
 		PermitAgentForwarding:   req.checker.CanForwardAgents(),
 		PermitX11Forwarding:     req.checker.PermitX11Forwarding(),
 		RouteToCluster:          req.routeToCluster,
-		Traits:                  traits,
+		Traits:                  req.traits,
 		ActiveRequests:          req.activeRequests,
 		MFAVerified:             req.mfaVerified,
 		PreviousIdentityExpires: req.previousIdentityExpires,
@@ -2431,12 +2429,12 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
-		Groups:            roles,
+		Groups:            req.checker.RoleNames(),
 		Principals:        allowedLogins,
 		Usage:             req.usage,
 		RouteToCluster:    req.routeToCluster,
 		KubernetesCluster: req.kubernetesCluster,
-		Traits:            traits,
+		Traits:            req.traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
