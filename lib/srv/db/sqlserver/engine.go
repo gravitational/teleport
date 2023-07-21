@@ -185,11 +185,11 @@ func (e *Engine) toSQLPacket(header protocol.PacketHeader, packet *protocol.Basi
 	if chunks.Len() > 0 {
 		defer chunks.Reset()
 		chunks.Write(packet.Data())
-		packetData, err := io.ReadAll(chunks)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		// We're safe to "read" chunk using `Bytes()` function beacuse the
+		// packet processing copies the packet contents.
+		packetData := chunks.Bytes()
 
+		var err error
 		// The final chucked packet header must be the first packet header.
 		packet, err = protocol.NewBasicPacket(header, packetData)
 		if err != nil {
