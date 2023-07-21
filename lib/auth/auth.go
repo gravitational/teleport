@@ -417,7 +417,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	as.RegisterLoginHook(userloginstate.NewLoginHook(ulsGenerator, services.UserLoginStateService))
+	as.RegisterLoginHook(ulsGenerator.LoginHook(services.UserLoginStateService))
 
 	return &as, nil
 }

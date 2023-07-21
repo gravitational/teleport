@@ -94,24 +94,15 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 		return nil, trace.Wrap(err)
 	}
 
+	// Generate the user login state.
 	if err := g.addAccessListsToState(ctx, user, uls); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	deduplicateRolesAndTraits(uls)
-
-	// Remove roles that don't exist in the backend so that we don't generate certs for non-existent roles.
-	// Doing so can prevent login from working properly. This could occur if access lists refer to roles that
-	// no longer exist, for example.
-	existingRoles := []string{}
-	for _, role := range uls.Spec.Roles {
-		if _, err := g.roles.GetRole(ctx, role); err == nil {
-			existingRoles = append(existingRoles, role)
-		} else if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+	// Clean up the user login state after generating it.
+	if err := g.postProcess(ctx, uls); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	uls.Spec.Roles = existingRoles
 
 	return uls, nil
 }
@@ -145,18 +136,35 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	return nil
 }
 
-func deduplicateRolesAndTraits(state *userloginstate.UserLoginState) {
+// postProcess will perform cleanup to the user login state after its generation.
+func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserLoginState) error {
+	// Deduplicate roles and traits
 	state.Spec.Roles = utils.Deduplicate(state.Spec.Roles)
 
 	for k, v := range state.Spec.Traits {
 		state.Spec.Traits[k] = utils.Deduplicate(v)
 	}
+
+	// Remove roles that don't exist in the backend so that we don't generate certs for non-existent roles.
+	// Doing so can prevent login from working properly. This could occur if access lists refer to roles that
+	// no longer exist, for example.
+	existingRoles := []string{}
+	for _, role := range state.Spec.Roles {
+		if _, err := g.roles.GetRole(ctx, role); err == nil {
+			existingRoles = append(existingRoles, role)
+		} else if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	state.Spec.Roles = existingRoles
+
+	return nil
 }
 
-// NewLoginHook creates a login hook from the Generator and the user login state service.
-func NewLoginHook(ulsGenerator *Generator, ulsService *local.UserLoginStateService) func(context.Context, types.User) error {
+// LoginHook creates a login hook from the Generator and the user login state service.
+func (g *Generator) LoginHook(ulsService *local.UserLoginStateService) func(context.Context, types.User) error {
 	return func(ctx context.Context, user types.User) error {
-		uls, err := ulsGenerator.Generate(ctx, user)
+		uls, err := g.Generate(ctx, user)
 		if err != nil {
 			return trace.Wrap(err)
 		}
