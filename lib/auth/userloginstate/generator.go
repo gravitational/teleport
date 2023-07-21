@@ -91,9 +91,12 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 
 // Generate will generate the user login state for the given user.
 func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
-	traits := make(map[string][]string, len(user.GetTraits()))
-	for k, v := range user.GetTraits() {
-		traits[k] = utils.CopyStrings(v)
+	var traits map[string][]string
+	if len(user.GetTraits()) > 0 {
+		traits = make(map[string][]string, len(user.GetTraits()))
+		for k, v := range user.GetTraits() {
+			traits[k] = utils.CopyStrings(v)
+		}
 	}
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(

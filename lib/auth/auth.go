@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiuserloginstate "github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -2548,35 +2547,6 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	a.submitCertificateIssuedEvent(&req)
 
 	return certs, nil
-}
-
-// addUserLoginStateToRolesAndTraits will modify roles and traits by adding in the user login state to them, making
-// sure to deduplicate as well.
-func addUserLoginStateToTraitsAndRoles(uls *apiuserloginstate.UserLoginState, traits map[string][]string, roles []string) (map[string][]string, []string) {
-	if uls == nil {
-		return traits, roles
-	}
-
-	// Copy traits to the traits from the request.
-	if len(uls.GetTraits()) > 0 {
-		if traits == nil {
-			traits = map[string][]string{}
-		}
-		for k, v := range uls.GetTraits() {
-			traits[k] = append(traits[k], v...)
-		}
-
-		for k, v := range traits {
-			traits[k] = apiutils.Deduplicate(v)
-		}
-	}
-
-	// Copy roles to the roles from the request and deduplicate.
-	if len(uls.GetRoles()) > 0 {
-		roles = apiutils.Deduplicate(append(roles, uls.GetRoles()...))
-	}
-
-	return traits, roles
 }
 
 type verifyLocksForUserCertsReq struct {
