@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/trace"
 )
 
 func TestTeleterm(t *testing.T) {
@@ -89,6 +91,11 @@ func TestTeleterm(t *testing.T) {
 	t.Run("CreateConnectMyComputerRole", func(t *testing.T) {
 		t.Parallel()
 		testCreateConnectMyComputerRole(t, pack)
+	})
+
+	t.Run("CreateAndDeleteConnectMyComputerToken", func(t *testing.T) {
+		t.Parallel()
+		testCreatingAndDeletingConnectMyComputerToken(t, pack)
 	})
 }
 
@@ -558,6 +565,121 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 	}
 }
 
+func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	authServer := pack.Root.Cluster.Process.GetAuthServer()
+	uuid := uuid.NewString()
+	userName := fmt.Sprintf("user-cmc-%s", uuid)
+
+	// Prepare a role with rules required to call CreateConnectMyComputerNodeToken.
+	ruleWithAllowRules, err := types.NewRole(fmt.Sprintf("cmc-allow-rules-%v", uuid),
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindToken, services.RW()),
+				},
+			},
+		})
+	require.NoError(t, err)
+	userRoles := []types.Role{ruleWithAllowRules}
+
+	_, err = auth.CreateUser(authServer, userName, userRoles...)
+	require.NoError(t, err)
+
+	// Log in as the new user.
+	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+		Process:  pack.Root.Cluster.Process,
+		Username: userName,
+	})
+	require.NoError(t, err)
+	tc := mustLogin(t, userName, pack, creds)
+
+	fakeClock := clockwork.NewFakeClock()
+
+	// Prepare daemon.Service.
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                tc.KeysDir,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+		Clock:              fakeClock,
+	})
+	require.NoError(t, err)
+
+	daemonService, err := daemon.New(daemon.Config{
+		Storage: storage,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+	handler, err := handler.New(
+		handler.Config{
+			DaemonService: daemonService,
+		},
+	)
+	require.NoError(t, err)
+
+	// Call CreateConnectMyComputerNodeToken.
+	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
+	require.NoError(t, err)
+	rootClusterURI := uri.NewClusterURI(rootClusterName).String()
+	requestCreatedAt := fakeClock.Now()
+	createdTokenResponse, err := handler.CreateConnectMyComputerNodeToken(ctx, &api.CreateConnectMyComputerNodeTokenRequest{
+		RootClusterUri: rootClusterURI,
+	})
+	require.NoError(t, err)
+	require.Equal(t, &api.Label{
+		Name:  types.ConnectMyComputerNodeOwnerLabel,
+		Value: userName,
+	}, createdTokenResponse.GetLabels()[0])
+
+	// Verify that token exists
+	pr, err := authServer.GetToken(ctx, createdTokenResponse.GetToken())
+	require.NoError(t, err)
+
+	// Verify that the token can be used to join nodes...
+	require.Equal(t, types.SystemRoles{types.RoleNode}, pr.GetRoles())
+	require.Equal(t, types.SystemRoles{types.RoleNode}, pr.GetRoles())
+	// ...and is valid for no longer than 5 minutes.
+	require.LessOrEqual(t, pr.Expiry(), requestCreatedAt.Add(5*time.Minute))
+
+	// watcher waits for the token deletion
+	watcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindToken},
+		},
+	})
+	require.NoError(t, err)
+	defer watcher.Close()
+
+	select {
+	case <-time.After(time.Second * 10):
+		t.Fatalf("Timeout waiting for event.")
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			t.Fatalf("Unexpected event type.")
+		}
+		require.Equal(t, event.Type, types.OpInit)
+	case <-watcher.Done():
+		t.Fatal(watcher.Error())
+	}
+
+	// Call DeleteConnectMyComputerToken.
+	_, err = handler.DeleteConnectMyComputerToken(ctx, &api.DeleteConnectMyComputerTokenRequest{
+		RootClusterUri: rootClusterURI,
+		Token:          createdTokenResponse.GetToken(),
+	})
+	require.NoError(t, err)
+
+	waitForResourceToBeDeleted(t, watcher, types.KindToken, createdTokenResponse.GetToken())
+
+	_, err = authServer.GetToken(ctx, createdTokenResponse.GetToken())
+
+	// The token should no longer exist.
+	require.True(t, trace.IsNotFound(err))
+}
+
 func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   userName,
@@ -596,4 +718,23 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
 	c.sendPendingHeadlessAuthenticationCount.Add(1)
 	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
+}
+
+func waitForResourceToBeDeleted(t *testing.T, watcher types.Watcher, kind, name string) {
+	timeout := time.After(time.Second * 15)
+	for {
+		select {
+		case <-timeout:
+			t.Fatalf("Timeout waiting for event.")
+		case event := <-watcher.Events():
+			if event.Type != types.OpDelete {
+				continue
+			}
+			if event.Resource.GetKind() == kind && event.Resource.GetMetadata().Name == name {
+				return
+			}
+		case <-watcher.Done():
+			t.Fatalf("Watcher error %s.", watcher.Error())
+		}
+	}
 }
