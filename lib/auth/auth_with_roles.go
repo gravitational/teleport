@@ -60,6 +60,7 @@ import (
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -279,6 +280,65 @@ func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
 // name matches.
 func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 	return HasRemoteBuiltinRole(a.context, name)
+}
+
+// verifyAdminActionMFAFromContext checks if a valid MFA challenge response was passed through the request context.
+func (a *ServerWithRoles) verifyAdminActionMFAFromContext(ctx context.Context) error {
+	// Builtin roles do not require MFA to perform admin actions.
+	switch a.context.Identity.(type) {
+	case authz.BuiltinRole, authz.RemoteBuiltinRole:
+		return nil
+	}
+
+	authpref, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Admin actions do not require MFA when MFA is not enabled.
+	if authpref.GetSecondFactor() == constants.SecondFactorOff {
+		return nil
+	}
+
+	// Skip MFA check if the user is a Bot.
+	if user, err := a.authServer.GetUser(ctx, a.context.Identity.GetIdentity().Username, false); err == nil && user.IsBot() {
+		log.Debugf("Skipping admin action MFA check for bot identity: %v", a.context.Identity.GetIdentity())
+		return nil
+	}
+
+	// Skip mfa if the identity is being impersonated by the Bot or Admin built in role.
+	if impersonator := a.context.Identity.GetIdentity().Impersonator; impersonator != "" {
+		impersonatorUser, err := a.authServer.GetUser(ctx, impersonator, false)
+		if err == nil && impersonatorUser.IsBot() {
+			log.Debugf("Skipping admin action MFA check for bot-impersonated identity: %v", a.context.Identity.GetIdentity())
+			return nil
+		}
+
+		// If we don't find a user matching the impersonator, it may be the admin role impersonating.
+		// Check that the impersonator matches the Auth Host Service FQDN.
+		if trace.IsNotFound(err) {
+			clusterName, err := a.authServer.GetDomainName()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if impersonator == HostFQDN(a.authServer.ServerID, clusterName) {
+				log.Debugf("Skipping admin action MFA check for admin-impersonated identity: %v", a.context.Identity.GetIdentity())
+				return nil
+			}
+		}
+	}
+
+	mfaResp, err := mfa.CredentialsFromContext(ctx)
+	if trace.IsNotFound(err) {
+		return trace.Wrap(&mfa.ErrAdminActionMFARequired)
+	}
+
+	if _, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, a.context.User.GetName(), false); err != nil {
+		return trace.Wrap(&mfa.ErrAdminActionMFARequired)
+	}
+
+	return nil
 }
 
 // DevicesClient allows ServerWithRoles to implement ClientI.
