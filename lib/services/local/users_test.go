@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -937,4 +939,151 @@ func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
 	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, key.Public())
 	require.NoError(t, err)
 	require.Equal(t, attestationData, retrievedAttestationData)
+}
+
+func TestIdentityService_UpdateUserFunc(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	type updateParams struct {
+		user        string
+		withSecrets bool
+		fn          func(u types.User) (changed bool, err error)
+	}
+
+	tests := []struct {
+		name     string
+		makeUser func() (types.User, error) // if not nil, the user is created
+		updateParams
+		wantErr  string
+		wantNoop bool
+	}{
+		{
+			name: "update without secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateNoSecrets1")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "update without secrets can't write secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateNoSecrets2")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					u.SetLocalAuth(&types.LocalAuthSecrets{
+						Webauthn: &types.WebauthnLocalAuth{
+							UserID: []byte("superwebllama"),
+						},
+					})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "update with secrets",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("updateWithSecrets")
+			},
+			updateParams: updateParams{
+				withSecrets: true,
+				fn: func(u types.User) (bool, error) {
+					u.SetLogins([]string{"llama", "alpaca"})
+					u.SetLocalAuth(&types.LocalAuthSecrets{
+						Webauthn: &types.WebauthnLocalAuth{
+							UserID: []byte("superwebllama"),
+						},
+					})
+					return true, nil
+				},
+			},
+		},
+		{
+			name: "noop fn",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("noop1")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (changed bool, err error) {
+					u.SetLogins([]string{"llama"}) // not written to storage!
+					return false, nil
+				},
+			},
+			wantNoop: true,
+		},
+		{
+			name: "user not found",
+			updateParams: updateParams{
+				user: "unknown",
+				fn:   func(u types.User) (changed bool, err error) { return false, nil },
+			},
+			wantErr: "not found",
+		},
+		{
+			name: "fn error surfaced",
+			makeUser: func() (types.User, error) {
+				return types.NewUser("fnErr")
+			},
+			updateParams: updateParams{
+				fn: func(u types.User) (changed bool, err error) {
+					return false, errors.New("something really terrible happened")
+				},
+			},
+			wantErr: "something really terrible",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var before types.User
+
+			// Create user?
+			if test.makeUser != nil {
+				var err error
+				before, err = test.makeUser()
+				require.NoError(t, err, "makeUser failed")
+				require.NoError(t, identity.CreateUser(before), "CreateUser failed")
+
+				if test.user == "" {
+					test.user = before.GetName()
+				} else if test.user != before.GetName() {
+					t.Fatal("Test has both makeUser and updateParams.user, but they don't match")
+				}
+			}
+
+			updated, err := identity.UpdateUserFunc(ctx, test.user, test.withSecrets, test.fn)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "UpdateUserFunc didn't error")
+				return
+			}
+
+			// Determine wanted user based on `before` and params.
+			want := before
+			if !test.wantNoop {
+				test.fn(want)
+			}
+			if !test.withSecrets {
+				want = want.WithoutSecrets().(types.User)
+			}
+
+			// Assert update response.
+			if diff := cmp.Diff(want, updated); diff != "" {
+				t.Errorf("UpdateUserFunc return mismatch (-want +got)\n%s", diff)
+			}
+
+			// Assert stored.
+			stored, err := identity.GetUser(test.user, test.withSecrets)
+			require.NoError(t, err, "GetUser failed")
+			if diff := cmp.Diff(want, stored); diff != "" {
+				t.Errorf("UpdateUserFunc storage mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
 }
