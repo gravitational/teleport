@@ -45,6 +45,11 @@ type UsersService interface {
 	UserGetter
 	// UpdateUser updates an existing user.
 	UpdateUser(ctx context.Context, user types.User) error
+	// UpdateUserFunc reads an existing user, runs `fn` against it and writes the
+	// result to storage. Return `false` from `fn` to avoid storage changes.
+	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+	// Returns the storage user.
+	UpdateUserFunc(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 	// UpsertUser updates parameters about user
 	UpsertUser(user types.User) error
 	// CompareAndSwapUser updates an existing user, but fails if the user does
