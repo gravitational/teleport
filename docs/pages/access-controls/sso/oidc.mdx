@@ -5,8 +5,8 @@ description: How to configure Teleport access with OAuth2 or OpenID connect (OID
 
 This guide will explain how to configure an SSO provider using [OpenID
 Connect](http://openid.net/connect/) (also known as OIDC) to issue Teleport
-credentials to a specific groups of users. When used in combination with role
-based access control (RBAC) it allows Teleport administrators to define
+credentials to specific groups of users. When used in combination with role-based 
+access control (RBAC), OIDC allows Teleport administrators to define
 policies like:
 
 - Only members of the "DBA" group can connect to PostgreSQL databases.
@@ -15,7 +15,7 @@ policies like:
 ## Prerequisites
 
 - Admin access to the SSO/IdP being integrated with users assigned to groups/roles.
-- Teleport role with access to maintaining `oidc` resources. This is available
+- Teleport role with permission to maintain `oidc` resources. This permission is available
   in the default `editor` role.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -33,7 +33,7 @@ documented on the identity providers website. Here are a few links:
 - [Keycloak Client Registration](https://www.keycloak.org/docs/latest/securing_apps/index.html#\_client_registration)
 
 <Admonition type="tip" title="Google Workspace">
-For Google Workspace please follow our dedicated [Guide](google-workspace.mdx)
+For Google Workspace, see [Teleport Authentication with Google Workspace](google-workspace.mdx)
 </Admonition>
 
 Save the relevant information from your identity provider. To make following
@@ -57,10 +57,10 @@ with your Teleport Cloud tenant or Proxy Service address.
 ## OIDC connector configuration
 
 The next step is to add an OIDC connector to Teleport. The connectors are
-created, test, and added / removed via `tctl` [resource commands](../../reference/resources.mdx)
-or the Web UI.
+created, test, and added or removed using `tctl` [resource commands](../../reference/resources.mdx)
+or the Teleport Web UI.
 
-To create a new connector, use `tctl sso configure`. Our example creates a
+To create a new connector, use `tctl sso configure`. The following example creates a
 connector resource file in YAML format named `oidc-connector.yaml`:
 
 ```code
@@ -78,7 +78,7 @@ $ tctl sso configure oidc --name <CONNECTOR-NAME> \
   is `https://example.com/.well-known/openid-configuration`, you would use
   `https://example.com`.
 - `--id`: The client ID as defined in the IdP. Depending on your identity
-  provider this may be something you can define (i.e. `teleport`), or may be an
+  provider this may be something you can define (for example, `teleport`), or may be an
   assigned string.
 - `--secret`: The client token/secret provided by the IdP to authorize this client.
 - `--claims-to-roles`: A mapping of OIDC claims/values to be associated with
@@ -101,7 +101,7 @@ that key within the claims:
 The following example was generated using Keycloak as the identity provider.
 Keycloak is being served at `keycloak.example.com`, and the Teleport Proxy
 Service is listening at `teleport.example.com`. In Keycloak, the client is
-named `teleport`, and under the `teleport-dedicated` client scope we've added
+named `teleport`. Under the `teleport-dedicated` client scope, we've added
 the "Group Membership" mapper:
 
 ```yaml
@@ -145,7 +145,7 @@ user provided by the IdP. This is a good starting point while troubleshooting
 errors like `Failed to calculate user attributes.`
 </Admonition>
 
-One your tests are successful, create the connector:
+After your tests are successful, create the connector:
 
 ```code
 $ tctl create -f oidc-connector.yaml
@@ -203,8 +203,8 @@ spec:
 
 ### Optional: Disable email verification
 
-By default, Teleport will validate the `email_verified` claim, and users who
-attempt to sign in without a verified email address will be prevented from doing so:
+By default, Teleport validates the `email_verified` claim, and users who
+attempt to sign in without a verified email address are prevented from doing so:
 
 ```text
 ERROR: SSO flow failed.
@@ -212,7 +212,7 @@ identity provider callback failed with error: OIDC provider did not verify email
         email not verified by OIDC provider
 ```
 
-For testing and other purposes, you may opt out of this behavior by enabling
+For testing and other purposes, you can opt out of this behavior by enabling
 `allow_unverified_email` in your OIDC connector. This option weakens the overall
 security of the system, so we do not recommend enabling it.
 
