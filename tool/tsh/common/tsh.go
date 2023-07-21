@@ -321,6 +321,9 @@ type CLIConf struct {
 	// be issued if the Access Request is approved.
 	SessionTTL time.Duration
 
+	// MaxDuration specifies how long the access will be granted for.
+	MaxDuration time.Duration
+
 	// executablePath is the absolute path to the current executable.
 	executablePath string
 
@@ -339,6 +342,16 @@ type CLIConf struct {
 
 	// MockHeadlessLogin used in tests to override Headless login handler in teleport client.
 	MockHeadlessLogin client.SSHLoginFunc
+
+	// overrideMySQLOptionFilePath overrides the MySQL option file path to use.
+	// Useful in parallel tests so they don't all use the default path in the
+	// user home dir.
+	overrideMySQLOptionFilePath string
+
+	// overridePostgresServiceFilePath overrides the Postgres service file path.
+	// Useful in parallel tests so they don't all use the default path in the
+	// user home dir.
+	overridePostgresServiceFilePath string
 
 	// HomePath is where tsh stores profiles
 	HomePath string
@@ -990,6 +1003,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("resource", "Resource ID to be requested").StringsVar(&cf.RequestedResourceIDs)
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
+	reqCreate.Flag("max-duration", "How long the the access should be granted for").DurationVar(&cf.MaxDuration)
 
 	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -2399,13 +2413,17 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	req.SetSuggestedReviewers(reviewers)
 
 	// Only set RequestTTL and SessionTTL if values are greater than zero.
-	// Otherwise leave defaults and the server will take the zero values and
+	// Otherwise, leave defaults, and the server will take the zero values and
 	// transform them into default expirations accordingly.
 	if cf.RequestTTL > 0 {
 		req.SetExpiry(time.Now().UTC().Add(cf.RequestTTL))
 	}
 	if cf.SessionTTL > 0 {
 		req.SetAccessExpiry(time.Now().UTC().Add(cf.SessionTTL))
+	}
+	if cf.MaxDuration > 0 {
+		// Time will be relative to the approval time instead of the request time.
+		req.SetMaxDuration(time.Now().UTC().Add(cf.MaxDuration))
 	}
 
 	return req, nil
@@ -3700,6 +3718,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.MockSSOLogin = cf.MockSSOLogin
 	c.MockHeadlessLogin = cf.MockHeadlessLogin
 	c.DTAuthnRunCeremony = cf.DTAuthnRunCeremony
+
+	// pass along MySQL/Postgres path overrides (only used in tests).
+	c.OverrideMySQLOptionFilePath = cf.overrideMySQLOptionFilePath
+	c.OverridePostgresServiceFilePath = cf.overridePostgresServiceFilePath
 
 	// Set tsh home directory
 	c.HomePath = cf.HomePath

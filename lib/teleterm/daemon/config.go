@@ -38,7 +38,6 @@ type Config struct {
 	PrehogAddr string
 
 	GatewayCreator         GatewayCreator
-	TCPPortAllocator       gateway.TCPPortAllocator
 	DBCLICommandProvider   gateway.CLICommandProvider
 	KubeCLICommandProvider gateway.CLICommandProvider
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
@@ -60,10 +59,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.GatewayCreator == nil {
 		c.GatewayCreator = clusters.NewGatewayCreator(c.Storage)
-	}
-
-	if c.TCPPortAllocator == nil {
-		c.TCPPortAllocator = gateway.NetTCPPortAllocator{}
 	}
 
 	if c.Log == nil {

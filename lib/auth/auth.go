@@ -3392,7 +3392,7 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		token.SetMetadata(meta)
 	}
 
-	if err := a.UpsertToken(ctx, token); err != nil {
+	if err := a.CreateToken(ctx, token); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -3591,18 +3591,6 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
-}
-
-// UnstableAssertSystemRole is not a stable part of the public API. Used by older
-// instances to prove that they hold a given system role.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
-}
-
-func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
-	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
-	return set, trace.Wrap(err)
 }
 
 func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
@@ -4105,6 +4093,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
+		MaxDuration:          req.GetMaxDuration(),
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -4206,6 +4195,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ProposedState: params.Review.ProposedState.String(),
 		Reason:        params.Review.Reason,
 		Reviewer:      params.Review.Author,
+		MaxDuration:   req.GetMaxDuration(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
