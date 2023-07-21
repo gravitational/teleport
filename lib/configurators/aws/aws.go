@@ -1102,8 +1102,8 @@ func getTargetConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config,
 	databases := databasesFromConfig(flags, cfg)
 	resourceMatchers := resourceMatchersFromConfig(flags, cfg)
 	targetIsAssumeRole := isTargetAWSAssumeRole(flags, awsMatchers, databases, resourceMatchers, target)
-	assumesRoles := rolesForTarget(forcedRoles, awsMatchers, databases, resourceMatchers, targetIsAssumeRole)
-	err = checkStubRoleAssumingRolesFromConfig(forcedRoles, assumesRoles, target)
+	targetAssumesRoles := rolesForTarget(forcedRoles, awsMatchers, databases, resourceMatchers, targetIsAssumeRole)
+	err = checkStubRoleAssumingRolesFromConfig(forcedRoles, targetAssumesRoles, target)
 	if err != nil {
 		return targetConfig{}, trace.Wrap(err)
 	}
@@ -1111,7 +1111,7 @@ func getTargetConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config,
 		identity:        target,
 		awsMatchers:     matchersForTarget(awsMatchers, target, targetIsAssumeRole),
 		databases:       databasesForTarget(databases, target, targetIsAssumeRole),
-		assumesAWSRoles: assumesRoles,
+		assumesAWSRoles: targetAssumesRoles,
 	}, nil
 }
 
@@ -1128,12 +1128,22 @@ func getTargetConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config,
 // We check for this scenario to avoid printing the wrong permissions in
 // --manual mode, and advise users to specify a full role ARN instead of just
 // the role's name.
-func checkStubRoleAssumingRolesFromConfig(forcedRoles []string, assumesRoles []string, target awslib.Identity) error {
+func checkStubRoleAssumingRolesFromConfig(forcedRoles []string, targetAssumesRoles []string, target awslib.Identity) error {
 	isRole := target.GetType() == "role"
 	isStub := target.GetAccountID() == targetIdentityARNSectionPlaceholder ||
 		target.GetPartition() == targetIdentityARNSectionPlaceholder
-	assumesRolesFromConfig := len(assumesRoles) > len(forcedRoles)
-	if isRole && isStub && assumesRolesFromConfig {
+	// forcedRoles come from the cli flag `--assumes-roles`.
+	// targetAssumesRoles is a superset of forcedRoles - it is the union
+	// of forcedRoles and the `assume_role_arn` settings from config.
+	// When targetAssumesRoles is bigger than the forced roles, it indicates
+	// that there is at least one role in config that does not match any
+	// forced role.
+	// This also handles the case where forcedRoles are given as short names
+	// instead of full ARNs in manual mode - if there are any roles in the
+	// config, then this error will trigger when the policy attachment target is
+	// a short role name.
+	isTargetAssumingRolesInConfig := len(targetAssumesRoles) > len(forcedRoles)
+	if isRole && isStub && isTargetAssumingRolesInConfig {
 		return trace.BadParameter(
 			"unable to determine required permissions for policy attachment "+
 				"target %q in manual mode, please specify the full role ARN",
