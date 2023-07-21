@@ -1,15 +1,17 @@
 import React, { lazy } from 'react';
 import { Route, Switch } from 'teleport/components/Router';
 import Teleport, {
-  Props,
   getSharedPrivateRoutes,
   getSharedPublicRoutes,
+  Props,
 } from 'teleport/Teleport';
 
 import ossConfig from 'teleport/config';
+import Welcome from 'teleport/Welcome';
 
 import cfg from 'e-teleport/config';
 import WaitingRoom from 'e-teleport/WaitingRoom';
+import { ENewCredentials } from 'e-teleport/Welcome/NewCredentials';
 
 const TeleportE: React.FC<Props> = ({ history, ctx }) => {
   return (
@@ -39,6 +41,18 @@ function publicERoutes() {
       title="Recovery"
       path={cfg.routes.recovery}
       component={Recovery}
+    />,
+    <Route
+      key="invite"
+      title="Invite"
+      path={ossConfig.routes.userInvite}
+      render={() => <Welcome NewCredentials={ENewCredentials} />}
+    />,
+    <Route
+      key="password-reset"
+      title="Password Reset"
+      path={ossConfig.routes.userReset}
+      render={() => <Welcome NewCredentials={ENewCredentials} />}
     />,
     ...getSharedPublicRoutes(),
   ];

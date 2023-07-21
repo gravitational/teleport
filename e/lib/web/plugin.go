@@ -207,6 +207,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		// Upgrade window related endpoints.
 		h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.getUpgradeWindowStartHourHandle))
 		h.POST("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.updateUpgradeWindowStartHourHandle))
+
+		// surveyResultsHandler sends survey responses to sales center for persistence
+		h.POST("/enterprise/cloud/survey", p.withCloudAuth(p.surveyResultsHandler))
 	}
 
 	// Recovery related endpoints.

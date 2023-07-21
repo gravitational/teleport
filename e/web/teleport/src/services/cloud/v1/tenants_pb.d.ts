@@ -907,6 +907,48 @@ export namespace GetInvoiceSettingsInformationResponse {
   }
 }
 
+export class SetSurveyResultsRequest extends jspb.Message {
+  getCompanyName(): string;
+  setCompanyName(value: string): void;
+
+  getEmployeeCount(): string;
+  setEmployeeCount(value: string): void;
+
+  clearResourcesList(): void;
+  getResourcesList(): Array<string>;
+  setResourcesList(value: Array<string>): void;
+  addResources(value: string, index?: number): string;
+
+  getRole(): string;
+  setRole(value: string): void;
+
+  getTeam(): string;
+  setTeam(value: string): void;
+
+  getUsername(): string;
+  setUsername(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): SetSurveyResultsRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: SetSurveyResultsRequest): SetSurveyResultsRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: SetSurveyResultsRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): SetSurveyResultsRequest;
+  static deserializeBinaryFromReader(message: SetSurveyResultsRequest, reader: jspb.BinaryReader): SetSurveyResultsRequest;
+}
+
+export namespace SetSurveyResultsRequest {
+  export type AsObject = {
+    companyName: string,
+    employeeCount: string,
+    resourcesList: Array<string>,
+    role: string,
+    team: string,
+    username: string,
+  }
+}
+
 export class EmptyResponse extends jspb.Message {
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): EmptyResponse.AsObject;

@@ -230,6 +230,16 @@ func (ac *cloudWithRoles) GetFeatures(ctx context.Context, req *v1.EmptyRequest)
 	return ac.plugin.cloudClient.GetFeatures(ctx, req)
 }
 
+// SetSurveyResults updates the account object with onboarding survey results
+func (ac *cloudWithRoles) SetSurveyResults(ctx context.Context, req *v1.SetSurveyResultsRequest) (*v1.EmptyResponse, error) {
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.SetSurveyResults(ctx, req)
+}
+
 // UpdateStripeAddress updates account address information
 func (ac *cloudWithRoles) UpdateStripeAddress(ctx context.Context, req *v1.StripeBillingAddressRequest) (*v1.EmptyResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbUpdate)
