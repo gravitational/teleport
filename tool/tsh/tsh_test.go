@@ -957,11 +957,15 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	alice.SetRoles([]string{"access", "ssh-login"})
 	const password = "supersecretpassword"
 
+	bob, err := types.NewUser("bob")
+	require.NoError(t, err)
+	bob.SetRoles([]string{"access", "ssh-login"})
+
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(connector, alice, noAccessRole, sshLoginRole, perSessionMFARole))
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(connector, alice, bob, noAccessRole, sshLoginRole, perSessionMFARole))
 
 	rootAuthAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
@@ -1062,13 +1066,17 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		}
 	}
 
-	setupUser := func(cluster string, asrv *auth.Server) {
+	setupUser := func(cluster, name string, withDevices bool, asrv *auth.Server) {
 		// set the default auth preference
 		err = asrv.SetAuthPreference(ctx, webauthnPreference(cluster))
 		require.NoError(t, err)
 
+		if !withDevices {
+			return
+		}
+
 		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
-			Name: "alice",
+			Name: name,
 		})
 		require.NoError(t, err)
 		tokenID := token.GetName()
@@ -1094,8 +1102,9 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	setupUser("localhost", rootAuth.GetAuthServer())
-	setupUser("leafcluster", leafAuth.GetAuthServer())
+	setupUser("localhost", "alice", true, rootAuth.GetAuthServer())
+	setupUser("leafcluster", "alice", true, leafAuth.GetAuthServer())
+	setupUser("localhost", "bob", false, rootAuth.GetAuthServer())
 
 	successfulChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		return func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
@@ -1157,37 +1166,42 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		setup           func(t *testing.T)
 		errAssertion    require.ErrorAssertionFunc
 		stdoutAssertion require.ValueAssertionFunc
+		stderrAssertion require.ValueAssertionFunc
 		mfaPromptCount  int
 		proxyAddr       string
 		auth            *auth.Server
 		cluster         string
+		user            types.User
 	}{
 		{
-			name:           "default auth preference runs commands on multiple nodes without mfa",
-			authPreference: defaultPreference,
-			proxyAddr:      rootProxyAddr.String(),
-			auth:           rootAuth.GetAuthServer(),
-			target:         "env=stage",
+			name:            "default auth preference runs commands on multiple nodes without mfa",
+			authPreference:  defaultPreference,
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			target:          "env=stage",
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\ntest\n", i, i2...)
 			},
 			errAssertion: require.NoError,
 		},
 		{
-			name:      "webauthn auth preference runs commands on multiple matches without mfa",
-			target:    "env=stage",
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
+			name:            "webauthn auth preference runs commands on multiple matches without mfa",
+			target:          "env=stage",
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\ntest\n", i, i2...)
 			},
 			errAssertion: require.NoError,
 		},
 		{
-			name:      "webauthn auth preference runs commands on a single match without mfa",
-			target:    "env=prod",
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
+			name:            "webauthn auth preference runs commands on a single match without mfa",
+			target:          "env=prod",
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
@@ -1199,6 +1213,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			proxyAddr:       rootProxyAddr.String(),
 			auth:            rootAuth.GetAuthServer(),
 			errAssertion:    require.Error,
+			stderrAssertion: require.Empty,
 			stdoutAssertion: require.Empty,
 		},
 		{
@@ -1213,10 +1228,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
-			setup:     setupChallengeSolver(successfulChallenge("localhost")),
-			target:    "env=stage",
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			target:          "env=stage",
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\ntest\n", i, i2...)
 			},
@@ -1235,10 +1251,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
-			setup:     setupChallengeSolver(successfulChallenge("localhost")),
-			target:    "env=prod",
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			target:          "env=prod",
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
@@ -1262,6 +1279,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			setup:           setupChallengeSolver(successfulChallenge("localhost")),
 			target:          "env=dev",
 			errAssertion:    require.Error,
+			stderrAssertion: require.Empty,
 			stdoutAssertion: require.Empty,
 		},
 		{
@@ -1275,11 +1293,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					},
 				},
 			},
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
-			roles:     []string{"access", sshLoginRole.GetName(), perSessionMFARole.GetName()},
-			setup:     setupChallengeSolver(successfulChallenge("localhost")),
-			target:    "env=stage",
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			roles:           []string{"access", sshLoginRole.GetName(), perSessionMFARole.GetName()},
+			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			target:          "env=stage",
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\ntest\n", i, i2...)
 			},
@@ -1287,11 +1306,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion:   require.NoError,
 		},
 		{
-			name:      "role permits access without mfa",
-			target:    sshHostID,
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
-			roles:     []string{sshLoginRole.GetName()},
+			name:            "role permits access without mfa",
+			target:          sshHostID,
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			roles:           []string{sshLoginRole.GetName()},
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
@@ -1304,7 +1324,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			auth:            rootAuth.GetAuthServer(),
 			roles:           []string{noAccessRole.GetName()},
 			stdoutAssertion: require.Empty,
-			errAssertion:    require.Error,
+			stderrAssertion: func(t require.TestingT, v any, i ...any) {
+				out, ok := v.(string)
+				require.True(t, ok, i...)
+				require.Contains(t, out, fmt.Sprintf("access denied to %s connecting to", user.Username), i...)
+			},
+			errAssertion: require.Error,
 		},
 		{
 			name:      "command runs on a hostname with mfa set via role",
@@ -1316,8 +1341,9 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
-			mfaPromptCount: 1,
-			errAssertion:   require.NoError,
+			stderrAssertion: require.Empty,
+			mfaPromptCount:  1,
+			errAssertion:    require.NoError,
 		},
 		{
 			name: "failed ceremony when role requires per session mfa",
@@ -1336,16 +1362,22 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			roles:           []string{perSessionMFARole.GetName()},
 			setup:           setupChallengeSolver(failedChallenge("localhost")),
 			stdoutAssertion: require.Empty,
-			mfaPromptCount:  1,
-			errAssertion:    require.Error,
+			stderrAssertion: func(t require.TestingT, v any, i ...any) {
+				out, ok := v.(string)
+				require.True(t, ok, i...)
+				require.Contains(t, out, "MFA response validation failed", i...)
+			},
+			mfaPromptCount: 1,
+			errAssertion:   require.Error,
 		},
 		{
-			name:      "command runs on a leaf node with mfa set via role",
-			target:    sshLeafHostID,
-			proxyAddr: leafProxyAddr,
-			auth:      leafAuth.GetAuthServer(),
-			roles:     []string{perSessionMFARole.GetName()},
-			setup:     setupChallengeSolver(successfulChallenge("leafcluster")),
+			name:            "command runs on a leaf node with mfa set via role",
+			target:          sshLeafHostID,
+			proxyAddr:       leafProxyAddr,
+			auth:            leafAuth.GetAuthServer(),
+			roles:           []string{perSessionMFARole.GetName()},
+			setup:           setupChallengeSolver(successfulChallenge("leafcluster")),
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
@@ -1353,42 +1385,77 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion:   require.NoError,
 		},
 		{
-			name:      "command runs on a leaf node via root without mfa",
-			target:    sshLeafHostID,
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
-			cluster:   "leafcluster",
-			roles:     []string{sshLoginRole.GetName()},
-			setup:     setupChallengeSolver(successfulChallenge("localhost")),
+			name:            "command runs on a leaf node via root without mfa",
+			target:          sshLeafHostID,
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			cluster:         "leafcluster",
+			roles:           []string{sshLoginRole.GetName()},
+			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
 		},
 		{
-			name:      "command runs on a leaf node without mfa",
-			target:    sshLeafHostID,
-			proxyAddr: leafProxyAddr,
-			auth:      leafAuth.GetAuthServer(),
-			roles:     []string{sshLoginRole.GetName()},
-			setup:     setupChallengeSolver(successfulChallenge("leafcluster")),
+			name:            "command runs on a leaf node without mfa",
+			target:          sshLeafHostID,
+			proxyAddr:       leafProxyAddr,
+			auth:            leafAuth.GetAuthServer(),
+			roles:           []string{sshLoginRole.GetName()},
+			stderrAssertion: require.Empty,
+			setup:           setupChallengeSolver(successfulChallenge("leafcluster")),
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			errAssertion: require.NoError,
-		}, {
-			name:      "command runs on a leaf node via root with mfa set via role",
-			target:    sshLeafHostID,
-			proxyAddr: rootProxyAddr.String(),
-			auth:      rootAuth.GetAuthServer(),
-			cluster:   "leafcluster",
-			roles:     []string{perSessionMFARole.GetName()},
-			setup:     setupChallengeSolver(successfulChallenge("localhost")),
+		},
+		{
+			name:            "command runs on a leaf node via root with mfa set via role",
+			target:          sshLeafHostID,
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			cluster:         "leafcluster",
+			roles:           []string{perSessionMFARole.GetName()},
+			setup:           setupChallengeSolver(successfulChallenge("localhost")),
+			stderrAssertion: require.Empty,
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
+		},
+		{
+			name:            "invalid login on leaf node with no devices enrolled in root",
+			target:          "invalid@" + sshLeafHostID,
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			roles:           []string{sshLoginRole.GetName()},
+			cluster:         "leafcluster",
+			user:            bob,
+			stdoutAssertion: require.Empty,
+			stderrAssertion: func(t require.TestingT, v any, i ...any) {
+				out, ok := v.(string)
+				require.True(t, ok, i...)
+				require.Contains(t, out, "access denied to invalid connecting to", i...)
+			},
+			errAssertion: require.Error,
+		},
+		{
+			name:            "invalid login on leaf node with devices enrolled in root",
+			target:          "invalid@" + sshLeafHostID,
+			proxyAddr:       rootProxyAddr.String(),
+			auth:            rootAuth.GetAuthServer(),
+			roles:           []string{sshLoginRole.GetName()},
+			cluster:         "leafcluster",
+			stdoutAssertion: require.Empty,
+			stderrAssertion: func(t require.TestingT, v any, i ...any) {
+				out, ok := v.(string)
+				require.True(t, ok, i...)
+				require.Contains(t, out, "access denied to invalid connecting to", i...)
+			},
+			errAssertion: require.Error,
 		},
 	}
 
@@ -1398,6 +1465,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 			clusterName, err := tt.auth.GetClusterName()
 			require.NoError(t, err)
+
+			user := alice
+			if tt.user != nil {
+				user = tt.user
+			}
 
 			if tt.authPreference != nil {
 				require.NoError(t, tt.auth.SetAuthPreference(ctx, tt.authPreference))
@@ -1411,13 +1483,13 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}
 
 			if tt.roles != nil {
-				roles := alice.GetRoles()
+				roles := user.GetRoles()
 				t.Cleanup(func() {
-					alice.SetRoles(roles)
-					require.NoError(t, tt.auth.UpsertUser(alice))
+					user.SetRoles(roles)
+					require.NoError(t, tt.auth.UpsertUser(user))
 				})
-				alice.SetRoles(tt.roles)
-				require.NoError(t, tt.auth.UpsertUser(alice))
+				user.SetRoles(tt.roles)
+				require.NoError(t, tt.auth.UpsertUser(user))
 			}
 
 			err = Run(ctx, []string{
@@ -1426,17 +1498,18 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				"--insecure",
 				"--auth", connector.GetName(),
 				"--proxy", tt.proxyAddr,
-				"--user", "alice",
+				"--user", user.GetName(),
 				tt.cluster,
 			}, setHomePath(tmpHomePath),
 				func(cf *CLIConf) error {
-					cf.mockSSOLogin = mockSSOLogin(t, tt.auth, alice)
+					cf.mockSSOLogin = mockSSOLogin(t, tt.auth, user)
 					return nil
 				},
 			)
 			require.NoError(t, err)
 
 			stdout := &output{buf: bytes.Buffer{}}
+			stderr := &output{buf: bytes.Buffer{}}
 			// Clear counter before each ssh command,
 			// so we can assert how many times sign was called.
 			device.SetCounter(0)
@@ -1451,12 +1524,14 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				func(conf *CLIConf) error {
 					conf.overrideStdin = &bytes.Buffer{}
 					conf.overrideStdout = stdout
+					conf.overrideStderr = stderr
 					return nil
 				},
 			)
 
 			tt.errAssertion(t, err)
 			tt.stdoutAssertion(t, stdout.String())
+			tt.stderrAssertion(t, stderr.String())
 			require.Equal(t, tt.mfaPromptCount, int(device.Counter()), "device sign count mismatch")
 		})
 	}

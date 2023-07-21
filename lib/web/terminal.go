@@ -32,6 +32,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -531,11 +532,32 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 				},
 			},
 		}); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
+		err = trail.FromGRPC(err)
+		// If connecting to a host in a leaf cluster and MFA failed check to see
+		// if the leaf cluster requires MFA. If it doesn't return an error indicating
+		// that MFA was not required instead of the error received from the root cluster.
+		if t.sessionData.ClusterName != tc.SiteName {
+			check, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
+				Target: &authproto.IsMFARequiredRequest_Node{
+					Node: &authproto.NodeLogin{
+						Node:  t.sessionData.ServerID,
+						Login: tc.HostLogin,
+					},
+				},
+			})
+			if err != nil {
+				return nil, trace.Wrap(client.MFARequiredUnknown(err))
+			}
+			if !check.Required {
+				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -557,7 +579,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 			},
 		})
 		if err != nil {
-			return nil, trace.Wrap(client.MFARequiredUnknown(err))
+			return nil, trace.Wrap(client.MFARequiredUnknown(trail.FromGRPC(err)))
 		}
 
 		if !mfaRequiredResp.Required {
@@ -575,12 +597,12 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 
 	err = stream.Send(&authproto.UserSingleUseCertsRequest{Request: &authproto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: assertion}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	certResp := resp.GetCert()
@@ -781,7 +803,10 @@ func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn,
 		t.sessionData.ServerHostname,
 		tc, modules.GetModules().IsBoringBinary())
 	if err != nil {
-		return nil, trace.NewAggregate(err, conn.Close())
+		// The close error is ignored instead of using [trace.NewAggregate] because
+		// aggregate errors do not allow error inspection with things like [trace.IsAccessDenied].
+		_ = conn.Close()
+		return nil, trace.Wrap(err)
 	}
 
 	return clt, nil
