@@ -13,15 +13,16 @@ state: draft
 
 ## What
 
-Enforce MFA verification for any administrative actions taken. For example:
+Enforce MFA verification for administrative actions. For example:
 
 - Adding, removing, or editing Nodes and other services.
 - Adding, removing, or editing users, roles, auth connectors, and other
 administrative resources.
 - Approving access requests.
+- Impersonating users.
 
-This will apply to administrative actions performed via the WebUI, `tctl`,
-and `tsh`, or Teleport Connect.
+This will apply to administrative actions performed from any Teleport client,
+including `tctl`, `tsh`, the Teleport Web UI, and Teleport Connect.
 
 ## Why
 
@@ -38,180 +39,9 @@ connector changes, and other forms of cluster sabotage.
 
 Adding an MFA restriction to administrative actions limits this attack vector
 by re-verifying the user's identity promptly before performing any administrative
-action that could be abused.
+action.
 
 ## Details
-
-### Server configuration
-
-Requiring MFA for admin actions will be made configurable through
-`cluster_auth_preference.admin_action_mfa: off | on`.
-
-When set to on, MFA will be required for admin actions for all users.
-
-Caveat: Built in roles will not require MFA to complete admin actions. This
-includes `tctl` operations performed directly on the auth server with the
-built in `Admin` role.
-
-If not set directly, this value will default to on or off based on the value of
-`clsuter_auth_preference.second_factor`:
-
-- `second_factor = off | optional` => `admin_action_mfa = off`
-- `second_factor = on | otp | webauthn` => `admin_action_mfa = on`
-
-#### Automated Use Cases
-
-In order to support automated use casessuch as the
-[Teleport Terraform Provider](https://goteleport.com/docs/management/guides/terraform-provider/)
-or [Access Request Plugins](https://goteleport.com/docs/access-controls/access-request-plugins/),
-we need to provide a way for specific user to bypass MFA for admin actions.
-
-We will do this with a matching role field `admin_action_mfa`. When set, this
-field will be prioritized over `cluster_auth_preference.admin_action_mfa`.
-We will not recommend setting this via roles outside of necessitating use cases.
-
-#### Backward Compatibility
-
-Once the Auth server begins to require MFA for admin actions, old clients with
-no way of providing MFA verification will fail to carry out admin actions.
-
-In order to maintain backwards compatibility between old clients and an upgraded
-server, we can't actually default `admin_action_mfa = on` as planned above.
-
-Instead, in the first major version of this feature (likely Teleport 14), it will
-always default to `off`. In the next major version (Teleport 15), the defaults
-above will be used.
-
-### Administrative Actions
-
-An administrative action will be defined as an action which creates, updates,
-or deletes a teleport resource. For example:
-
-- `tctl rm/create/edit`
-- `tctl users add/rm/reset`
-- Enrolling a new resource from the WebUI (Teleport Discover)
-- Modifying a role from the WebUI
-- Modifying a cloud upgrade window (at https://<tenant>.teleport.sh/web/support)
-
-To ensure this feature does not have unexpected effects, we will explicitly
-define which API requests are admin actions:
-
-gRPC:
-
-- GenerateUserCerts, GenerateHostCerts
-- UpsertClusterAlert, CreateAlertAck, ClearAlertAcks
-- CreateAccessRequest, DeleteAccessRequest, SetAccessRequestState, SubmitAccessReview
-- CreateBot, DeleteBot
-- CreateUser, UpdateUser, DeleteUser
-- CancelSemaphoreLease, DeleteSemaphore, UpsertDatabaseServer
-- DeleteDatabaseServer, DeleteAllDatabaseServers, UpsertDatabaseService, DeleteDatabaseService, DeleteAllDatabaseServices
-- GenerateDatabaseCert, GenerateSnowflakeJWT
-- UpsertApplicationServer, DeleteApplicationServer, DeleteAllApplicationServers
-- DeleteSnowflakeSession, DeleteAllSnowflakeSessions, CreateSnowflakeSession
-- CreateAppSession, DeleteAppSession, DeleteAllAppSessions, DeleteUserAppSessions
-- CreateSAMLIdPSession, DeleteSAMLIdPSession, DeleteAllSAMLIdPSessions, DeleteUserSAMLIdPSessions
-- GenerateAppToken
-- DeleteWebSession, DeleteAllWebSessions
-- DeleteWebToken, DeleteAllWebTokens
-- UpdateRemoteCluster
-- UpsertKubernetesServer, DeleteKubernetesServer, DeleteAllKubernetesServers
-- UpsertRole, DeleteRole
-- GenerateUserSingleUseCerts
-- UpsertOIDCConnector, DeleteOIDCConnector, CreateOIDCAuthRequest
-- UpsertSAMLConnector, DeleteSAMLConnector, CreateSAMLAuthRequest
-- UpsertGithubConnector, DeleteGithubConnector, CreateGithubAuthRequest
-- UpsertServerInfo, DeleteServerInfo, DeleteAllServerInfos
-- UpsertTrustedCluster, DeleteTrustedCluster
-- UpsertToken
-- CreateToken, UpsertTokenV2, CreateTokenV2, GenerateToken, DeleteToken
-- UpsertNode, DeleteNode, DeleteAllNodes
-- SetClusterNetworkingConfig, ResetClusterNetworkingConfig
-- SetSessionRecordingConfig, ResetSessionRecordingConfig
-- SetAuthPreference, ResetAuthPreference
-- SetNetworkRestrictions, DeleteNetworkRestrictions
-- UpsertLock, DeleteLock, ReplaceRemoteLocks
-- CreateApp, UpdateApp, DeleteApp, DeleteAllApps
-- CreateDatabase, UpdateDatabase, DeleteDatabase, DeleteAllDatabases
-- UpsertWindowsDesktopService, DeleteWindowsDesktopService, DeleteAllWindowsDesktopServices
-- CreateWindowsDesktop, UpdateWindowsDesktop, UpsertWindowsDesktop, DeleteWindowsDesktop, DeleteAllWindowsDesktops
-- ChangeUserAuthentication, StartAccountRecovery, VerifyAccountRecovery, CompleteAccountRecovery, CreateAccountRecoveryCodes
-- CreatePrivilegeToken, CreateRegisterChallenge
-- GenerateCertAuthorityCRL
-- CreateConnectionDiagnostic, UpdateConnectionDiagnostic, AppendDiagnosticTrace
-- SetInstaller, DeleteInstaller, DeleteAllInstallers
-- SetUIConfig, DeleteUIConfig
-- CreateKubernetesCluster, UpdateKubernetesCluster, DeleteKubernetesCluster, DeleteAllKubernetesClusters
-- CreateSAMLIdPServiceProvider, UpdateSAMLIdPServiceProvider, DeleteSAMLIdPServiceProvider, DeleteAllSAMLIdPServiceProviders
-- CreateUserGroup, UpdateUserGroup, DeleteUserGroup, DeleteAllUserGroups
-- UpdateHeadlessAuthenticationState
-- ExportUpgradeWindows
-- UpdateClusterMaintenanceConfig
-- UpdatePluginData
-- CreateDevice, UpdateDevice, UpsertDevice, DeleteDevice, BulkCreateDevices, CreateDeviceEnrollToken
-
-HTTP:
-
-- rotateCertAuthority, rotateExternalCertAuthority
-- generateHostCert
-- createWebSession, deleteWebSession
-- upsertAuthServer, upsertProxy
-- deleteAllProxies, deleteProxy
-- upsertTunnelConnection, deleteTunnelConnection, deleteTunnelConnections, deleteAllTunnelConnections
-- createRemoteCluster, deleteRemoteCluster, deleteAllRemoteClusters
-- upsertReverseTunnel, deleteReverseTunnel
-- validateTrustedCluster, registerUsingToken
-- deleteNamespace
-- setClusterName
-- deleteStaticTokens, setStaticTokens
-- validateGithubAuthCallback
-- upsertCertAuthority, deleteCertAuthority
-- deleteUser
-
-Notable exceptions:
-
-- User actions that are authorized based on the user owning the resource.
-These requests will only require MFA when the authorization comes from the
-user's role rather than the user itself. For example:
-  - CreateAccessRequest, DeleteAccessRequest
-  - CreateAuthenticateChallenge
-  - ChangePassword, CreateResetPasswordToken
-  - AddMFADeviceSync, DeleteMFADeviceSync
-- Actions which only require `DefaultImplicitRole`:
-  - `SubmitUsageEvent`
-- Actions which are limited to internal service roles. For example:
-  - CreateSessionTracker, RemoveSessionTracker, UpdateSessionTracker
-  - GenerateWindowsDesktopCert, GenerateOpenSSHCert
-  - InventoryControlStream
-  - SendKeepAlives
-  - EmitAuditEvent, CreateAuditStream, ResumeAuditStream
-  - ProcessKubeCSR, SignDatabaseCSR
-
-#### Caveat
-
-This list is too long to thoroughly dig into all of the details and exceptions
-in this RFD. Instead, we will add admin actions one at a time, grouping similar
-endpoints into separate Github PRs.
-
-Within each PR, we can ensure that every usage of that endpoint is updated in a
-backwards compatible way across all Teleport clients (`tsh`, `tctl`, Teleport
-Connect, Teleport Web UI, Plugins and plugin guides).
-
-#### MVP Admin Actions Subset
-
-Again, this list is too long to implement all changes in one go. This change
-will likely take 1-2 major version cycles to complete. As such, the initial
-MVP goal will be limited to the following RBAC centric endpoints:
-
-- GenerateUserCerts, GenerateHostCerts
-- CreateUser, UpdateUser, DeleteUser
-- CreateToken, UpsertTokenV2, CreateTokenV2, GenerateToken, DeleteToken
-- UpsertOIDCConnector, DeleteOIDCConnector, CreateOIDCAuthRequest
-- UpsertSAMLConnector, DeleteSAMLConnector, CreateSAMLAuthRequest
-- UpsertGithubConnector, DeleteGithubConnector, CreateGithubAuthRequest
-- SetClusterNetworkingConfig, ResetClusterNetworkingConfig
-- SetSessionRecordingConfig, ResetSessionRecordingConfig
-- SetAuthPreference, ResetAuthPreference
-- SetNetworkRestrictions, DeleteNetworkRestrictions
 
 ### UX
 
@@ -240,27 +70,239 @@ Tap any security key
 # success
 ```
 
+### Server configuration
+
+The requirement for MFA on admin actions will be made configurable through
+`cluster_auth_preference.admin_action_mfa: off | on`.
+
+When set to on, MFA will be required for admin actions for all users.
+
+When set to off, MFA will only be required for actions which already require MFA.
+
+This value will default to on/off based on the value of `cluster_auth_preference.second_factor`:
+
+- `second_factor = off | optional` => `admin_action_mfa = off`
+- `second_factor = on | otp | webauthn` => `admin_action_mfa = on`
+
+#### Backward Compatibility
+
+Once the Auth server begins to require MFA for admin actions, old clients with
+no way of providing MFA verification will fail to carry out admin actions.
+
+In order to maintain backwards compatibility between old clients and an upgraded
+server, we can't actually default `admin_action_mfa = on` as planned above.
+
+Instead, in the first major version of this feature (likely Teleport 14), it will
+always default to `off`. In the next major version (Teleport 15), the defaults
+above will be used.
+
+#### Built-in Roles
+
+Built-in roles will not require MFA to complete admin actions. This includes
+the `Admin` role which is used by `tctl` when performing operations directly
+on the Auth Server.
+
+#### Automated Use Cases
+
+In order to support automated use cases such as the
+[Teleport Terraform Provider](https://goteleport.com/docs/management/guides/terraform-provider/)
+or [Access Request Plugins](https://goteleport.com/docs/access-controls/access-request-plugins/),
+we need to provide a way for specific users to bypass MFA for admin actions.
+
+We will introduce a new RBAC verb, `bypass-mfa`, which can be included in a
+role's allow rules to bypass MFA for specific resources. For example, the
+[Jira Plugin](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-slack/)
+user and role would look like this:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: access-plugin
+spec:
+  allow:
+    rules:
+      - resources: ['access_request']
+        verbs: ['list', 'read', 'update', 'mfa-bypass']
+      - resources: ['access_plugin_data']
+        verbs: ['update', 'mfa-bypass']
+---
+kind: user
+metadata:
+  name: access-plugin
+spec:
+  roles: ['access-plugin']
+version: v2
+```
+
+This way, the plugin can update access requests and plugin data without MFA,
+but could not be misused to edit other resources, such as roles.
+
+### Administrative Actions
+
+An administrative action will be defined as an action which creates, updates,
+or deletes an administrative teleport resource. For example:
+
+- `tctl rm/create/edit`
+- `tctl users add/rm/reset`
+- Enrolling a new resource from the WebUI (Teleport Discover)
+- Modifying a role from the WebUI
+- Modifying a cloud upgrade window (at https://<tenant>.teleport.sh/web/support)
+
+To ensure this feature does not have unexpected effects, we will explicitly
+define which API requests are admin actions:
+
+gRPC:
+
+- `GenerateUserCerts`, `GenerateHostCerts`
+- `UpsertClusterAlert`, `CreateAlertAck`, `ClearAlertAcks`
+- `CreateAccessRequest`, `DeleteAccessRequest`, `SetAccessRequestState`, `SubmitAccessReview`
+- `CreateBot`, `DeleteBot`
+- `CreateUser`, `UpdateUser`, `DeleteUser`
+- `CancelSemaphoreLease`, `DeleteSemaphore`, `UpsertDatabaseServer`
+- `DeleteDatabaseServer`, `DeleteAllDatabaseServers`, `UpsertDatabaseService`, `DeleteDatabaseService`, `DeleteAllDatabaseServices`
+- `GenerateDatabaseCert`, `GenerateSnowflakeJWT`
+- `UpsertApplicationServer`, `DeleteApplicationServer`, `DeleteAllApplicationServers`
+- `DeleteSnowflakeSession`, `DeleteAllSnowflakeSessions`, `CreateSnowflakeSession`
+- `CreateAppSession`, `DeleteAppSession`, `DeleteAllAppSessions`, `DeleteUserAppSessions`
+- `CreateSAMLIdPSession`, `DeleteSAMLIdPSession`, `DeleteAllSAMLIdPSessions`, `DeleteUserSAMLIdPSessions`
+- `GenerateAppToken`
+- `DeleteWebSession`, `DeleteAllWebSessions`
+- `DeleteWebToken`, `DeleteAllWebTokens`
+- `UpdateRemoteCluster`
+- `UpsertKubernetesServer`, `DeleteKubernetesServer`, `DeleteAllKubernetesServers`
+- `UpsertRole`, `DeleteRole`
+- `GenerateUserSingleUseCerts`
+- `UpsertOIDCConnector`, `DeleteOIDCConnector`, `CreateOIDCAuthRequest`
+- `UpsertSAMLConnector`, `DeleteSAMLConnector`, `CreateSAMLAuthRequest`
+- `UpsertGithubConnector`, `DeleteGithubConnector`, `CreateGithubAuthRequest`
+- `UpsertServerInfo`, `DeleteServerInfo`, `DeleteAllServerInfos`
+- `UpsertTrustedCluster`, `DeleteTrustedCluster`
+- `UpsertTokenV2`, `CreateTokenV2`, `GenerateToken`, `DeleteToken`
+- `UpsertNode`, `DeleteNode`, `DeleteAllNodes`
+- `SetClusterNetworkingConfig`, `ResetClusterNetworkingConfig`
+- `SetSessionRecordingConfig`, `ResetSessionRecordingConfig`
+- `SetAuthPreference`, `ResetAuthPreference`
+- `SetNetworkRestrictions`, `DeleteNetworkRestrictions`
+- `UpsertLock`, `DeleteLock`, `ReplaceRemoteLocks`
+- `CreateApp`, `UpdateApp`, `DeleteApp`, `DeleteAllApps`
+- `CreateDatabase`, `UpdateDatabase`, `DeleteDatabase`, `DeleteAllDatabases`
+- `UpsertWindowsDesktopService`, `DeleteWindowsDesktopService`, `DeleteAllWindowsDesktopServices`
+- `CreateWindowsDesktop`, `UpdateWindowsDesktop`, `UpsertWindowsDesktop`, `DeleteWindowsDesktop`, `DeleteAllWindowsDesktops`
+- `ChangeUserAuthentication`, `StartAccountRecovery`, `VerifyAccountRecovery`, `CompleteAccountRecovery`, `CreateAccountRecoveryCodes`
+- `CreatePrivilegeToken`, `CreateRegisterChallenge`
+- `GenerateCertAuthorityCRL`
+- `CreateConnectionDiagnostic`, `UpdateConnectionDiagnostic`, `AppendDiagnosticTrace`
+- `SetInstaller`, `DeleteInstaller`, `DeleteAllInstallers`
+- `SetUIConfig`, `DeleteUIConfig`
+- `CreateKubernetesCluster`, `UpdateKubernetesCluster`, `DeleteKubernetesCluster`, `DeleteAllKubernetesClusters`
+- `CreateSAMLIdPServiceProvider`, `UpdateSAMLIdPServiceProvider`, `DeleteSAMLIdPServiceProvider`, `DeleteAllSAMLIdPServiceProviders`
+- `CreateUserGroup`, `UpdateUserGroup`, `DeleteUserGroup`, `DeleteAllUserGroups`
+- `UpdateHeadlessAuthenticationState`
+- `ExportUpgradeWindows`
+- `UpdateClusterMaintenanceConfig`
+- `UpdatePluginData`
+- `CreateDevice`, `UpdateDevice`, `UpsertDevice`, `DeleteDevice`, `BulkCreateDevices`, `CreateDeviceEnrollToken`
+
+HTTP:
+
+- `rotateCertAuthority`, `rotateExternalCertAuthority`
+- `generateHostCert`
+- `createWebSession`, `deleteWebSession`
+- `upsertAuthServer`, `upsertProxy`
+- `deleteAllProxies`, `deleteProxy`
+- `upsertTunnelConnection`, `deleteTunnelConnection`, `deleteTunnelConnections`, `deleteAllTunnelConnections`
+- `createRemoteCluster`, `deleteRemoteCluster`, `deleteAllRemoteClusters`
+- `upsertReverseTunnel`, `deleteReverseTunnel`
+- `validateTrustedCluster`, `registerUsingToken`
+- `deleteNamespace`
+- `setClusterName`
+- `deleteStaticTokens`, `setStaticTokens`
+- `validateGithubAuthCallback`
+- `upsertCertAuthority`, `deleteCertAuthority`
+- `deleteUser`
+
+Notable exceptions:
+
+- User actions that are authorized based on the user owning the resource.
+These requests will only require MFA when the authorization comes from the
+user's role rather than the user itself. For example:
+  - `CreateAccessRequest`, `DeleteAccessRequest`
+  - `CreateAuthenticateChallenge`
+  - `ChangePassword`, `CreateResetPasswordToken`
+  - `AddMFADeviceSync`, `DeleteMFADeviceSync`
+- Actions which only require `DefaultImplicitRole`:
+  - `SubmitUsageEvent`
+- Actions which are limited to internal service roles. For example:
+  - `CreateSessionTracker`, `RemoveSessionTracker`, `UpdateSessionTracker`
+  - `GenerateWindowsDesktopCert`, `GenerateOpenSSHCert`
+  - `InventoryControlStream`
+  - `SendKeepAlives`
+  - `EmitAuditEvent`, `CreateAuditStream`, `ResumeAuditStream`
+  - `ProcessKubeCSR`, `SignDatabaseCSR`
+
+#### Caveat
+
+This list is too long to thoroughly dig into all of the details and exceptions
+in this RFD alone. Instead, we will add MFA to the listed (and unlisted) admin
+actions one at a time, grouping similar endpoints into separate Github PRs.
+
+Within each PR, we can ensure that every usage of that endpoint is updated in a
+backwards compatible way across all Teleport clients (`tsh`, `tctl`, Teleport
+Connect, Teleport Web UI, Plugins and plugin guides).
+
+#### MVP Admin Actions Subset
+
+Again, this list is too long to implement all changes in one go. This change
+will likely take 1-2 major version cycles to complete. As such, the initial
+MVP goal will be limited to the following RBAC centric endpoints:
+
+- `GenerateUserCerts`, `GenerateHostCerts`
+- `CreateUser`, `UpdateUser`, `DeleteUser`
+- `SetAccessRequestState`, `SubmitAccessReview`
+- `UpsertTokenV2`, `CreateTokenV2`, `GenerateToken`, `DeleteToken`
+- `UpsertOIDCConnector`, `DeleteOIDCConnector`, `CreateOIDCAuthRequest`
+- `UpsertSAMLConnector`, `DeleteSAMLConnector`, `CreateSAMLAuthRequest`
+- `UpsertGithubConnector`, `DeleteGithubConnector`, `CreateGithubAuthRequest`
+- `SetClusterNetworkingConfig`, `ResetClusterNetworkingConfig`
+- `SetSessionRecordingConfig`, `ResetSessionRecordingConfig`
+- `SetAuthPreference`, `ResetAuthPreference`
+- `SetNetworkRestrictions`, `DeleteNetworkRestrictions`
+
 ### MFA enforcement
 
 MFA verification will be required to carry out various administrative actions.
-This will be enforced by the Auth Server API for specific endpoints which are
-considered to be [administrative actions](#administrative-actions).
+This will be enforced by the Auth API Server for the specific endpoints which
+are considered [administrative actions](#administrative-actions).
 
-Essentially, this means that an administrative request to the Auth server will
-follow this flow:
+Each Admin Action API request will follow this flow:
 
 1. Create an Auth API client using the user's existing valid certificates.
 1. Use the client to retrieve an MFA challenge for the user with
    the existing `rpc CreateAuthenticateChallenge`.
 1. Prompt the user to solve the MFA challenge with their MFA device.
-1. Send the resulting `MFAAuthenticateResponse` to the Auth Server as part of an
-   administrative API request.
+1. Send the resulting `MFAAuthenticateResponse` to the Auth Server as part of the
+   API request.
 1. Validate and consume the `MFAAuthenticateResponse` in the Auth Server to
    authorize the request (in addition to normal identity-based authorization).
 
 Steps 1-3 are already possible with Teleport currently and used for various MFA
 features. Steps 4 and 5 will require some changes to the Auth API client and
 server respectively.
+
+#### Server changes
+
+For admin actions, the Auth server will validate MFA for each request using the
+`MFAAuthenticateResponse` passed in the request.
+
+If the request fails MFA verification, an access denied error will be returned
+to the client.
+
+```go
+// ErrAPIMFARequired is returned by AccessChecker when an API request
+// requires an MFA check.
+var ErrAdminActionMFARequired = trace.AccessDenied("administrative action requires MFA")
+```
 
 #### Client changes
 
@@ -278,7 +320,7 @@ Pros:
   verification (rpc `GenerateUserSingleUseCerts`, login endpoints, etc.).
 - It is clear by the API reference which endpoints require MFA verification and
   which do not, making it easier to reason from the client perspective, especially
-  for external users of the client.
+  for external users of the API.
 - The MFA verification only applies to one API request, preventing MFA-replay-like
   attacks.
 
@@ -287,8 +329,6 @@ Cons:
 - Requires custom changes to both the client and server implementations for
   each affected endpoint, both to pass the MFA challenge response from the
   client and for the Auth server to verify it for the request.
-  - This can potentially be avoided within the implementation by introducing
-    a common gRPC message for the `MFAAuthenticateResponse`.
 
 2. Allow clients to pass `MFAAuthenticateResponse` as client request metadata.
 
@@ -297,7 +337,7 @@ will augment the normal certificate auth flow, not replace it. Additionally, the
 MFA Challenge Response will be passed to the server within the context of the TLS
 handshake, so it is secure.
 
-The client can cleanly pass the challenge response with the gRPC client call
+The client can uniformly pass the `MFAAuthenticateResponse` with the gRPC client call
 option `PerRPCCredentials`. The Auth server can then grab the `MFAAuthenticateResponse`
 from the request metadata, consume/verify the challenge response, and treat the request
 as MFA verified. [POC](https://github.com/gravitational/teleport/commit/aa0a8102eccd91cff2851053fba3e1c271bdaa65).
@@ -307,7 +347,7 @@ Pros:
 - Client can apply common logic for MFA verification, rather than endpoint
   specific logic.
   - Ex: First request without MFA, receive access denied error, re-request with MFA.
-  - MFA verification can be extended to additional Auth endpoint without any client changes.
+  - MFA verification can be extended to additional Auth endpoints without any client changes.
 - Adds a new system of passing user credentials, which can be used in other
   endpoints that always or sometimes need MFA verification.
   - Ex: `GenerateUserSingleUseCerts` could be replaced by simply checking for
@@ -353,12 +393,12 @@ admin action in the fewest number of API requests, solidifying it as a preferabl
 solution over option 3 for both security and implementation complexity.
 
 Between option 1 and 2, option 1 is more explicit and simple in how and where MFA
-might be required. This will make the feature easier to use and extend for both
+will be required. This will make the feature easier to use and extend for both
 internal and external developers.
 
-#### MFA prompt for non-`tsh` clients
+##### MFA prompt for non-`tsh` clients
 
-Currently `tsh` is the only client with a universal MFA prompt logic. We will
+Currently `tsh` is the only client with universal MFA prompt logic. We will
 need to implement similar logic in `tctl`, the Web UI, and Teleport Connect.
 
 `tctl` can reuse the same logic used in `tsh`, making it the easiest change.
@@ -369,31 +409,21 @@ For the Web UI and Teleport Connect, MFA prompt logic is handled on a case by
 case basis. We will develop reusable logic and modals for these Apps to prompt
 for MFA when necessary.
 
-#### Server changes
-
-For admin actions, the Auth server will validate MFA for each request using the
-`MFAAuthenticateResponse` passed in the request.
-
-If the request fails MFA verification, an access denied error will be returned
-to the client.
-
-```go
-// ErrAPIMFARequired is returned by AccessChecker when an API request
-// requires an MFA check.
-var ErrAdminActionMFARequired = trace.AccessDenied("administrative action requires MFA")
-```
-
 ##### Infer MFA Requirement
 
 Before making an admin action request, Teleport clients can check the server's
-`cluster_auth_preference` settings with a ping request. When set to on, the
-client should first make a `CreateAuthenticateChallenge` request, solve the
-returned challenge, and attach it to the admin action request.
+`cluster_auth_preference.admin_action_mfa` settings with a ping request. When
+set to on, the client should first make a `CreateAuthenticateChallenge` request,
+solve the returned challenge, and attach it to the admin action request.
 
 If a user has no MFA device registered, `CreateAuthenticateChallenge` will fail.
-In this case, the client will make the request without the MFA challenge response
+In this case, the client will make the request without the MFA challenge response,
 in case we are handling a special case (e.g. Built in `Admin` role, bot user
 for automated use cases).
+
+Additionally, if the client doesn't whether an action requires MFA or not, it
+will first attempt without it. If the server responds with `ErrAdminActionMFARequired`,
+the client will attempt to retry the request with MFA.
 
 ### Proto Specification
 
@@ -480,7 +510,7 @@ Here are a few key points to review:
   - MFA will be required for admin actions by default if a cluster's second
   factor setting allows it (`on`, `webauthn`, `otp`). This default won't apply
   until the second major version of this feature for backwards compatibility.
-  - Built in roles will not require MFA for admin actions, including the
+  - [Built-in roles](#built-in-roles) will not require MFA for admin actions, including the
   `Admin` role used when executing `tctl` directly on an Auth Server.
 - [Limited MVP](#mvp-admin-actions-subset): The changes necessary to convert
 all admin actions to requiring MFA is too large to complete in one go. However,
