@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -170,11 +171,20 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 	return nil, trace.BadParameter("unsupported app server resource version %q", h.Version)
 }
 
-// NewApplicationsFromKubeService creates application resources from kubernetes service. One service result
-// in multiple application resources if there are multiple ports exposed.
-func NewApplicationsFromKubeService(service v1.Service, clusterName string, pi ProtocolChecker) ([]types.Application, error) {
+// NewApplicationsFromKubeService creates application resources from kubernetes service.
+// It transforms service fields and annotations into appropriate Teleport app fields.
+// Service labels are copied to app labels. App's protocol is set either by explicit
+// annotation or by using heuristics. Apps with TCP protocol are created only if explicitly set by annotation.
+// One service can result in multiple application resources if there are multiple ports exposed, app's name
+// in that case will include port's name.
+func NewApplicationsFromKubeService(service v1.Service, clusterName string, pc ProtocolChecker, logger logrus.FieldLogger) ([]types.Application, error) {
 	var apps types.Apps
-	protocol := service.GetAnnotations()[types.DiscoveryProtocolLabel]
+
+	if logger == nil {
+		logger = logrus.StandardLogger()
+	}
+
+	protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
 
 	ports, err := getServicePorts(service)
 	if err != nil {
@@ -187,13 +197,19 @@ func NewApplicationsFromKubeService(service v1.Service, clusterName string, pi P
 	for _, port := range ports {
 		port := port
 		g.Go(func() error {
-			appURI := getAppURI(getServiceFQDN(service), port, protocol, pi)
-
-			// By default we are looking for http apps, we only create tcp apps if protocol annotation
-			// explicitly specifies it.
-			if strings.HasPrefix(appURI, protoTCP) && protocol != protoTCP {
-				return nil
+			protocol := ""
+			switch protocolAnnotation {
+			case protoHTTPS, protoHTTP, protoTCP:
+				protocol = protocolAnnotation
+			default:
+				protocol = autoProtocolDetection(getServiceFQDN(service), port, pc)
+				if protocol == protoTCP {
+					logger.Debugf("Skipping port %d for service %q since TCP protocol was not explicitly set by annotation",
+						port, service.GetName())
+					return nil
+				}
 			}
+			appURI := buildAppURI(protocol, getServiceFQDN(service), port.Port)
 
 			rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 			if err != nil {
@@ -204,11 +220,12 @@ func NewApplicationsFromKubeService(service v1.Service, clusterName string, pi P
 				Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
 				Labels:      getAppLabels(service.GetLabels(), clusterName),
 			}, types.AppSpecV3{
-				URI: appURI,
+				URI:     appURI,
+				Rewrite: rewriteConfig,
+
 				// Temporary usage to have app's name with port name, in case there are more than one app
 				// created from this service.
 				PublicAddr: getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name),
-				Rewrite:    rewriteConfig,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -255,49 +272,49 @@ const (
 	protoTCP   = "tcp"
 )
 
-func getAppURI(serviceFQDN string, port v1.ServicePort, protocolAnnotation string, pc ProtocolChecker) string {
-	constructURI := func(p string) string { return fmt.Sprintf("%s://%s:%d", p, serviceFQDN, port.Port) }
+func buildAppURI(protocol, serviceFQDN string, port int32) string {
+	return (&url.URL{
+		Scheme: protocol,
+		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+	}).String()
+}
 
-	proto := strings.ToLower(protocolAnnotation)
-	if proto == protoHTTP || proto == protoHTTPS {
-		return constructURI(proto)
-	}
-
+// autoProtocolDetection tries to determine port's protocol. It uses heuristics and port HTTP pinging if needed, provided
+// by protocol checker. It is used when no explicit annotation for port's protocol was provided.
+func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolChecker) string {
 	if port.AppProtocol != nil {
 		switch strings.ToLower(*port.AppProtocol) {
-		case protoHTTP:
-			return constructURI(protoHTTP)
-		case protoHTTPS:
-			return constructURI(protoHTTPS)
+		case protoHTTP, protoHTTPS:
+			return strings.ToLower(*port.AppProtocol)
 		}
 	}
 
-	if port.Port == 443 || strings.ToLower(port.Name) == protoHTTPS {
-		return constructURI(protoHTTPS)
+	if port.Port == 443 || strings.EqualFold(port.Name, protoHTTPS) {
+		return protoHTTPS
 	}
 
 	if pc != nil {
 		result := pc.CheckProtocol(fmt.Sprintf("%s:%d", serviceFQDN, port.Port))
 		if result != protoTCP {
-			return constructURI(result)
+			return result
 		}
 	}
 
-	if port.Port == 80 || port.Port == 8080 || strings.ToLower(port.Name) == protoHTTP {
-		return constructURI(protoHTTP)
+	if port.Port == 80 || port.Port == 8080 || strings.EqualFold(port.Name, protoHTTP) {
+		return protoHTTP
 	}
 
-	return constructURI(protoTCP)
+	return protoTCP
 }
 
 func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) {
-	rewrite := annotations[types.DiscoveryAppRewriteLabel]
-	if rewrite == "" {
+	rewritePayload := annotations[types.DiscoveryAppRewriteLabel]
+	if rewritePayload == "" {
 		return nil, nil
 	}
 
 	rw := types.Rewrite{}
-	reader := strings.NewReader(rewrite)
+	reader := strings.NewReader(rewritePayload)
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
 	err := decoder.Decode(&rw)
 	if err != nil {

@@ -152,97 +152,94 @@ func TestGetServiceFQDN(t *testing.T) {
 	}
 }
 
-func TestGetAppURI(t *testing.T) {
-	t.Parallel()
-
+func TestBuildAppURI(t *testing.T) {
 	tests := []struct {
-		serviceIP   string
-		portName    string
-		portNumber  int32
-		appProtocol string
-		annotation  string
+		serviceFQDN string
+		port        int32
+		protocol    string
 		expected    string
 	}{
 		{
-			serviceIP:  "192.1.1.1",
-			portName:   "http",
-			portNumber: 80,
-			expected:   "http://192.1.1.1:80",
+			serviceFQDN: "service.example",
+			port:        8080,
+			protocol:    protoHTTP,
+			expected:    "http://service.example:8080",
 		},
 		{
-			serviceIP:  "192.1.1.1",
-			portName:   "https",
-			portNumber: 443,
-			expected:   "https://192.1.1.1:443",
+			serviceFQDN: "service.example",
+			port:        443,
+			protocol:    protoHTTPS,
+			expected:    "https://service.example:443",
 		},
 		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 4242,
-			expected:   "tcp://192.1.1.1:4242",
-		},
-		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 8080,
-			expected:   "http://192.1.1.1:8080",
-		},
-		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 4242,
-			portName:   "http",
-			expected:   "http://192.1.1.1:4242",
-		},
-		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 4242,
-			portName:   "https",
-			expected:   "https://192.1.1.1:4242",
-		},
-		{
-			serviceIP:   "192.1.1.1",
-			portNumber:  4242,
-			appProtocol: "http",
-			expected:    "http://192.1.1.1:4242",
-		},
-		{
-			serviceIP:   "192.1.1.1",
-			portNumber:  80,
-			appProtocol: "https",
-			expected:    "https://192.1.1.1:80",
-		},
-		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 80,
-			annotation: "http",
-			expected:   "http://192.1.1.1:80",
-		},
-		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 443,
-			annotation: "https",
-			expected:   "https://192.1.1.1:443",
-		},
-		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 8080,
-			annotation: "https",
-			expected:   "https://192.1.1.1:8080",
-		},
-		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 4242,
-			annotation: "https",
-			expected:   "https://192.1.1.1:4242",
-		},
-		{
-			serviceIP:  "192.1.1.1",
-			portNumber: 4242,
-			portName:   "dns",
-			expected:   "tcp://192.1.1.1:4242",
+			serviceFQDN: "special.service.example",
+			port:        42,
+			protocol:    protoTCP,
+			expected:    "tcp://special.service.example:42",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("serviceIP: %s, portNumber: %d, portName: %s", tt.serviceIP, tt.portNumber, tt.portName), func(t *testing.T) {
+		require.Equal(t, buildAppURI(tt.protocol, tt.serviceFQDN, tt.port), tt.expected)
+	}
+}
+
+func TestAutoProtocolDetection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		portName    string
+		portNumber  int32
+		appProtocol string
+		expected    string
+	}{
+		{
+			portName:   "http",
+			portNumber: 80,
+			expected:   protoHTTP,
+		},
+		{
+			portName:   "https",
+			portNumber: 443,
+			expected:   protoHTTPS,
+		},
+		{
+			portNumber: 4242,
+			expected:   protoTCP,
+		},
+		{
+			portNumber: 8080,
+			expected:   protoHTTP,
+		},
+		{
+			portNumber: 4242,
+			portName:   "http",
+			expected:   protoHTTP,
+		},
+		{
+			portNumber: 4242,
+			portName:   "https",
+			expected:   protoHTTPS,
+		},
+		{
+			portNumber:  4242,
+			appProtocol: "http",
+			expected:    protoHTTP,
+		},
+		{
+			portNumber:  80,
+			appProtocol: "https",
+			expected:    protoHTTPS,
+		},
+		{
+			portNumber: 4242,
+			portName:   "dns",
+			expected:   protoTCP,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("portNumber: %d, portName: %s", tt.portNumber, tt.portName), func(t *testing.T) {
 			port := v1.ServicePort{
 				Name: tt.portName,
 				Port: tt.portNumber,
@@ -251,7 +248,7 @@ func TestGetAppURI(t *testing.T) {
 				port.AppProtocol = &tt.appProtocol
 			}
 
-			result := getAppURI(tt.serviceIP, port, tt.annotation, nil)
+			result := autoProtocolDetection("192.1.1.1", port, nil)
 
 			require.Equal(t, tt.expected, result)
 		})
