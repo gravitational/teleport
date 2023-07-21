@@ -2003,7 +2003,11 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 			Name: user.GetName(),
 		},
 		userloginstate.Spec{
-			Roles: []string{"uls-role1", "uls-role2"},
+			Roles: []string{
+				role.GetName(), // We'll try to grant a duplicate role, which should be deduplicated.
+				"uls-role1",
+				"uls-role2",
+			},
 			Traits: trait.Traits{
 				"uls-trait1": []string{"value1", "value2"},
 				"uls-trait2": []string{"value3", "value4"},
@@ -2031,6 +2035,100 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 		"uls-trait1": {"value1", "value2"},
 		"uls-trait2": {"value3", "value4"},
 	}, map[string][]string(traits))
+}
+
+func TestAddUserLoginStateToTraitsAndRoles(t *testing.T) {
+	tests := []struct {
+		name           string
+		uls            *userloginstate.UserLoginState
+		traits         map[string][]string
+		roles          []string
+		expectedTraits map[string][]string
+		expectedRoles  []string
+	}{
+		{
+			name: "empty user login state, traits, and roles",
+		},
+		{
+			name: "populated user login state, empty traits and roles",
+			uls: mustUserLoginState(t, "uls", userloginstate.Spec{
+				Traits: trait.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3", "value4"},
+				},
+				Roles: []string{"role1", "role2"},
+			}),
+			expectedTraits: map[string][]string{
+				"trait1": {"value1", "value2"},
+				"trait2": {"value3", "value4"},
+			},
+			expectedRoles: []string{"role1", "role2"},
+		},
+		{
+			name: "populated user login state, traits, and roles",
+			traits: map[string][]string{
+				"otrait1": {"value1", "value2"},
+				"otrait2": {"value3", "value4"},
+			},
+			roles: []string{"orole1", "orole2"},
+			uls: mustUserLoginState(t, "uls", userloginstate.Spec{
+				Traits: trait.Traits{
+					"trait1": []string{"value1", "value2"},
+					"trait2": []string{"value3", "value4"},
+				},
+				Roles: []string{"role1", "role2"},
+			}),
+			expectedTraits: map[string][]string{
+				"otrait1": {"value1", "value2"},
+				"otrait2": {"value3", "value4"},
+				"trait1":  {"value1", "value2"},
+				"trait2":  {"value3", "value4"},
+			},
+			expectedRoles: []string{"orole1", "orole2", "role1", "role2"},
+		},
+		{
+			name: "populated user login state, duplicate traits, and duplicate roles",
+			traits: map[string][]string{
+				"otrait1": {"value1", "value2"},
+				"otrait2": {"value3", "value4"},
+			},
+			roles: []string{"orole1", "orole2", "role2"},
+			uls: mustUserLoginState(t, "uls", userloginstate.Spec{
+				Traits: trait.Traits{
+					"otrait1": []string{"value2", "value3"},
+					"otrait2": []string{"value4"},
+					"trait1":  []string{"value1", "value2"},
+					"trait2":  []string{"value3", "value4"},
+				},
+				Roles: []string{"role1", "role2"},
+			}),
+			expectedTraits: map[string][]string{
+				"otrait1": {"value1", "value2", "value3"},
+				"otrait2": {"value3", "value4"},
+				"trait1":  {"value1", "value2"},
+				"trait2":  {"value3", "value4"},
+			},
+			expectedRoles: []string{"orole1", "orole2", "role2", "role1"},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			traits, roles := addUserLoginStateToTraitsAndRoles(test.uls, test.traits, test.roles)
+			require.Equal(t, test.expectedTraits, traits)
+			require.Equal(t, test.expectedRoles, roles)
+		})
+	}
+}
+
+func mustUserLoginState(t *testing.T, name string, spec userloginstate.Spec) *userloginstate.UserLoginState {
+	uls, err := userloginstate.New(header.Metadata{
+		Name: name,
+	}, spec)
+	require.NoError(t, err)
+
+	return uls
 }
 
 func TestNewWebSession(t *testing.T) {

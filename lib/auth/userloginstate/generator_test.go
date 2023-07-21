@@ -190,7 +190,7 @@ func initSvc(t *testing.T) (*Generator, *svc) {
 	require.NoError(t, err)
 	accessSvc := local.NewAccessService(mem)
 
-	return &Generator{accessLists: accessListsSvc, roles: accessSvc, clock: clock},
+	return &Generator{accessLists: accessListsSvc, access: accessSvc, clock: clock},
 		&svc{AccessLists: accessListsSvc, Access: accessSvc}
 }
 

@@ -37,8 +37,8 @@ type GeneratorConfig struct {
 	// AccessLists is a service for retrieving access lists from the backend.
 	AccessLists services.AccessListsGetter
 
-	// Roles is a service for retrieving roles from the backend.
-	Roles services.RoleGetter
+	// Access is a service that will be used for retrieving roles from the backend.
+	Access services.Access
 
 	// Clock is the clock to use for the generator.
 	Clock clockwork.Clock
@@ -49,8 +49,8 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing access lists")
 	}
 
-	if g.Roles == nil {
-		return trace.BadParameter("missing roles")
+	if g.Access == nil {
+		return trace.BadParameter("missing access")
 	}
 
 	if g.Clock == nil {
@@ -63,7 +63,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 // Generator will generate a user login state from a user.
 type Generator struct {
 	accessLists services.AccessListsGetter
-	roles       services.RoleGetter
+	access      services.Access
 	clock       clockwork.Clock
 }
 
@@ -75,7 +75,7 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 
 	return &Generator{
 		accessLists: config.AccessLists,
-		roles:       config.Roles,
+		access:      config.Access,
 		clock:       config.Clock,
 	}, nil
 }
@@ -145,15 +145,28 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 		state.Spec.Traits[k] = utils.Deduplicate(v)
 	}
 
+	// If there are no roles, don't bother filtering out non-existent roles
+	if len(state.Spec.Roles) == 0 {
+		return nil
+	}
+
 	// Remove roles that don't exist in the backend so that we don't generate certs for non-existent roles.
 	// Doing so can prevent login from working properly. This could occur if access lists refer to roles that
 	// no longer exist, for example.
+	roles, err := g.access.GetRoles(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	roleLookup := map[string]bool{}
+	for _, role := range roles {
+		roleLookup[role.GetName()] = true
+	}
+
 	existingRoles := []string{}
 	for _, role := range state.Spec.Roles {
-		if _, err := g.roles.GetRole(ctx, role); err == nil {
+		if roleLookup[role] {
 			existingRoles = append(existingRoles, role)
-		} else if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
 		}
 	}
 	state.Spec.Roles = existingRoles
