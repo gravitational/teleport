@@ -34,7 +34,7 @@ func ApplyAWSDatabaseNameSuffix(db types.Database, matcherType string) {
 		return
 	}
 	meta := db.GetAWS()
-	suffix := makeAWSDiscoverySuffix(databaseNameValidator,
+	suffix := makeAWSDiscoverySuffix(databaseNamePartValidator,
 		db.GetName(),
 		matcherType,
 		meta.Region,
@@ -54,7 +54,7 @@ func ApplyAzureDatabaseNameSuffix(db types.Database, matcherType string) {
 	region, _ := db.GetLabel(types.DiscoveryLabelRegion)
 	group, _ := db.GetLabel(types.DiscoveryLabelAzureResourceGroup)
 	subID, _ := db.GetLabel(types.DiscoveryLabelAzureSubscriptionID)
-	suffix := makeAzureDiscoverySuffix(databaseNameValidator,
+	suffix := makeAzureDiscoverySuffix(databaseNamePartValidator,
 		db.GetName(),
 		matcherType,
 		region,
@@ -73,7 +73,7 @@ func ApplyEKSNameSuffix(cluster types.KubeCluster) {
 		return
 	}
 	meta := cluster.GetAWSConfig()
-	suffix := makeAWSDiscoverySuffix(kubeClusterNameValidator,
+	suffix := makeAWSDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
 		services.AWSMatcherEKS,
 		meta.Region,
@@ -92,7 +92,7 @@ func ApplyAKSNameSuffix(cluster types.KubeCluster) {
 	}
 	meta := cluster.GetAzureConfig()
 	region, _ := cluster.GetLabel(types.DiscoveryLabelRegion)
-	suffix := makeAzureDiscoverySuffix(kubeClusterNameValidator,
+	suffix := makeAzureDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
 		services.AzureMatcherKubernetes,
 		region,
@@ -111,7 +111,7 @@ func ApplyGKENameSuffix(cluster types.KubeCluster) {
 		return
 	}
 	meta := cluster.GetGCPConfig()
-	suffix := makeGCPDiscoverySuffix(kubeClusterNameValidator,
+	suffix := makeGCPDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
 		services.GCPMatcherKubernetes,
 		meta.Location,
@@ -173,15 +173,17 @@ func applyDiscoveryNameSuffix(resource types.ResourceWithLabels, suffix string) 
 // suffixValidatorFn is a func that validates a suffix.
 type suffixValidatorFn func(string) error
 
-// databaseNameValidator is a suffixValidatorFn for databases.
-func databaseNameValidator(part string) error {
+// databaseNamePartValidator is a suffixValidatorFn for database name suffix
+// parts.
+func databaseNamePartValidator(part string) error {
 	// validate the suffix part adding a simple stub prefix "a" and
 	// validating it as a full database name.
 	return types.ValidateDatabaseName("a" + part)
 }
 
-// kubeClusterNameValidator is a suffixValidatorFn for kube clusters.
-func kubeClusterNameValidator(part string) error {
+// kubeClusterNamePartValidator is a suffixValidatorFn for kube cluster suffix
+// parts.
+func kubeClusterNamePartValidator(part string) error {
 	// validate the suffix part adding a simple stub prefix "a" and
 	// validating it as a full kube cluster name.
 	return types.ValidateKubeClusterName("a" + part)

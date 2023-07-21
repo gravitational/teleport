@@ -100,8 +100,8 @@ func TestMakeDiscoverySuffix(t *testing.T) {
 		},
 	}
 	for validatorKind, validatorFn := range map[string]suffixValidatorFn{
-		"databases":     databaseNameValidator,
-		"kube clusters": kubeClusterNameValidator,
+		"databases":     databaseNamePartValidator,
+		"kube clusters": kubeClusterNamePartValidator,
 	} {
 		for _, test := range tests {
 			t.Run(fmt.Sprintf("%s/%s", validatorKind, test.name), func(t *testing.T) {
