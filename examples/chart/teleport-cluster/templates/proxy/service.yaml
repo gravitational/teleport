@@ -38,7 +38,7 @@ spec:
     targetPort: 3080
     protocol: TCP
 {{- if $proxy.exposeDiagPort }}
-  - name: health
+  - name: diag
     port: 3000
     targetPort: 3000
     protocol: TCP
