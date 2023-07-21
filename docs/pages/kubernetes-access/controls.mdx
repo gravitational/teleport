@@ -220,17 +220,81 @@ spec:
     - viewers
     kubernetes_users:
     - myuser
+    - system:serviceaccount:someNamespace:saName # Service account name
     # ...
   deny: {}
 ```
 
 The value of `kubernetes_groups` and `kubernetes_users` is a list of names of
-groups and users to enable impersonation for.
+groups, users or service accounts to enable impersonation for.
 
-#### How Teleport users impersonate Kubernetes users and groups
+#### Kubernetes Users and Groups
 
-There are two ways for an end user to specify which user and groups to
-impersonate:
+Kubernetes Users and Groups are entities that exist in
+the Kubernetes Cluster and for which permissions are controlled through
+`ClusterRoleBindings` or `RoleBindings` resources. If by any chance they do not
+exist in the cluster, Kubernetes RBAC will ignore them.
+
+An example of a `ClusterRoleBinding` resource that assigns the built-in `view`
+`ClusterRole` to a Group `cluster-viewer-group` and to a User `cluster-viewer-user`
+can be found bellow.
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-viewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: cluster-viewer-group
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: cluster-viewer-user
+```
+
+At this point, the User and the Group have the same permissions to view resources
+in Kubernetes Namespaces. It's not mandatory to assign the same permissions to
+Kubernetes Users and Groups as Kubernetes merges the permissions associated with
+the impersonation principals used in the request.
+
+#### Kubernetes Service Accounts
+
+Teleport supports Service Account impersonation by using the Service Account
+fully qualified name in the `kubernetes_users` field.
+
+The Service Account fully qualified name consists of the following pattern:
+
+```
+system:serviceaccount:<namespace>:<service_account_name>
+```
+
+The FQN must be prefixed with `system:serviceaccount:`, otherwise Kubernetes will
+consider it as a normal User.
+
+An example of a role that impersonates a Service Account can be found bellow.
+
+```yaml
+kind: role
+metadata:
+  name: kube-access-impersonate-sa
+version: v6
+spec:
+  allow:
+    kubernetes_users:
+    - system:serviceaccount:someNamespace:saName
+    # ...
+  deny: {}
+```
+
+#### How Teleport users impersonate Kubernetes Users, Groups and Service Accounts
+
+There are two ways for an end user to specify which user or service account and groups
+to impersonate:
 
 ##### Manually
 
@@ -447,13 +511,13 @@ regular expression using Go's `re2` syntax (see the `re2`
 
 <Notice type="tip" >
 For a user to access a pod named in a role's `kubernetes_resources` field, the user
-must be assigned a Teleport role that contains at least one value within 
-`kubernetes_groups` or `kubernetes_users`. Teleport does not alter Kubernetes 
-roles to allow or deny access. Read the next section for an explanation of how the 
-Kubernetes Service evaluates Teleport roles in order to allow or deny access to 
+must be assigned a Teleport role that contains at least one value within
+`kubernetes_groups` or `kubernetes_users`. Teleport does not alter Kubernetes
+roles to allow or deny access. Read the next section for an explanation of how the
+Kubernetes Service evaluates Teleport roles in order to allow or deny access to
 pods in a cluster.
 </Notice>
- 
+
 ## How the Kubernetes Service evaluates Teleport roles
 
 When a Teleport user makes a request to a Kubernetes cluster's API server, the
