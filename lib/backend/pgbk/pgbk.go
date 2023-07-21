@@ -243,6 +243,11 @@ var schemas = []string{
 
 var _ backend.Backend = (*Backend)(nil)
 
+// GetName implements [backend.Backend].
+func (*Backend) GetName() string {
+	return Name
+}
+
 // Create implements [backend.Backend].
 func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	revision := newRevision()
