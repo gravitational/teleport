@@ -46,6 +46,9 @@ message Watch {
 // HostCertsRequest specifies certificate-generation parameters
 // for a server.
 message HostCertsRequest {
+  reserved 12; // system_role_assertion_id
+  reserved "UnstableSystemRoleAssertionID";
+
   // HostID is a unique ID of the host.
   string HostID = 1 [(gogoproto.jsontag) = "host_id"];
   // NodeName is a user-friendly host name.
@@ -83,11 +86,6 @@ message HostCertsRequest {
     (gogoproto.jsontag) = "system_roles,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
   ];
-  // UnstableSystemRoleAssertionID is not a stable part of the public API. Used by
-  // older instances to requisition a multi-role cert by individually proving which
-  // system roles are held.
-  // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-  string UnstableSystemRoleAssertionID = 12 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
 }
 
 // OpenSSHCertRequest specifies certificate-generation parameters
@@ -205,6 +203,16 @@ message UserCertsRequest {
 
   // DropAccessRequests is an optional list of request IDs indicating requests
   // whose escalated privileges should be removed from the certificate.
+  // IDs pointing at non-existent requests are ignored.
+  //
+  // If present, the roles and traits in the generated cert will be based on
+  // the state of the user resource on the backend, active requests (not being
+  // dropped) and new access requests specified through AccessRequests (if any).
+  //
+  // This means that technically sending UserCertsRequest with bogus IDs in
+  // DropAccessRequests can be used to refresh the role list based on backend
+  // state. A better long-term solution would be to add a dedicated field for
+  // this to avoid sending bogus IDs.
   repeated string DropAccessRequests = 15 [(gogoproto.jsontag) = "drop_access_requests,omitempty"];
 
   // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
@@ -1722,6 +1730,8 @@ message PaginatedResource {
     types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
     // UserGroup represents a UserGroup resource.
     types.UserGroupV1 UserGroup = 10 [(gogoproto.jsontag) = "user_group,omitempty"];
+    // AppServerOrSAMLIdPServiceProvider represents either an AppServer or a SAML IdP Service Provider resource.
+    types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11;
   }
 
   reserved 4;
@@ -1908,30 +1918,6 @@ message GetSSODiagnosticInfoRequest {
   string AuthRequestKind = 1 [(gogoproto.jsontag) = "auth_request_kind"];
   // AuthRequestID is the SSO Auth Request id or state token.
   string AuthRequestID = 2 [(gogoproto.jsontag) = "auth_request_id"];
-}
-
-// UnstableSystemRoleAssertion is not a stable part of the public API. Used by older instances
-// to prove that they hold a given system role.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-message UnstableSystemRoleAssertion {
-  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
-  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
-  string SystemRole = 3 [
-    (gogoproto.jsontag) = "system_role,omitempty",
-    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-  ];
-}
-
-// UnstableSystemRoleAssertionSet is not a stable part of the public API. Records the sum of system
-// role assertions provided by a given instance.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-message UnstableSystemRoleAssertionSet {
-  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
-  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
-  repeated string SystemRoles = 3 [
-    (gogoproto.jsontag) = "system_roles,omitempty",
-    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-  ];
 }
 
 // UpstreamInventoryOneOf is the upstream message for the inventory control stream,
@@ -2843,11 +2829,6 @@ service AuthService {
   // without signing keys. If the cluster has multiple TLS certs, they will
   // all be appended.
   rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
-
-  // UnstableAssertSystemRole is not a stable part of the public API. Used by older
-  // instances to prove that they hold a given system role.
-  // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-  rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
 
   // SubmitUsageEvent submits an external usage event.
   rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);
