@@ -150,6 +150,8 @@ function renderLaunchButtonCell({
   clusterId,
   publicAddr,
   isCloudOrTcpEndpoint,
+  samlApp,
+  samlAppSsoUrl,
 }: App) {
   let $btn;
   if (awsConsole) {
@@ -170,6 +172,19 @@ function renderLaunchButtonCell({
         title="Cloud or TCP applications cannot be launched by the browser"
       >
         LAUNCH
+      </ButtonBorder>
+    );
+  } else if (samlApp) {
+    $btn = (
+      <ButtonBorder
+        as="a"
+        width="88px"
+        size="small"
+        target="_blank"
+        href={samlAppSsoUrl}
+        rel="noreferrer"
+      >
+        LOGIN
       </ButtonBorder>
     );
   } else {
