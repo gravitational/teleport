@@ -486,20 +486,6 @@ func (process *TeleportProcess) getInstanceRoles() []types.SystemRole {
 	return out
 }
 
-// getInstanceRoleEventMapping returns the same instance roles as getInstanceRoles, but as a mapping
-// of the form `role => event_name`. This can be used to determine what identity event should be
-// awaited in order to get a connector for a given role. Used in assertion-based migration to
-// iteratively create a system role assertion through each client.
-func (process *TeleportProcess) getInstanceRoleEventMapping() map[types.SystemRole]string {
-	process.Lock()
-	defer process.Unlock()
-	out := make(map[types.SystemRole]string, len(process.instanceRoles))
-	for role, event := range process.instanceRoles {
-		out[role] = event
-	}
-	return out
-}
-
 // SetExpectedInstanceRole marks a given instance role as active, storing the name of its associated
 // identity event.
 func (process *TeleportProcess) SetExpectedInstanceRole(role types.SystemRole, eventName string) {
@@ -1663,64 +1649,67 @@ func (process *TeleportProcess) initAuthService() error {
 	embeddingsRetriever := ai.NewSimpleRetriever()
 
 	// first, create the AuthServer
-	authServer, err := auth.Init(auth.InitConfig{
-		Backend:                 b,
-		Authority:               cfg.Keygen,
-		ClusterConfiguration:    cfg.ClusterConfiguration,
-		ClusterAuditConfig:      cfg.Auth.AuditConfig,
-		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
-		SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
-		ClusterName:             cfg.Auth.ClusterName,
-		AuthServiceName:         cfg.Hostname,
-		DataDir:                 cfg.DataDir,
-		HostUUID:                cfg.HostUUID,
-		NodeName:                cfg.Hostname,
-		Authorities:             cfg.Auth.Authorities,
-		ApplyOnStartupResources: cfg.Auth.ApplyOnStartupResources,
-		BootstrapResources:      cfg.Auth.BootstrapResources,
-		ReverseTunnels:          cfg.ReverseTunnels,
-		Trust:                   cfg.Trust,
-		Presence:                cfg.Presence,
-		Events:                  cfg.Events,
-		Provisioner:             cfg.Provisioner,
-		Identity:                cfg.Identity,
-		Access:                  cfg.Access,
-		UsageReporter:           cfg.UsageReporter,
-		StaticTokens:            cfg.Auth.StaticTokens,
-		Roles:                   cfg.Auth.Roles,
-		AuthPreference:          cfg.Auth.Preference,
-		OIDCConnectors:          cfg.OIDCConnectors,
-		AuditLog:                process.auditLog,
-		CipherSuites:            cfg.CipherSuites,
-		KeyStoreConfig:          cfg.Auth.KeyStore,
-		Emitter:                 checkingEmitter,
-		Streamer:                events.NewReportingStreamer(streamer, process.Config.UploadEventsC),
-		TraceClient:             traceClt,
-		FIPS:                    cfg.FIPS,
-		LoadAllCAs:              cfg.Auth.LoadAllCAs,
-		Clock:                   cfg.Clock,
-		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
-		EmbeddingRetriever:      embeddingsRetriever,
-		EmbeddingClient:         embedderClient,
-	}, func(as *auth.Server) error {
-		if !process.Config.CachePolicy.Enabled {
+	authServer, err := auth.Init(
+		process.ExitContext(),
+		auth.InitConfig{
+			Backend:                 b,
+			Authority:               cfg.Keygen,
+			ClusterConfiguration:    cfg.ClusterConfiguration,
+			ClusterAuditConfig:      cfg.Auth.AuditConfig,
+			ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
+			SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
+			ClusterName:             cfg.Auth.ClusterName,
+			AuthServiceName:         cfg.Hostname,
+			DataDir:                 cfg.DataDir,
+			HostUUID:                cfg.HostUUID,
+			NodeName:                cfg.Hostname,
+			Authorities:             cfg.Auth.Authorities,
+			ApplyOnStartupResources: cfg.Auth.ApplyOnStartupResources,
+			BootstrapResources:      cfg.Auth.BootstrapResources,
+			ReverseTunnels:          cfg.ReverseTunnels,
+			Trust:                   cfg.Trust,
+			Presence:                cfg.Presence,
+			Events:                  cfg.Events,
+			Provisioner:             cfg.Provisioner,
+			Identity:                cfg.Identity,
+			Access:                  cfg.Access,
+			UsageReporter:           cfg.UsageReporter,
+			StaticTokens:            cfg.Auth.StaticTokens,
+			Roles:                   cfg.Auth.Roles,
+			AuthPreference:          cfg.Auth.Preference,
+			OIDCConnectors:          cfg.OIDCConnectors,
+			AuditLog:                process.auditLog,
+			CipherSuites:            cfg.CipherSuites,
+			KeyStoreConfig:          cfg.Auth.KeyStore,
+			Emitter:                 checkingEmitter,
+			Streamer:                events.NewReportingStreamer(streamer, process.Config.UploadEventsC),
+			TraceClient:             traceClt,
+			FIPS:                    cfg.FIPS,
+			LoadAllCAs:              cfg.Auth.LoadAllCAs,
+			Clock:                   cfg.Clock,
+			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+			EmbeddingRetriever:      embeddingsRetriever,
+			EmbeddingClient:         embedderClient,
+			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
+		}, func(as *auth.Server) error {
+			if !process.Config.CachePolicy.Enabled {
+				return nil
+			}
+
+			cache, err := process.newAccessCache(accessCacheConfig{
+				services:  as.Services,
+				setup:     cache.ForAuth,
+				cacheName: []string{teleport.ComponentAuth},
+				events:    true,
+				unstarted: true,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			as.Cache = cache
+
 			return nil
-		}
-
-		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  as.Services,
-			setup:     cache.ForAuth,
-			cacheName: []string{teleport.ComponentAuth},
-			events:    true,
-			unstarted: true,
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		as.Cache = cache
-
-		return nil
-	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

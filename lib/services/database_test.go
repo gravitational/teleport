@@ -400,6 +400,70 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: true,
 		},
+		{
+			inputName: "valid-clickhouse-uri-http-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouseHTTP,
+				URI:      "https://localhost:1234",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "clickhouse-uri-without-schema-http-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouseHTTP,
+				URI:      "localhost:1234",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "clickhouse-uri-without-schema-native-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouse,
+				URI:      "localhost:1234",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "invalid-schema-for-native-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouse,
+				URI:      "https://localhost:1234",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-schema-for-http-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouseHTTP,
+				URI:      "clickhouse://localhost:1234",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-clickhouse-uri-native-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouse,
+				URI:      "clickhouse://localhost:1234",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "uri-without-schema-native-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouse,
+				URI:      "localhost:1234",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "uri-without-schema-http-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouseHTTP,
+				URI:      "localhost:1234",
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
