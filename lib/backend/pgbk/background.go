@@ -17,6 +17,7 @@ package pgbk
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -145,6 +146,16 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	// any error), so we have to do it before that
 	if _, err := conn.Exec(ctx, "SET log_min_messages TO fatal", pgx.QueryExecModeExec); err != nil {
 		b.log.WithError(err).Debug("Failed to silence log messages for change feed session.")
+	}
+
+	// this can be useful if we're some sort of admin but we haven't gotten the
+	// REPLICATION attribute yet
+	// HACK(espadolini): ALTER ROLE CURRENT_USER REPLICATION just crashes postgres on Azure
+	if _, err := conn.Exec(ctx,
+		fmt.Sprintf("ALTER ROLE \"%v\" REPLICATION", poolConfig.ConnConfig.User),
+		pgx.QueryExecModeExec,
+	); err != nil {
+		b.log.WithError(err).Debug("Failed to enable replication for the current user.")
 	}
 
 	u := uuid.New()
