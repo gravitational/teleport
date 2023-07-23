@@ -28,7 +28,8 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230629202037-9506855d4529
 	google.golang.org/grpc v1.56.2
 	google.golang.org/protobuf v1.31.0
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v2 v2.2.3
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -50,5 +51,4 @@ require (
 	golang.org/x/term v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230629202037-9506855d4529 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
