@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/container v1.23.0
 	cloud.google.com/go/firestore v1.11.0
 	cloud.google.com/go/iam v1.1.1
-	cloud.google.com/go/kms v1.12.1
+	cloud.google.com/go/kms v1.14.0
 	cloud.google.com/go/storage v1.31.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
