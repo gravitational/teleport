@@ -27,7 +27,7 @@ png = "0.17.9"
 
 [build-dependencies]
 cbindgen = "0.24.5"
-tempfile = "3.6.0"
+tempfile = "3.7.0"
 
 [features]
 fips = ["rdp-rs/fips"]
