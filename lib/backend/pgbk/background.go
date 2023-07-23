@@ -136,8 +136,6 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 			b.log.WithError(err).Warn("Error closing change feed connection.")
 		}
 	}()
-	// we don't need to run the AfterConnect here, we don't care about isolation
-	// mode for pg_logical_slot_get_changes
 
 	// reading from a replication slot adds to the postgres log at "log" level
 	// (right below "fatal") for every poll, and we poll every second here, so

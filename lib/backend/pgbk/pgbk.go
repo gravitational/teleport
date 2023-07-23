@@ -166,9 +166,11 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		poolConfig.BeforeConnect = bc
 	}
 
-	poolConfig.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
-		_, err := c.Exec(ctx, "SET default_transaction_isolation TO serializable", pgx.QueryExecModeExec)
-		return trace.Wrap(err)
+	if poolConfig.ConnConfig.RuntimeParams["default_transaction_isolation"] != "" {
+		log.WithField("default_transaction_isolation", poolConfig.ConnConfig.RuntimeParams["default_transaction_isolation"]).
+			Warn("The default_transaction_isolation parameter was overridden in the connection string; proceeding with an unsupported configuration.")
+	} else {
+		poolConfig.ConnConfig.RuntimeParams["default_transaction_isolation"] = "serializable"
 	}
 
 	log.Info("Setting up backend.")
