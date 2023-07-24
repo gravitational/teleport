@@ -15,11 +15,26 @@
  */
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import {
+  CreateConnectMyComputerRoleResponse,
+  TshClient,
+} from 'teleterm/services/tshd/types';
+
+import type * as uri from 'teleterm/ui/uri';
 
 export class ConnectMyComputerService {
-  constructor(private mainProcessClient: MainProcessClient) {}
+  constructor(
+    private mainProcessClient: MainProcessClient,
+    private tshClient: TshClient
+  ) {}
 
   async downloadAgent(): Promise<void> {
     await this.mainProcessClient.downloadAgent();
+  }
+
+  createRole(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<CreateConnectMyComputerRoleResponse> {
+    return this.tshClient.createConnectMyComputerRole(rootClusterUri);
   }
 }

@@ -25,7 +25,7 @@ import {
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { Props as CredentialsProps, SliderProps } from './NewCredentials';
+import { SliderProps, UseTokenState } from './types';
 
 export function NewPassword(props: Props) {
   const {
@@ -143,7 +143,7 @@ export function NewPassword(props: Props) {
   );
 }
 
-type Props = CredentialsProps &
+type Props = UseTokenState &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;

@@ -67,6 +67,7 @@ type pkcs11KeyStore struct {
 	hostUUID  string
 	log       logrus.FieldLogger
 	isYubiHSM bool
+	semaphore chan struct{}
 }
 
 func newPKCS11KeyStore(config *PKCS11Config, logger logrus.FieldLogger) (*pkcs11KeyStore, error) {
@@ -95,6 +96,7 @@ func newPKCS11KeyStore(config *PKCS11Config, logger logrus.FieldLogger) (*pkcs11
 		hostUUID:  config.HostUUID,
 		log:       logger,
 		isYubiHSM: strings.HasPrefix(info.ManufacturerID, "Yubico"),
+		semaphore: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -136,7 +138,15 @@ func (p *pkcs11KeyStore) findUnusedID() (keyID, error) {
 // crypto.Signer. The returned identifier can be passed to getSigner later to
 // get the same crypto.Signer.
 func (p *pkcs11KeyStore) generateRSA(ctx context.Context, options ...RSAKeyOption) ([]byte, crypto.Signer, error) {
+	// the key identifiers are not created in a thread safe
+	// manner so all calls are serialized to prevent races.
+	p.semaphore <- struct{}{}
+	defer func() {
+		<-p.semaphore
+	}()
+
 	p.log.Debug("Creating new HSM keypair")
+
 	id, err := p.findUnusedID()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
