@@ -336,6 +336,8 @@ podSecurityPolicy:
 chartMode: aws
 clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
 proxyListenerMode: multiplex
+service:
+  type: ClusterIP
 aws:
   region: us-west-2                               # AWS region
   backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
