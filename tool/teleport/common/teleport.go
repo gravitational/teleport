@@ -17,9 +17,9 @@ limitations under the License.
 package common
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/user"
@@ -592,15 +592,17 @@ func selfTerminateWhenOrphaned(logger utils.Logger) error {
 	}
 
 	go func() {
-		scanner := bufio.NewScanner(os.Stdin)
+		buff := make([]byte, 1)
 
-		for scanner.Scan() {
-		}
-
-		if err := scanner.Err(); err != nil {
-			logger.WithError(err).Error("Unexpected scanner error, terminating.")
+		_, err := os.Stdin.Read(buff)
+		if err != nil {
+			if err == io.EOF {
+				logger.Info("The parent process has died, terminating.")
+			} else {
+				logger.WithError(err).Error("Unexpected Stdin.Read error")
+			}
 		} else {
-			logger.Info("The parent process has died, terminating.")
+			logger.Error("Unexpected write to Stdin, terminating.")
 		}
 
 		if err := unix.Kill(unix.Getpid(), unix.SIGTERM); err != nil {
