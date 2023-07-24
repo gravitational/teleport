@@ -213,7 +213,9 @@ func NewApplicationsFromKubeService(service v1.Service, clusterName string, pc P
 
 			rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 			if err != nil {
-				return trace.Wrap(err)
+				logger.Errorf(
+					"could not get app rewrite config from annotation for discovered Kubernetes service %q: %v", service.GetName(), err)
+				return nil
 			}
 			a, err := types.NewAppV3(types.Metadata{
 				Name:        getAppName(service.GetName(), service.GetNamespace(), clusterName, ""),
@@ -228,7 +230,8 @@ func NewApplicationsFromKubeService(service v1.Service, clusterName string, pc P
 				PublicAddr: getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name),
 			})
 			if err != nil {
-				return trace.Wrap(err)
+				logger.Errorf("could not create an app from discovered Kubernetes service %q: %v", service.GetName(), err)
+				return nil
 			}
 			appsMu.Lock()
 			apps = append(apps, a)
