@@ -153,7 +153,7 @@ func TestPrefix(t *testing.T) {
 func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val string) {
 	t.Logf("assert that key %q contains value %q", key, val)
 
-	resp, err := bk.client.Get(ctx, key)
+	resp, err := bk.clients.Next().Get(ctx, key)
 	require.NoError(t, err)
 	require.Len(t, resp.Kvs, 1)
 	require.Equal(t, key, string(resp.Kvs[0].Key))

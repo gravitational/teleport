@@ -38,7 +38,6 @@ import (
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -51,6 +50,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
+)
+
+const (
+	// defaultClientPoolSize is the default number of etcd clients to use
+	defaultClientPoolSize = 3
 )
 
 var (
@@ -140,7 +144,7 @@ type EtcdBackend struct {
 	nodes []string
 	*log.Entry
 	cfg         *Config
-	client      *clientv3.Client
+	clients     roundRobin[*clientv3.Client]
 	cancelC     chan bool
 	stopC       chan bool
 	clock       clockwork.Clock
@@ -181,6 +185,8 @@ type Config struct {
 	// MaxClientMsgSizeBytes optionally specifies the size limit on client send message size.
 	// See https://github.com/etcd-io/etcd/blob/221f0cc107cb3497eeb20fb241e1bcafca2e9115/clientv3/config.go#L49
 	MaxClientMsgSizeBytes int `json:"etcd_max_client_msg_size_bytes,omitempty"`
+	// ClientPoolSize is the number of concurrent clients to use.
+	ClientPoolSize int `json:"client_pool_size,omitempty"`
 }
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
@@ -265,6 +271,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	b := &EtcdBackend{
 		Entry:       log.WithFields(log.Fields{trace.Component: GetName()}),
 		cfg:         cfg,
+		clients:     newRoundRobin[*clientv3.Client](nil), // initialized below in reconnect()
 		nodes:       cfg.Nodes,
 		cancelC:     make(chan bool, 1),
 		stopC:       make(chan bool, 1),
@@ -284,7 +291,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	timeout, cancel := context.WithTimeout(ctx, time.Second*3*time.Duration(len(cfg.Nodes)))
 	defer cancel()
 	for _, n := range cfg.Nodes {
-		status, err := b.client.Status(timeout, n)
+		status, err := b.clients.Next().Status(timeout, n)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -339,7 +346,15 @@ func (cfg *Config) Validate() error {
 		// trim newlines as passwords in files tend to have newlines
 		cfg.Password = strings.TrimSpace(string(out))
 	}
+
+	if cfg.ClientPoolSize < 1 {
+		cfg.ClientPoolSize = defaultClientPoolSize
+	}
 	return nil
+}
+
+func (b *EtcdBackend) GetName() string {
+	return GetName()
 }
 
 func (b *EtcdBackend) Clock() clockwork.Clock {
@@ -349,7 +364,11 @@ func (b *EtcdBackend) Clock() clockwork.Clock {
 func (b *EtcdBackend) Close() error {
 	b.cancel()
 	b.buf.Close()
-	return b.client.Close()
+	var errs []error
+	for _, clt := range b.clients.items {
+		errs = append(errs, clt.Close())
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // CloseWatchers closes all the watchers
@@ -359,11 +378,12 @@ func (b *EtcdBackend) CloseWatchers() {
 }
 
 func (b *EtcdBackend) reconnect(ctx context.Context) error {
-	if b.client != nil {
-		if err := b.client.Close(); err != nil {
+	for _, clt := range b.clients.items {
+		if err := clt.Close(); err != nil {
 			b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
 		}
 	}
+	b.clients.items = nil
 
 	tlsConfig := utils.TLSConfig(nil)
 
@@ -402,22 +422,23 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		tlsConfig.ClientCAs = certPool
 	}
 
-	clt, err := clientv3.New(clientv3.Config{
-		Endpoints:          b.nodes,
-		TLS:                tlsConfig,
-		DialTimeout:        b.cfg.DialTimeout,
-		DialOptions:        []grpc.DialOption{grpc.WithBlock()},
-		Username:           b.cfg.Username,
-		Password:           b.cfg.Password,
-		MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
-	})
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return trace.WrapWithMessage(err, "timed out dialing etcd endpoints: %s", b.nodes)
+	for i := 0; i < b.cfg.ClientPoolSize; i++ {
+		clt, err := clientv3.New(clientv3.Config{
+			Endpoints:          b.nodes,
+			TLS:                tlsConfig,
+			DialTimeout:        b.cfg.DialTimeout,
+			Username:           b.cfg.Username,
+			Password:           b.cfg.Password,
+			MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
+		})
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return trace.WrapWithMessage(err, "timed out dialing etcd endpoints: %s", b.nodes)
+			}
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
+		b.clients.items = append(b.clients.items, clt)
 	}
-	b.client = clt
 	return nil
 }
 
@@ -491,7 +512,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	emitDone := make(chan struct{})
 
 	// watcher must be registered before we initialize the buffer
-	eventsC := b.client.Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
+	eventsC := b.clients.Next().Watch(ctx, b.cfg.Key, clientv3.WithPrefix())
 
 	// set buffer to initialized state.
 	b.buf.SetInit()
@@ -581,7 +602,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}
 	start := b.clock.Now()
-	re, err := b.client.Get(ctx, b.prependPrefix(startKey), opts...)
+	re, err := b.clients.Next().Get(ctx, b.prependPrefix(startKey), opts...)
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err := convertErr(err); err != nil {
@@ -614,7 +635,7 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 		}
 	}
 	start := b.clock.Now()
-	re, err := b.client.Txn(ctx).
+	re, err := b.clients.Next().Txn(ctx).
 		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "=", 0)).
 		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
@@ -639,7 +660,7 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 		}
 	}
 	start := b.clock.Now()
-	re, err := b.client.Txn(ctx).
+	re, err := b.clients.Next().Txn(ctx).
 		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "!=", 0)).
 		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
@@ -676,7 +697,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	encodedPrev := base64.StdEncoding.EncodeToString(expected.Value)
 
 	start := b.clock.Now()
-	re, err := b.client.Txn(ctx).
+	re, err := b.clients.Next().Txn(ctx).
 		If(clientv3.Compare(clientv3.Value(b.prependPrefix(expected.Key)), "=", encodedPrev)).
 		Then(clientv3.OpPut(b.prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
 		Commit()
@@ -706,7 +727,7 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 		}
 	}
 	start := b.clock.Now()
-	_, err := b.client.Put(
+	_, err := b.clients.Next().Put(
 		ctx,
 		b.prependPrefix(item.Key),
 		base64.StdEncoding.EncodeToString(item.Value),
@@ -735,7 +756,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 		return trace.Wrap(err)
 	}
 	opts = append(opts, clientv3.WithIgnoreValue())
-	_, err := b.client.Put(ctx, b.prependPrefix(lease.Key), "", opts...)
+	_, err := b.clients.Next().Put(ctx, b.prependPrefix(lease.Key), "", opts...)
 	err = convertErr(err)
 	if trace.IsNotFound(err) {
 		return trace.NotFound("item %q is not found", string(lease.Key))
@@ -746,7 +767,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 
 // Get returns a single item or not found error
 func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	re, err := b.client.Get(ctx, b.prependPrefix(key))
+	re, err := b.clients.Next().Get(ctx, b.prependPrefix(key))
 	if err != nil {
 		return nil, convertErr(err)
 	}
@@ -764,7 +785,7 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 // Delete deletes item by key
 func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	start := b.clock.Now()
-	re, err := b.client.Delete(ctx, b.prependPrefix(key))
+	re, err := b.clients.Next().Delete(ctx, b.prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -786,7 +807,7 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 		return trace.BadParameter("missing parameter endKey")
 	}
 	start := b.clock.Now()
-	_, err := b.client.Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
+	_, err := b.clients.Next().Delete(ctx, b.prependPrefix(startKey), clientv3.WithRange(b.prependPrefix(endKey)))
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
 	if err != nil {
@@ -810,7 +831,7 @@ func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *
 	bucket := roundUp(item.Expires, b.leaseBucket)
 	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, leaseKey{bucket: bucket}, func(ctx context.Context) (clientv3.LeaseID, error) {
 		ttl := b.ttl(bucket)
-		elease, err := b.client.Grant(ctx, seconds(ttl))
+		elease, err := b.clients.Next().Grant(ctx, seconds(ttl))
 		if err != nil {
 			return 0, convertErr(err)
 		}
@@ -861,7 +882,7 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	// reduce the number of requests per shared ttl we cache the results per lease id.
 	if e.Kv.Lease != 0 {
 		ttl, err := utils.FnCacheGet(ctx, b.leaseCache, ttlKey{leaseID: e.Kv.Lease}, func(ctx context.Context) (int64, error) {
-			re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+			re, err := b.clients.Next().TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
 			if err != nil {
 				return 0, convertErr(err)
 			}

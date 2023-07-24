@@ -351,7 +351,7 @@ func appendV7KubeResources() []KubernetesResource {
 	resources := []KubernetesResource{}
 	// append other kubernetes resources
 	for _, resource := range KubernetesResourcesKinds {
-		if resource == KindKubePod {
+		if resource == KindKubePod || resource == KindKubeNamespace {
 			continue
 		}
 		resources = append(resources, KubernetesResource{
