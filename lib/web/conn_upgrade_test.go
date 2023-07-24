@@ -82,66 +82,95 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		clock: clockwork.NewRealClock(),
 	}
 
-	t.Run("unsupported type", func(t *testing.T) {
-		r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
-		require.NoError(t, err)
-		r.Header.Add("Upgrade", "unsupported-protocol")
+	tests := []struct {
+		name                  string
+		inputUpgradeHeaderKey string
+		inputUpgradeType      string
+		checkHandlerError     func(error) bool
+		checkClientConnString func(*testing.T, net.Conn, string)
+	}{
+		{
+			name:              "unsupported type",
+			inputUpgradeType:  "unsupported-protocol",
+			checkHandlerError: trace.IsNotFound,
+		},
+		{
+			name:                  "upgraded to ALPN",
+			inputUpgradeType:      constants.WebAPIConnUpgradeTypeALPN,
+			checkClientConnString: mustReadClientConnString,
+		},
+		{
+			name:                  "upgraded to ALPN with Ping",
+			inputUpgradeType:      constants.WebAPIConnUpgradeTypeALPNPing,
+			checkClientConnString: mustReadClientPingConnString,
+		},
+		{
+			name:                  "upgraded to ALPN with Teleport-specific header",
+			inputUpgradeHeaderKey: constants.WebAPIConnUpgradeTeleportHeader,
+			inputUpgradeType:      constants.WebAPIConnUpgradeTypeALPN,
+			checkClientConnString: mustReadClientConnString,
+		},
+	}
 
-		_, err = h.connectionUpgrade(httptest.NewRecorder(), r, nil)
-		require.True(t, trace.IsNotFound(err))
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			serverConn, clientConn := net.Pipe()
+			defer serverConn.Close()
+			defer clientConn.Close()
 
-	t.Run("upgraded to ALPN", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer serverConn.Close()
-		defer clientConn.Close()
+			// serverConn will be hijacked.
+			w := newResponseWriterHijacker(nil, serverConn)
+			r := makeConnUpgradeRequest(t, test.inputUpgradeHeaderKey, test.inputUpgradeType, expectedIP)
 
-		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPN, serverConn, clientConn, expectedIP)
+			// Serve the handler with XForwardedFor middleware to set IPs.
+			handlerErrChan := make(chan error, 1)
+			go func() {
+				connUpgradeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, err := h.connectionUpgrade(w, r, nil)
+					handlerErrChan <- err
 
-		// Verify clientConn receives data sent by Config.ALPNHandler.
-		receive, err := bufio.NewReader(clientConn).ReadString(byte('@'))
-		require.NoError(t, err)
-		require.Equal(t, expectedPayload, receive)
-	})
+					// Catch the case where an error is not expected but still
+					// happened. Close the connection to unblock the client
+					// reader and print out the error.
+					if test.checkHandlerError == nil {
+						clientConn.Close()
+						require.NoError(t, err)
+					}
+				})
 
-	t.Run("upgraded to ALPN with Ping", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer serverConn.Close()
-		defer clientConn.Close()
+				NewXForwardedForMiddleware(connUpgradeHandler).ServeHTTP(w, r)
+			}()
 
-		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPNPing, serverConn, clientConn, expectedIP)
+			if test.checkHandlerError != nil {
+				handlerErr := <-handlerErrChan
+				require.Error(t, handlerErr)
+				require.True(t, test.checkHandlerError(handlerErr))
+				return
+			}
 
-		// Verify ping-wrapped clientConn receives data sent by Config.ALPNHandler.
-		receive, err := bufio.NewReader(pingconn.New(clientConn)).ReadString(byte('@'))
-		require.NoError(t, err)
-		require.Equal(t, expectedPayload, receive)
-	})
+			mustReadSwitchProtocolsResponse(t, r, clientConn, test.inputUpgradeType)
+			test.checkClientConnString(t, clientConn, expectedPayload)
+		})
+	}
 }
 
-func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, serverConn, clientConn net.Conn, xForwardedFor string) {
+func makeConnUpgradeRequest(t *testing.T, upgradeHeaderKey, upgradeType, xForwardedFor string) *http.Request {
 	t.Helper()
+
+	if upgradeHeaderKey == "" {
+		upgradeHeaderKey = constants.WebAPIConnUpgradeHeader
+	}
 
 	r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 	require.NoError(t, err)
-	r.Header.Add("Upgrade", upgradeType)
+	r.Header.Add(upgradeHeaderKey, upgradeType)
 	r.Header.Add("X-Forwarded-For", xForwardedFor)
+	return r
+}
 
-	// serverConn will be hijacked.
-	w := newResponseWriterHijacker(nil, serverConn)
-	require.NoError(t, err)
+func mustReadSwitchProtocolsResponse(t *testing.T, r *http.Request, clientConn net.Conn, upgradeType string) {
+	t.Helper()
 
-	go func() {
-		// Use XForwardedFor middleware to set IPs.
-		var err error
-		connUpgradeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err = h.connectionUpgrade(w, r, nil)
-		})
-		NewXForwardedForMiddleware(connUpgradeHandler).ServeHTTP(w, r)
-
-		require.NoError(t, err)
-	}()
-
-	// Verify clientConn receives http.StatusSwitchingProtocols.
 	resp, err := http.ReadResponse(bufio.NewReader(clientConn), r)
 	require.NoError(t, err)
 
@@ -150,8 +179,23 @@ func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, server
 	_ = resp.Body.Close()
 
 	require.Equal(t, upgradeType, resp.Header.Get(constants.WebAPIConnUpgradeHeader))
+	require.Equal(t, upgradeType, resp.Header.Get(constants.WebAPIConnUpgradeTeleportHeader))
 	require.Equal(t, constants.WebAPIConnUpgradeConnectionType, resp.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
 	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+}
+
+func mustReadClientConnString(t *testing.T, clientConn net.Conn, expectedPayload string) {
+	t.Helper()
+
+	receive, err := bufio.NewReader(clientConn).ReadString(byte('@'))
+	require.NoError(t, err)
+	require.Equal(t, expectedPayload, receive)
+}
+
+func mustReadClientPingConnString(t *testing.T, clientConn net.Conn, expectedPayload string) {
+	t.Helper()
+
+	mustReadClientConnString(t, pingconn.New(clientConn), expectedPayload)
 }
 
 // responseWriterHijacker is a mock http.ResponseWriter that also serves a
