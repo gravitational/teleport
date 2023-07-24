@@ -118,6 +118,11 @@ Annotation `teleport.dev/port` controls preferred port for the Kubernetes servic
 has multiple exposed ports. Its value should be one of the exposed service ports; otherwise, the app will not be imported. 
 Value can be matched either by numeric value or by the name of the port defined on the service.
 
+Annotation `teleport.dev/app-name` controls resulting app name. If present it will override default app name pattern
+`$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. If multiple ports are exposed, resulting apps will have port names added
+as a suffix to the annotation value, as `$APP_NAME-$PORT1_NAME`, `$APP_NAME-$PORT2_NAME` etc, where `$APP_NAME` is the name
+set by annotation.
+
 Annotation `teleport.dev/app-rewrite` controls rewrite configuration for Teleport app, if needed. It should
 contain full rewrite configuration in YAML format, same as one would put into `rewrite` config section of an 
 app (see [documentation](https://goteleport.com/docs/application-access/guides/connecting-apps/#rewrite-redirect)).
