@@ -643,7 +643,7 @@ func TestProxySSHJumpHost(t *testing.T) {
 			tshHome, _ := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
 
 			// Connect to leaf node though proxy jump host. This should automatically
-			// reissue leaf certs from the root without explicility switching clusters.
+			// reissue leaf certs from the root without explicitly switching clusters.
 			err := runProxySSHJump(setHomePath(tshHome))
 			require.NoError(t, err)
 

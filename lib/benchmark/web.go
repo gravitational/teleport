@@ -202,7 +202,7 @@ func getServers(ctx context.Context, tc *client.TeleportClient) ([]types.Server,
 	}
 	defer clt.Close()
 
-	resources, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, tc.ResourceFilter(types.KindNode))
+	resources, err := apiclient.GetAllResources[types.Server](ctx, clt.CurrentCluster(), tc.ResourceFilter(types.KindNode))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

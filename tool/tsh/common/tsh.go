@@ -1834,7 +1834,7 @@ func onLogin(cf *CLIConf) error {
 	// If the cluster is using single-sign on, providing the user name
 	// with --user is likely a mistake, so display a warning.
 	if cf.Username != "" {
-		var displayIgnoreUserWarning = false
+		displayIgnoreUserWarning := false
 		if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.AuthConnector != constants.PasswordlessConnector {
 			displayIgnoreUserWarning = true
 		} else if cf.AuthConnector == "" {
@@ -1942,7 +1942,6 @@ func onLogin(cf *CLIConf) error {
 		capabilities, err := rootAuthClient.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
 			User: cf.Username,
 		})
-
 		if err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
@@ -3092,7 +3091,7 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	// Match on hostname or host ID, user could have given either
 	expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
 
-	nodes, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, &proto.ListResourcesRequest{
+	nodes, err := apiclient.GetAllResources[types.Server](ctx, clt.CurrentCluster(), &proto.ListResourcesRequest{
 		Namespace:           apidefaults.Namespace,
 		ResourceType:        types.KindNode,
 		UseSearchAsRoles:    true,

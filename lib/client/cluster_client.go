@@ -23,8 +23,10 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -33,11 +35,14 @@ import (
 // ClusterClient facilitates communicating with both the
 // Auth and Proxy services of a cluster.
 type ClusterClient struct {
-	tc          *TeleportClient
-	ProxyClient *proxyclient.Client
-	AuthClient  auth.ClientI
-	Tracer      oteltrace.Tracer
-	cluster     string
+	*proxyclient.Client
+	tc         *TeleportClient
+	authClient auth.ClientI
+
+	cluster string
+	root    string
+
+	Tracer oteltrace.Tracer
 }
 
 // ClusterName returns the name of the cluster that the client
@@ -46,10 +51,34 @@ func (c *ClusterClient) ClusterName() string {
 	return c.cluster
 }
 
+// CurrentCluster returns an authenticated auth server client for the local cluster.
+func (c *ClusterClient) CurrentCluster() auth.ClientI {
+	// The auth.ClientI is wrapped in an sharedAuthClient to prevent callers from
+	// being able to close the client. The auth.ClientI is only to be closed
+	// when the ProxyClient is closed.
+	return sharedAuthClient{ClientI: c.authClient}
+}
+
+func (c *ClusterClient) RootCluster(ctx context.Context) (auth.ClientI, error) {
+	root, err := c.ConnectToCluster(ctx, c.root)
+	return root, trace.Wrap(err)
+}
+
+// ConnectToCluster connects to the auth server of the given cluster via proxy. It returns connected and authenticated auth server client
+func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+	if c.cluster == clusterName {
+		return c.CurrentCluster(), nil
+	}
+
+	clientConfig := c.ClientConfig(ctx, clusterName)
+	authClient, err := auth.NewClient(clientConfig)
+	return authClient, trace.Wrap(err)
+}
+
 // Close terminates the connections to Auth and Proxy.
 func (c *ClusterClient) Close() error {
 	// close auth client first since it is tunneled through the proxy client
-	return trace.NewAggregate(c.AuthClient.Close(), c.ProxyClient.Close())
+	return trace.NewAggregate(c.authClient.Close(), c.Client.Close())
 }
 
 // SessionSSHConfig returns the [ssh.ClientConfig] that should be used to connected to the
@@ -66,7 +95,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	)
 	defer span.End()
 
-	sshConfig := c.ProxyClient.SSHConfig(user)
+	sshConfig := c.Client.SSHConfig(user)
 
 	if target.MFACheck != nil && !target.MFACheck.Required {
 		return sshConfig, nil
@@ -79,24 +108,20 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	// Always connect to root for getting new credentials, but attempt to reuse
 	// the existing client if possible.
-	rootClusterName, err := key.RootClusterName()
-	if err != nil {
-		return nil, trace.Wrap(MFARequiredUnknown(err))
-	}
-
 	mfaClt := c
-	if target.Cluster != rootClusterName {
-		aclt, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
+	if target.Cluster != c.root {
+		aclt, err := auth.NewClient(c.Client.ClientConfig(ctx, c.root))
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 
 		mfaClt = &ClusterClient{
-			tc:          c.tc,
-			ProxyClient: c.ProxyClient,
-			AuthClient:  aclt,
-			Tracer:      c.Tracer,
-			cluster:     rootClusterName,
+			Client:     c.Client,
+			tc:         c.tc,
+			authClient: aclt,
+			Tracer:     c.Tracer,
+			cluster:    c.root,
+			root:       c.root,
 		}
 		// only close the new auth client and not the copied cluster client.
 		defer aclt.Close()
@@ -125,7 +150,32 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	return sshConfig, nil
 }
 
-// reissueUserCerts gets new user certificates from the root Auth server.
+// ReissueUserCerts gets new user certificates from the root Auth server.
+func (c *ClusterClient) ReissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/reissueUserCerts",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", c.tc.SiteName),
+		),
+	)
+	defer span.End()
+
+	key, err := c.reissueUserCerts(ctx, cachePolicy, params)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cachePolicy == CertCacheDrop {
+		c.tc.LocalAgent().DeleteUserCerts("", WithAllCerts...)
+	}
+
+	// save the cert to the local storage (~/.tsh usually):
+	err = c.tc.LocalAgent().AddKey(key)
+	return trace.Wrap(err)
+}
+
 func (c *ClusterClient) reissueUserCerts(ctx context.Context, cachePolicy CertCachePolicy, params ReissueParams) (*Key, error) {
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = c.tc.SiteName
@@ -155,7 +205,7 @@ func (c *ClusterClient) reissueUserCerts(ctx context.Context, cachePolicy CertCa
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := c.AuthClient.GenerateUserCerts(ctx, *req)
+	certs, err := c.authClient.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,7 +288,7 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 // performMFACeremony runs the mfa ceremony to completion. If successful the returned
 // [Key] will be authorized to connect to the target.
 func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClient, params ReissueParams, key *Key) (*Key, error) {
-	stream, err := clt.AuthClient.GenerateUserSingleUseCerts(ctx)
+	stream, err := clt.authClient.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			// Probably talking to an older server, use the old non-MFA endpoint.
@@ -280,7 +330,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 		// if the leaf cluster requires MFA. If it doesn't return an error indicating
 		// that MFA was not required instead of the error received from the root cluster.
 		if c.cluster != clt.cluster {
-			check, err := c.AuthClient.IsMFARequired(ctx, params.isMFARequiredRequest(clt.tc.HostLogin))
+			check, err := c.authClient.IsMFARequired(ctx, params.isMFARequiredRequest(clt.tc.HostLogin))
 			if err != nil {
 				return nil, trace.Wrap(MFARequiredUnknown(err))
 			}
@@ -302,7 +352,7 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 	case proto.MFARequired_MFA_REQUIRED_UNSPECIFIED:
 		// check if MFA is required with the auth client for this cluster and
 		// not the root client
-		check, err := c.AuthClient.IsMFARequired(ctx, params.isMFARequiredRequest(clt.tc.HostLogin))
+		check, err := c.authClient.IsMFARequired(ctx, params.isMFARequiredRequest(clt.tc.HostLogin))
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
@@ -354,4 +404,225 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 	key.ClusterName = params.RouteToCluster
 
 	return key, nil
+}
+
+// CreateAccessRequest registers a new access request with the auth server.
+func (c *ClusterClient) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/CreateAccessRequest",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(attribute.String("request", req.GetName())),
+	)
+	defer span.End()
+
+	return trace.Wrap(c.authClient.CreateAccessRequest(ctx, req))
+}
+
+// GetAccessRequests loads all access requests matching the supplied filter.
+func (c *ClusterClient) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/GetAccessRequests",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("id", filter.ID),
+			attribute.String("user", filter.User),
+		),
+	)
+	defer span.End()
+
+	reqs, err := c.authClient.GetAccessRequests(ctx, filter)
+	return reqs, trace.Wrap(err)
+}
+
+// GetRole loads a role resource by name.
+func (c *ClusterClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/GetRole",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("role", name),
+		),
+	)
+	defer span.End()
+
+	role, err := c.authClient.GetRole(ctx, name)
+	return role, trace.Wrap(err)
+}
+
+// NewWatcher sets up a new event watcher.
+func (c *ClusterClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/NewWatcher",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("name", watch.Name),
+		),
+	)
+	defer span.End()
+
+	watcher, err := c.authClient.NewWatcher(ctx, watch)
+	return watcher, trace.Wrap(err)
+}
+
+// GetClusterAlerts returns a list of matching alerts from the current cluster.
+func (c *ClusterClient) GetClusterAlerts(ctx context.Context, req types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/GetClusterAlerts",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	alerts, err := c.authClient.GetClusterAlerts(ctx, req)
+	return alerts, trace.Wrap(err)
+}
+
+// FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
+func (c *ClusterClient) FindNodesByFiltersForCluster(ctx context.Context, req *proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/FindNodesByFiltersForCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", cluster),
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
+	)
+	defer span.End()
+
+	authClient, err := c.ConnectToCluster(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	servers, err := client.GetAllResources[types.Server](ctx, authClient, req)
+	return servers, trace.Wrap(err)
+}
+
+// FindAppServersByFilters returns a list of application servers in the current cluster which have filters matched.
+func (c *ClusterClient) FindAppServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.AppServer, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/FindAppServersByFilters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
+	)
+	defer span.End()
+
+	servers, err := c.FindAppServersByFiltersForCluster(ctx, req, c.cluster)
+	return servers, trace.Wrap(err)
+}
+
+// FindAppServersByFiltersForCluster returns a list of application servers for a given cluster which have filters matched.
+func (c *ClusterClient) FindAppServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.AppServer, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/FindAppServersByFiltersForCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", cluster),
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
+	)
+	defer span.End()
+
+	authClient, err := c.ConnectToCluster(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	servers, err := client.GetAllResources[types.AppServer](ctx, authClient, &req)
+	return servers, trace.Wrap(err)
+}
+
+// CreateAppSession creates a new application access session.
+func (c *ClusterClient) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/CreateAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("username", req.Username),
+			attribute.String("cluster", req.ClusterName),
+		),
+	)
+	defer span.End()
+
+	authClient, err := c.RootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	ws, err := authClient.CreateAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make sure to wait for the created app session to propagate through the cache.
+	clientConfig := c.ClientConfig(ctx, c.root)
+	accessPoint, err := auth.NewClient(clientConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer accessPoint.Close()
+
+	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
+	return ws, trace.Wrap(err)
+}
+
+// GetAppSession creates a new application access session.
+func (c *ClusterClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/GetAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	authClient, err := c.RootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ws, err := authClient.GetAppSession(ctx, req)
+	return ws, trace.Wrap(err)
+}
+
+// DeleteAppSession removes the specified application access session.
+func (c *ClusterClient) DeleteAppSession(ctx context.Context, sessionID string) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/DeleteAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("session", sessionID),
+		),
+	)
+	defer span.End()
+
+	authClient, err := c.RootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	err = authClient.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: sessionID})
+	return trace.Wrap(err)
 }

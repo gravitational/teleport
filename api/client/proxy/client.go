@@ -248,11 +248,9 @@ type clusterCredentials struct {
 	clusterName *clusterName
 }
 
-var (
-	// teleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
-	// origin teleport cluster name into certificates.
-	teleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
-)
+// teleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+// origin teleport cluster name into certificates.
+var teleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
 
 // ClientHandshake performs the handshake with the wrapped [credentials.TransportCredentials] and
 // then inspects the provided cert for the [teleportClusterASN1ExtensionOID] to determine

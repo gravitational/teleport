@@ -1308,14 +1308,14 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	err = RetryWithRelogin(ctx, tc, func() error {
-		err := proxyClient.ReissueUserCerts(ctx, cachePolicy, params)
+		err := clusterClient.ReissueUserCerts(ctx, cachePolicy, params)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)
@@ -1363,13 +1363,13 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req types.Acc
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.CreateAccessRequest(ctx, req)
+	return clusterClient.CreateAccessRequest(ctx, req)
 }
 
 // GetAccessRequests loads all access requests matching the supplied filter.
@@ -1385,13 +1385,13 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter types.Ac
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.GetAccessRequests(ctx, filter)
+	return clusterClient.GetAccessRequests(ctx, filter)
 }
 
 // GetRole loads a role resource by name.
@@ -1406,13 +1406,13 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (types.Role,
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	return proxyClient.GetRole(ctx, name)
+	return clusterClient.GetRole(ctx, name)
 }
 
 // watchCloser is a wrapper around a services.Watcher
@@ -1439,20 +1439,20 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	watcher, err := proxyClient.NewWatcher(ctx, watch)
+	watcher, err := clusterClient.NewWatcher(ctx, watch)
 	if err != nil {
-		proxyClient.Close()
+		clusterClient.Close()
 		return nil, trace.Wrap(err)
 	}
 
 	return watchCloser{
 		Watcher: watcher,
-		Closer:  proxyClient,
+		Closer:  clusterClient,
 	}, nil
 }
 
@@ -1485,17 +1485,14 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 // the current clusters auth server. The auth server will then forward along to the configured
 // telemetry backend.
 func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Client, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := proxyClient.NewTracingClient(ctx, tc.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clt, nil
+	clientConfig := clusterClient.ClientConfig(ctx, clusterClient.ClusterName())
+	clt, err := client.NewTracingClient(ctx, clientConfig)
+	return clt, trace.Wrap(err)
 }
 
 // SSHOptions allow overriding configuration
@@ -1547,7 +1544,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer clt.Close()
 
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, clt.AuthClient, options)
+	nodeAddrs, err := tc.getTargetNodes(ctx, clt.CurrentCluster(), options)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1610,13 +1607,13 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		defer span.End()
 
 		// try connecting to the node with the certs we already have
-		conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+		conn, details, err := clt.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 		if err != nil {
 			directResultC <- clientRes{err: err}
 			return
 		}
 
-		sshConfig := clt.ProxyClient.SSHConfig(user)
+		sshConfig := clt.SSHConfig(user)
 		clt, err := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
@@ -1747,7 +1744,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 		return nil, trace.Wrap(err)
 	}
 
-	conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+	conn, details, err := clt.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1901,7 +1898,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	defer clt.Close()
 
 	// Session joining is not supported in proxy recording mode
-	if recConfig, err := clt.AuthClient.GetSessionRecordingConfig(ctx); err != nil {
+	if recConfig, err := clt.authClient.GetSessionRecordingConfig(ctx); err != nil {
 		// If the user can't see the recording mode, just let them try joining below
 		if !trace.IsAccessDenied(err) {
 			return trace.Wrap(err)
@@ -1910,7 +1907,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.BadParameter("session joining is not supported in proxy recording mode")
 	}
 
-	session, err := clt.AuthClient.GetSessionTracker(ctx, string(sessionID))
+	session, err := clt.authClient.GetSessionTracker(ctx, string(sessionID))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("session %q not found or it has ended", sessionID)
@@ -1945,7 +1942,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				RunPresenceTask(presenceCtx, out, clt.CurrentCluster(), session.GetSessionID(), func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 					resp, err := tc.PromptMFAChallenge(ctx, proxyAddr, c, func(opts *PromptMFAChallengeOpts) {
 						opts.Quiet = true
 					})
@@ -1984,13 +1981,13 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
 	}
 	// connect to the auth server (site) who made the recording
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	site := proxyClient.CurrentCluster()
+	site := clusterClient.authClient
 
 	// request events for that session (to get timing data)
 	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0)
@@ -2002,7 +1999,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	if len(sessionEvents) > 0 {
 		switch typ := sessionEvents[0].GetType(); typ {
 		case events.WindowsDesktopSessionStartEvent:
-			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
+			url := getDesktopEventWebURL(tc.localAgent.proxyHost, clusterClient.ClusterName(), sid, sessionEvents)
 			message := "Desktop sessions cannot be viewed with tsh." +
 				" Please use the browser to play this session." +
 				" Click on the URL to view the session in the browser:"
@@ -2016,7 +2013,6 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		default:
 			return trace.BadParameter("unknown session type %q", typ)
 		}
-
 	}
 
 	// read the stream into a buffer:
@@ -2285,7 +2281,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	}
 	defer clt.Close()
 
-	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, req)
+	servers, err := client.GetAllResources[types.Server](ctx, clt.CurrentCluster(), req)
 	return servers, trace.Wrap(err)
 }
 
@@ -2297,13 +2293,13 @@ func (tc *TeleportClient) GetClusterAlerts(ctx context.Context, req types.GetClu
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	alerts, err := proxyClient.GetClusterAlerts(ctx, req)
+	alerts, err := clusterClient.GetClusterAlerts(ctx, req)
 	return alerts, trace.Wrap(err)
 }
 
@@ -2339,18 +2335,18 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	filter := customFilter
 	if filter == nil {
 		filter = tc.ResourceFilter(types.KindAppServer)
 	}
 
-	servers, err := proxyClient.FindAppServersByFilters(ctx, *filter)
+	servers, err := clusterClient.FindAppServersByFilters(ctx, *filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2432,12 +2428,12 @@ func (tc *TeleportClient) CreateAppSession(ctx context.Context, req types.Create
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.CreateAppSession(ctx, req)
+	defer clusterClient.Close()
+	return clusterClient.CreateAppSession(ctx, req)
 }
 
 // GetAppSession returns an existing application access session.
@@ -2452,12 +2448,14 @@ func (tc *TeleportClient) GetAppSession(ctx context.Context, req types.GetAppSes
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.GetAppSession(ctx, req)
+	defer clusterClient.Close()
+
+	appSession, err := clusterClient.GetAppSession(ctx, req)
+	return appSession, trace.Wrap(err)
 }
 
 // DeleteAppSession removes the specified application access session.
@@ -2469,12 +2467,14 @@ func (tc *TeleportClient) DeleteAppSession(ctx context.Context, sessionID string
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	return proxyClient.DeleteAppSession(ctx, sessionID)
+	defer clusterClient.Close()
+
+	err = clusterClient.DeleteAppSession(ctx, sessionID)
+	return trace.Wrap(err)
 }
 
 // ListDatabaseServersWithFilters returns all registered database proxy servers.
@@ -2592,7 +2592,7 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	}
 	defer clt.Close()
 
-	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, &proto.ListResourcesRequest{
+	servers, err := client.GetAllResources[types.Server](ctx, clt.CurrentCluster(), &proto.ListResourcesRequest{
 		Namespace:    tc.Namespace,
 		ResourceType: types.KindNode,
 	})
@@ -2687,7 +2687,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	// Let's check if the first node requires mfa.
 	// If it's required, run commands sequentially to avoid
 	// race conditions and weird ux during mfa.
-	mfaRequiredCheck, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+	mfaRequiredCheck, err := clt.authClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 		Target: &proto.IsMFARequiredRequest_Node{
 			Node: &proto.NodeLogin{
 				Node:  nodeName(nodeAddresses[0]),
@@ -2700,7 +2700,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+	g.SetLimit(commandLimit(ctx, clt.CurrentCluster(), mfaRequiredCheck.Required))
 	for _, address := range nodeAddresses {
 		address := address
 		g.Go(func() error {
@@ -2864,11 +2864,12 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	return &ClusterClient{
-		tc:          tc,
-		ProxyClient: pclt,
-		AuthClient:  aclt,
-		Tracer:      tc.Tracer,
-		cluster:     cluster,
+		Client:     pclt,
+		tc:         tc,
+		authClient: aclt,
+		Tracer:     tc.Tracer,
+		cluster:    cluster,
+		root:       root,
 	}, nil
 }
 
@@ -5004,12 +5005,12 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		),
 	)
 	defer span.End()
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
-	authClient := proxyClient.CurrentCluster()
+	defer clusterClient.Close()
+	authClient := clusterClient.CurrentCluster()
 	defer authClient.Close()
 
 	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC,
