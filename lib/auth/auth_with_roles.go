@@ -3057,12 +3057,12 @@ func (a *ServerWithRoles) UpsertUser(u types.User) error {
 	return a.authServer.UpsertUser(u)
 }
 
-// UpdateUserFunc exists on [ServerWithRoles] only for compatibility with
+// UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
 // [ClientI], it is not implemented here.
-// See [local.IdentityService.UpdateUserFunc].
-func (a *ServerWithRoles) UpdateUserFunc(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
+// See [local.IdentityService.UpdateAndSwapUser].
+func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
 	// To the reader: consider writing this function if it's useful to you.
-	return nil, trace.NotImplemented("func UpdateUserFunc is not implemented by ServerWithRoles")
+	return nil, trace.NotImplemented("func UpdateAndSwapUser is not implemented by ServerWithRoles")
 }
 
 // CompareAndSwapUser updates an existing user in a backend, but fails if the

@@ -193,11 +193,11 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) error
 	return nil
 }
 
-// UpdateUserFunc reads an existing user, runs `fn` against it and writes the
+// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes the
 // result to storage. Return `false` from `fn` to avoid storage changes.
 // Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
 // Returns the storage user.
-func (s *IdentityService) UpdateUserFunc(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
+func (s *IdentityService) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
 	u, items, err := s.getUser(ctx, user, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
