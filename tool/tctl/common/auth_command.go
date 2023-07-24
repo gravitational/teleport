@@ -722,9 +722,10 @@ func (t *TarWriter) Close() error {
 
 func (t *TarWriter) WriteFile(name string, content []byte, mode fs.FileMode) error {
 	header := &tar.Header{
-		Name: name,
-		Mode: int64(mode),
-		Size: int64(len(content)),
+		Name:    name,
+		Mode:    int64(mode),
+		ModTime: time.Now(),
+		Size:    int64(len(content)),
 	}
 	if err := t.tarball.WriteHeader(header); err != nil {
 		return trace.Wrap(err)
