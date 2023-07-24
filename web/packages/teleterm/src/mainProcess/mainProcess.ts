@@ -36,6 +36,7 @@ import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
+import { RootClusterUri } from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
 
 import {
@@ -49,6 +50,7 @@ import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
 import { downloadAgent, FileDownloader } from './agentDownloader';
 import { createAgentConfigFile } from './createAgentConfigFile';
+import { AgentRunner } from './agentRunner';
 
 import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
 
@@ -79,6 +81,7 @@ export default class MainProcess {
       process.env
     )
   );
+  private readonly agentRunner: AgentRunner;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -87,6 +90,15 @@ export default class MainProcess {
     this.appStateFileStorage = opts.appStateFileStorage;
     this.configFileStorage = opts.configFileStorage;
     this.windowsManager = opts.windowsManager;
+    this.agentRunner = new AgentRunner(this.settings, (rootClusterUri, state) =>
+      this.windowsManager
+        .getWindow()
+        .webContents.send(
+          'main-process-connect-my-computer-agent-update',
+          rootClusterUri,
+          state
+        )
+    );
   }
 
   static create(opts: Options) {
@@ -98,6 +110,7 @@ export default class MainProcess {
   dispose() {
     this.killTshdProcess();
     this.sharedProcess.kill('SIGTERM');
+    this.agentRunner.killAll();
     const processesExit = Promise.all([
       promisifyProcessExit(this.tshdProcess),
       promisifyProcessExit(this.sharedProcess),
@@ -316,6 +329,18 @@ export default class MainProcess {
           rootClusterUri: args.rootClusterUri,
           labels: args.labels,
         })
+    );
+
+    ipcMain.handle(
+      'main-process-connect-my-computer-run-agent',
+      (
+        _,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => {
+        this.agentRunner.start(args.rootClusterUri);
+      }
     );
 
     subscribeToTerminalContextMenuEvent();

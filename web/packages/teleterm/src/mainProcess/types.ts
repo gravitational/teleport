@@ -15,6 +15,8 @@
  */
 
 import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { RootClusterUri } from 'teleterm/ui/uri';
+
 import { Kind } from 'teleterm/ui/services/workspacesService';
 import { FileStorage } from 'teleterm/services/fileStorage';
 
@@ -90,6 +92,12 @@ export type MainProcessClient = {
   createAgentConfigFile(
     properties: AgentConfigFileClusterProperties
   ): Promise<void>;
+  runAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  subscribeToAgentUpdate: (
+    listener: (rootClusterUri: RootClusterUri, state: AgentProcessState) => void
+  ) => {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {
@@ -102,6 +110,25 @@ export type GrpcServerAddresses = ChildProcessAddresses & {
 };
 
 export type Platform = NodeJS.Platform;
+
+export type AgentProcessState =
+  | {
+      status: 'not-started';
+    }
+  | {
+      status: 'running';
+    }
+  | {
+      status: 'exited';
+      code: number | null;
+      signal: NodeJS.Signals | null;
+      /** Fragment of a stack trace when code is other than 0. */
+      stackTrace?: string;
+    }
+  | {
+      status: 'error';
+      message: string;
+    };
 
 export interface ClusterContextMenuOptions {
   isClusterConnected: boolean;

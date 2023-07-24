@@ -84,6 +84,13 @@ export class MockMainProcessClient implements MainProcessClient {
   createAgentConfigFile() {
     return Promise.resolve();
   }
+
+  runAgent(): Promise<void> {
+    return Promise.resolve();
+  }
+  subscribeToAgentUpdate() {
+    return { cleanup: () => undefined };
+  }
 }
 
 export const makeRuntimeSettings = (

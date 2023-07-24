@@ -18,12 +18,18 @@ import { ipcRenderer } from 'electron';
 
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { createConfigServiceClient } from '../services/config';
 
 import { openTerminalContextMenu } from './contextMenus/terminalContextMenu';
-import { MainProcessClient, ChildProcessAddresses } from './types';
 import { openTabContextMenu } from './contextMenus/tabContextMenu';
+
+import {
+  MainProcessClient,
+  ChildProcessAddresses,
+  AgentProcessState,
+} from './types';
 
 export default function createMainProcessClient(): MainProcessClient {
   return {
@@ -79,6 +85,26 @@ export default function createMainProcessClient(): MainProcessClient {
         'main-process-connect-my-computer-create-agent-config-file',
         clusterProperties
       );
+    },
+    runAgent(clusterProperties: { rootClusterUri: RootClusterUri }) {
+      return ipcRenderer.invoke(
+        'main-process-connect-my-computer-run-agent',
+        clusterProperties
+      );
+    },
+    subscribeToAgentUpdate: listener => {
+      const onChange = (
+        _,
+        rootClusterUri: RootClusterUri,
+        state: AgentProcessState
+      ) => {
+        listener(rootClusterUri, state);
+      };
+      const channel = 'main-process-connect-my-computer-agent-update';
+      ipcRenderer.addListener(channel, onChange);
+      return {
+        cleanup: () => ipcRenderer.removeListener(channel, onChange),
+      };
     },
   };
 }
