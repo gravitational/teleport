@@ -239,8 +239,8 @@ func (c *Client) DeleteAuthServer(name string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// UpdateUserFunc not implemented: can only be called locally.
-func (c *Client) UpdateUserFunc(ctx context.Context, user string, withSecrets bool, fn func(types.User) (bool, error)) (types.User, error) {
+// UpdateAndSwapUser not implemented: can only be called locally.
+func (c *Client) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (bool, error)) (types.User, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -531,11 +531,11 @@ type IdentityService interface {
 	// UpdateUser updates an existing user in a backend.
 	UpdateUser(ctx context.Context, user types.User) error
 
-	// UpdateUserFunc reads an existing user, runs `fn` against it and writes the
-	// result to storage. Return `false` from `fn` to avoid storage changes.
+	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
+	// the result to storage. Return `false` from `fn` to avoid storage changes.
 	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
 	// Returns the storage user.
-	UpdateUserFunc(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error

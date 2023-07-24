@@ -941,7 +941,7 @@ func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
 	require.Equal(t, attestationData, retrievedAttestationData)
 }
 
-func TestIdentityService_UpdateUserFunc(t *testing.T) {
+func TestIdentityService_UpdateAndSwapUser(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 	ctx := context.Background()
@@ -1058,9 +1058,9 @@ func TestIdentityService_UpdateUserFunc(t *testing.T) {
 				}
 			}
 
-			updated, err := identity.UpdateUserFunc(ctx, test.user, test.withSecrets, test.fn)
+			updated, err := identity.UpdateAndSwapUser(ctx, test.user, test.withSecrets, test.fn)
 			if test.wantErr != "" {
-				assert.ErrorContains(t, err, test.wantErr, "UpdateUserFunc didn't error")
+				assert.ErrorContains(t, err, test.wantErr, "UpdateAndSwapUser didn't error")
 				return
 			}
 
@@ -1075,14 +1075,14 @@ func TestIdentityService_UpdateUserFunc(t *testing.T) {
 
 			// Assert update response.
 			if diff := cmp.Diff(want, updated); diff != "" {
-				t.Errorf("UpdateUserFunc return mismatch (-want +got)\n%s", diff)
+				t.Errorf("UpdateAndSwapUser return mismatch (-want +got)\n%s", diff)
 			}
 
 			// Assert stored.
 			stored, err := identity.GetUser(test.user, test.withSecrets)
 			require.NoError(t, err, "GetUser failed")
 			if diff := cmp.Diff(want, stored); diff != "" {
-				t.Errorf("UpdateUserFunc storage mismatch (-want +got)\n%s", diff)
+				t.Errorf("UpdateAndSwapUser storage mismatch (-want +got)\n%s", diff)
 			}
 		})
 	}
