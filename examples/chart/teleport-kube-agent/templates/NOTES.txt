@@ -31,6 +31,19 @@ Given that you installed Teleport on a GKE cluster, we recommend you use the
 Kubernetes Group `{{ $groupName }}` instead of `system:masters` in the Teleport Roles
 for GKE Autopilot clusters.
 
+To do so, you can use the following Teleport Role resource:
+
+ kind: role
+ metadata:
+   name: gke-kube-access
+ version: v7
+ spec:
+   allow:
+     kubernetes_labels:
+       '*': '*'
+     kubernetes_groups:
+     - "{{ $groupName }}"
+
 This chart automatically created the `{{ $groupName }}` Kubernetes Group for you and
 assigned it admin privileges on the Kubernetes cluster.
 
