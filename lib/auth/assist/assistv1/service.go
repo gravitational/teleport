@@ -185,14 +185,33 @@ func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.Create
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbRead)
+	// If the embedder is not configured, the assist is not enabled as we cannot compute embeddings.
+	if a.embedder == nil {
+		return &assist.IsAssistEnabledResponse{Enabled: false}, nil
+	}
+
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if a.embedder == nil {
-		// If the embedder is not configured, the assist is not enabled as we cannot compute embeddings.
-		return &assist.IsAssistEnabledResponse{Enabled: false}, nil
+	// Check if this endpoint is called by a user or Proxy.
+	if _, ok := authCtx.UnmappedIdentity.(authz.LocalUser); ok {
+		checkErr := authCtx.Checker.CheckAccessToRule(
+			&services.Context{User: authCtx.User},
+			defaults.Namespace, types.KindAssistant, types.VerbRead,
+			false, /* silent */
+		)
+		if checkErr != nil {
+			return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		}
+	} else {
+		// This endpoint is called from Proxy to check if the assist is enabled.
+		// Proxy credentials are used instead of the user credentials.
+		requestedByProxy := authz.HasBuiltinRole(*authCtx, string(types.RoleProxy))
+		if !requestedByProxy {
+			return nil, trace.AccessDenied("only proxy is allowed to call IsAssistEnabled endpoint")
+		}
 	}
 
 	// Check if assist can use the backend.
