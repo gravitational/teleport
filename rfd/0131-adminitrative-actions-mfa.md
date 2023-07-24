@@ -109,34 +109,26 @@ In order to support automated use cases such as the
 or [Access Request Plugins](https://goteleport.com/docs/access-controls/access-request-plugins/),
 we need to provide a way for specific users to bypass MFA for admin actions.
 
-We will introduce a new RBAC verb, `bypass-mfa`, which can be included in a
-role's allow rules to bypass MFA for specific resources. For example, the
-[Jira Plugin](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-slack/)
-user and role would look like this:
+We will introduce a new role option, `robot`, to bypass MFA requirements.
+At first, this will only bypass the MFA requirement for admin actions, but
+could be reused to bypass other features which are not compatible with
+automated use cases.
 
 ```yaml
 kind: role
 version: v5
 metadata:
-  name: access-plugin
+  name: access-request-plugin
 spec:
+  options:
+    robot: true
   allow:
     rules:
       - resources: ['access_request']
-        verbs: ['list', 'read', 'update', 'mfa-bypass']
+        verbs: ['list', 'read', 'update']
       - resources: ['access_plugin_data']
-        verbs: ['update', 'mfa-bypass']
----
-kind: user
-metadata:
-  name: access-plugin
-spec:
-  roles: ['access-plugin']
-version: v2
+        verbs: ['update']
 ```
-
-This way, the plugin can update access requests and plugin data without MFA,
-but could not be misused to edit other resources, such as roles.
 
 ### Administrative Actions
 
@@ -233,7 +225,7 @@ user's role rather than the user itself. For example:
   - `AddMFADeviceSync`, `DeleteMFADeviceSync`
 - Actions which only require `DefaultImplicitRole`:
   - `SubmitUsageEvent`
-- Actions which are limited to internal service roles. For example:
+- Actions which are limited to [built-in service roles](#built-in-roles). For example:
   - `CreateSessionTracker`, `RemoveSessionTracker`, `UpdateSessionTracker`
   - `GenerateWindowsDesktopCert`, `GenerateOpenSSHCert`
   - `InventoryControlStream`
@@ -418,7 +410,7 @@ solve the returned challenge, and attach it to the admin action request.
 
 If a user has no MFA device registered, `CreateAuthenticateChallenge` will fail.
 In this case, the client will make the request without the MFA challenge response,
-in case we are handling a special case (e.g. Built in `Admin` role, bot user
+in case we are handling a special case (e.g. Built-in `Admin` role, bot user
 for automated use cases).
 
 Additionally, if the client doesn't whether an action requires MFA or not, it
