@@ -402,12 +402,26 @@ function createCmd(
 
     const env = tshdGateway.getCliCommandEnv(gateway.gatewayCliCommand);
 
+    if ('KUBECONFIG' in env === false) {
+      // This shouldn't happen as 'KUBECONFIG' is the sole purpose of the CLI
+      // command for a kube gateway.
+      throw new Error(
+        `No KUBECONFIG provided for gateway ${gateway.targetUri}`
+      );
+    }
+    const helpMsg =
+      "Started local proxy for Kubernetes cluster '" +
+      gateway.targetName +
+      "' and environment variable 'KUBECONFIG' is updated to the kubeconfig provided by the local proxy.\r\n\r\n" +
+      "Try 'kubectl version' to test the connection.\r\n\r\n";
+
     return {
       ...doc,
       kind: 'pty.shell',
       proxyHost,
       clusterName,
       env,
+      helpMsg,
     };
   }
 

@@ -19,6 +19,7 @@ export type PtyProcessOptions = {
   path: string;
   args: string[];
   cwd?: string;
+  helpMsg?: string;
 };
 
 export type IPtyProcess = {

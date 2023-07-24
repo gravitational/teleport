@@ -44,6 +44,7 @@ export type ShellCommand = PtyCommandBase & {
   // env is a record of additional env variables that need to be set for the shell terminal and it
   // will be merged with process env.
   env?: Record<string, string>;
+  helpMsg?: string;
 };
 
 export type TshLoginCommand = PtyCommandBase & {
