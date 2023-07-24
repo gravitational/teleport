@@ -16,8 +16,12 @@ limitations under the License.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
-import { useAsync } from 'shared/hooks/useAsync';
-import { wait } from 'shared/utils/wait';
+import {
+  Attempt,
+  makeEmptyAttempt,
+  makeErrorAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 import * as Alerts from 'design/Alert';
 import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
@@ -171,7 +175,12 @@ function AgentSetup() {
     },
     {
       name: 'Joining the cluster',
-      attempt: joinClusterAttempt,
+      attempt:
+        // hide errors on setup restart
+        (joinClusterAttempt.status !== '' &&
+          // errors from spawning the process take precedence over a regular attempt value
+          mapFailedAgentStateToAttempt(connectMyComputerContext.state)) ||
+        joinClusterAttempt,
     },
   ];
 
@@ -260,7 +269,14 @@ function AgentSetup() {
             <li>
               {step.name}
               {step.attempt.status === 'error' && (
-                <Alerts.Danger mb={0}>{step.attempt.statusText}</Alerts.Danger>
+                <Alerts.Danger
+                  mb={0}
+                  css={`
+                    white-space: pre-wrap;
+                  `}
+                >
+                  {step.attempt.statusText}
+                </Alerts.Danger>
               )}
             </li>
           </Flex>
@@ -272,4 +288,30 @@ function AgentSetup() {
       )}
     </>
   );
+}
+
+function mapFailedAgentStateToAttempt(
+  agentState: AgentProcessState
+): Attempt<void> {
+  if (agentState.status === 'exited') {
+    const { code, signal } = agentState;
+    const codeOrSignal = [
+      // code can be 0, so we cannot just check it the same way as the signal.
+      code != null && `code ${code}`,
+      signal && `signal ${signal}`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return makeErrorAttempt(
+      [`Agent process exited with ${codeOrSignal}.`, agentState.stackTrace]
+        .filter(Boolean)
+        .join(' \n')
+    );
+  }
+  if (agentState.status === 'error') {
+    return makeErrorAttempt(
+      ['Agent process failed to start.', agentState.message].join(' \n')
+    );
+  }
 }
