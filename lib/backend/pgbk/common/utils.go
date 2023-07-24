@@ -131,7 +131,12 @@ func retry[T any](ctx context.Context, log logrus.FieldLogger, isIdempotent bool
 		var pgErr *pgconn.PgError
 		_ = errors.As(err, &pgErr)
 
-		if pgErr != nil && (pgErr.Code == pgerrcode.SerializationFailure || pgErr.Code == pgerrcode.DeadlockDetected) {
+		if pgErr != nil &&
+			(pgErr.Code == pgerrcode.SerializationFailure ||
+				pgErr.Code == pgerrcode.DeadlockDetected ||
+				pgErr.Code == pgerrcode.UniqueViolation ||
+				pgErr.Code == pgerrcode.ExclusionViolation) {
+			// https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html
 			log.WithError(err).
 				WithField("attempt", i).
 				Debug("Operation failed due to conflicts, retrying quickly.")
