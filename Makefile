@@ -1239,6 +1239,15 @@ must-start-clean/host:
 		exit 1; \
 	fi
 
+# crds-up-to-date checks if the generated CRDs from the protobuf stubs are up to date.
+.PHONY: crds-up-to-date
+crds-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/operator manifests
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make -C integrations/operator manifests.'; \
+		exit 1; \
+	fi
+
 print/env:
 	env
 

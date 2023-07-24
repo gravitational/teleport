@@ -44,6 +44,10 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
 
+      - name: Check if Operator CRDs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
+
       # The `buf breaking` check is twofold: we always check for compatibility
       # breaks against the base of the PR, and in backports we check for
       # compatibility breaks _from_ the tip of master. It's possible to add
