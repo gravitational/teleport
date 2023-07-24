@@ -340,6 +340,10 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	return b, nil
 }
 
+func (b *Backend) GetName() string {
+	return GetName()
+}
+
 // Create creates item if it does not exist
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	r := newRecord(item, b.clock)

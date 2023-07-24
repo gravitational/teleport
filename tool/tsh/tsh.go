@@ -524,6 +524,7 @@ const (
 	kubeClusterEnvVar         = "TELEPORT_KUBE_CLUSTER"
 	loginEnvVar               = "TELEPORT_LOGIN"
 	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
+	browserEnvVar             = "TELEPORT_LOGIN_BROWSER"
 	proxyEnvVar               = "TELEPORT_PROXY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
@@ -634,6 +635,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
@@ -1816,6 +1818,8 @@ func onLogin(cf *CLIConf) error {
 	if err := printProfiles(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
+
+	fmt.Fprint(os.Stderr, "Did you know? Teleport Connect offers the power of tsh in a desktop app.\nLearn more at https://goteleport.com/docs/connect-your-client/teleport-connect/\n\n")
 
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",

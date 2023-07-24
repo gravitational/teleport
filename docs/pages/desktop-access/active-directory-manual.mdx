@@ -409,29 +409,39 @@ P-384 and uses SHA384 as the signature algorithm.
    Start > Control Panel > Administrative Tools > Certificate Authority
    ```
 
-2. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
+2. Open your CA computer and right-click on `Certificate Templates`, then select
+   `Manage`.
 
-3. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
+3. Find the `Computer` template on the list, right-click on it, then select
+   `Duplicate Template`.
 
-4. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
+4. In the `Compatibility` tab change `Certification Authority` to
+   `Windows Server 2012 R2` and click `OK`.
 
-5. In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
+5. In the same tab change `Certificate recipient` to `Windows Server 2012 R2`
+   and click `OK`.
 
-6. Go to the `General` tab and change `Template display name` to `RemoteDesktopAccess`.
-   Make sure `Template name` is also `RemoteDesktopAccess`.
+6. Go to the `General` tab and change `Template display name` to
+   `RemoteDesktopAccess`. Make sure `Template name` is also
+   `RemoteDesktopAccess`.
 
-7. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`,
-   then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
+7. In the `Cryptography` tab change `Provider Category` to
+   `Key Storage Provider`, then `Algorithm name` to `ECDH_P384`. Also, change
+   `Request hash` to `SHA384`.
 
-8. Next, in the `Extensions` tab select `Application Polices` and click the `Edit` button.
+8. Next, in the `Extensions` tab select `Application Polices` and click the
+   `Edit` button.
 
 9. Remove all entries from the list.
 
-10. Go to the `Security` tab, select `Domain Computers` and give the group `Read` and `Enroll` permissions.
+10. Go to the `Security` tab, select `Domain Computers` and give the group
+    `Read` and `Enroll` permissions. Repeat this process for the
+    `Domain Controllers` group as well.
 
 11. Finally, create a template by clicking `OK`.
 
-12. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
+12. Go back to the Certificate Authority window and right-click on
+    `Certificate Templates`. Then:
 
    ```text
    New > Certificate Template to Issue
@@ -497,8 +507,8 @@ skipping TLS verification in production environments.
 2. Right click on your CA computer and select `Properties`.
 3. From `General` tab, click `View Certificate`.
 4. Select the `Details` view and click `Copy to File`.
-5. Click `Next` in the Certificate Export Wizard, and ensure that `DER encoded binary X.509 (.CER)`
-   is selected
+5. Click `Next` in the Certificate Export Wizard, and ensure that
+   `DER encoded binary X.509 (.CER)` is selected
 6. Select a name and location for you certificate and click through the wizard.
 
 Now transfer the exported file to the system where you're running Teleport. You
@@ -506,13 +516,6 @@ can either add this certificate to your system's trusted repository or provide
 the filepath to the `der_ca_file` configuration variable.
 
 ## Step 6/7. Configure Teleport
-
-<Admonition type="note" title="Teleport CA">
-Prior to v8.0, the Teleport CA was not compatible with Windows logins. If
-you're setting up the Desktop Service in an existing cluster created before v8.0,
-you must first perform a [CA rotation](../management/operations/ca-rotation.mdx) in
-order to resolve this.
-</Admonition>
 
 Install Teleport on the host where you will run the Teleport Desktop Service:
 
