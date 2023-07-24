@@ -185,7 +185,7 @@ func (e *Engine) toSQLPacket(header protocol.PacketHeader, packet *protocol.Basi
 	if chunks.Len() > 0 {
 		defer chunks.Reset()
 		chunks.Write(packet.Data())
-		// We're safe to "read" chunk using `Bytes()` function beacuse the
+		// We're safe to "read" chunk using `Bytes()` function because the
 		// packet processing copies the packet contents.
 		packetData := chunks.Bytes()
 
