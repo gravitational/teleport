@@ -15,6 +15,7 @@ You will learn how to:
 ## Prerequisites
 
 - A client machine running Windows 10 or higher (`tsh` support for adding saved sessions to PuTTY is only implemented for Windows)
+
 - The Teleport `tsh.exe` client version 14.0.0 or higher installed
 
   ```code
@@ -131,50 +132,50 @@ Leaf clusters: `<login>@<hostname> [leaf:<leaf cluster name>,proxy:<proxy addres
 
 ## Frequently asked questions
 
-#### Do I need administrator rights on my machine to run `tsh puttyconfig`?
+### Do I need administrator rights on my machine to run `tsh puttyconfig`?
 
 No, `tsh` only makes changes to the `HKEY_CURRENT_USER` registry key.
 
-#### Can I add saved PuTTY sessions for all users on a machine?
+### Can I add saved PuTTY sessions for all users on a machine?
 
 No, sessions are only added for the current user. You can export the sessions for another user to import using the
 registry export method described below.
 
-#### Can I export my saved PuTTY sessions to another machine?
+### Can I export my saved PuTTY sessions to another machine?
 
 Yes, use the Registry Editor to export the `HKEY_CURRENT_USER\Software\SimonTatham\PuTTY` registry key to a file
 and import this file on another machine. Note that you will need admin rights to run Registry Editor.
 
-#### Can I change the font size, window size or other preference for my saved PuTTY sessions?
+### Can I change the font size, window size or other preference for my saved PuTTY sessions?
 
 Once a session has been added, you can make any desired modifications in the PuTTY UI by clicking the session name in the
 "Saved sessions" list, then clicking "Load". Make all the necessary changes, then choose the session again and click "Save".
 
-#### If I re-run `tsh puttyconfig` for a given host, will it overwrite any custom changes I've made to the saved session?
+### If I re-run `tsh puttyconfig` for a given host, will it overwrite any custom changes I've made to the saved session?
 
 Teleport will only modify the config parameters that it relies on, like proxy name, proxy command, hostname, username etc.
 Any changes to font size, window size and other parameters will be untouched.
 
-#### Can I use other graphical clients like MobaXterm or SecureCRT?
+### Can I use other graphical clients like MobaXterm or SecureCRT?
 
 Only PuTTY support is implemented at present. Most other graphical clients do not fully support the use of both SSH user
 certificates and SSH host certificates for authentication which is a requirement to use Teleport.
 
 Please contact the authors of those clients if you wish to see support for Teleport sessions added.
 
-#### Can I use forks of PuTTY like KiTTY or Solar PuTTY?
+### Can I use forks of PuTTY like KiTTY or Solar PuTTY?
 
 If the fork uses PuTTY 0.78 or higher as its base, it may work. However, the Teleport team only tests stock versions of PuTTY
 and cannot provide support for forked versions.
 
-#### Can I use my saved Teleport PuTTY sessions with WinSCP?
+### Can I use my saved Teleport PuTTY sessions with WinSCP?
 
 At the time of writing, WinSCP has not implemented support for validation of host certificates, which means WinSCP is unable
 to connect via Teleport.
 
 You can track the status of this feature request and vote for it on the WinSCP bug tracker: https://winscp.net/tracker/2145
 
-#### Can I use an alternative Teleport authentication method (`tsh login --auth`) with saved sessions?
+### Can I use an alternative Teleport authentication method (`tsh login --auth`) with saved sessions?
 
 No, PuTTY calls `tsh proxy ssh` which will use the default authentication method configured for the Teleport cluster.
 
@@ -185,20 +186,20 @@ key. Note that if you re-run `tsh puttyconfig` for the given hostname, this comm
 
 ## Troubleshooting
 
-#### `proxy: ERROR: access denied to <user> connecting to <proxy>`
+### `proxy: ERROR: access denied to <user> connecting to <proxy>`
 
 You have provided an incorrect login username to the `tsh puttyconfig` command. Re-run the command with a login username
 that your Teleport user/role has permissions to use, i.e. set under the `logins` role specification or user trait.
 
 If you can log in successfully with `tsh ssh`, you should be able to use the name login/hostname with `tsh puttyconfig`.
 
-#### `proxy: ERROR: ssh: subsystem request failed`
+### `proxy: ERROR: ssh: subsystem request failed`
 
 The Teleport proxy is unable to connect to the given host/port provided in the saved session. This may mean that the node is
 offline. Check that the node is visible in `tsh ls` and that you can connect to it with `tsh ssh login@hostname`. If this is
 successful, check the Teleport proxy logs for more detailed errors.
 
-#### `Unable to use certificate file "C:\Users\<username>\.tsh\keys\<proxy>\<user>-ssh\<cluster>-cert.pub" (unable to open file)`
+### `Unable to use certificate file "C:\Users\<username>\.tsh\keys\<proxy>\<user>-ssh\<cluster>-cert.pub" (unable to open file)`
 
 You are not logged into Teleport correctly. Run `tsh login --proxy=<proxy hostname>` to get valid certificates before
 trying to start a PuTTY saved session.
@@ -206,7 +207,7 @@ trying to start a PuTTY saved session.
 Note that if you are using a saved session for a leaf cluster via a root cluster's proxy, you must log into the root cluster
 itself to be able to start a session against the leaf cluster.
 
-#### `ERROR: No proxy address specified, missed --proxy flag?`
+### `ERROR: No proxy address specified, missed --proxy flag?`
 
 You do not have valid `tsh` credentials locally. Run `tsh login --proxy=<proxy hostname>` to log in first, or provide the `--proxy`
 parameter when running `tsh puttyconfig`.
