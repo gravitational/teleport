@@ -19,11 +19,12 @@ package mattermost
 import (
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/pelletier/go-toml"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/trace"
-	"github.com/pelletier/go-toml"
 )
 
 type Config struct {
@@ -37,45 +38,6 @@ type MattermostConfig struct {
 	Recipients []string `toml:"recipients"`
 	Token      string   `toml:"token"`
 }
-
-const exampleConfig = `# example mattermost configuration TOML file
- [teleport]
- # Teleport Auth/Proxy Server address.
- #
- # Should be port 3025 for Auth Server and 3080 or 443 for Proxy.
- # For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
- addr = "example.com:3025"
- 
- # Credentials.
- #
- # When using --format=file:
- # identity = "/var/lib/teleport/plugins/mattermost/auth_id"    # Identity file
- #
- # When using --format=tls:
- # client_key = "/var/lib/teleport/plugins/mattermost/auth.key" # Teleport TLS secret key
- # client_crt = "/var/lib/teleport/plugins/mattermost/auth.crt" # Teleport TLS certificate
- # root_cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport CA certs
- 
- [mattermost]
- url = "https://mattermost.example.com" # Mattermost Server URL
- token = "api-token"                    # Mattermost Bot OAuth token
-
- # Notify recipients
- #
- # The value is an array of strings, where each element is either:
- # - A channel name in the format 'team/channel', where / separates the 
- #   name of the team and the name of the channel
- # - The email address of a Mattermost user to notify via a direct message 
- #   when the plugin receives an Access Request event
- recipients = [
-  "my-team-name/channel-name",
-  "first.last@example.com"
- ]
- 
- [log]
- output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
- severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
- `
 
 func LoadConfig(filepath string) (*Config, error) {
 	t, err := toml.LoadFile(filepath)

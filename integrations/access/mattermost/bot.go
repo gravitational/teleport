@@ -25,13 +25,14 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/gravitational/trace"
+	"github.com/mailgun/holster/v3/collections"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
-	"github.com/gravitational/trace"
-	"github.com/mailgun/holster/v3/collections"
 )
 
 const (
