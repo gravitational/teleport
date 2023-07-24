@@ -23,9 +23,23 @@ export enum ThemePreference {
   Dark = 2,
 }
 
+export enum ClusterResource {
+  RESOURCE_UNSPECIFIED = 0,
+  RESOURCE_WINDOWS_DESKTOPS = 1,
+  RESOURCE_SERVER_SSH = 2,
+  RESOURCE_DATABASES = 3,
+  RESOURCE_KUBERNETES = 4,
+  RESOURCE_WEB_APPLICATIONS = 5,
+}
+
+export type OnboardUserPreferences = {
+  preferredResources: ClusterResource[];
+};
+
 export interface UserPreferences {
   theme: ThemePreference;
   assist: AssistUserPreferences;
+  onboard: OnboardUserPreferences;
 }
 
 export type UserPreferencesSubset = Subset<UserPreferences>;

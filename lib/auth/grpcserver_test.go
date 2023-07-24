@@ -3097,10 +3097,12 @@ func TestServerInfoCRUD(t *testing.T) {
 		Name: "serverInfo1",
 	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
+	serverInfo1.SetSubKind(types.SubKindCloudInfo)
 	serverInfo2, err := types.NewServerInfo(types.Metadata{
 		Name: "serverInfo2",
 	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
+	serverInfo2.SetSubKind(types.SubKindCloudInfo)
 
 	createServerInfos := func(t *testing.T) {
 		// Initially expect no server info to be returned.

@@ -797,6 +797,32 @@ message ServerSpecV2 {
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
   // PublicAddrs is a list of public addresses where this server can be reached.
   repeated string public_addrs = 13;
+  // CloudMetadata contains info about the cloud instance the server is running
+  // on, if any.
+  CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+}
+
+// AWSInfo contains attributes to match to an EC2 instance.
+message AWSInfo {
+  // AccountID is an AWS account ID.
+  string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+  // InstanceID is an EC2 instance ID.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  // Region is the AWS EC2 Instance Region.
+  string Region = 3 [(gogoproto.jsontag) = "region,omitempty"];
+  // VPCID is the AWS VPC ID where the Instance is running.
+  string VPCID = 4 [(gogoproto.jsontag) = "vpc_id,omitempty"];
+  // Integration is the integration name that added this Node.
+  // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
+  // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
+  string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+// CloudMetadata contains info about the cloud instance a server is running
+// on, if any.
+message CloudMetadata {
+  // AWSInfo contains attributes to match to an EC2 instance.
+  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -891,6 +917,22 @@ message AppSpecV3 {
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
   // UserGroups are a list of user group IDs that this app is associated with.
   repeated string UserGroups = 8;
+}
+
+// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
+// Used in application listings that request both app servers and saml apps.
+message AppServerOrSAMLIdPServiceProviderV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Kind is the resource kind. Always "app_server_saml_idp_sp".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // The AppServer or SAMLIdPServiceProvider resource.
+  oneof Resource {
+    // AppServer is the AppServer resource.
+    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
+    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource.
+    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+  }
 }
 
 // App is a specific application that a server proxies.
@@ -5810,8 +5852,8 @@ message WatchStatusSpecV1 {
 message ServerInfoV1 {
   // Kind is the resource kind.
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // SubKind is an optional resource subkind. Currently unused for this resource.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind"];
   // Version is the resource version.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is the resource metadata.
@@ -5828,15 +5870,8 @@ message ServerInfoV1 {
 
 // ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
 message ServerInfoSpecV1 {
-  // AWSInfo contains attributes to match to an EC2 instance.
-  message AWSInfo {
-    // AccountID is an AWS account ID.
-    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
-    // InstanceID is an EC2 instance ID.
-    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
-  }
-  // AWS matches an EC2 instance.
-  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  reserved 1;
+  reserved "AWS";
   // NewLabels is the set of labels to add to nodes matching this ServerInfo.
   map<string, string> NewLabels = 2 [(gogoproto.jsontag) = "new_labels,omitempty"];
 }

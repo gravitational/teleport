@@ -47,6 +47,13 @@ message UIOnboardSetCredentialSubmitEvent {
   string username = 1;
 }
 
+// UIOnboardQuestionnaireSubmitEvent is a UI event sent during registration when
+// the user submits their onboarding questionnaire.
+message UIOnboardQuestionnaireSubmitEvent {
+  // The event username. Not extracted from identity as this is pre-registration.
+  string username = 1;
+}
+
 // UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
 // when the MFA challenge is completed.
 message UIOnboardRegisterChallengeSubmitEvent {
@@ -429,6 +436,7 @@ message UsageEventOneOf {
     AssistCompletionEvent assist_completion = 30;
     UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 31;
     UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 32;
+    UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 33;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
