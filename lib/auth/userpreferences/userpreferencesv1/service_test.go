@@ -50,9 +50,7 @@ func TestService_GetUserPreferences(t *testing.T) {
 		{
 			name:     "success",
 			userName: defaultUser,
-			req: &userpreferencesv1.GetUserPreferencesRequest{
-				Username: defaultUser,
-			},
+			req:      &userpreferencesv1.GetUserPreferencesRequest{},
 			want: &userpreferencesv1.GetUserPreferencesResponse{
 				Preferences: &userpreferencesv1.UserPreferences{
 					Assist: &userpreferencesv1.AssistUserPreferences{
@@ -68,22 +66,11 @@ func TestService_GetUserPreferences(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name:     "access denied - incorrect user",
-			userName: defaultUser,
-			req: &userpreferencesv1.GetUserPreferencesRequest{
-				Username: "non-existent-user",
-			},
-			want:    nil,
-			wantErr: assert.Error,
-		},
-		{
 			name:     "access denied - RBAC rule",
 			userName: noAccessUser,
-			req: &userpreferencesv1.GetUserPreferencesRequest{
-				Username: "test-user-no-access",
-			},
-			want:    nil,
-			wantErr: assert.Error,
+			req:      &userpreferencesv1.GetUserPreferencesRequest{},
+			want:     nil,
+			wantErr:  assert.Error,
 		},
 	}
 
@@ -125,25 +112,14 @@ func TestService_UpsertUserPreferences(t *testing.T) {
 			name:     "success",
 			userName: defaultUser,
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Username:    defaultUser,
 				Preferences: defaultPreferences,
 			},
 			wantErr: assert.NoError,
 		},
 		{
-			name:     "access denied - incorrect user",
-			userName: defaultUser,
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Username:    "non-existent-user",
-				Preferences: defaultPreferences,
-			},
-			wantErr: assert.Error,
-		},
-		{
 			name:     "access denied - RBAC rule",
 			userName: noAccessUser,
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
-				Username:    noAccessUser,
 				Preferences: defaultPreferences,
 			},
 			wantErr: assert.Error,

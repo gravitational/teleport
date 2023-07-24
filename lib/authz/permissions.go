@@ -1379,3 +1379,16 @@ func UserFromContext(ctx context.Context) (IdentityGetter, error) {
 	}
 	return user, nil
 }
+
+// HasBuiltinRole checks if the identity is a builtin role with the matching
+// name.
+func HasBuiltinRole(authContext Context, name string) bool {
+	if _, ok := authContext.Identity.(BuiltinRole); !ok {
+		return false
+	}
+	if !authContext.Checker.HasRole(name) {
+		return false
+	}
+
+	return true
+}
