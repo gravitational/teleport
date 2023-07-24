@@ -427,9 +427,9 @@ clean-ui:
 
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
 $(RELEASE_DIR):
-	mkdir $@
+	mkdir -p $@
 
-.PHONY:
+.PHONY: release
 export
 release:
 	@echo "---> OSS $(RELEASE_MESSAGE)"
@@ -440,6 +440,10 @@ else ifeq ("$(OS)", "darwin")
 else
 	$(MAKE) --no-print-directory release-unix
 endif
+
+.PHONY: release-ent
+release-ent:
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 # These are aliases used to make build commands uniform.
 .PHONY: release-amd64
@@ -483,7 +487,7 @@ build-archive: | $(RELEASE_DIR)
 #
 .PHONY:
 release-unix: clean full build-archive
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+	$(MAKE) release-ent
 
 include darwin-signing.mk
 
@@ -497,7 +501,7 @@ release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+	$(MAKE) release-ent
 else
 
 # release-darwin for ARCH == universal does not build binaries, but instead
@@ -522,7 +526,7 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	$(MAKE) ARCH=universal build-archive
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+	$(MAKE) release-ent
 endif
 
 #
