@@ -45,22 +45,24 @@ const (
 )
 
 // NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
-func NewAgent(toolContext *ToolContext) *Agent {
+func NewAgent(toolCtx *ToolContext) *Agent {
 	return &Agent{
 		tools: []Tool{
 			&commandExecutionTool{},
-			&embeddingRetrievalTool{toolContext},
-			&accessRequestListRequestableRolesTool{toolContext},
+			&embeddingRetrievalTool{},
+			&accessRequestListRequestableRolesTool{},
 			&accessRequestCreateTool{},
 			&accessRequestListTool{},
 			&accessRequestDeleteTool{},
 		},
+		toolCtx: toolCtx,
 	}
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.
 type Agent struct {
-	tools []Tool
+	tools   []Tool
+	toolCtx *ToolContext
 }
 
 // AgentAction is an event type representing the decision to take a single action, typically a tool invocation.
@@ -222,7 +224,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
-	runOut, err := tool.Run(ctx, action.Input)
+	runOut, err := tool.Run(ctx, *a.toolCtx, action.Input)
 	if err != nil {
 		return stepOutput{}, trace.Wrap(err)
 	}

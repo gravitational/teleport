@@ -39,7 +39,7 @@ type ToolContext struct {
 type Tool interface {
 	Name() string
 	Description() string
-	Run(ctx context.Context, input string) (string, error)
+	Run(ctx context.Context, toolCtx ToolContext, input string) (string, error)
 }
 type commandExecutionTool struct{}
 
@@ -72,7 +72,7 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (c *commandExecutionTool) Run(_ context.Context, _ string) (string, error) {
+func (c *commandExecutionTool) Run(_ context.Context, _ ToolContext, _ string) (string, error) {
 	// This is stubbed because commandExecutionTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
@@ -107,9 +107,7 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 }
 
 // TODO: investigate integrating this into embeddingRetrievalTool
-type accessRequestListRequestableRolesTool struct {
-	*ToolContext
-}
+type accessRequestListRequestableRolesTool struct{}
 
 func (*accessRequestListRequestableRolesTool) Name() string {
 	return "List Requestable Roles"
@@ -119,14 +117,14 @@ func (*accessRequestListRequestableRolesTool) Description() string {
 	return "List all roles that can be requested via access requests."
 }
 
-func (a *accessRequestListRequestableRolesTool) Run(ctx context.Context, input string) (string, error) {
+func (a *accessRequestListRequestableRolesTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
 	requestable := make(map[string]struct{}, 0)
-	for _, role := range a.UserRoles {
+	for _, role := range toolCtx.UserRoles {
 		for _, requestableRole := range role.GetAccessRequestConditions(types.Allow).Roles {
 			requestable[requestableRole] = struct{}{}
 		}
 	}
-	for _, role := range a.UserRoles {
+	for _, role := range toolCtx.UserRoles {
 		for _, requestableRole := range role.GetAccessRequestConditions(types.Deny).Roles {
 			delete(requestable, requestableRole)
 		}
@@ -162,7 +160,7 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (*accessRequestCreateTool) Run(ctx context.Context, input string) (string, error) {
+func (*accessRequestCreateTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
 	return "Cannot create access requests at the moment.", nil
 }
 
@@ -177,7 +175,7 @@ func (*accessRequestListTool) Description() string {
 	return "List all access requests created by the user."
 }
 
-func (*accessRequestListTool) Run(ctx context.Context, input string) (string, error) {
+func (*accessRequestListTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
 	return "No access requests open.", nil
 }
 
@@ -199,19 +197,17 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (*accessRequestDeleteTool) Run(ctx context.Context, input string) (string, error) {
+func (*accessRequestDeleteTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
 	return "Cannot delete access requests at the moment.", nil
 }
 
-type embeddingRetrievalTool struct {
-	*ToolContext
-}
+type embeddingRetrievalTool struct{}
 
 type embeddingRetrievalToolInput struct {
 	Question string `json:"question"`
 }
 
-func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (string, error) {
+func (e *embeddingRetrievalTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
 	inputCmd, outErr := e.parseInput(input)
 	if outErr == nil {
 		// If we failed to parse the input, we can still send the payload for embedding retrieval.
@@ -221,8 +217,8 @@ func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (string,
 	}
 	log.Tracef("embedding retrieval input: %v", input)
 
-	resp, err := e.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
-		Username: e.Username,
+	resp, err := toolCtx.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
+		Username: toolCtx.Username,
 		Kind:     types.KindNode, // currently only node embeddings are supported
 		Limit:    10,
 		Query:    input,
