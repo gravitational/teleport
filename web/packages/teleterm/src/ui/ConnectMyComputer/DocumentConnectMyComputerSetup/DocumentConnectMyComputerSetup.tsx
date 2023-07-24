@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
@@ -26,6 +26,9 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
+
+import type { AgentProcessState } from 'teleterm/mainProcess/types';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -86,7 +89,9 @@ function Information(props: { onSetUpAgentClick(): void }) {
 function AgentSetup() {
   const ctx = useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
+  const connectMyComputerContext = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
+  const nodeToken = useRef<string>();
 
   const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
     useAsync(
@@ -126,19 +131,30 @@ function AgentSetup() {
       [ctx.connectMyComputerService]
     )
   );
-  const [generateConfigFileAttempt, runGenerateConfigFileAttempt] = useAsync(
-    useCallback(
-      () =>
-        retryWithRelogin(ctx, rootClusterUri, () =>
-          ctx.connectMyComputerService.createAgentConfigFile(cluster)
-        ),
-      [cluster, ctx, rootClusterUri]
-    )
+  const [
+    generateConfigFileAttempt,
+    runGenerateConfigFileAttempt,
+    setGenerateConfigFileAttempt,
+  ] = useAsync(
+    useCallback(async () => {
+      const { token } = await retryWithRelogin(ctx, rootClusterUri, () =>
+        ctx.connectMyComputerService.createAgentConfigFile(cluster)
+      );
+      nodeToken.current = token;
+    }, [cluster, ctx, rootClusterUri])
   );
-  const [joinClusterAttempt, runJoinClusterAttempt] = useAsync(
-    // TODO(gzdunek): delete node token after joining the cluster
-    useCallback(() => wait(1_000), [])
-  );
+  const [joinClusterAttempt, runJoinClusterAttempt, setJoinClusterAttempt] =
+    useAsync(
+      useCallback(async () => {
+        if (!nodeToken.current) {
+          throw new Error('Node token is empty');
+        }
+        await ctx.connectMyComputerService.runAgentAndDeleteToken(
+          cluster,
+          nodeToken.current
+        );
+      }, [ctx.connectMyComputerService, cluster])
+    );
 
   const steps = [
     {
@@ -169,7 +185,7 @@ function AgentSetup() {
       runCreateRoleAttempt,
       runDownloadAgentAttempt,
       runGenerateConfigFileAttempt,
-      // runJoinClusterAttempt,
+      runJoinClusterAttempt,
     ];
     for (const action of actions) {
       const [, error] = await action();
