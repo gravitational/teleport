@@ -452,6 +452,7 @@ func (u *unifiedResourceCollector) Close() error {
 }
 
 func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	defer u.defineCollectorAsInitialized()
 	err := u.getAndUpdateNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -472,7 +473,6 @@ func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Cont
 		return trace.Wrap(err)
 	}
 
-	u.defineCollectorAsInitialized()
 	return nil
 }
 
