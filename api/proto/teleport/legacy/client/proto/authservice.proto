@@ -46,6 +46,9 @@ message Watch {
 // HostCertsRequest specifies certificate-generation parameters
 // for a server.
 message HostCertsRequest {
+  reserved 12; // system_role_assertion_id
+  reserved "UnstableSystemRoleAssertionID";
+
   // HostID is a unique ID of the host.
   string HostID = 1 [(gogoproto.jsontag) = "host_id"];
   // NodeName is a user-friendly host name.
@@ -83,11 +86,6 @@ message HostCertsRequest {
     (gogoproto.jsontag) = "system_roles,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
   ];
-  // UnstableSystemRoleAssertionID is not a stable part of the public API. Used by
-  // older instances to requisition a multi-role cert by individually proving which
-  // system roles are held.
-  // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-  string UnstableSystemRoleAssertionID = 12 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
 }
 
 // OpenSSHCertRequest specifies certificate-generation parameters
@@ -1896,31 +1894,6 @@ message ListReleasesResponse {
   repeated types.Release releases = 1 [(gogoproto.jsontag) = "releases"];
 }
 
-// GenerateTokenRequest is a request to generate auth token.
-message GenerateTokenRequest {
-  // Token sets the token value. If not set, it will be auto generated.
-  string Token = 1 [(gogoproto.jsontag) = "token"];
-  // Roles is a list of roles this token authenticates as.
-  repeated string Roles = 2 [
-    (gogoproto.jsontag) = "roles",
-    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-  ];
-  // TTL specifies how long the generated token will be valid for.
-  // Defaults to 30 minutes if not set.
-  int64 TTL = 3 [
-    (gogoproto.jsontag) = "ttl",
-    (gogoproto.casttype) = "Duration"
-  ];
-  // Labels is a label-based matcher if non-empty.
-  map<string, string> Labels = 4 [(gogoproto.jsontag) = "labels"];
-}
-
-// GenerateTokenResponse contains a generated auth token.
-message GenerateTokenResponse {
-  // Token is the generated auth token.
-  string Token = 1 [(gogoproto.jsontag) = "token"];
-}
-
 // GetOIDCAuthRequestRequest is a request for GetOIDCAuthRequest.
 message GetOIDCAuthRequestRequest {
   // StateToken is an oidc auth request state token.
@@ -1945,30 +1918,6 @@ message GetSSODiagnosticInfoRequest {
   string AuthRequestKind = 1 [(gogoproto.jsontag) = "auth_request_kind"];
   // AuthRequestID is the SSO Auth Request id or state token.
   string AuthRequestID = 2 [(gogoproto.jsontag) = "auth_request_id"];
-}
-
-// UnstableSystemRoleAssertion is not a stable part of the public API. Used by older instances
-// to prove that they hold a given system role.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-message UnstableSystemRoleAssertion {
-  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
-  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
-  string SystemRole = 3 [
-    (gogoproto.jsontag) = "system_role,omitempty",
-    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-  ];
-}
-
-// UnstableSystemRoleAssertionSet is not a stable part of the public API. Records the sum of system
-// role assertions provided by a given instance.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-message UnstableSystemRoleAssertionSet {
-  string ServerID = 1 [(gogoproto.jsontag) = "server_id,omitempty"];
-  string AssertionID = 2 [(gogoproto.jsontag) = "assertion_id,omitempty"];
-  repeated string SystemRoles = 3 [
-    (gogoproto.jsontag) = "system_roles,omitempty",
-    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-  ];
 }
 
 // UpstreamInventoryOneOf is the upstream message for the inventory control stream,
@@ -2653,10 +2602,6 @@ service AuthService {
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
   // UpsertTokenV2 upserts a token in a backend.
   rpc UpsertTokenV2(UpsertTokenV2Request) returns (google.protobuf.Empty);
-  // GenerateToken generates a new auth token.
-  // Deprecated: switch to CreateTokenV2.
-  // DELETE IN 14.0.0, replaced by CreateTokenV2 (strideynet).
-  rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.
   rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
@@ -2884,11 +2829,6 @@ service AuthService {
   // without signing keys. If the cluster has multiple TLS certs, they will
   // all be appended.
   rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
-
-  // UnstableAssertSystemRole is not a stable part of the public API. Used by older
-  // instances to prove that they hold a given system role.
-  // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-  rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
 
   // SubmitUsageEvent submits an external usage event.
   rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);

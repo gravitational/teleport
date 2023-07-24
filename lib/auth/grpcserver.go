@@ -474,20 +474,6 @@ func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSS
 	return cert, nil
 }
 
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-func (g *GRPCServer) UnstableAssertSystemRole(ctx context.Context, req *authpb.UnstableSystemRoleAssertion) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	if err := auth.UnstableAssertSystemRole(ctx, *req); err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
@@ -3389,24 +3375,6 @@ func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *authpb.CreateTokenV
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
-}
-
-// GenerateToken generates a new auth token.
-// Deprecated: Use CreateToken or UpdateToken.
-// DELETE IN 14.0.0, replaced by methods above (strideynet).
-func (g *GRPCServer) GenerateToken(ctx context.Context, req *authpb.GenerateTokenRequest) (*authpb.GenerateTokenResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	g.Warn("Deprecated GenerateToken RPC called. This will stop functioning in Teleport 14.0.0. Upgrade your client.")
-
-	token, err := auth.ServerWithRoles.GenerateToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &authpb.GenerateTokenResponse{Token: token}, nil
 }
 
 // DeleteToken deletes a token by name.
