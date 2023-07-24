@@ -5312,8 +5312,8 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 	}
 	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
 
-	var hosts = []string{cfg.Hostname, "localhost"}
-	var ips = []string{}
+	hosts := []string{cfg.Hostname, "localhost"}
+	var ips []string
 
 	// add web public address hosts to self-signed cert
 	for _, addr := range cfg.Proxy.PublicAddrs {
