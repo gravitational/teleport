@@ -64,7 +64,7 @@
       "enabled": true,
       "matchFileNames": ["assets/aws/go.mod"],
       "groupName": "Assets - AWS ",
-      "excludematchPackageNames": [
+      "excludeMatchPackageNames": [
         "github.com/alecthomas/kingpin/v2"
       ]
     },
