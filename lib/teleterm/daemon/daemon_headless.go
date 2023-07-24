@@ -142,19 +142,29 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 	log := s.cfg.Log.WithField("cluster", cluster.URI.String())
 	log.Debugf("Starting headless watch loop.")
 	go func() {
-		defer watchCancel()
+		defer func() {
+			s.headlessWatcherClosersMu.Lock()
+			defer s.headlessWatcherClosersMu.Unlock()
+
+			select {
+			case <-watchCtx.Done():
+				// watcher was canceled by an outside call to stopHeadlessWatcher.
+			default:
+				// watcher closed due to error or cluster disconnect.
+				if err := s.stopHeadlessWatcher(cluster.URI.String()); err != nil {
+					log.WithError(err).Debug("Failed to remove headless watcher.")
+				}
+			}
+		}()
+
 		for {
 			if !cluster.Connected() {
 				log.Debugf("Not connected to cluster. Returning from headless watch loop.")
-				if err := s.StopHeadlessWatcher(cluster.URI.String()); err != nil {
-					log.WithError(err).Debugf("Failed to remove headless watcher.")
-				}
 				return
 			}
 
 			err := watch()
-			switch {
-			case trace.IsNotImplemented(err):
+			if trace.IsNotImplemented(err) {
 				// Don't retry watch if we are connecting to an old Auth Server.
 				log.WithError(err).Debug("Headless watcher not supported.")
 				return
