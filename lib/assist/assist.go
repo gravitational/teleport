@@ -35,6 +35,7 @@ import (
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // MessageType is a type of the Assist message.
@@ -131,14 +132,14 @@ func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
 	toolContext *model.ToolContext,
 	conversationID string,
 ) (*Chat, error) {
-	aichat := a.client.NewChat(toolContext, toolContext.Username)
+	aichat := a.client.NewChat(toolContext, toolContext.User)
 
 	chat := &Chat{
 		assist:                  a,
 		chat:                    aichat,
 		assistService:           assistService,
 		ConversationID:          conversationID,
-		Username:                toolContext.Username,
+		Username:                toolContext.User,
 		potentiallyStaleHistory: false,
 	}
 
@@ -422,7 +423,20 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			return nil, trace.Wrap(err)
 		}
 	case *model.AccessRequestsDisplay:
-		payloadJson, err := json.Marshal(message)
+		payload := &AccessRequestsDisplayPayload{
+			AccessRequests: make([]*ui.AccessRequest, 0, len(message.AccessRequests)),
+		}
+
+		for _, accessRequest := range message.AccessRequests {
+			item, err := ui.NewAccessRequest(accessRequest)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			payload.AccessRequests = append(payload.AccessRequests, item)
+		}
+
+		payloadJson, err := json.Marshal(payload)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

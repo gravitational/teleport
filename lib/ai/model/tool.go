@@ -30,8 +30,13 @@ import (
 
 type ToolContext struct {
 	assist.AssistEmbeddingServiceClient
-	UserRoles []types.Role
-	Username  string
+	AccessRequestClient
+	Roles []types.Role
+	User  string
+}
+
+type AccessRequestClient interface {
+	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 }
 
 // Tool is an interface that allows the agent to interact with the outside world.
@@ -108,12 +113,12 @@ func (*accessRequestListRequestableRolesTool) Description() string {
 
 func (a *accessRequestListRequestableRolesTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
 	requestable := make(map[string]struct{}, 0)
-	for _, role := range toolCtx.UserRoles {
+	for _, role := range toolCtx.Roles {
 		for _, requestableRole := range role.GetAccessRequestConditions(types.Allow).Roles {
 			requestable[requestableRole] = struct{}{}
 		}
 	}
-	for _, role := range toolCtx.UserRoles {
+	for _, role := range toolCtx.Roles {
 		for _, requestableRole := range role.GetAccessRequestConditions(types.Deny).Roles {
 			delete(requestable, requestableRole)
 		}
@@ -218,7 +223,7 @@ func (e *embeddingRetrievalTool) Run(ctx context.Context, toolCtx ToolContext, i
 	log.Tracef("embedding retrieval input: %v", input)
 
 	resp, err := toolCtx.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
-		Username: toolCtx.Username,
+		Username: toolCtx.User,
 		Kind:     types.KindNode, // currently only node embeddings are supported
 		Limit:    10,
 		Query:    input,

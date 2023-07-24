@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
@@ -232,8 +233,14 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 
 		return stepOutput{finish: &agentFinish{output: request}}, nil
 	case *accessRequestsDisplayTool:
-		// todo (joel): execution handling
-		display := &AccessRequestsDisplay{}
+		requests, err := a.toolCtx.GetAccessRequests(ctx, types.AccessRequestFilter{
+			User: a.toolCtx.User,
+		})
+		if err != nil {
+			return stepOutput{}, trace.Wrap(err)
+		}
+
+		display := &AccessRequestsDisplay{requests}
 		return stepOutput{finish: &agentFinish{output: display}}, nil
 	default:
 		runOut, err := tool.Run(ctx, *a.toolCtx, action.Input)

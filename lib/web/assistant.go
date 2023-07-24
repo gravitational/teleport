@@ -461,9 +461,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	toolContext := &model.ToolContext{
 		AssistEmbeddingServiceClient: authClient.EmbeddingClient(),
+		AccessRequestClient:          authClient,
 		// TODO(joel): fix this
-		UserRoles: nil,
-		Username:  sctx.GetUser(),
+		Roles: nil,
+		User:  sctx.GetUser(),
 	}
 
 	chat, err := assistClient.NewChat(ctx, authClient, toolContext, conversationID)

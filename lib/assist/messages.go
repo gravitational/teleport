@@ -21,6 +21,8 @@ package assist
 
 import (
 	"fmt"
+
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // CommandExecSummary is a payload for the COMMAND_RESULT_SUMMARY message.
@@ -34,4 +36,9 @@ type CommandExecSummary struct {
 // model consumption.
 func (s CommandExecSummary) String() string {
 	return fmt.Sprintf("Command: `%s` executed. The command output summary is: %s", s.Command, s.Summary)
+}
+
+// AccessRequestsDisplayPayload is a payload for the ACCESS_REQUESTS_DISPLAY message.
+type AccessRequestsDisplayPayload struct {
+	AccessRequests []*ui.AccessRequest `json:"access_requests"`
 }

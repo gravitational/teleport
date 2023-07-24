@@ -65,10 +65,10 @@ func TestChatComplete(t *testing.T) {
 
 	// And created conversation.
 	toolContext := &model.ToolContext{
-		Username: "bob",
+		User: "bob",
 	}
 	conversationResp, err := authSrv.AuthServer.CreateAssistantConversation(ctx, &assist.CreateAssistantConversationRequest{
-		Username:    toolContext.Username,
+		Username:    toolContext.User,
 		CreatedTime: timestamppb.Now(),
 	})
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestChatComplete(t *testing.T) {
 	t.Run("check what messages are stored in the backend", func(t *testing.T) {
 		// backend should have 3 messages: welcome message, user message, command response.
 		messages, err := authSrv.AuthServer.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
-			Username:       toolContext.Username,
+			Username:       toolContext.User,
 			ConversationId: conversationResp.Id,
 		})
 		require.NoError(t, err)

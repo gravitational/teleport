@@ -16,6 +16,8 @@
 
 package model
 
+import "github.com/gravitational/teleport/api/types"
+
 // Ref: https://github.com/openai/openai-cookbook/blob/594fc6c952425810e9ea5bd1a275c8ca5f32e8f9/examples/How_to_count_tokens_with_tiktoken.ipynb
 const (
 	// perMessage is the token "overhead" for each message
@@ -59,4 +61,6 @@ type AccessRequest struct {
 }
 
 // AccessRequestsDisplay represents an indication to the frontend to display one or more access requests.
-type AccessRequestsDisplay struct{}
+type AccessRequestsDisplay struct {
+	AccessRequests []types.AccessRequest
+}
