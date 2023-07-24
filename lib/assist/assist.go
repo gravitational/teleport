@@ -45,6 +45,8 @@ const (
 	MessageKindCommand MessageType = "COMMAND"
 	// MessageKindCommandResult is the type of Assist message that contains the command execution result.
 	MessageKindCommandResult MessageType = "COMMAND_RESULT"
+	// MessageKindAccessRequest is the type of Assist message that contains the access request.
+	MessageKindAccessRequest MessageType = "ACCESS_REQUEST"
 	// MessageKindCommandResultSummary is the type of message that is optionally
 	// emitted after a command and contains a summary of the command output.
 	// This message is both sent after the command execution to the web UI,
@@ -364,13 +366,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			return nil, trace.Wrap(err)
 		}
 	case *model.CompletionCommand:
-		payload := commandPayload{
-			Command: message.Command,
-			Nodes:   message.Nodes,
-			Labels:  message.Labels,
-		}
-
-		payloadJson, err := json.Marshal(payload)
+		payloadJson, err := json.Marshal(message)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -398,7 +394,28 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		// be stale.
 		c.potentiallyStaleHistory = true
 	case *model.AccessRequest:
-		// todo (joel): handle ui flow
+		payloadJson, err := json.Marshal(message)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		msg := &assist.CreateAssistantMessageRequest{
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindAccessRequest),
+				Payload:     string(payloadJson),
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+		}
+
+		if err := c.assistService.CreateAssistantMessage(ctx, msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := onMessage(MessageKindCommand, payloadJson, c.assist.clock.Now().UTC()); nil != err {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.Errorf("unknown message type: %T", message)
 	}

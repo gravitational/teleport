@@ -125,6 +125,7 @@ export interface ResolvedAccessRequestServerMessage {
   type: ServerMessageType.AccessRequest;
   resources: Resource[];
   reason: string;
+  suggested_reviewers: string[];
   created: Date;
 }
 
