@@ -365,7 +365,7 @@
               ]
             },
             {
-              "title": "Jamf Integration",
+              "title": "Jamf Pro Integration",
               "slug": "/access-controls/device-trust/jamf-integration/",
               "forScopes": [
                 "enterprise",
