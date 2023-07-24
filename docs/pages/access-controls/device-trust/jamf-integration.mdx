@@ -1,17 +1,17 @@
 ---
-title: Jamf Integration (Preview)
-description: Sync your Jamf inventory into Teleport
+title: Jamf Pro Integration (Preview)
+description: Sync your Jamf Pro inventory into Teleport
 ---
 
-Device Trust Jamf integration lets you automatically sync your Jamf computer
+Device Trust Jamf Pro integration lets you automatically sync your Jamf Pro computer
 inventory into Teleport.
 
-The Teleport Jamf service is a distinct `teleport` process that periodically
-reads your computer inventory from Jamf and syncs it to Teleport. It performs
+The Teleport Jamf Pro service is a distinct `teleport` process that periodically
+reads your computer inventory from Jamf Pro and syncs it to Teleport. It performs
 both incremental (called "partial") and full syncs, as well as removals from
-Teleport if a computer is removed from Jamf.
+Teleport if a computer is removed from Jamf Pro.
 
-Syncing devices from Jamf is an **inventory management** step, equivalent to
+Syncing devices from Jamf Pro is an **inventory management** step, equivalent to
 automatically running the corresponding `tctl devices add` commands. If you want
 to automatically enroll synced devices on user login, refer to the
 [auto-enrollment](#optional-enable-auto-enrollment) section.
