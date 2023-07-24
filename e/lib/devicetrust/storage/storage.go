@@ -481,21 +481,45 @@ func (s *S) UpdateDevice(
 // DeleteDevicePredicate hard-deletes the specified device from storage if it
 // matches the predicate.
 func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d *devicepb.Device) error) error {
-	if deviceID == "" {
-		return trace.BadParameter("device ID required")
-	}
-
-	// Read the device first, we need the asset tag for the cleanup below.
+	// Read the complete device, we need it for the predicate.
 	dev, _, _, err := s.getDeviceByID(ctx, deviceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Predicate applies?
 	if err := p(dev); err != nil {
 		return trace.Wrap(err)
 	}
 
+	return trace.Wrap(s.deleteDevice(ctx, deviceID, dev.AssetTag))
+}
+
+type deviceToDelete struct {
+	AssetTag string `json:"asset_tag"`
+}
+
+// DeleteDevice hard-deletes a device from storage.
+func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
+	if deviceID == "" {
+		return trace.BadParameter("device ID required")
+	}
+
+	item, err := s.backend.Get(ctx, deviceKey(deviceID))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Unmarshal as little as we can from the device, this makes deletion a
+	// possible form of recovery from storage problems.
+	dev := &deviceToDelete{}
+	if err := json.Unmarshal(item.Value, dev); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(s.deleteDevice(ctx, deviceID, dev.AssetTag))
+}
+
+func (s *S) deleteDevice(ctx context.Context, deviceID, assetTag string) error {
 	// Delete the device.
 	// If this succeeds the invocation is considered a success: the device key is
 	// the source of truth for a device existing, the system can handle "hanging"
@@ -505,12 +529,12 @@ func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d
 	}
 
 	// Remove asset tag mapping.
-	if err := s.removeFromAssetTagIndex(ctx, deviceID, dev.AssetTag); err != nil {
+	if err := s.removeFromAssetTagIndex(ctx, deviceID, assetTag); err != nil {
 		s.logger.
 			WithError(err).
 			WithFields(log.Fields{
 				"device_id": deviceID,
-				"asset_tag": dev.AssetTag,
+				"asset_tag": assetTag,
 			}).
 			Warn("Failed to remove asset tag mapping for device")
 		// err swallowed on purpose.
@@ -522,7 +546,7 @@ func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d
 			WithError(err).
 			WithFields(log.Fields{
 				"device_id": deviceID,
-				"asset_tag": dev.AssetTag,
+				"asset_tag": assetTag,
 			}).
 			Warn("Failed to remove enroll token for device")
 		// err swallowed on purpose.
@@ -534,18 +558,13 @@ func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d
 			WithError(err).
 			WithFields(log.Fields{
 				"device_id": deviceID,
-				"asset_tag": dev.AssetTag,
+				"asset_tag": assetTag,
 			}).
 			Warn("Failed to remove collected data for device")
 		// err swallowed on purpose.
 	}
 
 	return nil
-}
-
-// DeleteDevice hard-deletes a device from storage.
-func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
-	return s.DeleteDevicePredicate(ctx, deviceID, func(d *devicepb.Device) error { return nil })
 }
 
 func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag string) error {
@@ -650,7 +669,7 @@ func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Devic
 // It returns all internal data structures along with the device.
 func (s *S) getDeviceByID(ctx context.Context, deviceID string) (*devicepb.Device, *storedDevice, *backend.Item, error) {
 	if deviceID == "" {
-		return nil, nil, nil, trace.NotFound("device ID required")
+		return nil, nil, nil, trace.BadParameter("device ID required")
 	}
 
 	item, err := s.backend.Get(ctx, deviceKey(deviceID))
@@ -874,7 +893,12 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 
 		stored := &storedDevice{}
 		if err := json.Unmarshal(item.Value, stored); err != nil {
-			return nil, "", trace.Wrap(err)
+			// Be resilient against JSON failures, otherwise it's impossible to list
+			// any devices.
+			s.logger.
+				WithError(err).
+				Errorf("Failed to unmarshal device %q, stored value may be invalid or corrupted", item.Key)
+			continue
 		}
 		devices = append(devices, storedToDeviceView(deviceID, stored, view))
 	}
