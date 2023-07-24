@@ -1368,3 +1368,14 @@ func HasBuiltinRole(authContext Context, name string) bool {
 
 	return true
 }
+
+// IsLocalUser checks if the identity is a local user.
+func IsLocalUser(authContext Context) bool {
+	_, ok := authContext.Identity.(LocalUser)
+	return ok
+}
+
+// IsLocalUserAction checks if the identity is a local user and the username
+func IsLocalUserAction(authContext Context, username string) bool {
+	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
