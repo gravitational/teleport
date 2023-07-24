@@ -3393,7 +3393,7 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		token.SetMetadata(meta)
 	}
 
-	if err := a.UpsertToken(ctx, token); err != nil {
+	if err := a.CreateToken(ctx, token); err != nil {
 		return "", trace.Wrap(err)
 	}
 
