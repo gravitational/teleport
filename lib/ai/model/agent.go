@@ -52,8 +52,7 @@ func NewAgent(toolCtx *ToolContext) *Agent {
 			&embeddingRetrievalTool{},
 			&accessRequestListRequestableRolesTool{},
 			&accessRequestCreateTool{},
-			//&accessRequestListTool{},
-			//&accessRequestDeleteTool{},
+			&accessRequestsDisplayTool{},
 		},
 		toolCtx: toolCtx,
 	}
@@ -83,7 +82,7 @@ type AgentAction struct {
 // agentFinish is an event type representing the decision to finish a thought
 // loop and return a final text answer to the user.
 type agentFinish struct {
-	// output must be Message, StreamingMessage, CompletionCommand or AccessRequest.
+	// output must be Message, StreamingMessage, CompletionCommand, AccessRequest or AccessRequestsDisplay.
 	output any
 }
 
@@ -232,6 +231,10 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		}
 
 		return stepOutput{finish: &agentFinish{output: request}}, nil
+	case *accessRequestsDisplayTool:
+		// todo (joel): execution handling
+		display := &AccessRequestsDisplay{}
+		return stepOutput{finish: &agentFinish{output: display}}, nil
 	default:
 		runOut, err := tool.Run(ctx, *a.toolCtx, action.Input)
 		if err != nil {

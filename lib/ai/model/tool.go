@@ -182,41 +182,23 @@ func (*accessRequestCreateTool) parseInput(input string) (*AccessRequest, error)
 	return &output, nil
 }
 
-// TODO: investigate integrating this into embeddingRetrievalTool
-type accessRequestListTool struct{}
+type accessRequestsDisplayTool struct{}
 
-func (*accessRequestListTool) Name() string {
-	return "List Access Requests"
+func (*accessRequestsDisplayTool) Name() string {
+	return "Display Access Requests to User"
 }
 
-func (*accessRequestListTool) Description() string {
-	return "List all access requests created by the user."
+func (*accessRequestsDisplayTool) Description() string {
+	return "Directly display a smart view of access requests to the user."
 }
 
-func (*accessRequestListTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
-	return "No access requests open.", nil
-}
-
-type accessRequestDeleteTool struct{}
-
-func (*accessRequestDeleteTool) Name() string {
-	return "Delete Access Requests"
-}
-
-func (*accessRequestDeleteTool) Description() string {
-	return fmt.Sprintf(`Delete an access request with a given UUID.
-The input must be a JSON object with the following schema:
-
-%vjson
-{
-	"uuid": string \\ UUID of the access request to delete
-}
-%v
-`, "```", "```")
-}
-
-func (*accessRequestDeleteTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
-	return "Cannot delete access requests at the moment.", nil
+func (*accessRequestsDisplayTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
+	// This is stubbed because accessRequestsDisplayTool is handled specially.
+	// This is because execution of this tool breaks the loop and returns a suggestion UI prompt.
+	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
+	//
+	// In addition, treating it as a Tool interface item simplifies the display and prompt assembly logic significantly.
+	return "", trace.NotImplemented("not implemented")
 }
 
 type embeddingRetrievalTool struct{}

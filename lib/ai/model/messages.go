@@ -57,3 +57,6 @@ type AccessRequest struct {
 	Reason             string   `json:"reason"`
 	SuggestedReviewers []string `json:"suggested_reviewers"`
 }
+
+// AccessRequestsDisplay represents an indication to the frontend to display one or more access requests.
+type AccessRequestsDisplay struct{}

@@ -47,6 +47,11 @@ const (
 	MessageKindCommandResult MessageType = "COMMAND_RESULT"
 	// MessageKindAccessRequest is the type of Assist message that contains the access request.
 	MessageKindAccessRequest MessageType = "ACCESS_REQUEST"
+	// MessageKindAccessRequestCreated is a marker message to indicate that an access request was created.
+	MessageKindAccessRequestCreated MessageType = "ACCESS_REQUEST_CREATED"
+	// MessageKindAccessRequestsDisplay is the type of Assist message that contains one or more access
+	// requests to display inline in the conversation.
+	MessageKindAccessRequestsDisplay MessageType = "ACCESS_REQUESTS_DISPLAY"
 	// MessageKindCommandResultSummary is the type of message that is optionally
 	// emitted after a command and contains a summary of the command output.
 	// This message is both sent after the command execution to the web UI,
@@ -404,6 +409,29 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			Username:       c.Username,
 			Message: &assist.AssistantMessage{
 				Type:        string(MessageKindAccessRequest),
+				Payload:     string(payloadJson),
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+		}
+
+		if err := c.assistService.CreateAssistantMessage(ctx, msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := onMessage(MessageKindCommand, payloadJson, c.assist.clock.Now().UTC()); nil != err {
+			return nil, trace.Wrap(err)
+		}
+	case *model.AccessRequestsDisplay:
+		payloadJson, err := json.Marshal(message)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		msg := &assist.CreateAssistantMessageRequest{
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindAccessRequestsDisplay),
 				Payload:     string(payloadJson),
 				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
 			},
