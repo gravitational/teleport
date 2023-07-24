@@ -20,10 +20,8 @@ You will face compatibility issues trying to run a different Teleport version wi
 If you want to run Teleport version {{.Values.teleportVersionOverride}},
 you should use `helm --version {{.Values.teleportVersionOverride}}` instead.
 {{- end }}
-
-
 {{- if contains "-gke." .Capabilities.KubeVersion.Version -}}
-{{- $groupName := (coalesce .Values.adminClusterRolebinding.name "cluster-admin") }}
+{{- $groupName := (coalesce .Values.adminClusterRoleBinding.name "cluster-admin") }}
 
 WARNING: GKE Autopilot clusters forbid users from impersonating system-wide identities.
 This means you won't be able to use the `system:masters` Kubernetes Group in

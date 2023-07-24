@@ -206,7 +206,7 @@ storage:
 # other than the default "system:masters" group.
 # GKE Autopilot clusters forbid using the "system:masters" group for impersonation
 # and require a custom group to be used instead.
-adminClusterRolebinding:
+adminClusterRoleBinding:
   create: false
   name: "cluster-admin"
 
