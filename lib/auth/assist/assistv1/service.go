@@ -93,13 +93,31 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *Service) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authCtx.User.GetName() != req.GetUsername() {
+		return nil, trace.AccessDenied("user %q is not allowed to create conversation for user %q", authCtx.User.GetName(), req.Username)
+	}
+
 	resp, err := a.backend.CreateAssistantConversation(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // UpdateAssistantConversationInfo updates the conversation info for a conversation.
-func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, request *assist.UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
-	err := a.backend.UpdateAssistantConversationInfo(ctx, request)
+func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assist.UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authCtx.User.GetName() != req.GetUsername() {
+		return nil, trace.AccessDenied("user %q is not allowed to update conversation for user %q", authCtx.User.GetName(), req.Username)
+	}
+
+	err = a.backend.UpdateAssistantConversationInfo(ctx, req)
 	if err != nil {
 		return &emptypb.Empty{}, trace.Wrap(err)
 	}
@@ -109,28 +127,69 @@ func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, request *
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbRead, types.VerbList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authCtx.User.GetName() != req.GetUsername() {
+		return nil, trace.AccessDenied("user %q is not allowed to list conversations for user %q", authCtx.User.GetName(), req.GetUsername())
+	}
+
 	resp, err := a.backend.GetAssistantConversations(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // DeleteAssistantConversation deletes a conversation entry and associated messages from the backend.
 func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) (*emptypb.Empty, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authCtx.User.GetName() != req.GetUsername() {
+		return nil, trace.AccessDenied("user %q is not allowed to delete conversation for user %q", authCtx.User.GetName(), req.GetUsername())
+	}
+
 	return &emptypb.Empty{}, trace.Wrap(a.backend.DeleteAssistantConversation(ctx, req))
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authCtx.User.GetName() != req.GetUsername() {
+		return nil, trace.AccessDenied("user %q is not allowed to get messages for user %q", authCtx.User.GetName(), req.GetUsername())
+	}
+
 	resp, err := a.backend.GetAssistantMessages(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // CreateAssistantMessage adds the message to the backend.
 func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.CreateAssistantMessageRequest) (*emptypb.Empty, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authCtx.User.GetName() != req.GetUsername() {
+		return nil, trace.AccessDenied("user %q is not allowed to create message for user %q", authCtx.User.GetName(), req.GetUsername())
+	}
+
 	return &emptypb.Empty{}, trace.Wrap(a.backend.CreateAssistantMessage(ctx, req))
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
+	_, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if a.embedder == nil {
 		// If the embedder is not configured, the assist is not enabled as we cannot compute embeddings.
 		return &assist.IsAssistEnabledResponse{Enabled: false}, nil
