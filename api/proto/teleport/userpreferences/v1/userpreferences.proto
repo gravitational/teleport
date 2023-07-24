@@ -36,6 +36,7 @@ message UserPreferences {
 // GetUserPreferencesRequest is a request to get the user preferences.
 message GetUserPreferencesRequest {
   reserved 1;
+  reserved "username";
 }
 
 // GetUserPreferencesResponse is a response to get the user preferences.
@@ -50,6 +51,7 @@ message UpsertUserPreferencesRequest {
   UserPreferences preferences = 1;
 
   reserved 2;
+  reserved "username";
 }
 
 // UserPreferencesService is a service that stores user settings.
