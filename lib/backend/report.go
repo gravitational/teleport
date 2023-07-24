@@ -109,6 +109,10 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 	return r, nil
 }
 
+func (s *Reporter) GetName() string {
+	return s.Backend.GetName()
+}
+
 // GetRange returns query range
 func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
 	ctx, span := s.Tracer.Start(
