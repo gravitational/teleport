@@ -142,23 +142,6 @@ export enum AccessRequestStatus {
   Declined,
 }
 
-export interface AccessRequestEvent {
-  created: Date;
-  resources: Resource[];
-  message: string;
-  username: string;
-  roles: string[];
-}
-
-export interface ResolvedAccessRequestsServerMessage {
-  type: ServerMessageType.AccessRequests;
-  status: AccessRequestStatus;
-  summary: string;
-  username: string;
-  events: AccessRequestEvent[];
-  created: Date;
-}
-
 export type ResolvedServerMessage =
   | ResolvedCommandServerMessage
   | ResolvedAssistServerMessage
@@ -168,7 +151,6 @@ export type ResolvedServerMessage =
   | ResolvedCommandResultSummaryServerMessage
   | ResolvedAssistThoughtServerMessage
   | ResolvedCommandResultStreamServerMessage
-  | ResolvedAccessRequestsServerMessage
   | ResolvedAccessRequestServerMessage;
 
 export interface GetConversationMessagesResponse {
