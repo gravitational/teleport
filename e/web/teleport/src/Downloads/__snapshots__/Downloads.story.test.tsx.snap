@@ -325,6 +325,10 @@ exports[`renders loaded linux 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c22 {
   background: #222C59;
   border-collapse: collapse;
@@ -1207,6 +1211,10 @@ exports[`renders loaded macOS 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c22 {
   background: #222C59;
   border-collapse: collapse;
@@ -1991,6 +1999,10 @@ exports[`renders loaded windows 1`] = `
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c12 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c22 {
@@ -2785,6 +2797,10 @@ exports[`renders when license failed 1`] = `
 .c13 .react-select--is-disabled .react-select__indicator,
 .c13 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c13 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c23 {
@@ -3673,6 +3689,10 @@ exports[`renders when license is loading 1`] = `
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c12 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c22 {

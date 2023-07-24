@@ -355,6 +355,10 @@ exports[`render correct form to add TOTP device 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -872,6 +876,10 @@ exports[`render correct form to add Webauthn device 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c10 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -1349,6 +1357,10 @@ exports[`render correct form to add with multi option 1`] = `
 .c10 .react-select--is-disabled .react-select__indicator,
 .c10 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c10 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c4 {
@@ -1850,6 +1862,10 @@ exports[`render failed state for form to add with multi option 1`] = `
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c11 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c5 {

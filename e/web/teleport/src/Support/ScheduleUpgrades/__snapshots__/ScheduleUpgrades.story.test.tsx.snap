@@ -352,6 +352,10 @@ exports[`render failed 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c9 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -814,6 +818,10 @@ exports[`render loaded 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c8 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -1268,6 +1276,10 @@ exports[`render processing 1`] = `
 .c8 .react-select--is-disabled .react-select__indicator,
 .c8 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c8 .react-select__input {
+  color: #FFFFFF;
 }
 
 <div

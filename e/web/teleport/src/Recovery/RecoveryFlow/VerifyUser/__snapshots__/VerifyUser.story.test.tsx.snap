@@ -349,6 +349,10 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 <form
   class="c0"
   width="512px"
@@ -1082,6 +1086,10 @@ exports[`render failed state form for authenticating with totp 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 <form
   class="c0"
   width="512px"
@@ -1582,6 +1590,10 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 <form
   class="c0"
   width="512px"
@@ -2039,6 +2051,10 @@ exports[`render form for authenticating with multi option 1`] = `
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c11 .react-select__input {
+  color: #FFFFFF;
 }
 
 <form
@@ -2716,6 +2732,10 @@ exports[`render form for authenticating with totp 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c11 .react-select__input {
+  color: #FFFFFF;
+}
+
 <form
   class="c0"
   width="512px"
@@ -3185,6 +3205,10 @@ exports[`render form for authenticating with webauthn 1`] = `
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c11 .react-select__input {
+  color: #FFFFFF;
 }
 
 <form

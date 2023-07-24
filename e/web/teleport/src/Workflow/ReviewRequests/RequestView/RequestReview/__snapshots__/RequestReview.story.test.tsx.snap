@@ -276,6 +276,10 @@ exports[`failed state 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c7 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c9 {
   box-sizing: border-box;
   max-width: 500px;
@@ -670,6 +674,10 @@ exports[`loaded state 1`] = `
 .c6 .react-select--is-disabled .react-select__indicator,
 .c6 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c6 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c8 {

@@ -1929,6 +1929,10 @@ exports[`loaded pending role based request state 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c30 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c32 {
   box-sizing: border-box;
   max-width: 500px;
@@ -2929,6 +2933,10 @@ exports[`loaded pending search based request state 1`] = `
 .c34 .react-select--is-disabled .react-select__indicator,
 .c34 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c34 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c36 {
