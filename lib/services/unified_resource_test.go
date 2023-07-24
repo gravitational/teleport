@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -15,6 +16,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
 
 func TestUnifiedResourceWatcher(t *testing.T) {
@@ -41,7 +43,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		WindowsDesktopGetter:  winSrv,
 	})
 	require.NoError(t, err)
-	t.Cleanup(w.Close)
+	t.Cleanup(func() { w.Close() })
 
 	// No resources expected initially.
 	res, err := w.GetUnifiedResources(ctx)
@@ -90,7 +92,33 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		res, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
 		return len(res) == len(expectedRes)
-	}, time.Second, time.Millisecond, "Timed out waiting for unified resources")
+	}, time.Second, time.Millisecond, "Timed out waiting for unified resources to be added")
+	assert.Empty(t, cmp.Diff(
+		expectedRes,
+		res,
+		cmpopts.EquateEmpty(),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		// Ignore order.
+		cmpopts.SortSlices(func(a, b types.ResourceWithLabels) bool { return a.GetName() < b.GetName() }),
+	))
+
+	// Update and remove some resources.
+	nodeUpdated := newNodeServer(t, "node1", "192.168.0.1:22", false /*tunnel*/)
+	_, err = presenceSrv.UpsertNode(ctx, nodeUpdated)
+	require.NoError(t, err)
+	err = presenceSrv.DeleteApplicationServer(ctx, defaults.Namespace, "app1-host-id", "app1")
+	require.NoError(t, err)
+
+	expectedRes = []types.ResourceWithLabels{nodeUpdated, db, win}
+	assert.Eventually(t, func() bool {
+		res, err = w.GetUnifiedResources(ctx)
+		require.NoError(t, err)
+		serverUpdated := slices.ContainsFunc(res, func(r types.ResourceWithLabels) bool {
+			node, ok := r.(types.Server)
+			return ok && node.GetAddr() == "192.168.0.1:22"
+		})
+		return len(res) == len(expectedRes) && serverUpdated
+	}, time.Second, time.Millisecond, "Timed out waiting for unified resources to be updated")
 	assert.Empty(t, cmp.Diff(
 		expectedRes,
 		res,

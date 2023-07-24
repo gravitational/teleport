@@ -155,8 +155,7 @@ func (c *UnifiedResourceCache) Close() error {
 	c.cancel()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.buf.Close()
-	return nil
+	return c.buf.Close()
 }
 
 // Clock returns clock used by this backend
@@ -388,8 +387,9 @@ type UnifiedResourceWatcher struct {
 	*unifiedResourceCollector
 }
 
-func (u *UnifiedResourceWatcher) Close() {
-	// DO NOT MERGE: implement
+func (u *UnifiedResourceWatcher) Close() error {
+	u.resourceWatcher.Close()
+	return u.unifiedResourceCollector.Close()
 }
 
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
@@ -406,14 +406,6 @@ func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context) ([]typ
 	}
 
 	return resources, nil
-}
-
-type unifiedResourceCollector struct {
-	UnifiedResourceWatcherConfig
-	current         *UnifiedResourceCache
-	lock            sync.RWMutex
-	initializationC chan struct{}
-	once            sync.Once
 }
 
 func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherConfig) (*UnifiedResourceWatcher, error) {
@@ -441,6 +433,22 @@ func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherCo
 		resourceWatcher:          watcher,
 		unifiedResourceCollector: collector,
 	}, nil
+}
+
+func keyOf(r types.Resource) []byte {
+	return backend.Key(prefix, r.GetMetadata().Namespace, r.GetName(), r.GetKind())
+}
+
+type unifiedResourceCollector struct {
+	UnifiedResourceWatcherConfig
+	current         *UnifiedResourceCache
+	lock            sync.RWMutex
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+func (u *unifiedResourceCollector) Close() error {
+	return u.current.Close()
 }
 
 func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
@@ -477,7 +485,7 @@ func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error 
 	nodes := make([]Item, 0)
 	for _, node := range newNodes {
 		nodes = append(nodes, Item{
-			Key:   backend.Key(prefix, node.GetNamespace(), node.GetName(), types.KindNode),
+			Key:   keyOf(node),
 			Value: node,
 		})
 	}
@@ -493,7 +501,7 @@ func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) er
 	dbs := make([]Item, 0)
 	for _, db := range newDbs {
 		dbs = append(dbs, Item{
-			Key:   backend.Key(prefix, db.GetNamespace(), db.GetName(), types.KindDatabaseServer),
+			Key:   keyOf(db),
 			Value: db,
 		})
 	}
@@ -510,7 +518,7 @@ func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
 	apps := make([]Item, 0)
 	for _, app := range newApps {
 		apps = append(apps, Item{
-			Key:   backend.Key(prefix, app.GetNamespace(), app.GetName(), types.KindApp),
+			Key:   keyOf(app),
 			Value: app,
 		})
 	}
@@ -527,7 +535,7 @@ func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) err
 	desktops := make([]Item, 0)
 	for _, desktop := range newDesktops {
 		desktops = append(desktops, Item{
-			Key:   backend.Key(prefix, desktop.GetMetadata().Namespace, desktop.GetName(), types.KindWindowsDesktop),
+			Key:   keyOf(desktop),
 			Value: desktop,
 		})
 	}
@@ -551,10 +559,10 @@ func (u *unifiedResourceCollector) processEventAndUpdateCurrent(ctx context.Cont
 	defer u.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
-		u.current.Delete(ctx, backend.Key(prefix, event.Resource.GetMetadata().Namespace, event.Resource.GetName(), event.Resource.GetKind()))
+		u.current.Delete(ctx, keyOf(event.Resource))
 	case types.OpPut:
 		u.current.Put(ctx, Item{
-			Key:   backend.Key(prefix, event.Resource.GetMetadata().Namespace, event.Resource.GetName(), event.Resource.GetKind()),
+			Key:   keyOf(event.Resource),
 			Value: event.Resource.(types.ResourceWithLabels),
 		})
 	default:

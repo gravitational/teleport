@@ -1385,6 +1385,12 @@ func (a *Server) Close() error {
 			errs = append(errs, err)
 		}
 	}
+
+	if a.unifiedResourceWatcher != nil {
+		if err := a.unifiedResourceWatcher.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	return trace.NewAggregate(errs...)
 }
 
