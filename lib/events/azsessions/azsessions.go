@@ -41,9 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// clientIDParam is the parameter in the fragment that specifies the optional client ID.
-const clientIDParam = "azure_client_id"
-
 // sessionContainerParam and inprogressContainerParam are the parameters in the
 // fragment that specify the containers to use for finalized session recordings
 // and in-progress data.
@@ -109,10 +106,6 @@ type Config struct {
 	// [defaultInprogressContainerName].
 	InprogressContainerName string
 
-	// ClientID, when set, defines the managed identity's client ID to use for
-	// authentication.
-	ClientID string
-
 	// Log is the logger to use. If unset, it will default to the global logger
 	// with a component of "azblob".
 	Log logrus.FieldLogger
@@ -146,7 +139,6 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	c.ServiceURL.Fragment = ""
 	c.ServiceURL.RawFragment = ""
 
-	c.ClientID = params.Get(clientIDParam)
 	c.SessionContainerName = params.Get(sessionContainerParam)
 	c.InprogressContainerName = params.Get(inprogressContainerParam)
 
@@ -174,21 +166,9 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var cred azcore.TokenCredential
-	if cfg.ClientID != "" {
-		c, err := azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
-			ID: azidentity.ClientID(cfg.ClientID),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err, "creating Azure managed identity credentials")
-		}
-		cred = c
-	} else {
-		c, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating default Azure credentials")
-		}
-		cred = c
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating Azure credentials")
 	}
 
 	ensureContainer := func(name string) (*container.Client, error) {

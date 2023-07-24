@@ -80,8 +80,7 @@ func (a AuthMode) Check() error {
 type Config struct {
 	ConnString string `json:"conn_string"`
 
-	AuthMode      AuthMode `json:"auth_mode"`
-	AzureClientID string   `json:"azure_client_id"`
+	AuthMode AuthMode `json:"auth_mode"`
 
 	ChangeFeedPollInterval types.Duration `json:"change_feed_poll_interval"`
 	ChangeFeedBatchSize    int            `json:"change_feed_batch_size"`
@@ -94,10 +93,6 @@ type Config struct {
 func (c *Config) CheckAndSetDefaults() error {
 	if err := c.AuthMode.Check(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if c.AzureClientID != "" && c.AuthMode != AzureADAuth {
-		return trace.BadParameter("azure client ID requires azure auth mode")
 	}
 
 	if c.ChangeFeedPollInterval < 0 {
@@ -159,7 +154,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	log := logrus.WithField(trace.Component, componentName)
 
 	if cfg.AuthMode == AzureADAuth {
-		bc, err := pgcommon.AzureBeforeConnect(cfg.AzureClientID, log)
+		bc, err := pgcommon.AzureBeforeConnect(log)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
