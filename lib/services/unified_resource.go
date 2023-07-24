@@ -463,6 +463,11 @@ func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Cont
 		return trace.Wrap(err)
 	}
 
+	err = u.getAndUpdateKubes(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = u.getAndUpdateApps(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -506,6 +511,22 @@ func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) er
 		})
 	}
 	return u.current.PutRange(ctx, dbs)
+}
+
+// getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
+func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error {
+	newKubes, err := u.KubernetesClusterGetter.GetKubernetesClusters(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	kubes := make([]Item, 0)
+	for _, kube := range newKubes {
+		kubes = append(kubes, Item{
+			Key:   keyOf(kube),
+			Value: kube,
+		})
+	}
+	return u.current.PutRange(ctx, kubes)
 }
 
 // getAndUpdateApps will get application servers and update the current tree with each AppServer
@@ -577,6 +598,7 @@ func (u *unifiedResourceCollector) resourceKinds() []types.WatchKind {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindKubernetesCluster},
 	}
 }
 
