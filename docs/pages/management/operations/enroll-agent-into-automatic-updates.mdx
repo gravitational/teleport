@@ -34,7 +34,7 @@ updates.
 ## Requirements
 
 <Tabs>
-<TabItem label="Self-hosted">
+<TabItem label="Self-hosted" scope="enterprise">
 - A Teleport Enterprise agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
@@ -42,7 +42,7 @@ updates.
   already followed [this guide](./self-hosted-automatic-agent-updates.mdx) and
   know your version server URL and release channel
 </TabItem>
-<TabItem label="Teleport Cloud">
+<TabItem label="Teleport Cloud" scope="cloud">
 - A Teleport Enterprise agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
@@ -81,18 +81,27 @@ Server ID                            Hostname        Services Version Upgrader
 
 </Details>
 
-<Tabs dropdownCaption="Cluster Type" dropdownSelected="Self-hosted">
-<TabItem label="systemd" options="Self-hosted">
+<Tabs dropdownView dropdownCaption="Cluster Type">
+<TabItem label="Self-hosted" scope="enterprise">
+<Tabs>
+<TabItem label="systemd" scope="enterprise">
 
-Confirm you have the Teleport Enterprise edition installed.
+### Step 1/3. Ensure the Teleport repository is added and Teleport Enterprise is installed
 
+To verify if the Teleport repository was added to the system, check if either of the follow files exist:
 ```code
-$ teleport version
-Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+$ ls /etc/apt/sources.list.d/teleport.list
+# or
+$ ls /etc/yum.repos.d/teleport.repo
 ```
 
-Create the upgrade configuration directory:
+If the Teleport repository is not found, add the appropriate repository and reinstall Teleport:
 
+(!docs/pages/includes/cloud/install-linux-cloud.mdx!)
+
+### Step 2/3. Configure the updater
+
+Create the upgrade configuration directory:
 ```code
 $ sudo mkdir -p /etc/teleport-upgrade.d/
 ```
@@ -117,16 +126,9 @@ $ echo <Var name="version-server-url/path" />/<Var name="release-channel" /> | s
 Make sure not to include `https://` as a prefix to the server address.
 </Admonition>
 
-Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
+### Step 3/3. Verify updater is properly configured
 
-```code
-$ sudo apt install teleport-ent-updater
-# or
-$ sudo yum install teleport-ent-updater
-```
-
-Finally, verify that the updater can see your version endpoint:
-
+Verify that the updater can see your version endpoint by checking for updates:
 ```code
 $ sudo teleport-upgrade dry-run
 ```
@@ -146,8 +148,7 @@ not be exported yet.
 </Admonition>
 
 </TabItem>
-
-<TabItem label="teleport-kube-agent chart" options="Self-hosted">
+<TabItem label="teleport-kube-agent chart" scope="enterprise">
 
 Confirm you are using the Teleport Enterprise image. The `enterprise` value setting
 should have been set to `true` for the Helm chart installation.
@@ -182,14 +183,28 @@ $ kubectl logs <your-agent-release>-updater
 ```
 
 </TabItem>
-<TabItem label="systemd " options="Teleport Cloud">
+</Tabs>
+</TabItem>
 
-Confirm you have the Teleport Enterprise edition installed.
+<TabItem label="Teleport Cloud" scope="cloud">
+<Tabs>
+<TabItem label="systemd" scope="cloud">
 
+
+### Step 1/3. Ensure the Teleport repository is added and Teleport Enterprise is installed
+
+To verify if the Teleport repository was added to the system, check if either of the follow files exist:
 ```code
-$ teleport version
-Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+$ ls /etc/apt/sources.list.d/teleport.list
+# or
+$ ls /etc/yum.repos.d/teleport.repo
 ```
+
+If the Teleport repository is not found, add the appropriate repository and reinstall Teleport:
+
+(!docs/pages/includes/cloud/install-linux-cloud.mdx!)
+
+### Step 2/3. Configure the updater
 
 If you changed the agent user to run as non-root, create
 `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
@@ -201,16 +216,9 @@ $ sudo touch /etc/teleport-upgrade.d/schedule
 $ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
 ```
 
-Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
+### Step 3/3. Verify updater is properly configured
 
-```code
-$ sudo apt install teleport-ent-updater
-# or
-$ sudo yum install teleport-ent-updater
-```
-
-Finally, verify that the updater can see your version endpoint:
-
+Verify that the updater can see your version endpoint by checking for updates:
 ```code
 $ sudo teleport-upgrade dry-run
 ```
@@ -230,7 +238,7 @@ not be exported yet.
 </Admonition>
 
 </TabItem>
-<TabItem label="teleport-kube-agent chart " options="Teleport Cloud">
+<TabItem label="teleport-kube-agent chart" scope="cloud">
 
 Confirm you are using the Teleport Enterprise image. The `enterprise` value setting
 should have been set to `true` for the Helm chart installation.
@@ -262,6 +270,8 @@ $ kubectl logs <your-agent-release>-updater
 2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
 ```
 
+</TabItem>
+</Tabs>
 </TabItem>
 </Tabs>
 
