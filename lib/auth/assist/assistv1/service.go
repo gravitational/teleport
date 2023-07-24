@@ -98,7 +98,7 @@ func (a *Service) CreateAssistantConversation(ctx context.Context, req *assist.C
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User.GetName() != req.GetUsername() {
+	if !authz.IsLocalUserAction(*authCtx, req.GetUsername()) {
 		return nil, trace.AccessDenied("user %q is not allowed to create conversation for user %q", authCtx.User.GetName(), req.Username)
 	}
 
@@ -113,7 +113,7 @@ func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assi
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User.GetName() != req.GetUsername() {
+	if !authz.IsLocalUserAction(*authCtx, req.GetUsername()) {
 		return nil, trace.AccessDenied("user %q is not allowed to update conversation for user %q", authCtx.User.GetName(), req.Username)
 	}
 
@@ -132,7 +132,7 @@ func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.Get
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User.GetName() != req.GetUsername() {
+	if !authz.IsLocalUserAction(*authCtx, req.GetUsername()) {
 		return nil, trace.AccessDenied("user %q is not allowed to list conversations for user %q", authCtx.User.GetName(), req.GetUsername())
 	}
 
@@ -147,7 +147,7 @@ func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.D
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User.GetName() != req.GetUsername() {
+	if !authz.IsLocalUserAction(*authCtx, req.GetUsername()) {
 		return nil, trace.AccessDenied("user %q is not allowed to delete conversation for user %q", authCtx.User.GetName(), req.GetUsername())
 	}
 
@@ -161,7 +161,7 @@ func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssis
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User.GetName() != req.GetUsername() {
+	if !authz.IsLocalUserAction(*authCtx, req.GetUsername()) {
 		return nil, trace.AccessDenied("user %q is not allowed to get messages for user %q", authCtx.User.GetName(), req.GetUsername())
 	}
 
@@ -176,7 +176,7 @@ func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.Create
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User.GetName() != req.GetUsername() {
+	if !authz.IsLocalUserAction(*authCtx, req.GetUsername()) {
 		return nil, trace.AccessDenied("user %q is not allowed to create message for user %q", authCtx.User.GetName(), req.GetUsername())
 	}
 
