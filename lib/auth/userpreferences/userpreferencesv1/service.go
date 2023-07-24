@@ -60,6 +60,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	return &Service{
 		backend:    cfg.Backend,
 		authorizer: cfg.Authorizer,
+		log:        cfg.Logger,
 	}, nil
 }
 
