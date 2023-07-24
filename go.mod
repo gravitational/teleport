@@ -32,21 +32,21 @@ require (
 	github.com/alicebob/miniredis/v2 v2.30.4
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.44.300
+	github.com/aws/aws-sdk-go v1.44.306
 	github.com/aws/aws-sdk-go-v2 v1.19.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.28
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.27
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.30
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.5
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.67
-	github.com/aws/aws-sdk-go-v2/service/athena v1.30.2
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.72
+	github.com/aws/aws-sdk-go-v2/service/athena v1.30.4
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.20.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.105.1
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.28.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.54.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.46.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.37.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.14
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.23.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.3
@@ -158,7 +158,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.16.0
 	go.opentelemetry.io/otel/trace v1.16.0
 	go.opentelemetry.io/proto/otlp v1.0.0
-	golang.org/x/crypto v0.11.0 // replaced
+	golang.org/x/crypto v0.11.1-0.20230710195754-64e0e99383c8
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
 	golang.org/x/mod v0.12.0
 	golang.org/x/net v0.12.0
@@ -180,15 +180,15 @@ require (
 	gopkg.in/square/go-jose.v2 v2.6.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.27.3
+	k8s.io/api v0.27.4
 	k8s.io/apiextensions-apiserver v0.27.3
-	k8s.io/apimachinery v0.27.3
+	k8s.io/apimachinery v0.27.4
 	k8s.io/apiserver v0.27.3
-	k8s.io/cli-runtime v0.27.3
-	k8s.io/client-go v0.27.3
-	k8s.io/component-base v0.27.3
+	k8s.io/cli-runtime v0.27.4
+	k8s.io/client-go v0.27.4
+	k8s.io/component-base v0.27.4
 	k8s.io/klog/v2 v2.100.1
-	k8s.io/kubectl v0.27.3
+	k8s.io/kubectl v0.27.4
 	sigs.k8s.io/controller-runtime v0.15.0
 	sigs.k8s.io/controller-tools v0.12.0
 	sigs.k8s.io/yaml v1.3.0
@@ -224,13 +224,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.35 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.36 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.26 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.27 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.14.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.11 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.29 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.29 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.29 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.13 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -361,7 +361,7 @@ require (
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
-	github.com/rogpeppe/go-internal v1.10.0 // indirect
+	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
@@ -401,9 +401,9 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230629202037-9506855d4529
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
-	k8s.io/component-helpers v0.27.3 // indirect
+	k8s.io/component-helpers v0.27.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
-	k8s.io/metrics v0.27.3 // indirect
+	k8s.io/metrics v0.27.4 // indirect
 	k8s.io/utils v0.0.0-20230209194617-a36077c30491 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.13.2 // indirect
@@ -428,6 +428,4 @@ replace (
 	// otherwise tests fail with a data race detection.
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
-	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
-	golang.org/x/crypto => github.com/gravitational/crypto v0.6.0-1
 )
