@@ -206,7 +206,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 	// some are marked special and break the typical tool execution loop; those are handled here instead.
 	switch tool := tool.(type) {
 	case *commandExecutionTool:
-		input, err := tool.parseInput(action.Input)
+		completion, err := tool.parseInput(action.Input)
 		if err != nil {
 			action := &AgentAction{
 				Action: actionException,
@@ -217,17 +217,20 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 			return stepOutput{action: action, observation: action.Input}, nil
 		}
 
-		completion := &CompletionCommand{
-			Command: input.Command,
-			Nodes:   input.Nodes,
-			Labels:  input.Labels,
-		}
-
 		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	case *accessRequestCreateTool:
-		// todo (joel): tool input handling
-		request := &AccessRequest{}
+		request, err := tool.parseInput(action.Input)
+		if err != nil {
+			action := &AgentAction{
+				Action: actionException,
+				Input:  observationPrefix + "Invalid or incomplete response",
+				Log:    thoughtPrefix + err.Error(),
+			}
+
+			return stepOutput{action: action, observation: action.Input}, nil
+		}
+
 		return stepOutput{finish: &agentFinish{output: request}}, nil
 	default:
 		runOut, err := tool.Run(ctx, *a.toolCtx, action.Input)

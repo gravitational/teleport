@@ -43,17 +43,6 @@ type Tool interface {
 }
 type commandExecutionTool struct{}
 
-type commandExecutionToolInput struct {
-	// Command is a unix command to execute.
-	Command string `json:"command"`
-
-	// Nodes is a list of hostnames to execute the command on.
-	Nodes []string `json:"nodes"`
-
-	// Labels is a list of labels specifying node groups to execute the command on.
-	Labels []Label `json:"labels"`
-}
-
 func (c *commandExecutionTool) Name() string {
 	return "Command Execution"
 }
@@ -83,8 +72,8 @@ func (c *commandExecutionTool) Run(_ context.Context, _ ToolContext, _ string) (
 
 // parseInput is called in a special case if the planned tool is commandExecutionTool.
 // This is because commandExecutionTool is handled differently from most other tools and forcibly terminates the thought loop.
-func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInput, error) {
-	output, err := parseJSONFromModel[commandExecutionToolInput](input)
+func (*commandExecutionTool) parseInput(input string) (*CompletionCommand, error) {
+	output, err := parseJSONFromModel[CompletionCommand](input)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +157,29 @@ func (*accessRequestCreateTool) Run(ctx context.Context, toolCtx ToolContext, in
 	//
 	// In addition, treating it as a Tool interface item simplifies the display and prompt assembly logic significantly.
 	return "", trace.NotImplemented("not implemented")
+}
+
+func (*accessRequestCreateTool) parseInput(input string) (*AccessRequest, error) {
+	output, err := parseJSONFromModel[AccessRequest](input)
+	if err != nil {
+		return nil, err
+	}
+
+	if output.Reason == "" {
+		return nil, &invalidOutputError{
+			coarse: "access request create: missing reason",
+			detail: "a reason must be specified for the access request",
+		}
+	}
+
+	if len(output.Roles) == 0 {
+		return nil, &invalidOutputError{
+			coarse: "access request create: no requested roles",
+			detail: "an access request must be for one or more roles",
+		}
+	}
+
+	return &output, nil
 }
 
 // TODO: investigate integrating this into embeddingRetrievalTool
