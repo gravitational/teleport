@@ -32,6 +32,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -507,12 +508,33 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 				},
 			},
 		}); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		err = trail.FromGRPC(err)
+		// If connecting to a host in a leaf cluster and MFA failed check to see
+		// if the leaf cluster requires MFA. If it doesn't return an error indicating
+		// that MFA was not required instead of the error received from the root cluster.
+		if t.sessionData.ClusterName != tc.SiteName {
+			check, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
+				Target: &authproto.IsMFARequiredRequest_Node{
+					Node: &authproto.NodeLogin{
+						Node:  t.sessionData.ServerID,
+						Login: tc.HostLogin,
+					},
+				},
+			})
+			if err != nil {
+				return nil, trace.Wrap(client.MFARequiredUnknown(err))
+			}
+			if !check.Required {
+				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			}
+		}
+
+		return nil, trail.FromGRPC(err)
 	}
 
 	challenge := resp.GetMFAChallenge()
@@ -533,7 +555,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 			},
 		})
 		if err != nil {
-			return nil, trace.Wrap(client.MFARequiredUnknown(err))
+			return nil, trace.Wrap(client.MFARequiredUnknown(trail.FromGRPC(err)))
 		}
 
 		if !mfaRequiredResp.Required {
@@ -551,12 +573,12 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 
 	err = stream.Send(&authproto.UserSingleUseCertsRequest{Request: &authproto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: assertion}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	certResp := resp.GetCert()
@@ -783,7 +805,10 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *clien
 		t.sessionData.ServerHostname,
 		tc, modules.GetModules().IsBoringBinary())
 	if err != nil {
-		return nil, trace.NewAggregate(err, conn.Close())
+		// The close error is ignored instead of using [trace.NewAggregate] because
+		// aggregate errors do not allow error inspection with things like [trace.IsAccessDenied].
+		_ = conn.Close()
+		return nil, trace.Wrap(err)
 	}
 
 	clt.ProxyPublicAddr = t.proxyPublicAddr

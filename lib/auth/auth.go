@@ -3364,41 +3364,6 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 	return session, trace.Wrap(err)
 }
 
-// GenerateToken generates multi-purpose authentication token.
-// Deprecated: Use CreateToken or UpdateToken.
-// DELETE IN 14.0.0, replaced by methods above (strideynet).
-func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	ttl := defaults.ProvisioningTokenTTL
-	if req.TTL != 0 {
-		ttl = req.TTL.Get()
-	}
-	expires := a.clock.Now().UTC().Add(ttl)
-
-	if req.Token == "" {
-		token, err := utils.CryptoRandomHex(TokenLenBytes)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		req.Token = token
-	}
-
-	token, err := types.NewProvisionToken(req.Token, req.Roles, expires)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if len(req.Labels) != 0 {
-		meta := token.GetMetadata()
-		meta.Labels = req.Labels
-		token.SetMetadata(meta)
-	}
-
-	if err := a.CreateToken(ctx, token); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return req.Token, nil
-}
-
 // ExtractHostID returns host id based on the hostname
 func ExtractHostID(hostName string, clusterName string) (string, error) {
 	suffix := "." + clusterName
@@ -5370,63 +5335,6 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 		return trace.Wrap(err)
 	}
 	log.Infof("Successfully added locally usable additional trusted keys to %s CA.", ca.GetType())
-	return nil
-}
-
-// createSelfSignedCA creates a new self-signed CA and writes it to the
-// backend, with the type and clusterName given by the argument caID.
-func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) error {
-	keySet, err := newKeySet(ctx, a.keyStore, caID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        caID.Type,
-		ClusterName: caID.DomainName,
-		ActiveKeys:  keySet,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.CreateCertAuthority(ctx, ca); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
-// auth server which are not currently used in any CAs.
-func (a *Server) deleteUnusedKeys(ctx context.Context) error {
-	clusterName, err := a.Services.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var activeKeys [][]byte
-	for _, caType := range types.CertAuthTypes {
-		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
-		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
-			for _, sshKeyPair := range keySet.SSH {
-				activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
-			}
-			for _, tlsKeyPair := range keySet.TLS {
-				activeKeys = append(activeKeys, tlsKeyPair.Key)
-			}
-			for _, jwtKeyPair := range keySet.JWT {
-				activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
-			}
-		}
-	}
-	if err := a.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
-		// Key deletion is best-effort, log a warning if it fails and carry on.
-		// We don't want to prevent a CA rotation, which may be necessary in
-		// some cases where this would fail.
-		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
-	}
 	return nil
 }
 
