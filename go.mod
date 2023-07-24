@@ -158,7 +158,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.16.0
 	go.opentelemetry.io/otel/trace v1.16.0
 	go.opentelemetry.io/proto/otlp v1.0.0
-	golang.org/x/crypto v0.11.0 // replaced
+	golang.org/x/crypto v0.11.1-0.20230710195754-64e0e99383c8
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
 	golang.org/x/mod v0.12.0
 	golang.org/x/net v0.12.0
@@ -428,6 +428,4 @@ replace (
 	// otherwise tests fail with a data race detection.
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
-	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
-	golang.org/x/crypto => github.com/gravitational/crypto v0.6.0-1
 )
