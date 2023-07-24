@@ -32,7 +32,7 @@ import (
 
 // ServiceConfig holds configuration options for the user preferences service.
 type ServiceConfig struct {
-	Backend    services.UserPreferences
+	Backend    services.UserPreferencesBackend
 	Authorizer authz.Authorizer
 	Logger     *logrus.Entry
 }
@@ -41,7 +41,7 @@ type ServiceConfig struct {
 type Service struct {
 	userpreferences.UnimplementedUserPreferencesServiceServer
 
-	backend    services.UserPreferences
+	backend    services.UserPreferencesBackend
 	authorizer authz.Authorizer
 	log        *logrus.Entry
 }
@@ -71,11 +71,9 @@ func (a *Service) GetUserPreferences(ctx context.Context, req *userpreferences.G
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User.GetName() != req.GetUsername() {
-		return nil, trace.AccessDenied("user %q is not allowed to access preferences for user %q", authCtx.User.GetName(), req.Username)
-	}
+	username := authCtx.User.GetName()
 
-	return a.backend.GetUserPreferences(ctx, req)
+	return a.backend.GetUserPreferences(ctx, username, req)
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
@@ -85,9 +83,7 @@ func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreference
 		return nil, trace.Wrap(err)
 	}
 
-	if authCtx.User.GetName() != req.GetUsername() {
-		return nil, trace.AccessDenied("user %q is not allowed to access preferences for user %q", authCtx.User.GetName(), req.Username)
-	}
+	username := authCtx.User.GetName()
 
-	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, req))
+	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req))
 }

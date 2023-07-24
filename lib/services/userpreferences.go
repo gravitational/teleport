@@ -31,3 +31,11 @@ type UserPreferences interface {
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
 }
+
+// UserPreferencesBackend is the database interface for managing user preferences.
+type UserPreferencesBackend interface {
+	// GetUserPreferences returns the user preferences for a given user.
+	GetUserPreferences(ctx context.Context, username string, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error)
+	// UpsertUserPreferences creates or updates user preferences for a given username.
+	UpsertUserPreferences(ctx context.Context, username string, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+}

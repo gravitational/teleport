@@ -300,7 +300,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
-		UserPreferences:         cfg.UserPreferences,
+		UserPreferencesBackend:  cfg.UserPreferences,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -416,7 +416,7 @@ type Services struct {
 	services.AccessLists
 	services.Assistant
 	services.Embeddings
-	services.UserPreferences
+	services.UserPreferencesBackend
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -5368,13 +5368,13 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 
 // GetUserPreferences returns the user preferences for a given user.
 func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
-	resp, err := a.Services.GetUserPreferences(ctx, request)
+	resp, err := a.Services.GetUserPreferences(ctx, "", request)
 	return resp, trace.Wrap(err)
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
 func (a *Server) UpsertUserPreferences(ctx context.Context, request *userpreferencesv1.UpsertUserPreferencesRequest) error {
-	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, request))
+	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, "", request))
 }
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it

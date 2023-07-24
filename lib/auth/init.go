@@ -152,7 +152,7 @@ type InitConfig struct {
 	Assist services.Assistant
 
 	// UserPreferences is a service that manages user preferences.
-	UserPreferences services.UserPreferences
+	UserPreferences services.UserPreferencesBackend
 
 	// Roles is a set of roles to create
 	Roles []types.Role
