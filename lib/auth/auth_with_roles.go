@@ -236,7 +236,7 @@ func (a *ServerWithRoles) isLocalOrRemoteServerAction() bool {
 // whether any of the given roles match the role set.
 func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	for _, role := range roles {
-		if HasBuiltinRole(a.context, string(role)) {
+		if authz.HasBuiltinRole(a.context, string(role)) {
 			return true
 		}
 	}
@@ -245,15 +245,11 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 
 // HasBuiltinRole checks if the identity is a builtin role with the matching
 // name.
+// Deprecated: use authz.HasBuiltinRole instead.
 func HasBuiltinRole(authContext authz.Context, name string) bool {
-	if _, ok := authContext.Identity.(authz.BuiltinRole); !ok {
-		return false
-	}
-	if !authContext.Checker.HasRole(name) {
-		return false
-	}
-
-	return true
+	// TODO(jakule): This function can be removed once teleport.e is updated
+	// to use authz.HasBuiltinRole.
+	return authz.HasBuiltinRole(authContext, name)
 }
 
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
@@ -5605,8 +5601,8 @@ func (a *ServerWithRoles) checkAccessToNode(node types.Server) error {
 	// In addition, allow proxy (and remote proxy) to access all nodes for its
 	// smart resolution address resolution. Once the smart resolution logic is
 	// moved to the auth server, this logic can be removed.
-	builtinRole := HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
-		HasBuiltinRole(a.context, string(types.RoleProxy)) ||
+	builtinRole := authz.HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
+		authz.HasBuiltinRole(a.context, string(types.RoleProxy)) ||
 		HasRemoteBuiltinRole(a.context, string(types.RoleRemoteProxy))
 
 	if builtinRole {
