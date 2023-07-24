@@ -52,8 +52,8 @@ func NewAgent(toolCtx *ToolContext) *Agent {
 			&embeddingRetrievalTool{},
 			&accessRequestListRequestableRolesTool{},
 			&accessRequestCreateTool{},
-			&accessRequestListTool{},
-			&accessRequestDeleteTool{},
+			//&accessRequestListTool{},
+			//&accessRequestDeleteTool{},
 		},
 		toolCtx: toolCtx,
 	}

@@ -148,6 +148,7 @@ func (*accessRequestCreateTool) Name() string {
 
 func (*accessRequestCreateTool) Description() string {
 	return fmt.Sprintf(`Create an access request with a set of roles, a reason, and a set of suggested reviewers.
+You must get this information from the conversations context or by asking the user for clarification.
 The input must be a JSON object with the following schema:
 
 %vjson
@@ -161,7 +162,12 @@ The input must be a JSON object with the following schema:
 }
 
 func (*accessRequestCreateTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
-	return "Cannot create access requests at the moment.", nil
+	// This is stubbed because accessRequestCreateTool is handled specially.
+	// This is because execution of this tool breaks the loop and returns a suggestion UI prompt.
+	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
+	//
+	// In addition, treating it as a Tool interface item simplifies the display and prompt assembly logic significantly.
+	return "", trace.NotImplemented("not implemented")
 }
 
 // TODO: investigate integrating this into embeddingRetrievalTool
