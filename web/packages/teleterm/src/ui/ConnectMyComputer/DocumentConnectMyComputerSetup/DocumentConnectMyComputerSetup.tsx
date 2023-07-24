@@ -88,34 +88,39 @@ function AgentSetup() {
   const { rootClusterUri } = useWorkspaceContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
 
-  const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
-    useCallback(async () => {
-      retryWithRelogin(ctx, rootClusterUri, async () => {
-        let certsReloaded = false;
+  const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
+    useAsync(
+      useCallback(async () => {
+        retryWithRelogin(ctx, rootClusterUri, async () => {
+          let certsReloaded = false;
 
-        try {
-          const response = await ctx.connectMyComputerService.createRole(
-            rootClusterUri
-          );
-          certsReloaded = response.certsReloaded;
-        } catch (error) {
-          if ((error.message as string)?.includes('access denied')) {
-            throw new Error(
-              'Access denied. Contact your administrator for permissions to manage users and roles.'
+          try {
+            const response = await ctx.connectMyComputerService.createRole(
+              rootClusterUri
             );
+            certsReloaded = response.certsReloaded;
+          } catch (error) {
+            if ((error.message as string)?.includes('access denied')) {
+              throw new Error(
+                'Access denied. Contact your administrator for permissions to manage users and roles.'
+              );
+            }
+            throw error;
           }
-          throw error;
-        }
 
-        // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
-        // of the cluster to also update the role list in the UI.
-        if (certsReloaded) {
-          await ctx.clustersService.syncRootCluster(rootClusterUri);
-        }
-      });
-    }, [ctx, rootClusterUri])
-  );
-  const [downloadAgentAttempt, runDownloadAgentAttempt] = useAsync(
+          // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
+          // of the cluster to also update the role list in the UI.
+          if (certsReloaded) {
+            await ctx.clustersService.syncRootCluster(rootClusterUri);
+          }
+        });
+      }, [ctx, rootClusterUri])
+    );
+  const [
+    downloadAgentAttempt,
+    runDownloadAgentAttempt,
+    setDownloadAgentAttempt,
+  ] = useAsync(
     useCallback(
       () => ctx.connectMyComputerService.downloadAgent(),
       [ctx.connectMyComputerService]
@@ -138,7 +143,7 @@ function AgentSetup() {
   const steps = [
     {
       name: 'Setting up the role',
-      attempt: setUpRolesAttempt,
+      attempt: createRoleAttempt,
     },
     {
       name: 'Downloading the agent',
@@ -155,9 +160,13 @@ function AgentSetup() {
   ];
 
   const runSteps = useCallback(async () => {
-    // uncomment when implemented
+    setCreateRoleAttempt(makeEmptyAttempt());
+    setDownloadAgentAttempt(makeEmptyAttempt());
+    setGenerateConfigFileAttempt(makeEmptyAttempt());
+    setJoinClusterAttempt(makeEmptyAttempt());
+
     const actions = [
-      runSetUpRolesAttempt,
+      runCreateRoleAttempt,
       runDownloadAgentAttempt,
       runGenerateConfigFileAttempt,
       // runJoinClusterAttempt,
@@ -169,7 +178,11 @@ function AgentSetup() {
       }
     }
   }, [
-    runSetUpRolesAttempt,
+    setCreateRoleAttempt,
+    setDownloadAgentAttempt,
+    setGenerateConfigFileAttempt,
+    setJoinClusterAttempt,
+    runCreateRoleAttempt,
     runDownloadAgentAttempt,
     runGenerateConfigFileAttempt,
     runJoinClusterAttempt,
@@ -178,7 +191,7 @@ function AgentSetup() {
   useEffect(() => {
     if (
       [
-        setUpRolesAttempt,
+        createRoleAttempt,
         downloadAgentAttempt,
         generateConfigFileAttempt,
         joinClusterAttempt,
@@ -190,7 +203,7 @@ function AgentSetup() {
     downloadAgentAttempt,
     generateConfigFileAttempt,
     joinClusterAttempt,
-    setUpRolesAttempt,
+    createRoleAttempt,
     runSteps,
   ]);
 
