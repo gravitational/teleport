@@ -1,0 +1,24 @@
+{{/* GKE Autopilot clusters forbid users from impersonating system:masters
+Groups. This is a security measure released under the GKE Warden authz module
+https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-security#built-in-security
+Because of this limitation, users are unable to specify kubernetes_groups=["system:masters"]
+in Teleport, so we create a Kubernetes Group called cluster-admin when we detect
+that the underlying cluster is a GKE cluster.  */}}
+{{- if or (contains "-gke." .Capabilities.KubeVersion.Version) (.Values.adminClusterRolebinding.create) -}}
+{{- $groupName := (coalesce .Values.adminClusterRolebinding.name "cluster-admin") }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-k8s-cluster-group
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+# This is the built-in cluster-admin role that exists in all K8S clusters.
+# We are binding the cluster-admin role to the cluster-admin group.
+# See https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: {{ $groupName }}
+{{- end }}

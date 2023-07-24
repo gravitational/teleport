@@ -1,0 +1,35 @@
+suite: AdminClusterRoleBinding
+templates:
+  - admin_clusterrolebinding.yaml
+tests:
+  - it: don't generate a admin cluster role binding when adminClusterRolebinding.create is false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: generate a admin cluster role binding when adminClusterRolebinding.create is true
+    set:
+      adminClusterRolebinding:
+        create: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: subjects[0].name
+          value: cluster-admin
+      - matchSnapshot: {}
+  - it: generate a admin cluster role binding when adminClusterRolebinding.create is true and adminClusterRolebinding.name is set
+    set:
+      adminClusterRolebinding:
+        create: true
+        name: my-cluster-admin
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: subjects[0].name
+          value: my-cluster-admin
+      - matchSnapshot: {}

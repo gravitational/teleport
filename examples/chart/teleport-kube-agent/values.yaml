@@ -201,6 +201,15 @@ storage:
   storageClassName: ""
   requests: 128Mi
 
+# Settings for configuring an cluster admin role binding.
+# This is useful for granting cluster admin permissions to a Kubernetes Group
+# other than the default "system:masters" group.
+# GKE Autopilot clusters forbid using the "system:masters" group for impersonation
+# and require a custom group to be used instead.
+adminClusterRolebinding:
+  create: false
+  name: "cluster-admin"
+
 ################################################################
 # Values that you shouldn't need to change.
 ################################################################
