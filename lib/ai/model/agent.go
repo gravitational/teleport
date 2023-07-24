@@ -83,7 +83,7 @@ type AgentAction struct {
 // agentFinish is an event type representing the decision to finish a thought
 // loop and return a final text answer to the user.
 type agentFinish struct {
-	// output must be Message, StreamingMessage or CompletionCommand
+	// output must be Message, StreamingMessage, CompletionCommand or AccessRequest.
 	output any
 }
 
@@ -202,7 +202,10 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		return stepOutput{action: action, observation: action.Input}, nil
 	}
 
-	if tool, ok := tool.(*commandExecutionTool); ok {
+	// Here we switch on the tool type because even though all tools are presented as equal to the LLM
+	// some are marked special and break the typical tool execution loop; those are handled here instead.
+	switch tool := tool.(type) {
+	case *commandExecutionTool:
 		input, err := tool.parseInput(action.Input)
 		if err != nil {
 			action := &AgentAction{
@@ -222,13 +225,18 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 
 		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
+	case *accessRequestCreateTool:
+		// todo (joel): tool input handling
+		request := &AccessRequest{}
+		return stepOutput{finish: &agentFinish{output: request}}, nil
+	default:
+		runOut, err := tool.Run(ctx, *a.toolCtx, action.Input)
+		if err != nil {
+			return stepOutput{}, trace.Wrap(err)
+		}
+		return stepOutput{action: action, observation: runOut}, nil
 	}
 
-	runOut, err := tool.Run(ctx, *a.toolCtx, action.Input)
-	if err != nil {
-		return stepOutput{}, trace.Wrap(err)
-	}
-	return stepOutput{action: action, observation: runOut}, nil
 }
 
 func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, *agentFinish, error) {

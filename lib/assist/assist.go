@@ -397,6 +397,8 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		// To take this command summary into account, we note the history might
 		// be stale.
 		c.potentiallyStaleHistory = true
+	case *model.AccessRequest:
+		// todo (joel): handle ui flow
 	default:
 		return nil, trace.Errorf("unknown message type: %T", message)
 	}

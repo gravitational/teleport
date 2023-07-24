@@ -44,9 +44,16 @@ type Label struct {
 	Value string `json:"value"`
 }
 
-// CompletionCommand represents a command returned by OpenAI's completion API.
+// CompletionCommand represents a command suggestion returned by OpenAI's completion API.
 type CompletionCommand struct {
 	Command string   `json:"command,omitempty"`
 	Nodes   []string `json:"nodes,omitempty"`
 	Labels  []Label  `json:"labels,omitempty"`
+}
+
+// CompletionRequest represents an access request suggestion returned by OpenAI's completion API.
+type AccessRequest struct {
+	Roles              []string `json:"roles"`
+	Reason             string   `json:"reason"`
+	SuggestedReviewers []string `json:"suggested_reviewers"`
 }
