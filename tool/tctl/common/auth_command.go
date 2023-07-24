@@ -15,9 +15,11 @@
 package common
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -76,6 +78,7 @@ type AuthCommand struct {
 	signOverwrite              bool
 	password                   string
 	caType                     string
+	streamTarfile              bool
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -124,6 +127,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
 	a.authSign.Flag("proxy", `Address of the Teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
 	a.authSign.Flag("overwrite", "Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.").BoolVar(&a.signOverwrite)
+	a.authSign.Flag("tar", "Create a tarball of the resulting certificates and stream to stdout.").BoolVar(&a.streamTarfile)
 	// --kube-cluster was an unfortunately chosen flag name, before teleport
 	// supported kubernetes_service and registered kubernetes clusters that are
 	// not trusted teleport clusters.
@@ -694,6 +698,45 @@ client_encryption_options:
 `))
 )
 
+type TarWriter struct {
+	tarball *tar.Writer
+}
+
+func NewTarWriter(out io.Writer) *TarWriter {
+	return &TarWriter{
+		tarball: tar.NewWriter(out),
+	}
+}
+
+func (t *TarWriter) Remove(_ string) error {
+	return nil
+}
+
+func (t *TarWriter) Stat(_ string) (fs.FileInfo, error) {
+	return nil, os.ErrNotExist
+}
+
+func (t *TarWriter) Close() error {
+	return trace.Wrap(t.tarball.Close())
+}
+
+func (t *TarWriter) WriteFile(name string, content []byte, mode fs.FileMode) error {
+	header := &tar.Header{
+		Name: name,
+		Mode: int64(mode),
+		Size: int64(len(content)),
+	}
+	if err := t.tarball.WriteHeader(header); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := t.tarball.Write(content); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+var _ identityfile.ConfigWriter = (*TarWriter)(nil)
+
 func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.
 	if err := a.checkProxyAddr(ctx, clusterAPI); err != nil {
@@ -835,6 +878,13 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 			maxAllowedTTL)
 	}
 
+	var identityWriter identityfile.ConfigWriter
+	if a.streamTarfile {
+		tarball := NewTarWriter(os.Stdout)
+		defer tarball.Close()
+		identityWriter = tarball
+	}
+
 	// write the cert+private key to the output:
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
@@ -844,6 +894,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		KubeClusterName:      a.kubeCluster,
 		KubeTLSServerName:    kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
+		Writer:               identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -854,7 +905,11 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		os.Stderr,
 		"\nGenerating credentials to allow a machine access to Teleport? We recommend Teleport's Machine ID! Find out more at https://goteleport.com/r/machineid-tip",
 	)
-	fmt.Printf("The credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+	// writing this to stdout will break the resulting tarfile, and this info
+	// is contained in the resulting tar anyway.
+	if !a.streamTarfile {
+		fmt.Printf("The credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+	}
 
 	return nil
 }
