@@ -635,14 +635,13 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	}, createdTokenResponse.GetLabels()[0])
 
 	// Verify that token exists
-	pr, err := authServer.GetToken(ctx, createdTokenResponse.GetToken())
+	tokenFromAuthServer, err := authServer.GetToken(ctx, createdTokenResponse.GetToken())
 	require.NoError(t, err)
 
 	// Verify that the token can be used to join nodes...
-	require.Equal(t, types.SystemRoles{types.RoleNode}, pr.GetRoles())
-	require.Equal(t, types.SystemRoles{types.RoleNode}, pr.GetRoles())
+	require.Equal(t, types.SystemRoles{types.RoleNode}, tokenFromAuthServer.GetRoles())
 	// ...and is valid for no longer than 5 minutes.
-	require.LessOrEqual(t, pr.Expiry(), requestCreatedAt.Add(5*time.Minute))
+	require.LessOrEqual(t, tokenFromAuthServer.Expiry(), requestCreatedAt.Add(5*time.Minute))
 
 	// watcher waits for the token deletion
 	watcher, err := authServer.NewWatcher(ctx, types.Watch{
