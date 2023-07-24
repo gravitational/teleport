@@ -88,7 +88,11 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string) (*Credenti
 		template.IPAddresses = append(ips, net.ParseIP("::1"))
 	}
 	for _, ip := range ipAddresses {
-		template.IPAddresses = append(template.IPAddresses, net.ParseIP(ip))
+		ipParsed := net.ParseIP(ip)
+		if ipParsed == nil {
+			return nil, trace.Errorf("Unable to parse IP address for self-signed certificate (%v)", ip)
+		}
+		template.IPAddresses = append(template.IPAddresses, ipParsed)
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
