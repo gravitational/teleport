@@ -727,6 +727,10 @@ exports[`render DocumentNodes 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c6 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c2 {
   box-sizing: border-box;
   margin-top: 24px;
