@@ -809,6 +809,14 @@ message AWSInfo {
   string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
   // InstanceID is an EC2 instance ID.
   string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  // Region is the AWS EC2 Instance Region.
+  string Region = 3 [(gogoproto.jsontag) = "region,omitempty"];
+  // VPCID is the AWS VPC ID where the Instance is running.
+  string VPCID = 4 [(gogoproto.jsontag) = "vpc_id,omitempty"];
+  // Integration is the integration name that added this Node.
+  // When connecting to it, it will use this integration to issue AWS API calls in order to set up the connection.
+  // This includes sending an SSH Key and then opening a tunnel (EC2 Instance Connect Endpoint) so Teleport can connect to it.
+  string Integration = 5 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // CloudMetadata contains info about the cloud instance a server is running
@@ -910,6 +918,22 @@ message AppSpecV3 {
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
   // UserGroups are a list of user group IDs that this app is associated with.
   repeated string UserGroups = 8;
+}
+
+// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
+// Used in application listings that request both app servers and saml apps.
+message AppServerOrSAMLIdPServiceProviderV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Kind is the resource kind. Always "app_server_saml_idp_sp".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // The AppServer or SAMLIdPServiceProvider resource.
+  oneof Resource {
+    // AppServer is the AppServer resource.
+    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
+    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource.
+    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+  }
 }
 
 // App is a specific application that a server proxies.
@@ -2191,6 +2215,13 @@ message AccessRequestSpecV3 {
   // DryRun indicates that the request should not actually be created, the
   // auth server should only validate the access request.
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
+
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 17 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "max_duration,omitempty"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2845,6 +2876,13 @@ message AccessRequestConditions {
   // defines the underlying roles which will be requested as part of any
   // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
+
+  // MaxDuration is the amount of time the access will be granted for.
+  // If this is zero, the default duration is used.
+  int64 MaxDuration = 7 [
+    (gogoproto.jsontag) = "max_duration,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on

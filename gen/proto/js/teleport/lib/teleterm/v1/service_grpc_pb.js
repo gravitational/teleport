@@ -93,6 +93,28 @@ function deserialize_teleport_lib_teleterm_v1_CreateAccessRequestResponse(buffer
   return teleport_lib_teleterm_v1_service_pb.CreateAccessRequestResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_CreateGatewayRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateGatewayRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateGatewayRequest');
@@ -937,6 +959,20 @@ updateHeadlessAuthenticationState: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateResponse,
+  },
+  // CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+// the current system user.
+createConnectMyComputerRole: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse,
   },
 };
 
