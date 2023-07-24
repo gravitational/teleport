@@ -20,9 +20,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -125,7 +127,6 @@ func (a *accessRequestListRequestableRolesTool) Run(ctx context.Context, toolCtx
 	}
 
 	resp := strings.Builder{}
-	resp.Write([]byte("Requestable roles:\n"))
 	for role := range requestable {
 		resp.Write([]byte(role))
 		resp.Write([]byte("\n"))
@@ -187,6 +188,53 @@ func (*accessRequestCreateTool) parseInput(input string) (*AccessRequest, error)
 	return &output, nil
 }
 
+type accessRequestsListTool struct{}
+
+func (*accessRequestsListTool) Name() string {
+	return "List Access Requests"
+}
+
+func (*accessRequestsListTool) Description() string {
+	return "List all access requests that the user has access to."
+}
+
+func (*accessRequestsListTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
+	requests, err := toolCtx.GetAccessRequests(ctx, types.AccessRequestFilter{
+		User: toolCtx.User,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	items := make([]accessRequestLLMItem, 0, len(requests))
+	for _, request := range requests {
+		items = append(items, accessRequestLLMItem{
+			Roles:              request.GetRoles(),
+			RequestReason:      request.GetRequestReason(),
+			SuggestedReviewers: request.GetSuggestedReviewers(),
+			State:              request.GetState().String(),
+			ResolveReason:      request.GetResolveReason(),
+			Created:            request.GetCreationTime().Format(time.RFC1123),
+		})
+	}
+
+	itemYaml, err := yaml.Marshal(items)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return string(itemYaml), nil
+}
+
+type accessRequestLLMItem struct {
+	Roles              []string `yaml:"roles"`
+	RequestReason      string   `yaml:"request_reason"`
+	SuggestedReviewers []string `yaml:"suggested_reviewers"`
+	State              string   `yaml:"state"`
+	ResolveReason      string   `yaml:"resolved_reason"`
+	Created            string   `yaml:"created"`
+}
+
 type accessRequestsDisplayTool struct{}
 
 func (*accessRequestsDisplayTool) Name() string {
@@ -194,7 +242,8 @@ func (*accessRequestsDisplayTool) Name() string {
 }
 
 func (*accessRequestsDisplayTool) Description() string {
-	return "Directly display a smart view of access requests to the user."
+	return `Directly display a smart view of all access requests the user has access to.
+Prefer this when the user is directly asking to see access requests.`
 }
 
 func (*accessRequestsDisplayTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {

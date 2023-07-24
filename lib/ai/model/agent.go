@@ -35,7 +35,7 @@ const (
 	// The internal name used to create actions when the agent encounters an error, such as when parsing output.
 	actionException = "_Exception"
 
-	// The maximum amount of thought<-> observation iterations the agent is allowed to perform.
+	// The maximum amount of thought <-> observation iterations the agent is allowed to perform.
 	maxIterations = 15
 
 	// The maximum amount of time the agent is allowed to spend before yielding a final answer.
@@ -51,9 +51,10 @@ func NewAgent(toolCtx *ToolContext) *Agent {
 		tools: []Tool{
 			&commandExecutionTool{},
 			&embeddingRetrievalTool{},
-			&accessRequestListRequestableRolesTool{},
 			&accessRequestCreateTool{},
 			&accessRequestsDisplayTool{},
+			&accessRequestsListTool{},
+			&accessRequestListRequestableRolesTool{},
 		},
 		toolCtx: toolCtx,
 	}
