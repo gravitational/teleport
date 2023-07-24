@@ -270,8 +270,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 		"name": dbInfo.ServiceName,
 	}
 
-	// DynamoDB does not support a connect command, so don't try to print one.
-	if database.GetProtocol() != defaults.ProtocolDynamoDB {
+	if protocolSupportsInteractiveMode(database.GetProtocol()) {
 		templateData["connectCommand"] = utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, dbInfo.RouteToDatabase))
 	}
 
@@ -282,6 +281,16 @@ func onDatabaseLogin(cf *CLIConf) error {
 		templateData["configCommand"] = utils.Color(utils.Yellow, formatDatabaseConfigCommand(cf.SiteName, dbInfo.RouteToDatabase))
 	}
 	return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
+}
+
+// protocolSupportsInteractiveMode checks if DB Protocol integration support
+// client interactive mode that is needed for the tsh db connect flow.
+func protocolSupportsInteractiveMode(dbProtocol string) bool {
+	switch dbProtocol {
+	case defaults.ProtocolDynamoDB, defaults.ProtocolClickHouseHTTP:
+		return false
+	}
+	return true
 }
 
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo) error {
@@ -751,7 +760,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if dbInfo.Protocol == defaults.ProtocolDynamoDB {
+
+	switch dbInfo.Protocol {
+	case defaults.ProtocolDynamoDB, defaults.ProtocolClickHouseHTTP:
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, dbInfo.RouteToDatabase))
 	}
 
@@ -1423,7 +1434,8 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 		defaults.ProtocolDynamoDB,
 		defaults.ProtocolSQLServer,
 		defaults.ProtocolCassandra,
-		defaults.ProtocolOracle:
+		defaults.ProtocolOracle,
+		defaults.ProtocolClickHouse:
 
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
@@ -1519,7 +1531,9 @@ func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []str
 	var alts []string
 	switch route.Protocol {
 	case defaults.ProtocolDynamoDB:
-		// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
+	// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
+	case defaults.ProtocolClickHouseHTTP:
+	// ClickHouse HTTP protocol don't support interactive mode
 	default:
 		// prefer displaying the connect command as the first suggested command alternative.
 		alts = append(alts, formatDatabaseConnectCommand(clusterFlag, route))

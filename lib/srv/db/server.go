@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -70,6 +71,8 @@ func init() {
 	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
 	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
 }
 
 // Config is the configuration for a database proxy server.
