@@ -23,7 +23,6 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/tiktoken-go/tokenizer/codec"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/lib/ai/model"
 )
 
@@ -45,7 +44,7 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 // NewChat creates a new chat. The username is set in the conversation context,
 // so that the AI can use it to personalize the conversation.
 // embeddingServiceClient is used to get the embeddings from the Auth Server.
-func (client *Client) NewChat(embeddingServiceClient assist.AssistEmbeddingServiceClient, username string) *Chat {
+func (client *Client) NewChat(toolContext *model.ToolContext, username string) *Chat {
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{
@@ -57,7 +56,7 @@ func (client *Client) NewChat(embeddingServiceClient assist.AssistEmbeddingServi
 		// Initialize a tokenizer for prompt token accounting.
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
-		agent:     model.NewAgent(embeddingServiceClient, username),
+		agent:     model.NewAgent(toolContext),
 	}
 }
 

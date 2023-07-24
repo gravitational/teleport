@@ -121,17 +121,17 @@ type Chat struct {
 
 // NewChat creates a new Assist chat.
 func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
-	embeddingServiceClient assist.AssistEmbeddingServiceClient,
-	conversationID, username string,
+	toolContext *model.ToolContext,
+	conversationID string,
 ) (*Chat, error) {
-	aichat := a.client.NewChat(embeddingServiceClient, username)
+	aichat := a.client.NewChat(toolContext, toolContext.Username)
 
 	chat := &Chat{
 		assist:                  a,
 		chat:                    aichat,
 		assistService:           assistService,
 		ConversationID:          conversationID,
-		Username:                username,
+		Username:                toolContext.Username,
 		potentiallyStaleHistory: false,
 	}
 

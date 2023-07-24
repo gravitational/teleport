@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ai/model"
 	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/auth"
 )
@@ -63,15 +64,17 @@ func TestChatComplete(t *testing.T) {
 	require.NoError(t, err)
 
 	// And created conversation.
-	const testUser = "bob"
+	toolContext := &model.ToolContext{
+		Username: "bob",
+	}
 	conversationResp, err := authSrv.AuthServer.CreateAssistantConversation(ctx, &assist.CreateAssistantConversationRequest{
-		Username:    testUser,
+		Username:    toolContext.Username,
 		CreatedTime: timestamppb.Now(),
 	})
 	require.NoError(t, err)
 
 	// When a chat is created.
-	chat, err := client.NewChat(ctx, authSrv.AuthServer, nil, conversationResp.Id, testUser)
+	chat, err := client.NewChat(ctx, authSrv.AuthServer, toolContext, conversationResp.Id)
 	require.NoError(t, err)
 
 	t.Run("new conversation is new", func(t *testing.T) {
@@ -112,7 +115,7 @@ func TestChatComplete(t *testing.T) {
 	t.Run("check what messages are stored in the backend", func(t *testing.T) {
 		// backend should have 3 messages: welcome message, user message, command response.
 		messages, err := authSrv.AuthServer.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
-			Username:       testUser,
+			Username:       toolContext.Username,
 			ConversationId: conversationResp.Id,
 		})
 		require.NoError(t, err)

@@ -28,6 +28,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+type ToolContext struct {
+	assist.AssistEmbeddingServiceClient
+	UserRoles []types.Role
+	Username  string
+}
+
 // Tool is an interface that allows the agent to interact with the outside world.
 // It is used to implement things such as vector document retrieval and command execution.
 type Tool interface {
@@ -101,7 +107,9 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 }
 
 // TODO: investigate integrating this into embeddingRetrievalTool
-type accessRequestListRequestableRolesTool struct{}
+type accessRequestListRequestableRolesTool struct {
+	*ToolContext
+}
 
 func (*accessRequestListRequestableRolesTool) Name() string {
 	return "List Requestable Roles"
@@ -111,8 +119,27 @@ func (*accessRequestListRequestableRolesTool) Description() string {
 	return "List all roles that can be requested via access requests."
 }
 
-func (*accessRequestListRequestableRolesTool) Run(ctx context.Context, input string) (string, error) {
-	return "No requestable roles available.", nil
+func (a *accessRequestListRequestableRolesTool) Run(ctx context.Context, input string) (string, error) {
+	requestable := make(map[string]struct{}, 0)
+	for _, role := range a.UserRoles {
+		for _, requestableRole := range role.GetAccessRequestConditions(types.Allow).Roles {
+			requestable[requestableRole] = struct{}{}
+		}
+	}
+	for _, role := range a.UserRoles {
+		for _, requestableRole := range role.GetAccessRequestConditions(types.Deny).Roles {
+			delete(requestable, requestableRole)
+		}
+	}
+
+	resp := strings.Builder{}
+	resp.Write([]byte("Requestable roles:\n"))
+	for role := range requestable {
+		resp.Write([]byte(role))
+		resp.Write([]byte("\n"))
+	}
+
+	return resp.String(), nil
 }
 
 type accessRequestCreateTool struct{}
@@ -177,8 +204,7 @@ func (*accessRequestDeleteTool) Run(ctx context.Context, input string) (string, 
 }
 
 type embeddingRetrievalTool struct {
-	assistClient assist.AssistEmbeddingServiceClient
-	currentUser  string
+	*ToolContext
 }
 
 type embeddingRetrievalToolInput struct {
@@ -195,8 +221,8 @@ func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (string,
 	}
 	log.Tracef("embedding retrieval input: %v", input)
 
-	resp, err := e.assistClient.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
-		Username: e.currentUser,
+	resp, err := e.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
+		Username: e.Username,
 		Kind:     types.KindNode, // currently only node embeddings are supported
 		Limit:    10,
 		Query:    input,
