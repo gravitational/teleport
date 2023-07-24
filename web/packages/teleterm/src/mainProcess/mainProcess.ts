@@ -306,13 +306,14 @@ export default class MainProcess {
     ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
       this.downloadAgentShared()
     );
+
     ipcMain.handle(
       'main-process-connect-my-computer-create-agent-config-file',
       (_, args: AgentConfigFileClusterProperties) =>
         createAgentConfigFile(this.settings, {
           proxy: args.proxy,
           token: args.token,
-          profileName: args.profileName,
+          rootClusterUri: args.rootClusterUri,
           labels: args.labels,
         })
     );

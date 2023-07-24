@@ -21,8 +21,6 @@ import {
   TshClient,
 } from 'teleterm/services/tshd/types';
 
-import { routing } from 'teleterm/ui/uri';
-
 import type * as uri from 'teleterm/ui/uri';
 
 export class ConnectMyComputerService {
@@ -42,13 +40,11 @@ export class ConnectMyComputerService {
   }
 
   async createAgentConfigFile(cluster: Cluster): Promise<void> {
-    const { rootClusterId } = routing.parseClusterUri(cluster.uri).params;
-
     const { token, labelsList } =
       await this.tshClient.createConnectMyComputerNodeToken(cluster.uri);
 
     await this.mainProcessClient.createAgentConfigFile({
-      profileName: rootClusterId,
+      rootClusterUri: cluster.uri,
       proxy: cluster.proxyHost,
       token: token,
       labels: labelsList,
