@@ -93,6 +93,28 @@ function deserialize_teleport_lib_teleterm_v1_CreateAccessRequestResponse(buffer
   return teleport_lib_teleterm_v1_service_pb.CreateAccessRequestResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_CreateGatewayRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.CreateGatewayRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.CreateGatewayRequest');
@@ -511,6 +533,28 @@ function deserialize_teleport_lib_teleterm_v1_SetGatewayTargetSubresourceNameReq
   return teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_UpdateTshdEventsServerAddressRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest');
@@ -902,6 +946,33 @@ reportUsageEvent: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_ReportUsageEventRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_EmptyResponse,
+  },
+  // UpdateHeadlessAuthenticationState updates a headless authentication resource's state.
+// An MFA challenge will be prompted when approving a headless authentication.
+updateHeadlessAuthenticationState: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_UpdateHeadlessAuthenticationStateResponse,
+  },
+  // CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+// the current system user.
+createConnectMyComputerRole: {
+    path: '/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest,
+    responseType: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_CreateConnectMyComputerRoleResponse,
   },
 };
 

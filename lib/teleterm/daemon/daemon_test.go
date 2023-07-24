@@ -38,8 +38,9 @@ import (
 )
 
 type mockGatewayCreator struct {
-	t         *testing.T
-	callCount int
+	t                *testing.T
+	callCount        int
+	tcpPortAllocator gateway.TCPPortAllocator
 }
 
 func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
@@ -51,20 +52,21 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 	})
 
 	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
-		Username: params.TargetUser,
+		Username: "user",
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
 			ServiceName: params.TargetURI.GetDbName(),
 			Protocol:    defaults.ProtocolPostgres,
 			Username:    params.TargetUser,
 		},
+		KubernetesCluster: params.TargetURI.GetKubeName(),
 	})
 
 	gateway, err := gateway.New(gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName(),
+		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
 		CertPath:              keyPairPaths.CertPath,
@@ -72,7 +74,8 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
 		CLICommandProvider:    params.CLICommandProvider,
-		TCPPortAllocator:      params.TCPPortAllocator,
+		TCPPortAllocator:      m.tcpPortAllocator,
+		ProfileDir:            m.t.TempDir(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,16 +98,18 @@ type gatewayCRUDTestContext struct {
 func TestGatewayCRUD(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name                 string
-		gatewayNamesToCreate []string
+		name                   string
+		gatewayNamesToCreate   []string
+		appendGatewayTargetURI func(name string) uri.ResourceURI
 		// tcpPortAllocator is an optional field which lets us provide a custom
 		// gatewaytest.MockTCPPortAllocator with some ports already in use.
 		tcpPortAllocator *gatewaytest.MockTCPPortAllocator
 		testFunc         func(*testing.T, *gatewayCRUDTestContext, *Service)
 	}{
 		{
-			name:                 "create then find",
-			gatewayNamesToCreate: []string{"gateway"},
+			name:                   "create then find",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
 				foundGateway, err := daemon.findGateway(createdGateway.URI().String())
@@ -113,8 +118,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "ListGateways",
-			gatewayNamesToCreate: []string{"gateway1", "gateway2"},
+			name:                   "ListGateways",
+			gatewayNamesToCreate:   []string{"gateway1", "gateway2"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateways := daemon.ListGateways()
 				gatewayURIs := map[uri.ResourceURI]struct{}{}
@@ -129,8 +135,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "RemoveGateway",
-			gatewayNamesToCreate: []string{"gatewayToRemove", "gatewayToKeep"},
+			name:                   "RemoveGateway",
+			gatewayNamesToCreate:   []string{"gatewayToRemove", "gatewayToKeep"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gatewayToRemove := c.nameToGateway["gatewayToRemove"]
 				gatewayToKeep := c.nameToGateway["gatewayToKeep"]
@@ -145,8 +152,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort closes previous gateway if new port is free",
-			gatewayNamesToCreate: []string{"gateway"},
+			name:                   "SetGatewayLocalPort closes previous gateway if new port is free",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				oldGateway := c.nameToGateway["gateway"]
 				oldListener := c.mockTCPPortAllocator.RecentListener()
@@ -171,9 +179,10 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
-			gatewayNamesToCreate: []string{"gateway"},
-			tcpPortAllocator:     &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
+			name:                   "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			tcpPortAllocator:       &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
@@ -190,8 +199,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort is a noop if new port is equal to old port",
-			gatewayNamesToCreate: []string{"gateway"},
+			name:                   "SetGatewayLocalPort is a noop if new port is equal to old port",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				localPort := gateway.LocalPort()
@@ -201,6 +211,19 @@ func TestGatewayCRUD(t *testing.T) {
 				require.NoError(t, err)
 
 				require.Equal(t, 1, c.mockTCPPortAllocator.CallCount)
+			},
+		},
+		{
+			name:                   "CreateGateway returns existing kube gateway if targetURI is the same",
+			gatewayNamesToCreate:   []string{"kube-gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendKube,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				wantGateway := c.nameToGateway["kube-gateway"]
+				actualGateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI: wantGateway.TargetURI().String(),
+				})
+				require.NoError(t, err)
+				require.Equal(t, wantGateway, actualGateway)
 			},
 		},
 	}
@@ -215,7 +238,10 @@ func TestGatewayCRUD(t *testing.T) {
 			}
 
 			homeDir := t.TempDir()
-			mockGatewayCreator := &mockGatewayCreator{t: t}
+			mockGatewayCreator := &mockGatewayCreator{
+				t:                t,
+				tcpPortAllocator: tt.tcpPortAllocator,
+			}
 
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                homeDir,
@@ -224,9 +250,8 @@ func TestGatewayCRUD(t *testing.T) {
 			require.NoError(t, err)
 
 			daemon, err := New(Config{
-				Storage:          storage,
-				GatewayCreator:   mockGatewayCreator,
-				TCPPortAllocator: tt.tcpPortAllocator,
+				Storage:        storage,
+				GatewayCreator: mockGatewayCreator,
 			})
 			require.NoError(t, err)
 
@@ -235,7 +260,7 @@ func TestGatewayCRUD(t *testing.T) {
 			for _, gatewayName := range tt.gatewayNamesToCreate {
 				gatewayName := gatewayName
 				gateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
-					TargetURI:             uri.NewClusterURI("foo").AppendDB(gatewayName).String(),
+					TargetURI:             tt.appendGatewayTargetURI(gatewayName).String(),
 					TargetUser:            "alice",
 					TargetSubresourceName: "",
 					LocalPort:             "",
