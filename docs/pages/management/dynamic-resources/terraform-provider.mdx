@@ -1,12 +1,12 @@
 ---
 title: Terraform Provider
-description: Configuration as code with the Teleport Terraform Provider
+description: How to deploy infrastructure-as-code using the Teleport Terraform provider.
 videoBanner: YgNHD4SS8dg
 ---
 
-This guide will explain how to:
+This guide demonstrates how to:
 
-- Set up Teleport's Terraform provider on Linux and Mac.
+- Set up the Terraform provider for Teelport on Linux and macOS.
 - Configure Teleport users and roles using the Terraform provider.
 
 ## Prerequisites
@@ -22,151 +22,165 @@ This guide will explain how to:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-Create a folder called `teleport-terraform` to hold some temporary files:
-
-```code
-$ mkdir -p teleport-terraform
-$ cd teleport-terraform
-```
-
 ## Step 1/3. Create Teleport credentials for Terraform
 
-Terraform needs a signed identity file from your Teleport cluster's certificate
-authority in order to manage resources in the cluster.
+Terraform needs a signed identity file from the Teleport cluster certificate
+authority to manage resources in the cluster.
+You can create a local Teleport user for this purpose or you can use a 
+[Machine ID](../../machine-id/introduction.mdx) to generate credentials.
 
-<Admonition type="tip" title="Running Terraform from a CI/CD platform?">
-If you intend to run Terraform from a CI/CD platform,
-[Machine ID](../../machine-id/introduction.mdx) is often a better option for
-generating credentials. Machine ID can provision short-lived certificates for
-CI/CD workflows as opposed to manually generating impersonated credentials with
-a long TTL.
-</Admonition>
+If you intend to run Terraform from a CI/CD platform, a Machine ID is often a better 
+option for generating credentials. A Machine ID can provision ephemeral short-lived 
+certificates that are appopriate for CI/CD workflows instead of using manually-generated 
+credentials that have a longer time-to-live (TTL) period. For more information about
+using a Machine ID, see the [Machine ID Getting Started Guide](../../machine-id/getting-started.mdx).
 
-### Create the Terraform user
+To prepare credentials for a local Teleport user:
 
-Create a local Teleport user named `terraform`, and a matching role granting the
-necessary permissions for Terraform to manage resources in your cluster.
+1. Create a folder called `teleport-terraform` to hold temporary files:
 
-Put the following content into `terraform.yaml`:
+   ```code
+   $ mkdir -p teleport-terraform
+   $ cd teleport-terraform
+   ```
 
-```yaml
-kind: role
-metadata:
-  name: terraform
-spec:
-  allow:
-    db_labels:
-      '*': '*'
-    app_labels:
-      '*': '*'
-    rules:
-      - resources:
-        - app
-        - cluster_auth_preference
-        - cluster_networking_config
-        - db
-        - device
-        - github
-        - login_rule
-        - oidc
-        - okta_import_rule
-        - role
-        - saml
-        - session_recording_config
-        - token
-        - trusted_cluster
-        - user
-        verbs: ['list','create','read','update','delete']
-version: v6
----
-kind: user
-metadata:
-  name: terraform
-spec:
-  roles: ['terraform']
-version: v2
-```
+1. Create a new file called `terraform.yaml` and open it in an editor.
 
-Create the `terraform` user and role.
+1. Configure settings for a local Teleport user and role by pasting the following content into the `terraform.yaml` file:
+   
+   ```yaml
+   kind: role
+   metadata:
+     name: terraform
+   spec:
+     allow:
+       db_labels:
+         '*': '*'
+       app_labels:
+         '*': '*'
+       rules:
+         - resources:
+           - app
+           - cluster_auth_preference
+           - cluster_networking_config
+           - db
+           - device
+           - github
+           - login_rule
+           - oidc
+           - okta_import_rule
+           - role
+           - saml
+           - session_recording_config
+           - token
+           - trusted_cluster
+           - user
+           verbs: ['list','create','read','update','delete']
+   version: v6
+   ---
+   kind: user
+   metadata:
+     name: terraform
+   spec:
+     roles: ['terraform']
+   version: v2
+   ```
+   
+   These settings configure a user and role named `terraform` with the permissions 
+   required to manage resources in your Teleport cluster.
 
-```code
-$ tctl create terraform.yaml
-```
+1. Create the `terraform` user and role by running the following command:
 
-### Enable impersonation
+   ```code
+   $ tctl create terraform.yaml
+   ```
+   
+   The `terraform` user can't sign in to get credentials, so you must have another user
+   **impersonate** the `terraform` account to request a certificate.
 
-The `terraform` user cannot log in to get credentials, another user must
-**impersonate** this account in order to request a certificate.
+1. Create a new file called `terraform-impersonator.yaml` and open it in an editor.
 
-Create a role that enables your user to impersonate the Terraform user. First, paste
-the following YAML document into a file called `terraform-impersonator.yaml`:
+1. Configure a role that enables your user to impersonate the Terraform user by pasting 
+the following content into the `terraform-impersonator.yaml` file:
+   
+   ```yaml
+   kind: role
+   version: v6
+   metadata:
+     name: terraform-impersonator
+   spec:
+     allow:
+       # This impersonate rule will allow any user with this role to impersonate
+       # and generate certificates for the user named "terraform" with a role also
+       # named "terraform".
+       impersonate:
+         users: ['terraform']
+         roles: ['terraform']
+   ```
 
-```yaml
-kind: role
-version: v6
-metadata:
-  name: terraform-impersonator
-spec:
-  allow:
-    # This impersonate rule will allow any user with this role to impersonate
-    # and generate certificates for the user named "terraform" with a role also
-    # named "terraform".
-    impersonate:
-      users: ['terraform']
-      roles: ['terraform']
-```
+1. Create the terraform-impersonator role by running the following command:
+   
+   ```code
+   $ tctl create terraform-impersonator.yaml
+   ```
 
-Next, create the role:
+1. (!docs/pages/includes/add-role-to-user.mdx role="terraform-impersonator"!)
 
-```code
-$ tctl create terraform-impersonator.yaml
-```
+1. Request a signed identity file for the Terraform user by running the following command:
 
-(!docs/pages/includes/add-role-to-user.mdx role="terraform-impersonator"!)
+   ```code
+   $ tctl auth sign --user=terraform --out=terraform-identity
+   ```
+   
+   After running this command, you have a `terraform-identity` file with credentials for the Terraform user.
 
-Next, request a signed identity file for the Terraform user:
+## Step 2/3. Prepare a Terraform configuration file
 
-```code
-$ tctl auth sign --user=terraform --out=terraform-identity
-```
+To prepare a Terraform configuration file:
 
-This command should result in one file: `terraform-identity`.
+1. Create a new file called `main.tf` and open it in an editor.
 
-## Step 2/3. Create a Terraform configuration
-
-Paste the following into a file called `main.tf` to define an example user and
-role using Terraform.
-
-<Tabs>
-<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
-```
-(!examples/resources/terraform/terraform-user-role-cloud.tf!)
-```
-</TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-```
-(!examples/resources/terraform/terraform-user-role-self-hosted.tf!)
-```
-</TabItem>
-</Tabs>
+1. Define an example user and role using Terraform by pasting the following content into the `main.tf` file:
+   
+   <Tabs>
+   <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+   ```
+   (!examples/resources/terraform/terraform-user-role-cloud.tf!)
+   ```
+   </TabItem>
+   <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+   ```
+   (!examples/resources/terraform/terraform-user-role-self-hosted.tf!)
+   ```
+   </TabItem>
+   </Tabs>
 
 ## Step 3/3. Apply the configuration
 
-Check the contents of the `teleport-terraform` folder:
+To apply the configuration:
 
-```code
-$ ls
-# main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
-```
+1. Check the contents of the `teleport-terraform` folder:
 
-Init terraform and apply the spec:
+   ```code
+   $ ls
+   # main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
+   ```
 
-```code
-$ terraform init
-$ terraform apply
-```
+1. Initialize the working directory that containsTerraform configuration files by running the 
+following command:
+   
+   ```code
+   $ terraform init
+   ```
 
-## Next Steps
+1. Executes the Terraform plan defined int he configuration file by running the 
+following command:
+   
+   ```code
+   $ terraform apply
+   ```
+
+## Next steps
 
 - Find the full list of [supported Terraform provider resources](../../reference/terraform-provider.mdx).
 - Read more about [impersonation](../../access-controls/guides/impersonation.mdx).

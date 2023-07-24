@@ -1,147 +1,148 @@
 {{ role="myrole" }}
-Assign the `{{ role }}` role to your Teleport user by running the following
-commands, depending on whether you authenticate as a local Teleport user or via
-the `github`, `saml`, or `oidc` authentication connectors:
+Assign the `{{ role }}` role to your Teleport user by running the appropriate
+commands for your authentication provider:
 
 <Tabs>
 <TabItem label="Local User">
 
-Retrieve your local user's configuration resource:
+1. Retrieve your local user's configuration resource:
+   
+   ```code
+   $ tctl get users/$(tsh status -f json | jq -r '.active.username') > out.yaml
+   ```
 
-```code
-$ tctl get users/$(tsh status -f json | jq -r '.active.username') > out.yaml
-```
+1. Edit `out.yaml`, adding `{{ role }}` to the list of existing roles:
+   
+   ```diff
+     roles:
+      - access
+      - auditor
+      - editor
+   +  - {{ role }} 
+   ```
 
-Edit `out.yaml`, adding `{{ role }}` to the list of existing roles:
+1. Apply your changes:
+   
+   ```code
+   $ tctl create -f out.yaml
+   ```
 
-```diff
-  roles:
-   - access
-   - auditor
-   - editor
-+  - {{ role }}
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f out.yaml
-```
+1. Sign out of the Teleport cluster and sign in again to assume the new role.
 
 </TabItem>
 <TabItem label="GitHub">
 
-Retrieve your `github`  configuration resource:
+1. Retrieve your `github`  configuration resource:
 
-```code
-$ tctl get github/github --with-secrets > github.yaml
-```
+   ```code
+   $ tctl get github/github --with-secrets > github.yaml
+   ```
 
-Edit `github.yaml`, adding `{{ role }}` to the
-`teams_to_roles` section. The team you will map to this role will depend on how
-you have designed your organization's RBAC, but it should be the smallest team
-possible within your organization. This team must also include your user.
+   Note that the `--with-secrets` flag adds the value of `spec.signing_key_pair.private_key` 
+   to the `github.yaml` file. Because this key contains a sensitive value, you should remove the 
+   github.yaml file immediately after updating the resource.
 
-Here is an example:
+1. Edit `github.yaml`, adding `{{ role }}` to the `teams_to_roles` section. 
+   
+   The team you should map to this role depends on how you have designed your 
+   organization's role-based acces controls (RBAC). However, the team must include your user account and
+   should be the smallest team possible within your organization.
 
-```diff
-  teams_to_roles:
-    - organization: octocats
-      team: admins
-      roles:
-        - access
-+       - {{ role }}
-```
+   Here is an example:
+   
+   ```diff
+     teams_to_roles:
+       - organization: octocats
+         team: admins
+         roles:
+           - access
+   +       - {{ role }}
+   ```
 
-Apply your changes:
+1. Apply your changes:
+   
+   ```code
+   $ tctl create -f github.yaml
+   ```
 
-```code
-$ tctl create -f github.yaml
-```
-
-<Admonition type="warning">
-Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
-`spec.signing_key_pair.private_key` to `github.yaml`. This is a sensitive value,
-so take precautions when creating this file and remove it after updating the resource.
-</Admonition>
+1. Sign out of the Teleport cluster and sign in again to assume the new role.
 
 </TabItem>
 <TabItem label="SAML">
 
-Retrieve your `saml`  configuration resource:
+1. Retrieve your `saml`  configuration resource:
 
-```code
-$ tctl get --with-secrets saml/mysaml > saml.yaml
-```
+   ```code
+   $ tctl get --with-secrets saml/mysaml > saml.yaml
+   ```
 
-Edit `saml.yaml`, adding `{{ role }}` to the
-`attributes_to_roles` section. The attribute you will map to this role will
-depend on how you have designed your organization's RBAC, but it should be the
-smallest group possible within your organization. This group must also include
-your user.
+   Note that the `--with-secrets` flag adds the value of `spec.signing_key_pair.private_key` 
+   to the `saml.yaml` file. Because this key contains a sensitive value, you should remove the 
+   saml.yaml file immediately after updating the resource.
 
-Here is an example:
+1. Edit `saml.yaml`, adding `{{ role }}` to the `attributes_to_roles` section. 
+   
+   The attribute you should map to this role depends on how you have designed your 
+   organization's role-based acces controls (RBAC). However, the group must include your 
+   user account and should be the smallest group possible within your organization.
+   
+   Here is an example:
+   
+   ```diff
+     attributes_to_roles:
+       - name: "groups"
+         value: "my-group"
+         roles:
+           - access
+   +       - {{ role }}
+   ```
 
-```diff
-  attributes_to_roles:
-    - name: "groups"
-      value: "my-group"
-      roles:
-        - access
-+       - {{ role }}
-```
+1. Apply your changes:
 
-Apply your changes:
+   ```code
+   $ tctl create -f saml.yaml
+   ```
 
-```code
-$ tctl create -f saml.yaml
-```
-
-<Admonition type="warning">
-Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
-`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
-so take precautions when creating this file and remove it after updating the resource.
-</Admonition>
+1. Sign out of the Teleport cluster and sign in again to assume the new role.
 
 </TabItem>
 <TabItem label="OIDC">
 
-Retrieve your `oidc`  configuration resource:
+1. Retrieve your `oidc`  configuration resource:
+   
+   ```code
+   $ tctl get oidc/myoidc --with-secrets > oidc.yaml
+   ```
 
-```code
-$ tctl get oidc/myoidc --with-secrets > oidc.yaml
-```
+   Note that the `--with-secrets` flag adds the value of `spec.signing_key_pair.private_key` 
+   to the `oidc.yaml` file. Because this key contains a sensitive value, you should remove the 
+   oidc.yaml file immediately after updating the resource.
 
-Edit `oidc.yaml`, adding `{{ role }}` to the
-`claims_to_roles` section. The claim you will map to this role will depend on
-how you have designed your organization's RBAC, but it should be the smallest
-group possible within your organization. This group must also include your
-user.
+1. Edit `oidc.yaml`, adding `{{ role }}` to the `claims_to_roles` section. 
+   
+   The claim you should map to this role depends on how you have designed your organization's 
+   role-based acces controls (RBAC). However, the group must include your user account and
+   should be the smallest group possible within your organization.
+   
+   Here is an example:
+   
+   ```diff
+     claims_to_roles:
+       - name: "groups"
+         value: "my-group"
+         roles:
+           - access
+   +       - {{ role }}
+   ```
 
-Here is an example:
+1. Apply your changes:
+   
+   ```code
+   $ tctl create -f oidc.yaml
+   ```
 
-```diff
-  claims_to_roles:
-    - name: "groups"
-      value: "my-group"
-      roles:
-        - access
-+       - {{ role }}
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f oidc.yaml
-```
-
-<Admonition type="warning">
-Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
-`spec.signing_key_pair.private_key` to `oidc.yaml`. This is a sensitive value,
-so take precautions when creating this file and remove it after updating the resource.
-</Admonition>
+1. Sign out of the Teleport cluster and sign in again to assume the new role.
 
 </TabItem>
 </Tabs>
 
-Log out of your Teleport cluster and log in again to assume the new role.
