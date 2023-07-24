@@ -21,7 +21,7 @@ require (
 )
 
 require (
-	github.com/ProtonMail/go-crypto v0.0.0-20230710112148-e01326fd72eb // indirect
+	github.com/ProtonMail/go-crypto v0.0.0-20230717121422-5aa5874ade95 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
