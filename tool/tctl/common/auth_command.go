@@ -15,11 +15,9 @@
 package common
 
 import (
-	"archive/tar"
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -29,6 +27,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -79,6 +78,7 @@ type AuthCommand struct {
 	password                   string
 	caType                     string
 	streamTarfile              bool
+	identityWriter             identityfile.ConfigWriter
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -117,8 +117,9 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "Identity output").Short('o').Required().StringVar(&a.output)
-	a.authSign.Flag("format", fmt.Sprintf("Identity format: %s. %s is the default.",
-		identityfile.KnownFileFormats.String(), identityfile.DefaultFormat)).
+	a.authSign.Flag("format",
+		fmt.Sprintf("Identity format: %s. %s is the default.",
+			identityfile.KnownFileFormats.String(), identityfile.DefaultFormat)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
 	a.authSign.Flag("ttl", "TTL (time to live) for the generated certificate.").
@@ -253,6 +254,12 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
+	if a.streamTarfile {
+		tarWriter := newTarWriter(os.Stdout, clockwork.NewRealClock())
+		defer tarWriter.Close()
+		a.identityWriter = tarWriter
+	}
+
 	switch a.outputFormat {
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
 		identityfile.FormatRedis, identityfile.FormatElasticsearch:
@@ -329,6 +336,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI auth.C
 		},
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
+		Writer:               a.identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -365,14 +373,21 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 		Key:                  key,
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
+		Writer:               a.identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(
-		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat, ""),
-	)
+	// writing this to stdout will break the resulting tarfile, and much of
+	// this info is contained in the resulting tar anyway.
+	if !a.streamTarfile {
+		return trace.Wrap(
+			writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat, ""),
+		)
+	}
+
+	return nil
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
@@ -481,11 +496,17 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 		Key:                  key,
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
+		Writer:               a.identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+
+	// writing this to stdout will break the resulting tarfile, and much of
+	// this info is contained in the resulting tar anyway.
+	if !a.streamTarfile {
+		fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+	}
 	return nil
 }
 
@@ -513,13 +534,31 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		TTL:                a.genTTL,
 		Key:                key,
 		Password:           a.password,
+		IdentityFileWriter: a.identityWriter,
 	}
 	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat, a.password))
+	// If we're streamin a tarfile to `stdout`, then printing the helper message
+	// will break the tar bundle. Most of the information in the helper message
+	// is also in the tar archive in any case, so omit the helper message.
+	if !a.streamTarfile {
+		return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat, a.password))
+	}
+
+	// The key- and truststore password is usually exposed to the user in the
+	// template that we just skipped writing, so add it to the tar archive
+	// otherwise the resulting data stores may be unusable.
+	if a.password != "" {
+		err := a.identityWriter.WriteFile(a.output+".password", []byte(a.password), 0600)
+		if err != nil {
+			return trace.Wrap(err, "writing password to tar")
+		}
+	}
+
+	return nil
 }
 
 var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
@@ -698,46 +737,6 @@ client_encryption_options:
 `))
 )
 
-type TarWriter struct {
-	tarball *tar.Writer
-}
-
-func NewTarWriter(out io.Writer) *TarWriter {
-	return &TarWriter{
-		tarball: tar.NewWriter(out),
-	}
-}
-
-func (t *TarWriter) Remove(_ string) error {
-	return nil
-}
-
-func (t *TarWriter) Stat(_ string) (fs.FileInfo, error) {
-	return nil, os.ErrNotExist
-}
-
-func (t *TarWriter) Close() error {
-	return trace.Wrap(t.tarball.Close())
-}
-
-func (t *TarWriter) WriteFile(name string, content []byte, mode fs.FileMode) error {
-	header := &tar.Header{
-		Name:    name,
-		Mode:    int64(mode),
-		ModTime: time.Now(),
-		Size:    int64(len(content)),
-	}
-	if err := t.tarball.WriteHeader(header); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := t.tarball.Write(content); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-var _ identityfile.ConfigWriter = (*TarWriter)(nil)
-
 func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.
 	if err := a.checkProxyAddr(ctx, clusterAPI); err != nil {
@@ -879,13 +878,6 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 			maxAllowedTTL)
 	}
 
-	var identityWriter identityfile.ConfigWriter
-	if a.streamTarfile {
-		tarball := NewTarWriter(os.Stdout)
-		defer tarball.Close()
-		identityWriter = tarball
-	}
-
 	// write the cert+private key to the output:
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
@@ -895,7 +887,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		KubeClusterName:      a.kubeCluster,
 		KubeTLSServerName:    kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
-		Writer:               identityWriter,
+		Writer:               a.identityWriter,
 	})
 	if err != nil {
 		return trace.Wrap(err)
