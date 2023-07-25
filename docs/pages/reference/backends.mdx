@@ -483,7 +483,7 @@ teleport:
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
     audit_retention_period: 365d
 
-    # Enables either On-Demand or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
+    # Enables either Pay Per Request or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
     # Possible values: "pay_per_request" and "provisioned"
     # default: "pay_per_request"
     billing_mode: "pay_per_request"
@@ -595,7 +595,7 @@ To enable these options you will need to update the IAM Policy for Teleport.
   type="warning"
   title="pay_per_request with autoscaling"
 >
-  If `pay_per_request` is set to true, the settings for read/write capacity and auto scaling will be ignored.
+  If billing mode is set to `pay_per_request`, the settings for read/write capacity and auto scaling will be ignored.
 </Admonition>
 
 ### Configuring AWS FIPS endpoints
