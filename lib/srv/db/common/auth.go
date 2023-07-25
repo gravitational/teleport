@@ -701,7 +701,17 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 
 		// Redis is using custom URI schema.
 		return nil
-
+	case defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP:
+		u, err := url.Parse(sessionCtx.Database.GetURI())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		addr, err := utils.ParseAddr(u.Host)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig.ServerName = addr.Host()
+		return nil
 	default:
 		// For other databases we're always connecting to the server specified
 		// in URI so set ServerName ourselves.

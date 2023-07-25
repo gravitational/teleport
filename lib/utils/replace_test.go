@@ -357,6 +357,80 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			},
 			assert: require.NoError,
 		},
+		{
+			name: "list namespace with resource giving read access to namespace",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+
+		{
+			name: "list namespace with resource denying update access to namespace",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbUpdate},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+		},
+
+		{
+			name: "namespace granting read access to pod",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "namespace denying update access to pod",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbUpdate},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

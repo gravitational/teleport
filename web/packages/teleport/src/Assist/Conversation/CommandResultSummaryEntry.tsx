@@ -17,11 +17,9 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-
 import { markdownCSS } from 'teleport/Assist/markdown';
 import { MonospacedOutput } from 'teleport/Assist/shared/MonospacedOutput';
+import { Markdown } from 'teleport/Assist/Conversation/Markdown';
 
 interface CommandResultSummaryEntryProps {
   command: string;
@@ -63,9 +61,7 @@ export function CommandResultSummaryEntry(
       <MonospacedOutput>{props.command}</MonospacedOutput>
 
       <Summary>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {props.summary}
-        </ReactMarkdown>
+        <Markdown content={props.summary} />
       </Summary>
     </Container>
   );

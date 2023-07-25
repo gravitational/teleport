@@ -163,7 +163,7 @@ func (s *PresenceService) GetServerInfo(ctx context.Context, name string) (types
 	if name == "" {
 		return nil, trace.BadParameter("missing server info name")
 	}
-	item, err := s.Get(ctx, backend.Key(serverInfoPrefix, name))
+	item, err := s.Get(ctx, serverInfoKey(types.SubKindCloudInfo, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("server info %q is not found", name)
@@ -192,7 +192,7 @@ func (s *PresenceService) UpsertServerInfo(ctx context.Context, si types.ServerI
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(serverInfoPrefix, si.GetName()),
+		Key:     serverInfoKey(si.GetSubKind(), si.GetName()),
 		Value:   value,
 		Expires: si.Expiry(),
 		ID:      si.GetResourceID(),
@@ -207,7 +207,7 @@ func (s *PresenceService) DeleteServerInfo(ctx context.Context, name string) err
 	if name == "" {
 		return trace.BadParameter("missing server info name")
 	}
-	err := s.Delete(ctx, backend.Key(serverInfoPrefix, name))
+	err := s.Delete(ctx, serverInfoKey(types.SubKindCloudInfo, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("server info %q is not found", name)
@@ -215,6 +215,15 @@ func (s *PresenceService) DeleteServerInfo(ctx context.Context, name string) err
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func serverInfoKey(subkind, name string) []byte {
+	switch subkind {
+	case types.SubKindCloudInfo:
+		return backend.Key(serverInfoPrefix, cloudLabelsPrefix, name)
+	default:
+		return backend.Key(serverInfoPrefix, name)
+	}
 }
 
 func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]types.Server, error) {
@@ -362,6 +371,26 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		LeaseID: lease.ID,
 		Name:    server.GetName(),
 	}, nil
+}
+
+// StreamNodes streams a list of registered servers.
+func (s *PresenceService) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	startKey := backend.Key(nodesPrefix, namespace)
+	endKey := backend.RangeEnd(startKey)
+	items := backend.StreamRange(ctx, s, startKey, endKey, apidefaults.DefaultChunkSize)
+	return stream.FilterMap(items, func(item backend.Item) (types.Server, bool) {
+		server, err := services.UnmarshalServer(
+			item.Value,
+			types.KindNode,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			s.log.Warnf("Skipping server at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return server, true
+	})
 }
 
 // GetAuthServers returns a list of registered servers
@@ -1834,4 +1863,5 @@ const (
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
 	loginTimePrefix              = "hostuser_interaction_time"
 	serverInfoPrefix             = "serverInfos"
+	cloudLabelsPrefix            = "cloudLabels"
 )

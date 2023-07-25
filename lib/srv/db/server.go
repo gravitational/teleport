@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -70,6 +71,8 @@ func init() {
 	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
 	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
+	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
 }
 
 // Config is the configuration for a database proxy server.
@@ -84,8 +87,6 @@ type Config struct {
 	AccessPoint auth.DatabaseAccessPoint
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
-	// StreamEmitter is a non-blocking audit events emitter.
-	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
@@ -159,9 +160,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
-	}
-	if c.StreamEmitter == nil {
-		return trace.BadParameter("missing StreamEmitter")
 	}
 	if c.Emitter == nil {
 		c.Emitter = c.AuthClient
@@ -603,6 +601,42 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	return databases
 }
 
+// getProxiedDatabase returns a proxied database by name with updated dynamic
+// and cloud labels.
+func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// don't call s.getProxiedDatabases() as this will call RLock and
+	// potentially deadlock.
+	for _, db := range s.proxiedDatabases {
+		if db.GetName() == name {
+			return s.copyDatabaseWithUpdatedLabelsLocked(db), nil
+		}
+	}
+	return nil, trace.NotFound("%q not found among registered databases: %v",
+		name, s.proxiedDatabases)
+}
+
+// copyDatabaseWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
+// a database object.
+// The caller must invoke an RLock on `s.mu` before calling this function.
+func (s *Server) copyDatabaseWithUpdatedLabelsLocked(database types.Database) *types.DatabaseV3 {
+	// create a copy of the database to modify.
+	copy := database.Copy()
+
+	// Update dynamic labels if the database has them.
+	labels, ok := s.dynamicLabels[copy.GetName()]
+	if ok && labels != nil {
+		copy.SetDynamicLabels(labels.Get())
+	}
+
+	// Add in the cloud labels if the db has them.
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Apply(copy)
+	}
+	return copy
+}
+
 // startHeartbeat starts the registration heartbeat to the auth server.
 func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
@@ -658,15 +692,10 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
-	copy := database.Copy()
+	copy := s.copyDatabaseWithUpdatedLabelsLocked(database)
 	s.mu.RUnlock()
-	// Update dynamic labels if the database has them.
-	labels := s.getDynamicLabels(copy.GetName())
-	if labels != nil {
-		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.cfg.CloudLabels != nil {
-		s.cfg.CloudLabels.Apply(copy)
+	if s.cfg.CloudIAM != nil {
+		s.cfg.CloudIAM.UpdateIAMStatus(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewDatabaseServerV3(types.Metadata{
@@ -933,7 +962,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
-	streamWriter, err := s.newStreamWriter(sessionCtx)
+	rec, err := s.newSessionRecorder(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -943,13 +972,13 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
-			err := streamWriter.Close(s.connContext)
+			err := rec.Close(s.closeContext)
 			if err != nil {
 				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
 			}
 		}()
 	}()
-	engine, err := s.dispatch(sessionCtx, streamWriter, clientConn)
+	engine, err := s.dispatch(sessionCtx, rec, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1011,9 +1040,10 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 }
 
 // dispatch creates and initializes an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
+func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparerRecorder, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
-		Emitter: streamWriter,
+		Emitter:  s.cfg.Emitter,
+		Recorder: rec,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1075,17 +1105,9 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	s.log.Debugf("Client identity: %#v.", identity)
 
 	// Fetch the requested database server.
-	var database types.Database
-	registeredDatabases := s.getProxiedDatabases()
-	for _, db := range registeredDatabases {
-		if db.GetName() == identity.RouteToDatabase.ServiceName {
-			database = db
-			break
-		}
-	}
-	if database == nil {
-		return nil, trace.NotFound("%q not found among registered databases: %v",
-			identity.RouteToDatabase.ServiceName, registeredDatabases)
+	database, err := s.getProxiedDatabase(identity.RouteToDatabase.ServiceName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)

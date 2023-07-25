@@ -33,7 +33,7 @@ lint:
       - teleport/lib/teleterm/v1/service.proto
     # TODO(ravicious): Fix protos and re-enable lib/teleterm lint rules below.
     RPC_REQUEST_STANDARD_NAME:
-      - teleport/lib/teleterm
+      - teleport/lib/teleterm/v1/service.proto
     # TODO(espadolini): Fix protos and re-enable prehog lint rules below.
     COMMENT_MESSAGE:
       - teleport/lib/teleterm

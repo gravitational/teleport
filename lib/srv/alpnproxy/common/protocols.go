@@ -63,6 +63,9 @@ const (
 	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
 	ProtocolDynamoDB Protocol = "teleport-dynamodb"
 
+	// ProtocolClickhouse is TLS ALPN protocol value used to indicate Clickhouse Protocol.
+	ProtocolClickhouse Protocol = "teleport-clickhouse"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
@@ -167,6 +170,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolOpenSearch, nil
 	case defaults.ProtocolDynamoDB:
 		return ProtocolDynamoDB, nil
+	case defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP:
+		return ProtocolClickhouse, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -188,6 +193,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolElasticsearch,
 		ProtocolOpenSearch,
 		ProtocolDynamoDB,
+		ProtocolClickhouse,
 	}
 
 	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
@@ -208,6 +214,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolElasticsearch,
 	ProtocolOpenSearch,
 	ProtocolDynamoDB,
+	ProtocolClickhouse,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is

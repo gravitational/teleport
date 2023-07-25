@@ -30,9 +30,9 @@ import (
 
 // GetInstances iterates all teleport instances.
 func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFilter) stream.Stream[types.Instance] {
-	const pageSize = 10_000
+	const pageSize = 1_000
 	if req.ServerID != "" {
-		instance, _, err := s.GetRawInstance(ctx, req.ServerID)
+		instance, err := s.getInstance(ctx, req.ServerID)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				return stream.Empty[types.Instance]()
@@ -65,34 +65,29 @@ func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFi
 	})
 }
 
-// GetRawInstance gets an instance resource by server ID.
-func (s *PresenceService) GetRawInstance(ctx context.Context, serverID string) (types.Instance, []byte, error) {
+// getInstance gets an instance resource by server ID.
+func (s *PresenceService) getInstance(ctx context.Context, serverID string) (types.Instance, error) {
 	item, err := s.Get(ctx, backend.Key(instancePrefix, serverID))
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, nil, trace.NotFound("failed to locate instance %q", serverID)
-		}
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var instance types.InstanceV1
 	if err := utils.FastUnmarshal(item.Value, &instance); err != nil {
-		return nil, nil, trace.BadParameter("failed to unmarshal instance %q: %v", serverID, err)
+		return nil, trace.BadParameter("failed to unmarshal instance %q: %v", serverID, err)
 	}
 
 	if err := instance.CheckAndSetDefaults(); err != nil {
-		return nil, nil, trace.BadParameter("instance %q appears malformed: %v", serverID, err)
+		return nil, trace.BadParameter("instance %q appears malformed: %v", serverID, err)
 	}
 
-	return &instance, item.Value, nil
+	return &instance, nil
 }
 
-// CompareAndSwapInstance creates or updates the underlying instance resource based on the currently
-// expected value. The first call to this method should use the value returned by GetRawInstance for the
-// 'expect' parameter. Subsequent calls should use the value returned by this method.
-func (s *PresenceService) CompareAndSwapInstance(ctx context.Context, instance types.Instance, expect []byte) ([]byte, error) {
+// UpsertInstance creates or updates an instance resource.
+func (s *PresenceService) UpsertInstance(ctx context.Context, instance types.Instance) error {
 	if err := instance.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// instance resource expiry is calculated relative to LastSeen and/or the longest living
@@ -104,12 +99,12 @@ func (s *PresenceService) CompareAndSwapInstance(ctx context.Context, instance t
 
 	v1, ok := instance.(*types.InstanceV1)
 	if !ok {
-		return nil, trace.BadParameter("unexpected type %T, expected %T", instance, v1)
+		return trace.BadParameter("unexpected type %T, expected %T", instance, v1)
 	}
 
 	value, err := utils.FastMarshal(v1)
 	if err != nil {
-		return nil, trace.Errorf("failed to marshal Instance: %v", err)
+		return trace.Errorf("failed to marshal Instance: %v", err)
 	}
 
 	item := backend.Item{
@@ -118,32 +113,9 @@ func (s *PresenceService) CompareAndSwapInstance(ctx context.Context, instance t
 		Expires: instance.Expiry(),
 	}
 
-	if len(expect) == 0 {
-		// empty 'expect' means we expect nonexistence, so we use Create instead of
-		// the regular CompareAndSwap.
-		_, err = s.Backend.Create(ctx, item)
-		if err != nil {
-			if trace.IsAlreadyExists(err) {
-				return nil, trace.CompareFailed("instance concurrently created")
-			}
-			return nil, trace.Wrap(err)
-		}
-		return value, nil
-	}
+	_, err = s.Backend.Put(ctx, item)
 
-	_, err = s.Backend.CompareAndSwap(ctx, backend.Item{
-		Key:   item.Key,
-		Value: expect,
-	}, item)
-
-	if err != nil {
-		if trace.IsCompareFailed(err) {
-			return nil, trace.CompareFailed("instance concurrently updated")
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	return value, nil
+	return trace.Wrap(err)
 }
 
 const instancePrefix = "instances"

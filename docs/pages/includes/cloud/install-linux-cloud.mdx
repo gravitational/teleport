@@ -15,7 +15,7 @@
   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
 
   $ sudo apt-get update
-  $ sudo apt-get install teleport-ent
+  $ sudo apt-get install teleport-ent-updater
   ```
 
   </TabItem>
@@ -29,7 +29,7 @@
   # package version.
   $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
-  $ sudo yum install teleport-ent
+  $ sudo yum install teleport-ent-updater
   #
   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
@@ -46,28 +46,10 @@
   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
   
   # Install teleport
-  $ sudo dnf install teleport-ent
+  $ sudo dnf install teleport-ent-updater
   
   # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
-  ```
-
-  </TabItem>
-  <TabItem label="Tarball">
-
-  In the example commands below, update `$SYSTEM_ARCH` with the appropriate
-  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
-  will update after one is filled out.
-
-  ```code
-  $ curl https://get.gravitational.com/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM_ARCH"/>-bin.tar.gz.sha256
-  # <checksum> <filename>
-  $ curl -O https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
-  $ shasum -a 256 teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
-  # Verify that the checksums match
-  $ tar -xvf teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-ent
-  $ sudo ./install
   ```
 
   </TabItem>

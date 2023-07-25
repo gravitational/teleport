@@ -36,7 +36,7 @@ import {
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
 
-import { icons } from './icons';
+import { DiscoverIcon } from './icons';
 
 import type { ResourceSpec } from './types';
 import type { AddButtonResourceKind } from 'teleport/components/AgentButtonAdd/AgentButtonAdd';
@@ -184,7 +184,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                   )}
                   <Flex px={2} alignItems="center">
                     <Flex mr={3} justifyContent="center" width="24px">
-                      {icons[r.icon]}
+                      <DiscoverIcon name={r.icon} />
                     </Flex>
                     <Box>
                       {pretitle && (

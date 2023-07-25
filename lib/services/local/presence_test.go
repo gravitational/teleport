@@ -1329,23 +1329,15 @@ func TestServerInfoCRUD(t *testing.T) {
 			"a": "b",
 			"c": "d",
 		},
-	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "abcd",
-			InstanceID: "1234",
-		},
-	})
+	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
+	serverInfoA.SetSubKind(types.SubKindCloudInfo)
 
 	serverInfoB, err := types.NewServerInfo(types.Metadata{
 		Name: "server2",
-	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "efgh",
-			InstanceID: "5678",
-		},
-	})
+	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
+	serverInfoB.SetSubKind(types.SubKindCloudInfo)
 
 	// No infos present initially.
 	out, err := stream.Collect(presence.GetServerInfos(ctx))
@@ -1365,6 +1357,10 @@ func TestServerInfoCRUD(t *testing.T) {
 	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	outInfo, err = presence.GetServerInfo(ctx, serverInfoB.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	_, err = presence.GetServerInfo(ctx, "nonexistant")
 	require.True(t, trace.IsNotFound(err))

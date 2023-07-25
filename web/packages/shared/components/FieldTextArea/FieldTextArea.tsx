@@ -30,6 +30,7 @@ export interface FieldTextAreaProps
   autoComplete?: 'off' | 'on';
   textAreaCss?: string;
   rule?: (options: unknown) => () => unknown;
+  resizable?: boolean;
 
   // TS: temporary handles ...styles
   [key: string]: any;
@@ -47,6 +48,7 @@ export function FieldTextArea({
   readOnly,
   textAreaCss,
   name,
+  resizable = true,
   ...styles
 }: FieldTextAreaProps) {
   const { valid, message } = useRule(rule(value));
@@ -65,6 +67,7 @@ export function FieldTextArea({
       autoFocus={autoFocus}
       onChange={onChange}
       readOnly={readOnly}
+      resizable={resizable}
     />
   );
 

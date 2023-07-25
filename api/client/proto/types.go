@@ -68,7 +68,10 @@ func (req *ListResourcesRequest) CheckAndSetDefaults() error {
 // RequiresFakePagination checks if we need to fallback to GetXXX calls
 // that retrieves entire resources upfront rather than working with subsets.
 func (req *ListResourcesRequest) RequiresFakePagination() bool {
-	return req.SortBy.Field != "" || req.NeedTotalCount || req.ResourceType == types.KindKubernetesCluster
+	return req.SortBy.Field != "" ||
+		req.NeedTotalCount ||
+		req.ResourceType == types.KindKubernetesCluster ||
+		req.ResourceType == types.KindAppOrSAMLIdPServiceProvider
 }
 
 // UpstreamInventoryMessage is a sealed interface representing the possible

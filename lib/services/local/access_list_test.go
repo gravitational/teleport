@@ -27,7 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
@@ -55,25 +55,27 @@ func TestAccessListCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+	}
+
 	// Create both access lists.
-	err = service.UpsertAccessList(ctx, accessList1)
+	accessList, err := service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
-	err = service.UpsertAccessList(ctx, accessList2)
+	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
+	accessList, err = service.UpsertAccessList(ctx, accessList2)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList2, accessList, cmpOpts...))
 
 	// Fetch all access lists.
 	out, err = service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*types.AccessList{accessList1, accessList2}, out,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	))
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2}, out, cmpOpts...))
 
 	// Fetch a specific access list.
-	accessList, err := service.GetAccessList(ctx, accessList2.GetName())
+	accessList, err = service.GetAccessList(ctx, accessList2.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList2, accessList,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	))
+	require.Empty(t, cmp.Diff(accessList2, accessList, cmpOpts...))
 
 	// Try to fetch an access list that doesn't exist.
 	_, err = service.GetAccessList(ctx, "doesnotexist")
@@ -81,22 +83,19 @@ func TestAccessListCRUD(t *testing.T) {
 
 	// Update an access list.
 	accessList1.SetExpiry(clock.Now().Add(30 * time.Minute))
-	err = service.UpsertAccessList(ctx, accessList1)
+	accessList, err = service.UpsertAccessList(ctx, accessList1)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 	accessList, err = service.GetAccessList(ctx, accessList1.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(accessList1, accessList,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	))
+	require.Empty(t, cmp.Diff(accessList1, accessList, cmpOpts...))
 
 	// Delete an access list.
 	err = service.DeleteAccessList(ctx, accessList1.GetName())
 	require.NoError(t, err)
 	out, err = service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*types.AccessList{accessList2}, out,
-		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
-	))
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList2}, out, cmpOpts...))
 
 	// Try to delete an access list that doesn't exist.
 	err = service.DeleteAccessList(ctx, "doesnotexist")
@@ -110,16 +109,16 @@ func TestAccessListCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
-func newAccessList(t *testing.T, name string) *types.AccessList {
+func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	t.Helper()
 
-	accessList, err := types.NewAccessList(
+	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: name,
 		},
-		types.AccessListSpec{
+		accesslist.Spec{
 			Description: "test access list",
-			Owners: []types.AccessListOwner{
+			Owners: []accesslist.Owner{
 				{
 					Name:        "test-user1",
 					Description: "test user 1",
@@ -129,31 +128,31 @@ func newAccessList(t *testing.T, name string) *types.AccessList {
 					Description: "test user 2",
 				},
 			},
-			Audit: types.AccessListAudit{
+			Audit: accesslist.Audit{
 				Frequency: time.Hour,
 			},
-			MembershipRequires: types.AccessListRequires{
+			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			OwnershipRequires: types.AccessListRequires{
+			OwnershipRequires: accesslist.Requires{
 				Roles: []string{"orole1", "orole2"},
 				Traits: map[string][]string{
 					"otrait1": {"ovalue1", "ovalue2"},
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			Grants: types.AccessListGrants{
+			Grants: accesslist.Grants{
 				Roles: []string{"grole1", "grole2"},
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []types.AccessListMember{
+			Members: []accesslist.Member{
 				{
 					Name:    "member1",
 					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),

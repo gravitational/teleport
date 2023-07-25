@@ -218,7 +218,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
-			StreamEmitter:     testCtx.Emitter,
+			Emitter:           testCtx.Emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
@@ -313,7 +313,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
-			StreamEmitter:     testCtx.Emitter,
+			Emitter:           testCtx.Emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
@@ -554,12 +554,12 @@ func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode
 // even when recording mode is *-sync.
 type authClientWithStreamer struct {
 	*auth.Client
-	streamer *events.TeeStreamer
+	streamer events.Streamer
 }
 
 // newAuthClientWithStreamer creates a new authClient wrapper.
 func newAuthClientWithStreamer(testCtx *TestContext) *authClientWithStreamer {
-	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: events.NewTeeStreamer(testCtx.AuthClient, testCtx.Emitter)}
+	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: testCtx.AuthClient}
 }
 
 func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {

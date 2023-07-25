@@ -163,7 +163,16 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindIntegration:
 			parser = newIntegrationParser()
 		case types.KindHeadlessAuthentication:
-			parser = newHeadlessAuthenticationParser()
+			p, err := newHeadlessAuthenticationParser(kind.Filter)
+			if err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			parser = p
+		case types.KindAccessList:
+			parser = newAccessListParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1553,14 +1562,21 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
-func newHeadlessAuthenticationParser() *headlessAuthenticationParser {
+func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticationParser, error) {
+	var filter types.HeadlessAuthenticationFilter
+	if err := filter.FromMap(m); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &headlessAuthenticationParser{
 		baseParser: newBaseParser(backend.Key(headlessAuthenticationPrefix)),
-	}
+		filter:     filter,
+	}, nil
 }
 
 type headlessAuthenticationParser struct {
 	baseParser
+	filter types.HeadlessAuthenticationFilter
 }
 
 func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resource, error) {
@@ -1568,7 +1584,38 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 	case types.OpDelete:
 		return resourceHeader(event, types.KindIntegration, types.V1, 0)
 	case types.OpPut:
-		return unmarshalHeadlessAuthentication(event.Item.Value)
+		ha, err := unmarshalHeadlessAuthentication(event.Item.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.filter.Match(ha) {
+			return nil, nil
+		}
+		return ha, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessListParser() *accessListParser {
+	return &accessListParser{
+		baseParser: newBaseParser(backend.Key(accessListPrefix)),
+	}
+}
+
+type accessListParser struct {
+	baseParser
+}
+
+func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAccessList, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalAccessList(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

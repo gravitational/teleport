@@ -93,6 +93,18 @@ const (
 
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
+
+	// MetricTotalInstances provides an instance count
+	MetricTotalInstances = "total_instances"
+
+	// MetricEnrolledInUpgrades provides total number of instances that advertise an upgrader.
+	MetricEnrolledInUpgrades = "enrolled_in_upgrades"
+
+	// MetricUpgraderCounts provides instance count per-upgrader.
+	MetricUpgraderCounts = "upgrader_counts"
+
+	// TagUpgrader is a metric tag for upgraders.
+	TagUpgrader = "upgrader"
 )
 
 const (

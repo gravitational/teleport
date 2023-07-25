@@ -28,6 +28,9 @@ service TshdEventsService {
   // accepts a specific message rather than a generic string so that the Electron is in control as
   // to what message is displayed and how exactly it looks.
   rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+  // SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
+  // which it can use to initiate headless authentication resolution in the UI.
+  rpc SendPendingHeadlessAuthentication(SendPendingHeadlessAuthenticationRequest) returns (SendPendingHeadlessAuthenticationResponse);
 }
 
 // Relogin
@@ -71,3 +74,13 @@ message CannotProxyGatewayConnection {
 }
 
 message SendNotificationResponse {}
+
+// SendPendingHeadlessAuthentication
+
+message SendPendingHeadlessAuthenticationRequest {
+  string root_cluster_uri = 1;
+  string headless_authentication_id = 2;
+  string headless_authentication_client_ip = 3;
+}
+
+message SendPendingHeadlessAuthenticationResponse {}

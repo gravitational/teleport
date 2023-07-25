@@ -34,6 +34,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -58,6 +59,44 @@ func init() {
 	}
 
 	modules.SetModules(&cliModules{})
+}
+
+// WithInsecureDevMode is a test helper that sets insecure dev mode and resets
+// it in test cleanup.
+// It is NOT SAFE to use in parallel tests, because it modifies a global.
+// To run insecure dev mode tests in parallel, group them together under a
+// parent test and then run them as parallel subtests.
+// and call WithInsecureDevMode before running all the tests in parallel.
+func WithInsecureDevMode(t *testing.T, mode bool) {
+	originalValue := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(mode)
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithInsecureDevMode", "1")
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(originalValue)
+	})
+}
+
+// WithResyncInterval is a test helper that sets the tunnel resync interval and
+// resets it in test cleanup.
+// Useful to substantially speedup test cluster setup - passing 0 for the
+// interval selects a reasonably fast default of 100ms.
+// It is NOT SAFE to use in parallel tests, because it modifies a global.
+func WithResyncInterval(t *testing.T, interval time.Duration) {
+	if interval == 0 {
+		interval = time.Millisecond * 100
+	}
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = interval
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
 }
 
 // MakeTestServer creates a Teleport Server for testing.

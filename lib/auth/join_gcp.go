@@ -32,18 +32,18 @@ type gcpIDTokenValidator interface {
 	Validate(ctx context.Context, token string) (*gcp.IDTokenClaims, error)
 }
 
-func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*gcp.IDTokenClaims, error) {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for GCP join request")
+		return nil, trace.BadParameter("IDToken not provided for GCP join request")
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("gcp join method only supports ProvisionTokenV2, '%T' was provided", pt)
+		return nil, trace.BadParameter("gcp join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
 	claims, err := a.gcpIDTokenValidator.Validate(ctx, req.IDToken)
@@ -52,7 +52,7 @@ func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsi
 			"claims": claims,
 			"token":  pt.GetName(),
 		}).WithError(err).Warn("Unable to validate GCP IDToken")
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -60,7 +60,11 @@ func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsi
 		"token":  pt.GetName(),
 	}).Info("GCP VM trying to join cluster")
 
-	return trace.Wrap(checkGCPAllowRules(token, claims))
+	if err := checkGCPAllowRules(token, claims); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return claims, nil
 }
 
 func checkGCPAllowRules(token *types.ProvisionTokenV2, claims *gcp.IDTokenClaims) error {
