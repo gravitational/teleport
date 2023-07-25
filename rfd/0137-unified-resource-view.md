@@ -89,6 +89,8 @@ func (u *uiResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) 
 }
 ```
 
+If the collector is uninitialized or stale, we will resort to the upstream and send Nodes only.
+
 ### ListUnifiedResources grpc endppint
 We will add a new grpc endpoint, `ListUnifiedResources`. It will function pretty closes to how `ListResources` works, except without needing to differentiate between `RequestType`, as every request is a unified resource request. Originally, the thought of just extending `ListResources`, but because of the many new filters that will be added to the request, we don't want to muddy up the `ListResourcesRequest`. Some of the new filters include which types to include (can be multiple), subtypes, etc etc. 
 
