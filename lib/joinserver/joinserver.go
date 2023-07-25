@@ -180,3 +180,7 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, sr
 		Certs: certs,
 	}))
 }
+
+func (s *JoinServiceGRPCServer) RegisterUsingKubernetesRemoteMethod(srv proto.JoinService_RegisterUsingKubernetesRemoteMethodServer) error {
+	return trace.NotImplemented("RegisterUsingKubernetesRemoteMethod unimplemented in this version of Teleport.")
+}
