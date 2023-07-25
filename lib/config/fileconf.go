@@ -185,6 +185,8 @@ type SampleFlags struct {
 	JoinMethod string
 	// NodeName is the name of the teleport node
 	NodeName string
+	// Silent suppresses user hint printed after config has been generated.
+	Silent bool
 }
 
 // MakeSampleFileConfig returns a sample config to start

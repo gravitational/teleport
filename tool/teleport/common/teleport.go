@@ -19,6 +19,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/user"
@@ -411,6 +412,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2, kubernetes)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2", "kubernetes", "azure")
 	dumpNodeConfigure.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
+	dumpNodeConfigure.Flag("silent", "Suppress user hint message.").BoolVar(&dumpFlags.Silent)
 
 	waitCmd := app.Command(teleport.WaitSubCommand, "Used internally by Teleport to onWait until a specific condition is reached.").Hidden()
 	waitNoResolveCmd := waitCmd.Command("no-resolve", "Used internally to onWait until a domain stops resolving IP addresses.").Hidden()
@@ -593,6 +595,7 @@ type dumpFlags struct {
 	config.SampleFlags
 	output         string
 	testConfigFile string
+	stdout         io.Writer
 }
 
 func (flags *dumpFlags) CheckAndSetDefaults() error {
@@ -606,6 +609,14 @@ func (flags *dumpFlags) CheckAndSetDefaults() error {
 	}
 
 	flags.output = normalizeOutput(flags.output)
+
+	if flags.stdout == nil {
+		flags.stdout = os.Stdout
+	}
+	if flags.Silent {
+		flags.stdout = io.Discard
+	}
+
 	return nil
 }
 
@@ -707,26 +718,26 @@ func onConfigDump(flags dumpFlags) error {
 		}
 		requiresRoot := !canWriteToDataDir || !canWriteToConfDir
 
-		fmt.Printf("\nA Teleport configuration file has been created at %q.\n", configPath)
+		fmt.Fprintf(flags.stdout, "\nA Teleport configuration file has been created at %q.\n", configPath)
 		if modules.GetModules().BuildType() != modules.BuildOSS {
-			fmt.Printf("Add your Teleport license file to %q.\n", flags.LicensePath)
+			fmt.Fprintf(flags.stdout, "Add your Teleport license file to %q.\n", flags.LicensePath)
 		}
-		fmt.Printf("To start Teleport with this configuration file, run:\n\n")
+		fmt.Fprintf(flags.stdout, "To start Teleport with this configuration file, run:\n\n")
 		if requiresRoot {
-			fmt.Printf("sudo teleport start --config=%q\n\n", configPath)
-			fmt.Printf("Note that starting a Teleport server with this configuration will require root access as:\n")
+			fmt.Fprintf(flags.stdout, "sudo teleport start --config=%q\n\n", configPath)
+			fmt.Fprintf(flags.stdout, "Note that starting a Teleport server with this configuration will require root access as:\n")
 			if !canWriteToConfDir {
-				fmt.Printf("- The Teleport configuration is located at %q.\n", configPath)
+				fmt.Fprintf(flags.stdout, "- The Teleport configuration is located at %q.\n", configPath)
 			}
 			if !canWriteToDataDir {
-				fmt.Printf("- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
+				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
 			}
-			fmt.Println()
+			fmt.Fprintf(flags.stdout, "\n")
 		} else {
-			fmt.Printf("teleport start --config=%q\n\n", configPath)
+			fmt.Fprintf(flags.stdout, "teleport start --config=%q\n\n", configPath)
 		}
 
-		fmt.Printf("Happy Teleporting!\n")
+		fmt.Fprintf(flags.stdout, "Happy Teleporting!\n")
 	}
 
 	return nil
