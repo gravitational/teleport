@@ -127,14 +127,15 @@ Install Teleport on the host where you will run the Teleport Database Service:
 Generate a configuration for the Teleport Database Service:
 
 Run the command below on your Linux host. Assign <Var
-name="teleport.example.com:443" /> to the host and port of your Teleport Proxy
-Service or Enterprise Cloud/Team tenant. Assign <Var name="us-west-1" /> to the
-region associated with the RDS databases you would like Teleport to discover.
+name="mytenant.teleport.sh:443" /> to the host **and port** of your Teleport
+Proxy Service or Enterprise Cloud/Team tenant. Assign <Var name="us-west-1" />
+to the region associated with the RDS databases you would like Teleport to
+discover.
 
 ```code
 $ teleport db configure create \
    -o file \
-   --proxy=<Var name="teleport.example.com:443" />  \
+   --proxy=<Var name="mytenant.teleport.sh:443" />  \
    --token=/tmp/token \
    --rds-discovery=<Var name="us-west-1" />
 ```
@@ -181,7 +182,8 @@ Create an IAM policy document that allows an IAM identity to connect to your RDS
 database. Assign <Var name="rds-region" /> to the name of the AWS region where
 your RDS database is running, <Var name="aws-account" /> to your AWS account
 number, and <Var name="resource-id" /> to the resource ID of your RDS database
-or the cluster ID of your Aurora cluster:
+or the cluster ID of your Aurora cluster (e.g.,
+`db-AAAAAAAAAAAAAAAAAAAAAAAAAA`):
 
 ```code
 $ cat > connect.json << EOF
@@ -225,13 +227,13 @@ $ aws iam create-policy --policy-name teleport-rds-policy --policy-document file
 Next, create a trust policy for the `teleport-rds-role`, which allows the role
 to obtain temporary credentials via the IAM OIDC provider.
 
-Retrieve your OIDCS issuer, assigning <Var name="cluster-name" /> to the name of
-your EKS cluster and <Var name="eks-region" /> to the AWS region where your EKS
-cluster is running:
+Retrieve your OIDCS issuer ID, assigning <Var name="cluster-name" /> to the name
+of your EKS cluster and <Var name="eks-region" /> to the AWS region where your
+EKS cluster is running:
 
 ```code
-$ aws eks describe-cluster --name <Var name="cluster-name" /> --region <Var name="eks-region" /> | jq .cluster.identity.oidc.issuer
-"https://oidc.eks.us-east-1.amazonaws.com/id/44969AD34F07D62C3BE6ACCF41B4"
+$ aws eks describe-cluster --name <Var name="cluster-name" /> --region <Var name="eks-region" /> | jq -r .cluster.identity.oidc.issuer | grep -Eo "[A-Z0-9]+$"
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 ```
 
 Create a file called `trustpolicy.json` with the following content, assigning
@@ -259,7 +261,7 @@ $ cat > trustpolicy.json << EOF
 EOF
 ```
 
-Create an IAM pole with your trust policy. On success, the command will show the
+Create an IAM role with your trust policy. On success, the command will show the
 IAM resource you created:
 
 ```code
@@ -300,9 +302,9 @@ Token                            Type Labels Expiry Time (UTC)
 
 Create a Helm values file called `values.yaml`, assigning <Var name="token" />
 to the value of the join token you retrieved above, <Var
-name="mytenant.teleport.sh:443" /> to the host and port of your Teleport Proxy
-Service, and <Var name="rds-uri" /> to the host and port of your RDS database
-(e.g., `myrds.us-east-1.rds.amazonaws.com:5432`):
+name="mytenant.teleport.sh:443" /> to the host **and port** of your Teleport
+Proxy Service, and <Var name="rds-uri" /> to the host **and port** of your RDS
+database (e.g., `myrds.us-east-1.rds.amazonaws.com:5432`):
 
 ```code
 cat > values.yaml << EOF
@@ -323,7 +325,7 @@ annotations:
 EOF
 ```
 
-Install the Helm chart for Teleport agent services:
+Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
 
 ```code
 $ helm -n teleport install teleport-kube-agent teleport/teleport-kube-agent \
@@ -393,7 +395,7 @@ Once the Database Service has started and joined the cluster, log in as the
 `alice` user you created earlier to see the registered databases:
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=alice
+$ tsh login --proxy=<Var name="mytenant.teleport.sh:443" /> --user=alice
 $ tsh db ls
 # Name                           Description                                   Labels
 # ------------------------------ --------------------------------------------- --------
