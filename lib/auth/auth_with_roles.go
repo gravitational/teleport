@@ -34,11 +34,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -335,6 +337,14 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(
 		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
+}
+
+// AccessListClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessListClient() services.AccessLists {
+	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
 }
 
 // integrationsService returns an Integrations Service.
@@ -921,7 +931,14 @@ func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.Generate
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GenerateToken(ctx, req)
+
+	token, err := a.authServer.GenerateToken(ctx, req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	emitTokenEvent(ctx, a.authServer.emitter, req.Roles, types.JoinMethodToken)
+	return token, nil
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -1560,6 +1577,10 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+func (a *ServerWithRoles) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
+}
+
 // authContextForSearch returns an extended authz.Context which should be used
 // when searching for resources that a user may be able to request access to,
 // but does not already have access to.
@@ -1834,6 +1855,20 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 		resources = servers.AsResources()
 
+	case types.KindAppOrSAMLIdPServiceProvider:
+		appsAndServiceProviders, err := a.GetAppServersAndSAMLIdPServiceProviders(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		appsOrSPs := types.AppServersOrSAMLIdPServiceProviders(appsAndServiceProviders)
+
+		if err := appsOrSPs.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = appsOrSPs.AsResources()
+
 	case types.KindDatabaseServer:
 		dbservers, err := a.GetDatabaseServers(ctx, req.Namespace)
 		if err != nil {
@@ -2065,11 +2100,28 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 }
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
-// events. For now, this just emits trusted_cluster_token.create.
-func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken) {
+// events.
+func emitTokenEvent(
+	ctx context.Context,
+	e apievents.Emitter,
+	roles types.SystemRoles,
+	joinMethod types.JoinMethod,
+) {
 	userMetadata := authz.ClientUserMetadata(ctx)
-	for _, role := range token.GetRoles() {
+	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.ProvisionTokenCreateEvent,
+			Code: events.ProvisionTokenCreateCode,
+		},
+		UserMetadata: userMetadata,
+		Roles:        roles,
+		JoinMethod:   joinMethod,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit join token create event.")
+	}
+	for _, role := range roles {
 		if role == types.RoleTrustedCluster {
+			//nolint:staticcheck // Emit a deprecated event.
 			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
 				Metadata: apievents.Metadata{
 					Type: events.TrustedClusterTokenCreateEvent,
@@ -2093,11 +2145,12 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token)
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
 	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	jm := token.GetJoinMethod()
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2107,7 +2160,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token)
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
 	return nil
 }
 
@@ -3165,6 +3218,14 @@ func (a *ServerWithRoles) UpsertUser(u types.User) error {
 		})
 	}
 	return a.authServer.UpsertUser(u)
+}
+
+// UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
+// [ClientI], it is not implemented here.
+// See [local.IdentityService.UpdateAndSwapUser].
+func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
+	// To the reader: consider writing this function if it's useful to you.
+	return nil, trace.NotImplemented("func UpdateAndSwapUser is not implemented by ServerWithRoles")
 }
 
 // CompareAndSwapUser updates an existing user in a backend, but fails if the
@@ -4253,6 +4314,52 @@ func (a *ServerWithRoles) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetServerInfos returns a stream of ServerInfos.
+func (a *ServerWithRoles) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbList, types.VerbRead); err != nil {
+		return stream.Fail[types.ServerInfo](trace.Wrap(err))
+	}
+
+	return a.authServer.GetServerInfos(ctx)
+}
+
+// GetServerInfo returns a ServerInfo by name.
+func (a *ServerWithRoles) GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error) {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	info, err := a.authServer.GetServerInfo(ctx, name)
+	return info, trace.Wrap(err)
+}
+
+// UpsertServerInfo upserts a ServerInfo.
+func (a *ServerWithRoles) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.UpsertServerInfo(ctx, si))
+}
+
+// DeleteServerInfo deletes a ServerInfo by name.
+func (a *ServerWithRoles) DeleteServerInfo(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteServerInfo(ctx, name))
+}
+
+// DeleteAllServerInfos deletes all ServerInfos.
+func (a *ServerWithRoles) DeleteAllServerInfos(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAllServerInfos(ctx))
+}
+
 func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4627,6 +4734,48 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 		}
 	}
 	return filtered, nil
+}
+
+// GetAppServersAndSAMLIdPServiceProviders returns a list containing all registered AppServers and SAMLIdPServiceProviders.
+func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Context, namespace string) ([]types.AppServerOrSAMLIdPServiceProvider, error) {
+	appservers, err := a.GetApplicationServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var appsAndSPs []types.AppServerOrSAMLIdPServiceProvider
+	// Convert the AppServers to AppServerOrSAMLIdPServiceProviders.
+	for _, appserver := range appservers {
+		appServerV3 := appserver.(*types.AppServerV3)
+		appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+			Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+				AppServer: appServerV3,
+			},
+		}
+		appsAndSPs = append(appsAndSPs, appAndSP)
+	}
+
+	// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license since this is an enteprise-only feature.
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
+		if err := a.action(namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+			serviceProviders, _, err := a.authServer.ListSAMLIdPServiceProviders(ctx, 0, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, sp := range serviceProviders {
+				spV1 := sp.(*types.SAMLIdPServiceProviderV1)
+				appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+						SAMLIdPServiceProvider: spV1,
+					},
+				}
+				appsAndSPs = append(appsAndSPs, appAndSP)
+			}
+		}
+	}
+
+	return appsAndSPs, nil
 }
 
 // UpsertApplicationServer registers an application server.

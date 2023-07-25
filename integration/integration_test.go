@@ -186,6 +186,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
 	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
 	t.Run("LeafAgentlessConnection", suite.bind(testTrustedClusterAgentless))
+	t.Run("ReconcileLabels", suite.bind(testReconcileLabels))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -7729,6 +7730,81 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	testAgentlessConn(t, tc, node)
+}
+
+// testReconcileLabels verifies that an SSH server's labels can be updated by
+// upserting a corresponding ServerInfo to the auth server.
+func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
+	// Create Teleport cluster.
+	cfg := suite.defaultServiceConfig()
+	cfg.CachePolicy.Enabled = false
+	cfg.Proxy.DisableWebService = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.SSH.Labels = map[string]string{"foo": "bar"}
+	teleInst := suite.NewTeleportWithConfig(t, nil, nil, cfg)
+
+	t.Cleanup(func() { require.NoError(t, teleInst.StopAll()) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	require.NoError(t, helpers.WaitForNodeCount(ctx, teleInst, helpers.Site, 1))
+
+	authServer := teleInst.Process.GetAuthServer()
+	servers, err := authServer.GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+
+	server := servers[0]
+	serverName := server.GetName()
+	require.Equal(t, map[string]string{"foo": "bar"}, server.GetStaticLabels())
+	server.SetCloudMetadata(&types.CloudMetadata{
+		AWS: &types.AWSInfo{
+			AccountID:  "my-account",
+			InstanceID: "my-instance",
+		},
+	})
+	_, err = authServer.UpsertNode(ctx, server)
+	require.NoError(t, err)
+
+	// Update the server's labels.
+	labels := map[string]string{"a": "1", "b": "2"}
+	serverInfo, err := types.NewServerInfo(types.Metadata{
+		Name:   "aws-my-account-my-instance",
+		Labels: labels,
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfo.SetSubKind(types.SubKindCloudInfo)
+	require.NoError(t, authServer.UpsertServerInfo(ctx, serverInfo))
+
+	watcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindNode,
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, watcher.Close()) })
+
+	timeout := time.After(5 * time.Second)
+	// Wait for server to receive updated labels.
+	for {
+		select {
+		case <-timeout:
+			require.Fail(t, "Timed out waiting for server update")
+		case event := <-watcher.Events():
+			if event.Type != types.OpPut || event.Resource.GetName() != serverName {
+				continue
+			}
+			if utils.StringMapsEqual(
+				map[string]string{"foo": "bar", "a": "1", "b": "2"},
+				event.Resource.GetMetadata().Labels,
+			) {
+				return
+			}
+		}
+	}
 }
 
 func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {

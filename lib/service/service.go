@@ -1975,6 +1975,12 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
+
+	// Periodically update labels on discovered instances.
+	process.RegisterFunc("auth.server_info", func() error {
+		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2108,6 +2114,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		SAMLIdPServiceProviders: cfg.services,
 		UserGroups:              cfg.services,
 		Okta:                    cfg.services.OktaClient(),
+		AccessLists:             cfg.services.AccessListClient(),
 		Integrations:            cfg.services,
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
@@ -4213,13 +4220,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ConnTLSConfig:   tlsConfig.Clone(),
 				ClusterFeatures: process.getClusterFeatures,
 			},
-			TLS:             tlsConfig.Clone(),
-			LimiterConfig:   cfg.Proxy.Limiter,
-			AccessPoint:     accessPoint,
-			GetRotation:     process.GetRotation,
-			OnHeartbeat:     process.OnHeartbeat(component),
-			Log:             log,
-			IngressReporter: ingressReporter,
+			TLS:                 tlsConfig.Clone(),
+			LimiterConfig:       cfg.Proxy.Limiter,
+			AccessPoint:         accessPoint,
+			GetRotation:         process.GetRotation,
+			OnHeartbeat:         process.OnHeartbeat(component),
+			Log:                 log,
+			IngressReporter:     ingressReporter,
+			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5300,7 +5308,26 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 	}
 	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
 
-	creds, err := cert.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
+	hosts := []string{cfg.Hostname, "localhost"}
+	var ips []string
+
+	// add web public address hosts to self-signed cert
+	for _, addr := range cfg.Proxy.PublicAddrs {
+		proxyHost, _, err := net.SplitHostPort(addr.String())
+		if err != nil {
+			// log and skip error since this is a nice to have
+			cfg.Log.Warnf("Error parsing proxy.public_address %v, skipping adding to self-signed cert: %v", addr.String(), err)
+			continue
+		}
+		// If the address is a IP have it added as IP SAN
+		if ip := net.ParseIP(proxyHost); ip != nil {
+			ips = append(ips, proxyHost)
+		} else {
+			hosts = append(hosts, proxyHost)
+		}
+	}
+
+	creds, err := cert.GenerateSelfSignedCert(hosts, ips)
 	if err != nil {
 		return trace.Wrap(err)
 	}

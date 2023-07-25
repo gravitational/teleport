@@ -32,6 +32,7 @@ export enum CaptureEvent {
 
   PreUserOnboardSetCredentialSubmitEvent = 'tp.ui.onboard.setCredential.submit',
   PreUserOnboardRegisterChallengeSubmitEvent = 'tp.ui.onboard.registerChallenge.submit',
+  PreUserOnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
   PreUserCompleteGoToDashboardClickEvent = 'tp.ui.onboard.completeGoToDashboard.click',
 
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',

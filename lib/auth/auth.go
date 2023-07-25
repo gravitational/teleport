@@ -228,6 +228,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.AccessLists == nil {
+		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.Integrations == nil {
 		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
@@ -291,6 +297,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Integrations:            cfg.Integrations,
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
+		AccessLists:             cfg.AccessLists,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
@@ -407,6 +414,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.Okta
+	services.AccessLists
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
@@ -429,6 +437,11 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
+	return r
+}
+
+// AccessListClient returns the access list client.
+func (r *Services) AccessListClient() services.AccessLists {
 	return r
 }
 
@@ -3380,23 +3393,8 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		token.SetMetadata(meta)
 	}
 
-	if err := a.UpsertToken(ctx, token); err != nil {
+	if err := a.CreateToken(ctx, token); err != nil {
 		return "", trace.Wrap(err)
-	}
-
-	userMetadata := authz.ClientUserMetadata(ctx)
-	for _, role := range req.Roles {
-		if role == types.RoleTrustedCluster {
-			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
-				Metadata: apievents.Metadata{
-					Type: events.TrustedClusterTokenCreateEvent,
-					Code: events.TrustedClusterTokenCreateCode,
-				},
-				UserMetadata: userMetadata,
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
-			}
-		}
 	}
 
 	return req.Token, nil
@@ -3789,6 +3787,16 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 	return proto.InventoryPingResponse{
 		Duration: d,
 	}, nil
+}
+
+// UpdateLabels updates the labels on an instance over the inventory control
+// stream.
+func (a *Server) UpdateLabels(ctx context.Context, req proto.InventoryUpdateLabelsRequest) error {
+	stream, ok := a.inventory.GetControlStream(req.ServerID)
+	if !ok {
+		return trace.NotFound("no control stream found for server %q", req.ServerID)
+	}
+	return trace.Wrap(stream.UpdateLabels(ctx, req.Kind, req.Labels))
 }
 
 // TokenExpiredOrNotFound is a special message returned by the auth server when provisioning

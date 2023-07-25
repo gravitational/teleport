@@ -97,6 +97,9 @@ type IAM struct {
 	agentIdentity awslib.Identity
 	mu            sync.RWMutex
 	tasks         chan iamTask
+
+	// iamPolicyStatus indicates whether the required IAM Policy to access the database was created.
+	iamPolicyStatus sync.Map
 }
 
 // NewIAM returns a new IAM configurator service.
@@ -105,9 +108,10 @@ func NewIAM(ctx context.Context, config IAMConfig) (*IAM, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &IAM{
-		cfg:   config,
-		log:   logrus.WithField(trace.Component, "iam"),
-		tasks: make(chan iamTask, defaultIAMTaskQueueSize),
+		cfg:             config,
+		log:             logrus.WithField(trace.Component, "iam"),
+		tasks:           make(chan iamTask, defaultIAMTaskQueueSize),
+		iamPolicyStatus: sync.Map{},
 	}, nil
 }
 
@@ -153,6 +157,22 @@ func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 			isSetup:  false,
 			database: database,
 		})
+	}
+	return nil
+}
+
+// UpdateIAMStatus updates the IAMPolicyExists for the Database.
+func (c *IAM) UpdateIAMStatus(database types.Database) error {
+	if c.isSetupRequiredForDatabase(database) {
+		awsStatus := database.GetAWS()
+
+		iamPolicyStatus, ok := c.iamPolicyStatus.Load(database.GetName())
+		if !ok {
+			iamPolicyStatus = false
+		}
+
+		awsStatus.IAMPolicyExists = iamPolicyStatus.(bool)
+		database.SetStatusAWS(awsStatus)
 	}
 	return nil
 }
@@ -291,8 +311,14 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	}()
 
 	if task.isSetup {
-		return configurator.setupIAM(ctx)
+		iamAuthErr := configurator.setupIAMAuth(ctx)
+		iamPolicySetup, iamPolicyErr := configurator.setupIAMPolicy(ctx)
+		c.iamPolicyStatus.Store(task.database.GetName(), iamPolicySetup)
+
+		return trace.NewAggregate(iamAuthErr, iamPolicyErr)
 	}
+
+	c.iamPolicyStatus.Delete(task.database.GetName())
 	return configurator.teardownIAM(ctx)
 }
 

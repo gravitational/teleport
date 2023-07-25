@@ -351,9 +351,14 @@ const (
 	TrustedClusterCreateEvent = "trusted_cluster.create"
 	// TrustedClusterDeleteEvent is the event for removing a trusted cluster.
 	TrustedClusterDeleteEvent = "trusted_cluster.delete"
-	// TrustedClusterTokenCreateEvent is the event for
-	// creating new join token for a trusted cluster.
+	// TrustedClusterTokenCreateEvent is the event for creating new provisioning
+	// token for a trusted cluster. Deprecated in favor of
+	// [ProvisionTokenCreateEvent].
 	TrustedClusterTokenCreateEvent = "trusted_cluster_token.create"
+
+	// ProvisionTokenCreateEvent is the event for creating a provisioning token,
+	// also known as Join Token. See [types.ProvisionToken].
+	ProvisionTokenCreateEvent = "join_token.create"
 
 	// GithubConnectorCreatedEvent fires when a Github connector is created/updated.
 	GithubConnectorCreatedEvent = "github.created"

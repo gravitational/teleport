@@ -719,6 +719,12 @@ export const formatters: Formatters = {
     format: ({ user, name }) =>
       `User [${user}] has created a trusted relationship with cluster [${name}]`,
   },
+  [eventCodes.PROVISION_TOKEN_CREATED]: {
+    type: 'join_token.create',
+    desc: 'Join Token Created',
+    format: ({ user, roles, join_method }) =>
+      `User [${user}] created a join token with role(s) [${roles}] and a join method [${join_method}]`,
+  },
   [eventCodes.TRUSTED_CLUSTER_DELETED]: {
     type: 'trusted_cluster.delete',
     desc: 'Trusted Cluster Deleted',

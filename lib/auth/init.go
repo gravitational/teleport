@@ -229,6 +229,9 @@ type InitConfig struct {
 	// Okta is a service that manages Okta resources.
 	Okta services.Okta
 
+	// AccessLists is a service that manages access list resources.
+	AccessLists services.AccessLists
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
