@@ -5293,6 +5293,8 @@ message PluginSpecV1 {
     PluginJamfSettings jamf = 5;
     // Settings for the PagerDuty plugin
     PluginPagerDutySettings pager_duty = 6;
+    // Settings for the Mattermost plugin
+    PluginMattermostSettings mattermost = 7;
   }
 }
 
@@ -5334,6 +5336,22 @@ message PluginPagerDutySettings {
 // Defines settings for the OpenAI plugin. Currently there are no settings.
 message PluginOpenAISettings {
   option (gogoproto.equal) = true;
+}
+
+// Defines settings for the Mattermost plugin.
+message PluginMattermostSettings {
+  option (gogoproto.equal) = true;
+  // serverURL is the URL to access Mattermost.
+  string server_url = 1;
+  // team is the Mattermost workspace.
+  string team = 2;
+  // channel is the Mattermost channel in the workspace
+  // (team) to send notifications to.
+  string channel = 3;
+  // report_to_email is an optional email address of a Mattermost user
+  // to notify via a direct message when the plugin receives an
+  // Access Request event.
+  string report_to_email = 4;
 }
 
 // Defines settings for Jamf plugin.
