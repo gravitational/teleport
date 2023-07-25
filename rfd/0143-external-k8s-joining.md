@@ -49,7 +49,7 @@ experience.
 This join method will be added to the existing `ProvisionTokenV2` specification.
 
 In order to clearly distinguish this new join method from the existing
-`kubernetes` join method, this method will be named `kubernetes-jwks`.
+`kubernetes` join method, this method will be named `kubernetes-remote`.
 
 Similar to other join methods, users will be able to configure a list of allow
 rules. If a joining entities presented token matches any of the allow rules 
@@ -65,12 +65,12 @@ Example token configuration:
 kind: token
 version: v2
 metadata:
-  name: kubernetes-jwks-token
+  name: kubernetes-remote-token
 spec:
   roles: ["Bot"]
   bot_name: argocd
-  join_method: "kubernetes-jwks",
-  kubernetes_jwks:
+  join_method: "kubernetes-remote",
+  kubernetes_remote:
     clusters:
     - name: my-cluster
       # static_jwks is obtained by the user by following the steps after this 
@@ -142,7 +142,7 @@ In the case that an operator rotates the certificate authority used by their
 Kubernetes Cluster to sign Service Account JWTS, the `jwks` field will also
 need to be updated.
 
-#### Configuring a pod for `kubernetes-jwks` joining
+#### Configuring a pod for `kubernetes-remote` joining
 
 The Pod will require a service account with a role granting it the ability to
 call the TokenRequest endpoint for itself. This allows the creation of a token
@@ -183,7 +183,7 @@ subjects:
 
 ### Implementation
 
-The `kubernetes-jwks` flow will leverage a challenge and response flow, similar
+The `kubernetes-remote` flow will leverage a challenge and response flow, similar
 to that implemented for IAM joining. The flow will run as follows:
 
 1. The client wishing to join calls the `RegisterUsingKubernetesJWKS` RPC. It
