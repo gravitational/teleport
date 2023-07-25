@@ -61,7 +61,7 @@ export class AgentRunner {
     ].filter(Boolean);
 
     this.logger.info(
-      `Starting agent from ${agentBinaryPath} with arguments ${args}`
+      `Starting agent from ${agentBinaryPath} with arguments ${args.join(' ')}`
     );
 
     const agentProcess = spawn(agentBinaryPath, args, {
