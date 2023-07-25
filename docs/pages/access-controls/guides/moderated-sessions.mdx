@@ -188,8 +188,8 @@ this policy requires.
 The `on_leave` string option in require policies is used to define what happens when a moderator leaves a session, causing a policy to no longer be satisfied.
 
 There are two possible actions to take in this scenario:
-1. Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
-2. Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
+- Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
+- Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
 
 By default, Teleport treats an empty string in this field as the same as `terminate`.
 That is, the session is terminated instantly and all participants are disconnected.
