@@ -278,6 +278,50 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 	return nil
 }
 
+// getAccessRequestMonthlyUsage TODO
+func (s *DynamicAccessService) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
+	const pageSize = 100
+	// Get at most pageSize+1 results to determine if there will be a next key.
+	const maxLimit = pageSize + 1
+
+	var count int
+
+	now := s.Clock().Now().UTC()
+	monthStart := time.Date(now.Year(), now.Month(), 0, 0, 0, 0, 0, time.UTC)
+	nextMonthStart := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
+
+	pageToken := backend.Key(accessRequestsPrefix)
+	for {
+		result, err := s.GetRange(ctx, pageToken, backend.RangeEnd(backend.Key(accessRequestsPrefix)), maxLimit)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		items := result.Items
+		var nextPageToken []byte
+		if len(items) == maxLimit {
+			nextPageToken = items[len(items)-1].Key
+			items = items[:pageSize]
+		}
+
+		for _, item := range items {
+			request, err := itemToAccessRequest(item)
+			if err != nil {
+				return 0, trace.Wrap(err)
+			}
+			if request.GetCreationTime().After(monthStart) && request.GetCreationTime().Before(nextMonthStart) {
+				count++
+			}
+		}
+		if nextPageToken == nil {
+			break
+		}
+		pageToken = nextPageToken
+
+	}
+
+	return count, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (s *DynamicAccessService) GetPluginData(ctx context.Context, filter types.PluginDataFilter) ([]types.PluginData, error) {
 	switch filter.Kind {
