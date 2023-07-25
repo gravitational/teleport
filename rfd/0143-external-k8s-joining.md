@@ -186,8 +186,8 @@ subjects:
 The `kubernetes-remote` flow will leverage a challenge and response flow, similar
 to that implemented for IAM joining. The flow will run as follows:
 
-1. The client wishing to join calls the `RegisterUsingKubernetesJWKS` RPC. It
-  submits the name of the token it wants to use.
+1. The client wishing to join calls the `RegisterUsingKubernetesRemoteMethod`
+  RPC. It submits the name of the token it wants to use.
 2. The Auth Server sends a response with the audience that should be set in the 
   token. This audience is a concatenation of the cluster name, and 24 bytes of
   cryptographically random data encoded in base64 URL encoding, e.g:
@@ -240,7 +240,7 @@ message RegisterUsingKubernetesRemoteMethodResponse {
 }
 
 service JoinService {
-  rpc RegisterUsingKubernetesRemote(stream RegisterUsingKubernetesRemoteMethodRequest) returns (stream RegisterUsingKubernetesRemoteMethodResponse);
+  rpc RegisterUsingKubernetesRemoteMethod(stream RegisterUsingKubernetesRemoteMethodRequest) returns (stream RegisterUsingKubernetesRemoteMethodResponse);
 }
 ```
 
