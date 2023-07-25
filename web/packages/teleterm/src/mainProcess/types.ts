@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
 import { Kind } from 'teleterm/ui/services/workspacesService';
 import { FileStorage } from 'teleterm/services/fileStorage';
 
@@ -86,6 +87,9 @@ export type MainProcessClient = {
     cleanup: () => void;
   };
   downloadAgent(): Promise<void>;
+  createAgentConfigFile(
+    properties: AgentConfigFileClusterProperties
+  ): Promise<void>;
 };
 
 export type ChildProcessAddresses = {

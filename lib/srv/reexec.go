@@ -60,6 +60,10 @@ const (
 	// it can continue after the parent process assigns a cgroup to the
 	// child process.
 	ContinueFile
+	// ReadyFile is used to communicate to the parent process that
+	// the child has completed any setup operations that must occur before
+	// the child is placed into its cgroup.
+	ReadyFile
 	// TerminateFile is used to communicate to the child process that
 	// the interactive terminal should be killed as the client ended the
 	// SSH session and without termination the terminal process will be assigned
@@ -69,7 +73,7 @@ const (
 	// X11File is used to communicate to the parent process that the child
 	// process has set up X11 forwarding.
 	X11File
-	// ErrorFile  is used to communicate any errors terminating the child process
+	// ErrorFile is used to communicate any errors terminating the child process
 	// to the parent process
 	ErrorFile
 	// PTYFile is a PTY the parent process passes to the child process.
@@ -213,6 +217,21 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if contfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
+	readyfd := os.NewFile(ReadyFile, fdName(ReadyFile))
+	if readyfd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("ready pipe not found")
+	}
+
+	// Ensure that the ready signal is sent if a failure causes execution
+	// to terminate prior to actually becoming ready to unblock the parent process.
+	defer func() {
+		if readyfd == nil {
+			return
+		}
+
+		_ = readyfd.Close()
+	}()
+
 	termiantefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if termiantefd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
@@ -317,6 +336,14 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		pamEnvironment = pamContext.Environment()
 	}
 
+	// Alert the parent process that the child process has completed any setup operations,
+	// and that we are now waiting for the continue signal before proceeding. This is needed
+	// to ensure that PAM changing the cgroup doesn't bypass enhanced recording.
+	if err := readyfd.Close(); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	}
+	readyfd = nil
+
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
@@ -330,7 +357,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
-	err = waitForContinue(contfd)
+	err = waitForSignal(contfd, 10*time.Second)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -900,6 +927,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
+			ctx.readyw,
 			ctx.killShellr,
 			ctx.x11rdyw,
 			ctx.errw,

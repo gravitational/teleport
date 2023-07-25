@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
@@ -725,6 +726,60 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 		}
 		response.CertsReloaded = result.CertsReloaded
 		return nil
+	})
+
+	return response, trace.Wrap(err)
+}
+
+// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes.
+func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (*connectmycomputer.NodeToken, error) {
+	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var nodeToken *connectmycomputer.NodeToken
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		nodeToken, err = s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, authClient, cluster)
+		return trace.Wrap(err)
+	})
+
+	return nodeToken, trace.Wrap(err)
+}
+
+// DeleteConnectMyComputerToken deletes a join token
+func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
+	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := &api.DeleteConnectMyComputerTokenResponse{}
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		err = s.cfg.ConnectMyComputerTokenProvisioner.DeleteToken(ctx, authClient, req.Token)
+		return trace.Wrap(err)
 	})
 
 	return response, trace.Wrap(err)
