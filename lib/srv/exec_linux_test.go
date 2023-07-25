@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -134,7 +135,13 @@ func TestContinue(t *testing.T) {
 	// Re-execute Teleport and run "ls". Signal over the context when execution
 	// is complete.
 	go func() {
-		cmdDone <- cmd.Run()
+		if err := cmd.Start(); err != nil {
+			cmdDone <- err
+		}
+
+		// Close the read half of the pipe to unblock the ready signal.
+		closeErr := scx.readyw.Close()
+		cmdDone <- trace.NewAggregate(closeErr, cmd.Wait())
 	}()
 
 	// Wait for the process. Since the continue pipe has not been closed, the
@@ -145,10 +152,11 @@ func TestContinue(t *testing.T) {
 	case <-time.After(5 * time.Second):
 	}
 
-	// Close the continue and terminate pipe to signal to Teleport to now execute the
-	// requested program.
-	err = scx.contw.Close()
-	require.NoError(t, err)
+	// Wait for the child process to indicate its completed initialization.
+	require.NoError(t, scx.execRequest.WaitForChild())
+
+	// Signal to child that it may execute the requested program.
+	scx.execRequest.Continue()
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
