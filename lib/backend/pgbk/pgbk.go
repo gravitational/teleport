@@ -161,11 +161,12 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		poolConfig.BeforeConnect = bc
 	}
 
-	if poolConfig.ConnConfig.RuntimeParams["default_transaction_isolation"] != "" {
-		log.WithField("default_transaction_isolation", poolConfig.ConnConfig.RuntimeParams["default_transaction_isolation"]).
-			Warn("The default_transaction_isolation parameter was overridden in the connection string; proceeding with an unsupported configuration.")
+	const defaultTxIsoParamName = "default_transaction_isolation"
+	if defaultTxIso := poolConfig.ConnConfig.RuntimeParams[defaultTxIsoParamName]; defaultTxIso != "" {
+		log.WithField(defaultTxIsoParamName, defaultTxIso).
+			Error("The " + defaultTxIsoParamName + " parameter was overridden in the connection string; proceeding with an unsupported configuration.")
 	} else {
-		poolConfig.ConnConfig.RuntimeParams["default_transaction_isolation"] = "serializable"
+		poolConfig.ConnConfig.RuntimeParams[defaultTxIsoParamName] = "serializable"
 	}
 
 	log.Info("Setting up backend.")
