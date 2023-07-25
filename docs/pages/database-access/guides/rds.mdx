@@ -180,8 +180,8 @@ Follow these instructions on your local workstation.
 Create an IAM policy document that allows an IAM identity to connect to your RDS
 database. Assign <Var name="rds-region" /> to the name of the AWS region where
 your RDS database is running, <Var name="aws-account" /> to your AWS account
-number, and <Var name="resource-id" /> to the resource ID of your RDS or Aurora
-database:
+number, and <Var name="resource-id" /> to the resource ID of your RDS database
+or the cluster ID of your Aurora cluster:
 
 ```code
 $ cat > connect.json << EOF
@@ -319,8 +319,7 @@ databases:
     region: "<Var name="rds-region" />"
 annotations:
   serviceAccount:
-    eks.amazonaws.com/role-arn:
-    arn:aws:iam::<Var name="aws-account" />:role/teleport-rds-role
+    eks.amazonaws.com/role-arn: arn:aws:iam::<Var name="aws-account" />:role/teleport-rds-role
 EOF
 ```
 
