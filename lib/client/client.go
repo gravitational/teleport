@@ -536,6 +536,19 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			}
 		}
 
+		// If connecting to a host in a leaf cluster and MFA failed check to see
+		// if the leaf cluster requires MFA. If it doesn't return an error indicating
+		// that MFA was not required instead of the error received from the root cluster.
+		if params.RouteToCluster != rootClusterName {
+			check, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.teleportClient.HostLogin))
+			if err != nil {
+				return nil, trace.Wrap(MFARequiredUnknown(err))
+			}
+			if !check.Required {
+				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()

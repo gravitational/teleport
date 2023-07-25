@@ -389,6 +389,11 @@ type ServerContext struct {
 	contr *os.File
 	contw *os.File
 
+	// ready{r,w} is used to send the ready signal from the child process
+	// to the parent process.
+	readyr *os.File
+	readyw *os.File
+
 	// killShell{r,w} are used to send kill signal to the child process
 	// to terminate the shell.
 	killShellr *os.File
@@ -556,6 +561,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
+
+	// Create pipe used to signal continue to parent process.
+	child.readyr, child.readyw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.readyr)
+	child.AddCloser(child.readyw)
 
 	child.killShellr, child.killShellw, err = os.Pipe()
 	if err != nil {

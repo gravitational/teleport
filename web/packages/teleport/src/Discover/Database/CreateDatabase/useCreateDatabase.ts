@@ -221,7 +221,7 @@ export function useCreateDatabase() {
     const preErrMsg = 'failed to register database: ';
     const nonAwsMsg = `use a different name and try again`;
     const awsMsg = `change (or define) the value of the \
-    tag "teleport.dev/database_name" on the RDS instance and try again`;
+    tag "TeleportDatabaseName" on the RDS instance and try again`;
 
     try {
       await ctx.databaseService.fetchDatabase(clusterId, dbName);

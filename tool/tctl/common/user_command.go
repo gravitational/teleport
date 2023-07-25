@@ -266,6 +266,12 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	user.SetRoles(u.allowedRoles)
 
 	if err := client.CreateUser(ctx, user); err != nil {
+		if trace.IsAlreadyExists(err) {
+			fmt.Printf(`NOTE: To update an existing local user:
+> tctl users update %v --set-roles %v # replace roles
+
+`, u.login, strings.Join(u.allowedRoles, ","))
+		}
 		return trace.Wrap(err)
 	}
 

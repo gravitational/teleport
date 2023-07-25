@@ -597,7 +597,9 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 				require.NoError(t, test.cloudLabels.Sync(context.Background()))
 			}
 
-			updatedApp := s.appServer.appWithUpdatedLabels(test.app)
+			s.appServer.mu.RLock()
+			updatedApp := s.appServer.appWithUpdatedLabelsLocked(test.app)
+			s.appServer.mu.RUnlock()
 
 			for key, value := range test.expectedDynamicLabels {
 				require.Equal(t, value, updatedApp.GetDynamicLabels()[key].GetResult())
