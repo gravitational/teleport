@@ -130,6 +130,22 @@ message SessionStartEvent {
   //
   // PostHog property: tp.session_type
   string session_type = 2;
+
+  // if session_type == "db" the database struct contains  additional information
+  // about database session.
+  //
+  // PostHog property: tp.database
+  SessionStartDatabaseMetadata database = 3;
+}
+
+// SessionStartDatabaseMetadata contains additional information about database session.
+message SessionStartDatabaseMetadata {
+  // database type.
+  string db_type = 1;
+  // database protocol.
+  string db_protocol = 2;
+  // database origin source.
+  string db_origin = 3;
 }
 
 // the issuance of a user certificate from the user CA
@@ -584,6 +600,10 @@ message AgentMetadataEvent {
   string container_runtime = 9;
   string container_orchestrator = 10;
   string cloud_environment = 11;
+
+  // external_upgrader is the name of the registered external upgrader. if non-empty, this field indicates
+  // that the associated agent is enrolled in automatic upgrades.
+  string external_upgrader = 12;
 }
 
 // AssistCompletionEvent is an event that is emitted

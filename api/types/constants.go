@@ -138,11 +138,26 @@ const (
 	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
 	SubKindOpenSSHNode = "openssh"
 
+	// SubKindOpenSSHEC2InstanceConnectEndpointNode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
+	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
+	//
+	// For Amazon EC2 Instances, it uploads the key using:
+	// https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
+	// This Key is valid for 60 seconds.
+	//
+	// It uses the private key created above to SSH into the host.
+	SubKindOpenSSHEC2InstanceConnectEndpointNode = "openssh-ec2-ice"
+
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
 	// KindApp is a web app resource.
 	KindApp = "app"
+
+	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
+	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
+	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
+	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -421,6 +436,10 @@ const (
 	// KindServerInfo contains info that should be applied to joining Nodes.
 	KindServerInfo = "server_info"
 
+	// SubKindCloudInfo is a ServerInfo that was created by the Discovery
+	// service to match with a single discovered instance.
+	SubKindCloudInfo = "cloud_info"
+
 	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
 	// window singleton resource.
 	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
@@ -430,6 +449,9 @@ const (
 
 	// KindAccessList is an AccessList resource
 	KindAccessList = "access_list"
+
+	// KindUserLoginState is a UserLoginState resource
+	KindUserLoginState = "user_login_state"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -572,6 +594,32 @@ const (
 	// discovered databases.
 	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
+	// cloudKubeClusterNameOverrideLabel is a cloud agnostic label key for
+	// overriding kubernetes cluster name in discovered cloud kube clusters.
+	// It's used for AWS, GCP, and Azure, but not exported to decouple the
+	// cloud-specific labels from eachother.
+	cloudKubeClusterNameOverrideLabel = "TeleportKubernetesName"
+
+	// cloudDatabaseNameOverrideLabel is a cloud agnostic label key for
+	// overriding the database name in discovered cloud databases.
+	// It's used for AWS, GCP, and Azure, but not exported to decouple the
+	// cloud-specific labels from eachother.
+	cloudDatabaseNameOverrideLabel = "TeleportDatabaseName"
+
+	// AzureDatabaseNameOverrideLabel is the label key containing the database
+	// name override for discovered Azure databases.
+	// Azure tags cannot contain these characters: "<>%&\?/", so it doesn't
+	// start with the namespace prefix.
+	AzureDatabaseNameOverrideLabel = cloudDatabaseNameOverrideLabel
+
+	// AzureKubeClusterNameOverrideLabel is the label key containing the
+	// kubernetes cluster name override for discovered Azure kube clusters.
+	AzureKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
+
+	// GCPKubeClusterNameOverrideLabel is the label key containing the
+	// kubernetes cluster name override for discovered GCP kube clusters.
+	GCPKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
+
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
 
@@ -584,6 +632,101 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+
+	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
+	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].
+	ConnectMyComputerNodeOwnerLabel = TeleportNamespace + "/connect-my-computer/owner"
+)
+
+var (
+	// AWSKubeClusterNameOverrideLabels are the label keys that Teleport
+	// supports to override the kubernetes cluster name of discovered AWS kube
+	// clusters.
+	// Originally Teleport supported just the namespaced label
+	// "teleport.dev/kubernetes-name", but this was an invalid label key in
+	// other clouds.
+	// For consistency and backwards compatibility, Teleport now supports both
+	// the generic cloud kube cluster name override label and the original
+	// namespaced label.
+	AWSKubeClusterNameOverrideLabels = []string{
+		cloudKubeClusterNameOverrideLabel,
+		// This is a legacy label that should continue to be supported, but
+		// don't reference it in documentation or error messages anymore.
+		// The generic label takes precedence.
+		TeleportNamespace + "/kubernetes-name",
+	}
+	// AWSDatabaseNameOverrideLabels are the label keys that Teleport
+	// supports to override the database name of discovered AWS databases.
+	// Originally Teleport supported just the namespaced label
+	// "teleport.dev/database_name", but this was an invalid label key in
+	// other clouds.
+	// For consistency and backwards compatibility, Teleport now supports both
+	// the generic cloud database name override label and the original
+	// namespaced label.
+	AWSDatabaseNameOverrideLabels = []string{
+		cloudDatabaseNameOverrideLabel,
+		// This is a legacy label that should continue to be supported, but
+		// don't reference it in documentation or error messages anymore.
+		// The generic label takes precedence.
+		TeleportNamespace + "/database_name",
+	}
+)
+
+// Labels added by the discovery service to discovered databases,
+// Kubernetes clusters, and Windows desktops.
+const (
+	// DiscoveryLabelRegion identifies a discovered cloud resource's region.
+	DiscoveryLabelRegion = "region"
+	// DiscoveryLabelAccountID is the label key containing AWS account ID.
+	DiscoveryLabelAccountID = "account-id"
+	// DiscoveryLabelEngine is the label key containing database engine name.
+	DiscoveryLabelEngine = "engine"
+	// DiscoveryLabelEngineVersion is the label key containing database engine version.
+	DiscoveryLabelEngineVersion = "engine-version"
+	// DiscoveryLabelEndpointType is the label key containing the endpoint type.
+	DiscoveryLabelEndpointType = "endpoint-type"
+	// DiscoveryLabelVPCID is the label key containing the VPC ID.
+	DiscoveryLabelVPCID = "vpc-id"
+	// DiscoveryLabelNamespace is the label key for namespace name.
+	DiscoveryLabelNamespace = "namespace"
+	// DiscoveryLabelWorkgroup is the label key for workgroup name.
+	DiscoveryLabelWorkgroup = "workgroup"
+	// DiscoveryLabelStatus is the label key containing the database status, e.g. "available"
+	DiscoveryLabelStatus = "status"
+
+	// DiscoveryLabelAzureSubscriptionID is the label key for Azure subscription ID.
+	DiscoveryLabelAzureSubscriptionID = "subscription-id"
+	// DiscoveryLabelAzureResourceGroup is the label key for the Azure resource group name.
+	DiscoveryLabelAzureResourceGroup = "resource-group"
+	// DiscoveryLabelAzureReplicationRole is the replication role of an Azure DB Flexible server, e.g. "Source" or "Replica".
+	DiscoveryLabelAzureReplicationRole = "replication-role"
+	// DiscoveryLabelAzureSourceServer is the source server for replica Azure DB Flexible servers.
+	// This is the source (primary) database resource name.
+	DiscoveryLabelAzureSourceServer = "source-server"
+
+	// DiscoveryLabelGCPProjectID is the label key for GCP project ID.
+	DiscoveryLabelGCPProjectID = "project-id"
+	// DiscoveryLabelGCPLocation is the label key for GCP location.
+	DiscoveryLabelGCPLocation = "location"
+
+	// DiscoveryLabelWindowsDNSHostName is the DNS hostname of an LDAP object.
+	DiscoveryLabelWindowsDNSHostName = TeleportNamespace + "/dns_host_name"
+	//DiscoveryLabelWindowsComputerName is the name of an LDAP object.
+	DiscoveryLabelWindowsComputerName = TeleportNamespace + "/computer_name"
+	//DiscoveryLabelWindowsOS is the operating system of an LDAP object.
+	DiscoveryLabelWindowsOS = TeleportNamespace + "/os"
+	//DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
+	DiscoveryLabelWindowsOSVersion = TeleportNamespace + "/os_version"
+	//DiscoveryLabelWindowsOU is an LDAP objects's OU.
+	DiscoveryLabelWindowsOU = TeleportNamespace + "/ou"
+	//DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
+	// domain controller.
+	DiscoveryLabelWindowsIsDomainController = TeleportNamespace + "/is_domain_controller"
+	//DiscoveryLabelWindowsDomain is an Active Directory domain name.
+	DiscoveryLabelWindowsDomain = TeleportNamespace + "/windows_domain"
+	// DiscoveryLabelLDAPPrefix is the prefix used when applying any custom
+	// labels per the discovery LDAP attribute labels configuration.
+	DiscoveryLabelLDAPPrefix = "ldap/"
 )
 
 const (
@@ -598,6 +741,12 @@ const (
 	//
 	// See also TeleportNamespace and TeleportInternalLabelPrefix.
 	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
+	// DiscoveredNameLabel is a resource metadata label name used to identify
+	// the discovered name of a resource, i.e. the name of a resource before a
+	// uniquely distinguishing suffix is added by the discovery service.
+	// See: RFD 129 - Avoid Discovery Resource Name Collisions.
+	DiscoveredNameLabel = TeleportInternalLabelPrefix + "discovered-name"
 
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"

@@ -648,7 +648,27 @@ export default function createClient(
         });
       });
     },
+
+    createConnectMyComputerRole(rootClusterUri: uri.RootClusterUri) {
+      const req =
+        new api.CreateConnectMyComputerRoleRequest().setRootClusterUri(
+          rootClusterUri
+        );
+
+      return new Promise<types.CreateConnectMyComputerRoleResponse>(
+        (resolve, reject) => {
+          tshd.createConnectMyComputerRole(req, (err, response) => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(response.toObject());
+            }
+          });
+        }
+      );
+    },
   };
+
   return client;
 }
 

@@ -279,10 +279,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	if !found {
 		// Create a new session ID. These sessions can not be joined
 		sessionID = rsession.NewID()
+		scx.Tracef("Session not found, creating a new session %s", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
 		sessionID = rsession.ID(sid)
+		scx.Tracef("Session found, reusing it %s", sessionID)
 	}
 
 	_, found = scx.GetEnv(teleport.EnableNonInteractiveSessionRecording)
@@ -1188,6 +1190,11 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
+	if err := s.term.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
+		return trace.Wrap(err)
+	}
+
 	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
 		s.log.WithError(err).Error("Failed to open enhanced recording (interactive) session")
 		return trace.Wrap(err)
@@ -1351,6 +1358,12 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		User:           scx.Identity.TeleportUser,
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
+
+	if err := execRequest.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
+		return trace.Wrap(err)
+	}
+
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
 		s.log.WithError(err).Errorf("Failed to open enhanced recording (exec) session: %v", execRequest.GetCommand())

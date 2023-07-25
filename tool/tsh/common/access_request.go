@@ -18,6 +18,7 @@ package common
 
 import (
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -211,6 +212,10 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
+	if !req.GetAccessExpiry().IsZero() {
+		// Display the expiry time in the local timezone. UTC is confusing.
+		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
+	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err := table.AsBuffer().WriteTo(cf.Stdout())
@@ -382,7 +387,7 @@ func onRequestSearch(cf *CLIConf) error {
 	if cf.KubernetesCluster == "" {
 		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
 	}
-	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
+	if slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind) && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
 	}
 	// if --all-namespaces flag was provided we search in every namespace.
@@ -459,7 +464,7 @@ func onRequestSearch(cf *CLIConf) error {
 				ClusterName:     tc.SiteName,
 				Kind:            resource.GetKind(),
 				Name:            cf.KubernetesCluster,
-				SubResourceName: fmt.Sprintf("%s/%s", r.Spec.Namespace, resource.GetName()),
+				SubResourceName: path.Join(r.Spec.Namespace, resource.GetName()),
 			})
 			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
 				continue

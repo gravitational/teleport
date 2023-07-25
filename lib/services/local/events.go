@@ -171,6 +171,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 				return nil, trace.Wrap(err)
 			}
 			parser = p
+		case types.KindAccessList:
+			parser = newAccessListParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1590,6 +1592,30 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 			return nil, nil
 		}
 		return ha, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessListParser() *accessListParser {
+	return &accessListParser{
+		baseParser: newBaseParser(backend.Key(accessListPrefix)),
+	}
+}
+
+type accessListParser struct {
+	baseParser
+}
+
+func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAccessList, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalAccessList(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

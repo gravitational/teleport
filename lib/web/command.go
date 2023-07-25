@@ -35,6 +35,7 @@ import (
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -284,7 +285,7 @@ func (h *Handler) executeCommand(
 		return trace.Wrap(err)
 	}
 
-	runCommands(hosts, runCmd, h.log)
+	runCommands(hosts, runCmd, int(netConfig.GetAssistCommandExecutionWorkers()), h.log)
 
 	// Optionally, try to compute the command summary.
 	if output, valid := buffer.Export(); valid {
@@ -395,35 +396,21 @@ func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte 
 }
 
 // runCommands runs the given command on the given hosts.
-func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, log logrus.FieldLogger) {
-	// Create a synchronization channel to limit the number of concurrent commands.
-	// The maximum number of concurrent commands is 30 - it is arbitrary.
-	syncChan := make(chan struct{}, 30)
-	// WaiteGroup to wait for all commands to finish.
-	wg := sync.WaitGroup{}
+func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, numParallel int, log logrus.FieldLogger) {
+	var group errgroup.Group
+	group.SetLimit(numParallel)
 
 	for _, host := range hosts {
 		host := host
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			// Limit the number of concurrent commands.
-			syncChan <- struct{}{}
-			defer func() {
-				// Release the command slot.
-				<-syncChan
-			}()
-
-			if err := runCmd(&host); err != nil {
-				log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
-			}
-		}()
+		group.Go(func() error {
+			return trace.Wrap(runCmd(&host), "failed to start session on %v", host.hostName)
+		})
 	}
 
 	// Wait for all commands to finish.
-	wg.Wait()
+	if err := group.Wait(); err != nil {
+		log.WithError(err).Debug("Assist command execution failed")
+	}
 }
 
 // getMFACacheFn returns a function that caches the result of the given
@@ -721,7 +708,7 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 	clientConfig.HostLogin = t.sessionData.Login
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
-	clientConfig.Stdout = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, envelopeTypeStdout, t.stream), t.buffer)
+	clientConfig.Stdout = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, EnvelopeTypeStdout, t.stream), t.buffer)
 	clientConfig.Stderr = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, envelopeTypeStderr, t.stream), t.buffer)
 	clientConfig.Stdin = &bytes.Buffer{} // set stdin to a dummy buffer
 	clientConfig.SiteName = t.sessionData.ClusterName

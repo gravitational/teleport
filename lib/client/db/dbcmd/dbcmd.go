@@ -126,10 +126,10 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	// In TLS routing mode a local proxy is started on demand so connect to it.
-	host, port := tc.DatabaseProxyHostPort(db)
-	if options.localProxyPort != 0 && options.localProxyHost != "" {
-		host = options.localProxyHost
-		port = options.localProxyPort
+	host := options.localProxyHost
+	port := options.localProxyPort
+	if host == "" || port == 0 {
+		host, port = tc.DatabaseProxyHostPort(db)
 	}
 
 	if options.log == nil {
@@ -200,6 +200,12 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolOracle:
 		return c.getOracleCommand()
+
+	case defaults.ProtocolClickHouseHTTP:
+		return c.getClickhouseHTTPCommand()
+	case defaults.ProtocolClickHouse:
+		return c.getClickhouseNativeCommand()
+
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -330,7 +336,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 		// We save configuration to ~/.my.cnf, but on Windows that file is not read,
 		// see tables 4.1 and 4.2 on https://dev.mysql.com/doc/refman/8.0/en/option-files.html.
 		// We instruct mysql client to use use that file with --defaults-extra-file.
-		configPath, err := mysql.DefaultConfigPath()
+		configPath, err := c.getMySQLOptionFilePath()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -344,6 +350,15 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 	}
 
 	return exec.Command(mysqlBin, args...), nil
+}
+
+// getMySQLOptionFilePath gets the filepath to .my.cnf from the default location
+// in ~/.my.cnf, unless overridden by config.
+func (c *CLICommandBuilder) getMySQLOptionFilePath() (string, error) {
+	if c.tc.OverrideMySQLOptionFilePath != "" {
+		return c.tc.OverrideMySQLOptionFilePath, nil
+	}
+	return mysql.DefaultConfigPath()
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,

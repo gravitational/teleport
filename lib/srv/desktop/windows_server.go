@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -66,7 +67,7 @@ const (
 	// ldapRequestTimeout is the timeout for making LDAP requests.
 	// It is larger than the dial timeout because LDAP queries in large
 	// Active Directory environments may take longer to complete.
-	ldapRequestTimeout = 20 * time.Second
+	ldapRequestTimeout = 45 * time.Second
 
 	// windowsDesktopServiceCertTTL is the TTL for certificates issued to the
 	// Windows Desktop Service in order to authenticate with the LDAP server.
@@ -78,6 +79,11 @@ const (
 	// windowsDesktopServiceCertRetryInterval indicates how often to retry
 	// issuing an LDAP certificate if the operation fails.
 	windowsDesktopServiceCertRetryInterval = 10 * time.Minute
+
+	// ldapTimeoutRetryInterval indicates how often to retry LDAP initialization
+	// if it times out. It is set lower than windowsDesktopServiceCertRetryInterval
+	// because LDAP timeouts may indicate a temporary issue.
+	ldapTimeoutRetryInterval = 10 * time.Second
 )
 
 // ComputerAttributes are the attributes we fetch when discovering
@@ -486,7 +492,14 @@ func (s *WindowsService) initializeLDAP() error {
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
-		s.scheduleNextLDAPCertRenewalLocked(windowsDesktopServiceCertRetryInterval)
+
+		// failures due to timeouts might be transient, so retry more frequently
+		retryAfter := windowsDesktopServiceCertRetryInterval
+		if errors.Is(err, context.DeadlineExceeded) {
+			retryAfter = ldapTimeoutRetryInterval
+		}
+
+		s.scheduleNextLDAPCertRenewalLocked(retryAfter)
 		s.mu.Unlock()
 		return trace.Wrap(err, "dial")
 	}

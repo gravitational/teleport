@@ -116,7 +116,7 @@ export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
   border-top: ${props =>
     props.showTopBorder
       ? '1px solid ' + props.theme.colors.spotBackground[0]
-      : undefined}
+      : undefined};
 `;
 
 export const StyledTableWrapper = styled.div`

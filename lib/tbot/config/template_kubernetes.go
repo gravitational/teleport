@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
@@ -120,9 +121,14 @@ func generateKubeConfig(ks *kubernetesStatus, destPath string, executablePath st
 		TLSServerName:            ks.tlsServerName,
 	}
 
+	absDestPath, err := filepath.Abs(destPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "determining absolute path for destination")
+	}
+
 	// Configure the auth info.
 	execArgs := []string{"kube", "credentials",
-		fmt.Sprintf("--destination-dir=%s", destPath),
+		fmt.Sprintf("--destination-dir=%s", absDestPath),
 	}
 	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 		Exec: &clientcmdapi.ExecConfig{

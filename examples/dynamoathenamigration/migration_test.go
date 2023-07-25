@@ -115,6 +115,35 @@ func TestMigrateProcessDataObjects(t *testing.T) {
 	}, emitter.events)
 }
 
+func TestLargeEventsParse(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	emitter := &mockEmitter{}
+	mt := &task{
+		s3Downloader: &fakeDownloader{
+			dataObjects: map[string]string{
+				"large.json.gz": generateLargeEventLine(),
+			},
+		},
+		eventsEmitter: emitter,
+		Config: Config{
+			Logger:          utils.NewLoggerForTests(),
+			NoOfEmitWorkers: 5,
+			bufferSize:      10,
+			CheckpointPath:  path.Join(t.TempDir(), "migration-tests.json"),
+		},
+	}
+	err := mt.ProcessDataObjects(ctx, &exportInfo{
+		ExportARN: "export-arn",
+		DataObjectsInfo: []dataObjectInfo{
+			{DataFileS3Key: "large.json.gz"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, emitter.events, 1)
+}
+
 type fakeDownloader struct {
 	dataObjects map[string]string
 }
@@ -419,6 +448,60 @@ func TestMigrationCheckpoint(t *testing.T) {
 	})
 }
 
+func generateLargeEventLine() string {
+	// Generate event close to 400KB which is max of dynamoDB to test if
+	// it can be processed.
+	return fmt.Sprintf(
+		`{
+			"Item": {
+				"EventIndex": {
+					"N": "2147483647"
+				},
+				"SessionID": {
+					"S": "4298bd54-a747-4d53-b850-83ba17caae5a"
+				},
+				"CreatedAtDate": {
+					"S": "2023-05-22"
+				},
+				"FieldsMap": {
+					"M": {
+						"cluster_name": {
+							"S": "%s"
+						},
+						"uid": {
+							"S": "%s"
+						},
+						"code": {
+							"S": "T2005I"
+						},
+						"ei": {
+							"N": "2147483647"
+						},
+						"time": {
+							"S": "2023-05-22T12:12:21.966Z"
+						},
+						"event": {
+							"S": "session.upload"
+						},
+						"sid": {
+							"S": "4298bd54-a747-4d53-b850-83ba17caae5a"
+						}
+					}
+				},
+				"EventType": {
+					"S": "session.upload"
+				},
+				"EventNamespace": {
+					"S": "default"
+				},
+				"CreatedAt": {
+					"N": "1684757541"
+				}
+			}
+		}`,
+		strings.Repeat("a", 1024*400 /* 400 KB */), uuid.NewString())
+}
+
 func generateDynamoExportData(n int) string {
 	if n < 1 {
 		panic("number of events to generate must be > 0")
@@ -429,4 +512,84 @@ func generateDynamoExportData(n int) string {
 		sb.WriteString(fmt.Sprintf(lineFmt+"\n", uuid.NewString()))
 	}
 	return sb.String()
+}
+
+func TestMigrationDryRunValidation(t *testing.T) {
+	validEvent := func() apievents.AuditEvent {
+		return &apievents.AppCreate{
+			Metadata: apievents.Metadata{
+				Time: time.Date(2023, 5, 1, 12, 15, 0, 0, time.UTC),
+				ID:   uuid.NewString(),
+			},
+		}
+	}
+	tests := []struct {
+		name    string
+		events  func() []apievents.AuditEvent
+		wantLog string
+		wantErr string
+	}{
+		{
+			name: "valid events",
+			events: func() []apievents.AuditEvent {
+				return []apievents.AuditEvent{
+					validEvent(), validEvent(),
+				}
+			},
+		},
+		{
+			name: "event without time",
+			events: func() []apievents.AuditEvent {
+				eventWithoutTime := validEvent()
+				eventWithoutTime.SetTime(time.Time{})
+				return []apievents.AuditEvent{
+					validEvent(), eventWithoutTime,
+				}
+			},
+			wantLog: "is invalid: empty event time",
+			wantErr: "1 invalid",
+		},
+		{
+			name: "event with wrong uuid",
+			events: func() []apievents.AuditEvent {
+				eventWithInvalidUUID := validEvent()
+				eventWithInvalidUUID.SetID("invalid-uuid")
+				return []apievents.AuditEvent{
+					validEvent(), eventWithInvalidUUID,
+				}
+			},
+			wantLog: "is invalid: invalid uid format: invalid UUID length",
+			wantErr: "1 invalid",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Migration cli logs output from validation to logger.
+			var logBuffer bytes.Buffer
+			log := utils.NewLoggerForTests()
+			log.SetOutput(&logBuffer)
+
+			tr := &task{
+				Config: Config{
+					Logger: log,
+					DryRun: true,
+				},
+			}
+			c := make(chan apievents.AuditEvent, 10)
+			for _, e := range tt.events() {
+				c <- e
+			}
+			close(c)
+			err := tr.emitEvents(context.Background(), c, "" /* exportARN not used in dryRun */)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.wantLog != "" {
+				require.Contains(t, logBuffer.String(), tt.wantLog)
+			}
+		})
+	}
 }

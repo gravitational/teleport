@@ -229,6 +229,10 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => FileTransferListeners;
   reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
+
+  createConnectMyComputerRole: (
+    rootClusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerRoleResponse>;
 };
 
 export type TshAbortController = {
@@ -315,6 +319,9 @@ export type AssumedRequest = {
 export { FileTransferDirection };
 
 export type Label = apiLabel.Label.AsObject;
+
+export type CreateConnectMyComputerRoleResponse =
+  apiService.CreateConnectMyComputerRoleResponse.AsObject;
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

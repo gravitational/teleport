@@ -73,6 +73,9 @@ type Config struct {
 	DiscoveryGroup string
 	// ClusterName is the name of the Teleport cluster.
 	ClusterName string
+	// PollInterval is the cadence at which the discovery server will run each of its
+	// discovery cycles.
+	PollInterval time.Duration
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -94,6 +97,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Log == nil {
 		c.Log = logrus.New()
+	}
+
+	if c.PollInterval == 0 {
+		c.PollInterval = 5 * time.Minute
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
@@ -127,6 +134,9 @@ type Server struct {
 	databaseFetchers []common.Fetcher
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
+	// reconciler periodically reconciles the labels of discovered instances
+	// with the auth server.
+	reconciler *labelReconciler
 }
 
 // New initializes a discovery Server
@@ -173,7 +183,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	var err error
 	if len(ec2Matchers) > 0 {
 		s.caRotationCh = make(chan []types.Server)
-		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients, s.caRotationCh)
+		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients, s.caRotationCh, server.WithPollInterval(s.PollInterval))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -181,6 +191,14 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
 			Emitter: s.Emitter,
 		})
+		lr, err := newLabelReconciler(&labelReconcilerConfig{
+			log:         s.Log,
+			accessPoint: s.AccessPoint,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.reconciler = lr
 	}
 
 	// Add database fetchers.
@@ -244,7 +262,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	// VM watcher.
 	if len(vmMatchers) > 0 {
 		var err error
-		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients)
+		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients, server.WithPollInterval(s.PollInterval))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -391,6 +409,13 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	serverInfos, err := instances.ServerInfos()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.reconciler.queueServerInfos(serverInfos)
+
 	// instances.Rotation is true whenever the instances received need
 	// to be rotated, we don't want to filter out existing OpenSSH nodes as
 	// they all need to have the command run on them
@@ -607,6 +632,7 @@ func (s *Server) handleAzureDiscovery() {
 func (s *Server) Start() error {
 	if s.ec2Watcher != nil {
 		go s.handleEC2Discovery()
+		go s.reconciler.run(s.ctx)
 	}
 	if s.azureWatcher != nil {
 		go s.handleAzureDiscovery()

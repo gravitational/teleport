@@ -103,6 +103,7 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 			Success: true,
 		},
 	}
+
 	// If the database session wasn't started successfully, emit
 	// a failure event with error details.
 	if sessionErr != nil {
@@ -212,5 +213,7 @@ func MakeDatabaseMetadata(session *Session) events.DatabaseMetadata {
 		DatabaseName:     session.DatabaseName,
 		DatabaseUser:     session.DatabaseUser,
 		DatabaseRoles:    session.DatabaseRoles,
+		DatabaseType:     session.Database.GetType(),
+		DatabaseOrigin:   session.Database.Origin(),
 	}
 }

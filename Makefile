@@ -899,6 +899,16 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 		| tee $(TEST_LOG_DIR)/integration-root.json \
 		| $(RENDER_TESTS) -report-by test
 
+
+.PHONY: e2e-aws
+e2e-aws: FLAGS ?= -v -race
+e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
+e2e-aws: $(TEST_LOG_DIR) $(RENDER_TESTS)
+	@echo TEST_KUBE: $(TEST_KUBE)
+	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) \
+		| tee $(TEST_LOG_DIR)/e2e-aws.json \
+		| $(RENDER_TESTS) -report-by test
+
 #
 # Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
@@ -1229,6 +1239,15 @@ must-start-clean/host:
 		exit 1; \
 	fi
 
+# crds-up-to-date checks if the generated CRDs from the protobuf stubs are up to date.
+.PHONY: crds-up-to-date
+crds-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/operator manifests
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make -C integrations/operator manifests.'; \
+		exit 1; \
+	fi
+
 print/env:
 	env
 
@@ -1394,3 +1413,11 @@ rustup-install-target-toolchain: RUST_VERSION := $(shell $(MAKE) --no-print-dire
 rustup-install-target-toolchain:
 	rustup override set $(RUST_VERSION)
 	rustup target add $(RUST_TARGET_ARCH)
+
+# changelog generates PR changelog between the provided base tag and the tip of
+# the specified branch.
+#
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+.PHONY: changelog
+changelog:
+	@./build.assets/changelog.sh BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)

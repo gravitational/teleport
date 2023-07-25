@@ -51,14 +51,17 @@ type AzureInstances struct {
 }
 
 // NewAzureWatcher creates a new Azure watcher instance.
-func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients cloud.Clients) (*Watcher, error) {
+func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients cloud.Clients, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
-		fetchers:      []Fetcher{},
-		ctx:           cancelCtx,
-		cancel:        cancelFn,
-		fetchInterval: time.Minute,
-		InstancesC:    make(chan Instances),
+		fetchers:     []Fetcher{},
+		ctx:          cancelCtx,
+		cancel:       cancelFn,
+		pollInterval: time.Minute,
+		InstancesC:   make(chan Instances),
+	}
+	for _, opt := range opts {
+		opt(&watcher)
 	}
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {

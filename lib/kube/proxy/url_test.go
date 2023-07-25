@@ -17,8 +17,10 @@ limitations under the License.
 package proxy
 
 import (
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -72,8 +74,12 @@ func TestParseResourcePath(t *testing.T) {
 
 func Test_getResourceFromRequest(t *testing.T) {
 	t.Parallel()
+	bodyFunc := func(t, api string) io.ReadCloser {
+		return io.NopCloser(strings.NewReader(`{"kind":"` + t + `","apiVersion":"` + api + `","metadata":{"name":"foo-create"}}`))
+	}
 	tests := []struct {
 		path string
+		body io.ReadCloser
 		want *types.KubernetesResource
 	}{
 		{path: "", want: nil},
@@ -105,20 +111,28 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
 		{path: "/api/v1/watch/namespaces/default/pods/foo", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "kube-system", Name: "foo", Verbs: []string{"get"}}},
+		{path: "/api/v1/namespaces/default/pods", body: bodyFunc("Pod", "v1"), want: &types.KubernetesResource{Kind: types.KindKubePod, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+
 		// Secrets
 		{path: "/api/v1/secrets", want: nil},
 		{path: "/api/v1/namespaces/default/secrets", want: nil},
 		{path: "/api/v1/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
 		{path: "/api/v1/watch/namespaces/default/secrets/foo", want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces/default/secrets", body: bodyFunc("Secret", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeSecret, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+
 		// Configmaps
 		{path: "/api/v1/configmaps", want: nil},
 		{path: "/api/v1/namespaces/default/configmaps", want: nil},
 		{path: "/api/v1/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
 		{path: "/api/v1/watch/namespaces/default/configmaps/foo", want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces/default/configmaps", body: bodyFunc("ConfigMap", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeConfigmap, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+
 		// Namespaces
 		{path: "/api/v1/namespaces", want: nil},
 		{path: "/api/v1/namespaces/default", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "default", Verbs: []string{"get"}}},
 		{path: "/api/v1/watch/namespaces/default", want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "default", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces", body: bodyFunc("Namespace", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeNamespace, Name: "foo-create", Verbs: []string{"create"}}},
+
 		// Nodes
 		{path: "/api/v1/nodes", want: nil},
 		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: types.KindKubeNode, Name: "foo", Verbs: []string{"get"}}},
@@ -126,6 +140,9 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/services", want: nil},
 		{path: "/api/v1/namespaces/default/services", want: nil},
 		{path: "/api/v1/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
+		{path: "/api/v1/watch/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/api/v1/namespaces/default/services", body: bodyFunc("Service", "v1"), want: &types.KubernetesResource{Kind: types.KindKubeService, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+
 		// ServiceAccounts
 		{path: "/api/v1/serviceaccounts", want: nil},
 		{path: "/api/v1/namespaces/default/serviceaccounts", want: nil},
@@ -148,6 +165,9 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/apps/v1/namespaces/default/deployments", want: nil},
 		{path: "/apis/apps/v1/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo", Verbs: []string{"get"}}},
 		{path: "/apis/apps/v1/watch/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo", Verbs: []string{"watch"}}},
+		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1"), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+		{path: "/apis/apps/v1beta2/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1beta2"), want: &types.KubernetesResource{Kind: types.KindKubeDeployment, Namespace: "default", Name: "foo-create", Verbs: []string{"create"}}},
+
 		// Statefulsets
 		{path: "/apis/apps/v1/statefulsets", want: nil},
 		{path: "/apis/apps/v1/namespaces/default/statefulsets", want: nil},
@@ -187,7 +207,12 @@ func Test_getResourceFromRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			got, _ := getResourceFromRequest(&http.Request{Method: http.MethodGet, URL: &url.URL{Path: tt.path}})
+			verb := http.MethodGet
+			if tt.body != nil {
+				verb = http.MethodPost
+			}
+			got, _, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body})
+			require.NoError(t, err)
 			require.Equal(t, tt.want, got, "parsing path %q", tt.path)
 		})
 	}

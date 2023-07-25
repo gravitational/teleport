@@ -50,9 +50,9 @@ FROM gcc AS libfido2
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev.
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.2 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = '04a727df50fde3f69127aed4bc48e6cff5430175' ] && \
+    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
     make install-static LIBDIR='$(PREFIX)/lib64'
 
 # Install libcbor.

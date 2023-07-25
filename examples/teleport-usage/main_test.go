@@ -63,6 +63,18 @@ func TestRateLimiter(t *testing.T) {
 	}
 }
 
+func TestRateLimiterMinimumValue(t *testing.T) {
+	limiter := newAdaptiveRateLimiter(5)
+
+	for i := 0; i < 20; i++ {
+		limiter.reportThrottleError()
+
+		if limiter.currentCapacity() < 1 {
+			t.Fatal("read capacity reached zero")
+		}
+	}
+}
+
 // TestDateSet tests that we query the appropriate set of days for an MAU calculation correctly.
 func TestDateSet(t *testing.T) {
 	startDates := []struct {

@@ -32,7 +32,7 @@ func TestEmitConnTeleport(t *testing.T) {
 
 	go server.Write([]byte(msg))
 
-	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitterReal(), "serverid")
+	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitter(), "serverid")
 	buffer := make([]byte, 64)
 	n, err := conn.Read(buffer)
 	require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestEmitConnNotTeleport(t *testing.T) {
 
 	go server.Write([]byte(msg))
 
-	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitterReal(), "serverid")
+	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitter(), "serverid")
 	buffer := make([]byte, 64)
 	n, err := conn.Read(buffer)
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestEmitConnTeleportSmallReads(t *testing.T) {
 		}
 	}()
 
-	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitterReal(), "serverid")
+	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitter(), "serverid")
 	buffer := make([]byte, 64)
 
 	for _, chunk := range chunks {
@@ -86,7 +86,7 @@ func TestEmitConnNotTeleportSmallReads(t *testing.T) {
 		}
 	}()
 
-	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitterReal(), "serverid")
+	conn := newEmitConn(context.Background(), client, events.NewDiscardEmitter(), "serverid")
 	buffer := make([]byte, 64)
 
 	for _, chunk := range chunks {

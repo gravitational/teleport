@@ -365,7 +365,7 @@
               ]
             },
             {
-              "title": "Jamf Integration",
+              "title": "Jamf Pro Integration",
               "slug": "/access-controls/device-trust/jamf-integration/",
               "forScopes": [
                 "enterprise",
@@ -550,7 +550,7 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Proxy Peering Migration (Preview)",
+              "title": "Proxy Peering Migration",
               "slug": "/management/operations/proxy-peering/",
               "forScopes": ["enterprise"]
             },
@@ -1134,6 +1134,10 @@
             {
               "title": "AWS IAM",
               "slug": "/database-access/reference/aws/"
+            },
+            {
+              "title": "Database Labels",
+              "slug": "/database-access/reference/labels/"
             }
           ]
         },
@@ -1459,7 +1463,7 @@
           "slug": "/architecture/tls-routing/"
         },
         {
-          "title": "Proxy Peering (Preview)",
+          "title": "Proxy Peering",
           "slug": "/architecture/proxy-peering/",
           "forScopes": ["enterprise"]
         },
@@ -1512,7 +1516,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.2.0",
+      "version": "13.2.2",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",

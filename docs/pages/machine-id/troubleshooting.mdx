@@ -170,7 +170,7 @@ This can occur when attempting to log into the node as a user not listed as a
 principal on the SSH certificate.
 
 You can verify this by viewing the `tbot` logs and looking for the log message
-when impersonated certificates for the matching destination were renewed.
+when impersonated certificates for the matching outputs were renewed.
 
 In the following example, the only principal listed for the identity in
 `/opt/machine-id` is `alice` (via the `access` role):
@@ -234,7 +234,7 @@ or more roles.
 
 Per the [Machine ID Database Access Guide](./guides/databases.mdx), ensure at
 least one role providing database permissions has been granted to the
-destination listed in the error.
+output listed in the error.
 
 For example, note the `rules` section in the following example role:
 ```yaml
@@ -272,7 +272,7 @@ $ tctl create -f db-role.yaml
 ```
 
 <Notice type="note">
-By default, destinations (like `/opt/machine-id`) are granted all roles provided
+By default, outputs (like `/opt/machine-id`) are granted all roles provided
 to the bot via `tctl bots add --roles=...`, but it's possible to grant only a
 subset of these roles using the `roles: ...` parameter in `tbot.yaml`.
 

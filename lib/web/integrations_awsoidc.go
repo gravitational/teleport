@@ -227,11 +227,11 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure deployservice-iam
 	argsList := []string{
 		"integration", "configure", "deployservice-iam",
-		fmt.Sprintf(`--cluster="%s"`, clusterName),
-		fmt.Sprintf(`--name="%s"`, integrationName),
-		fmt.Sprintf(`--aws-region="%s"`, awsRegion),
-		fmt.Sprintf(`--role="%s"`, role),
-		fmt.Sprintf(`--task-role="%s"`, taskRole),
+		fmt.Sprintf("--cluster=%s", clusterName),
+		fmt.Sprintf("--name=%s", integrationName),
+		fmt.Sprintf("--aws-region=%s", awsRegion),
+		fmt.Sprintf("--role=%s", role),
+		fmt.Sprintf("--task-role=%s", taskRole),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs: strings.Join(argsList, " "),

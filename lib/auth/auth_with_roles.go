@@ -34,11 +34,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -335,6 +337,14 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(
 		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
+}
+
+// AccessListClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessListClient() services.AccessLists {
+	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
 }
 
 // integrationsService returns an Integrations Service.
@@ -914,23 +924,6 @@ func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, 
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GenerateToken generates multi-purpose authentication token.
-// Deprecated: Use CreateToken or UpdateToken.
-// DELETE IN 14.0.0, replaced by methods above (strideynet).
-func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	token, err := a.authServer.GenerateToken(ctx, req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	emitTokenEvent(ctx, a.authServer.emitter, req.Roles, types.JoinMethodToken)
-	return token, nil
-}
-
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
@@ -1013,59 +1006,17 @@ func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *p
 		}
 	}
 
-	// load system role assertions if relevant
-	var assertions proto.UnstableSystemRoleAssertionSet
-	var err error
-	if req.UnstableSystemRoleAssertionID != "" {
-		assertions, err = a.authServer.UnstableGetSystemRoleAssertions(ctx, req.HostID, req.UnstableSystemRoleAssertionID)
-		if err != nil {
-			// include this error in the logs, since it might be indicative of a bug if it occurs outside of the context
-			// of a general backend outage.
-			log.Warnf("Failed to load system role assertion set %q for instance %q: %v", req.UnstableSystemRoleAssertionID, req.HostID, err)
-			return trace.AccessDenied("failed to load system role assertion set with ID %q", req.UnstableSystemRoleAssertionID)
-		}
-	}
-
 	// check if additional system roles are permissible
-Outer:
 	for _, requestedRole := range req.SystemRoles {
 		if a.hasBuiltinRole(requestedRole) {
 			// instance is already known to hold this role
-			continue Outer
-		}
-
-		for _, assertedRole := range assertions.SystemRoles {
-			if requestedRole == assertedRole {
-				// instance recently demonstrated that it holds this role
-				continue Outer
-			}
+			continue
 		}
 
 		return trace.AccessDenied("additional system role %q cannot be applied (not authorized)", requestedRole)
 	}
 
 	return nil
-}
-
-func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
-		return trace.AccessDenied("system role assertions can only be executed by a teleport built-in server")
-	}
-
-	if req.ServerID != role.GetServerID() {
-		return trace.AccessDenied("system role assertions do not support impersonation (%q -> %q)", role.GetServerID(), req.ServerID)
-	}
-
-	if !a.hasBuiltinRole(req.SystemRole) {
-		return trace.AccessDenied("cannot assert unheld system role %q", req.SystemRole)
-	}
-
-	if !req.SystemRole.IsLocalService() {
-		return trace.AccessDenied("cannot assert non-service system role %q", req.SystemRole)
-	}
-
-	return a.authServer.UnstableAssertSystemRole(ctx, req)
 }
 
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
@@ -1572,6 +1523,10 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+func (a *ServerWithRoles) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
+}
+
 const (
 	// kubeService is a special resource type that is used to keep compatibility
 	// with Teleport 12 clients.
@@ -1580,6 +1535,56 @@ const (
 	// TODO(tigrato): DELETE in 14.0.0
 	kubeService = "kube_service"
 )
+
+// authContextForSearch returns an extended authz.Context which should be used
+// when searching for resources that a user may be able to request access to,
+// but does not already have access to.
+// Extra roles are determined from the user's search_as_roles and
+// preview_as_roles if [req] requested that each be used.
+func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.ListResourcesRequest) (*authz.Context, error) {
+	var extraRoles []string
+	if req.UseSearchAsRoles {
+		extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
+	}
+	if req.UsePreviewAsRoles {
+		extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
+	}
+	if len(extraRoles) == 0 {
+		// Return the current auth context unmodified.
+		return &a.context, nil
+	}
+
+	clusterName, err := a.authServer.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get a new auth context with the additional roles
+	extendedContext, err := a.context.WithExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only emit the event if the role list actually changed
+	if len(extendedContext.Checker.RoleNames()) != len(a.context.Checker.RoleNames()) {
+		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
+			Metadata: apievents.Metadata{
+				Type: events.AccessRequestResourceSearch,
+				Code: events.AccessRequestResourceSearchCode,
+			},
+			UserMetadata:        authz.ClientUserMetadata(ctx),
+			SearchAsRoles:       extendedContext.Checker.RoleNames(),
+			ResourceType:        req.ResourceType,
+			Namespace:           req.Namespace,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return extendedContext, nil
+}
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -1602,34 +1607,18 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.Wrap(err)
 	}
 
+	// Apply any requested additional search_as_roles and/or preview_as_roles
+	// for the duration of the search.
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
-		var extraRoles []string
-		if req.UseSearchAsRoles {
-			extraRoles = append(extraRoles, a.context.Checker.GetAllowedSearchAsRoles()...)
-		}
-		if req.UsePreviewAsRoles {
-			extraRoles = append(extraRoles, a.context.Checker.GetAllowedPreviewAsRoles()...)
-		}
-		clusterName, err := a.authServer.GetClusterName()
+		extendedContext, err := a.authContextForSearch(ctx, &req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := a.context.UseExtraRoles(a.authServer, clusterName.GetClusterName(), extraRoles); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
-			Metadata: apievents.Metadata{
-				Type: events.AccessRequestResourceSearch,
-				Code: events.AccessRequestResourceSearchCode,
-			},
-			UserMetadata:        authz.ClientUserMetadata(ctx),
-			SearchAsRoles:       a.context.Checker.RoleNames(),
-			ResourceType:        req.ResourceType,
-			Namespace:           req.Namespace,
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
-		})
+		baseContext := a.context
+		a.context = *extendedContext
+		defer func() {
+			a.context = baseContext
+		}()
 	}
 
 	// ListResources request coming through this auth layer gets request filters
@@ -1820,6 +1809,20 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = servers.AsResources()
+
+	case types.KindAppOrSAMLIdPServiceProvider:
+		appsAndServiceProviders, err := a.GetAppServersAndSAMLIdPServiceProviders(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		appsOrSPs := types.AppServersOrSAMLIdPServiceProviders(appsAndServiceProviders)
+
+		if err := appsOrSPs.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = appsOrSPs.AsResources()
 
 	case types.KindDatabaseServer:
 		dbservers, err := a.GetDatabaseServers(ctx, req.Namespace)
@@ -3170,6 +3173,14 @@ func (a *ServerWithRoles) UpsertUser(u types.User) error {
 		})
 	}
 	return a.authServer.UpsertUser(u)
+}
+
+// UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
+// [ClientI], it is not implemented here.
+// See [local.IdentityService.UpdateAndSwapUser].
+func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
+	// To the reader: consider writing this function if it's useful to you.
+	return nil, trace.NotImplemented("func UpdateAndSwapUser is not implemented by ServerWithRoles")
 }
 
 // CompareAndSwapUser updates an existing user in a backend, but fails if the
@@ -4631,6 +4642,48 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 		}
 	}
 	return filtered, nil
+}
+
+// GetAppServersAndSAMLIdPServiceProviders returns a list containing all registered AppServers and SAMLIdPServiceProviders.
+func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Context, namespace string) ([]types.AppServerOrSAMLIdPServiceProvider, error) {
+	appservers, err := a.GetApplicationServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var appsAndSPs []types.AppServerOrSAMLIdPServiceProvider
+	// Convert the AppServers to AppServerOrSAMLIdPServiceProviders.
+	for _, appserver := range appservers {
+		appServerV3 := appserver.(*types.AppServerV3)
+		appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+			Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+				AppServer: appServerV3,
+			},
+		}
+		appsAndSPs = append(appsAndSPs, appAndSP)
+	}
+
+	// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license since this is an enteprise-only feature.
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
+		if err := a.action(namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+			serviceProviders, _, err := a.authServer.ListSAMLIdPServiceProviders(ctx, 0, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, sp := range serviceProviders {
+				spV1 := sp.(*types.SAMLIdPServiceProviderV1)
+				appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+						SAMLIdPServiceProvider: spV1,
+					},
+				}
+				appsAndSPs = append(appsAndSPs, appAndSP)
+			}
+		}
+	}
+
+	return appsAndSPs, nil
 }
 
 // UpsertApplicationServer registers an application server.
