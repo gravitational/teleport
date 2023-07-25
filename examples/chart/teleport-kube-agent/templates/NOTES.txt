@@ -20,3 +20,34 @@ You will face compatibility issues trying to run a different Teleport version wi
 If you want to run Teleport version {{.Values.teleportVersionOverride}},
 you should use `helm --version {{.Values.teleportVersionOverride}}` instead.
 {{- end }}
+{{- if contains "-gke." .Capabilities.KubeVersion.Version -}}
+{{- $groupName := (coalesce .Values.adminClusterRoleBinding.name "cluster-admin") }}
+
+WARNING: GKE Autopilot clusters forbid users from impersonating system-wide identities.
+This means you won't be able to use the `system:masters` Kubernetes Group in
+the Teleport Roles for GKE Autopilot clusters.
+
+Given that you installed Teleport on a GKE cluster, we recommend you use the
+Kubernetes Group `{{ $groupName }}` instead of `system:masters` in the Teleport Roles
+for GKE Autopilot clusters.
+
+To do so, you can use the following Teleport Role resource:
+
+ kind: role
+ metadata:
+   name: gke-kube-access
+ version: v7
+ spec:
+   allow:
+     kubernetes_labels:
+       '*': '*'
+     kubernetes_groups:
+     - "{{ $groupName }}"
+
+This chart automatically created the `{{ $groupName }}` Kubernetes Group for you and
+assigned it admin privileges on the Kubernetes cluster.
+
+Consult the built-in security features that GKE Autopilot enforces:
+https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-security#built-in-security
+
+{{- end }}
