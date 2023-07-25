@@ -22,13 +22,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type RoleSetup struct {
@@ -280,4 +284,73 @@ func (c *RoleSetupConfig) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+type TokenProvisioner struct {
+	cfg *TokenProvisionerConfig
+}
+
+func NewTokenProvisioner(cfg *TokenProvisionerConfig) *TokenProvisioner {
+	cfg.checkAndSetDefaults()
+
+	return &TokenProvisioner{cfg: cfg}
+}
+
+// CreateNodeToken creates a node join token that is valid for 5 minutes.
+func (t *TokenProvisioner) CreateNodeToken(ctx context.Context, provisioner Provisioner, cluster *clusters.Cluster) (*NodeToken, error) {
+	tokenName, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req types.ProvisionTokenSpecV2
+	req.Roles = types.SystemRoles{types.RoleNode}
+	expires := t.cfg.Clock.Now().UTC().Add(5 * time.Minute)
+
+	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = provisioner.CreateToken(ctx, provisionToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &NodeToken{
+		Token: tokenName,
+		Labels: types.Labels{
+			types.ConnectMyComputerNodeOwnerLabel: apiutils.Strings{cluster.GetLoggedInUser().Name},
+		},
+	}, nil
+}
+
+// DeleteToken deletes a join token
+func (t *TokenProvisioner) DeleteToken(ctx context.Context, provisioner Provisioner, token string) error {
+	err := provisioner.DeleteToken(ctx, token)
+	return trace.Wrap(err)
+}
+
+type TokenProvisionerConfig struct {
+	Clock clockwork.Clock
+}
+
+type NodeToken struct {
+	Token  string
+	Labels types.Labels
+}
+
+func (c *TokenProvisionerConfig) checkAndSetDefaults() {
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+}
+
+// Provisioner represents services.Provisioner methods used by TokenProvisioner.
+// During a normal operation, auth.ClientI is passed as this interface.
+type Provisioner interface {
+	// See services.Provisioner.CreateToken.
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+	// See services.Provisioner.DeleteToken.
+	DeleteToken(ctx context.Context, token string) error
 }

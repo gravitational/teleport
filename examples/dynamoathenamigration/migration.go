@@ -403,12 +403,12 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 	checkpointValues := checkpoint.checkpointValues()
 	afterCheckpoint := afterCheckpointIn
 
-	scanner := bufio.NewScanner(gzipReader)
 	t.Logger.Debugf("Scanning %d events", dataObj.ItemCount)
 	count := 0
-	for scanner.Scan() {
+	decoder := json.NewDecoder(gzipReader)
+	for decoder.More() {
 		count++
-		ev, err := exportedDynamoItemToAuditEvent(ctx, scanner.Bytes())
+		ev, err := exportedDynamoItemToAuditEvent(ctx, decoder)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -451,16 +451,13 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return false, trace.Wrap(err)
-	}
 	return afterCheckpoint, nil
 }
 
 // exportedDynamoItemToAuditEvent converts single line of dynamo export into AuditEvent.
-func exportedDynamoItemToAuditEvent(ctx context.Context, in []byte) (apievents.AuditEvent, error) {
+func exportedDynamoItemToAuditEvent(ctx context.Context, decoder *json.Decoder) (apievents.AuditEvent, error) {
 	var itemMap map[string]map[string]any
-	if err := json.Unmarshal(in, &itemMap); err != nil {
+	if err := decoder.Decode(&itemMap); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

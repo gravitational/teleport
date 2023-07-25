@@ -5293,6 +5293,8 @@ message PluginSpecV1 {
     PluginJamfSettings jamf = 5;
     // Settings for the PagerDuty plugin
     PluginPagerDutySettings pager_duty = 6;
+    // Settings for the Mattermost plugin
+    PluginMattermostSettings mattermost = 7;
   }
 }
 
@@ -5334,6 +5336,22 @@ message PluginPagerDutySettings {
 // Defines settings for the OpenAI plugin. Currently there are no settings.
 message PluginOpenAISettings {
   option (gogoproto.equal) = true;
+}
+
+// Defines settings for the Mattermost plugin.
+message PluginMattermostSettings {
+  option (gogoproto.equal) = true;
+  // serverURL is the URL to access Mattermost.
+  string server_url = 1;
+  // team is the Mattermost workspace.
+  string team = 2;
+  // channel is the Mattermost channel in the workspace
+  // (team) to send notifications to.
+  string channel = 3;
+  // report_to_email is an optional email address of a Mattermost user
+  // to notify via a direct message when the plugin receives an
+  // Access Request event.
+  string report_to_email = 4;
 }
 
 // Defines settings for Jamf plugin.
@@ -6088,7 +6106,7 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke".
+  // Types are GKE resource types to match: "gke", "vm".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
   // Locations are GKE locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
@@ -6100,6 +6118,11 @@ message GCPMatcher {
   ];
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
+  // ServiceAccounts are the emails of service accounts attached to VMs.
+  repeated string ServiceAccounts = 5 [(gogoproto.jsontag) = "service_accounts,omitempty"];
+  // Params sets the join method when installing on
+  // discovered GCP nodes.
+  InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
 }
 
 // KubernetesMatcher matches Kubernetes services.

@@ -667,6 +667,42 @@ export default function createClient(
         }
       );
     },
+
+    createConnectMyComputerNodeToken(uri: uri.RootClusterUri) {
+      return new Promise<types.CreateConnectMyComputerNodeTokenResponse>(
+        (resolve, reject) => {
+          tshd.createConnectMyComputerNodeToken(
+            new api.CreateConnectMyComputerNodeTokenRequest().setRootClusterUri(
+              uri
+            ),
+            (err, response) => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(response.toObject());
+              }
+            }
+          );
+        }
+      );
+    },
+
+    deleteConnectMyComputerToken(uri: uri.RootClusterUri, token: string) {
+      return new Promise<void>((resolve, reject) => {
+        tshd.deleteConnectMyComputerToken(
+          new api.DeleteConnectMyComputerTokenRequest()
+            .setRootClusterUri(uri)
+            .setToken(token),
+          err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          }
+        );
+      });
+    },
   };
 
   return client;
