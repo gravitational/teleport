@@ -234,6 +234,13 @@ However, this join method is still more secure than the long-lived secret
 based `token` join method that operators are forced to use due to this
 external Kubernetes join method not existing.
 
+As with any delegated join method, sufficient compromise of the trusted party 
+(in this case, the Kubernetes Clusters OIDC CA private key) means that a
+malicious actor is able to use any join token that delegates trust to the
+compromised party. There is little mitigation we can apply here, beyond
+reminding operators of this fact and encouraging them to use security best
+practices to secure the Kubernetes CAs. 
+
 ### Token reuse
 
 Token reuse refers to the potential for a malicious actor to intercept
