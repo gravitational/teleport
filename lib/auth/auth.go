@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -186,7 +187,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Emitter = events.NewDiscardEmitter()
 	}
 	if cfg.Streamer == nil {
-		cfg.Streamer = events.NewDiscardStreamer()
+		cfg.Streamer = events.NewDiscardEmitter()
 	}
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
@@ -315,7 +316,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cancelFunc:          cancelFunc,
 		closeCtx:            closeCtx,
 		emitter:             cfg.Emitter,
-		Streamer:            cfg.Streamer,
+		streamer:            cfg.Streamer,
 		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:            services,
 		Cache:               services,
@@ -606,9 +607,9 @@ type Server struct {
 	// Emitter is events emitter, used to submit discrete events
 	emitter apievents.Emitter
 
-	// Streamer is an events session streamer, used to create continuous
+	// streamer is events sessionstreamer, used to create continuous
 	// session related streams
-	events.Streamer
+	streamer events.Streamer
 
 	// keyStore manages all CA private keys, which  may or may not be backed by
 	// HSMs
@@ -3364,6 +3365,41 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 	return session, trace.Wrap(err)
 }
 
+// GenerateToken generates multi-purpose authentication token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
+func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	ttl := defaults.ProvisioningTokenTTL
+	if req.TTL != 0 {
+		ttl = req.TTL.Get()
+	}
+	expires := a.clock.Now().UTC().Add(ttl)
+
+	if req.Token == "" {
+		token, err := utils.CryptoRandomHex(TokenLenBytes)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		req.Token = token
+	}
+
+	token, err := types.NewProvisionToken(req.Token, req.Roles, expires)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(req.Labels) != 0 {
+		meta := token.GetMetadata()
+		meta.Labels = req.Labels
+		token.SetMetadata(meta)
+	}
+
+	if err := a.CreateToken(ctx, token); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return req.Token, nil
+}
+
 // ExtractHostID returns host id based on the hostname
 func ExtractHostID(hostName string, clusterName string) (string, error) {
 	suffix := "." + clusterName
@@ -3556,6 +3592,18 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
+}
+
+// UnstableAssertSystemRole is not a stable part of the public API. Used by older
+// instances to prove that they hold a given system role.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
+}
+
+func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
+	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
+	return set, trace.Wrap(err)
 }
 
 func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
@@ -4058,7 +4106,6 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
-		MaxDuration:          req.GetMaxDuration(),
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
@@ -4160,7 +4207,6 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ProposedState: params.Review.ProposedState.String(),
 		Reason:        params.Review.Reason,
 		Reviewer:      params.Review.Author,
-		MaxDuration:   req.GetMaxDuration(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
@@ -4437,6 +4483,42 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 		req.StartKey = resp.NextKey
 	}
+}
+
+// CreateAuditStream creates audit event stream
+func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	streamer, err := a.modeStreamer(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return streamer.CreateAuditStream(ctx, sid)
+}
+
+// ResumeAuditStream resumes the stream that has been created
+func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	streamer, err := a.modeStreamer(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return streamer.ResumeAuditStream(ctx, sid, uploadID)
+}
+
+// modeStreamer creates streamer based on the event mode
+func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
+	recConfig, err := a.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// In sync mode, auth server forwards session control to the event log
+	// in addition to sending them and data events to the record storage.
+	if services.IsRecordSync(recConfig.GetMode()) {
+		return events.NewTeeStreamer(a.streamer, a.emitter), nil
+	}
+	// In async mode, clients submit session control events
+	// during the session in addition to writing a local
+	// session recording to be uploaded at the end of the session,
+	// so forwarding events here will result in duplicate events.
+	return a.streamer, nil
 }
 
 // CreateApp creates a new application resource.
@@ -5338,6 +5420,63 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 	return nil
 }
 
+// createSelfSignedCA creates a new self-signed CA and writes it to the
+// backend, with the type and clusterName given by the argument caID.
+func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) error {
+	keySet, err := newKeySet(ctx, a.keyStore, caID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caID.Type,
+		ClusterName: caID.DomainName,
+		ActiveKeys:  keySet,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.CreateCertAuthority(ctx, ca); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
+// auth server which are not currently used in any CAs.
+func (a *Server) deleteUnusedKeys(ctx context.Context) error {
+	clusterName, err := a.Services.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var activeKeys [][]byte
+	for _, caType := range types.CertAuthTypes {
+		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
+		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
+			for _, sshKeyPair := range keySet.SSH {
+				activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
+			}
+			for _, tlsKeyPair := range keySet.TLS {
+				activeKeys = append(activeKeys, tlsKeyPair.Key)
+			}
+			for _, jwtKeyPair := range keySet.JWT {
+				activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
+			}
+		}
+	}
+	if err := a.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
+		// Key deletion is best-effort, log a warning if it fails and carry on.
+		// We don't want to prevent a CA rotation, which may be necessary in
+		// some cases where this would fail.
+		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+	}
+	return nil
+}
+
 // GetLicense return the license used the start the teleport enterprise auth server
 func (a *Server) GetLicense(ctx context.Context) (string, error) {
 	if modules.GetModules().Features().Cloud {
@@ -5366,9 +5505,9 @@ func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, usern
 	return headlessAuthn, trace.Wrap(err)
 }
 
-// UpsertHeadlessAuthenticationStub creates a headless authentication stub for the user
+// CreateHeadlessAuthenticationStub creates a headless authentication stub for the user
 // that will expire after the standard callback timeout.
-func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username string) error {
+func (a *Server) CreateHeadlessAuthenticationStub(ctx context.Context, username string) error {
 	// Create the stub. If it already exists, update its expiration.
 	expires := a.clock.Now().Add(defaults.CallbackTimeout)
 	stub, err := types.NewHeadlessAuthentication(username, services.HeadlessAuthenticationUserStubID, expires)

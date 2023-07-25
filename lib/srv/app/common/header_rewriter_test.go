@@ -23,9 +23,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/gravitational/oxy/forward"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
 
 func mustParseURL(urlString string) *url.URL {
@@ -57,7 +56,7 @@ func TestHeaderRewriter(t *testing.T) {
 	tests := []struct {
 		name               string
 		req                *http.Request
-		extraDelegates     []reverseproxy.Rewriter
+		extraDelegates     []forward.ReqRewriter
 		expectedHeaders    http.Header
 		expectedSSLHeader  string
 		expectedPortHeader string
@@ -70,8 +69,8 @@ func TestHeaderRewriter(t *testing.T) {
 				Header: http.Header{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:               []string{sslOff},
-				reverseproxy.XForwardedPort: []string{"80"},
+				XForwardedSSL:          []string{sslOff},
+				forward.XForwardedPort: []string{"80"},
 			},
 		},
 		{
@@ -82,8 +81,8 @@ func TestHeaderRewriter(t *testing.T) {
 				Header: http.Header{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:               []string{sslOff},
-				reverseproxy.XForwardedPort: []string{"12345"},
+				XForwardedSSL:          []string{sslOff},
+				forward.XForwardedPort: []string{"12345"},
 			},
 		},
 		{
@@ -95,8 +94,8 @@ func TestHeaderRewriter(t *testing.T) {
 				TLS:    &tls.ConnectionState{},
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:               []string{sslOn},
-				reverseproxy.XForwardedPort: []string{"443"},
+				XForwardedSSL:          []string{sslOn},
+				forward.XForwardedPort: []string{"443"},
 			},
 		},
 		{
@@ -107,22 +106,22 @@ func TestHeaderRewriter(t *testing.T) {
 				Header: http.Header{},
 				TLS:    &tls.ConnectionState{},
 			},
-			extraDelegates: []reverseproxy.Rewriter{
+			extraDelegates: []forward.ReqRewriter{
 				newTestDelegate("test-1", "value-1"),
 				newTestDelegate("test-2", "value-2"),
 			},
 			expectedHeaders: http.Header{
-				XForwardedSSL:               []string{sslOn},
-				reverseproxy.XForwardedPort: []string{"12345"},
-				"test-1":                    []string{"value-1"},
-				"test-2":                    []string{"value-2"},
+				XForwardedSSL:          []string{sslOn},
+				forward.XForwardedPort: []string{"12345"},
+				"test-1":               []string{"value-1"},
+				"test-2":               []string{"value-2"},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			delegates := []reverseproxy.Rewriter{&reverseproxy.HeaderRewriter{}}
+			delegates := []forward.ReqRewriter{&forward.HeaderRewriter{}}
 			delegates = append(delegates, test.extraDelegates...)
 			hr := NewHeaderRewriter(delegates...)
 

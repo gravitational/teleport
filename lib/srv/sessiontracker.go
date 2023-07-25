@@ -207,9 +207,7 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID string) error {
 	s.trackerCond.L.Lock()
 	defer s.trackerCond.L.Unlock()
-	if err := s.tracker.RemoveParticipant(participantID); err != nil {
-		return trace.Wrap(err)
-	}
+	s.tracker.RemoveParticipant(participantID)
 	s.trackerCond.Broadcast()
 
 	if s.service != nil {

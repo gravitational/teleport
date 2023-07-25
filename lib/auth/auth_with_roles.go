@@ -924,6 +924,23 @@ func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, 
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GenerateToken generates multi-purpose authentication token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
+func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	token, err := a.authServer.GenerateToken(ctx, req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	emitTokenEvent(ctx, a.authServer.emitter, req.Roles, types.JoinMethodToken)
+	return token, nil
+}
+
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
@@ -1006,17 +1023,59 @@ func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *p
 		}
 	}
 
+	// load system role assertions if relevant
+	var assertions proto.UnstableSystemRoleAssertionSet
+	var err error
+	if req.UnstableSystemRoleAssertionID != "" {
+		assertions, err = a.authServer.UnstableGetSystemRoleAssertions(ctx, req.HostID, req.UnstableSystemRoleAssertionID)
+		if err != nil {
+			// include this error in the logs, since it might be indicative of a bug if it occurs outside of the context
+			// of a general backend outage.
+			log.Warnf("Failed to load system role assertion set %q for instance %q: %v", req.UnstableSystemRoleAssertionID, req.HostID, err)
+			return trace.AccessDenied("failed to load system role assertion set with ID %q", req.UnstableSystemRoleAssertionID)
+		}
+	}
+
 	// check if additional system roles are permissible
+Outer:
 	for _, requestedRole := range req.SystemRoles {
 		if a.hasBuiltinRole(requestedRole) {
 			// instance is already known to hold this role
-			continue
+			continue Outer
+		}
+
+		for _, assertedRole := range assertions.SystemRoles {
+			if requestedRole == assertedRole {
+				// instance recently demonstrated that it holds this role
+				continue Outer
+			}
 		}
 
 		return trace.AccessDenied("additional system role %q cannot be applied (not authorized)", requestedRole)
 	}
 
 	return nil
+}
+
+func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	role, ok := a.context.Identity.(authz.BuiltinRole)
+	if !ok || !role.IsServer() {
+		return trace.AccessDenied("system role assertions can only be executed by a teleport built-in server")
+	}
+
+	if req.ServerID != role.GetServerID() {
+		return trace.AccessDenied("system role assertions do not support impersonation (%q -> %q)", role.GetServerID(), req.ServerID)
+	}
+
+	if !a.hasBuiltinRole(req.SystemRole) {
+		return trace.AccessDenied("cannot assert unheld system role %q", req.SystemRole)
+	}
+
+	if !req.SystemRole.IsLocalService() {
+		return trace.AccessDenied("cannot assert non-service system role %q", req.SystemRole)
+	}
+
+	return a.authServer.UnstableAssertSystemRole(ctx, req)
 }
 
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
@@ -1365,12 +1424,63 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
-		err := a.hasWatchPermissionForKind(kind)
-		if err != nil {
-			if watch.AllowPartialSuccess {
-				continue
+		// Check the permissions for data of each kind. For watching, most
+		// kinds of data just need a Read permission, but some have more
+		// complicated logic.
+		switch kind.Kind {
+		case types.KindCertAuthority:
+			verb := types.VerbReadNoSecrets
+			if kind.LoadSecrets {
+				verb = types.VerbRead
 			}
-			return nil, trace.Wrap(err)
+			if err := a.action(apidefaults.Namespace, types.KindCertAuthority, verb); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+		case types.KindAccessRequest:
+			var filter types.AccessRequestFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			if filter.User == "" || a.currentUserAction(filter.User) != nil {
+				if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead); err != nil {
+					if watch.AllowPartialSuccess {
+						continue
+					}
+					return nil, trace.Wrap(err)
+				}
+			}
+		case types.KindWebSession:
+			var filter types.WebSessionFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			// Allow reading Snowflake sessions to DB service.
+			if !(kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase)) {
+				if filter.User == "" || a.currentUserAction(filter.User) != nil {
+					if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
+						if watch.AllowPartialSuccess {
+							continue
+						}
+						return nil, trace.Wrap(err)
+					}
+				}
+			}
+		default:
+			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		validKinds = append(validKinds, kind)
@@ -1388,62 +1498,6 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		watch.QueueSize = defaults.NodeQueueSize
 	}
 	return a.authServer.NewWatcher(ctx, watch)
-}
-
-// hasWatchPermissionForKind checks the permissions for data of each kind.
-// For watching, most kinds of data just need a Read permission, but some
-// have more complicated logic.
-func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error {
-	verb := types.VerbRead
-	switch kind.Kind {
-	case types.KindCertAuthority:
-		if !kind.LoadSecrets {
-			verb = types.VerbReadNoSecrets
-		}
-	case types.KindAccessRequest:
-		var filter types.AccessRequestFilter
-		if err := filter.FromMap(kind.Filter); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Users can watch their own access requests.
-		if filter.User != "" && a.currentUserAction(filter.User) == nil {
-			return nil
-		}
-	case types.KindWebSession:
-		var filter types.WebSessionFilter
-		if err := filter.FromMap(kind.Filter); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Allow reading Snowflake sessions to DB service.
-		if kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase) {
-			return nil
-		}
-
-		// Users can watch their own web sessions.
-		if filter.User != "" && a.currentUserAction(filter.User) == nil {
-			return nil
-		}
-	case types.KindHeadlessAuthentication:
-		var filter types.HeadlessAuthenticationFilter
-		if err := filter.FromMap(kind.Filter); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Users can only watch their own headless authentications, meaning we don't fallback to
-		// the generalized verb-kind-action check below.
-		if !hasLocalUserRole(a.context) {
-			return trace.AccessDenied("non-local user roles cannot watch headless authentications")
-		} else if filter.Username == "" {
-			return trace.AccessDenied("user cannot watch headless authentications without a filter for their username")
-		} else if filter.Username != a.context.User.GetName() {
-			return trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
-		}
-
-		return nil
-	}
-	return trace.Wrap(a.action(apidefaults.Namespace, kind.Kind, verb))
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
@@ -1527,15 +1581,6 @@ func (a *ServerWithRoles) StreamNodes(ctx context.Context, namespace string) str
 	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
-const (
-	// kubeService is a special resource type that is used to keep compatibility
-	// with Teleport 12 clients.
-	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
-	// clients still expect it to be present in the server.
-	// TODO(tigrato): DELETE in 14.0.0
-	kubeService = "kube_service"
-)
-
 // authContextForSearch returns an extended authz.Context which should be used
 // when searching for resources that a user may be able to request access to,
 // but does not already have access to.
@@ -1593,7 +1638,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
 	// clients still expect it to be present in the server.
 	// TODO(tigrato): DELETE in 14.0.0
-	if req.ResourceType == kubeService {
+	if req.ResourceType == types.KindKubeService {
 		return &types.ListResourcesResponse{}, nil
 	}
 
@@ -3583,8 +3628,7 @@ func (s *streamWithRoles) Close(ctx context.Context) error {
 	return s.stream.Close(ctx)
 }
 
-func (s *streamWithRoles) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
-	event := pe.GetAuditEvent()
+func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	err := events.ValidateServerMetadata(event, s.serverID, s.a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
@@ -3595,7 +3639,7 @@ func (s *streamWithRoles) RecordEvent(ctx context.Context, pe apievents.Prepared
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
 	}
-	return s.stream.RecordEvent(ctx, pe)
+	return s.stream.EmitAuditEvent(ctx, event)
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
@@ -3840,8 +3884,8 @@ func minRequiredVersionForRole(role types.Role) (semver.Version, string, error) 
 // the zero version.
 //
 // Examples:
-// - (15.x.x, 13.1.1) -> true (anything older than 13.1.1 is >1 major behind v15)
-// - (14.x.x, 13.1.1) -> false (13.0.9 is within one major of v14)
+// - (15.x.x, 13.1.0) -> true (anything older than 13.1.0 is >1 major behind v15)
+// - (14.x.x, 13.1.0) -> false (13.0.9 is within one major of v14)
 // - (14.x.x, 13.0.0) -> true (anything older than 13.0.0 is >1 major behind v14)
 func safeToSkipInventoryCheck(authVersion, minRequiredVersion semver.Version) bool {
 	return authVersion.Major > roundToNextMajor(minRequiredVersion)
@@ -3850,7 +3894,7 @@ func safeToSkipInventoryCheck(authVersion, minRequiredVersion semver.Version) bo
 // roundToNextMajor returns the next major version that is *not less than* [v].
 //
 // Examples:
-// - 13.1.1 -> 14.0.0
+// - 13.1.0 -> 14.0.0
 // - 13.0.0 -> 13.0.0
 // - 13.0.0-alpha -> 13.0.0
 func roundToNextMajor(v semver.Version) int64 {
@@ -4115,7 +4159,47 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.validateCloudNetworkConfigUpdate(newNetConfig, oldNetConf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
+
+}
+func (a *ServerWithRoles) validateCloudNetworkConfigUpdate(newConfig, oldConfig types.ClusterNetworkingConfig) error {
+	if a.hasBuiltinRole(types.RoleAdmin) {
+		return nil
+	}
+
+	if !modules.GetModules().Features().Cloud {
+		return nil
+	}
+
+	const cloudUpdateFailureMsg = "cloud tenants cannot update %q"
+
+	if newConfig.GetProxyListenerMode() != oldConfig.GetProxyListenerMode() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "proxy_listener_mode")
+	}
+	newtst, _ := newConfig.GetTunnelStrategyType()
+	oldtst, _ := oldConfig.GetTunnelStrategyType()
+	if newtst != oldtst {
+		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
+	}
+
+	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
+	}
+
+	if newConfig.GetKeepAliveCountMax() != oldConfig.GetKeepAliveCountMax() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_count_max")
+	}
+
+	return nil
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
@@ -4132,6 +4216,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.validateCloudNetworkConfigUpdate(types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
@@ -6287,6 +6379,7 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // GetHeadlessAuthentication gets a headless authentication from the backend.
 func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	// Only users can get their own headless authentication requests.
 	if !hasLocalUserRole(a.context) {
 		return nil, trace.AccessDenied("non-local user roles cannot get headless authentication resources")
 	}
@@ -6302,6 +6395,7 @@ func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name st
 // GetHeadlessAuthenticationFromWatcher gets a headless authentication from the headless
 // authentication watcher.
 func (a *ServerWithRoles) GetHeadlessAuthenticationFromWatcher(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	// Only users can get their own headless authentication requests.
 	if !hasLocalUserRole(a.context) {
 		return nil, trace.AccessDenied("non-local user roles cannot get headless authentication resources")
 	}
@@ -6315,28 +6409,24 @@ func (a *ServerWithRoles) GetHeadlessAuthenticationFromWatcher(ctx context.Conte
 	return headlessAuthn, nil
 }
 
-// UpsertHeadlessAuthenticationStub creates a headless authentication stub for the user
+// CreateHeadlessAuthenticationStub creates a headless authentication stub for the user
 // that will expire after the standard callback timeout. Headless login processes will
 // look for this stub before inserting the headless authentication resource into the
 // backend as a form of indirect authorization.
-func (a *ServerWithRoles) UpsertHeadlessAuthenticationStub(ctx context.Context) error {
+func (a *ServerWithRoles) CreateHeadlessAuthenticationStub(ctx context.Context) error {
+	// Only users can create headless authentication stubs.
 	if !hasLocalUserRole(a.context) {
 		return trace.AccessDenied("non-local user roles cannot create headless authentication stubs")
 	}
 	username := a.context.User.GetName()
 
-	err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username)
+	err := a.authServer.CreateHeadlessAuthenticationStub(ctx, username)
 	return trace.Wrap(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, name string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
-	if !hasLocalUserRole(a.context) {
-		return trace.AccessDenied("non-local user roles cannot approve or deny headless authentication resources")
-	}
-	username := a.context.User.GetName()
-
-	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, username, name)
+	headlessAuthn, err := a.GetHeadlessAuthentication(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -6375,58 +6465,6 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 
 	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
 	return trace.Wrap(err)
-}
-
-// MaintainHeadlessAuthenticationStub maintains a headless authentication stub for the user.
-// Headless login processes will look for this stub before inserting the headless authentication
-// resource into the backend as a form of indirect authorization.
-func (a *ServerWithRoles) MaintainHeadlessAuthenticationStub(ctx context.Context) error {
-	if !hasLocalUserRole(a.context) {
-		return trace.AccessDenied("non-local user roles cannot create headless authentication stubs")
-	}
-	username := a.context.User.GetName()
-
-	// Create a stub and re-create it each time it expires.
-	// Authorization is handled by UpsertHeadlessAuthenticationStub.
-	if err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username); err != nil {
-		return trace.Wrap(err)
-	}
-
-	ticker := time.NewTicker(defaults.CallbackTimeout)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			if err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username); err != nil {
-				return trace.Wrap(err)
-			}
-		case <-ctx.Done():
-			return nil
-		}
-	}
-}
-
-// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
-func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
-	if !hasLocalUserRole(a.context) {
-		return nil, trace.AccessDenied("non-local user roles cannot watch headless authentications")
-	}
-	username := a.context.User.GetName()
-
-	// Authorization is handled by NewWatcher.
-	filter := types.HeadlessAuthenticationFilter{
-		Username: username,
-		State:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
-	}
-
-	return a.NewWatcher(ctx, types.Watch{
-		Name: username,
-		Kinds: []types.WatchKind{{
-			Kind:   types.KindHeadlessAuthentication,
-			Filter: filter.IntoMap(),
-		}},
-	})
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.

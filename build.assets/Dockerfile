@@ -10,7 +10,7 @@
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
-FROM buildpack-deps:22.04 AS libfido2
+FROM buildpack-deps:20.04 AS libfido2
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cmake && \
@@ -18,14 +18,13 @@ RUN apt-get update && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = 'ee32ac5f6494047b9ece26e7a5920650cdf46655' ] && \
+    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
     make install-static && \
     make clean
 
 # Install libcbor.
-# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     cd libcbor && \
     [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
@@ -39,7 +38,6 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 && \
     cd openssl && \
     [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
@@ -49,7 +47,6 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 
 
 # Install libfido2.
 # Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
-# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
     cd libfido2 && \
     [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
@@ -65,7 +62,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 
 ## LIBBPF #####################################################################
 
-FROM buildpack-deps:22.04 AS libbpf
+FROM buildpack-deps:20.04 AS libbpf
 
 # Install required dependencies
 RUN apt-get update -y --fix-missing && \
@@ -97,7 +94,7 @@ RUN mkdir -p /opt && cd /opt &&  \
 # 4. Fast, language-dependent dependencies
 # 5. Multi-stage layer copies
 
-FROM ubuntu:22.04 AS buildbox
+FROM ubuntu:20.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -114,7 +111,7 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
-# Latest git 2.18+ is required for GitHub actions.
+# Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get -y update && \
     apt-get -y install software-properties-common && \
@@ -144,12 +141,13 @@ RUN apt-get -y update && \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
+        osslsigncode \
         python3-pip \
         python3-setuptools \
         python3-wheel \
         pkg-config \
-        # rsync is required for some integration tests
-        rsync \
+        # Used during tag builds to build the RPM package of Connect.
+        rpm \
         softhsm2 \
         sudo \
         tree \
@@ -168,24 +166,11 @@ RUN apt-get -y update && \
     tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt-get update && \
     apt-get install -y docker-ce-cli && \
-    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install osslsigncode for Windows Code Signing. The format of our 
-# Code Signing Certificate needs us to use osslsigncode >= 2.6, which
-# allows the use of legacy OpenSSL algorithms. This is not yet provided
-# by Ubuntu, so we will have to fetch it ourselves.   
-RUN --mount=type=bind,target=/context \
-    curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
-    && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
-    && unzip -d /tmp/osslsigncode osslsigncode.zip \
-    && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
-    && rm -rf /tmp/osslsigncode \
-    && rm osslsigncode.zip
-    
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
@@ -223,8 +208,6 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
-# Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
@@ -257,13 +240,11 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-# Keep the version below synced with devbox.json
 RUN curl -fsSL https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
     rm -r bats-core-1.2.1
 
 # Install shellcheck.
-# Keep the version below synced with devbox.json
 RUN scversion='v0.9.0' && \
     curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
@@ -271,7 +252,6 @@ RUN scversion='v0.9.0' && \
     shellcheck --version
 
 # Install helm.
-# Keep the version below synced with devbox.json
 RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
@@ -308,15 +288,12 @@ ARG GOGO_PROTO_TAG # eg, "v1.3.2"
 RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # Install addlicense.
-# Keep the version below synced with devbox.json
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-# Keep the version below synced with devbox.json
 RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-# Keep the version below synced with devbox.json
 RUN TAG='v1.53.3' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"

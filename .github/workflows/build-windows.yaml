@@ -3,8 +3,8 @@ run-name: Build on Windows
 
 on:
   merge_group:
-    # We only build tsh and tctl on Windows so only consider Go code
-    # (tsh and tctl don't run any Rust)
+    # We only build tsh on Windows so only consider Go code as tsh doesn't
+    # run any Rust.
     paths:
       - '.github/workflows/build-windows.yaml'
       - '**.go'
@@ -39,7 +39,6 @@ jobs:
           go-version: ${{ steps.go-version.outputs.go-version }}
 
       - name: Build
-        shell: bash
         run: |
-          export OS="windows"
-          make build/tsh build/tctl
+          $Env:OS="windows"
+          make build/tsh

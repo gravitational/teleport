@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -166,12 +165,8 @@ func TestKube(t *testing.T) {
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
 	t.Run("Disconnect", suite.bind(testKubeDisconnect))
 	t.Run("Join", suite.bind(testKubeJoin))
+
 	t.Run("IPPinning", suite.bind(testIPPinning))
-	// ExecWithNoAuth tests that a user can get the pod and exec into it when
-	// moderated session is not enforced.
-	// Users under moderated session should only be able to get the pod and shouldn't
-	// be able to exec into a pod
-	t.Run("ExecWithNoAuth", suite.bind(testExecNoAuth))
 }
 
 func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError string) {
@@ -199,7 +194,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -412,7 +407,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 			KubeUsers:  kubeUsers,
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -470,7 +465,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -574,7 +569,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -620,7 +615,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -848,7 +843,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -898,7 +893,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			KubeGroups: auxKubeGroups,
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -1152,7 +1147,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -1245,7 +1240,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -1336,21 +1331,6 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, newPortStr())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 	tconf.Proxy.Kube.LegacyKubeProxy = true
-	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-
-	return tconf
-}
-
-// teleKubeConfig sets up teleport with kubernetes turned on
-func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
-	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Console = nil
-	tconf.Log = s.log
-	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
-	tconf.Proxy.Enabled = false
-	tconf.SSH.Enabled = false
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	return tconf
@@ -1572,7 +1552,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -1800,187 +1780,4 @@ func kubeJoinObserverWithSNISet(t *testing.T, tc *client.TeleportClient, telepor
 	}, tc, sessions[0], types.SessionObserverMode)
 	require.NoError(t, err)
 	return stream
-}
-
-// testExecNoAuth tests that a user can get the pod and exec into a pod
-// if they do not require any moderated session, if the auth server is not available.
-// If moderated session is required, they are only allowed to get the pod but
-// not exec into it.
-func testExecNoAuth(t *testing.T, suite *KubeSuite) {
-	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
-		ClusterName: helpers.Site,
-		HostID:      helpers.HostID,
-		NodeName:    Host,
-		Priv:        suite.priv,
-		Pub:         suite.pub,
-		Log:         suite.log,
-	})
-
-	adminUsername := "admin"
-	kubeGroups := []string{kube.TestImpersonationGroup}
-	kubeUsers := []string{"alice@example.com"}
-	adminRole, err := types.NewRole("admin", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins:     []string{adminUsername},
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
-			KubernetesLabels: types.Labels{
-				types.Wildcard: {types.Wildcard},
-			},
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	teleport.AddUserWithRole(adminUsername, adminRole)
-
-	userUsername := "user"
-	userRole, err := types.NewRole("userRole", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins:     []string{userUsername},
-			KubeGroups: kubeGroups,
-			KubeUsers:  kubeUsers,
-			KubernetesLabels: types.Labels{
-				types.Wildcard: {types.Wildcard},
-			},
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
-				},
-			},
-			RequireSessionJoin: []*types.SessionRequirePolicy{
-				{
-					Name:   "Auditor oversight",
-					Filter: fmt.Sprintf("contains(user.spec.roles, %q)", adminRole.GetName()),
-					Kinds:  []string{"k8s"},
-					Modes:  []string{string(types.SessionModeratorMode)},
-					Count:  1,
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	teleport.AddUserWithRole(userUsername, userRole)
-	authTconf := suite.teleAuthConfig(Host)
-	err = teleport.CreateEx(t, nil, authTconf)
-	require.NoError(t, err)
-	err = teleport.Start()
-	require.NoError(t, err)
-
-	// Create a Teleport instance with a Proxy.
-	proxyConfig := helpers.ProxyConfig{
-		Name:                   "cluster-main-proxy",
-		DisableWebService:      true,
-		DisableALPNSNIListener: true,
-	}
-	proxyConfig.SSHAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
-	proxyConfig.WebAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
-	proxyConfig.KubeAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerProxyKube, &proxyConfig.FileDescriptors)
-	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
-
-	_, _, err = teleport.StartProxy(proxyConfig, helpers.WithLegacyKubeProxy(suite.kubeConfigPath))
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		teleport.StopAll()
-	})
-	kubeAddr, err := utils.ParseAddr(proxyConfig.KubeAddr)
-	require.NoError(t, err)
-	// wait until the proxy and kube are ready
-	require.Eventually(t, func() bool {
-		// set up kube configuration using proxy
-		proxyClient, _, err := kube.ProxyClient(kube.ProxyConfig{
-			T:             teleport,
-			Username:      adminUsername,
-			KubeUsers:     kubeUsers,
-			KubeGroups:    kubeGroups,
-			TargetAddress: *kubeAddr,
-		})
-		if err != nil {
-			return false
-		}
-		ctx := context.Background()
-		// try get request to fetch available pods
-		_, err = proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
-		return err == nil
-	}, 20*time.Second, 500*time.Millisecond)
-
-	adminProxyClient, adminProxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
-		T:             teleport,
-		Username:      adminUsername,
-		KubeUsers:     kubeUsers,
-		KubeGroups:    kubeGroups,
-		TargetAddress: *kubeAddr,
-	})
-	require.NoError(t, err)
-
-	userProxyClient, userProxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
-		T:             teleport,
-		Username:      userUsername,
-		KubeUsers:     kubeUsers,
-		KubeGroups:    kubeGroups,
-		TargetAddress: *kubeAddr,
-	})
-	require.NoError(t, err)
-
-	// stop auth server to test that user with moderation is denied when no Auth exists.
-	// Both admin and user already have valid certificates.
-	require.NoError(t, teleport.StopAuth(true))
-	tests := []struct {
-		name           string
-		user           string
-		proxyClient    kubernetes.Interface
-		clientConfig   *rest.Config
-		assetErr       require.ErrorAssertionFunc
-		outputContains string
-	}{
-		{
-			name:           "admin user", // admin user does not require any additional moderation.
-			proxyClient:    adminProxyClient,
-			clientConfig:   adminProxyClientConfig,
-			user:           adminUsername,
-			assetErr:       require.NoError,
-			outputContains: "echo hi",
-		},
-		{
-			name:         "user with moderation", // user requires moderation and his session must be denied when no Auth exists.
-			user:         userUsername,
-			assetErr:     require.Error,
-			proxyClient:  userProxyClient,
-			clientConfig: userProxyClientConfig,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
-			// try get request to fetch available pods
-			pod, err := tt.proxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
-			require.NoError(t, err)
-
-			out := &bytes.Buffer{}
-			// interactive command, allocate pty
-			term := NewTerminal(250)
-			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
-			term.Type("\aecho hi\n\r\aexit\n\r\a")
-			err = kubeExec(tt.clientConfig, kubeExecArgs{
-				podName:      pod.Name,
-				podNamespace: pod.Namespace,
-				container:    pod.Spec.Containers[0].Name,
-				command:      []string{"/bin/sh"},
-				stdout:       out,
-				stdin:        term,
-				tty:          true,
-			})
-			tt.assetErr(t, err)
-
-			data := out.Bytes()
-			require.Contains(t, string(data), tt.outputContains)
-		})
-	}
 }

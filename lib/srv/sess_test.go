@@ -114,7 +114,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	})
 	auditorRoleSet := services.NewRoleSet(auditorRole)
 	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
-	// change the teleport user so we don't match the user in the test cases
+	// change the teleport user so we dont match the user in the test cases
 	auditScx.Identity.TeleportUser = "mod"
 	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
 	approvers := make(map[string]*party)
@@ -143,6 +143,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		reqID          string
 		location       string
 	}{
+
 		{
 			name:           "no file request found with supplied ID",
 			expectedResult: false,
@@ -240,16 +241,6 @@ func TestSession_newRecorder(t *testing.T) {
 		trace.Component: teleport.ComponentAuth,
 	})
 
-	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
-		require.NotNil(t, i)
-		//nolint:govet // events.setterAndRecorder is returned when
-		//events will be discarded so we can't do a type assertion on that.
-		// Assert that what is returned isn't an event.SessionWriter, which
-		// is what is used normally.
-		_, ok := i.(events.SessionWriter)
-		require.False(t, ok)
-	}
-
 	cases := []struct {
 		desc         string
 		sess         *session
@@ -274,7 +265,11 @@ func TestSession_newRecorder(t *testing.T) {
 				SessionRecordingConfig: proxyRecording,
 			},
 			errAssertion: require.NoError,
-			recAssertion: isNotSessionWriter,
+			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				_, ok := i.(*events.DiscardStream)
+				require.True(t, ok)
+			},
 		},
 		{
 			desc: "discard-stream--when-proxy-sync-recording",
@@ -293,7 +288,11 @@ func TestSession_newRecorder(t *testing.T) {
 				SessionRecordingConfig: proxyRecordingSync,
 			},
 			errAssertion: require.NoError,
-			recAssertion: isNotSessionWriter,
+			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				_, ok := i.(*events.DiscardStream)
+				require.True(t, ok)
+			},
 		},
 		{
 			desc: "strict-err-new-audit-writer-fails",
@@ -351,7 +350,6 @@ func TestSession_newRecorder(t *testing.T) {
 				SessionRecordingConfig: nodeRecordingSync,
 				srv: &mockServer{
 					component: teleport.ComponentNode,
-					datadir:   t.TempDir(),
 				},
 				Identity: IdentityContext{
 					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
@@ -373,9 +371,9 @@ func TestSession_newRecorder(t *testing.T) {
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				require.NotNil(t, i)
-				sw, ok := i.(apievents.Stream)
+				aw, ok := i.(*events.AuditWriter)
 				require.True(t, ok)
-				require.NoError(t, sw.Close(context.Background()))
+				require.NoError(t, aw.Close(context.Background()))
 			},
 		},
 		{
@@ -395,16 +393,15 @@ func TestSession_newRecorder(t *testing.T) {
 				ClusterName:            "test",
 				SessionRecordingConfig: nodeRecordingSync,
 				srv: &mockServer{
-					MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
-					datadir:             t.TempDir(),
+					MockEmitter: &eventstest.MockEmitter{},
 				},
 			},
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
-				sw, ok := i.(apievents.Stream)
+				aw, ok := i.(*events.AuditWriter)
 				require.True(t, ok)
-				require.NoError(t, sw.Close(context.Background()))
+				require.NoError(t, aw.Close(context.Background()))
 			},
 		},
 	}
@@ -435,13 +432,9 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		t.Cleanup(func() { reg.Close() })
 
 		sess := &session{
-			id:  "test",
-			log: logger,
-			recorder: &mockRecorder{
-				SessionPreparerRecorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
-				done:                    true,
-			},
-			emitter:  srv,
+			id:       "test",
+			log:      logger,
+			recorder: &mockRecorder{done: true},
 			registry: reg,
 			scx:      newTestServerContext(t, srv, nil),
 		}
@@ -462,7 +455,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		// Wait for the events on the new recorder
 		require.Eventually(t, func() bool {
 			return len(srv.Events()) == 2
-		}, 1000*time.Second, 100*time.Millisecond)
+		}, 1000*time.Millisecond, 100*time.Millisecond)
 	})
 }
 
@@ -564,7 +557,7 @@ func TestParties(t *testing.T) {
 
 	// If a party leaves, the session should remove the party and continue.
 	p := sess.getParties()[0]
-	require.NoError(t, p.Close())
+	p.Close()
 
 	partyIsRemoved := func() bool {
 		return len(sess.getParties()) == 2 && !sess.isStopped()
@@ -573,7 +566,8 @@ func TestParties(t *testing.T) {
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
-	require.NoError(t, p.ctx.Close())
+	err = p.ctx.Close()
+	require.NoError(t, err)
 
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
@@ -585,8 +579,7 @@ func TestParties(t *testing.T) {
 	})
 
 	// If all parties are gone, the session should linger for a short duration.
-	p = sess.getParties()[0]
-	require.NoError(t, p.Close())
+	sess.getParties()[0].Close()
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
@@ -596,13 +589,12 @@ func TestParties(t *testing.T) {
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 1, len(sess.getParties()))
 
-	// advance clock and give lingerAndDie goroutine a second to complete.
+	// andvance clock and give lingerAndDie goroutine a second to complete.
 	regClock.Advance(defaults.SessionIdlePeriod)
 	require.False(t, sess.isStopped())
 
 	// If no parties remain it should be closed after the duration.
-	p = sess.getParties()[0]
-	require.NoError(t, p.Close())
+	sess.getParties()[0].Close()
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
@@ -734,8 +726,8 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 }
 
 type mockRecorder struct {
-	events.SessionPreparerRecorder
-	emitter eventstest.MockRecorderEmitter
+	events.StreamWriter
+	emitter eventstest.MockEmitter
 	done    bool
 }
 
@@ -897,12 +889,7 @@ func TestTrackingSession(t *testing.T) {
 				access:    sessionEvaluator{moderated: tt.moderated},
 			}
 
-			p := &party{
-				user: me.Name,
-				id:   rsession.NewID(),
-				mode: types.SessionPeerMode,
-			}
-			err = sess.trackSession(ctx, me.Name, nil, p)
+			err = sess.trackSession(ctx, me.Name, nil)
 			tt.assertion(t, err)
 			tt.createAssertion(t, trackingService.CreatedCount())
 		})

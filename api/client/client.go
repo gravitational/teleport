@@ -906,6 +906,16 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
+// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
+// instances to prove that they hold a given system role.
+//
+// DELETE IN: 11.0 (server side method should continue to exist until 12.0 for back-compat reasons,
+// but v11 clients should no longer need this method)
+func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
+	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req)
+	return trail.FromGRPC(err)
+}
+
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
@@ -3954,24 +3964,6 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 		return nil, trail.FromGRPC(err)
 	}
 	return headlessAuthn, nil
-}
-
-// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
-func (c *Client) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
-	cancelCtx, cancel := context.WithCancel(ctx)
-	stream, err := c.grpc.WatchPendingHeadlessAuthentications(cancelCtx, &emptypb.Empty{})
-	if err != nil {
-		cancel()
-		return nil, trail.FromGRPC(err)
-	}
-	w := &streamWatcher{
-		stream:  stream,
-		ctx:     cancelCtx,
-		cancel:  cancel,
-		eventsC: make(chan types.Event),
-	}
-	go w.receiveEvents()
-	return w, nil
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.

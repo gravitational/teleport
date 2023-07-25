@@ -126,10 +126,10 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	// In TLS routing mode a local proxy is started on demand so connect to it.
-	host := options.localProxyHost
-	port := options.localProxyPort
-	if host == "" || port == 0 {
-		host, port = tc.DatabaseProxyHostPort(db)
+	host, port := tc.DatabaseProxyHostPort(db)
+	if options.localProxyPort != 0 && options.localProxyHost != "" {
+		host = options.localProxyHost
+		port = options.localProxyPort
 	}
 
 	if options.log == nil {
@@ -200,12 +200,6 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolOracle:
 		return c.getOracleCommand()
-
-	case defaults.ProtocolClickHouseHTTP:
-		return c.getClickhouseHTTPCommand()
-	case defaults.ProtocolClickHouse:
-		return c.getClickhouseNativeCommand()
-
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)

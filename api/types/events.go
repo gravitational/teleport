@@ -143,10 +143,6 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			var filter CertAuthorityFilter
 			filter.FromMap(kind.Filter)
 			return filter.Match(res), nil
-		case *HeadlessAuthentication:
-			var filter HeadlessAuthenticationFilter
-			filter.FromMap(kind.Filter)
-			return filter.Match(res), nil
 		default:
 			// we don't know about this filter, let the event through
 		}

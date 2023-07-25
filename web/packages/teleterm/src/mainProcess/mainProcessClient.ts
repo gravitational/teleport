@@ -17,7 +17,6 @@
 import { ipcRenderer } from 'electron';
 
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
-import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
 
 import { createConfigServiceClient } from '../services/config';
 
@@ -68,17 +67,6 @@ export default function createMainProcessClient(): MainProcessClient {
       return {
         cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
       };
-    },
-    downloadAgent() {
-      return ipcRenderer.invoke(
-        'main-process-connect-my-computer-download-agent'
-      );
-    },
-    createAgentConfigFile(clusterProperties: AgentConfigFileClusterProperties) {
-      return ipcRenderer.invoke(
-        'main-process-connect-my-computer-create-agent-config-file',
-        clusterProperties
-      );
     },
   };
 }

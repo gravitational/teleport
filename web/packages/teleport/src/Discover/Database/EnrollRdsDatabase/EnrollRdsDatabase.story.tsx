@@ -90,8 +90,6 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
-    region: 'us-west-2',
-    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'mysql-name',
@@ -102,8 +100,6 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     accountId: '',
     resourceId: '',
     dbServerExists: true,
-    region: 'us-west-2',
-    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'alpaca',
@@ -116,8 +112,6 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'deleting',
     accountId: '',
     resourceId: '',
-    region: 'us-west-2',
-    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'banana',
@@ -127,8 +121,6 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'failed',
     accountId: '',
     resourceId: '',
-    region: 'us-west-2',
-    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'watermelon',
@@ -143,8 +135,6 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     accountId: '',
     resourceId: '',
     dbServerExists: true,
-    region: 'us-west-2',
-    subnets: ['subnet1', 'subnet2'],
   },
   {
     name: 'llama',
@@ -154,7 +144,5 @@ const fixtures: CheckedAwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
-    region: 'us-west-2',
-    subnets: ['subnet1', 'subnet2'],
   },
 ];

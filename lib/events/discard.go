@@ -18,9 +18,7 @@ package events
 
 import (
 	"context"
-	"sync/atomic"
 
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -66,60 +64,38 @@ func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID ses
 	return c, e
 }
 
-// NewDiscardRecorder returns a [SessionRecorderChecker] that discards events.
-func NewDiscardRecorder() *DiscardRecorder {
-	return &DiscardRecorder{
-		done: make(chan struct{}),
-	}
-}
-
-// DiscardRecorder returns a stream that discards all events
-type DiscardRecorder struct {
-	completed atomic.Bool
-	done      chan struct{}
-}
+// DiscardStream returns a stream that discards all events
+type DiscardStream struct{}
 
 // Write discards data
-func (d *DiscardRecorder) Write(p []byte) (n int, err error) {
-	if d.completed.Load() {
-		return 0, trace.BadParameter("stream is closed")
-	}
-
+func (*DiscardStream) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
 // Status returns a channel that always blocks
-func (*DiscardRecorder) Status() <-chan apievents.StreamStatus {
+func (*DiscardStream) Status() <-chan apievents.StreamStatus {
 	return nil
 }
 
 // Done returns channel closed when streamer is closed
 // should be used to detect sending errors
-func (d *DiscardRecorder) Done() <-chan struct{} {
-	return d.done
+func (*DiscardStream) Done() <-chan struct{} {
+	return nil
 }
 
 // Close flushes non-uploaded flight stream data without marking
 // the stream completed and closes the stream instance
-func (d *DiscardRecorder) Close(ctx context.Context) error {
-	return d.Complete(ctx)
-}
-
-// Complete marks the stream as closed
-func (d *DiscardRecorder) Complete(ctx context.Context) error {
-	if !d.completed.CompareAndSwap(false, true) {
-		close(d.done)
-	}
+func (*DiscardStream) Close(ctx context.Context) error {
 	return nil
 }
 
-// RecordEvent discards session event
-func (d *DiscardRecorder) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
-	if d.completed.Load() {
-		return trace.BadParameter("stream is closed")
-	}
-	event := pe.GetAuditEvent()
+// Complete does nothing
+func (*DiscardStream) Complete(ctx context.Context) error {
+	return nil
+}
 
+// EmitAuditEvent discards audit event
+func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	log.WithFields(log.Fields{
 		"event_id":    event.GetID(),
 		"event_type":  event.GetType(),
@@ -148,37 +124,12 @@ func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 	return nil
 }
 
-// NewDiscardStreamer returns a streamer that creates streams that
-// discard events
-func NewDiscardStreamer() *DiscardStreamer {
-	return &DiscardStreamer{}
-}
-
-// DiscardStreamer creates DiscardRecorders
-type DiscardStreamer struct{}
-
 // CreateAuditStream creates a stream that discards all events
-func (*DiscardStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	return NewDiscardRecorder(), nil
+func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	return &DiscardStream{}, nil
 }
 
 // ResumeAuditStream resumes a stream that discards all events
-func (*DiscardStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	return NewDiscardRecorder(), nil
-}
-
-// NoOpPreparer is a SessionEventPreparer that doesn't change events
-type NoOpPreparer struct{}
-
-// PrepareSessionEvent returns the event unchanged
-func (m *NoOpPreparer) PrepareSessionEvent(event apievents.AuditEvent) (apievents.PreparedSessionEvent, error) {
-	return preparedSessionEvent{
-		event: event,
-	}, nil
-}
-
-// WithNoOpPreparer wraps rec with a SessionEventPreparer that will leave
-// events unchanged
-func WithNoOpPreparer(rec SessionRecorder) SessionPreparerRecorder {
-	return NewSessionPreparerRecorder(&NoOpPreparer{}, rec)
+func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	return &DiscardStream{}, nil
 }

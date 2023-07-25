@@ -22,7 +22,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
       env:
         GO_LINT_FLAGS: --timeout=15m
 
@@ -43,10 +43,6 @@ jobs:
       - name: Check if protos are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
-
-      - name: Check if Operator CRDs are up to date
-        # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
 
       # The `buf breaking` check is twofold: we always check for compatibility
       # breaks against the base of the PR, and in backports we check for

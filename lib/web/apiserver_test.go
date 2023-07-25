@@ -101,7 +101,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
@@ -111,7 +110,6 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -123,7 +121,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -135,7 +132,7 @@ type WebSuite struct {
 
 	node        *regular.Server
 	proxy       *regular.Server
-	proxyTunnel reversetunnelclient.Server
+	proxyTunnel reversetunnel.Server
 	srvID       string
 
 	user       string
@@ -455,15 +452,11 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
-		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
-			controller := srv.WebSessionController(proxySessionController)
-			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
-			return ctx, trace.Wrap(err)
-		}),
-		Router:               router,
-		HealthCheckAppServer: cfg.HealthCheckAppServer,
-		UI:                   cfg.uiConfig,
-		OpenAIConfig:         cfg.OpenAIConfig,
+		SessionControl:                  proxySessionController,
+		Router:                          router,
+		HealthCheckAppServer:            cfg.HealthCheckAppServer,
+		UI:                              cfg.uiConfig,
+		OpenAIConfig:                    cfg.OpenAIConfig,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -2596,10 +2589,9 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.NotContains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
 				"  PACKAGE_LIST=\"teleport-ent jq\"\n"+
-				"  # shellcheck disable=SC2050\n"+
-				"  if [ \"true\" = \"true\" ]; then\n"+
+				"  if [[ \"true\" == \"true\" ]]; then\n"+
 				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
-				"  fi",
+				"  fi\n",
 			)
 		})
 
@@ -2614,7 +2606,6 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.NotContains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
 				"  PACKAGE_LIST=\"jq teleport-ent\"\n"+
-				"  # shellcheck disable=SC2050\n"+
 				"  if [[ \"true\" == \"true\" ]]; then\n"+
 				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
 				"  fi\n",
@@ -2729,8 +2720,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.Contains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
 				"  PACKAGE_LIST=\"teleport jq\"\n"+
-				"  # shellcheck disable=SC2050\n"+
-				"  if [ \"false\" = \"true\" ]; then\n"+
+				"  if [[ \"false\" == \"true\" ]]; then\n"+
 				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-updater\"\n"+
 				"  fi",
 			)
@@ -2746,7 +2736,6 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.Contains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
 				"  PACKAGE_LIST=\"jq teleport\"\n"+
-				"  # shellcheck disable=SC2050\n"+
 				"  if [[ \"false\" == \"true\" ]]; then\n"+
 				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-updater\"\n"+
 				"  fi\n",
@@ -2927,7 +2916,7 @@ func TestSearchClusterEvents(t *testing.T) {
 
 	s := newWebSuite(t)
 	clock := s.clock
-	sessionEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
+	sessionEvents := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 3,
 		Clock:       clock,
 		ServerID:    s.proxy.ID(),
@@ -4279,8 +4268,7 @@ func TestClusterAppsGet(t *testing.T) {
 
 	// add a user group
 	ug, err := types.NewUserGroup(types.Metadata{
-		Name: "ug1", Description: "ug1-description",
-	},
+		Name: "ug1", Description: "ug1-description"},
 		types.UserGroupSpecV1{Applications: []string{"app1"}})
 	require.NoError(t, err)
 	err = env.server.Auth().CreateUserGroup(context.Background(), ug)
@@ -5028,7 +5016,7 @@ func TestCreateAppSession(t *testing.T) {
 	rawCookie := *pack.cookies[0]
 	cookieBytes, err := hex.DecodeString(rawCookie.Value)
 	require.NoError(t, err)
-	var sessionCookie websession.Cookie
+	var sessionCookie SessionCookie
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	require.NoError(t, err)
 
@@ -5193,7 +5181,7 @@ func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
 	rawCookie := *pack.cookies[0]
 	cookieBytes, err := hex.DecodeString(rawCookie.Value)
 	require.NoError(t, err)
-	var sessionCookie websession.Cookie
+	var sessionCookie SessionCookie
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	require.NoError(t, err)
 
@@ -7750,23 +7738,19 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:            revTunServer,
-		AuthServers:      utils.FromAddr(authServer.Addr()),
-		DomainName:       authServer.ClusterName(),
-		ProxyClient:      client,
-		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
-		CipherSuites:     utils.DefaultCipherSuites(),
-		AccessPoint:      client,
-		Context:          ctx,
-		HostUUID:         proxyID,
-		Emitter:          client,
-		StaticFS:         fs,
-		ProxySettings:    &mockProxySettings{},
-		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
-			controller := srv.WebSessionController(sessionController)
-			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
-			return ctx, trace.Wrap(err)
-		}),
+		Proxy:                          revTunServer,
+		AuthServers:                    utils.FromAddr(authServer.Addr()),
+		DomainName:                     authServer.ClusterName(),
+		ProxyClient:                    client,
+		ProxyPublicAddrs:               utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:                   utils.DefaultCipherSuites(),
+		AccessPoint:                    client,
+		Context:                        ctx,
+		HostUUID:                       proxyID,
+		Emitter:                        client,
+		StaticFS:                       fs,
+		ProxySettings:                  &mockProxySettings{},
+		SessionControl:                 sessionController,
 		Router:                         router,
 		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
@@ -7828,7 +7812,7 @@ type testProxy struct {
 	clock   clockwork.FakeClock
 	client  auth.ClientI
 	auth    *auth.TestTLSServer
-	revTun  reversetunnelclient.Server
+	revTun  reversetunnel.Server
 	node    *regular.Server
 	proxy   *regular.Server
 	handler *APIHandler
@@ -8387,7 +8371,7 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...kubeCluste
 type startKubeOptions struct {
 	clusters    []kubeClusterConfig
 	authServer  *auth.TestTLSServer
-	revTunnel   reversetunnelclient.Server
+	revTunnel   reversetunnel.Server
 	serviceType kubeproxy.KubeServiceType
 }
 
@@ -8461,16 +8445,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	if cfg.serviceType == kubeproxy.KubeService {
 		proxySigner = nil
 	}
-	clock := clockwork.NewRealClock()
-	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: component,
-			Log:       log,
-			Client:    client,
-			Clock:     clock,
-		},
-	})
-	require.NoError(t, err)
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
@@ -8479,7 +8453,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			ClusterName:       cfg.authServer.ClusterName(),
 			Authz:             proxyAuthorizer,
 			AuthClient:        client,
-			Emitter:           client,
+			StreamEmitter:     client,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            hostID,
@@ -8518,10 +8492,9 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			default:
 			}
 		},
-		GetRotation:              func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers:         nil,
-		OnReconcile:              func(kc types.KubeClusters) {},
-		KubernetesServersWatcher: watcher,
+		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers: nil,
+		OnReconcile:      func(kc types.KubeClusters) {},
 	})
 	require.NoError(t, err)
 
@@ -8537,8 +8510,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		}
 		errChan <- err
 	}()
-	// wait for the watcher to init or it may race with test cleanup.
-	require.NoError(t, watcher.WaitInitialization())
 
 	// Waits for len(clusters) heartbeats to start
 	heartbeatsToExpect := len(cfg.clusters)
@@ -9347,4 +9318,5 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	require.NoError(t, err)
 
 	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+
 }

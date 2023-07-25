@@ -14,11 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  AccessRequestEvent,
-  AccessRequestStatus,
-  ServerMessageType,
-} from 'teleport/Assist/types';
+import { ServerMessageType } from 'teleport/Assist/types';
 
 import type {
   Conversation,
@@ -67,7 +63,6 @@ export enum AssistStateActionType {
   UpdateConversationTitle,
   AddCommandResultSummary,
   ToggleSidebar,
-  AddAccessRequest,
 }
 
 export interface ReplaceConversationsAction {
@@ -185,15 +180,6 @@ export interface ToggleSidebarAction {
   visible: boolean;
 }
 
-export interface AddAccessRequestAction {
-  type: AssistStateActionType.AddAccessRequest;
-  conversationId: string;
-  status: AccessRequestStatus;
-  summary: string;
-  username: string;
-  events: AccessRequestEvent[];
-}
-
 export type AssistContextAction =
   | SetConversationsLoadingAction
   | ReplaceConversationsAction
@@ -213,8 +199,7 @@ export type AssistContextAction =
   | DeleteConversationAction
   | UpdateConversationTitleAction
   | AddCommandResultSummaryAction
-  | ToggleSidebarAction
-  | AddAccessRequestAction;
+  | ToggleSidebarAction;
 
 export function reducer(
   state: AssistState,
@@ -277,9 +262,6 @@ export function reducer(
 
     case AssistStateActionType.ToggleSidebar:
       return toggleSidebar(state, action);
-
-    case AssistStateActionType.AddAccessRequest:
-      return addAccessRequest(state, action);
 
     default:
       return state;
@@ -727,34 +709,5 @@ export function toggleSidebar(
   return {
     ...state,
     sidebarVisible: action.visible,
-  };
-}
-
-export function addAccessRequest(
-  state: AssistState,
-  action: AddAccessRequestAction
-): AssistState {
-  const messages = new Map(state.messages.data);
-
-  const existingMessages = messages.get(action.conversationId);
-
-  messages.set(action.conversationId, [
-    ...existingMessages,
-    {
-      type: ServerMessageType.AccessRequests,
-      status: action.status,
-      username: action.username,
-      events: action.events,
-      summary: action.summary,
-      created: new Date(),
-    },
-  ]);
-
-  return {
-    ...state,
-    messages: {
-      ...state.messages,
-      data: messages,
-    },
   };
 }

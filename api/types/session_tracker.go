@@ -119,8 +119,6 @@ type SessionTracker interface {
 
 	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
 	GetLastActive() time.Time
-	// HostID is the target host id that created the session tracker.
-	GetHostID() string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -255,7 +253,7 @@ func (s *SessionTrackerV1) AddParticipant(participant Participant) {
 func (s *SessionTrackerV1) RemoveParticipant(id string) error {
 	for i, participant := range s.Spec.Participants {
 		if participant.ID == id {
-			s.Spec.Participants[i], s.Spec.Participants = s.Spec.Participants[len(s.Spec.Participants)-1], s.Spec.Participants[:len(s.Spec.Participants)-1]
+			s.Spec.Participants = append(s.Spec.Participants[:i], s.Spec.Participants[i+1:]...)
 			return nil
 		}
 	}
@@ -268,11 +266,6 @@ func (s *SessionTrackerV1) RemoveParticipant(id string) error {
 // This is only valid for kubernetes sessions.
 func (s *SessionTrackerV1) GetKubeCluster() string {
 	return s.Spec.KubernetesCluster
-}
-
-// HostID is the target host id that created the session tracker.
-func (s *SessionTrackerV1) GetHostID() string {
-	return s.Spec.HostID
 }
 
 // GetDesktopName returns the name of the Windows desktop the session is running in.

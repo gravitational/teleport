@@ -362,6 +362,17 @@ const (
 	LimiterMaxConcurrentSignatures = 10
 )
 
+// Default rate limits for unauthenticated passwordless endpoints.
+const (
+	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
+	LimiterPasswordlessPeriod = 1 * time.Minute
+	// LimiterPasswordlessAverage is the default average for passwordless
+	// limiters.
+	LimiterPasswordlessAverage = 10
+	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
+	LimiterPasswordlessBurst = 20
+)
+
 // Default rate limits for unauthenticated endpoints.
 const (
 	// LimiterPeriod is the default period for unauthenticated limiters.
@@ -452,11 +463,6 @@ const (
 	ProtocolOpenSearch = "opensearch"
 	// ProtocolDynamoDB is the DynamoDB database protocol.
 	ProtocolDynamoDB = "dynamodb"
-	// ProtocolClickHouse is the ClickHouse database native write protocol.
-	// (https://clickhouse.com/docs/en/interfaces/tcp)
-	ProtocolClickHouse = "clickhouse"
-	// ProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
-	ProtocolClickHouseHTTP = "clickhouse-http"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -473,11 +479,9 @@ var DatabaseProtocols = []string{
 	ProtocolElasticsearch,
 	ProtocolOpenSearch,
 	ProtocolDynamoDB,
-	ProtocolClickHouse,
-	ProtocolClickHouseHTTP,
 }
 
-// ReadableDatabaseProtocol returns a more human-readable string of the
+// ReadableDatabaseProtocol returns a more human readable string of the
 // provided database protocol.
 func ReadableDatabaseProtocol(p string) string {
 	switch p {
@@ -505,10 +509,6 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Cassandra"
 	case ProtocolDynamoDB:
 		return "DynamoDB"
-	case ProtocolClickHouse:
-		return "Clickhouse"
-	case ProtocolClickHouseHTTP:
-		return "Clickhouse (HTTP)"
 	default:
 		// Unknown protocol. Return original string.
 		return p

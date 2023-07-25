@@ -171,71 +171,18 @@ const (
 	// KindKubeServer is an kubernetes server resource.
 	KindKubeServer = "kube_server"
 
+	// KindKubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	KindKubeService = "kube_service"
+
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
-	// KindKubePod is a Kubernetes Pod resource type.
+	// KindKubePod is an Kubernetes Pod resource type.
 	KindKubePod = "pod"
-
-	// KindKubeSecret is a Kubernetes Secret resource type.
-	KindKubeSecret = "secret"
-
-	// KindKubeConfigMap is a Kubernetes Configmap resource type.
-	KindKubeConfigmap = "configmap"
-
-	// KindKubeNamespace is a Kubernetes namespace resource type.
-	KindKubeNamespace = "namespace"
-
-	// KindKubeService is a Kubernetes Service resource type.
-	KindKubeService = "service"
-
-	// KindKubeServiceAccount is an Kubernetes Service Account resource type.
-	KindKubeServiceAccount = "serviceaccount"
-
-	// KindKubeNode is a Kubernetes Node resource type.
-	KindKubeNode = "kube_node"
-
-	// KindKubePersistentVolume is a Kubernetes Persistent Volume resource type.
-	KindKubePersistentVolume = "persistentvolume"
-
-	// KindKubePersistentVolumeClaim is a Kubernetes Persistent Volume Claim resource type.
-	KindKubePersistentVolumeClaim = "persistentvolumeclaim"
-
-	// KindKubeDeployment is a Kubernetes Deployment resource type.
-	KindKubeDeployment = "deployment"
-
-	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
-	KindKubeReplicaSet = "replicaset"
-
-	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
-	KindKubeStatefulset = "statefulset"
-
-	// KindKubeDaemonSet is a Kubernetes Daemonset resource type.
-	KindKubeDaemonSet = "daemonset"
-
-	// KindKubeClusterRole is a Kubernetes ClusterRole resource type.
-	KindKubeClusterRole = "clusterrole"
-
-	// KindKubeRole is a Kubernetes Role resource type.
-	KindKubeRole = "role"
-
-	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
-	KindKubeClusterRoleBinding = "clusterrolebinding"
-
-	// KindKubeRoleBinding is a Kubernetes Role Binding resource type.
-	KindKubeRoleBinding = "rolebinding"
-
-	// KindKubeCronjob is a Kubernetes Cronjob resource type.
-	KindKubeCronjob = "cronjob"
-
-	// KindKubeJob is a Kubernetes job resource type.
-	KindKubeJob = "job"
-
-	// KindKubeCertificateSigningRequest is a Certificate Signing Request resource type.
-	KindKubeCertificateSigningRequest = "certificatesigningrequest"
-
-	// KindKubeIngress is a Kubernetes Ingress resource type.
-	KindKubeIngress = "ingress"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -453,9 +400,6 @@ const (
 	// KindUserLoginState is a UserLoginState resource
 	KindUserLoginState = "user_login_state"
 
-	// V7 is the seventh version of resources.
-	V7 = "v7"
-
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -632,10 +576,6 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
-
-	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
-	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].
-	ConnectMyComputerNodeOwnerLabel = TeleportNamespace + "/connect-my-computer/owner"
 )
 
 var (
@@ -931,96 +871,13 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
-	KindUserGroup,
 	KindKubePod,
-	KindKubeSecret,
-	KindKubeConfigmap,
-	KindKubeNamespace,
-	KindKubeService,
-	KindKubeServiceAccount,
-	KindKubeNode,
-	KindKubePersistentVolume,
-	KindKubePersistentVolumeClaim,
-	KindKubeDeployment,
-	KindKubeReplicaSet,
-	KindKubeStatefulset,
-	KindKubeDaemonSet,
-	KindKubeClusterRole,
-	KindKubeRole,
-	KindKubeClusterRoleBinding,
-	KindKubeRoleBinding,
-	KindKubeCronjob,
-	KindKubeJob,
-	KindKubeCertificateSigningRequest,
-	KindKubeIngress,
+	KindUserGroup,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
-	KindKubeSecret,
-	KindKubeConfigmap,
-	KindKubeNamespace,
-	KindKubeService,
-	KindKubeServiceAccount,
-	KindKubeNode,
-	KindKubePersistentVolume,
-	KindKubePersistentVolumeClaim,
-	KindKubeDeployment,
-	KindKubeReplicaSet,
-	KindKubeStatefulset,
-	KindKubeDaemonSet,
-	KindKubeClusterRole,
-	KindKubeRole,
-	KindKubeClusterRoleBinding,
-	KindKubeRoleBinding,
-	KindKubeCronjob,
-	KindKubeJob,
-	KindKubeCertificateSigningRequest,
-	KindKubeIngress,
-}
-
-const (
-	// KubeVerbGet is the Kubernetes verb for "get".
-	KubeVerbGet = "get"
-	// KubeVerbCreate is the Kubernetes verb for "create".
-	KubeVerbCreate = "create"
-	// KubeVerbUpdate is the Kubernetes verb for "update".
-	KubeVerbUpdate = "update"
-	// KubeVerbPatch is the Kubernetes verb for "patch".
-	KubeVerbPatch = "patch"
-	// KubeVerbDelete is the Kubernetes verb for "delete".
-	KubeVerbDelete = "delete"
-	// KubeVerbList is the Kubernetes verb for "list".
-	KubeVerbList = "list"
-	// KubeVerbWatch is the Kubernetes verb for "watch".
-	KubeVerbWatch = "watch"
-	// KubeVerbDeleteCollection is the Kubernetes verb for "deletecollection".
-	KubeVerbDeleteCollection = "deletecollection"
-)
-
-// KubernetesVerbs lists the supported Kubernetes verbs.
-var KubernetesVerbs = []string{
-	Wildcard,
-	KubeVerbGet,
-	KubeVerbCreate,
-	KubeVerbUpdate,
-	KubeVerbPatch,
-	KubeVerbDelete,
-	KubeVerbList,
-	KubeVerbWatch,
-	KubeVerbDeleteCollection,
-}
-
-// KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
-// that are not namespaced.
-var KubernetesClusterWideResourceKinds = []string{
-	KindKubeNamespace,
-	KindKubeNode,
-	KindKubePersistentVolume,
-	KindKubeClusterRole,
-	KindKubeClusterRoleBinding,
-	KindKubeCertificateSigningRequest,
 }
 
 const (

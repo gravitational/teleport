@@ -23,11 +23,6 @@ import (
 )
 
 func FuzzParseDuration(f *testing.F) {
-	f.Add("")
-	f.Add("300ms")
-	f.Add("-1.5h")
-	f.Add("2h45m")
-
 	f.Fuzz(func(t *testing.T, s string) {
 		require.NotPanics(t, func() {
 			parseDuration(s)

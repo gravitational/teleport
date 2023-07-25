@@ -211,11 +211,10 @@ func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCl
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
-	RouteToCluster    string
-	NodeName          string
-	KubernetesCluster string
-	AccessRequests    []string
-	// See [proto.UserCertsRequest.DropAccessRequests].
+	RouteToCluster        string
+	NodeName              string
+	KubernetesCluster     string
+	AccessRequests        []string
 	DropAccessRequests    []string
 	RouteToDatabase       proto.RouteToDatabase
 	RouteToApp            proto.RouteToApp

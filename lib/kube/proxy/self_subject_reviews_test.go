@@ -71,7 +71,6 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -88,7 +87,6 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -105,7 +103,6 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -122,7 +119,6 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -139,13 +135,11 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
-						Verbs:     []string{types.Wildcard},
 					},
 					{
 						Kind:      types.KindKubePod,
 						Name:      "pod-1",
 						Namespace: "namespace-1",
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -162,7 +156,6 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -179,7 +172,6 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -214,14 +206,13 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				user.GetName(),
 				kubeCluster,
 			)
-			resource, apiGroup := getKubeResourceAndAPIGroupFromType(tt.args.kind)
+
 			rsp, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
 				context.TODO(),
 				&authv1.SelfSubjectAccessReview{
 					Spec: authv1.SelfSubjectAccessReviewSpec{
 						ResourceAttributes: &authv1.ResourceAttributes{
-							Resource:  resource,
-							Group:     apiGroup,
+							Resource:  pluralize(tt.args.kind),
 							Name:      tt.args.name,
 							Namespace: tt.args.namespace,
 							Verb:      "list",

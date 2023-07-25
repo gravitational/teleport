@@ -1,4 +1,4 @@
-generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled is not set:
+generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 13.2.0 and ingress.enabled is not set:
   1: |
     |-
       auth_service:
@@ -28,7 +28,7 @@ generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version
           output: stderr
           severity: INFO
       version: v3
-generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled=true:
+generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 13.2.0 and ingress.enabled=true:
   1: |
     |-
       auth_service:
@@ -54,7 +54,7 @@ generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version
           output: stderr
           severity: INFO
       version: v3
-generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled is not set:
+generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version >=13.2.0 and ingress.enabled is not set:
   1: |
     |-
       auth_service:
@@ -141,7 +141,7 @@ generates a config with proxy_service.trust_x_forwarded_for=true when version = 
           output: stderr
           severity: INFO
       version: v3
-generates a config with proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled=true:
+generates a config with proxy_service.trust_x_forwarded_for=true when version >=13.2.0 and ingress.enabled=true:
   1: |
     |-
       auth_service:

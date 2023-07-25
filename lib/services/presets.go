@@ -39,7 +39,7 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 	}
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.SystemAutomaticAccessApprovalRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -101,7 +101,7 @@ func NewSystemAutomaticAccessBotUser() types.User {
 func NewPresetEditorRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -174,7 +174,7 @@ func NewPresetEditorRole() types.Role {
 func NewPresetAccessRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -205,10 +205,9 @@ func NewPresetAccessRole() types.Role {
 				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.Wildcard,
+						Kind:      types.KindKubePod,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
-						Verbs:     []string{types.Wildcard},
 					},
 				},
 				Rules: []types.Rule{
@@ -241,7 +240,7 @@ func NewPresetAccessRole() types.Role {
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V7,
+		Version: types.V6,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,

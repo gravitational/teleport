@@ -17,12 +17,6 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import {
-  Integration,
-  IntegrationKind,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
-
 import { FirstStageInstructions } from './FirstStageInstructions';
 import { SecondStageInstructions } from './SecondStageInstructions';
 import { ThirdStageInstructions } from './ThirdStageInstructions';
@@ -56,7 +50,7 @@ export const Step7 = () => (
 export const ConfirmDialog = () => (
   <MemoryRouter>
     <SuccessfullyAddedIntegrationDialog
-      integration={mockIntegration}
+      integrationName="some-integration-name"
       emitEvent={() => null}
     />
   </MemoryRouter>
@@ -67,7 +61,7 @@ export const ConfirmDialogFromDiscover = () => (
     initialEntries={[{ state: { discover: {} } as DiscoverUrlLocationState }]}
   >
     <SuccessfullyAddedIntegrationDialog
-      integration={mockIntegration}
+      integrationName="some-integration-name"
       emitEvent={() => null}
     />
   </MemoryRouter>
@@ -82,14 +76,4 @@ const props: CommonInstructionsProps = {
     integrationName: 'name',
   },
   clusterPublicUri: 'gravitationalwashington.cloud.gravitional.io:4444',
-};
-
-const mockIntegration: Integration = {
-  kind: IntegrationKind.AwsOidc,
-  name: 'aws-oidc-integration',
-  resourceType: 'integration',
-  spec: {
-    roleArn: 'arn-123',
-  },
-  statusCode: IntegrationStatusCode.Running,
 };

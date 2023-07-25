@@ -49,8 +49,6 @@ const isInsecure = dev || argv.includes('--insecure');
 
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
-  const sessionDataDir = app.getPath('sessionData');
-  const tempDataDir = app.getPath('temp');
   const {
     tsh: tshAddress,
     shared: sharedAddress,
@@ -91,10 +89,7 @@ function getRuntimeSettings(): RuntimeSettings {
     sharedProcess,
     tshdEvents,
     userDataDir,
-    sessionDataDir,
-    tempDataDir,
     binDir,
-    agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
     kubeConfigsDir: getKubeConfigsDir(),

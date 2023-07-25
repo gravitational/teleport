@@ -502,6 +502,10 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 					types.NewRule(types.KindClusterAuthPreference, services.RO()),
 					types.NewRule(types.KindKubeServer, services.RO()),
+					// types.KindKubeService is a special resource type that is used to keep compatibility
+					// with Teleport 12 clients.
+					// TODO(tigrato): DELETE in 14.0.0
+					types.NewRule(types.KindKubeService, services.RO()),
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
 					types.NewRule(types.KindDatabaseService, services.RO()),
@@ -590,6 +594,10 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWebSession, services.RW()),
 				types.NewRule(types.KindWebToken, services.RW()),
 				types.NewRule(types.KindKubeServer, services.RW()),
+				// types.KindKubeService is a special resource type that is used to keep compatibility
+				// with Teleport 12 clients.
+				// TODO(tigrato): DELETE in 14.0.0
+				types.NewRule(types.KindKubeService, services.RO()),
 				types.NewRule(types.KindDatabaseServer, services.RO()),
 				types.NewRule(types.KindLock, services.RO()),
 				types.NewRule(types.KindToken, []string{types.VerbRead, types.VerbDelete}),
@@ -626,6 +634,18 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 								services.ResourceNameExpr,
 								builder.String(clusterName),
 							),
+						),
+					).String(),
+				},
+				// this rule allows the local proxy to read the local SAML IdP CA.
+				{
+					Resources: []string{types.KindCertAuthority},
+					Verbs:     []string{types.VerbRead},
+					Where: builder.And(
+						builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.SAMLIDPCA))),
+						builder.Equals(
+							services.ResourceNameExpr,
+							builder.String(clusterName),
 						),
 					).String(),
 				},
@@ -818,6 +838,10 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindKubeServer, services.RW()),
+						// kubeService is a special resource type that is used to keep compatibility
+						// with Teleport 12 clients.
+						// TODO(tigrato): DELETE in 14.0.0
+						types.NewRule(types.KindKubeService, services.RO()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),

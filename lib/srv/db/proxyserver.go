@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
@@ -82,7 +82,7 @@ type ProxyServerConfig struct {
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
-	Tunnel reversetunnelclient.Server
+	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
 	// Limiter is the connection/rate limiter.
@@ -445,9 +445,9 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 			return nil, trace.Wrap(err)
 		}
 
-		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnelclient.DialParams{
+		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
 			From:                  clientSrcAddr,
-			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
+			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 			OriginalClientDstAddr: clientDstAddr,
 			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
 			ConnType:              types.DatabaseTunnel,
@@ -474,7 +474,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 // the reverse tunnel connection is down e.g. because the agent is down.
 func isReverseTunnelDownError(err error) bool {
 	return trace.IsConnectionProblem(err) ||
-		strings.Contains(err.Error(), reversetunnelclient.NoDatabaseTunnel)
+		strings.Contains(err.Error(), reversetunnel.NoDatabaseTunnel)
 }
 
 // Proxy starts proxying all traffic received from database client between
@@ -530,7 +530,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 
 // getDatabaseServers finds database servers that proxy the database instance
 // encoded in the provided identity.
-func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnelclient.RemoteSite, []types.DatabaseServer, error) {
+func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnel.RemoteSite, []types.DatabaseServer, error) {
 	cluster, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

@@ -180,7 +180,7 @@ func TestLocalAddrs(t *testing.T) {
 func TestGuessesIPAddress(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	var testCases = []struct {
 		addrs    []net.Addr
 		expected net.IP
 		comment  string

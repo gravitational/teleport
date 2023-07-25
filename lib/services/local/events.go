@@ -162,15 +162,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
-		case types.KindHeadlessAuthentication:
-			p, err := newHeadlessAuthenticationParser(kind.Filter)
-			if err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			parser = p
 		case types.KindAccessList:
 			parser = newAccessListParser()
 		default:
@@ -684,7 +675,7 @@ type roleParser struct {
 func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindRole, types.V7, 1)
+		return resourceHeader(event, types.KindRole, types.V6, 1)
 	case types.OpPut:
 		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
@@ -1557,41 +1548,6 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticationParser, error) {
-	var filter types.HeadlessAuthenticationFilter
-	if err := filter.FromMap(m); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &headlessAuthenticationParser{
-		baseParser: newBaseParser(backend.Key(headlessAuthenticationPrefix)),
-		filter:     filter,
-	}, nil
-}
-
-type headlessAuthenticationParser struct {
-	baseParser
-	filter types.HeadlessAuthenticationFilter
-}
-
-func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindIntegration, types.V1, 0)
-	case types.OpPut:
-		ha, err := unmarshalHeadlessAuthentication(event.Item.Value)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !p.filter.Match(ha) {
-			return nil, nil
-		}
-		return ha, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

@@ -24,7 +24,7 @@ import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
 import { ApiError } from 'teleport/services/api/parseError';
 
-import { matchLabels } from '../common';
+import { matchLabels } from '../util';
 
 import type {
   CreateDatabaseRequest,
@@ -195,7 +195,6 @@ export function useCreateDatabase() {
           ...(agentMeta as DbMeta),
           resourceName: db.name,
           agentMatcherLabels: db.labels,
-          selectedAwsRdsDb: db.awsRds,
         });
         setAttempt({ status: 'success' });
         return;

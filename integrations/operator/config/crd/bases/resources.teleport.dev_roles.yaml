@@ -236,13 +236,6 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
-                        verbs:
-                          description: Verbs are the allowed Kubernetes verbs for
-                            the following resource.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -304,12 +297,6 @@ spec:
                               type: string
                           type: object
                         type: array
-                      max_duration:
-                        description: MaxDuration is the amount of time the access
-                          will be granted for. If this is zero, the default duration
-                          is used.
-                        format: duration
-                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -697,13 +684,6 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
-                        verbs:
-                          description: Verbs are the allowed Kubernetes verbs for
-                            the following resource.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -765,12 +745,6 @@ spec:
                               type: string
                           type: object
                         type: array
-                      max_duration:
-                        description: MaxDuration is the amount of time the access
-                          will be granted for. If this is zero, the default duration
-                          is used.
-                        format: duration
-                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -1003,11 +977,6 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
-                  create_host_user_mode:
-                    description: CreateHostUserMode allows users to be automatically
-                      created on a host when not set to off
-                    format: int32
-                    type: integer
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -1433,13 +1402,6 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
-                        verbs:
-                          description: Verbs are the allowed Kubernetes verbs for
-                            the following resource.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -1501,12 +1463,6 @@ spec:
                               type: string
                           type: object
                         type: array
-                      max_duration:
-                        description: MaxDuration is the amount of time the access
-                          will be granted for. If this is zero, the default duration
-                          is used.
-                        format: duration
-                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -1894,13 +1850,6 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
-                        verbs:
-                          description: Verbs are the allowed Kubernetes verbs for
-                            the following resource.
-                          items:
-                            type: string
-                          nullable: true
-                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -1962,12 +1911,6 @@ spec:
                               type: string
                           type: object
                         type: array
-                      max_duration:
-                        description: MaxDuration is the amount of time the access
-                          will be granted for. If this is zero, the default duration
-                          is used.
-                        format: duration
-                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -2200,11 +2143,6 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
-                  create_host_user_mode:
-                    description: CreateHostUserMode allows users to be automatically
-                      created on a host when not set to off
-                    format: int32
-                    type: integer
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.

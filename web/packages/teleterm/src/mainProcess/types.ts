@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
 import { Kind } from 'teleterm/ui/services/workspacesService';
 import { FileStorage } from 'teleterm/services/fileStorage';
 
@@ -23,15 +22,12 @@ import { ConfigService } from '../services/config';
 export type RuntimeSettings = {
   dev: boolean;
   userDataDir: string;
-  sessionDataDir: string;
-  tempDataDir: string;
   // Points to a directory that should be prepended to PATH. Only present in the packaged version.
   binDir: string | undefined;
   certsDir: string;
   kubeConfigsDir: string;
   defaultShell: string;
   platform: Platform;
-  agentBinaryPath: string;
   tshd: {
     insecure: boolean;
     requestedNetworkAddress: string;
@@ -86,10 +82,6 @@ export type MainProcessClient = {
   ) => {
     cleanup: () => void;
   };
-  downloadAgent(): Promise<void>;
-  createAgentConfigFile(
-    properties: AgentConfigFileClusterProperties
-  ): Promise<void>;
 };
 
 export type ChildProcessAddresses = {

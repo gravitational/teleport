@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/netip"
 	"strings"
 	"time"
 
@@ -186,32 +185,19 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 // It checks using the default system resolver first, and falls
 // back to making a DNS query of the configured LDAP server
 // if the system resolver fails.
-func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]string, error) {
+func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (addrs []string, err error) {
 	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	stringAddrs := func(addrs []netip.Addr) []string {
-		result := make([]string, 0, len(addrs))
-		for _, addr := range addrs {
-			result = append(result, addr.String())
-		}
-		return result
-	}
-
-	addrs, err := net.DefaultResolver.LookupNetIP(tctx, "ip4", hostname)
+	addrs, err = net.DefaultResolver.LookupHost(tctx, hostname)
 	if err == nil && len(addrs) > 0 {
-		return stringAddrs(addrs), nil
+		return addrs, nil
 	}
 	if s.dnsResolver == nil {
 		return nil, trace.NewAggregate(err, trace.Errorf("DNS lookup for %q failed and there's no LDAP server to fallback to", hostname))
 	}
-	s.cfg.Log.Debugf("DNS lookup for %q failed, falling back to LDAP server", hostname)
-	addrs, err = s.dnsResolver.LookupNetIP(ctx, "ip4", hostname)
-	if err == nil && len(addrs) > 0 {
-		return stringAddrs(addrs), nil
-	}
-
-	return nil, trace.Wrap(err)
+	s.cfg.Log.WithError(err).Debugf("DNS lookup for %q failed, falling back to LDAP server", hostname)
+	return s.dnsResolver.LookupHost(ctx, hostname)
 }
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource

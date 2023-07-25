@@ -121,6 +121,12 @@ export namespace LoggedInUser {
 
 export class ACL extends jspb.Message { 
 
+    hasSessions(): boolean;
+    clearSessions(): void;
+    getSessions(): ResourceAccess | undefined;
+    setSessions(value?: ResourceAccess): ACL;
+
+
     hasAuthConnectors(): boolean;
     clearAuthConnectors(): void;
     getAuthConnectors(): ResourceAccess | undefined;
@@ -187,18 +193,6 @@ export class ACL extends jspb.Message {
     setAccessRequests(value?: ResourceAccess): ACL;
 
 
-    hasRecordedSessions(): boolean;
-    clearRecordedSessions(): void;
-    getRecordedSessions(): ResourceAccess | undefined;
-    setRecordedSessions(value?: ResourceAccess): ACL;
-
-
-    hasActiveSessions(): boolean;
-    clearActiveSessions(): void;
-    getActiveSessions(): ResourceAccess | undefined;
-    setActiveSessions(value?: ResourceAccess): ACL;
-
-
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ACL.AsObject;
     static toObject(includeInstance: boolean, msg: ACL): ACL.AsObject;
@@ -211,6 +205,7 @@ export class ACL extends jspb.Message {
 
 export namespace ACL {
     export type AsObject = {
+        sessions?: ResourceAccess.AsObject,
         authConnectors?: ResourceAccess.AsObject,
         roles?: ResourceAccess.AsObject,
         users?: ResourceAccess.AsObject,
@@ -222,8 +217,6 @@ export namespace ACL {
         dbs?: ResourceAccess.AsObject,
         kubeservers?: ResourceAccess.AsObject,
         accessRequests?: ResourceAccess.AsObject,
-        recordedSessions?: ResourceAccess.AsObject,
-        activeSessions?: ResourceAccess.AsObject,
     }
 }
 
@@ -243,9 +236,6 @@ export class ResourceAccess extends jspb.Message {
     getDelete(): boolean;
     setDelete(value: boolean): ResourceAccess;
 
-    getUse(): boolean;
-    setUse(value: boolean): ResourceAccess;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceAccess.AsObject;
@@ -264,16 +254,12 @@ export namespace ResourceAccess {
         edit: boolean,
         create: boolean,
         pb_delete: boolean,
-        use: boolean,
     }
 }
 
 export class Features extends jspb.Message { 
     getAdvancedAccessWorkflows(): boolean;
     setAdvancedAccessWorkflows(value: boolean): Features;
-
-    getIsUsageBasedBilling(): boolean;
-    setIsUsageBasedBilling(value: boolean): Features;
 
 
     serializeBinary(): Uint8Array;
@@ -289,6 +275,5 @@ export class Features extends jspb.Message {
 export namespace Features {
     export type AsObject = {
         advancedAccessWorkflows: boolean,
-        isUsageBasedBilling: boolean,
     }
 }

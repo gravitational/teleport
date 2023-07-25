@@ -188,10 +188,6 @@ export class WindowsManager {
     app.focus({ steal: true });
   }
 
-  getWindow() {
-    return this.window;
-  }
-
   private saveWindowState(window: BrowserWindow): void {
     const windowState: WindowState = {
       ...window.getNormalBounds(),

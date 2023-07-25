@@ -42,13 +42,6 @@ import (
 
 const maxAccessRequestReasonSize = 4096
 
-// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
-const day = 24 * time.Hour
-
-// maxAccessDuration is the maximum duration that an access request can be
-// granted for.
-const maxAccessDuration = 7 * day
-
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
 	if err := ar.CheckAndSetDefaults(); err != nil {
@@ -222,10 +215,6 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
 
-	caps.RequireReason = v.requireReason
-	caps.RequestPrompt = v.prompt
-	caps.AutoRequest = v.autoRequest
-
 	return &caps, nil
 }
 
@@ -358,11 +347,6 @@ func ValidateAccessPredicates(role types.Role) error {
 		if _, err := rp.EvalBoolPredicate(w); err != nil {
 			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
 		}
-	}
-
-	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
-		maxDuration.Duration() > maxAccessDuration {
-		return trace.BadParameter("max access duration must be less or equal 7 days")
 	}
 
 	return nil
@@ -543,7 +527,7 @@ type requestResolution struct {
 }
 
 // calculateReviewBasedResolution calculates the request resolution based upon
-// a request's reviews. Returns (nil,nil) in the event no resolution has been reached.
+// a request's reviews.  Returns (nil,nil) in the event no resolution has been reached.
 func calculateReviewBasedResolution(req types.AccessRequest) (*requestResolution, error) {
 	// thresholds and reviews must be populated before state-transitions are possible
 	thresholds, reviews := req.GetThresholds(), req.GetReviews()
@@ -753,7 +737,7 @@ func insertAnnotations(annotations map[string][]string, conditions types.AccessR
 	}
 }
 
-// ReviewPermissionChecker is a helper for validating whether a user
+// ReviewPermissionChecker is a helper for validating whether or not a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
 	User  types.User
@@ -926,9 +910,9 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 }
 
 // RequestValidator a helper for validating access requests.
-// a user's statically assigned roles are "added" to the
+// a user's statically assigned roles are are "added" to the
 // validator via the push() method, which extracts all the
-// relevant rules, performs variable substitutions, and builds
+// relevant rules, peforms variable substitutions, and builds
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
@@ -936,8 +920,6 @@ type RequestValidator struct {
 	getter        RequestValidatorGetter
 	user          types.User
 	requireReason bool
-	autoRequest   bool
-	prompt        string
 	opts          struct {
 		expandVars bool
 	}
@@ -952,14 +934,10 @@ type RequestValidator struct {
 		Matchers   []parse.Matcher
 		Thresholds []types.AccessReviewThreshold
 	}
-	SuggestedReviewers  []string
-	MaxDurationMatchers []struct {
-		Matchers    []parse.Matcher
-		MaxDuration time.Duration
-	}
+	SuggestedReviewers []string
 }
 
-// NewRequestValidator configures a new RequestValidator for the specified user.
+// NewRequestValidator configures a new RequestValidor for the specified user.
 func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
 	user, err := getter.GetUser(username, false)
 	if err != nil {
@@ -1042,7 +1020,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			if !m.CanSearchAsRole(roleName) {
 				// Roles are normally determined automatically for resource
 				// access requests, this role must have been explicitly
-				// requested, or a new deny rule has since been added.
+				// requested or a new deny rule has since been added.
 				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
 		} else {
@@ -1091,7 +1069,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		now := m.clock.Now().UTC()
 
-		// Calculate the expiration time of the Access Request (how long it
+		// Calculate expiration time of the Access Request (how long it
 		// will await approval).
 		ttl, err := m.requestTTL(ctx, identity, req)
 		if err != nil {
@@ -1099,68 +1077,16 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		}
 		req.SetExpiry(now.Add(ttl))
 
-		maxDuration, err := m.calculateMaxAccessDuration(req)
+		// Calculate expiration time of the elevated certificate that will
+		// be issued if the Access Request is approved.
+		ttl, err = m.sessionTTL(ctx, identity, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// If the maxDuration flag is set, use it instead of the session TTL.
-		if maxDuration > 0 {
-			ttl = maxDuration
-		} else {
-			// Calculate the expiration time of the elevated certificate that will
-			// be issued if the Access Request is approved.
-			ttl, err = m.sessionTTL(ctx, identity, req)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		accessTTL := now.Add(ttl)
-		req.SetAccessExpiry(accessTTL)
+		req.SetAccessExpiry(now.Add(ttl))
 	}
 
 	return nil
-}
-
-// calculateMaxAccessDuration calculates the maximum time for the access request.
-// The max duration time is the minimum of the max_duration time set on the request
-// and the max_duration time set on the request role.
-func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (time.Duration, error) {
-	// Check if the maxDuration time is set.
-	maxDurationTime := req.GetMaxDuration()
-	if maxDurationTime.IsZero() {
-		return 0, nil
-	}
-
-	maxDuration := maxDurationTime.Sub(req.GetCreationTime())
-	if maxDuration < 0 {
-		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
-	}
-
-	if maxDuration > maxAccessDuration {
-		return 0, trace.BadParameter("max_duration must be less or equal 7 days")
-	}
-
-	minAdjDuration := maxDuration
-	// Adjust the expiration time if the max_duration value is set on the request role.
-	for _, roleName := range req.GetRoles() {
-		var maxDurationForRole time.Duration
-		for _, tms := range m.MaxDurationMatchers {
-			for _, matcher := range tms.Matchers {
-				if matcher.Match(roleName) {
-					if tms.MaxDuration > maxDurationForRole {
-						maxDurationForRole = tms.MaxDuration
-					}
-				}
-			}
-		}
-
-		if maxDurationForRole < minAdjDuration {
-			minAdjDuration = maxDurationForRole
-		}
-	}
-
-	return minAdjDuration, nil
 }
 
 // requestTTL calculates the TTL of the Access Request (how long it will await
@@ -1249,7 +1175,7 @@ func (m *RequestValidator) truncateTTL(ctx context.Context, identity tlsca.Ident
 // GetRequestableRoles gets the list of all existent roles which the user is
 // able to request.  This operation is expensive since it loads all existent
 // roles in order to determine the role list.  Prefer calling CanRequestRole
-// when checking against a known role list.
+// when checking againt a known role list.
 func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
 	allRoles, err := m.getter.GetRoles(context.TODO())
 	if err != nil {
@@ -1273,10 +1199,6 @@ func (m *RequestValidator) push(role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
-	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
-	if m.prompt == "" {
-		m.prompt = role.GetOptions().RequestPrompt
-	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
@@ -1312,16 +1234,6 @@ func (m *RequestValidator) push(role types.Role) error {
 			}{
 				Matchers:   newMatchers,
 				Thresholds: allow.Thresholds,
-			})
-		}
-
-		if allow.MaxDuration != 0 {
-			m.MaxDurationMatchers = append(m.MaxDurationMatchers, struct {
-				Matchers    []parse.Matcher
-				MaxDuration time.Duration
-			}{
-				Matchers:    newMatchers,
-				MaxDuration: allow.MaxDuration.Duration(),
 			})
 		}
 
@@ -1913,23 +1825,15 @@ func getKubeResourcesFromResourceIDs(resourceIDs []types.ResourceID, clusterName
 
 	for _, resourceID := range resourceIDs {
 		if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && resourceID.Name == clusterName {
-			switch {
-			case slices.Contains(types.KubernetesClusterWideResourceKinds, resourceID.Kind):
-				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
-					Kind: resourceID.Kind,
-					Name: resourceID.SubResourceName,
-				})
-			default:
-				splits := strings.Split(resourceID.SubResourceName, "/")
-				if len(splits) != 2 {
-					return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
-				}
-				kubernetesResources = append(kubernetesResources, types.KubernetesResource{
-					Kind:      resourceID.Kind,
-					Namespace: splits[0],
-					Name:      splits[1],
-				})
+			splits := strings.Split(resourceID.SubResourceName, "/")
+			if len(splits) != 2 {
+				return nil, trace.BadParameter("subresource name %q does not follow <namespace>/<name> format", resourceID.SubResourceName)
 			}
+			kubernetesResources = append(kubernetesResources, types.KubernetesResource{
+				Kind:      resourceID.Kind,
+				Namespace: splits[0],
+				Name:      splits[1],
+			})
 		}
 	}
 	return kubernetesResources, nil

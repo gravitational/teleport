@@ -114,7 +114,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
 		{Kind: types.KindIntegration},
-		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindAccessList},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -470,7 +469,6 @@ type Cache struct {
 	userGroupsCache              services.UserGroups
 	oktaCache                    services.Okta
 	integrationsCache            services.Integrations
-	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	accessListsCache             services.AccessLists
 	eventsFanout                 *services.FanoutSet
 
@@ -830,7 +828,6 @@ func New(config Config) (*Cache, error) {
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
 		integrationsCache:            integrationsCache,
-		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
 		accessListsCache:             accessListsCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
@@ -865,7 +862,6 @@ func (c *Cache) Start() error {
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
-
 	if err != nil {
 		c.Close()
 		return trace.Wrap(err)
@@ -906,6 +902,14 @@ func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watche
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 Outer:
 	for _, requested := range watch.Kinds {
+		// If the watch is for a kube_service resource, we need ignore it because
+		// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+		// clients still expect it to be present in the server and try to watch it.
+		// Clients that request kube_service resource type do not support partial
+		// success.
+		if requested.Kind == types.KindKubeService && !watch.AllowPartialSuccess {
+			continue
+		}
 		if cacheOK {
 			// if cache has been initialized, we already know which kinds are confirmed by the event source
 			// and can validate the kinds requested for fanout against that.

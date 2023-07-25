@@ -64,7 +64,6 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		AccessPoint:    accessPoint,
 		Log:            process.log,
 		ClusterName:    conn.ClientIdentity.ClusterName,
-		PollInterval:   process.Config.Discovery.PollInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)

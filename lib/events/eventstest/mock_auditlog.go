@@ -27,7 +27,7 @@ import (
 type MockAuditLog struct {
 	*events.DiscardAuditLog
 
-	Emitter       *MockRecorderEmitter
+	Emitter       *MockEmitter
 	SessionEvents []apievents.AuditEvent
 }
 

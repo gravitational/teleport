@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
-	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -71,8 +70,6 @@ func init() {
 	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
 	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
 	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
-	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouse)
-	common.RegisterEngine(clickhouse.NewEngine, defaults.ProtocolClickHouseHTTP)
 }
 
 // Config is the configuration for a database proxy server.
@@ -87,6 +84,8 @@ type Config struct {
 	AccessPoint auth.DatabaseAccessPoint
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
+	// StreamEmitter is a non-blocking audit events emitter.
+	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
@@ -160,6 +159,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
+	}
+	if c.StreamEmitter == nil {
+		return trace.BadParameter("missing StreamEmitter")
 	}
 	if c.Emitter == nil {
 		c.Emitter = c.AuthClient
@@ -557,6 +559,7 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		return trace.Wrap(err)
 	}
 	return nil
+
 }
 
 // stopProxyingDatabase winds down the proxied database instance by stopping
@@ -962,7 +965,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
-	rec, err := s.newSessionRecorder(sessionCtx)
+	streamWriter, err := s.newStreamWriter(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -972,13 +975,13 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
-			err := rec.Close(s.closeContext)
+			err := streamWriter.Close(s.connContext)
 			if err != nil {
 				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
 			}
 		}()
 	}()
-	engine, err := s.dispatch(sessionCtx, rec, clientConn)
+	engine, err := s.dispatch(sessionCtx, streamWriter, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1040,10 +1043,9 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 }
 
 // dispatch creates and initializes an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparerRecorder, clientConn net.Conn) (common.Engine, error) {
+func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
-		Emitter:  s.cfg.Emitter,
-		Recorder: rec,
+		Emitter: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1190,7 +1192,6 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		}},
 		HostUser: sessionCtx.Identity.Username,
 		Created:  s.cfg.Clock.Now(),
-		HostID:   sessionCtx.HostID,
 	}
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)

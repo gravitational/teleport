@@ -19,19 +19,15 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-# Sync with devbox.json.
 GOLANG_VERSION ?= go1.20.6
 
-# Sync with devbox.json.
 NODE_VERSION ?= 16.18.1
 
-# Sync any version changes below with devbox.json.
 # run lint-rust check locally before merging code after you bump this
 RUST_VERSION ?= 1.68.0
 LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
-# Sync any version changes below with devbox.json.
 # Protogen related versions.
 BUF_VERSION ?= 1.24.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
@@ -58,6 +54,7 @@ include grpcbox.mk
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
 # make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
 BUILDBOX_NAME=$(BUILDBOX)
+BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
 DOCSBOX=ghcr.io/gravitational/docs
 
@@ -160,7 +157,20 @@ buildbox:
 # Builds a Docker buildbox for FIPS
 #
 .PHONY:buildbox-fips
-buildbox-fips: buildbox-centos7-fips
+buildbox-fips:
+	if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
+		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_FIPS) || true; fi; \
+		docker build \
+			--build-arg UID=$(UID) \
+			--build-arg GID=$(GID) \
+			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+			--build-arg NODE_VERSION=$(NODE_VERSION) \
+			--build-arg RUST_VERSION=$(RUST_VERSION) \
+			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--cache-from $(BUILDBOX_FIPS) \
+			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
+	fi
 
 #
 # Builds a Docker buildbox for CentOS 7 builds
@@ -211,6 +221,20 @@ buildbox-arm: buildbox
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
+
+#
+# Builds a Docker buildbox for ARMv7/ARM64 FIPS builds
+# ARM buildboxes use a regular Teleport buildbox as a base which already has a user
+# with the correct UID and GID created, so those arguments are not needed here.
+#
+.PHONY:buildbox-arm-fips
+buildbox-arm-fips: buildbox-fips
+	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
+	docker build \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--cache-from $(BUILDBOX_FIPS) \
+		--cache-from $(BUILDBOX_ARM_FIPS) \
+		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
 CONNECT_VERSION ?= $(VERSION)
 ifeq ($(CONNECT_VERSION),)
@@ -332,11 +356,6 @@ integration-kube: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
 
-.PHONY:e2e-aws
-e2e-aws: buildbox
-	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' e2e-aws"
-
 #
 # Runs linters on new changes inside a build container.
 #
@@ -405,7 +424,8 @@ release-amd64:
 	$(MAKE) release ARCH=amd64 FIDO2=yes
 
 .PHONY: release-amd64-fips
-release-amd64-fips: release-amd64-centos7-fips
+release-amd64-fips:
+	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
 .PHONY: release-386
 release-386:
@@ -432,6 +452,57 @@ release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
 
 # #############################################################################
+# GHA release build targets
+# #############################################################################
+
+#
+# The `release-oss` and `release-enterprise` make targets are for building OSS
+# and Enterprise releases from GitHub actions. These make targets execute in a
+# container based on a caller-supplied `BUILDBOX` image.
+#
+# Unlike the other release targets, these release targets do not attempt to
+# automatically construct the buildbox image at build time - the build box
+# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the
+# make command line
+#
+# Separating the construction of build environment from the actual build itself
+# allows us to use the appropriate GHA actions to pre-build the buildbox
+# image, so that the image construction works nicely with GHA.
+#
+
+define RELEASE_RECIPE
+		docker run \
+			--rm \
+			--platform linux/$(ARCH) \
+			--memory-swap -1 \
+			-h buildbox \
+			-e GOMODCACHE=$(GOMODCACHE) \
+			-e GOCACHE=$(GOCACHE) \
+			-v "/tmp:/tmp" \
+			-v "$(WORKSPACE):/go/teleport" \
+			-w /go/teleport \
+			$(BUILDBOX) \
+		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+endef
+
+# It's ok to ignore `go: command not found`. Makefile's $(shell go env)-line commands are producing it.
+.PHONY: release-oss-ensure-webassets
+release-oss-ensure-webassets:
+	$(call RELEASE_RECIPE,ensure-webassets)
+
+.PHONY: release-enterprise-ensure-webassets
+release-enterprise-ensure-webassets:
+	$(call RELEASE_RECIPE,ensure-webassets-e)
+
+.PHONY: release-oss
+release-oss:
+	$(call RELEASE_RECIPE,full build-archive)
+
+.PHONY: release-enterprise
+release-enterprise:
+	$(call RELEASE_RECIPE,release-unix-only)
+
+# #############################################################################
 
 #
 # Create a Teleport FIPS package using the build container.
@@ -439,9 +510,9 @@ release-arm64: buildbox-arm
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY:release-fips
-release-fips: buildbox-centos7-fips
+release-fips: buildbox-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #

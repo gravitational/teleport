@@ -229,17 +229,6 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => FileTransferListeners;
   reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
-
-  createConnectMyComputerRole: (
-    rootClusterUri: uri.RootClusterUri
-  ) => Promise<CreateConnectMyComputerRoleResponse>;
-  createConnectMyComputerNodeToken: (
-    clusterUri: uri.RootClusterUri
-  ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
-  deleteConnectMyComputerToken: (
-    clusterUri: uri.RootClusterUri,
-    token: string
-  ) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -326,12 +315,6 @@ export type AssumedRequest = {
 export { FileTransferDirection };
 
 export type Label = apiLabel.Label.AsObject;
-
-export type CreateConnectMyComputerRoleResponse =
-  apiService.CreateConnectMyComputerRoleResponse.AsObject;
-
-export type CreateConnectMyComputerNodeTokenResponse =
-  apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

@@ -24,11 +24,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
 
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -38,12 +35,11 @@ import (
 )
 
 type mockGatewayCreator struct {
-	t                *testing.T
-	callCount        int
-	tcpPortAllocator gateway.TCPPortAllocator
+	t         *testing.T
+	callCount int
 }
 
-func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
+func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
 	m.callCount++
 
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
@@ -51,22 +47,23 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
+	resourceURI := uri.New(params.TargetURI)
+
 	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
-		Username: "user",
+		Username: params.TargetUser,
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: params.TargetURI.GetDbName(),
+			ServiceName: resourceURI.GetDbName(),
 			Protocol:    defaults.ProtocolPostgres,
 			Username:    params.TargetUser,
 		},
-		KubernetesCluster: params.TargetURI.GetKubeName(),
 	})
 
 	gateway, err := gateway.New(gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
+		TargetName:            params.TargetURI,
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
 		CertPath:              keyPairPaths.CertPath,
@@ -74,8 +71,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
 		CLICommandProvider:    params.CLICommandProvider,
-		TCPPortAllocator:      m.tcpPortAllocator,
-		ProfileDir:            m.t.TempDir(),
+		TCPPortAllocator:      params.TCPPortAllocator,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -90,7 +86,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 }
 
 type gatewayCRUDTestContext struct {
-	nameToGateway        map[string]gateway.Gateway
+	nameToGateway        map[string]*gateway.Gateway
 	mockGatewayCreator   *mockGatewayCreator
 	mockTCPPortAllocator *gatewaytest.MockTCPPortAllocator
 }
@@ -98,18 +94,16 @@ type gatewayCRUDTestContext struct {
 func TestGatewayCRUD(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name                   string
-		gatewayNamesToCreate   []string
-		appendGatewayTargetURI func(name string) uri.ResourceURI
+		name                 string
+		gatewayNamesToCreate []string
 		// tcpPortAllocator is an optional field which lets us provide a custom
 		// gatewaytest.MockTCPPortAllocator with some ports already in use.
 		tcpPortAllocator *gatewaytest.MockTCPPortAllocator
 		testFunc         func(*testing.T, *gatewayCRUDTestContext, *Service)
 	}{
 		{
-			name:                   "create then find",
-			gatewayNamesToCreate:   []string{"gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			name:                 "create then find",
+			gatewayNamesToCreate: []string{"gateway"},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
 				foundGateway, err := daemon.findGateway(createdGateway.URI().String())
@@ -118,9 +112,8 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                   "ListGateways",
-			gatewayNamesToCreate:   []string{"gateway1", "gateway2"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			name:                 "ListGateways",
+			gatewayNamesToCreate: []string{"gateway1", "gateway2"},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateways := daemon.ListGateways()
 				gatewayURIs := map[uri.ResourceURI]struct{}{}
@@ -135,9 +128,8 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                   "RemoveGateway",
-			gatewayNamesToCreate:   []string{"gatewayToRemove", "gatewayToKeep"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			name:                 "RemoveGateway",
+			gatewayNamesToCreate: []string{"gatewayToRemove", "gatewayToKeep"},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gatewayToRemove := c.nameToGateway["gatewayToRemove"]
 				gatewayToKeep := c.nameToGateway["gatewayToKeep"]
@@ -152,9 +144,8 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                   "SetGatewayLocalPort closes previous gateway if new port is free",
-			gatewayNamesToCreate:   []string{"gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			name:                 "SetGatewayLocalPort closes previous gateway if new port is free",
+			gatewayNamesToCreate: []string{"gateway"},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				oldGateway := c.nameToGateway["gateway"]
 				oldListener := c.mockTCPPortAllocator.RecentListener()
@@ -179,10 +170,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                   "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
-			gatewayNamesToCreate:   []string{"gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
-			tcpPortAllocator:       &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
+			name:                 "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
+			gatewayNamesToCreate: []string{"gateway"},
+			tcpPortAllocator:     &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
@@ -199,9 +189,8 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                   "SetGatewayLocalPort is a noop if new port is equal to old port",
-			gatewayNamesToCreate:   []string{"gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			name:                 "SetGatewayLocalPort is a noop if new port is equal to old port",
+			gatewayNamesToCreate: []string{"gateway"},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				localPort := gateway.LocalPort()
@@ -211,19 +200,6 @@ func TestGatewayCRUD(t *testing.T) {
 				require.NoError(t, err)
 
 				require.Equal(t, 1, c.mockTCPPortAllocator.CallCount)
-			},
-		},
-		{
-			name:                   "CreateGateway returns existing kube gateway if targetURI is the same",
-			gatewayNamesToCreate:   []string{"kube-gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendKube,
-			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
-				wantGateway := c.nameToGateway["kube-gateway"]
-				actualGateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
-					TargetURI: wantGateway.TargetURI().String(),
-				})
-				require.NoError(t, err)
-				require.Equal(t, wantGateway, actualGateway)
 			},
 		},
 	}
@@ -238,10 +214,7 @@ func TestGatewayCRUD(t *testing.T) {
 			}
 
 			homeDir := t.TempDir()
-			mockGatewayCreator := &mockGatewayCreator{
-				t:                t,
-				tcpPortAllocator: tt.tcpPortAllocator,
-			}
+			mockGatewayCreator := &mockGatewayCreator{t: t}
 
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                homeDir,
@@ -250,17 +223,18 @@ func TestGatewayCRUD(t *testing.T) {
 			require.NoError(t, err)
 
 			daemon, err := New(Config{
-				Storage:        storage,
-				GatewayCreator: mockGatewayCreator,
+				Storage:          storage,
+				GatewayCreator:   mockGatewayCreator,
+				TCPPortAllocator: tt.tcpPortAllocator,
 			})
 			require.NoError(t, err)
 
-			nameToGateway := make(map[string]gateway.Gateway, len(tt.gatewayNamesToCreate))
+			nameToGateway := make(map[string]*gateway.Gateway, len(tt.gatewayNamesToCreate))
 
 			for _, gatewayName := range tt.gatewayNamesToCreate {
 				gatewayName := gatewayName
 				gateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
-					TargetURI:             tt.appendGatewayTargetURI(gatewayName).String(),
+					TargetURI:             uri.NewClusterURI("foo").AppendDB(gatewayName).String(),
 					TargetUser:            "alice",
 					TargetSubresourceName: "",
 					LocalPort:             "",
@@ -294,9 +268,12 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
 
+	gatewayCertReissuer := GatewayCertReissuer{Log: storage.Log}
+
 	daemon, err := New(Config{
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+		GatewayCertReissuer:             &gatewayCertReissuer,
 	})
 	require.NoError(t, err)
 
@@ -306,7 +283,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, daemon.tshdEventsClient)
+	require.NotNil(t, gatewayCertReissuer.TSHDEventsClient)
 	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
 		"Expected createTshdEventsClientCredsFunc to be called exactly once")
 }
@@ -332,178 +309,4 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress("foo")
 	require.ErrorContains(t, err, "Error while creating creds")
-}
-
-func TestRetryWithRelogin(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	resolvableErr := trace.Errorf("ssh: cert has expired")
-	unresolvableErr := trace.AccessDenied("")
-	concurrentCallErr := trace.AlreadyExists("")
-	reloginTimeoutErr := context.DeadlineExceeded
-	unknownErr := trace.Errorf("foo")
-	tests := []struct {
-		name             string
-		fnErrs           []error
-		reloginErr       error
-		serviceOpt       func(t *testing.T, service *Service)
-		wantFnCalls      int
-		wantReloginCalls int
-		wantErr          error
-		wantAddedMessage string
-	}{
-		{
-			name:        "calls the function once if it returns successfully",
-			wantFnCalls: 1,
-		},
-		{
-			name:             "calls the function once if it returns error unresolvable with relogin",
-			fnErrs:           []error{unresolvableErr},
-			wantFnCalls:      1,
-			wantReloginCalls: 0,
-			wantErr:          unresolvableErr,
-		},
-		{
-			name:             "resolves error with relogin and calls the function twice",
-			fnErrs:           []error{resolvableErr},
-			wantFnCalls:      2,
-			wantReloginCalls: 1,
-		},
-		{
-			name:   "fails on concurrent relogin calls",
-			fnErrs: []error{concurrentCallErr},
-			serviceOpt: func(t *testing.T, service *Service) {
-				t.Helper()
-				require.True(t, service.reloginMu.TryLock(), "Couldn't lock reloginClient")
-			},
-			wantFnCalls:      1,
-			wantReloginCalls: 0,
-			wantErr:          concurrentCallErr,
-		},
-		{
-			name:             "fails with additional message to error on timeout during relogin",
-			fnErrs:           []error{resolvableErr},
-			reloginErr:       reloginTimeoutErr,
-			wantFnCalls:      1,
-			wantReloginCalls: 1,
-			wantErr:          status.Error(codes.DeadlineExceeded, reloginTimeoutErr.Error()),
-			wantAddedMessage: "the user did not refresh the session within",
-		},
-		{
-			name:             "fails with additional message to error on unexpected error during relogin",
-			fnErrs:           []error{resolvableErr},
-			reloginErr:       unknownErr,
-			wantFnCalls:      1,
-			wantReloginCalls: 1,
-			wantErr:          status.Error(codes.Unknown, unknownErr.Error()),
-			wantAddedMessage: "could not refresh the session",
-		},
-		{
-			name:             "fails if the second call to the function fails",
-			fnErrs:           []error{resolvableErr, unresolvableErr},
-			wantFnCalls:      2,
-			wantReloginCalls: 1,
-			wantErr:          unresolvableErr,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                t.TempDir(),
-				InsecureSkipVerify: true,
-			})
-			require.NoError(t, err)
-
-			daemon, err := New(Config{
-				Storage: storage,
-				CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-					return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-				},
-			})
-			require.NoError(t, err)
-
-			service, addr := newMockTSHDEventsServiceServer(t)
-			service.reloginErr = tt.reloginErr
-
-			err = daemon.UpdateAndDialTshdEventsServerAddress(addr)
-			require.NoError(t, err)
-
-			var fnCallCount int
-			fn := func() error {
-				fnCallCount++
-				if fnCallCount > len(tt.fnErrs) {
-					return nil
-				}
-				return tt.fnErrs[fnCallCount-1]
-			}
-
-			err = daemon.retryWithRelogin(ctx, &api.ReloginRequest{}, fn)
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				require.ErrorContains(t, err, tt.wantAddedMessage)
-			} else {
-				require.NoError(t, err)
-			}
-			require.Equal(t, tt.wantFnCalls, fnCallCount,
-				"Unexpected number of calls to fn")
-			require.Equal(t, tt.wantReloginCalls, service.callCounts["Relogin"],
-				"Unexpected number of calls to service.Relogin")
-		})
-	}
-}
-
-type mockTSHDEventsService struct {
-	*api.UnimplementedTshdEventsServiceServer
-	callCounts map[string]int
-	reloginErr error
-}
-
-func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
-	t.Helper()
-
-	tshdEventsService := &mockTSHDEventsService{
-		callCounts: make(map[string]int),
-	}
-
-	ls, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	grpcServer := grpc.NewServer()
-	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
-
-	serveErr := make(chan error)
-	go func() {
-		serveErr <- grpcServer.Serve(ls)
-	}()
-	t.Cleanup(func() {
-		grpcServer.GracefulStop()
-
-		// For test cases that did not send any grpc calls, test may finish
-		// before grpcServer.Serve is called and grpcServer.Serve will return
-		// grpc.ErrServerStopped.
-		err := <-serveErr
-		if len(tshdEventsService.callCounts) > 0 || err != grpc.ErrServerStopped {
-			require.NoError(t, err)
-		}
-	})
-
-	return tshdEventsService, ls.Addr().String()
-}
-
-func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*api.ReloginResponse, error) {
-	c.callCounts["Relogin"]++
-	if c.reloginErr != nil {
-		return nil, c.reloginErr
-	}
-	return &api.ReloginResponse{}, nil
-}
-
-func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
-	c.callCounts["SendNotification"]++
-	return &api.SendNotificationResponse{}, nil
 }

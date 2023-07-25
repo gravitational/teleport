@@ -57,12 +57,13 @@ func (chat *Chat) GetMessages() []openai.ChatCompletionMessage {
 // Message types:
 // - CompletionCommand: a command from the assistant
 // - Message: a text message from the assistant
-func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {
+func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, error) {
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 1 {
 		return &model.Message{
-			Content: model.InitialAIResponse,
-		}, model.NewTokenCount(), nil
+			Content:    model.InitialAIResponse,
+			TokensUsed: &model.TokensUsed{},
+		}, nil
 	}
 
 	userMessage := openai.ChatCompletionMessage{
@@ -70,12 +71,12 @@ func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdate
 		Content: userInput,
 	}
 
-	response, tokenCount, err := chat.agent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage, progressUpdates)
+	response, err := chat.agent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage, progressUpdates)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return response, tokenCount, nil
+	return response, nil
 }
 
 // Clear clears the conversation.

@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -119,6 +120,15 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		}
 	}()
 
+	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
+		Inner:       conn.Client,
+		Clock:       process.Clock,
+		ClusterName: clusterName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	connLimiter, err := limiter.NewLimiter(process.Config.Databases.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -140,11 +150,14 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
-		Clock:                process.Clock,
-		DataDir:              process.Config.DataDir,
-		AuthClient:           conn.Client,
-		AccessPoint:          accessPoint,
-		Emitter:              asyncEmitter,
+		Clock:       process.Clock,
+		DataDir:     process.Config.DataDir,
+		AuthClient:  conn.Client,
+		AccessPoint: accessPoint,
+		StreamEmitter: &events.StreamerAndEmitter{
+			Emitter:  asyncEmitter,
+			Streamer: streamer,
+		},
 		Authorizer:           authorizer,
 		TLSConfig:            tlsConfig,
 		Limiter:              connLimiter,

@@ -20,7 +20,9 @@ import cfg from 'teleport/config';
 import { Route } from 'teleport/components/Router';
 import { IntegrationKind } from 'teleport/services/integrations';
 
-const EnrollAwsOidc = lazy(() => import('./AwsOidc'));
+const EnrollAwsOidc = lazy(
+  () => import(/* webpackChunkName: "enroll-aws-oidc" */ './AwsOidc')
+);
 
 export function getRoutesToEnrollIntegrations() {
   return [

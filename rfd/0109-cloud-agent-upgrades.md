@@ -90,7 +90,7 @@ Rollout of a new version to cloud-stable will generally follow the following ste
 agents that have yet to be upgraded. I.e. if cloud-stable targets `v1` at `T1`, then the control plane must maintain
 compatibility with `v1` until at least `T1 + grace_period`.
 
-Note that in practice, whether or not the ordering/timing of the above steps matters depends entirely on what changes
+Note that in practice, wether or not the ordering/timing of the above steps matters depends entirely on what changes
 were made between versions. Most minor/patch releases don't actually require this kind of procedure, tho its best to
 assume that the procedure is required unless we are rolling out a critical bug fix that was specifically designed to
 be self-contained.

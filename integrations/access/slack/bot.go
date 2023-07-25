@@ -49,7 +49,7 @@ type Bot struct {
 // onAfterResponseSlack resty error function for Slack
 func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *resty.Response) error {
 	return func(_ *resty.Client, resp *resty.Response) error {
-		status := common.StatusFromStatusCode(resp.StatusCode())
+		status := statusFromStatusCode(resp.StatusCode())
 		defer func() {
 			if sink == nil {
 				return

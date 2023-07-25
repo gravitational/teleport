@@ -67,7 +67,6 @@ func (s *Server) startKubeWatchers() error {
 		Fetchers:       s.kubeFetchers,
 		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
-		Interval:       s.PollInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)

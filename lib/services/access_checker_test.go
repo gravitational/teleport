@@ -39,7 +39,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.Wildcard},
 				},
 			})
 			rv.SetKubernetesLabels(types.Allow, kubeDevLabels)
@@ -52,34 +51,11 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any1",
-					Verbs:     []string{types.Wildcard},
 				},
 				{
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any2",
-					Verbs:     []string{types.Wildcard},
-				},
-			})
-			rv.SetKubernetesLabels(types.Allow, kubeAnyLabels)
-			rv.SetKubeUsers(types.Allow, kubeUsers)
-		}),
-	)
-	listOnlySet := NewRoleSet(
-		newRole(func(rv *types.RoleV6) {
-			rv.SetName("list-only")
-			rv.SetKubeResources(types.Allow, []types.KubernetesResource{
-				{
-					Kind:      types.KindKubePod,
-					Name:      "any1",
-					Namespace: "any1",
-					Verbs:     []string{types.KubeVerbList},
-				},
-				{
-					Kind:      types.KindKubePod,
-					Name:      "any1",
-					Namespace: "any2",
-					Verbs:     []string{types.KubeVerbList},
 				},
 			})
 			rv.SetKubernetesLabels(types.Allow, kubeAnyLabels)
@@ -112,7 +88,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any1",
-					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
@@ -120,13 +95,11 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any1",
-					Verbs:     []string{types.Wildcard},
 				},
 				{
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any2",
-					Verbs:     []string{types.Wildcard},
 				},
 			},
 			wantDenied:   emptySet,
@@ -144,7 +117,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "rand",
-					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
@@ -152,19 +124,16 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any1",
-					Verbs:     []string{types.Wildcard},
 				},
 				{
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any2",
-					Verbs:     []string{types.Wildcard},
 				},
 				{
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.Wildcard},
 				},
 			},
 			wantDenied:   emptySet,
@@ -207,7 +176,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
@@ -215,7 +183,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.Wildcard},
 				},
 			},
 			wantDenied:   emptySet,
@@ -257,7 +224,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any1",
-					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			wantAllowed:  nil,
@@ -288,7 +254,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
@@ -296,19 +261,16 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any1",
-					Verbs:     []string{types.Wildcard},
 				},
 				{
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any2",
-					Verbs:     []string{types.Wildcard},
 				},
 				{
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.Wildcard},
 				},
 			},
 			wantDenied:   emptySet,
@@ -339,7 +301,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
@@ -347,7 +308,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.Wildcard},
 				},
 			},
 			wantDenied:   emptySet,
@@ -378,7 +338,6 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "dev",
 					Namespace: "dev",
-					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			wantAllowed: []types.KubernetesResource{
@@ -386,13 +345,11 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any1",
-					Verbs:     []string{types.Wildcard},
 				},
 				{
 					Kind:      types.KindKubePod,
 					Name:      "any1",
 					Namespace: "any2",
-					Verbs:     []string{types.Wildcard},
 				},
 			},
 			wantDenied:   emptySet,
@@ -418,76 +375,11 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Kind:      types.KindKubePod,
 					Name:      "wrongPodName",
 					Namespace: "wrongNamespace",
-					Verbs:     []string{types.KubeVerbGet},
 				},
 			},
 			wantAllowed:  nil,
 			wantDenied:   emptySet,
 			assertAccess: require.Error,
-		},
-		{
-			name:        "prod cluster with list verb but tries to access get",
-			kubeCluster: prodKubeCluster,
-			fields: fields{
-				info: &AccessInfo{
-					Roles: []string{"list-only"},
-				},
-				roleSet: listOnlySet,
-				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
-					Name:      "any1",
-					Namespace: "any1",
-					Verbs:     []string{types.KubeVerbGet},
-				},
-			},
-			wantAllowed: []types.KubernetesResource{
-				{
-					Kind:      types.KindKubePod,
-					Name:      "any1",
-					Namespace: "any1",
-					Verbs:     []string{types.KubeVerbList},
-				},
-				{
-					Kind:      types.KindKubePod,
-					Name:      "any1",
-					Namespace: "any2",
-					Verbs:     []string{types.KubeVerbList},
-				},
-			},
-			wantDenied:   emptySet,
-			assertAccess: require.Error,
-		},
-		{
-			name:        "prod cluster with list verb",
-			kubeCluster: prodKubeCluster,
-			fields: fields{
-				info: &AccessInfo{
-					Roles: []string{"list-only"},
-				},
-				roleSet: listOnlySet,
-				resource: types.KubernetesResource{
-					Kind:      types.KindKubePod,
-					Name:      "any1",
-					Namespace: "any1",
-					Verbs:     []string{types.KubeVerbList},
-				},
-			},
-			wantAllowed: []types.KubernetesResource{
-				{
-					Kind:      types.KindKubePod,
-					Name:      "any1",
-					Namespace: "any1",
-					Verbs:     []string{types.KubeVerbList},
-				},
-				{
-					Kind:      types.KindKubePod,
-					Name:      "any1",
-					Namespace: "any2",
-					Verbs:     []string{types.KubeVerbList},
-				},
-			},
-			wantDenied:   emptySet,
-			assertAccess: require.NoError,
 		},
 	}
 	for _, tt := range tests {

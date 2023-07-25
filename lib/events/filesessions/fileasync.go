@@ -104,10 +104,9 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		log: log.WithFields(log.Fields{
 			trace.Component: cfg.Component,
 		}),
-		closeC:        make(chan struct{}),
-		semaphore:     make(chan struct{}, cfg.ConcurrentUploads),
-		eventsCh:      make(chan events.UploadEvent, cfg.ConcurrentUploads),
-		eventPreparer: &events.NoOpPreparer{},
+		closeC:    make(chan struct{}),
+		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
+		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
 
 	return uploader, nil
@@ -130,8 +129,6 @@ type Uploader struct {
 
 	eventsCh chan events.UploadEvent
 	closeC   chan struct{}
-
-	eventPreparer *events.NoOpPreparer
 }
 
 func (u *Uploader) Close() {
@@ -143,7 +140,7 @@ func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
 		return trace.BadParameter("missing session ID")
 	}
 	path := u.sessionErrorFilePath(sessionID)
-	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0o600))
+	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0600))
 }
 
 func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
@@ -408,7 +405,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}
-	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0o600)
+	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		if err := upload.Close(); err != nil {
 			u.log.WithError(err).Warningf("Failed to close upload.")
@@ -518,11 +515,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 		if status != nil && event.GetIndex() <= status.LastEventIndex {
 			continue
 		}
-		// ProtoStream will only write PreparedSessionEvents, so
-		// this event doesn't need to be prepared again. Convert it
-		// with a NoOpPreparer.
-		preparedEvent, _ := u.eventPreparer.PrepareSessionEvent(event)
-		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+		if err := stream.EmitAuditEvent(ctx, event); err != nil {
 			return trace.Wrap(err)
 		}
 	}

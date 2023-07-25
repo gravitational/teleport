@@ -66,9 +66,8 @@ func main() {
 	session, err := awssession.NewSessionWithOptions(awssession.Options{
 		SharedConfigState: awssession.SharedConfigEnable,
 		Config: aws.Config{
-			Retryer:                       limiter,
-			Region:                        aws.String(params.awsRegion),
-			CredentialsChainVerboseErrors: aws.Bool(true),
+			Retryer: limiter,
+			Region:  aws.String(params.awsRegion),
 		},
 	})
 	if err != nil {
@@ -308,12 +307,7 @@ func (a *adaptiveRateLimiter) reportThrottleError() {
 	}
 
 	old := a.permitCapacity
-	capacity := math.Abs(a.high-a.low)/2 + a.low
-	// A capacity of zero is not valid and results in requests to be rejected.
-	if capacity < 1 {
-		capacity = 1.0
-	}
-	a.permitCapacity = capacity
+	a.permitCapacity = math.Abs(a.high-a.low)/2 + a.low
 	fmt.Printf("  throttled by DynamoDB. adjusting request rate from %v RCUs to %v RCUs\n", int(old), int(a.permitCapacity))
 }
 

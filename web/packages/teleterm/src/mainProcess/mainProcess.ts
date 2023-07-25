@@ -47,10 +47,6 @@ import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalCont
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
-import { downloadAgent, FileDownloader } from './agentDownloader';
-import { createAgentConfigFile } from './createAgentConfigFile';
-
-import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
 
 type Options = {
   settings: RuntimeSettings;
@@ -71,14 +67,6 @@ export default class MainProcess {
   private configFileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
   private windowsManager: WindowsManager;
-  // this function can be safely called concurrently
-  private downloadAgentShared = sharePromise(() =>
-    downloadAgent(
-      new FileDownloader(this.windowsManager.getWindow()),
-      this.settings,
-      process.env
-    )
-  );
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -303,20 +291,6 @@ export default class MainProcess {
       return path;
     });
 
-    ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
-      this.downloadAgentShared()
-    );
-    ipcMain.handle(
-      'main-process-connect-my-computer-create-agent-config-file',
-      (_, args: AgentConfigFileClusterProperties) =>
-        createAgentConfigFile(this.settings, {
-          proxy: args.proxy,
-          token: args.token,
-          profileName: args.profileName,
-          labels: args.labels,
-        })
-    );
-
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
@@ -423,19 +397,4 @@ function openDocsUrl() {
 
 function promisifyProcessExit(childProcess: ChildProcess) {
   return new Promise(resolve => childProcess.once('exit', resolve));
-}
-
-/** Shares promise returned from `promiseFn` across multiple concurrent callers. */
-function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
-  let pending: Promise<T> | undefined = undefined;
-
-  return () => {
-    if (!pending) {
-      pending = promiseFn();
-      pending.finally(() => {
-        pending = undefined;
-      });
-    }
-    return pending;
-  };
 }

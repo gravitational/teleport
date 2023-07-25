@@ -32,7 +32,6 @@ import {
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import { DocumentConnectMyComputerSetup } from 'teleterm/ui/ConnectMyComputer';
 
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -107,8 +106,6 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentTerminal doc={doc} visible={visible} />;
       case 'doc.access_requests':
         return <DocumentAccessRequests doc={doc} visible={visible} />;
-      case 'doc.connect_my_computer_setup':
-        return <DocumentConnectMyComputerSetup doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

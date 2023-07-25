@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.0.0-dev
+VERSION=13.2.3
 
 DOCKER_IMAGE ?= teleport
 
@@ -526,6 +526,14 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 endif
 
 #
+# make release-unix-only - Produces an Enterprise binary release tarball containing
+# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
+#
+.PHONY: release-unix-only
+release-unix-only: clean
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+#
 # make release-windows-unsigned - Produces a binary release archive containing only tsh.
 #
 .PHONY: release-windows-unsigned
@@ -648,10 +656,6 @@ DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
 
-RERUN := $(TOOLINGDIR)/bin/rerun
-$(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
-	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
-
 .PHONY: tooling
 tooling: $(RENDER_TESTS) $(DIFF_TEST)
 
@@ -667,7 +671,7 @@ $(TEST_LOG_DIR):
 .PHONY: helmunit/installed
 helmunit/installed:
 	@if ! helm unittest -h >/dev/null; then \
-		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11` to install it'; \
+		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest` to install it'; \
 		exit 1; \
 	fi
 
@@ -734,7 +738,7 @@ endif
 # Runs ci tsh tests
 .PHONY: test-go-tsh
 test-go-tsh: FLAGS ?= -race -shuffle on
-test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh/...
+test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh
 test-go-tsh:
 	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
@@ -813,24 +817,6 @@ test-teleport-usage:
 		| ${RENDER_TESTS}
 
 #
-# Flaky test detection. Usually run from CI nightly, overriding these default parameters
-# This runs the same tests as test-go-unit but repeatedly to try to detect flaky tests.
-#
-.PHONY: test-go-flaky
-FLAKY_RUNS ?= 3
-FLAKY_TIMEOUT ?= 1h
-FLAKY_TOP_N ?= 20
-FLAKY_SUMMARY_FILE ?= /tmp/flaky-report.txt
-test-go-flaky: FLAGS ?= -race -shuffle on
-test-go-flaky: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
-test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)
-test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
-test-go-flaky: test-go-prepare $(RERUN)
-	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
-		go test -count=1 -cover -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
-		| $(RENDER_TESTS) $(RENDER_FLAGS)
-
-#
 # Runs cargo test on our Rust modules.
 # (a no-op if cargo and rustc are not installed)
 #
@@ -899,16 +885,6 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 		| tee $(TEST_LOG_DIR)/integration-root.json \
 		| $(RENDER_TESTS) -report-by test
 
-
-.PHONY: e2e-aws
-e2e-aws: FLAGS ?= -v -race
-e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
-e2e-aws: $(TEST_LOG_DIR) $(RENDER_TESTS)
-	@echo TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) \
-		| tee $(TEST_LOG_DIR)/e2e-aws.json \
-		| $(RENDER_TESTS) -report-by test
-
 #
 # Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
@@ -943,11 +919,7 @@ lint-go:
 
 .PHONY: fix-imports
 fix-imports:
-ifndef TELEPORT_DEVBOX
-	$(MAKE) -C build.assets/ fix-imports
-else
-	$(MAKE) fix-imports/host
-endif
+	make -C build.assets/ fix-imports
 
 .PHONY: fix-imports/host
 fix-imports/host:
@@ -982,7 +954,7 @@ lint-kube-agent-updater:
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f \( -name '*.sh' -or -name '*.sh.tmpl' \) -not -path "*/node_modules/*" | xargs \
+	find . -type f -name '*.sh' -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		--exclude=SC1091 \
@@ -1201,11 +1173,7 @@ buf/installed:
 # This target runs in the buildbox container.
 .PHONY: grpc
 grpc:
-ifndef TELEPORT_DEVBOX
 	$(MAKE) -C build.assets grpc
-else
-	$(MAKE) grpc/host
-endif
 
 # grpc/host generates GRPC stubs.
 # Unlike grpc, this target runs locally.
@@ -1217,11 +1185,7 @@ grpc/host: protos/all
 # This target runs in the buildbox container.
 .PHONY: protos-up-to-date
 protos-up-to-date:
-ifndef TELEPORT_DEVBOX
 	$(MAKE) -C build.assets protos-up-to-date
-else
-	$(MAKE) protos-up-to-date/host
-endif
 
 # protos-up-to-date/host checks if the generated GRPC stubs are up to date.
 # Unlike protos-up-to-date, this target runs locally.
@@ -1236,15 +1200,6 @@ protos-up-to-date/host: must-start-clean/host grpc/host
 must-start-clean/host:
 	@if ! $(GIT) diff --quiet; then \
 		echo 'This must be run from a repo with no unstaged commits.'; \
-		exit 1; \
-	fi
-
-# crds-up-to-date checks if the generated CRDs from the protobuf stubs are up to date.
-.PHONY: crds-up-to-date
-crds-up-to-date: must-start-clean/host
-	$(MAKE) -C integrations/operator manifests
-	@if ! $(GIT) diff --quiet; then \
-		echo 'Please run make -C integrations/operator manifests.'; \
 		exit 1; \
 	fi
 

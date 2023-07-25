@@ -97,19 +97,13 @@ type TeleportReportingServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewTeleportReportingServiceHandler(svc TeleportReportingServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	teleportReportingServiceSubmitUsageReportsHandler := connect_go.NewUnaryHandler(
+	mux := http.NewServeMux()
+	mux.Handle(TeleportReportingServiceSubmitUsageReportsProcedure, connect_go.NewUnaryHandler(
 		TeleportReportingServiceSubmitUsageReportsProcedure,
 		svc.SubmitUsageReports,
 		opts...,
-	)
-	return "/prehog.v1.TeleportReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case TeleportReportingServiceSubmitUsageReportsProcedure:
-			teleportReportingServiceSubmitUsageReportsHandler.ServeHTTP(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})
+	))
+	return "/prehog.v1.TeleportReportingService/", mux
 }
 
 // UnimplementedTeleportReportingServiceHandler returns CodeUnimplemented from all methods.

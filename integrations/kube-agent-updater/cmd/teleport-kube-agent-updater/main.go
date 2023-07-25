@@ -32,7 +32,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -96,17 +95,22 @@ func main() {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
+		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         !disableLeaderElection,
 		LeaderElectionID:       agentName,
-		Cache: cache.Options{
-			Namespaces: []string{agentNamespace},
-			SyncPeriod: &syncPeriod,
-			ByObject: map[kclient.Object]cache.ByObject{
-				&appsv1.Deployment{}:  {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
-				&appsv1.StatefulSet{}: {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
+		Namespace:              agentNamespace,
+		SyncPeriod:             &syncPeriod,
+		NewCache: cache.BuilderWithOptions(cache.Options{
+			SelectorsByObject: cache.SelectorsByObject{
+				&appsv1.Deployment{}: {
+					Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName}),
+				},
+				&appsv1.StatefulSet{}: {
+					Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName}),
+				},
 			},
-		},
+		}),
 	})
 	if err != nil {
 		ctrl.Log.Error(err, "failed to create new manager, exiting")

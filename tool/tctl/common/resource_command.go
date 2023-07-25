@@ -846,7 +846,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	res, err := services.UnmarshalDevice(raw.Raw)
+	res, err := types.UnmarshalDevice(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}

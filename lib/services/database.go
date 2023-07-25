@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -147,6 +146,13 @@ func ValidateDatabase(db types.Database) error {
 		return trace.Wrap(err)
 	}
 
+	// This was added in v14 and backported, except that it's intentionally
+	// called here instead of in CheckAndSetDefaults for backwards
+	// compatibility.
+	if err := types.ValidateDatabaseName(db.GetName()); err != nil {
+		return trace.Wrap(err, "invalid database name")
+	}
+
 	if !slices.Contains(defaults.DatabaseProtocols, db.GetProtocol()) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v", db.GetName(), db.GetProtocol(), defaults.DatabaseProtocols)
 	}
@@ -168,10 +174,6 @@ func ValidateDatabase(db types.Database) error {
 		if !strings.Contains(db.GetURI(), defaults.SnowflakeURL) {
 			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
-	} else if db.GetProtocol() == defaults.ProtocolClickHouse || db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
-		if err := validateClickhouseURI(db); err != nil {
-			return trace.Wrap(err)
-		}
 	} else if needsURIValidation(db) {
 		if _, _, err := net.SplitHostPort(db.GetURI()); err != nil {
 			return trace.BadParameter("invalid database %q address %q: %v", db.GetName(), db.GetURI(), err)
@@ -185,7 +187,7 @@ func ValidateDatabase(db types.Database) error {
 	}
 
 	// Validate Active Directory specific configuration, when Kerberos auth is required.
-	if needsADValidation(db) {
+	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
 		if db.GetAD().KeytabFile == "" && db.GetAD().KDCHostName == "" {
 			return trace.BadParameter("either keytab file path or kdc_host_name must be provided for database %q, both are missing", db.GetName())
 		}
@@ -222,46 +224,6 @@ func ValidateDatabase(db types.Database) error {
 		}
 	}
 
-	return nil
-}
-
-// needsADValidation returns whether a database AD configuration needs to
-// be validated.
-func needsADValidation(db types.Database) bool {
-	if db.GetProtocol() != defaults.ProtocolSQLServer {
-		return false
-	}
-
-	// Domain is always required when configuring the AD section, so we assume
-	// users intend to use Kerberos authentication if the configuration has it.
-	if db.GetAD().Domain != "" {
-		return true
-	}
-
-	// Azure-hosted databases and RDS Proxy support other authentication
-	// methods, and do not require this section to be validated.
-	if strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix) || db.GetAWS().RDSProxy.Name != "" {
-		return false
-	}
-
-	return true
-}
-
-func validateClickhouseURI(db types.Database) error {
-	u, err := url.Parse(db.GetURI())
-	if err != nil {
-		return trace.BadParameter("failed to parse uri: %v", err)
-	}
-	var requiredSchema string
-	if db.GetProtocol() == defaults.ProtocolClickHouse {
-		requiredSchema = "clickhouse"
-	}
-	if db.GetProtocol() == defaults.ProtocolClickHouseHTTP {
-		requiredSchema = "https"
-	}
-	if u.Scheme != requiredSchema {
-		return trace.BadParameter("invalid uri schema: %s for %v database protocol", u.Scheme, db.GetProtocol())
-	}
 	return nil
 }
 

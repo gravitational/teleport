@@ -69,6 +69,7 @@
     "GODEBUG",
     "GOMAXPROCS",
     "GSLB",
+    "GSLB",
     "Gbps",
     "Goland",
     "Grafana's",
@@ -86,6 +87,7 @@
     "Infosec",
     "Instruqt",
     "Intelli",
+    "Intune",
     "Iqxtr",
     "JCRP",
     "JDBC",
@@ -233,6 +235,7 @@
     "appuser",
     "armv",
     "atburke",
+    "attobj",
     "attrname",
     "auditctl",
     "auditctl",
@@ -407,6 +410,7 @@
     "groupclaim",
     "gserviceaccount",
     "gslb",
+    "gslb",
     "gsutil",
     "gworkspace",
     "hashfile",
@@ -419,6 +423,7 @@
     "hostdb",
     "hostedzone",
     "hostip",
+    "hostnames",
     "hostssl",
     "hsm-ppzzfxbleki",
     "httpout",
@@ -673,7 +678,6 @@
     "serviceacct",
     "servicecfg",
     "serviceid",
-    "session",
     "setspn",
     "sharded",
     "signup",
@@ -684,6 +688,7 @@
     "splunkd",
     "splunkforwarder",
     "sqlcl",
+    "sqlcmd",
     "sqlnet",
     "sqlserver",
     "sshcacerts",
@@ -697,6 +702,7 @@
     "structs",
     "subgroups",
     "subkind",
+    "subgroups",
     "sudoer",
     "syscalls",
     "sysvinit",
@@ -799,5 +805,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

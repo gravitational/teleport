@@ -257,7 +257,6 @@ func TestRoleParse(t *testing.T) {
 								Kind:      types.KindKubePod,
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
-								Verbs:     []string{types.Wildcard},
 							},
 						},
 					},
@@ -501,7 +500,6 @@ func TestRoleParse(t *testing.T) {
 								Kind:      types.KindKubePod,
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
-								Verbs:     []string{types.Wildcard},
 							},
 						},
 						Namespaces: []string{"default"},
@@ -610,7 +608,6 @@ func TestRoleParse(t *testing.T) {
 								Kind:      types.KindKubePod,
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
-								Verbs:     []string{types.Wildcard},
 							},
 						},
 						Rules: []types.Rule{
@@ -700,7 +697,6 @@ func TestRoleParse(t *testing.T) {
 								Kind:      types.KindKubePod,
 								Namespace: types.Wildcard,
 								Name:      types.Wildcard,
-								Verbs:     []string{types.Wildcard},
 							},
 						},
 						NodeLabels: types.Labels{
@@ -829,15 +825,6 @@ func TestValidateRole(t *testing.T) {
 				"could not parse action",
 				"unsupported function: zzz",
 			},
-		},
-		{
-			name: "wildcard not allowed in database_roles",
-			spec: types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					DatabaseRoles: []string{types.Wildcard},
-				},
-			},
-			expectError: trace.BadParameter("wildcard is not allowed in allow.database_roles"),
 		},
 		{
 			name: "unsupported function in labels",
@@ -1013,6 +1000,15 @@ func TestValidateRole(t *testing.T) {
 				"unsupported function: email.localz",
 			},
 		},
+		{
+			name: "wildcard not allowed in database_roles",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					DatabaseRoles: []string{types.Wildcard},
+				},
+			},
+			expectError: trace.BadParameter("wildcard is not allowed in allow.database_roles"),
+		},
 	}
 
 	for _, tc := range tests {
@@ -1170,7 +1166,6 @@ func newRole(mut func(*types.RoleV6)) *types.RoleV6 {
 		},
 	}
 	mut(r)
-	r.CheckAndSetDefaults()
 	return r
 }
 
@@ -3808,7 +3803,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	}
 }
 
-func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
+func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 	dbStage, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "stage",
 		Labels: map[string]string{"env": "stage"},
@@ -3832,12 +3827,10 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseUsers:  []string{types.Wildcard},
-				DatabaseNames:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"root"},
-				DatabaseNames: []string{"root"},
+				DatabaseUsers: []string{"superuser"},
 			},
 		},
 	}
@@ -3848,7 +3841,6 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseUsers:  []string{"dev"},
-				DatabaseNames:  []string{"dev"},
 			},
 		},
 	}
@@ -3869,13 +3861,11 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"root"},
-				DatabaseNames: []string{"root"},
+				DatabaseUsers: []string{"superuser"},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"root"},
-				DatabaseNames: []string{"root"},
+				DatabaseUsers: []string{"superuser"},
 			},
 		},
 	}
@@ -3891,17 +3881,17 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			roles:  RoleSet{roleAllowDenySame},
 			server: dbStage,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"root": false},
+				allowedDeniedMap: map[string]bool{"superuser": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   false,
 			},
 		},
 		{
-			name:   "developer allowed any username in stage database except root",
+			name:   "developer allowed any username in stage database except superuser",
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbStage,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
 				wildcardAllowed:  true,
 				wildcardDenied:   false,
 			},
@@ -3911,7 +3901,7 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbProd,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
+				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   false,
 			},
@@ -3921,7 +3911,7 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 			roles:  RoleSet{roleDevStage, roleDevProd, roleNoDBAccess},
 			server: dbProd,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": false, "root": false},
+				allowedDeniedMap: map[string]bool{"dev": false, "superuser": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   true,
 			},
@@ -3931,8 +3921,6 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
 		t.Run(tc.name, func(t *testing.T) {
 			enumResult := accessChecker.EnumerateDatabaseUsers(tc.server)
-			require.Equal(t, tc.enumResult, enumResult)
-			enumResult = accessChecker.EnumerateDatabaseNames(tc.server)
 			require.Equal(t, tc.enumResult, enumResult)
 		})
 	}
@@ -6619,7 +6607,8 @@ func TestGetKubeResources(t *testing.T) {
 			roles: []types.Role{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.KubernetesLabels = types.Labels{"env": {"prod"}}
-					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+					r.Spec.Allow.KubernetesResources =
+						[]types.KubernetesResource{podA, podB}
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
@@ -6630,7 +6619,8 @@ func TestGetKubeResources(t *testing.T) {
 			roles: []types.Role{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "prod"`
-					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+					r.Spec.Allow.KubernetesResources =
+						[]types.KubernetesResource{podA, podB}
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
@@ -6641,11 +6631,13 @@ func TestGetKubeResources(t *testing.T) {
 			roles: []types.Role{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "prod"`
-					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+					r.Spec.Allow.KubernetesResources =
+						[]types.KubernetesResource{podA, podB}
 				}),
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Deny.KubernetesLabels = types.Labels{"env": {"prod"}}
-					r.Spec.Deny.KubernetesResources = []types.KubernetesResource{podA}
+					r.Spec.Deny.KubernetesResources =
+						[]types.KubernetesResource{podA}
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
@@ -6657,11 +6649,13 @@ func TestGetKubeResources(t *testing.T) {
 			roles: []types.Role{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "staging"`
-					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+					r.Spec.Allow.KubernetesResources =
+						[]types.KubernetesResource{podA, podB}
 				}),
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Deny.KubernetesLabels = types.Labels{"env": {"prod"}}
-					r.Spec.Deny.KubernetesResources = []types.KubernetesResource{podA}
+					r.Spec.Deny.KubernetesResources =
+						[]types.KubernetesResource{podA}
 				}),
 			},
 			clusterLabels: map[string]string{"env": "staging"},
@@ -8097,7 +8091,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			// because unmatchedResources is not empty.
 			wantMatch:          boolsToSlice(true),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"pod/default/nginx*"},
+			unmatchedResources: []string{"default/nginx*"},
 		},
 		{
 			name: "user requests a valid subset of pods but distributed across two roles",
@@ -8136,7 +8130,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false, false),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"pod/default/pod"},
+			unmatchedResources: []string{"default/pod"},
 		},
 		{
 			name: "user requests a denied pod",
@@ -8170,7 +8164,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false),
 			assertErr:          require.Error,
-			unmatchedResources: []string{"pod/default/restricted"},
+			unmatchedResources: []string{"default/restricted"},
 		},
 	}
 	for _, tt := range tests {

@@ -27,10 +27,9 @@ type FilterObj interface {
 	// FilterObj receives a runtime.Object type and filters the resources on it
 	// based on allowed and denied rules.
 	// After filtering them, the obj is manipulated to hold the filtered information.
-	// The isAllowed boolean returned indicates if the client is allowed to receive the event
+	// The boolean returned indicates if the client is allowed to receive the event
 	// with the object.
-	// The isListObj boolean returned indicates if the object is a list of resources.
-	FilterObj(obj runtime.Object) (isAllowed bool, isListObj bool, err error)
+	FilterObj(runtime.Object) (bool, error)
 }
 
 // FilterBuffer is the interface a Kubernetes Resource response filter must implement.

@@ -109,10 +109,23 @@ func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string, 
 	}, nil
 }
 
+func statusFromStatusCode(httpCode int) types.PluginStatus {
+	var code types.PluginStatusCode
+	switch {
+	case httpCode == http.StatusUnauthorized:
+		code = types.PluginStatusCode_UNAUTHORIZED
+	case httpCode >= 200 && httpCode < 400:
+		code = types.PluginStatusCode_RUNNING
+	default:
+		code = types.PluginStatusCode_OTHER_ERROR
+	}
+	return &types.PluginStatusV1{Code: code}
+}
+
 func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 	return func(_ *resty.Client, resp *resty.Response) error {
 		log := logger.Get(resp.Request.Context())
-		status := common.StatusFromStatusCode(resp.StatusCode())
+		status := statusFromStatusCode(resp.StatusCode())
 
 		// No usable context in scope, use background with a reasonable timeout
 		ctx, cancel := context.WithTimeout(context.Background(), pdStatusUpdateTimeout)

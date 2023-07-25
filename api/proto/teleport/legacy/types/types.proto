@@ -627,7 +627,7 @@ message InstanceSpecV1 {
   // Services is the list of active services this instance most recently advertised.
   repeated string Services = 2 [
     (gogoproto.casttype) = "SystemRole",
-    (gogoproto.jsontag) = "services,omitempty"
+    (gogoproto.jsontag) = "services,omitemtpy"
   ];
 
   // Hostname is the hostname this instance most recently advertised.
@@ -759,6 +759,9 @@ message ServerV2List {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
+  reserved 8;
+  reserved 10;
+
   // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
   // PublicAddr is the public address where this server can be reached.
@@ -797,10 +800,6 @@ message ServerSpecV2 {
   // CloudMetadata contains info about the cloud instance the server is running
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
-
-  reserved 8;
-  reserved 10;
-  reserved "KubernetesClusters";
 }
 
 // AWSInfo contains attributes to match to an EC2 instance.
@@ -1746,7 +1745,6 @@ message AuthPreferenceSpecV2 {
   ];
 
   reserved 5; // RequireSessionMFA replaced by RequireMFAType
-  reserved "RequireSessionMFA";
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -2215,13 +2213,6 @@ message AccessRequestSpecV3 {
   // DryRun indicates that the request should not actually be created, the
   // auth server should only validate the access request.
   bool DryRun = 16 [(gogoproto.jsontag) = "dry_run,omitempty"];
-
-  // MaxDuration indicates how long the access should be granted for.
-  google.protobuf.Timestamp MaxDuration = 17 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "max_duration,omitempty"
-  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2244,14 +2235,6 @@ message AccessCapabilities {
   repeated string SuggestedReviewers = 2 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
   // ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
   repeated string ApplicableRolesForResources = 3 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
-  // RequestPrompt is an optional message which tells users what they aught to request.
-  string RequestPrompt = 4 [(gogoproto.jsontag) = "request_prompt,omitempty"];
-  // RequireReason indicates whether the request strategy is one that requires
-  // users to always supply reasons with their requests.
-  bool RequireReason = 5 [(gogoproto.jsontag) = "require_reason,omitempty"];
-  // AutoRequest indicates whether the request strategy indicates that a
-  // request should be automatically generated on login.
-  bool AutoRequest = 6 [(gogoproto.jsontag) = "auto_request,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -2480,11 +2463,10 @@ message RoleOptions {
     (gogoproto.casttype) = "RequestStrategy"
   ];
 
-  // RequestPrompt is an optional message which tells users what they aught to request.
+  // RequestPrompt is an optional message which tells users what they aught to
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
 
   reserved 13; // RequireSessionMFA replaced by RequireMFAType
-  reserved "RequireSessionMFA";
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
@@ -2792,8 +2774,6 @@ message KubernetesResource {
   // Name is the resource name.
   // It supports wildcards.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
-  // Verbs are the allowed Kubernetes verbs for the following resource.
-  repeated string Verbs = 4 [(gogoproto.jsontag) = "verbs,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -2876,13 +2856,6 @@ message AccessRequestConditions {
   // defines the underlying roles which will be requested as part of any
   // Resource Access Request.
   repeated string SearchAsRoles = 6 [(gogoproto.jsontag) = "search_as_roles,omitempty"];
-
-  // MaxDuration is the amount of time the access will be granted for.
-  // If this is zero, the default duration is used.
-  int64 MaxDuration = 7 [
-    (gogoproto.jsontag) = "max_duration,omitempty",
-    (gogoproto.casttype) = "Duration"
-  ];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
@@ -4895,11 +4868,6 @@ message SessionTrackerSpecV1 {
 
   // DesktopName is the windows desktop server this session belongs to.
   string DesktopName = 20 [(gogoproto.jsontag) = "desktop_name,omitempty"];
-
-  // HostID is the target host id that created the session tracker.
-  // It's useful for Kubernetes moderated sessions when running in high availabilty
-  // otherwise kube proxy is not able to know which agent runs the session.
-  string HostID = 21 [(gogoproto.jsontag) = "host_id,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -5293,8 +5261,6 @@ message PluginSpecV1 {
     PluginJamfSettings jamf = 5;
     // Settings for the PagerDuty plugin
     PluginPagerDutySettings pager_duty = 6;
-    // Settings for the Mattermost plugin
-    PluginMattermostSettings mattermost = 7;
   }
 }
 
@@ -5336,22 +5302,6 @@ message PluginPagerDutySettings {
 // Defines settings for the OpenAI plugin. Currently there are no settings.
 message PluginOpenAISettings {
   option (gogoproto.equal) = true;
-}
-
-// Defines settings for the Mattermost plugin.
-message PluginMattermostSettings {
-  option (gogoproto.equal) = true;
-  // serverURL is the URL to access Mattermost.
-  string server_url = 1;
-  // team is the Mattermost workspace.
-  string team = 2;
-  // channel is the Mattermost channel in the workspace
-  // (team) to send notifications to.
-  string channel = 3;
-  // report_to_email is an optional email address of a Mattermost user
-  // to notify via a direct message when the plugin receives an
-  // Access Request event.
-  string report_to_email = 4;
 }
 
 // Defines settings for Jamf plugin.
@@ -6118,18 +6068,4 @@ message GCPMatcher {
   ];
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
-}
-
-// KubernetesMatcher matches Kubernetes services.
-message KubernetesMatcher {
-  // Types are Kubernetes services types to match. Currently only 'app' is supported.
-  repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
-  // Namespaces are Kubernetes namespaces in which to discover services
-  repeated string Namespaces = 2 [(gogoproto.jsontag) = "namespaces,omitempty"];
-  // Labels are Kubernetes services labels to match.
-  wrappers.LabelValues Labels = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
 }

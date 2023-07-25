@@ -124,8 +124,6 @@ message Event {
     types.IntegrationV1 Integration = 42;
     // WatchStatus is an WatchStatus resource.
     types.WatchStatusV1 WatchStatus = 43;
-    // HeadlessAuthentication is a HeadlessAuthentication resource.
-    types.HeadlessAuthentication HeadlessAuthentication = 44;
     // AccessList is an AccessList resource.
     teleport.accesslist.v1.AccessList AccessList = 45;
   }

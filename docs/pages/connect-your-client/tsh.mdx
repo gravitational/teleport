@@ -94,14 +94,13 @@ To find the version number, either:
 - Use `curl` and `jq`. Replace <Var name="teleport.example.com" />
   with your Proxy Service address (e.g. `mytenant.teleport.sh` for Teleport
   Enterprise Cloud):
-  
+
   ```code
   $ curl https://<Var name="teleport.example.com" />/webapi/find | jq '.server_version'
   "(=teleport.version=)"
   ```
 
 (!docs/pages/includes/install-tsh.mdx!)
-
 ## User identities
 
 A user identity in Teleport exists in the scope of a cluster. The member nodes
@@ -896,11 +895,5 @@ exit
 end of session playback
 ```
 
-## Uninstalling tsh
-
-To remove `tsh` and associated user data see
-[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
-
 ## Further reading
 - [CLI Reference](../reference/cli.mdx).
-

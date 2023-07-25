@@ -49,9 +49,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -124,7 +125,7 @@ func (h *Handler) executeCommand(
 	r *http.Request,
 	_ httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	site reversetunnel.RemoteSite,
 ) (any, error) {
 	q := r.URL.Query()
 	params := q.Get("params")
@@ -149,7 +150,12 @@ func (h *Handler) executeCommand(
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), sessionCtx, req.Login, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	identity, err := createIdentityContext(req.Login, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,7 +280,7 @@ func (h *Handler) executeCommand(
 
 		err = clt.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
 			ConversationId: req.ConversationID,
-			Username:       sessionCtx.GetUser(),
+			Username:       identity.TeleportUser,
 			Message: &assist.AssistantMessage{
 				Type:        string(assistlib.MessageKindCommandResult),
 				CreatedTime: timestamppb.New(time.Now().UTC()),
@@ -293,7 +299,7 @@ func (h *Handler) executeCommand(
 			hosts:          hosts,
 			output:         output,
 			authClient:     clt,
-			username:       sessionCtx.GetUser(),
+			identity:       identity,
 			executionID:    req.ExecutionID,
 			conversationID: req.ConversationID,
 			command:        req.Command,
@@ -311,7 +317,7 @@ type summaryRequest struct {
 	hosts          []hostInfo
 	output         map[string][]byte
 	authClient     auth.ClientI
-	username       string
+	identity       srv.IdentityContext
 	executionID    string
 	conversationID string
 	command        string
@@ -327,7 +333,7 @@ func (h *Handler) computeAndSendSummary(
 
 	history, err := req.authClient.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
 		ConversationId: req.conversationID,
-		Username:       req.username,
+		Username:       req.identity.TeleportUser,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -355,7 +361,7 @@ func (h *Handler) computeAndSendSummary(
 	}
 	summaryMessage := &assist.CreateAssistantMessageRequest{
 		ConversationId: req.conversationID,
-		Username:       req.username,
+		Username:       req.identity.TeleportUser,
 		Message: &assist.AssistantMessage{
 			Type:        string(assistlib.MessageKindCommandResultSummary),
 			CreatedTime: timestamppb.New(time.Now().UTC()),

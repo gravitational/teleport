@@ -29,13 +29,13 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // awsOIDCListDatabases returns a list of databases using the ListDatabases action of the AWS OIDC Integration.
-func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	ctx := r.Context()
 
 	var req ui.AWSOIDCListDatabasesRequest
@@ -73,7 +73,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 }
 
 // awsOIDClientRequest receives a request to execute an action for the AWS OIDC integrations.
-func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (*awsoidc.AWSClientRequest, error) {
+func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (*awsoidc.AWSClientRequest, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
 		return nil, trace.BadParameter("an integration name is required")
@@ -119,7 +119,7 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 }
 
 // awsOIDCDeployService deploys a Discovery Service and a Database Service in Amazon ECS.
-func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	ctx := r.Context()
 
 	var req ui.AWSOIDCDeployServiceRequest

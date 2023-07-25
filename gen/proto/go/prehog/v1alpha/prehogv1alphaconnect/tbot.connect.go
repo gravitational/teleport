@@ -97,19 +97,13 @@ type TbotReportingServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewTbotReportingServiceHandler(svc TbotReportingServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	tbotReportingServiceSubmitTbotEventHandler := connect_go.NewUnaryHandler(
+	mux := http.NewServeMux()
+	mux.Handle(TbotReportingServiceSubmitTbotEventProcedure, connect_go.NewUnaryHandler(
 		TbotReportingServiceSubmitTbotEventProcedure,
 		svc.SubmitTbotEvent,
 		opts...,
-	)
-	return "/prehog.v1alpha.TbotReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case TbotReportingServiceSubmitTbotEventProcedure:
-			tbotReportingServiceSubmitTbotEventHandler.ServeHTTP(w, r)
-		default:
-			http.NotFound(w, r)
-		}
-	})
+	))
+	return "/prehog.v1alpha.TbotReportingService/", mux
 }
 
 // UnimplementedTbotReportingServiceHandler returns CodeUnimplemented from all methods.

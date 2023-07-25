@@ -2554,7 +2554,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
 		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
 		types.KindIntegration:             &types.IntegrationV1{},
-		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
 		types.KindAccessList:              newAccessList(t, "access-list"),
 	}
 

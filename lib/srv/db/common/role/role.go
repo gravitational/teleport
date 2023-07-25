@@ -102,10 +102,7 @@ func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatc
 		// OpenSearch integration doesn't support schema access control.
 		defaults.ProtocolOpenSearch,
 		// DynamoDB integration doesn't support schema access control.
-		defaults.ProtocolDynamoDB,
-		// Clickhouse Database Access doesn't support schema access control
-		defaults.ProtocolClickHouse,
-		defaults.ProtocolClickHouseHTTP:
+		defaults.ProtocolDynamoDB:
 		return nil
 	default:
 		return &services.DatabaseNameMatcher{Name: database}

@@ -6,9 +6,8 @@ This checklist is to be run after cutting a release.
 
 - [ ] Create PR to update default Teleport version in Teleport docs
   - Example: https://github.com/gravitational/teleport/pull/7033
-- [ ] Create PR to update default AMI versions in Makefile and AMIs.md. This can
-  be done by manually triggering the
-  [GitHub Action](https://github.com/gravitational/teleport/actions/workflows/update-ami-ids.yaml)
+- [ ] Create PR to update default AMI versions in Makefile and AMIs.md under https://github.com/gravitational/teleport/blob/master/assets/aws
+  - Example command: `TELEPORT_VERSION=6.2.0 make -C assets/aws create-update-pr`
 
 ### Major releases only
 

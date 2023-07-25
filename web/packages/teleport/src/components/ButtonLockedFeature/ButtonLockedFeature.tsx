@@ -55,11 +55,10 @@ export function ButtonLockedFeature({
       py="12px"
       width="100%"
       style={{ textTransform: 'none' }}
-      rel="noreferrer"
       {...rest}
     >
       <Flex alignItems="center">
-        {!noIcon && <UnlockIcon data-testid="locked-icon" />}
+        {!noIcon && <UnlockIcon />}
         {children}
       </Flex>
     </ButtonPrimary>

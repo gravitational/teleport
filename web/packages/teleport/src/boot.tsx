@@ -32,7 +32,9 @@ cfg.init(window['GRV_CONFIG']);
 history.init();
 
 if (localStorage.getItem('enable-telemetry') === 'true') {
-  import('./telemetry-boot').then(m => m.instantiateTelemetry());
+  import(/* webpackChunkName: "telemetry" */ './telemetry-boot').then(m =>
+    m.instantiateTelemetry()
+  );
 }
 
 const teleportContext = new TeleportContext();

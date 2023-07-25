@@ -25,8 +25,79 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
+
+// TestUnmarshalDevice tests that devices can be successfully
+// unmarshalled from YAML and JSON.
+func TestUnmarshalDevice(t *testing.T) {
+	for _, tc := range []struct {
+		desc          string
+		input         string
+		errorContains string
+		expected      *DeviceV1
+	}{
+		{
+			desc: "success",
+			input: `
+{
+  "kind": "device",
+	"version": "v1",
+	"metadata": {
+		"name": "xaa"
+	},
+	"spec": {
+		"asset_tag": "mymachine",
+		"os_type": "macos",
+		"enroll_status": "enrolled"
+	}
+}`,
+			expected: &DeviceV1{
+				ResourceHeader: ResourceHeader{
+					Kind:    KindDevice,
+					Version: "v1",
+					Metadata: Metadata{
+						Namespace: defaults.Namespace,
+						Name:      "xaa",
+					},
+				},
+				Spec: &DeviceSpec{
+					OsType:       "macos",
+					AssetTag:     "mymachine",
+					EnrollStatus: "enrolled",
+				},
+			},
+		},
+		{
+			desc:          "fail string as num",
+			errorContains: `cannot unmarshal number`,
+			input: `
+{
+  "kind": "device",
+	"version": "v1",
+	"metadata": {
+		"name": "secretid"
+	},
+	"spec": {
+		"asset_tag": 4,
+		"os_type": "macos",
+		"enroll_status": "enrolled"
+	}
+}`,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			out, err := UnmarshalDevice([]byte(tc.input))
+			if tc.errorContains != "" {
+				require.ErrorContains(t, err, tc.errorContains, "error from UnmarshalDevice does not contain the expected string")
+				return
+			}
+			require.NoError(t, err, "UnmarshalDevice returned unexpected error")
+			require.Equal(t, tc.expected, out, "unmarshalled device  does not match what was expected")
+		})
+	}
+}
 
 func TestDeviceConversions_toAndFrom(t *testing.T) {
 	t1 := time.UnixMilli(1680276526972000) // Fri Mar 31 2023 15:28:46 UTC

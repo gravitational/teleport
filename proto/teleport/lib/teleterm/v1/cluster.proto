@@ -64,9 +64,8 @@ message LoggedInUser {
 
 // ACL is the access control list of the user
 message ACL {
-  // sessions was replaced by recorded_sessions and active_sessions
-  reserved 1;
-  reserved "sessions";
+  // sessions defines access to recorded sessions
+  ResourceAccess sessions = 1;
   // auth_connectors defines access to auth.connectors
   ResourceAccess auth_connectors = 2;
   // Roles defines access to roles
@@ -89,10 +88,6 @@ message ACL {
   ResourceAccess kubeservers = 11;
   // access_requests defines access to access requests
   ResourceAccess access_requests = 12;
-  // recorded_sessions defines access to recorded sessions.
-  ResourceAccess recorded_sessions = 13;
-  // active_sessions defines access to active sessions.
-  ResourceAccess active_sessions = 14;
 }
 
 // ResourceAccess describes access verbs
@@ -107,14 +102,10 @@ message ResourceAccess {
   bool create = 4;
   // delete determines "delete" access
   bool delete = 5;
-  // use determines "use" access
-  bool use = 6;
 }
 
 // Features describes the auth servers features
 message Features {
-  // advanced_access_workflows enables search-based access requests
+  // AdvancedAccessWorkflows enables search-based access requests
   bool advanced_access_workflows = 1;
-  // is_usage_based_billing determines if the cloud user subscription is usage-based (pay-as-you-go).
-  bool is_usage_based_billing = 2;
 }

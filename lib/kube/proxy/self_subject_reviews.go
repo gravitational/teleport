@@ -20,12 +20,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -114,18 +115,13 @@ func (f *Forwarder) validateSelfSubjectAccessReview(actx *authContext, w http.Re
 	}
 
 	namespace := accessReview.Spec.ResourceAttributes.Namespace
-	resource := getResourceWithKey(
-		allowedResourcesKey{
-			apiGroup:     accessReview.Spec.ResourceAttributes.Group,
-			resourceKind: accessReview.Spec.ResourceAttributes.Resource,
-		},
-	)
+	resource := depluralizeResource(accessReview.Spec.ResourceAttributes.Resource)
+	name := accessReview.Spec.ResourceAttributes.Name
 	// If the request is for a resource that Teleport does not support, return
 	// nil and let the Kubernetes API server handle the request.
-	if resource == "" {
+	if !slices.Contains(types.KubernetesResourcesKinds, resource) {
 		return nil
 	}
-	name := accessReview.Spec.ResourceAttributes.Name
 
 	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
 	if err != nil {
@@ -144,36 +140,22 @@ func (f *Forwarder) validateSelfSubjectAccessReview(actx *authContext, w http.Re
 					Kind:      resource,
 					Name:      name,
 					Namespace: namespace,
-					Verbs:     []string{accessReview.Spec.ResourceAttributes.Verb},
 				},
 			},
 		}...); {
 	case errors.Is(err, services.ErrTrustedDeviceRequired):
 		return trace.Wrap(err)
 	case err != nil:
-		namespaceNameToString := func(namespace, name string) string {
-			switch {
-			case namespace == "" && name == "":
-				return ""
-			case namespace != "" && name != "":
-				return path.Join(namespace, name)
-			case namespace != "":
-				return path.Join(namespace, "*")
-			default:
-				return path.Join("*", name)
-			}
-		}
 		accessReview.Status = authv1.SubjectAccessReviewStatus{
 			Allowed: false,
 			Denied:  true,
 			Reason: fmt.Sprintf(
-				"access to %s %s denied by Teleport: please ensure that %q field in your Teleport role defines access to the desired resource.\n\n"+
+				"access to %s %s/%s denied by Teleport: please ensure that %q field in your Teleport role defines access to the desired resource.\n\n"+
 					"Valid example:\n"+
 					"kubernetes_resources:\n"+
 					"- kind: %s\n"+
 					"  name: %s\n"+
-					"  namespace: %s\n"+
-					"  verbs: [%s]\n", accessReview.Spec.ResourceAttributes.Resource, namespaceNameToString(namespace, name), kubernetesResourcesKey, resource, emptyOrWildcard(name), emptyOrWildcard(namespace), types.Wildcard),
+					"  namespace: %s\n", resource, namespace, name, kubernetesResourcesKey, resource, emptyOrWildcard(name), emptyOrWildcard(namespace)),
 		}
 
 		responsewriters.SetContentTypeHeader(w, req.Header)
@@ -215,6 +197,14 @@ func parseSelfSubjectAccessReviewRequest(decoder runtime.Decoder, req *http.Requ
 	default:
 		return nil, trace.BadParameter("unexpected object type: %T", obj)
 	}
+}
+
+// depluralizeResource returns the singular form of the resource if it is plural.
+func depluralizeResource(resource string) string {
+	if strings.HasSuffix(resource, "s") {
+		return resource[:len(resource)-1]
+	}
+	return resource
 }
 
 // kubernetesResourceMatcher matches a role against a Kubernetes Resource.

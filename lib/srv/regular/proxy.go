@@ -177,12 +177,8 @@ func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest)
 		req.clusterName = ctx.Identity.RouteToCluster
 	}
 	if req.clusterName != "" && srv.proxyTun != nil {
-		checker, err := srv.tunnelWithAccessChecker(ctx)
+		_, err := srv.tunnelWithAccessChecker(ctx).GetSite(req.clusterName)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if _, err := checker.GetSite(req.clusterName); err != nil {
 			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
 		}
 	}

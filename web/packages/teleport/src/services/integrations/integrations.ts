@@ -27,8 +27,6 @@ import {
   AwsRdsDatabase,
   ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
-  AwsOidcDeployServiceRequest,
-  AwsOidcDeployServiceResponse,
 } from './types';
 
 export const integrationService = {
@@ -46,8 +44,8 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
-    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  createIntegration(req: IntegrationCreateRequest): Promise<void> {
+    return api.post(cfg.getIntegrationsUrl(), req);
   },
 
   updateIntegration(
@@ -115,13 +113,6 @@ export const integrationService = {
         };
       });
   },
-
-  deployAwsOidcService(
-    integrationName,
-    req: AwsOidcDeployServiceRequest
-  ): Promise<AwsOidcDeployServiceResponse> {
-    return api.post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req);
-  },
 };
 
 export function makeIntegrations(json: any): Integration[] {
@@ -158,9 +149,7 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     uri,
     status: aws?.status,
     labels: labels ?? [],
-    subnets: aws?.rds?.subnets,
     resourceId: aws?.rds?.resource_id,
     accountId: aws?.account_id,
-    region: aws?.region,
   };
 }

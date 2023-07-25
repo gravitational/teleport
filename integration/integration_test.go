@@ -81,11 +81,10 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -576,34 +575,15 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 						var hasEnd bool
 						var hasLeave bool
 						for _, se := range sessionEvents {
-							var isAuditEvent bool
 							if se.GetType() == events.SessionStartEvent {
-								isAuditEvent = true
 								hasStart = true
 							}
 							if se.GetType() == events.SessionEndEvent {
-								isAuditEvent = true
 								hasEnd = true
 							}
 							if se.GetType() == events.SessionLeaveEvent {
-								isAuditEvent = true
 								hasLeave = true
 							}
-
-							// ensure session events are also in audit log
-							if !isAuditEvent {
-								continue
-							}
-							auditEvents, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
-								To:         time.Now(),
-								EventTypes: []string{se.GetType()},
-							})
-							require.NoError(t, err)
-
-							found := slices.ContainsFunc(auditEvents, func(ae apievents.AuditEvent) bool {
-								return ae.GetID() == se.GetID()
-							})
-							require.True(t, found)
 						}
 
 						// Make sure all three events were found.
@@ -2413,7 +2393,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.Equal(t, "hello world\n", outputA.String())
 
 	// Update trusted CAs.
-	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
+	err = tc.UpdateTrustedCA(ctx, a.Secrets.SiteName)
 	require.NoError(t, err)
 
 	// The known_hosts file should have two certificates, the way bytes.Split
@@ -3831,7 +3811,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	var reverseTunnelAddr string
 
 	// Helper function for adding a new proxy to "main".
-	addNewMainProxy := func(name string) (reversetunnelclient.Server, helpers.ProxyConfig) {
+	addNewMainProxy := func(name string) (reversetunnel.Server, helpers.ProxyConfig) {
 		t.Logf("adding main proxy %q...", name)
 		newConfig := helpers.ProxyConfig{
 			Name:              name,
@@ -4673,12 +4653,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	var err error
 
 	// create a teleport instance with auth, proxy, and node
-	sessionsDir := t.TempDir()
 	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
-		auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-			AuditSessionsURI: sessionsDir,
-		})
-		require.NoError(t, err)
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
 		})
@@ -4686,7 +4661,6 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 		tconf := suite.defaultServiceConfig()
 		tconf.Auth.Enabled = true
-		tconf.Auth.AuditConfig = auditConfig
 		tconf.Auth.SessionRecordingConfig = recConfig
 
 		tconf.Proxy.Enabled = true
@@ -4707,8 +4681,6 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// should have no sessions in it to start with
 	sessions, _ := site.GetActiveSessionTrackers(ctx)
 	require.Len(t, sessions, 0)
-
-	beforeSession := time.Now()
 
 	// create interactive session (this goroutine is this user's terminal time)
 	endCh := make(chan error, 1)
@@ -4765,52 +4737,6 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// not actually recorded
 	_, err = site.GetSessionChunk(defaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
 	require.Error(t, err)
-
-	// ensure that session related events were emitted to audit log
-	var auditEvents []apievents.AuditEvent
-	require.Eventually(t, func() bool {
-		ae, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
-			From: beforeSession,
-			To:   time.Now(),
-			EventTypes: []string{
-				events.SessionStartEvent,
-				events.SessionLeaveEvent,
-				events.SessionEndEvent,
-			},
-		})
-		assert.NoError(t, err)
-
-		if len(ae) < 3 {
-			return false
-		}
-		auditEvents = ae
-
-		return true
-	}, 10*time.Second, 500*time.Millisecond)
-
-	var hasStart bool
-	var hasLeave bool
-	var hasEnd bool
-	for _, ae := range auditEvents {
-		switch ae.(type) {
-		case *apievents.SessionStart:
-			hasStart = true
-		case *apievents.SessionLeave:
-			hasLeave = true
-		case *apievents.SessionEnd:
-			hasEnd = true
-		default:
-			continue
-		}
-	}
-	require.True(t, hasStart, "session start event not found")
-	require.True(t, hasLeave, "session leave event not found")
-	require.True(t, hasEnd, "session end event not found")
-
-	// ensure session upload directory is empty
-	fi, err := os.ReadDir(sessionsDir)
-	require.NoError(t, err)
-	require.Empty(t, fi)
 }
 
 // testPAM checks that Teleport PAM integration works correctly. In this case
@@ -7211,14 +7137,14 @@ func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 	uploadStream, err := api.CreateAuditStream(ctx, sessionID)
 	require.Nil(t, err)
 
-	generatedSession := eventstest.GenerateTestSession(eventstest.SessionParams{
+	generatedSession := events.GenerateTestSession(events.SessionParams{
 		PrintEvents: 100,
 		SessionID:   string(sessionID),
 		ServerID:    "00000000-0000-0000-0000-000000000000",
 	})
 
 	for _, event := range generatedSession {
-		err := uploadStream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+		err := uploadStream.EmitAuditEvent(ctx, event)
 		require.NoError(t, err)
 	}
 
