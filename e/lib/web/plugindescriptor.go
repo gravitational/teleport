@@ -72,11 +72,12 @@ func (fn pluginInstallerFn) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 // initialized, but there is nothing stopping us from wrapping it in mutexes
 // and making it dynamic data in the future.
 var pluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginType]pluginDescriptor{
-	types.PluginTypeJamf:      pluginInstallerFn(installJamfPlugin),
-	types.PluginTypeOkta:      pluginInstallerFn(installOktaPlugin),
-	types.PluginTypeOpsgenie:  pluginInstallerFn(installOpsgeniePlugin),
-	types.PluginTypePagerDuty: pluginInstallerFn(installPagerdutyPlugin),
-	types.PluginTypeSlack:     slackDescriptor{},
+	types.PluginTypeJamf:       pluginInstallerFn(installJamfPlugin),
+	types.PluginTypeOkta:       pluginInstallerFn(installOktaPlugin),
+	types.PluginTypeOpsgenie:   pluginInstallerFn(installOpsgeniePlugin),
+	types.PluginTypePagerDuty:  pluginInstallerFn(installPagerdutyPlugin),
+	types.PluginTypeMattermost: pluginInstallerFn(installMattermostPlugin),
+	types.PluginTypeSlack:      slackDescriptor{},
 }
 
 func installOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
@@ -280,6 +281,80 @@ func installPagerdutyPlugin(ctx context.Context, sessCtx *web.SessionContext, w 
 			Spec: &types.PluginStaticCredentialsSpecV1{
 				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 					APIToken: apiKey,
+				},
+			},
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, req, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ui, nil
+}
+
+func installMattermostPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	url := r.FormValue("url")
+	if len(url) == 0 {
+		return nil, trace.BadParameter("missing Mattermost server URL")
+	}
+
+	token := r.FormValue("token")
+	if len(token) == 0 {
+		return nil, trace.BadParameter("missing Mattermost bot access token")
+	}
+
+	channel := r.FormValue("channel")
+	if len(channel) == 0 {
+		return nil, trace.BadParameter("missing Mattermost channel name")
+	}
+
+	team := r.FormValue("team")
+	if len(team) == 0 {
+		return nil, trace.BadParameter("missing Mattermost team name")
+	}
+
+	email := r.FormValue("email") // optional field.
+
+	labels := map[string]string{
+		"mattermost/channel":    channel,
+		"mattermost/team":       team,
+		"mattermost/server-url": url,
+	}
+	if len(email) != 0 {
+		labels["mattermost/email"] = email
+	}
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeMattermost,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Mattermost{
+					Mattermost: &types.PluginMattermostSettings{
+						ServerUrl:     url,
+						Channel:       channel,
+						Team:          team,
+						ReportToEmail: email,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: labels,
+					Name:   types.PluginTypeMattermost,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: token,
 				},
 			},
 		},

@@ -344,27 +344,6 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           </a>
           <a
             class="c16 c9"
-            data-testid="tile-mattermost"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c12 c13"
-              src="file_stub"
-            />
-            <div
-              class="c14"
-            >
-              <div
-                class="c11"
-              >
-                Mattermost
-              </div>
-            </div>
-          </a>
-          <a
-            class="c16 c9"
             data-testid="tile-msteams"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
             rel="noreferrer"
@@ -1162,27 +1141,6 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 class="c11"
               >
                 Discord
-              </div>
-            </div>
-          </a>
-          <a
-            class="c18 c13"
-            data-testid="tile-mattermost"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c14 c15"
-              src="file_stub"
-            />
-            <div
-              class="c16"
-            >
-              <div
-                class="c11"
-              >
-                Mattermost
               </div>
             </div>
           </a>
@@ -1996,6 +1954,31 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               Lacking Permissions
             </div>
           </div>
+          <div
+            class="c12"
+            data-testid="tile-mattermost"
+            disabled=""
+          >
+            <img
+              class="c13 c14"
+              src="file_stub"
+            />
+            <div
+              class="c15"
+            >
+              <div
+                class="c11"
+              >
+                Mattermost
+              </div>
+            </div>
+            <div
+              class="c16"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </div>
         </div>
       </div>
       <div
@@ -2085,27 +2068,6 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 class="c11"
               >
                 Discord
-              </div>
-            </div>
-          </a>
-          <a
-            class="c18 c9"
-            data-testid="tile-mattermost"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c13 c14"
-              src="file_stub"
-            />
-            <div
-              class="c15"
-            >
-              <div
-                class="c11"
-              >
-                Mattermost
               </div>
             </div>
           </a>

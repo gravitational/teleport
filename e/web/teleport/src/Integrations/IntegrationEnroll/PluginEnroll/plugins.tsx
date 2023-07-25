@@ -507,7 +507,10 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
           <p>
             For more infomation, consult the <em>Define RBAC Resources</em>{' '}
             section of the Teleport{' '}
-            <Link href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/#step-28-define-rbac-resources">
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/#step-28-define-rbac-resources"
+            >
               Access Requests with PagerDuty
             </Link>{' '}
             guide.
@@ -541,8 +544,115 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     type: 'mattermost',
     name: 'Mattermost',
     icon: mattermostIcon,
-    url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost',
-    hosted: false,
+    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/',
+    hosted: true,
+    fullName: 'Mattermost Access Notifications',
+    Description: () => (
+      <Text>
+        <p>
+          Your Mattermost integration will post notifications to the
+          team/channel you specify whenever a teammate makes an access request.
+          In addition, the integration will match Mattermost and Teleport emails
+          for the suggested reviewers defined in the request and alert them as
+          well.
+        </p>
+        <p>
+          You will first need to register a Mattermost bot as depicted{' '}
+          <Link
+            target="_blank"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/#step-58-register-a-mattermost-bot"
+          >
+            in this step
+          </Link>
+          . And then invite the bot to the channel that you want the integration
+          to post access requests to.
+        </p>
+      </Text>
+    ),
+    FormMixin: () => {
+      const [url, setUrl] = useState('');
+      const [token, setToken] = useState('');
+      const [team, setTeam] = useState('');
+      const [channel, setChannel] = useState('');
+      const [email, setEmail] = useState('');
+      return (
+        <>
+          <FieldInput
+            width="500px"
+            label="Mattermost Server URL"
+            name="url" // must be the same name as expected by the backend as form value
+            rule={requiredField('Mattermost Server URL Required')}
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="https://example.mattermost.com"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Mattermost Bot Access Token"
+            name="token" // must be the same name as expected by the backend as form value
+            rule={requiredField('Bot Access Token Required')}
+            value={token}
+            type="password"
+            onChange={e => setToken(e.target.value)}
+            placeholder="token"
+            toolTipContent={`Not to be confused with the token ID. The \
+            integration requires the access token that was generated \
+            when you created your bot.`}
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Mattermost Team Name"
+            name="team" // must be the same name as expected by the backend as form value
+            rule={requiredField('Team Name Required')}
+            value={team}
+            onChange={e => setTeam(e.target.value)}
+            placeholder="team-name"
+            toolTipContent="The name of your Mattermost workspace"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Mattermost Channel Name"
+            name="channel" // must be the same name as expected by the backend as form value
+            rule={requiredField('Channel Name Required')}
+            value={channel}
+            onChange={e => setChannel(e.target.value)}
+            placeholder="channel-name"
+            toolTipContent="Name of the channel to post Access Requests to"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Mattermost User Email (Optional)"
+            name="email" // must be the same name as expected by the backend as form value
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="email"
+            toolTipContent={`The email address of a Mattermost user to notify via \
+             a direct message when the plugin receives an Access Request event`}
+            mb={3}
+          />
+        </>
+      );
+    },
+    NextSteps: () => {
+      return (
+        <Text>
+          <p>
+            For help with configuring roles for Access Requests, consult the{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/?scope=enterprise#step-18-define-rbac-resources"
+            >
+              Define RBAC Resources
+            </Link>{' '}
+            section of Teleport's Mattermost guide.
+          </p>
+        </Text>
+      );
+    },
   },
   {
     type: 'msteams',

@@ -78,6 +78,19 @@ func TestCreatePluginHandle(t *testing.T) {
 			},
 			expectedResp: "root@example.com",
 		},
+		{
+			name:     "Mattermost plugin",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":       {"mattermost"},
+				"url":        {"https://www.some-apiendoint.com"},
+				"token":      {"some-token"},
+				"channel":    {"some-channel"},
+				"team":       {"some-team"},
+				"csrf_token": {webPack.csrfToken},
+			},
+			expectedResp: `to the \"some-channel\" channel from team \"some-team\"`,
+		},
 	}
 
 	for _, tc := range testCases {

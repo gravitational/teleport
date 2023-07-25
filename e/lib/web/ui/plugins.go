@@ -50,6 +50,11 @@ func pluginDetails(p types.Plugin) string {
 	switch settings := v1.Spec.Settings.(type) {
 	case *types.PluginSpecV1_SlackAccessPlugin:
 		return fmt.Sprintf(`Messages will be sent to assigned reviewers and the "%s" channel`, settings.SlackAccessPlugin.FallbackChannel)
+	case *types.PluginSpecV1_Mattermost:
+		if len(settings.Mattermost.ReportToEmail) == 0 {
+			return fmt.Sprintf(`Messages will be sent to assigned reviewers and to the "%s" channel from team "%s"`, settings.Mattermost.Channel, settings.Mattermost.Team)
+		}
+		return fmt.Sprintf(`Messages will be sent to assigned reviewers, to Mattermost user "%s", and to the "%s" channel from team "%s"`, settings.Mattermost.ReportToEmail, settings.Mattermost.Channel, settings.Mattermost.Team)
 	case *types.PluginSpecV1_Jamf:
 		return "Devices will be synced from Jamf to Teleport device inventory"
 	case *types.PluginSpecV1_Okta:

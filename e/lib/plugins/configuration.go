@@ -15,13 +15,15 @@ type pluginConfiguration struct {
 	client teleport.Client
 
 	pluginConfig pluginConfig
-	defaultRoute string
-	pluginType   types.PluginType
+	// defaultRoutes are the recipients defined in
+	// the plugin configuration.
+	defaultRoutes []string
+	pluginType    types.PluginType
 }
 
 func (p *pluginConfiguration) GetRecipients() common.RawRecipientsMap {
 	return common.RawRecipientsMap{
-		"*": {p.defaultRoute},
+		"*": p.defaultRoutes,
 	}
 }
 

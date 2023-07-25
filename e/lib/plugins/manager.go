@@ -63,11 +63,12 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 
 	if cfg.Factories == nil {
 		cfg.Factories = map[types.PluginType]instanceFactory{
-			types.PluginTypeOkta:      oktaInstanceFactory,
-			types.PluginTypeSlack:     slackInstanceFactory,
-			types.PluginTypeOpsgenie:  opsgenieInstanceFactory,
-			types.PluginTypePagerDuty: pagerDutyInstanceFactory,
-			types.PluginTypeJamf:      jamfInstanceFactory,
+			types.PluginTypeOkta:       oktaInstanceFactory,
+			types.PluginTypeSlack:      slackInstanceFactory,
+			types.PluginTypeOpsgenie:   opsgenieInstanceFactory,
+			types.PluginTypePagerDuty:  pagerDutyInstanceFactory,
+			types.PluginTypeJamf:       jamfInstanceFactory,
+			types.PluginTypeMattermost: mattermostInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {

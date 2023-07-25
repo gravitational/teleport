@@ -26,8 +26,8 @@ func slackInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps inst
 	}
 
 	pc := &pluginConfiguration{
-		client:       deps.client,
-		defaultRoute: slackSpec.FallbackChannel,
+		client:        deps.client,
+		defaultRoutes: []string{slackSpec.FallbackChannel},
 		pluginConfig: &slack.Config{
 			AccessTokenProvider: tokenProvider,
 			StatusSink:          deps.statusSink,
