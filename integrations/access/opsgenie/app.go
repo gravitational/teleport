@@ -147,7 +147,7 @@ func (a *App) init(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	if validCred, err := credentials.CheckIfExpired(a.conf.Teleport.Credentials()); err != nil {
-		log.Warn(err)
+		log.Warnf("Invalid Teleport credentials: %v", err)
 		if !validCred {
 			return trace.BadParameter(
 				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
@@ -156,9 +156,7 @@ func (a *App) init(ctx context.Context) error {
 		log.Info("At least one non-expired credential has been found, continuing startup")
 	}
 
-	var (
-		err error
-	)
+	var err error
 
 	if a.teleport == nil {
 		bk := grpcbackoff.DefaultConfig
