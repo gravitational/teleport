@@ -1019,6 +1019,11 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
+	if err := s.term.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
+		return trace.Wrap(err)
+	}
+
 	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
 		s.log.WithError(err).Error("Failed to open enhanced recording (interactive) session")
 		return trace.Wrap(err)
@@ -1216,6 +1221,12 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		User:           scx.Identity.TeleportUser,
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
+
+	if err := execRequest.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
+		return trace.Wrap(err)
+	}
+
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
 		s.log.WithError(err).Errorf("Failed to open enhanced recording (exec) session: %v", execRequest.GetCommand())
