@@ -1,4 +1,5 @@
 
+
 ---
 authors: Michael Myers (michael.myers@goteleport.com)
 state: draft
@@ -8,18 +9,15 @@ state: draft
 
 ## What
 
-A new view on the web UI (and eventually Connect) that will display all available resources such as Nodes, Databases, Apps, etc, in a single unified way. [INSERT IMAGE HERE]
+A new view on the web UI (and eventually Connect) that will display all available resources such as Nodes, Databases, Apps, etc, in a single unified way.
+
+![Screenshot 2023-07-25 at 4 18 08 PM](https://github.com/gravitational/teleport/assets/5201977/6953289d-ec3e-4eae-bdb9-10f3cfebfd7f)
 
 ## Why
 
 Rather than separating all resources into their own individual pages, a Unified Resource page would help consolidate every kind of resource into a single, searchable view. This will help with discoverability and make searching across resources a lot better. This will also lay the foundation for a much more helpful "Dashboard" type page where we can have things such as Pinned Resources (coming right after this).
 
 ## Details
-
-A couple notes and definitions to keep in mind throughout this RFD. 
-- If speaking about "ALL" resource kinds, it's meant to say "All resource kinds that are displayed in the web ui resource tables". There will be a section that talks about _actually all_ kinds, but I'll make it explicit that I mean that there.
-- I'll try to use the word Kinds instead of Types but may accidentally slip up. TODO, REMOVE THIS BULLET WHEN IVE CLEARED ALL
-- TODO (add images)
 
 In order to get a searchable and filterable list of all resource kinds, we will create a new, in-memory store that will initialize on auth service start and only live as long as the service is up. The watcher will update the store any time it receives an event for any of the watched kinds. We will use a very similar setup for this as our in-memory backend, but instead of storing the marshaled (unmarshaled? i forget which. TODO LEARN THE RIGHT WORD BEFORE PUBLISH) resource, we can store the actual resource. 
 
@@ -91,54 +89,30 @@ func (u *uiResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) 
 }
 ```
 
-### Extending ListResources
-The benefit of extending `ListResources` over a new grpc endpoint is that we get all the sorting/filtering/pagination built in (mostly). The web always uses `listResourcesWithSort` . We can add another case to the switch statement below
-```go
-	switch req.ResourceType {
-	case types.KindUnifiedResource:
-		unifiedResources, err := a.GetUnifiedResources(ctx, req.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+### ListUnifiedResources grpc endppint
+We will add a new grpc endpoint, `ListUnifiedResources`. It will function pretty closes to how `ListResources` works, except without needing to differentiate between `RequestType`, as every request is a unified resource request. Originally, the thought of just extending `ListResources`, but because of the many new filters that will be added to the request, we don't want to muddy up the `ListResourcesRequest`. Some of the new filters include which types to include (can be multiple), subtypes, etc etc. 
 
-		resources = uiResources
-	case //...
-	case //...
-```
-`GetUnifiedResources` above performs RBAC on each type just like the existing cases. 
-```go
-	for _, resource := range unifiedResources {
-		switch r := resource.(type) {
-		case types.Server:
-			{
-				if err := a.checkAccessToNode(r); err != nil {
-					if trace.IsAccessDenied(err) {
-						continue
-					}
-
-					return nil, trace.Wrap(err)
-				}
-
-				filteredResources = append(filteredResources, resource)
-			}
-		case //...
-		case //...
-```
-`ListResourceRequest` will have a few new fields added. 
+This endpoint will pull resources from our unified resource cache and run through the same filtering/rbac as `ListResources`
 
 ### Backward Compatibility
 
-Because we are only extending the capabilities of of `ListResources`, any older calls to `ListResources` should still work exactly the same. We can incrementally adopt a unified resource response anywhere we may need to, or not at all. 
+We will leave `ListResources` alone and keep the old individual resource endpoints available until we've vetted the unified resource view. We will remove the individual navigation items from the web ui, but leave the routes/api endpoints until we've gained confidence in the new flow. 
 
 ### UX
 The UI for the web will be changing drastically given the fact that all resources will be on the same page and we will be using a Card layout rather than the current Table. However, besides the visual changes, the actual resources listed will still be interacted with the same way. You can still click "Connect" on servers and databases, or Login for apps. The individual functionality for each "Item" will remain the same. Labels will be truncated but viewable with an expand button.
 
-[insert gif of expanding cards here] 
+
+
+https://github.com/gravitational/teleport/assets/5201977/9c859a2a-784d-4805-9ba7-9e37a8a4ce77
+
+
 
 Also, filters will be added. Some filters will just be a "pseudo-filter" in the sense that it'll just help populate an advanced search string, (example, clicking a label), but a few new actual filters will be present in the requests. The biggest of them is the `Kinds` array, which will contain a list of kinds that you want to be returned. ["node","app"] will only return nodes and apps. If left empty (the default), all resource kinds will be returned
 
-[insert image of filters]
+![Screenshot 2023-07-25 at 4 18 19 PM](https://github.com/gravitational/teleport/assets/5201977/0a58e6bc-b94f-44aa-9a63-56d4991a395c)
 
+
+This page will also use "infinite scrolling" rather than pagination. We will employ the use of a loading skeleton as we wait for the data to come in and then at a certain scroll distance from the bottom (not the exact bottom, but maybe 200 or so pixels up) we will fetch more. [example of skeleton component](https://codepen.io/JCLee/pen/dyPejGV)
 
 ### Test Plan
 
