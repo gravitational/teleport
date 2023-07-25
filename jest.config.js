@@ -15,4 +15,5 @@ module.exports = {
   ],
   coverageReporters: ['text-summary', 'lcov'],
   setupFilesAfterEnv: ['<rootDir>/web/packages/shared/setupTests.tsx'],
+  testPathIgnorePatterns: ["e2e"],
 };
