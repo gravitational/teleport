@@ -77,6 +77,8 @@ func TestGetAppName(t *testing.T) {
 		namespace   string
 		clusterName string
 		portName    string
+		annotation  string
+		wantErr     string
 		expected    string
 	}{
 		{
@@ -90,22 +92,46 @@ func TestGetAppName(t *testing.T) {
 			serviceName: "service2",
 			namespace:   "ns2",
 			clusterName: "cluster2",
-			portName:    "",
 			expected:    "service2-ns2-cluster2",
 		},
 		{
 			serviceName: "service3",
 			namespace:   "ns3",
 			clusterName: "cluster.3",
-			portName:    "",
 			expected:    "service3-ns3-cluster-3",
+		},
+		{
+			serviceName: "service3",
+			namespace:   "ns3",
+			clusterName: "cluster.3",
+			annotation:  "overridden-name",
+			expected:    "overridden-name",
+		},
+		{
+			serviceName: "service3",
+			namespace:   "ns3",
+			clusterName: "cluster.3",
+			portName:    "http",
+			annotation:  "overridden-name",
+			expected:    "overridden-name-http",
+		},
+		{
+			serviceName: "service3",
+			namespace:   "ns3",
+			clusterName: "cluster.3",
+			portName:    "http",
+			annotation:  "overridden*name",
+			wantErr:     "s",
 		},
 	}
 
 	for _, tt := range tests {
-		result := getAppName(tt.serviceName, tt.namespace, tt.clusterName, tt.portName)
-
-		require.Equal(t, tt.expected, result)
+		result, err := getAppName(tt.serviceName, tt.namespace, tt.clusterName, tt.portName, tt.annotation)
+		if tt.wantErr != "" {
+			require.ErrorContains(t, err, tt.wantErr)
+		} else {
+			require.Equal(t, tt.expected, result)
+		}
 	}
 }
 

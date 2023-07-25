@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
@@ -173,10 +174,17 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 
 	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 	if err != nil {
-		return nil, trace.Wrap(err, "could not get app rewrite config")
+		return nil, trace.Wrap(err, "could not get app rewrite config for a service")
 	}
+
+	appNameAnnotation := service.GetAnnotations()[types.DiscoveryAppNameLabel]
+	appName, err := getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name, appNameAnnotation)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not create app name for a service")
+	}
+
 	app, err := types.NewAppV3(types.Metadata{
-		Name:        getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name),
+		Name:        appName,
 		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
 		Labels:      getAppLabels(service.GetLabels(), clusterName),
 	}, types.AppSpecV3{
@@ -222,12 +230,26 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 	return &rw, nil
 }
 
-func getAppName(serviceName, namespace, clusterName, portName string) string {
+func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation string) (string, error) {
+	if nameAnnotation != "" {
+		name := nameAnnotation
+		if portName != "" {
+			name = fmt.Sprintf("%s-%s", name, portName)
+		}
+
+		if len(validation.IsDNS1035Label(name)) > 0 {
+			return "", trace.BadParameter(
+				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", name)
+		}
+
+		return name, nil
+	}
+
 	clusterName = strings.ReplaceAll(clusterName, ".", "-")
 	if portName != "" {
-		return fmt.Sprintf("%s-%s-%s-%s", serviceName, portName, namespace, clusterName)
+		return fmt.Sprintf("%s-%s-%s-%s", serviceName, portName, namespace, clusterName), nil
 	}
-	return fmt.Sprintf("%s-%s-%s", serviceName, namespace, clusterName)
+	return fmt.Sprintf("%s-%s-%s", serviceName, namespace, clusterName), nil
 }
 
 func getAppLabels(serviceLabels map[string]string, clusterName string) map[string]string {

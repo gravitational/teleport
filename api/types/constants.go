@@ -613,6 +613,8 @@ const (
 	DiscoveryProtocolLabel = TeleportNamespace + "/protocol"
 	// DiscoveryAppRewriteLabel specifies rewrite rules for a discovered app created from Kubernetes service.
 	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
+	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
+	DiscoveryAppNameLabel = TeleportNamespace + "/app-name"
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
