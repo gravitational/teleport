@@ -396,8 +396,8 @@ func (u *UnifiedResourceWatcher) Close() error {
 func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
 
-	// if the watcher is not initialized, instead of returning nothing, return upstream nodes
-	if !u.IsInitialized() {
+	// if the watcher is not initialized or stale, instead of returning nothing, return upstream nodes
+	if !u.IsInitialized() || u.stale {
 		nodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -457,6 +457,7 @@ type unifiedResourceCollector struct {
 	lock            sync.RWMutex
 	initializationC chan struct{}
 	once            sync.Once
+	stale           bool
 }
 
 func (u *unifiedResourceCollector) Close() error {
@@ -490,6 +491,7 @@ func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Cont
 		return trace.Wrap(err)
 	}
 
+	u.stale = false
 	return nil
 }
 
@@ -576,7 +578,11 @@ func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) err
 	return u.current.PutRange(ctx, desktops)
 }
 
-func (u *unifiedResourceCollector) notifyStale() {}
+func (u *unifiedResourceCollector) notifyStale() {
+	u.lock.Lock()
+	defer u.lock.Unlock()
+	u.stale = true
+}
 
 func (u *unifiedResourceCollector) initializationChan() <-chan struct{} {
 	return u.initializationC
