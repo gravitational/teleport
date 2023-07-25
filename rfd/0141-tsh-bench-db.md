@@ -98,7 +98,10 @@ flexibility for each protocol to require their arguments and flags.
 The "root" command for each protocol will execute the following:
 * Starts a connection with the database (using local proxy);
 * Issue a ping-like query to ensure the connection is working. This also covers
-  drivers that connect only when queries are executed.
+  drivers that connect only when queries are executed. For the initial databases,
+  we'll have the following executed:
+    * PostgreSQL: `SELECT 1;` query.
+    * MySQL: `mysql_ping` command (using `client.Conn.Ping()` function).
 * Closes the connection.
 
 User certificate generation and local proxy start will not affect the final
@@ -129,19 +132,18 @@ sequenceDiagram
 Both PostgreSQL and MySQL will have the same command arguments and flags.
 
 ```code
-tsh bench postgres [--db-user=] [--db-name=] [--uri] [database]
+tsh bench postgres [--db-user=] [--db-name=] [database]
 ```
 
 ```code
-tsh bench mysql [--db-user=] [--db-name=] [--uri] [database]
+tsh bench mysql [--db-user=] [--db-name=] [database]
 ```
 
 | Flag        | Description |
 | ----------- | ----------- |
 | `--db-user` | Database user used to connect to the target database. The user must have enough permissions on the database to execute all the benchmark queries. |
 | `--db-name` | Database name where benchmark queries will be executed. Depending on the database protocol, this isn't required. |
-| `--uri`     | Direct database access URI. When provided, the benchmark will issue connections directly to this database, and no Teleport is involved in the testing. It must contain all the connection information, including authentication credentials. The contents from --db-user and --db-name will be ignored when provided. |
-| `database`  | Teleport target database name. Available databases can be retrieved by running `tsh db ls`. If not provided, the `--uri` flag (for direct database connection) must be present. | 
+| `database`  | Teleport target database name or the direct database URI. Available databases can be retrieved by running `tsh db ls`. When using direct connection, the benchmark will issue connections directly to this database, and no Teleport is involved in the testing. It must contain all the connection information, including authentication credentials. The contents from --db-user and --db-name will be ignored when provided. |
 
 Note: The `--rate` common flag will indicate how many connections per second will be
 established.
@@ -186,6 +188,39 @@ Percentile Response Duration
 95         6775 ms
 99         10567 ms
 100        22783 ms
+
+# Executes 10 connections per second during 30 seconds, exporting the latency
+# profile to the current path.
+$ tsh bench postgres --rate 10 --duration 30s --db-user=postgres --db-name=postgres --export postgres-dev
+
+* Requests originated: 30
+* Requests failed: 0
+
+Histogram
+
+Percentile Response Duration
+---------- -----------------
+25         1346 ms
+50         3535 ms
+75         5259 ms
+90         5847 ms
+95         6663 ms
+99         7271 ms
+100        7311 ms
+latency profile saved: latency_profile_2023-01-01_00:00:00.txt
+
+# Load results from latency profile.
+$ cat latency_profile_2023-01-01_00:00:00.txt
+ Value  Percentile      TotalCount      1/(1-Percentile)
+
+     123.000     0.000000            1         1.00
+     123.000     0.005000            1         1.01
+     123.000     0.010000            1         1.01
+     ...
+     563.000     1.000000           99          inf
+#[Mean    =      225.061, StdDeviation   =      109.519]
+#[Max     =      563.000, Total count    =           99]
+#[Buckets =            6, SubBuckets     =         2048]
 ```
 
 ### Direct database connections
@@ -193,16 +228,15 @@ Directly targeting databases (not through Teleport) can be used by developers
 quickly to generate baseline measures that can be used to determine how much
 overhead Teleport adds compared to raw database connections.
 
-To avoid adding multiple flags to cover the scenarios, there will be a single
-`--uri` flag, which will receive the database URI with all options included.
-This way, users can choose the authentication method that will be used.
+The direct database access will be provided on as the database (instead of a
+Teleport database name).
 
-By providing this flag, the `tsh` will connect directly to the database without
-using any Teleport certificate.
+By providing a database URI, the `tsh` will connect directly to the database
+without using any Teleport certificate.
 
 **Example:**
 ```code
-$ tsh bench postgres --uri "postgres://hello@localhost:5432"
+$ tsh bench postgres "postgres://hello@localhost:5432"
 ```
 
 ### Implementation
