@@ -49,7 +49,7 @@ type config struct {
 // New creates a new memory cache that holds the unified resources
 func NewUnifiedResourceCache(cfg config) (*UnifiedResourceCache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "setting defaults for unified resource cache")
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	buf := backend.NewCircularBuffer(
@@ -380,6 +380,7 @@ type UnifiedResourceWatcherConfig struct {
 	AppServersGetter
 	WindowsDesktopGetter
 	KubernetesClusterGetter
+	SAMLIdpServiceProviderGetter
 }
 
 type UnifiedResourceWatcher struct {
@@ -400,7 +401,7 @@ func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context) ([]typ
 	if !u.IsInitialized() || u.stale {
 		nodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "getting nodes while unified resource cache is uninitialized or stale")
 		}
 
 		for _, node := range nodes {
@@ -411,7 +412,7 @@ func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context) ([]typ
 
 	result, err := u.current.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "getting unified resource range")
 	}
 	for _, item := range result.Items {
 		resources = append(resources, item.Value)
@@ -422,12 +423,12 @@ func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context) ([]typ
 
 func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherConfig) (*UnifiedResourceWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "setting defaults for unified resource watcher config")
 	}
 
 	mem, err := NewUnifiedResourceCache(config{})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating a new unified resource cache")
 	}
 
 	collector := &unifiedResourceCollector{
@@ -438,7 +439,7 @@ func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherCo
 
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating a new unified resource watcher")
 	}
 
 	return &UnifiedResourceWatcher{
@@ -486,6 +487,11 @@ func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Cont
 		return trace.Wrap(err)
 	}
 
+	err = u.getAndUpdateSAMLApps(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = u.getAndUpdateDesktops(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -499,7 +505,7 @@ func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Cont
 func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error {
 	newNodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "getting nodes for unified resource watcher")
 	}
 	nodes := make([]Item, 0)
 	for _, node := range newNodes {
@@ -515,7 +521,7 @@ func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error 
 func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) error {
 	newDbs, err := u.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "getting databases for unified resource watcher")
 	}
 	dbs := make([]Item, 0)
 	for _, db := range newDbs {
@@ -531,7 +537,7 @@ func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) er
 func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error {
 	newKubes, err := u.KubernetesClusterGetter.GetKubernetesClusters(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "getting kubes for unified resource watcher")
 	}
 	kubes := make([]Item, 0)
 	for _, kube := range newKubes {
@@ -547,7 +553,7 @@ func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error 
 func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
 	newApps, err := u.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "getting apps for unified resource watcher")
 	}
 
 	apps := make([]Item, 0)
@@ -560,11 +566,38 @@ func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
 	return u.current.PutRange(ctx, apps)
 }
 
+// getAndUpdateSAMLApps will get SAML Idp Service Providers servers and update the current tree with each SAMLIdpServiceProvider
+func (u *unifiedResourceCollector) getAndUpdateSAMLApps(ctx context.Context) error {
+	var newSAMLApps []Item
+	startKey := ""
+
+	for {
+		resp, nextKey, err := u.SAMLIdpServiceProviderGetter.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
+
+		if err != nil {
+			return trace.Wrap(err, "getting SAML apps for unified resource watcher")
+		}
+		for _, app := range resp {
+			newSAMLApps = append(newSAMLApps, Item{
+				Key:   keyOf(app),
+				Value: app,
+			})
+		}
+		if nextKey == "" {
+			break
+		}
+
+		startKey = nextKey
+	}
+
+	return u.current.PutRange(ctx, newSAMLApps)
+}
+
 // getAndUpdateDesktops will get windows desktops and update the current tree with each Desktop
 func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) error {
 	newDesktops, err := u.WindowsDesktopGetter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "getting desktops for unified resource watcher")
 	}
 
 	desktops := make([]Item, 0)
@@ -615,6 +648,7 @@ func (u *unifiedResourceCollector) resourceKinds() []types.WatchKind {
 		{Kind: types.KindNode},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindAppServer},
+		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubernetesCluster},
 	}

@@ -894,6 +894,10 @@ type AppServersGetter interface {
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 }
 
+type SAMLIdpServiceProviderGetter interface {
+	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
+}
+
 // AppWatcherConfig is an AppWatcher configuration.
 type AppWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
