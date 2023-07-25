@@ -467,6 +467,65 @@ func TestEvaluate(t *testing.T) {
 				`error parsing expression`,
 			},
 		},
+		{
+			desc: "email.local",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `dict(pair("logins", email.local(external.emails)))`),
+			},
+			inputTraits: map[string][]string{
+				"emails": {"Alice <alice@example.com>", "bob@example.com"},
+			},
+			expectedTraits: map[string][]string{
+				"logins": {"alice", "bob"},
+			},
+		},
+		{
+			desc: "bad email",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `dict(pair("logins", email.local(external.emails)))`),
+			},
+			inputTraits: map[string][]string{
+				"emails": {"charlie"},
+			},
+			errorContains: []string{
+				`failed to parse "email.local" argument "charlie":`,
+			},
+		},
+		{
+			desc: "regexp.replace",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `dict(
+					pair("test1", regexp.replace(external.test1, "foo-(.*)", "$1")),
+					pair("test2", regexp.replace(external.test2, "foo-(?P<suffix>.*)", "$suffix")),
+					pair("test3", regexp.replace(external.test3, "foo-(.*)-(.*)", "$1.$2")),
+				)`),
+			},
+			inputTraits: map[string][]string{
+				"test1": {"foo-bar", "foo-baz"},
+				"test2": {"foo-bar", "foo-baz"},
+				"test3": {"foo-bar-baz", "not-matching"},
+			},
+			expectedTraits: map[string][]string{
+				"test1": {"bar", "baz"},
+				"test2": {"bar", "baz"},
+				"test3": {"bar.baz"},
+			},
+		},
+		{
+			desc: "bad regexp",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"logins": {`regexp.replace(external.email, "(.*@example.com", "$1")`},
+				}),
+			},
+			inputTraits: map[string][]string{
+				"email": {"alice@example.com"},
+			},
+			errorContains: []string{
+				"evaluating function (regexp.replace)",
+				`invalid regexp "(.*@example.com"`,
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := Evaluate(tc.rules, &oss.EvaluationInput{Traits: tc.inputTraits})

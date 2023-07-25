@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -74,7 +75,7 @@ func mustLoginRuleParser() *typical.Parser[evaluationEnv, any] {
 					f := func(s string) string {
 						return strings.ReplaceAll(s, match, replacement)
 					}
-					return stringTransform("strings.lower", input, f)
+					return stringTransform("strings.replaceall", input, f)
 				}),
 			"choose": typical.UnaryVariadicFunction[evaluationEnv](
 				func(opts ...option) (any, error) {
@@ -83,6 +84,22 @@ func mustLoginRuleParser() *typical.Parser[evaluationEnv, any] {
 			"option": typical.BinaryFunction[evaluationEnv](
 				func(cond bool, v any) (option, error) {
 					return option{cond, v}, nil
+				}),
+			"email.local": typical.UnaryFunction[evaluationEnv](
+				func(emails set) (set, error) {
+					locals, err := parse.EmailLocal(emails.items())
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					return newSet(locals...), nil
+				}),
+			"regexp.replace": typical.TernaryFunction[evaluationEnv](
+				func(inputs set, match string, replacement string) (set, error) {
+					replaced, err := parse.RegexpReplace(inputs.items(), match, replacement)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					return newSet(replaced...), nil
 				}),
 		},
 		Methods: map[string]typical.Function{
