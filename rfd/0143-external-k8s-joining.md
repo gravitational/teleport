@@ -214,6 +214,34 @@ This flow leverages the follow gRPC RPCs and Protobuf messages:
 
 ```protobuf
 syntax = "proto3";
+
+package proto;
+
+message RegisterUsingKubernetesRemoteMethodRequest {
+  oneof payload {
+    // register_using_token_request holds registration parameters common to all
+    // join methods.
+    types.RegisterUsingTokenRequest register_using_token_request = 1;
+    // jwt is the solution to the registration challenge-response. It is a
+    // JWT issued by the Kubernetes CA containing the challenge audience sent by
+    // the Auth Server.
+    string jwt = 2;
+  }
+}
+
+message RegisterUsingKubernetesRemoteMethodResponse {
+  oneof payload {
+    // challenge_audience is the audience that the client should use when
+    // calling the Kubernetes API TokenRequest method.
+    string challenge_audience = 1;
+    // certs is the returned signed certs if registration succeeds.
+    Certs certs = 2;
+  }
+}
+
+service JoinService {
+  rpc RegisterUsingKubernetesRemote(stream RegisterUsingKubernetesRemoteMethodRequest) returns (stream RegisterUsingKubernetesRemoteMethodResponse);
+}
 ```
 
 ## Security Considerations
