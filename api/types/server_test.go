@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -105,6 +106,35 @@ func TestServerSorter(t *testing.T) {
 func TestServerCheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 
+	makeOpenSSHEC2InstanceConnectEndpointNode := func(fn func(s *ServerV2)) *ServerV2 {
+		s := &ServerV2{
+			Kind:    KindNode,
+			SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
+			Version: V2,
+			Metadata: Metadata{
+				Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+				Namespace: defaults.Namespace,
+			},
+			Spec: ServerSpecV2{
+				Addr:     "example:22",
+				Hostname: "openssh-node",
+				CloudMetadata: &CloudMetadata{
+					AWS: &AWSInfo{
+						AccountID:   "123456789012",
+						InstanceID:  "i-123456789012",
+						Region:      "us-east-1",
+						VPCID:       "vpc-abcd",
+						Integration: "teleportdev",
+					},
+				},
+			},
+		}
+		if fn != nil {
+			fn(s)
+		}
+		return s
+	}
+
 	tests := []struct {
 		name      string
 		server    *ServerV2
@@ -176,6 +206,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					},
 				}
 				require.Equal(t, expectedServer, s)
+				require.False(t, s.IsOpenSSHNode(), "IsOpenSSHNode must be false for this node")
 			},
 		},
 		{
@@ -242,6 +273,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					},
 				}
 				require.Equal(t, expectedServer, s)
+				require.True(t, s.IsOpenSSHNode(), "IsOpenSSHNode must be true for this node")
 			},
 		},
 		{
@@ -258,6 +290,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			assertion: func(t *testing.T, s *ServerV2, err error) {
 				require.NoError(t, err)
 				require.NotEmpty(t, s.Metadata.Name)
+				require.True(t, s.IsOpenSSHNode(), "IsOpenSSHNode must be true for this node")
 			},
 		},
 		{
@@ -275,7 +308,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `Addr must be set when server SubKind is "openssh"`)
+				require.ErrorContains(t, err, "addr must be set")
 			},
 		},
 		{
@@ -293,7 +326,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `Hostname must be set when server SubKind is "openssh"`)
+				require.ErrorContains(t, err, "hostname must be set")
 			},
 		},
 		{
@@ -313,7 +346,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `PublicAddrs must not be set when server SubKind is "openssh"`)
+				require.ErrorContains(t, err, "publicAddrs must not be set")
 			},
 		},
 		{
@@ -352,6 +385,137 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
 				require.EqualError(t, err, `invalid SubKind "invalid-subkind"`)
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint node without cloud metadata",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata = nil
+			}),
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "missing AWS CloudMetadata")
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint node with cloud metadata but missing aws info",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS = nil
+			}),
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "missing AWS CloudMetadata")
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing accountid",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS.AccountID = ""
+			}),
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "missing AWS Account ID")
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing instanceid",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS.InstanceID = ""
+			}),
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "missing AWS InstanceID")
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing region",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(func(s *ServerV2) {
+				s.Spec.CloudMetadata.AWS.Region = ""
+			}),
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "missing AWS Region")
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing vpc id",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "example:22",
+					Hostname: "openssh-node",
+					CloudMetadata: &CloudMetadata{
+						AWS: &AWSInfo{
+							AccountID:   "123456789012",
+							InstanceID:  "i-123456789012",
+							Region:      "us-east-1",
+							Integration: "teleportdev",
+						},
+					},
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "missing AWS VPC ID")
+			},
+		},
+		{
+			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing integration",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "example:22",
+					Hostname: "openssh-node",
+					CloudMetadata: &CloudMetadata{
+						AWS: &AWSInfo{
+							AccountID:  "123456789012",
+							InstanceID: "i-123456789012",
+							Region:     "us-east-1",
+							VPCID:      "vpc-abcd",
+						},
+					},
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.ErrorContains(t, err, "missing AWS OIDC Integration")
+			},
+		},
+		{
+			name:   "valid OpenSSHEC2InstanceConnectEndpoint node",
+			server: makeOpenSSHEC2InstanceConnectEndpointNode(nil),
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.NoError(t, err)
+				expectedServer := &ServerV2{
+					Kind:    KindNode,
+					SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
+					Version: V2,
+					Metadata: Metadata{
+						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+						Namespace: defaults.Namespace,
+					},
+					Spec: ServerSpecV2{
+						Addr:     "example:22",
+						Hostname: "openssh-node",
+						CloudMetadata: &CloudMetadata{
+							AWS: &AWSInfo{
+								AccountID:   "123456789012",
+								InstanceID:  "i-123456789012",
+								Region:      "us-east-1",
+								VPCID:       "vpc-abcd",
+								Integration: "teleportdev",
+							},
+						},
+					},
+				}
+				assert.Equal(t, expectedServer, s)
+
+				require.True(t, s.IsOpenSSHNode(), "IsOpenSSHNode must be true for this node")
 			},
 		},
 	}

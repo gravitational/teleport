@@ -36,9 +36,10 @@ import TeleportContext from 'teleport/teleportContext';
 
 import { makeUserContext } from 'teleport/services/user';
 
-import { UserContextProvider } from 'teleport/User';
-
 import { ThemePreference } from 'teleport/services/userPreferences/types';
+
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
 import { UserMenuNav } from './UserMenuNav';
 
@@ -54,6 +55,8 @@ const server = setupServer(
 );
 
 beforeAll(() => server.listen());
+
+beforeEach(() => mockUserContextProviderWith(makeTestUserContext()));
 
 afterEach(() => server.resetHandlers());
 
@@ -94,11 +97,9 @@ function render(path: string) {
   testingRender(
     <MemoryRouter initialEntries={[path]}>
       <TeleportContextProvider ctx={ctx}>
-        <UserContextProvider>
-          <FeaturesContextProvider value={getOSSFeatures()}>
-            <UserMenuNav username="llama" />
-          </FeaturesContextProvider>
-        </UserContextProvider>
+        <FeaturesContextProvider value={getOSSFeatures()}>
+          <UserMenuNav username="llama" />
+        </FeaturesContextProvider>
       </TeleportContextProvider>
     </MemoryRouter>
   );

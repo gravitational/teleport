@@ -2335,13 +2335,9 @@ func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID,
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	roles := utils.SplitIdentifiers(cf.DesiredRoles)
 	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-	var requestedResourceIDs []types.ResourceID
-	for _, resourceIDString := range cf.RequestedResourceIDs {
-		resourceID, err := types.ResourceIDFromString(resourceIDString)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		requestedResourceIDs = append(requestedResourceIDs, resourceID)
+	requestedResourceIDs, err := types.ResourceIDsFromStrings(cf.RequestedResourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 	if err != nil {
@@ -3172,7 +3168,7 @@ func onSSH(cf *CLIConf) error {
 		}
 		if err != nil {
 			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
 		}
 		err = &common.ExitCodeError{Code: tc.ExitStatus}
 		return trace.Wrap(err)
