@@ -114,10 +114,10 @@ teleport:
 
 We recommend using [IBM Cloud Object Storage](https://www.ibm.com/cloud/object-storage) to store Teleport recorded sessions.
 
-1. Create New Object Storage Resource. [IBM Catalog - Object Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/object-storage)
-2. Create a new bucket.
-3. Set up [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
-4. Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
+- Create New Object Storage Resource. [IBM Catalog - Object Storage Quick Link](https://cloud.ibm.com/catalog/infrastructure/object-storage)
+- Create a new bucket.
+- Set up [HMAC Credentials](https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main)
+- Update audit sessions URI: `audit_sessions_uri: 's3://BUCKET-NAME/readonly/records?endpoint=s3.us-east.cloud-object-storage.appdomain.cloud&region=ibm'`
 
 When setting up `audit_sessions_uri` use `s3://` session prefix.
 

@@ -38,9 +38,9 @@ Consider a company using [Okta](https://www.okta.com/) to authenticate users and
 them into groups. A typical deployment of Teleport in this scenario
 would involve:
 
-1. Configuring Teleport to use existing user identities stored in Okta.
-2. Okta would have users placed in certain groups, perhaps `developers`, `admins`, `contractors`, and so on.
-3. Teleport would have certain Teleport *Roles* defined: `developers` and `admins`.
-4. Mappings would connect the Okta groups (SAML assertions) to the defined Teleport roles.
+- Configuring Teleport to use existing user identities stored in Okta.
+- Okta would have users placed in certain groups, perhaps `developers`, `admins`, `contractors`, and so on.
+- Teleport would have certain Teleport *Roles* defined: `developers` and `admins`.
+- Mappings would connect the Okta groups (SAML assertions) to the defined Teleport roles.
 
 Every Teleport user will be assigned a Teleport role based on their Okta group membership.

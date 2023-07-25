@@ -33,31 +33,31 @@ Before you get started you’ll need:
 
    ![Select Enterprise Applications From Manage](../../../img/azuread/azuread-1-home.png)
 
-2. Select **New application**
+1. Select **New application**
 
    ![Select New Applications From Manage](../../../img/azuread/azuread-2-newapp.png)
 
-3. Select a **Non-gallery application**
+1. Select a **Non-gallery application**
 
    ![Select Non-gallery application](../../../img/azuread/azuread-3-selectnongalleryapp.png)
 
-4. Enter the display name (e.g, Teleport)
+1. Enter the display name (e.g, Teleport)
 
    ![Enter application name](../../../img/azuread/azuread-4-enterappname.png)
 
-5. Select **Properties** under **Manage** and set **User assignment required?** to **No**
+1. Select **Properties** under **Manage** and set **User assignment required?** to **No**
 
-![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
+   ![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
 
-6. Select **Single sign-on** under **Manage** and choose **SAML**
+1. Select **Single sign-on** under **Manage** and choose **SAML**
 
    ![Select SAML](../../../img/azuread/azuread-6-selectsaml.png)
 
-7. Edit the **Basic SAML Configuration**
+1. Edit the **Basic SAML Configuration**
 
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-7-editbasicsaml.png)
 
-8. For **Entity ID** and **Reply URL**, enter the same proxy URL.
+1. For **Entity ID** and **Reply URL**, enter the same proxy URL.
 
    For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs/connectorName`.
 
@@ -65,7 +65,7 @@ Before you get started you’ll need:
 
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-8-entityandreplyurl.png)
 
-9. Edit **User Attributes & Claims**
+1. Edit **User Attributes & Claims**
 
    - Edit the claim name.
    - Change the name identifier format to **Default**. Make sure the source attribute is `user.userprincipalname`.
@@ -80,9 +80,9 @@ Before you get started you’ll need:
 
    ![Add a transformed username](../../../img/azuread/azuread-9c-usernameclaim.png)
 
-10. In **SAML Signing Certificate**, click the link to download the **Federation Metadata XML**.
+1. In **SAML Signing Certificate**, click the link to download the **Federation Metadata XML**.
 
-    ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
+   ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
 
 <Admonition
   type="warning"
