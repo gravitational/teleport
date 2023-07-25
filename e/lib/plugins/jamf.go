@@ -12,11 +12,6 @@ import (
 
 // jamfInstanceFactory creates a Jamf service based on the plugin specification.
 func jamfInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
-	spec := plugin.Spec.GetJamf()
-	if spec == nil {
-		return nil, trace.BadParameter("field Spec.Jamf must be present")
-	}
-
 	if len(deps.staticCredentials) == 0 {
 		return nil, trace.BadParameter("static credentials must be present")
 	}
@@ -27,11 +22,17 @@ func jamfInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("username or password empty")
 	}
 
-	spec.JamfSpec.Username = username
-	spec.JamfSpec.Password = password
+	jamfSettings := plugin.Spec.GetJamf()
+	if jamfSettings == nil {
+		return nil, trace.BadParameter("field Spec.Jamf must be present")
+	}
+	// Assign credential to a new variable so that the parent plugin instance (without credential) remains unchanged.
+	jamfSpec := *jamfSettings.JamfSpec
+	jamfSpec.Username = username
+	jamfSpec.Password = password
 
 	return func() error {
-		closeEvent, err := services.JamfPluginInit(deps.lifetime, deps.parentProcess, spec.JamfSpec, plugin.GetName(), deps.HTTPClient)
+		closeEvent, err := services.JamfPluginInit(deps.lifetime, deps.parentProcess, deps.HTTPClient, deps.statusSink, &jamfSpec)
 		if err != nil {
 			return trace.Wrap(err)
 		}

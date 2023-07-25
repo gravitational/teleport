@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -9,8 +10,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	jamf "github.com/gravitational/teleport/e/lib/jamf"
 	jamfservice "github.com/gravitational/teleport/e/lib/jamf/service"
 	ent "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -49,12 +52,12 @@ func JamfStandaloneInit(process *service.TeleportProcess, httpClient *http.Clien
 	process.RegisterCriticalFunc("jamf.init", func() error {
 		ctx, cancel := context.WithCancel(process.ExitContext())
 		defer cancel()
-		return startJamfService(ctx, process, httpClient)
+		return startJamfService(ctx, process, httpClient, nil /* plugin statusSink */)
 	})
 	return nil
 }
 
-func startJamfService(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client) error {
+func startJamfService(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink) error {
 	// Register our request for MDM credentials.
 	process.RegisterWithAuthServer(types.RoleMDM, jamfIdentityEvent)
 
@@ -83,14 +86,30 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 	}
 
 	s, err := jamfservice.New(ctx, jamfservice.Opts{
-		Clock:         process.Clock,
-		Logger:        logger,
-		Config:        &process.Config.Jamf,
-		DevicesClient: conn.Client.DevicesClient(),
-		HTTPClient:    httpClient,
+		Clock:            process.Clock,
+		Logger:           logger,
+		Config:           &process.Config.Jamf,
+		DevicesClient:    conn.Client.DevicesClient(),
+		HTTPClient:       httpClient,
+		PluginStatusSink: statusSink,
 	})
 	if err != nil {
+		// Update plugin status if the service is running as a plugin.
+		if statusSink != nil {
+			switch {
+			case errors.Is(err, jamf.ErrJamfClientInvalidCredential):
+				statusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_UNAUTHORIZED})
+			default:
+				statusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
+			}
+		}
+
 		return trace.Wrap(err)
+	}
+
+	// Update plugin status if the service is running as a plugin.
+	if statusSink != nil {
+		statusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_RUNNING})
 	}
 
 	// Broadcast that we are ready and start.
@@ -120,7 +139,7 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 // JamfPluginInit initializes hosted Jamf service (hosted plugin).
 // Use [JamfStandaloneInit] to run the Jamf service as a standalone service.
 // Returns immediately.
-func JamfPluginInit(ctx context.Context, process *service.TeleportProcess, jamfSpec *types.JamfSpecV1, pluginName string, httpClient *http.Client) (string, error) {
+func JamfPluginInit(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink, jamfSpec *types.JamfSpecV1) (string, error) {
 	if process == nil {
 		return "", trace.BadParameter("process required")
 	}
@@ -135,7 +154,7 @@ func JamfPluginInit(ctx context.Context, process *service.TeleportProcess, jamfS
 
 	// We don't want auth process to exit due to faulty jamf config.
 	process.RegisterFunc("jamf.init", func() error {
-		return startJamfService(ctx, process, httpClient)
+		return startJamfService(ctx, process, httpClient, statusSink)
 	})
 
 	return EventWithComponents(JamfStoppedEvent), nil

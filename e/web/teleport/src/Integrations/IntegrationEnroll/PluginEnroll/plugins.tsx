@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { Link as ReactRouterLink } from 'react-router-dom';
 
 import { Text, Link } from 'design';
 import CardError from 'design/CardError';
@@ -324,7 +325,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     type: 'jamf',
     name: 'Jamf',
     icon: JamfIcon,
-    url: 'https://goteleport.com/docs/access-controls/guides/device-trust/?scope=enterprise',
+    url: 'https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise',
     hosted: true,
     fullName: 'Jamf Integration for Device Trust',
     Description: () => (
@@ -334,8 +335,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
           devices in your Jamf inventory. For more details, see our docs page
           about{' '}
           <Link
-            // TODO(sshah): update link when we have a dedicated Jamf page
-            href="https://goteleport.com/docs/access-controls/guides/device-trust/?scope=enterprise"
+            href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
             target="_blank"
           >
             Device Trust and the Jamf Integration.
@@ -410,8 +410,10 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
         <Text typography="body1">
           Jamf plugin is configured for your cluster. Depending on the size of
           your Jamf inventory, it may take a few minutes to sync with{' '}
-          <Link href={cfg.routes.deviceTrust}>Trusted Devices</Link> in
-          Teleport.
+          <ReactRouterLink to={cfg.routes.deviceTrust}>
+            Trusted Devices
+          </ReactRouterLink>{' '}
+          in Teleport.
         </Text>
       );
     },

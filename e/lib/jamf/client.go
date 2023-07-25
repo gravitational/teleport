@@ -16,6 +16,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// ErrJamfClientInvalidCredential is returned by Jamf client when the Jamf API credentials are invalid.
+var ErrJamfClientInvalidCredential = errors.New("invalid Jamf API credentials")
+
 // Client is the Jamf API client.
 // It automatically manages authentication and refreshes existing bearer tokens,
 // as appropriate.
@@ -115,9 +118,9 @@ func (c *Client) verifyCredentials(ctx context.Context) error {
 	_ = errors.As(err, &apiError)
 
 	switch {
-	case apiError.StatusCode == 401:
-		return trace.BadParameter("invalid Jamf API credentials")
-	case apiError.StatusCode == 404 && !strings.HasSuffix(c.baseURL, "/api"):
+	case apiError.StatusCode == http.StatusUnauthorized:
+		return trace.Wrap(ErrJamfClientInvalidCredential)
+	case apiError.StatusCode == http.StatusNotFound && !strings.HasSuffix(c.baseURL, "/api"):
 		c.baseURL += "/api"
 		return c.verifyCredentials(ctx)
 	default:
@@ -149,7 +152,7 @@ func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
 		c.logger.WithError(err).Warn("Jamf API: Failed to close http.Response body")
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return &APIError{
 			StatusCode: resp.StatusCode,
 			RawBody:    string(body),

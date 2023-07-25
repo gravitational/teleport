@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/mdm"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -70,15 +71,18 @@ type S struct {
 	devices   devicepb.DeviceTrustServiceClient
 	jamf      *jamf.Client
 	scheduler *mdm.SyncScheduler[*scheduleEntry]
+	// pluginStatusSink is only used when Jamf service is run as a hosted plugin in cloud.
+	pluginStatusSink common.StatusSink
 }
 
 // Opts are creation options from [S].
 type Opts struct {
-	Clock         clockwork.Clock
-	Logger        log.FieldLogger
-	Config        *servicecfg.JamfConfig
-	DevicesClient devicepb.DeviceTrustServiceClient
-	HTTPClient    *http.Client
+	Clock            clockwork.Clock
+	Logger           log.FieldLogger
+	Config           *servicecfg.JamfConfig
+	DevicesClient    devicepb.DeviceTrustServiceClient
+	HTTPClient       *http.Client
+	PluginStatusSink common.StatusSink
 }
 
 // New creates a new [S] instance.
@@ -144,12 +148,13 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 	}
 
 	s := &S{
-		logger:    logger,
-		clock:     clock,
-		config:    &cfg,
-		devices:   opts.DevicesClient,
-		jamf:      jamfClient,
-		scheduler: scheduler,
+		logger:           logger,
+		clock:            clock,
+		config:           &cfg,
+		devices:          opts.DevicesClient,
+		jamf:             jamfClient,
+		scheduler:        scheduler,
+		pluginStatusSink: opts.PluginStatusSink,
 	}
 	if err := s.verifyInventoryFilters(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -265,7 +270,15 @@ func (s *S) Run(ctx context.Context) error {
 			).Inc()
 			if err != nil {
 				s.logger.WithError(err).Warn("Jamf inventory sync attempt failed")
+				if s.pluginStatusSink != nil {
+					s.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
+				}
 				continue
+			}
+
+			// Emit PluginStatusCode_RUNNING after each successful sync.
+			if s.pluginStatusSink != nil {
+				s.pluginStatusSink.Emit(ctx, &types.PluginStatusV1{Code: types.PluginStatusCode_RUNNING})
 			}
 
 			// Update cut time.
