@@ -25,27 +25,27 @@ import (
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
 func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context) (watcher types.Watcher, close func(), err error) {
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+	clusterClient, err := c.clusterClient.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
-		proxyClient.Close()
+		clusterClient.Close()
 		return nil, nil, trace.Wrap(err)
 	}
 
 	watcher, err = rootClient.WatchPendingHeadlessAuthentications(ctx)
 	if err != nil {
-		proxyClient.Close()
+		clusterClient.Close()
 		rootClient.Close()
 		return nil, nil, trace.Wrap(err)
 	}
 
 	close = func() {
 		watcher.Close()
-		proxyClient.Close()
+		clusterClient.Close()
 		rootClient.Close()
 	}
 
@@ -56,13 +56,13 @@ func (c *Cluster) WatchPendingHeadlessAuthentications(ctx context.Context) (watc
 // MFA will be prompted when updating to the approve state.
 func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, headlessID string, state types.HeadlessAuthenticationState) error {
 	err := AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err := c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}

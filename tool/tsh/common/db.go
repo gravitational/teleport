@@ -205,7 +205,6 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			mu.Unlock()
 
 			return nil
-
 		})
 	}
 

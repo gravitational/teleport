@@ -1875,13 +1875,13 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
-	proxyClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, key)
+	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
 		rootAuthClient.Close()
-		proxyClient.Close()
+		clusterClient.Close()
 	}()
 
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
@@ -1989,7 +1989,7 @@ func onLogin(cf *CLIConf) error {
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
 	// with a message like "run 'tsh alerts ls' to view N additional alerts".
-	if err := common.ShowClusterAlerts(cf.Context, proxyClient.CurrentCluster(), os.Stderr, map[string]string{
+	if err := common.ShowClusterAlerts(cf.Context, clusterClient.CurrentCluster(), os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
 	}, types.AlertSeverity_LOW); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
@@ -2981,16 +2981,15 @@ func onListClusters(cf *CLIConf) error {
 	var rootClusterName string
 	var leafClusters []types.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return err
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		var rootErr, leafErr error
-		rootClusterName, rootErr = proxyClient.RootClusterName(cf.Context)
-		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
-		return trace.NewAggregate(rootErr, leafErr)
+		rootClusterName = clusterClient.RootClusterName()
+		leafClusters, err = clusterClient.GetLeafClusters(cf.Context)
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4369,13 +4368,13 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 		return trace.BadParameter("cannot re-initialize accessRequestWatcher")
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	w.closers = append(w.closers, proxyClient)
+	w.closers = append(w.closers, clusterClient)
 
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

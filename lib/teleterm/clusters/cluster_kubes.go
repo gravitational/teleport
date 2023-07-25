@@ -42,10 +42,10 @@ type Kube struct {
 // GetKubes returns a paginated kubes list
 func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKubesResponse, error) {
 	var (
-		page        apiclient.ResourcePage[types.KubeCluster]
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
+		page          apiclient.ResourcePage[types.KubeCluster]
+		authClient    auth.ClientI
+		clusterClient *client.ClusterClient
+		err           error
 	)
 
 	req := &proto.ListResourcesRequest{
@@ -60,13 +60,13 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err = c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err = clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}

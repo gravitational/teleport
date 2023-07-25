@@ -42,10 +42,10 @@ type Server struct {
 // GetServers returns a paginated list of servers.
 func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*GetServersResponse, error) {
 	var (
-		page        apiclient.ResourcePage[types.Server]
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
+		page          apiclient.ResourcePage[types.Server]
+		authClient    auth.ClientI
+		clusterClient *client.ClusterClient
+		err           error
 	)
 
 	req := &proto.ListResourcesRequest{
@@ -60,13 +60,13 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err = c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err = clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}

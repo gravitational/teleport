@@ -45,19 +45,19 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 	var (
 		request         types.AccessRequest
 		resourceDetails map[string]ResourceDetails
-		proxyClient     *client.ProxyClient
+		clusterClient   *client.ClusterClient
 		authClient      auth.ClientI
 		err             error
 	)
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err = c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		requests, err := proxyClient.GetAccessRequests(ctx, req)
+		requests, err := clusterClient.GetAccessRequests(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -69,7 +69,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 		}
 		request = requests[0]
 
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err = clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -162,7 +162,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 	var (
 		err            error
 		authClient     auth.ClientI
-		proxyClient    *client.ProxyClient
+		clusterClient  *client.ClusterClient
 		updatedRequest types.AccessRequest
 	)
 
@@ -172,13 +172,13 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err = c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err = clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -210,19 +210,19 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 
 func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) error {
 	var (
-		err         error
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
+		err           error
+		authClient    auth.ClientI
+		clusterClient *client.ClusterClient
 	)
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err = c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err = clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}

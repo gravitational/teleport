@@ -51,15 +51,24 @@ func (c *ClusterClient) ClusterName() string {
 	return c.cluster
 }
 
+// RootClusterName returns the name of the root cluster.
+func (c *ClusterClient) RootClusterName() string {
+	return c.root
+}
+
 // CurrentCluster returns an authenticated auth server client for the local cluster.
+// The returned auth server client does not need to be closed, it will be closed
+// when the ClusterClient is closed.
 func (c *ClusterClient) CurrentCluster() auth.ClientI {
 	// The auth.ClientI is wrapped in an sharedAuthClient to prevent callers from
 	// being able to close the client. The auth.ClientI is only to be closed
-	// when the ProxyClient is closed.
+	// when the ClusterClient is closed.
 	return sharedAuthClient{ClientI: c.authClient}
 }
 
-func (c *ClusterClient) RootCluster(ctx context.Context) (auth.ClientI, error) {
+// ConnectToRootCluster connects to the auth server of the root cluster
+// via proxy. It returns connected and authenticated auth server client.
+func (c *ClusterClient) ConnectToRootCluster(ctx context.Context) (auth.ClientI, error) {
 	root, err := c.ConnectToCluster(ctx, c.root)
 	return root, trace.Wrap(err)
 }
@@ -73,6 +82,28 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 	clientConfig := c.ClientConfig(ctx, clusterName)
 	authClient, err := auth.NewClient(clientConfig)
 	return authClient, trace.Wrap(err)
+}
+
+// GetLeafClusters returns the leaf/remote clusters.
+func (c *ClusterClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"clusterClient/GetLeafClusters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", c.cluster),
+		),
+	)
+	defer span.End()
+
+	clt, err := c.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	remoteClusters, err := clt.GetRemoteClusters()
+	return remoteClusters, trace.Wrap(err)
 }
 
 // Close terminates the connections to Auth and Proxy.
@@ -205,7 +236,13 @@ func (c *ClusterClient) reissueUserCerts(ctx context.Context, cachePolicy CertCa
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := c.authClient.GenerateUserCerts(ctx, *req)
+	authClient, err := c.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	certs, err := authClient.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -237,6 +274,7 @@ func (c *ClusterClient) reissueUserCerts(ctx context.Context, cachePolicy CertCa
 	case proto.UserCertsRequest_WindowsDesktop:
 		key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
 	}
+
 	return key, nil
 }
 
@@ -565,7 +603,7 @@ func (c *ClusterClient) CreateAppSession(ctx context.Context, req types.CreateAp
 	)
 	defer span.End()
 
-	authClient, err := c.RootCluster(ctx)
+	authClient, err := c.ConnectToRootCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -597,7 +635,7 @@ func (c *ClusterClient) GetAppSession(ctx context.Context, req types.GetAppSessi
 	)
 	defer span.End()
 
-	authClient, err := c.RootCluster(ctx)
+	authClient, err := c.ConnectToRootCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -617,7 +655,7 @@ func (c *ClusterClient) DeleteAppSession(ctx context.Context, sessionID string) 
 	)
 	defer span.End()
 
-	authClient, err := c.RootCluster(ctx)
+	authClient, err := c.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

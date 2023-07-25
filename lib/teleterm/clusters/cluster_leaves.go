@@ -42,13 +42,13 @@ type LeafCluster struct {
 func (c *Cluster) GetLeafClusters(ctx context.Context) ([]LeafCluster, error) {
 	var remoteClusters []types.RemoteCluster
 	err := AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err := c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		remoteClusters, err = proxyClient.GetLeafClusters(ctx)
+		remoteClusters, err = clusterClient.GetLeafClusters(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}

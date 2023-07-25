@@ -444,11 +444,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	key, err := teleportClient.Login(ctx)
 	require.NoError(t, err, "Login failed")
 
-	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, key)
+	clusterClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, key)
 	require.NoError(t, err, "Connecting to the root cluster failed")
 	t.Cleanup(func() {
 		require.NoError(t, rootAuthClient.Close())
-		require.NoError(t, proxyClient.Close())
+		require.NoError(t, clusterClient.Close())
 	})
 
 	// Prepare "device aware" certificates from key.
@@ -556,11 +556,11 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			}, nil
 		})
 
-		proxyClient, err := teleportClient.ConnectToProxy(ctx)
+		clusterClient, err := teleportClient.ConnectToCluster(ctx)
 		require.NoError(t, err)
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 		require.NoError(t, err)
 		defer rootAuthClient.Close()
 

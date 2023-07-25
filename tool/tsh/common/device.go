@@ -87,13 +87,13 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 	var dev *devicepb.Device
 	ctx := cf.Context
 	if err := client.RetryWithRelogin(ctx, teleportClient, func() error {
-		proxyClient, err := teleportClient.ConnectToProxy(ctx)
+		clusterClient, err := teleportClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err := proxyClient.ConnectToRootCluster(ctx)
+		authClient, err := clusterClient.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}

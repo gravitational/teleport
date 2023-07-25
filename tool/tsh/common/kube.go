@@ -107,14 +107,15 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 }
 
 func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.TeleportClient) (types.SessionTracker, error) {
-	proxy, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clusterClient.Close()
 
-	site := proxy.CurrentCluster()
-
-	return site.GetSessionTracker(ctx, c.session)
+	site := clusterClient.CurrentCluster()
+	tracker, err := site.GetSessionTracker(ctx, c.session)
+	return tracker, trace.Wrap(err)
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
@@ -520,12 +521,13 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxy, err := tc.ConnectToProxy(cf.Context)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer clusterClient.Close()
 
-	site := proxy.CurrentCluster()
+	site := clusterClient.CurrentCluster()
 	sessions, err := site.GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1244,16 +1246,13 @@ Use the kubeconfig provided by the local proxy, select a context, and try 'kubec
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
-		pc, err := tc.ConnectToProxy(ctx)
+		cc, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer pc.Close()
+		defer cc.Close()
 
-		ac := pc.CurrentCluster()
-		defer ac.Close()
-
-		teleportCluster = pc.ClusterName()
+		ac := cc.CurrentCluster()
 		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, ac, proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
@@ -1262,6 +1261,8 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		teleportCluster = cc.ClusterName()
 
 		return nil
 	})

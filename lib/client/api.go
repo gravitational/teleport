@@ -1466,13 +1466,13 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	clt, err := proxyClient.ConnectToRootCluster(ctx)
+	clt, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4093,7 +4093,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 // ConnectToRootCluster activates the provided key and connects to the
 // root cluster with its credentials.
-func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ProxyClient, auth.ClientI, error) {
+func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*ClusterClient, auth.ClientI, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToRootCluster",
@@ -4105,21 +4105,21 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *Key) (*
 		return nil, nil, trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
-		return nil, nil, trace.NewAggregate(err, proxyClient.Close())
+		return nil, nil, trace.NewAggregate(err, clusterClient.Close())
 	}
 
 	if err := tc.UpdateTrustedCA(ctx, rootAuthClient); err != nil {
-		return nil, nil, trace.NewAggregate(err, rootAuthClient.Close(), proxyClient.Close())
+		return nil, nil, trace.NewAggregate(err, rootAuthClient.Close(), clusterClient.Close())
 	}
 
-	return proxyClient, rootAuthClient, nil
+	return clusterClient, rootAuthClient, nil
 }
 
 // activateKey saves the target session cert into the local
@@ -4258,14 +4258,14 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
 	}
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
+	clt, err := clusterClient.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5116,13 +5116,13 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.BadParameter("proxy server is not specified")
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

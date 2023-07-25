@@ -86,13 +86,13 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 	)
 
 	err := AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err := c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err := clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -178,14 +178,14 @@ func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAcc
 func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	var roles []*types.Role
 	err := AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err := c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
 		for _, name := range c.status.Roles {
-			role, err := proxyClient.GetRole(ctx, name)
+			role, err := clusterClient.GetRole(ctx, name)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -204,10 +204,10 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
 func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*types.AccessCapabilities, error) {
 	var (
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
-		response    *types.AccessCapabilities
+		authClient    auth.ClientI
+		clusterClient *client.ClusterClient
+		err           error
+		response      *types.AccessCapabilities
 	)
 
 	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
@@ -221,13 +221,13 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err = c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err = clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}

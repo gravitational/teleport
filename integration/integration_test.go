@@ -7627,7 +7627,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		teleport.StopAll()
 	})
 
-	client, err := teleport.NewClient(helpers.ClientConfig{
+	tc, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
@@ -7636,13 +7636,28 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 
 	// Create SFTP session.
 	ctx := context.Background()
-	proxyClient, err := client.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		proxyClient.Close()
+		clusterClient.Close()
 	})
 
-	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
+	conn, details, err := clusterClient.DialHost(ctx, teleport.SSH, helpers.Site, tc.LocalAgent().ExtendedAgent)
+	require.NoError(t, err)
+
+	sshConfig := clusterClient.SSHConfig(suite.Me.Username)
+	nodeDetails := client.NodeDetails{
+		Addr:      teleport.SSH,
+		Namespace: defaults.Namespace,
+		Cluster:   helpers.Site,
+	}
+	nodeClient, err := client.NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		nodeClient.Close()
+	})
+
+	sftpClient, err := sftp.NewClient(nodeClient.Client.Client)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, sftpClient.Close())

@@ -30,24 +30,30 @@ import (
 )
 
 // the key should not include HKEY_CURRENT_USER
-const puttyRegistryKey = `SOFTWARE\SimonTatham\PuTTY`
-const puttyRegistrySessionsKey = puttyRegistryKey + `\Sessions`
-const puttyRegistrySSHHostCAsKey = puttyRegistryKey + `\SshHostCAs`
+const (
+	puttyRegistryKey           = `SOFTWARE\SimonTatham\PuTTY`
+	puttyRegistrySessionsKey   = puttyRegistryKey + `\Sessions`
+	puttyRegistrySSHHostCAsKey = puttyRegistryKey + `\SshHostCAs`
+)
 
 // strings
 const puttyProtocol = `ssh`
 
 // ints
-const puttyDefaultSSHPort = 3022
-const puttyDefaultProxyPort = 0 // no need to set the proxy port as it's abstracted by `tsh proxy ssh`
+const (
+	puttyDefaultSSHPort   = 3022
+	puttyDefaultProxyPort = 0 // no need to set the proxy port as it's abstracted by `tsh proxy ssh`
+)
 
 // dwords
-const puttyDwordPresent = `00000001`
-const puttyDwordProxyMethod = `00000005`    // run a local command
-const puttyDwordProxyLogToTerm = `00000002` // only until session starts
-const puttyPermitRSASHA1 = `00000000`
-const puttyPermitRSASHA256 = `00000001`
-const puttyPermitRSASHA512 = `00000001`
+const (
+	puttyDwordPresent        = `00000001`
+	puttyDwordProxyMethod    = `00000005` // run a local command
+	puttyDwordProxyLogToTerm = `00000002` // only until session starts
+	puttyPermitRSASHA1       = `00000000`
+	puttyPermitRSASHA256     = `00000001`
+	puttyPermitRSASHA512     = `00000001`
+)
 
 // despite the strings/ints in struct, these are stored in the registry as DWORDs
 type puttyRegistrySessionDwords struct {
@@ -233,13 +239,6 @@ func onPuttyConfig(cf *CLIConf) error {
 		userHostString = fmt.Sprintf("%v@%v", login, userHostString)
 	}
 
-	// connect to proxy to fetch cluster info
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
 	// parse out proxy details
 	proxyHost, _, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
 	if err != nil {
@@ -247,7 +246,7 @@ func onPuttyConfig(cf *CLIConf) error {
 	}
 
 	// get root cluster name and set keypaths
-	rootClusterName, err := proxyClient.RootClusterName(cf.Context)
+	rootClusterName, err := tc.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}

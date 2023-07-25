@@ -59,15 +59,15 @@ func onConfig(cf *CLIConf) error {
 	// destination (possibly their ssh config file) may get polluted with
 	// invalid output. Instead, rely on the normal error messages (which are
 	// sent to stderr) and expect the user to log in manually.
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	rootClusterName, rootErr := proxyClient.RootClusterName(cf.Context)
-	leafClusters, leafErr := proxyClient.GetLeafClusters(cf.Context)
-	if err := trace.NewAggregate(rootErr, leafErr); err != nil {
+	rootClusterName := clusterClient.RootClusterName()
+	leafClusters, err := clusterClient.GetLeafClusters(cf.Context)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 

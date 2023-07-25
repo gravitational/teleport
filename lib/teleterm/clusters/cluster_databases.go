@@ -100,10 +100,10 @@ func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 
 func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
 	var (
-		page        apiclient.ResourcePage[types.DatabaseServer]
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
+		page          apiclient.ResourcePage[types.DatabaseServer]
+		authClient    auth.ClientI
+		clusterClient *client.ClusterClient
+		err           error
 	)
 
 	req := &proto.ListResourcesRequest{
@@ -118,13 +118,13 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err = c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		authClient, err = clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -202,7 +202,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
 	var authClient auth.ClientI
-	var proxyClient *client.ProxyClient
+	var clusterClient *client.ClusterClient
 
 	dbResourceURI, err := uri.ParseDBURI(dbURI)
 	if err != nil {
@@ -210,7 +210,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		clusterClient, err = c.clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -220,9 +220,9 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+	authClient, err = clusterClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

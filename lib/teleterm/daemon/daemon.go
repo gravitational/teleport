@@ -707,19 +707,13 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 	}
 	response := &api.CreateConnectMyComputerRoleResponse{}
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		clusterClient, err := clusterClient.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		result, err := s.cfg.ConnectMyComputerRoleSetup.Run(ctx, authClient, proxyClient, cluster)
+		result, err := s.cfg.ConnectMyComputerRoleSetup.Run(ctx, clusterClient.CurrentCluster(), clusterClient, cluster)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -45,13 +45,13 @@ func onExportRecording(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clusterClient.Close()
 
-	authClient := proxyClient.CurrentCluster()
+	authClient := clusterClient.CurrentCluster()
 	defer authClient.Close()
 
 	fname := cf.OutFile

@@ -109,12 +109,12 @@ func (c *mfaLSCommand) run(cf *CLIConf) error {
 
 	var devs []*types.MFADevice
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		pc, err := tc.ConnectToProxy(cf.Context)
+		cc, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context)
+		defer cc.Close()
+		aci, err := cc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -309,12 +309,12 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 	var dev *types.MFADevice
 	if err := client.RetryWithRelogin(ctx, tc, func() error {
-		pc, err := tc.ConnectToProxy(ctx)
+		cc, err := tc.ConnectToCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(ctx)
+		defer cc.Close()
+		aci, err := cc.ConnectToRootCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -564,12 +564,12 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 	}
 
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
-		pc, err := tc.ConnectToProxy(cf.Context)
+		cc, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer pc.Close()
-		aci, err := pc.ConnectToRootCluster(cf.Context)
+		defer cc.Close()
+		aci, err := cc.ConnectToRootCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}

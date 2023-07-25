@@ -423,13 +423,13 @@ func onRequestSearch(cf *CLIConf) error {
 		tableColumns = []string{"Name", "Namespace", "Labels", "Resource ID"}
 	default:
 		// For all other resources, we need to connect to the auth server.
-		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer proxyClient.Close()
+		defer clusterClient.Close()
 
-		authClient := proxyClient.CurrentCluster()
+		authClient := clusterClient.CurrentCluster()
 
 		req := proto.ListResourcesRequest{
 			ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
