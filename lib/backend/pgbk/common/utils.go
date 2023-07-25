@@ -87,7 +87,9 @@ func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 // Retry runs the closure potentially more than once, retrying quickly on
 // serialization or deadlock errors, and backing off more on other retryable
 // errors. It will not retry on network errors or other ambiguous errors after
-// any data has been sent.
+// any data has been sent. It will retry unique constraint violation and
+// exclusion constraint violations, so the closure should not rely on those for
+// normal behavior.
 func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, error)) (T, error) {
 	const idempotent = false
 	v, err := retry(ctx, log, idempotent, f)
@@ -97,6 +99,8 @@ func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, erro
 // RetryIdempotent runs the closure potentially more than once, retrying quickly
 // on serialization or deadlock errors, and backing off more on other errors. It
 // assumes that f is idempotent, so it will retry even in ambiguous situations.
+// It will retry unique constraint violation and exclusion constraint
+// violations, so the closure should not rely on those for normal behavior.
 func RetryIdempotent[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, error)) (T, error) {
 	const idempotent = true
 	v, err := retry(ctx, log, idempotent, f)
@@ -131,12 +135,7 @@ func retry[T any](ctx context.Context, log logrus.FieldLogger, isIdempotent bool
 		var pgErr *pgconn.PgError
 		_ = errors.As(err, &pgErr)
 
-		if pgErr != nil &&
-			(pgErr.Code == pgerrcode.SerializationFailure ||
-				pgErr.Code == pgerrcode.DeadlockDetected ||
-				pgErr.Code == pgerrcode.UniqueViolation ||
-				pgErr.Code == pgerrcode.ExclusionViolation) {
-			// https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html
+		if pgErr != nil && isSerializationErrorCode(pgErr.Code) {
 			log.WithError(err).
 				WithField("attempt", i).
 				Debug("Operation failed due to conflicts, retrying quickly.")
@@ -178,6 +177,23 @@ func retry[T any](ctx context.Context, log logrus.FieldLogger, isIdempotent bool
 
 	var zeroT T
 	return zeroT, trace.LimitExceeded("too many retries, last error: %v", err)
+}
+
+// isSerializationErrorCode returns true if the error code is for a
+// serialization error; this also includes unique_violation and
+// exclusion_violation, which are sometimes returned as a result of
+// serialization failures (and thus can be meaningfully retried) but can also be
+// a result of actual logical/relational errors, which would then cause the same
+// error to be raised again.
+func isSerializationErrorCode(code string) bool {
+	// source:
+	// https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html
+	switch code {
+	case pgerrcode.SerializationFailure, pgerrcode.DeadlockDetected, pgerrcode.UniqueViolation, pgerrcode.ExclusionViolation:
+		return true
+	default:
+		return false
+	}
 }
 
 // RetryTx runs a closure like [Retry] or [RetryIdempotent], wrapped in
