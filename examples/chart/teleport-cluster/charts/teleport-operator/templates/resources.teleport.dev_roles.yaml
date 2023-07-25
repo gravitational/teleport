@@ -67,6 +67,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
@@ -425,6 +431,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
@@ -769,7 +781,7 @@ spec:
                           format: int32
                           type: integer
                         value:
-                          description: Value specifies the valueg to be used in the
+                          description: Value specifies the value to be used in the
                             cert extension.
                           type: string
                       type: object
@@ -868,7 +880,7 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request stategy
+                    description: RequestAccess defines the access request strategy
                       (optional|note|always) where optional is the default.
                     type: string
                   request_prompt:

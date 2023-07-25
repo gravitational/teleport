@@ -368,11 +368,23 @@ func (s *Reporter) trackRequest(opType types.OpType, key []byte, endKey []byte) 
 		rangeSuffix = teleport.TagTrue
 	}
 
-	s.topRequestsCache.Add(topRequestsCacheKey{
+	cacheKey := topRequestsCacheKey{
 		component: s.Component,
 		key:       keyLabel,
 		isRange:   rangeSuffix,
-	}, struct{}{})
+	}
+	// We need to do ContainsOrAdd and then Get because if we do Add we hit
+	// https://github.com/hashicorp/golang-lru/issues/141 which can cause a
+	// memory leak in certain workloads (where we keep overwriting the same
+	// key); it's not clear if Add to overwrite would be the correct thing to do
+	// here anyway, as we use LRU eviction to delete unused metrics, but
+	// overwriting might cause an eviction of the same metric we are about to
+	// bump up in freshness, which is obviously wrong
+	if ok, _ := s.topRequestsCache.ContainsOrAdd(cacheKey, struct{}{}); ok {
+		// Refresh the key's position in the LRU cache, if it was already in it.
+		s.topRequestsCache.Get(cacheKey)
+	}
+
 	counter, err := requests.GetMetricWithLabelValues(s.Component, keyLabel, rangeSuffix)
 	if err != nil {
 		log.Warningf("Failed to get counter: %v", err)
