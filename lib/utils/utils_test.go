@@ -91,7 +91,7 @@ func TestHostUUIDRegenerateEmpty(t *testing.T) {
 func TestSelfSignedCert(t *testing.T) {
 	t.Parallel()
 
-	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"})
+	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, []string{})
 	require.NoError(t, err)
 	require.NotNil(t, creds)
 	require.Equal(t, 4, len(creds.PublicKey)/100)
