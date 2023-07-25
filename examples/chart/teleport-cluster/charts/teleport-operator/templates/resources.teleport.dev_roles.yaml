@@ -87,6 +87,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  desktop_groups:
+                    description: DesktopGroups is a list of groups for created desktop
+                      users to be added to
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   gcp_service_accounts:
                     description: GCPServiceAccounts is a list of GCP service accounts
                       this role is allowed to assume.
@@ -94,6 +101,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  group_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: GroupLabels is a map of labels used as part of the
+                      RBAC system.
+                    type: object
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -483,6 +496,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  desktop_groups:
+                    description: DesktopGroups is a list of groups for created desktop
+                      users to be added to
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   gcp_service_accounts:
                     description: GCPServiceAccounts is a list of GCP service accounts
                       this role is allowed to assume.
@@ -490,6 +510,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  group_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: GroupLabels is a map of labels used as part of the
+                      RBAC system.
+                    type: object
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -861,10 +887,19 @@ spec:
                       is set to the idle duration.
                     format: duration
                     type: string
+                  create_desktop_user:
+                    description: CreateDesktopUser allows users to be automatically
+                      created on a Windows desktop
+                    type: boolean
                   create_host_user:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
+                  create_host_user_mode:
+                    description: CreateHostUserMode allows users to be automatically
+                      created on a host when not set to off
+                    format: int32
+                    type: integer
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -1141,6 +1176,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  desktop_groups:
+                    description: DesktopGroups is a list of groups for created desktop
+                      users to be added to
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   gcp_service_accounts:
                     description: GCPServiceAccounts is a list of GCP service accounts
                       this role is allowed to assume.
@@ -1148,6 +1190,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  group_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: GroupLabels is a map of labels used as part of the
+                      RBAC system.
+                    type: object
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -1537,6 +1585,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  desktop_groups:
+                    description: DesktopGroups is a list of groups for created desktop
+                      users to be added to
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   gcp_service_accounts:
                     description: GCPServiceAccounts is a list of GCP service accounts
                       this role is allowed to assume.
@@ -1544,6 +1599,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  group_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: GroupLabels is a map of labels used as part of the
+                      RBAC system.
+                    type: object
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -1915,10 +1976,19 @@ spec:
                       is set to the idle duration.
                     format: duration
                     type: string
+                  create_desktop_user:
+                    description: CreateDesktopUser allows users to be automatically
+                      created on a Windows desktop
+                    type: boolean
                   create_host_user:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
+                  create_host_user_mode:
+                    description: CreateHostUserMode allows users to be automatically
+                      created on a host when not set to off
+                    format: int32
+                    type: integer
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.

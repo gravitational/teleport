@@ -342,6 +342,10 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
+func (b *EtcdBackend) GetName() string {
+	return GetName()
+}
+
 func (b *EtcdBackend) Clock() clockwork.Clock {
 	return b.clock
 }

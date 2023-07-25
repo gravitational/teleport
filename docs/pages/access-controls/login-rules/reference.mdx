@@ -17,8 +17,7 @@ To learn how to add the first login rule to your cluster, checkout out the
 
 ## `traits_map` vs `traits_expression`
 
-Every login rule spec must contain either the `traits_map` field or a
-`traits_expression` field.
+Every login rule spec must contain either the `traits_map` field or a `traits_expression` field.
 
 They both serve the same purpose of transforming user traits.
 The logic difference lies only in the syntax you prefer for your use case, since you can write
@@ -29,8 +28,8 @@ every `traits_map` as an equivalent `traits_expression`.
 while keeping the rest unchanged.
 The `traits_map` behavior can be useful if you want to keep only a handful
 of necessary traits while filtering out all others.
-If lower priority Login Rules set traits those must be also included with higher priority `traits_map`
-to remain populated. For example this configuration will keep the `groups` trait unmodified.
+If lower priority Login Rules set traits, those traits must be also included with higher priority `traits_map`
+to remain populated. For example, the following configuration keeps the `groups` trait unmodified.
 
 ```yaml
   traits_map:
@@ -40,15 +39,16 @@ to remain populated. For example this configuration will keep the `groups` trait
 
 ### `traits_map`
 
-Here is an example Login Rule using a `traits_map` which implements the
+Here is an example Login Rule that uses a `traits_map` to implement the
 following rules:
-1. Every user with the `groups: devs` trait should receive an extra trait
+
+- Every user with the `groups: devs` trait should receive an extra trait
    `access: [staging]`.
-2. Every user with the `groups: admins` trait should receive an extra trait
+- Every user with the `groups: admins` trait should receive an extra trait
    `access: [staging, prod]`.
-3. Every user should receive a `logins` trait with the value of their incoming
+- Every user should receive a `logins` trait with the value of their incoming
    `username` trait converted to lowercase.
-4. All traits other than `groups`, `logins`, and `access` should be filtered
+- All traits other than `groups`, `logins`, and `access` should be filtered
    out.
 
 ```yaml
