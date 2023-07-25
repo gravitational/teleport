@@ -534,6 +534,7 @@ func (b *Bot) renewIdentityViaAuth(
 	// renewing using existing credentials.
 	case types.JoinMethodAzure,
 		types.JoinMethodCircleCI,
+		types.JoinMethodGCP,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
 		types.JoinMethodIAM:
