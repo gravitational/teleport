@@ -281,7 +281,7 @@ func (m *RegisterUsingAzureMethodResponse) GetCerts() *Certs {
 }
 
 // RegisterUsingKubernetesRemoteMethodRequest is the request for registration
-// via the `kubernetes-remote` join method. It is a stream of potential payload
+// via the `kubernetes_remote` join method. It is a stream of potential payload
 // values as the registration is a multi step process.
 type RegisterUsingKubernetesRemoteMethodRequest struct {
 	// Types that are valid to be assigned to Payload:
@@ -378,7 +378,7 @@ func (*RegisterUsingKubernetesRemoteMethodRequest) XXX_OneofWrappers() []interfa
 }
 
 // RegisterUsingKubernetesRemoteMethodResponse is the response for registration
-// via the `kubernetes-remote` join method. It is a stream of potential payload
+// via the `kubernetes_remote` join method. It is a stream of potential payload
 // values as the registration is a multi step process.
 type RegisterUsingKubernetesRemoteMethodResponse struct {
 	// Types that are valid to be assigned to Payload:

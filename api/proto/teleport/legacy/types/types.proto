@@ -1256,6 +1256,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
   // GCP allows the configuration of options specific to the "gcp" join method.
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
+  // KubernetesRemote allows the configuration of options specific to the "kubernetes_remote" join method.
+  ProvisionTokenSpecV2KubernetesRemote KubernetesRemote = 14 [(gogoproto.jsontag) = "kubernetes_remote,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1367,6 +1369,42 @@ message ProvisionTokenSpecV2Kubernetes {
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2KubernetesRemote contains the Kubernetes-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2KubernetesRemote {
+  // Rule is a set of properties the Kubernetes-issued token might have to be
+  // allowed to use this ProvisionToken
+  message Rule {
+    // ServiceAccount is the namespaced name of the Kubernetes service account.
+    // Its format is "namespace:service-account".
+    string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
+  }
+
+  // Cluster is a set of properties that describe a cluster that an entity may
+  // attempt to join from.
+  message Cluster {
+    // Name is an identifier configured for the cluster. This value is chosen
+    // by the user, and does not have to match a specific value configured in
+    // Kubernetes.
+    string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+    // Source is how the public signing keys for the cluster will be obtained
+    // to use for validating a provided JWT.
+    oneof Source {
+      // StaticJWKS allows the public signing keys for a cluster to be
+      // specified statically with the JSON body of the JWKS endpoint.
+      string StaticJWKS = 2 [(gogoproto.jsontag) = "static_jwks,omitempty"];
+    }
+  }
+
+  // Clusters is a list of Cluster that are accepted sources of JWTs to use
+  // against this token. A Service Account JWT signed by a cluster not listed
+  // here will be rejected.
+  repeated Cluster Clusters = 1;
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 2 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // ProvisionTokenSpecV2Azure contains the Azure-specific part of the

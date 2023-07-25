@@ -68,7 +68,7 @@ message RegisterUsingAzureMethodResponse {
 }
 
 // RegisterUsingKubernetesRemoteMethodRequest is the request for registration
-// via the `kubernetes-remote` join method. It is a stream of potential payload
+// via the `kubernetes_remote` join method. It is a stream of potential payload
 // values as the registration is a multi step process.
 message RegisterUsingKubernetesRemoteMethodRequest {
   oneof payload {
@@ -83,7 +83,7 @@ message RegisterUsingKubernetesRemoteMethodRequest {
 }
 
 // RegisterUsingKubernetesRemoteMethodResponse is the response for registration
-// via the `kubernetes-remote` join method. It is a stream of potential payload
+// via the `kubernetes_remote` join method. It is a stream of potential payload
 // values as the registration is a multi step process.
 message RegisterUsingKubernetesRemoteMethodResponse {
   oneof payload {
