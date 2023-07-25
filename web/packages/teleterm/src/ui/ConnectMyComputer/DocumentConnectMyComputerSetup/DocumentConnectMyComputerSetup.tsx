@@ -17,9 +17,7 @@ limitations under the License.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import {
-  Attempt,
   makeEmptyAttempt,
-  makeErrorAttempt,
   useAsync,
 } from 'shared/hooks/useAsync';
 import * as Alerts from 'design/Alert';
@@ -31,8 +29,6 @@ import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
-
-import type { AgentProcessState } from 'teleterm/mainProcess/types';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -93,7 +89,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
 function AgentSetup() {
   const ctx = useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
-  const connectMyComputerContext = useConnectMyComputerContext();
+  const { runAgentAndWaitForNodeToJoin } = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
 
@@ -153,11 +149,16 @@ function AgentSetup() {
         if (!nodeToken.current) {
           throw new Error('Node token is empty');
         }
-        await ctx.connectMyComputerService.runAgentAndDeleteToken(
-          cluster,
+        await runAgentAndWaitForNodeToJoin();
+        await ctx.connectMyComputerService.deleteToken(
+          cluster.uri,
           nodeToken.current
         );
-      }, [ctx.connectMyComputerService, cluster])
+      }, [
+        runAgentAndWaitForNodeToJoin,
+        ctx.connectMyComputerService,
+        cluster.uri,
+      ])
     );
 
   const steps = [
@@ -175,12 +176,7 @@ function AgentSetup() {
     },
     {
       name: 'Joining the cluster',
-      attempt:
-        // hide errors on setup restart
-        (joinClusterAttempt.status !== '' &&
-          // errors from spawning the process take precedence over a regular attempt value
-          mapFailedAgentStateToAttempt(connectMyComputerContext.state)) ||
-        joinClusterAttempt,
+      attempt: joinClusterAttempt,
     },
   ];
 
@@ -288,30 +284,4 @@ function AgentSetup() {
       )}
     </>
   );
-}
-
-function mapFailedAgentStateToAttempt(
-  agentState: AgentProcessState
-): Attempt<void> {
-  if (agentState.status === 'exited') {
-    const { code, signal } = agentState;
-    const codeOrSignal = [
-      // code can be 0, so we cannot just check it the same way as the signal.
-      code != null && `code ${code}`,
-      signal && `signal ${signal}`,
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    return makeErrorAttempt(
-      [`Agent process exited with ${codeOrSignal}.`, agentState.stackTrace]
-        .filter(Boolean)
-        .join(' \n')
-    );
-  }
-  if (agentState.status === 'error') {
-    return makeErrorAttempt(
-      ['Agent process failed to start.', agentState.message].join(' \n')
-    );
-  }
 }

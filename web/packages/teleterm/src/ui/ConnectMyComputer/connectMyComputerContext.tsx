@@ -20,15 +20,22 @@ import React, {
   createContext,
   useState,
   useEffect,
+  useCallback,
 } from 'react';
+
+import { wait } from 'shared/utils/wait';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-import type { AgentProcessState } from 'teleterm/mainProcess/types';
+import type {
+  AgentProcessState,
+  SubscribeToAgentUpdate,
+} from 'teleterm/mainProcess/types';
 
 export interface ConnectMyComputerContext {
   state: AgentProcessState;
+  runAgentAndWaitForNodeToJoin(): Promise<void>;
 }
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
@@ -36,25 +43,44 @@ const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
 export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
 }> = props => {
-  const { mainProcessClient } = useAppContext();
+  const { mainProcessClient, connectMyComputerService } = useAppContext();
   const [agentState, setAgentState] = useState<AgentProcessState>(() => ({
     status: 'not-started',
   }));
 
+  const runAgentAndWaitForNodeToJoin = useCallback(async () => {
+    await connectMyComputerService.runAgent(props.rootClusterUri);
+
+    // TODO(gzdunek): Replace with waiting for the node to join.
+    const waitForNodeToJoin = wait(1_000);
+
+    await Promise.race([
+      waitForNodeToJoin,
+      waitForAgentProcessErrors(
+        mainProcessClient.subscribeToAgentUpdate,
+        props.rootClusterUri
+      ),
+    ]);
+  }, [
+    connectMyComputerService,
+    mainProcessClient.subscribeToAgentUpdate,
+    props.rootClusterUri,
+  ]);
+
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
-      (rootClusterUri, state) => {
-        if (props.rootClusterUri === rootClusterUri) {
-          setAgentState(state);
-        }
-      }
+      props.rootClusterUri,
+      state => setAgentState(state)
     );
     return cleanup;
   }, [mainProcessClient, props.rootClusterUri]);
 
   return (
     <ConnectMyComputerContext.Provider
-      value={{ state: agentState }}
+      value={{
+        state: agentState,
+        runAgentAndWaitForNodeToJoin,
+      }}
       children={props.children}
     />
   );
@@ -71,3 +97,54 @@ export const useConnectMyComputerContext = () => {
 
   return context;
 };
+
+/**
+ * Waits for `error` and `exit` events from the agent process.
+ * If none of them happen within 20 seconds, the promise resolves.
+ */
+async function waitForAgentProcessErrors(
+  subscribeToAgentUpdate: SubscribeToAgentUpdate,
+  rootClusterUri: RootClusterUri
+) {
+  let cleanupFn: () => void;
+
+  try {
+    const errorPromise = new Promise((_, reject) => {
+      const { cleanup } = subscribeToAgentUpdate(rootClusterUri, agentState => {
+        if (agentState.status === 'exited') {
+          const { code, signal } = agentState;
+          const codeOrSignal = [
+            // code can be 0, so we cannot just check it the same way as the signal.
+            code != null && `code ${code}`,
+            signal && `signal ${signal}`,
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          reject(
+            new Error(
+              [
+                `Agent process exited with ${codeOrSignal}.`,
+                agentState.stackTrace,
+              ]
+                .filter(Boolean)
+                .join('\n')
+            )
+          );
+        }
+        if (agentState.status === 'error') {
+          reject(
+            new Error(
+              ['Agent process failed to start.', agentState.message].join(' \n')
+            )
+          );
+        }
+      });
+
+      cleanupFn = cleanup;
+    });
+    await Promise.race([errorPromise, wait(20_000)]);
+  } finally {
+    cleanupFn();
+  }
+}

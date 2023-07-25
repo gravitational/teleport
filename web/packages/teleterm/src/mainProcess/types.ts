@@ -93,11 +93,14 @@ export type MainProcessClient = {
     properties: AgentConfigFileClusterProperties
   ): Promise<void>;
   runAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
-  subscribeToAgentUpdate: (
-    listener: (rootClusterUri: RootClusterUri, state: AgentProcessState) => void
-  ) => {
-    cleanup: () => void;
-  };
+  subscribeToAgentUpdate: SubscribeToAgentUpdate;
+};
+
+export type SubscribeToAgentUpdate = (
+  rootClusterUri: RootClusterUri,
+  listener: (state: AgentProcessState) => void
+) => {
+  cleanup: () => void;
 };
 
 export type ChildProcessAddresses = {

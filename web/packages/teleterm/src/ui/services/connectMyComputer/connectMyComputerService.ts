@@ -55,12 +55,16 @@ export class ConnectMyComputerService {
     return { token };
   }
 
-  async runAgentAndDeleteToken(cluster: Cluster, token: string): Promise<void> {
-    await this.mainProcessClient.runAgent({
-      rootClusterUri: cluster.uri,
+  runAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.runAgent({
+      rootClusterUri,
     });
+  }
 
-    // invalidate token
-    await this.tshClient.deleteConnectMyComputerToken(cluster.uri, token);
+  deleteToken(
+    rootClusterUri: uri.RootClusterUri,
+    token: string
+  ): Promise<void> {
+    return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
   }
 }

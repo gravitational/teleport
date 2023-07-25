@@ -92,13 +92,15 @@ export default function createMainProcessClient(): MainProcessClient {
         clusterProperties
       );
     },
-    subscribeToAgentUpdate: listener => {
+    subscribeToAgentUpdate: (rootClusterUri, listener) => {
       const onChange = (
         _,
-        rootClusterUri: RootClusterUri,
-        state: AgentProcessState
+        eventRootClusterUri: RootClusterUri,
+        eventState: AgentProcessState
       ) => {
-        listener(rootClusterUri, state);
+        if (eventRootClusterUri === rootClusterUri) {
+          listener(eventState);
+        }
       };
       const channel = 'main-process-connect-my-computer-agent-update';
       ipcRenderer.addListener(channel, onChange);
