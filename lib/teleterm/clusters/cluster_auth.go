@@ -27,6 +27,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -160,6 +161,16 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 		return nil, trace.Wrap(err)
 	}
 
+	if c.clusterClient.KeyTTL == 0 {
+		c.clusterClient.KeyTTL = pingResp.Auth.DefaultSessionTTL.Duration()
+	}
+	// todo(lxea): DELETE IN v15 where the auth is guaranteed to
+	// send us a valid MaxSessionTTL or the auth is guaranteed to
+	// interpret 0 duration as the auth's default
+	if c.clusterClient.KeyTTL == 0 {
+		c.clusterClient.KeyTTL = defaults.CertDuration
+	}
+
 	return pingResp, nil
 }
 
@@ -179,12 +190,17 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 	c.clusterClient.LocalAgent().UpdateUsername(key.Username)
 	c.clusterClient.Username = key.Username
 
-	if err := c.clusterClient.ActivateKey(ctx, key); err != nil {
+	proxyClient, rootAuthClient, err := c.clusterClient.ConnectToRootCluster(ctx, key)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		rootAuthClient.Close()
+		proxyClient.Close()
+	}()
 
 	// Attempt device login. This activates a fresh key if successful.
-	if err := c.clusterClient.AttemptDeviceLogin(ctx, key); err != nil {
+	if err := c.clusterClient.AttemptDeviceLogin(ctx, key, rootAuthClient); err != nil {
 		return trace.Wrap(err)
 	}
 

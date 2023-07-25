@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
@@ -68,10 +67,10 @@ type ProxyServer struct {
 	log logrus.FieldLogger
 }
 
-// ConnMonitor monitors authorized connnections and terminates them when
+// ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ProxyServerConfig is the proxy configuration.
@@ -83,7 +82,7 @@ type ProxyServerConfig struct {
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
-	Tunnel reversetunnel.Server
+	Tunnel reversetunnelclient.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
 	// Limiter is the connection/rate limiter.
@@ -446,7 +445,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 			return nil, trace.Wrap(err)
 		}
 
-		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
+		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnelclient.DialParams{
 			From:                  clientSrcAddr,
 			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 			OriginalClientDstAddr: clientDstAddr,
@@ -475,7 +474,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 // the reverse tunnel connection is down e.g. because the agent is down.
 func isReverseTunnelDownError(err error) bool {
 	return trace.IsConnectionProblem(err) ||
-		strings.Contains(err.Error(), reversetunnel.NoDatabaseTunnel)
+		strings.Contains(err.Error(), reversetunnelclient.NoDatabaseTunnel)
 }
 
 // Proxy starts proxying all traffic received from database client between
@@ -485,7 +484,8 @@ func isReverseTunnelDownError(err error) bool {
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
 	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
+	var err error
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
 	if err != nil {
 		clientConn.Close()
 		serviceConn.Close()
@@ -530,7 +530,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 
 // getDatabaseServers finds database servers that proxy the database instance
 // encoded in the provided identity.
-func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnel.RemoteSite, []types.DatabaseServer, error) {
+func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnelclient.RemoteSite, []types.DatabaseServer, error) {
 	cluster, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

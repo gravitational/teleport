@@ -2988,7 +2988,7 @@ exports[`list of all events 1`] = `
                 class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
-              Resource Access Request Search
+              Resource Access Search
             </div>
           </td>
           <td
@@ -7945,6 +7945,10 @@ exports[`loaded audit log screen 1`] = `
 .c4 .react-select--is-disabled .react-select__indicator,
 .c4 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c4 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c1 {

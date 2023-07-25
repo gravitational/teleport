@@ -47,6 +47,18 @@ type App struct {
 	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
 	// FriendlyName is a friendly name for the app.
 	FriendlyName string `json:"friendlyName,omitempty"`
+	// UserGroups is a list of associated user groups.
+	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
+	// SAMLApp if true, indicates that the app is a SAML Application (SAML IdP Service Provider)
+	SAMLApp bool `json:"samlApp,omitempty"`
+}
+
+// UserGroupAndDescription is a user group name and its description.
+type UserGroupAndDescription struct {
+	// Name is the name of the user group.
+	Name string `json:"name"`
+	// Description is the description of the user group.
+	Description string `json:"description"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -57,37 +69,67 @@ type MakeAppsConfig struct {
 	LocalProxyDNSName string
 	// AppClusterName is the name of the cluster apps reside in.
 	AppClusterName string
-	// Apps is a list of registered apps.
-	Apps types.Apps
+	// AppsToUserGroups is a mapping of application names to user groups.
+	AppsToUserGroups map[string]types.UserGroups
+	// AppServersAndSAMLIdPServiceProviders is a list of AppServers and SAMLIdPServiceProviders.
+	AppServersAndSAMLIdPServiceProviders types.AppServersOrSAMLIdPServiceProviders
 	// Identity is identity of the logged in user.
 	Identity *tlsca.Identity
 }
 
-// MakeApps creates server application objects
+// MakeApps creates application objects (either Application Servers or SAML IdP Service Provider) for the WebUI.
 func MakeApps(c MakeAppsConfig) []App {
 	result := []App{}
-	for _, teleApp := range c.Apps {
-		fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, teleApp)
-		labels := makeLabels(teleApp.GetAllLabels())
+	for _, appOrSP := range c.AppServersAndSAMLIdPServiceProviders {
+		if appOrSP.IsAppServer() {
+			app := appOrSP.GetAppServer().GetApp()
+			fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+			labels := makeLabels(app.GetAllLabels())
 
-		app := App{
-			Name:         teleApp.GetName(),
-			Description:  teleApp.GetDescription(),
-			URI:          teleApp.GetURI(),
-			PublicAddr:   teleApp.GetPublicAddr(),
-			Labels:       labels,
-			ClusterID:    c.AppClusterName,
-			FQDN:         fqdn,
-			AWSConsole:   teleApp.IsAWSConsole(),
-			FriendlyName: services.FriendlyName(teleApp),
+			userGroups := c.AppsToUserGroups[app.GetName()]
+
+			userGroupAndDescriptions := make([]UserGroupAndDescription, len(userGroups))
+			for i, userGroup := range userGroups {
+				userGroupAndDescriptions[i] = UserGroupAndDescription{
+					Name:        userGroup.GetName(),
+					Description: userGroup.GetMetadata().Description,
+				}
+			}
+
+			resultApp := App{
+				Name:         appOrSP.GetName(),
+				Description:  appOrSP.GetDescription(),
+				URI:          app.GetURI(),
+				PublicAddr:   appOrSP.GetPublicAddr(),
+				Labels:       labels,
+				ClusterID:    c.AppClusterName,
+				FQDN:         fqdn,
+				AWSConsole:   app.IsAWSConsole(),
+				FriendlyName: services.FriendlyName(app),
+				UserGroups:   userGroupAndDescriptions,
+				SAMLApp:      false,
+			}
+
+			if app.IsAWSConsole() {
+				resultApp.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
+					app.GetAWSAccountID())
+			}
+
+			result = append(result, resultApp)
+		} else {
+			labels := makeLabels(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
+			resultApp := App{
+				Name:         appOrSP.GetName(),
+				Description:  appOrSP.GetDescription(),
+				PublicAddr:   appOrSP.GetPublicAddr(),
+				Labels:       labels,
+				ClusterID:    c.AppClusterName,
+				FriendlyName: services.FriendlyName(appOrSP),
+				SAMLApp:      true,
+			}
+
+			result = append(result, resultApp)
 		}
-
-		if teleApp.IsAWSConsole() {
-			app.AWSRoles = aws.FilterAWSRoles(c.Identity.AWSRoleARNs,
-				teleApp.GetAWSAccountID())
-		}
-
-		result = append(result, app)
 	}
 
 	return result

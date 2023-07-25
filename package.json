@@ -32,6 +32,7 @@
     "x-default-browser": "^0.5.2"
   },
   "devDependencies": {
+    "prettier": "^2.5.0",
     "typescript": "^5.1.3"
   },
   "workspaces": {

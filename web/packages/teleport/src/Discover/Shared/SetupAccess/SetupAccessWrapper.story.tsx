@@ -22,7 +22,7 @@ import { SetupAccessWrapper } from './SetupAccessWrapper';
 import type { Props } from './SetupAccessWrapper';
 
 export default {
-  title: 'Teleport/Discover/Shared/SetupAccessContainer',
+  title: 'Teleport/Discover/Shared/SetupAccessWrapper',
 };
 
 export const HasAccessAndTraits = () => (

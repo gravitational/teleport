@@ -34,16 +34,6 @@ import (
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
-// we use dedicated global jitters for all the intervals/retires in this
-// package. we do this because our jitter usage in this package can scale by
-// the number of concurrent connections to auth, making dedicated jitters a
-// poor choice (high memory usage for all the rngs).
-var (
-	seventhJitter = retryutils.NewShardedSeventhJitter()
-	halfJitter    = retryutils.NewShardedHalfJitter()
-	fullJitter    = retryutils.NewShardedFullJitter()
-)
-
 // DownstreamCreateFunc is a function that creates a downstream inventory control stream.
 type DownstreamCreateFunc func(ctx context.Context) (client.DownstreamInventoryControlStream, error)
 
@@ -249,7 +239,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
 			case proto.DownstreamInventoryUpdateLabels:
-				h.handleUpdateLabels(sender, m)
+				h.handleUpdateLabels(m)
 			default:
 				return trace.BadParameter("unexpected downstream message type: %T", m)
 			}
@@ -289,10 +279,10 @@ func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (u
 	}
 }
 
-func (h *downstreamHandle) handleUpdateLabels(sender DownstreamSender, msg proto.DownstreamInventoryUpdateLabels) {
+func (h *downstreamHandle) handleUpdateLabels(msg proto.DownstreamInventoryUpdateLabels) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if msg.Kind == proto.LabelUpdateKind_SSHServer {
+	if msg.Kind == proto.LabelUpdateKind_SSHServerCloudLabels {
 		h.upstreamSSHLabels = msg.Labels
 	}
 }
@@ -300,7 +290,7 @@ func (h *downstreamHandle) handleUpdateLabels(sender DownstreamSender, msg proto
 func (h *downstreamHandle) GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if kind == proto.LabelUpdateKind_SSHServer {
+	if kind == proto.LabelUpdateKind_SSHServerCloudLabels {
 		return h.upstreamSSHLabels
 	}
 	return nil
@@ -408,10 +398,6 @@ type instanceStateTracker struct {
 	// observe the committed state of the instance control log should skip instances for which this field is nil.
 	lastHeartbeat types.Instance
 
-	// lastRawHeartbeat is the raw backend value associated with LastHeartbeat. Used to
-	// enabled CompareAndSwap based updates.
-	lastRawHeartbeat []byte
-
 	// retryHeartbeat is set to true if an unexpected error is hit. We retry exactly once, closing
 	// the stream if the retry does not succeede.
 	retryHeartbeat bool
@@ -479,11 +465,12 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
 func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
-		Version:  vc.Normalize(hello.Version),
-		Services: hello.Services,
-		Hostname: hello.Hostname,
-		AuthID:   authID,
-		LastSeen: now.UTC(),
+		Version:          vc.Normalize(hello.Version),
+		Services:         hello.Services,
+		Hostname:         hello.Hostname,
+		AuthID:           authID,
+		LastSeen:         now.UTC(),
+		ExternalUpgrader: hello.ExternalUpgrader,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

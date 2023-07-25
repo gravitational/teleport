@@ -32,20 +32,21 @@ PagerDuty.
 
 - Either a Linux host or Kubernetes cluster where you will run the PagerDuty plugin.
 
-<ScopedBlock scope={["enterprise", "oss"]}>
+<Tabs>
+<TabItem label="Teleport Enterprise" scope={["enterprise"]}>
 
 We recommend installing Teleport plugins on the same host as the Teleport Proxy
 Service. This is an ideal location as plugins have a low memory footprint, and
 will require both public internet access and Teleport Auth Service access.
 
-</ScopedBlock>
-
-<ScopedBlock scope="cloud">
+</TabItem>
+<TabItem label="Teleport Enterprise Cloud" scope="cloud">
 
 Install the Teleport PagerDuty plugin on a host that can access both your
 Teleport Cloud tenant and PagerDuty.
 
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -521,7 +522,7 @@ The final configuration should resemble the following:
 ## Step 7/8. Test the PagerDuty plugin
 
 <Tabs>
-<TabItem label="Executable" scope={["oss", "enterprise"]}>
+<TabItem label="Executable">
 After you configure the PagerDuty plugin, run the following command to start it.
 The `-d` flag will provide debug information to ensure that the plugin can
 connect to PagerDuty and your Teleport cluster:
@@ -539,7 +540,7 @@ $ teleport-pagerduty start -d
 # DEBU   Setting up the webhook extensions pagerduty/main.go:178
 ```
 </TabItem>
-<TabItem label="Helm Chart" scope={["oss", "enterprise"]}>
+<TabItem label="Helm Chart">
 After modifying your configuration, run the bot with the following command:
 
 ```code
@@ -597,7 +598,7 @@ should still check the Teleport audit log to ensure that the right users are
 reviewing the right requests.
 
 When auditing Access Request reviews, check for events with the type `Access
-Request Reviewed` in the Teleport Web UI <ScopedBlock scope={["oss",
+Request Reviewed` in the Teleport Web UI <ScopedBlock scope={[
 "enterprise"]}>and `access_request.review` if reviewing the audit log on the
 Auth Service host</ScopedBlock>.
 

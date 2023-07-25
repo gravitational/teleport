@@ -30,6 +30,17 @@ import (
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels types.Labels
+	// AWS contains AWS specific settings.
+	AWS ResourceMatcherAWS
+}
+
+// ResourceMatcherAWS contains AWS specific settings.
+type ResourceMatcherAWS struct {
+	// AssumeRoleARN is the AWS role to assume for accessing the resource.
+	AssumeRoleARN string
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS
+	// role across accounts.
+	ExternalID string
 }
 
 // ResourceMatchersToTypes converts []]services.ResourceMatchers into []*types.ResourceMatcher
@@ -39,6 +50,10 @@ func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatc
 		resMatcher := resMatcher
 		out[i] = &types.DatabaseResourceMatcher{
 			Labels: &resMatcher.Labels,
+			AWS: types.ResourceMatcherAWS{
+				AssumeRoleARN: resMatcher.AWS.AssumeRoleARN,
+				ExternalID:    resMatcher.AWS.ExternalID,
+			},
 		}
 	}
 	return out
@@ -132,7 +147,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	switch filter.ResourceKind {
 	case types.KindNode,
 		types.KindDatabaseService,
-		types.KindKubernetesCluster, types.KindKubePod,
+		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
@@ -162,8 +177,28 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		specResource = server.GetDatabase()
 		resourceKey.name = specResource.GetName()
 
+	case types.KindAppOrSAMLIdPServiceProvider:
+		switch appOrSP := resource.(type) {
+		case types.AppServer:
+			app := appOrSP.GetApp()
+			specResource = app
+			resourceKey.name = app.GetName()
+			resourceKey.addr = app.GetPublicAddr()
+		case types.SAMLIdPServiceProvider:
+			specResource = appOrSP
+			resourceKey.name = appOrSP.GetName()
+		default:
+			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
+		}
 	default:
-		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
+		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
+		// of cases we need to handle. If the resource type didn't match any arm before
+		// and it is not a Kubernetes resource kind, we return an error.
+		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
+			return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
+		}
+		specResource = resource
+		resourceKey.name = specResource.GetName()
 	}
 
 	var match bool
@@ -331,10 +366,13 @@ var SupportedAzureMatchers = []string{
 const (
 	// GCPMatcherKubernetes is the GCP matcher type for GCP kubernetes.
 	GCPMatcherKubernetes = "gke"
+	// GCPMatcherCompute is the GCP matcher for GCP VMs.
+	GCPMatcherCompute = "gce"
 )
 
 // SupportedGCPMatchers is list of GCP services currently supported by the
 // Teleport discovery service.
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
+	GCPMatcherCompute,
 }

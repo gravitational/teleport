@@ -101,8 +101,8 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 
 	t.Run("lock created after connection has been established", func(t *testing.T) {
 		// Create a fake connection and monitor it.
-		conn := &mockTrackingConn{closedC: make(chan struct{})}
-		monitorCtx, err := monitor.MonitorConn(ctx, authzCtx, conn)
+		tconn := &mockTrackingConn{closedC: make(chan struct{})}
+		monitorCtx, _, err := monitor.MonitorConn(ctx, authzCtx, tconn)
 		require.NoError(t, err)
 		require.Nil(t, monitorCtx.Err())
 
@@ -111,7 +111,7 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 
 		// Assert that the connection was terminated.
 		select {
-		case <-conn.closedC:
+		case <-tconn.closedC:
 		case <-time.After(2 * time.Second):
 			t.Fatal("Timeout waiting for connection close.")
 		}
@@ -126,14 +126,14 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 	t.Run("connection terminated if lock already exists", func(t *testing.T) {
 		// Create another connection for the locked user and validate
 		// that it is terminated right away.
-		conn := &mockTrackingConn{closedC: make(chan struct{})}
-		monitorCtx, err := monitor.MonitorConn(ctx, authzCtx, conn)
+		tconn := &mockTrackingConn{closedC: make(chan struct{})}
+		monitorCtx, _, err := monitor.MonitorConn(ctx, authzCtx, tconn)
 		require.NoError(t, err)
 
 		// Assert that the context was canceled and that the connection was terminated.
 		require.Error(t, monitorCtx.Err())
 		select {
-		case <-conn.closedC:
+		case <-tconn.closedC:
 		case <-time.After(2 * time.Second):
 			t.Fatal("Timeout waiting for connection close.")
 		}

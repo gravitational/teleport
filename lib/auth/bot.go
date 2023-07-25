@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -170,6 +172,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		tokenTTL = time.Until(exp)
 	}
 
+	// Emit usage analytics event for bot creation.
+	s.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
+		UserName:    authz.ClientUsername(ctx),
+		BotUserName: resourceName,
+		RoleName:    resourceName,
+		BotName:     req.Name,
+		RoleCount:   int64(len(req.Roles)),
+		JoinMethod:  string(provisionToken.GetJoinMethod()),
+	})
+
 	return &proto.CreateBotResponse{
 		TokenID:    provisionToken.GetName(),
 		UserName:   resourceName,
@@ -251,6 +263,18 @@ func (s *Server) getBotUsers(ctx context.Context) ([]types.User, error) {
 	return botUsers, nil
 }
 
+// supportedBotJoinMethods should match SupportedJoinMethods declared in
+// lib/tbot/config
+var supportedBotJoinMethods = []types.JoinMethod{
+	types.JoinMethodToken,
+	types.JoinMethodAzure,
+	types.JoinMethodCircleCI,
+	types.JoinMethodGCP,
+	types.JoinMethodGitHub,
+	types.JoinMethodGitLab,
+	types.JoinMethodIAM,
+}
+
 // checkOrCreateBotToken checks the existing token if given, or creates a new
 // random dynamic provision token which allows bots to join with the given
 // botName. Returns the token and any error.
@@ -275,24 +299,14 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 			return nil, trace.BadParameter("token %q is valid for bot with name %q, not %q",
 				req.TokenID, provisionToken.GetBotName(), botName)
 		}
-		switch provisionToken.GetJoinMethod() {
-		case types.JoinMethodToken,
-			types.JoinMethodIAM,
-			types.JoinMethodGitHub,
-			types.JoinMethodGitLab,
-			types.JoinMethodAzure,
-			types.JoinMethodCircleCI:
-		default:
+
+		if !slices.Contains(supportedBotJoinMethods, provisionToken.GetJoinMethod()) {
 			return nil, trace.BadParameter(
 				"token %q has join method %q which is not supported for bots. Supported join methods are %v",
-				req.TokenID, provisionToken.GetJoinMethod(), []types.JoinMethod{
-					types.JoinMethodToken,
-					types.JoinMethodIAM,
-					types.JoinMethodGitHub,
-					types.JoinMethodGitLab,
-					types.JoinMethodAzure,
-					types.JoinMethodCircleCI,
-				})
+				req.TokenID,
+				provisionToken.GetJoinMethod(),
+				supportedBotJoinMethods,
+			)
 		}
 		return provisionToken, nil
 	}

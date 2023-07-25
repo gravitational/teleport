@@ -10,7 +10,6 @@ exports[`snapshot tests 1`] = `
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
-  font-size: 18px;
 }
 
 .c2 {
@@ -74,6 +73,11 @@ exports[`snapshot tests 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
+}
+
+.c7 {
+  font-size: 18px;
+  color: inherit;
 }
 
 .c5 {
@@ -152,8 +156,7 @@ exports[`snapshot tests 1`] = `
         role="icon"
       >
         <span
-          class="c6 icon icon-info_outline "
-          font-size="4"
+          class="c6 icon icon-info_outline c7"
         />
       </span>
       <input
@@ -190,8 +193,7 @@ exports[`snapshot tests 1`] = `
         role="icon"
       >
         <span
-          class="c6 icon icon-info_outline "
-          font-size="4"
+          class="c6 icon icon-info_outline c7"
         />
       </span>
       <input

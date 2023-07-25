@@ -527,7 +527,7 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #00796b;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -538,7 +538,7 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #00796b;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -970,12 +970,12 @@ exports[`failed state 1`] = `
               </strong>
                - 
               <strong>
-                5
+                6
               </strong>
                of
                
               <strong>
-                5
+                6
               </strong>
             </div>
           </div>
@@ -1097,6 +1097,51 @@ exports[`failed state 1`] = `
                   color="light"
                   font-size="3"
                 >
+                  s
+                </div>
+              </div>
+            </td>
+            <td>
+              saml_app
+            </td>
+            <td>
+              SAML Application
+            </td>
+            <td />
+            <td>
+              <div
+                class="c28"
+              />
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c30"
+                href="http://localhost/enterprise/saml-idp/login/saml_app"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LOGIN
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c32"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
                   M
                 </div>
               </div>
@@ -1148,7 +1193,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c32"
                 height="32px"
                 width="32px"
               >
@@ -1207,7 +1252,7 @@ exports[`failed state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c32"
+                class="c31"
                 height="32px"
                 width="32px"
               >
@@ -1642,7 +1687,7 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #00796b;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -1653,7 +1698,7 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #00796b;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -2091,12 +2136,12 @@ exports[`loaded state 1`] = `
               </strong>
                - 
               <strong>
-                5
+                6
               </strong>
                of
                
               <strong>
-                5
+                6
               </strong>
             </div>
           </div>
@@ -2218,6 +2263,51 @@ exports[`loaded state 1`] = `
                   color="light"
                   font-size="3"
                 >
+                  s
+                </div>
+              </div>
+            </td>
+            <td>
+              saml_app
+            </td>
+            <td>
+              SAML Application
+            </td>
+            <td />
+            <td>
+              <div
+                class="c28"
+              />
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c30"
+                href="http://localhost/enterprise/saml-idp/login/saml_app"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LOGIN
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
+            >
+              <div
+                class="c32"
+                height="32px"
+                width="32px"
+              >
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
                   M
                 </div>
               </div>
@@ -2269,7 +2359,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c31"
+                class="c32"
                 height="32px"
                 width="32px"
               >
@@ -2328,7 +2418,7 @@ exports[`loaded state 1`] = `
               style="user-select: none;"
             >
               <div
-                class="c32"
+                class="c31"
                 height="32px"
                 width="32px"
               >

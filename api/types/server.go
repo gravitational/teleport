@@ -90,6 +90,15 @@ type Server interface {
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
+
+	// GetCloudMetadata gets the cloud metadata for the server.
+	GetCloudMetadata() *CloudMetadata
+	// SetCloudMetadata sets the server's cloud metadata.
+	SetCloudMetadata(meta *CloudMetadata)
+
+	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
+	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+	IsOpenSSHNode() bool
 }
 
 // NewServer creates an instance of Server.
@@ -102,6 +111,23 @@ func NewServer(name, kind string, spec ServerSpecV2) (Server, error) {
 func NewServerWithLabels(name, kind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
 	server := &ServerV2{
 		Kind: kind,
+		Metadata: Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		Spec: spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
+// NewNode is a convenience method to create a Server of Kind Node.
+func NewNode(name, subKind string, spec ServerSpecV2, labels map[string]string) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindNode,
+		SubKind: subKind,
 		Metadata: Metadata{
 			Name:   name,
 			Labels: labels,
@@ -392,6 +418,62 @@ func (s *ServerV2) setStaticFields() {
 	s.Version = V2
 }
 
+// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
+// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+func (s *ServerV2) IsOpenSSHNode() bool {
+	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEC2InstanceConnectEndpointNode
+}
+
+// openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
+// They include SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
+	if s.Spec.Addr == "" {
+		return trace.BadParameter(`addr must be set when server SubKind is "openssh"`)
+	}
+	if len(s.GetPublicAddrs()) != 0 {
+		return trace.BadParameter(`publicAddrs must not be set when server SubKind is "openssh"`)
+	}
+	if s.Spec.Hostname == "" {
+		return trace.BadParameter(`hostname must be set when server SubKind is "openssh"`)
+	}
+
+	_, _, err := net.SplitHostPort(s.Spec.Addr)
+	if err != nil {
+		return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
+	}
+	return nil
+}
+
+// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEC2InstanceConnectEndpointNode.
+func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() error {
+	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// AWS fields are required for SubKindOpenSSHEC2InstanceConnectEndpointNode.
+	switch {
+	case s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil:
+		return trace.BadParameter("missing AWS CloudMetadata (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.AccountID == "":
+		return trace.BadParameter("missing AWS Account ID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.Region == "":
+		return trace.BadParameter("missing AWS Region (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.Integration == "":
+		return trace.BadParameter("missing AWS OIDC Integration (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.InstanceID == "":
+		return trace.BadParameter("missing AWS InstanceID (required for %q SubKind)", s.SubKind)
+
+	case s.Spec.CloudMetadata.AWS.VPCID == "":
+		return trace.BadParameter("missing AWS VPC ID (required for %q SubKind)", s.SubKind)
+	}
+
+	return nil
+}
+
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
@@ -400,7 +482,7 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 
 	// if the server is a registered OpenSSH node, allow the name to be
 	// randomly generated
-	if s.SubKind == SubKindOpenSSHNode && s.Metadata.Name == "" {
+	if s.Metadata.Name == "" && s.IsOpenSSHNode() {
 		s.Metadata.Name = uuid.New().String()
 	}
 
@@ -419,20 +501,15 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	case "", SubKindTeleportNode:
 		// allow but do nothing
 	case SubKindOpenSSHNode:
-		if s.Spec.Addr == "" {
-			return trace.BadParameter(`Addr must be set when server SubKind is "openssh"`)
-		}
-		if len(s.GetPublicAddrs()) != 0 {
-			return trace.BadParameter(`PublicAddrs must not be set when server SubKind is "openssh"`)
-		}
-		if s.Spec.Hostname == "" {
-			return trace.BadParameter(`Hostname must be set when server SubKind is "openssh"`)
+		if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 
-		_, _, err := net.SplitHostPort(s.Spec.Addr)
-		if err != nil {
-			return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
+	case SubKindOpenSSHEC2InstanceConnectEndpointNode:
+		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
+
 	default:
 		return trace.BadParameter("invalid SubKind %q", s.SubKind)
 	}
@@ -469,6 +546,16 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
 	return utils.CloneProtoMsg(s)
+}
+
+// GetCloudMetadata gets the cloud metadata for the server.
+func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
+	return s.Spec.CloudMetadata
+}
+
+// SetCloudMetadata sets the server's cloud metadata.
+func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
+	s.Spec.CloudMetadata = meta
 }
 
 // IsAWSConsole returns true if this app is AWS management console.

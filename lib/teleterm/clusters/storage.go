@@ -46,7 +46,7 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 
 	clusters := make([]*Cluster, 0, len(pfNames))
 	for _, name := range pfNames {
-		cluster, err := s.fromProfile(name, "")
+		cluster, _, err := s.fromProfile(name, "")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -57,40 +57,47 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 	return clusters, nil
 }
 
-// GetByURI returns a cluster by URI
-func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
-	URI := uri.New(clusterURI)
-	profileName := URI.GetProfileName()
-	leafClusterName := URI.GetLeafClusterName()
+// GetByURI returns a cluster by URI. Assumes the URI has been successfully parsed and is of a
+// cluster.
+//
+// clusterClient being returned as the second return value is a stopgap in an effort to make
+// clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
+// https://github.com/gravitational/teleport/issues/13278
+func (s *Storage) GetByURI(clusterURI uri.ResourceURI) (*Cluster, *client.TeleportClient, error) {
+	profileName := clusterURI.GetProfileName()
+	leafClusterName := clusterURI.GetLeafClusterName()
 
-	cluster, err := s.fromProfile(profileName, leafClusterName)
+	cluster, clusterClient, err := s.fromProfile(profileName, leafClusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return cluster, nil
+	return cluster, clusterClient, nil
 }
 
 // GetByResourceURI returns a cluster by a URI of its resource. Accepts both root and leaf cluster
-// resources and will return a root or leaf cluster accordingly.
-func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, error) {
-	clusterURI, err := uri.ParseClusterURI(resourceURI)
+// resources and will return a root or a leaf cluster accordingly.
+//
+// clusterClient being returned as the second return value is a stopgap in an effort to make
+// clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
+// https://github.com/gravitational/teleport/issues/13278
+func (s *Storage) GetByResourceURI(resourceURI uri.ResourceURI) (*Cluster, *client.TeleportClient, error) {
+	cluster, clusterClient, err := s.GetByURI(resourceURI.GetClusterURI())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	cluster, err := s.GetByURI(clusterURI.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cluster, nil
+	return cluster, clusterClient, nil
 }
 
 // ResolveCluster is an alias for GetByResourceURI.
-func (s *Storage) ResolveCluster(resourceURI string) (*Cluster, error) {
-	cluster, err := s.GetByResourceURI(resourceURI)
-	return cluster, trace.Wrap(err)
+//
+// clusterClient being returned as the second return value is a stopgap in an effort to make
+// clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
+// https://github.com/gravitational/teleport/issues/13278
+func (s *Storage) ResolveCluster(resourceURI uri.ResourceURI) (*Cluster, *client.TeleportClient, error) {
+	cluster, clusterClient, err := s.GetByResourceURI(resourceURI)
+	return cluster, clusterClient, trace.Wrap(err)
 }
 
 // Remove removes a cluster
@@ -103,41 +110,45 @@ func (s *Storage) Remove(ctx context.Context, profileName string) error {
 }
 
 // Add adds a cluster
-func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, error) {
+//
+// clusterClient being returned as the second return value is a stopgap in an effort to make
+// clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
+// https://github.com/gravitational/teleport/issues/13278
+func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
 	profiles, err := profile.ListProfileNames(s.Dir)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	clusterName := parseName(webProxyAddress)
 	for _, pname := range profiles {
 		if pname == clusterName {
-			cluster, err := s.fromProfile(clusterName, "")
+			cluster, clusterClient, err := s.fromProfile(clusterName, "")
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, nil, trace.Wrap(err)
 			}
-			return cluster, nil
+			return cluster, clusterClient, nil
 		}
 	}
 
-	cluster, err := s.addCluster(ctx, s.Dir, webProxyAddress)
+	cluster, clusterClient, err := s.addCluster(ctx, s.Dir, webProxyAddress)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return cluster, nil
+	return cluster, clusterClient, nil
 }
 
 // addCluster adds a new cluster. This makes the underlying profile .yaml file to be saved to the
 // tsh home dir without logging in the user yet. Adding a cluster makes it show up in the UI as the
 // list of clusters depends on the profiles in the home dir of tsh.
-func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (*Cluster, error) {
+func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
 	if webProxyAddress == "" {
-		return nil, trace.BadParameter("cluster address is missing")
+		return nil, nil, trace.BadParameter("cluster address is missing")
 	}
 
 	if dir == "" {
-		return nil, trace.BadParameter("cluster directory is missing")
+		return nil, nil, trace.BadParameter("cluster directory is missing")
 	}
 
 	cfg := client.MakeDefaultConfig()
@@ -150,14 +161,14 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	clusterURI := uri.NewClusterURI(profileName)
 	clusterClient, err := client.NewClient(cfg)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Ping verifies that the cluster is reachable. It also updates a couple of TeleportClient fields
 	// automatically based on the ping response – those fields are then saved to the profile file.
 	pingResponse, err := clusterClient.Ping(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Do the ALPN handshake test to decide if connection upgrades are required
@@ -166,7 +177,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(ctx, webProxyAddress, s.InsecureSkipVerify)
 
 	if err := clusterClient.SaveProfile(false); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	return &Cluster{
@@ -179,13 +190,13 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		dir:           s.Dir,
 		clock:         s.Clock,
 		Log:           s.Log.WithField("cluster", clusterURI),
-	}, nil
+	}, clusterClient, nil
 }
 
 // fromProfile creates a new cluster from its profile
-func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, error) {
+func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *client.TeleportClient, error) {
 	if profileName == "" {
-		return nil, trace.BadParameter("cluster name is missing")
+		return nil, nil, trace.BadParameter("cluster name is missing")
 	}
 
 	clusterNameForKey := profileName
@@ -195,7 +206,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 
 	cfg := client.MakeDefaultConfig()
 	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	cfg.KeysDir = s.Dir
 	cfg.HomePath = s.Dir
@@ -209,29 +220,12 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 
 	clusterClient, err := client.NewClient(cfg)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	status := &client.ProfileStatus{}
-
-	// load profile status if key exists
-	_, err = clusterClient.LocalAgent().GetKey(clusterNameForKey)
+	status, err := s.loadProfileStatusAndClusterKey(clusterClient, clusterNameForKey)
 	if err != nil {
-		s.Log.WithError(err).Infof("Unable to load the keys for cluster %v.", clusterNameForKey)
-	}
-
-	if err == nil && cfg.Username != "" {
-		status, err = clusterClient.ProfileStatus()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	return &Cluster{
@@ -243,7 +237,34 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		clock:         s.Clock,
 		status:        *status,
 		Log:           s.Log.WithField("cluster", clusterURI),
-	}, nil
+	}, clusterClient, nil
+}
+
+func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportClient, clusterNameForKey string) (*client.ProfileStatus, error) {
+	status := &client.ProfileStatus{}
+
+	// load profile status if key exists
+	_, err := clusterClient.LocalAgent().GetKey(clusterNameForKey)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
+		} else {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err == nil && clusterClient.Username != "" {
+		status, err = clusterClient.ProfileStatus()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return status, nil
 }
 
 // parseName gets cluster name from cluster web proxy address

@@ -1,0 +1,75 @@
+name: AWS E2E Tests (Non-root)
+run-name: AWS E2E Tests (Non-root) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+      - branch/*
+  pull_request:
+    paths:
+      - '.github/workflows/aws-e2e-tests-non-root.yaml'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+      - 'Makefile'
+  merge_group:
+    paths:
+      - '.github/workflows/aws-e2e-tests-non-root.yaml'
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+      - 'Makefile'
+
+env:
+  TEST_KUBE: true
+  AWS_REGION: us-west-2
+  GHA_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-aws-e2e-gha-role
+  KUBERNETES_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-kubernetes-service-access-role
+  DISCOVERY_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-discovery-service-access-role
+  DISCOVERED_CLUSTER_NAME: gha-discovery-ci
+jobs:
+  test:
+    name: AWS E2E Tests (Non-root)
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+      env:
+        WEBASSETS_SKIP_BUILD: 1
+      options: --cap-add=SYS_ADMIN --privileged
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Chown
+        run: |
+          mkdir -p $(go env GOMODCACHE)
+          mkdir -p $(go env GOCACHE)
+          chown -Rf ci:ci ${GITHUB_WORKSPACE} $(go env GOMODCACHE) $(go env GOCACHE)
+        continue-on-error: true
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.GHA_ASSUME_ROLE }}
+
+      - name: Run tests
+        timeout-minutes: 10
+        run: |
+          runuser -u ci -g ci make e2e-aws RDPCLIENT_SKIP_BUILD=1

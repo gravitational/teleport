@@ -110,6 +110,7 @@ export function CreateDatabaseView({
               <Flex minHeight="195px" mt={3}>
                 <TextEditor
                   readOnly={true}
+                  bg="levels.deep"
                   data={[{ content: dbCU, type: 'yaml' }]}
                 />
               </Flex>

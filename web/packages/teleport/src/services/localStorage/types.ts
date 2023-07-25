@@ -22,4 +22,16 @@ export const KeysEnum = {
   THEME: 'grv_teleport_ui_theme',
   SHOW_ASSIST_POPUP: 'grv_teleport_show_assist',
   ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
+  USER_PREFERENCES: 'grv_teleport_user_preferences',
+  ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
+};
+
+// LocalStorageSurvey is the SurveyRequest type defined in Enterprise
+export type LocalStorageSurvey = {
+  companyName: string;
+  employeeCount: string;
+  resources: Array<string>;
+  clusterResources: Array<number>;
+  role: string;
+  team: string;
 };

@@ -424,7 +424,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	if len(a.info.AllowedResourceIDs) == 0 {
 		return a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	}
-
+	var err error
 	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	// Allways append the denied resources from the roles. This is because
 	// the denied resources from the roles take precedence over the allowed
@@ -436,20 +436,33 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 		}
 		switch {
 		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
-			splitted := strings.SplitN(r.SubResourceName, "/", 3)
-			// This condition should never happen since SubResourceName is validated
-			// but it's better to validate it.
-			if len(splitted) != 2 {
-				continue
+			namespace := ""
+			name := ""
+			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
+				// Cluster wide resources do not have a namespace.
+				name = r.SubResourceName
+			} else {
+				splitted := strings.SplitN(r.SubResourceName, "/", 3)
+				// This condition should never happen since SubResourceName is validated
+				// but it's better to validate it.
+				if len(splitted) != 2 {
+					continue
+				}
+				namespace = splitted[0]
+				name = splitted[1]
 			}
 
 			r := types.KubernetesResource{
 				Kind:      r.Kind,
-				Namespace: splitted[0],
-				Name:      splitted[1],
+				Namespace: namespace,
+				Name:      name,
 			}
-
-			if matchKubernetesResource(r, rolesAllowed, rolesDenied) == nil {
+			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
+			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
+			// verbs. Verbs are not checked here because they are not included in the
+			// ResourceID but we collect them and set them in the returned KubernetesResource
+			// so that they can be matched when the resource is accessed.
+			if r.Verbs, err = matchKubernetesResource(r, rolesAllowed, rolesDenied); err == nil {
 				allowed = append(allowed, r)
 			}
 		case r.Kind == types.KindKubernetesCluster:
@@ -464,24 +477,24 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
 // entry from the deny list and matches at least one entry from the allowed list.
-func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
+func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) ([]string, error) {
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
-	result, err := utils.KubeResourceMatchesRegex(resource, denied)
+	result, _, err := utils.KubeResourceMatchesRegexWithVerbsCollector(resource, denied)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	} else if result {
-		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+		return nil, trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
 
-	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
+	result, verbs, err := utils.KubeResourceMatchesRegexWithVerbsCollector(resource, allowed)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	} else if !result {
-		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+		return nil, trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
-	return nil
+	return verbs, nil
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for
@@ -815,11 +828,24 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 	return utils.StringsSliceFromSet(groups), nil
 }
 
+// HostUsersInfo keeps information about groups and sudoers entries
+// for a particular host user
+type HostUsersInfo struct {
+	// Groups is the list of groups to include host users in
+	Groups []string
+	// Sudoers is a list of entries for a users sudoers file
+	Sudoers []string
+	// Mode determines if a host user should be deleted after a session
+	// ends or not.
+	Mode types.CreateHostUserMode
+}
+
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
 	var sudoers []string
+	var mode types.CreateHostUserMode
 
 	roleSet := make([]types.Role, len(a.RoleSet))
 	copy(roleSet, a.RoleSet)
@@ -837,12 +863,30 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		if !result {
 			continue
 		}
+
+		createHostUserMode := role.GetOptions().CreateHostUserMode
 		createHostUser := role.GetOptions().CreateHostUser
+		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+			createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_OFF
+			if createHostUser != nil && createHostUser.Value {
+				createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_DROP
+			}
+		}
+
 		// if any of the matching roles do not enable create host
 		// user, the user should not be allowed on
-		if createHostUser == nil || !createHostUser.Value {
+		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
+
+		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+			mode = createHostUserMode
+		}
+		// prefer to use HostUserModeKeep over Drop if mode has already been set.
+		if mode == types.CreateHostUserMode_HOST_USER_MODE_DROP && createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
+			mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
+		}
+
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
@@ -886,6 +930,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	return &HostUsersInfo{
 		Groups:  utils.StringsSliceFromSet(groups),
 		Sudoers: sudoers,
+		Mode:    mode,
 	}, nil
 }
 

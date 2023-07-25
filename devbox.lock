@@ -6,7 +6,7 @@
       "resolved": "github:NixOS/nixpkgs/d3248619647234b5dc74a6921bcdf6dd8323eb22#addlicense",
       "version": "1.0.0"
     },
-    "bash": {
+    "bash@latest": {
       "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#bash"
     },
     "bats@1.3.0": {
@@ -24,8 +24,20 @@
       "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#gci",
       "version": "0.9.1"
     },
-    "git": {
+    "git@latest": {
       "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#git"
+    },
+    "go@1.20.5": {
+      "last_modified": "2023-06-29T16:20:38Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#go",
+      "source": "devbox-search",
+      "version": "1.20.5"
+    },
+    "golangci-lint@1.53.3": {
+      "last_modified": "2023-06-29T16:20:38Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#golangci-lint",
+      "source": "devbox-search",
+      "version": "1.53.3"
     },
     "libfido2@1.13.0": {
       "last_modified": "2023-05-01T16:53:22Z",
@@ -54,6 +66,7 @@
     },
     "python@3.11.2": {
       "last_modified": "2023-03-31T22:52:29Z",
+      "plugin_version": "0.0.1",
       "resolved": "github:NixOS/nixpkgs/242246ee1e58f54d2322227fc5eef53b4a616a31#python311",
       "version": "3.11.2"
     },

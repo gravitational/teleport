@@ -355,7 +355,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -434,9 +434,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-		require.NoError(t, err)
-		require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+		mustGetKubePod(t, k8Client, kubePodName)
 	})
 }
 
@@ -464,7 +462,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -507,9 +505,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
-	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+	mustGetKubePod(t, k8Client, kubePodName)
 }
 
 func TestKubeIPPinning(t *testing.T) {
@@ -536,7 +532,7 @@ func TestKubeIPPinning(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -1574,7 +1570,7 @@ func TestALPNSNIProxyGRPCSecure(t *testing.T) {
 			KubeUsers:        []string{k8User},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},

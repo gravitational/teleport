@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -176,7 +177,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		return nil
 	}
 
@@ -198,8 +199,9 @@ func TryRun(commands []CLICommand, args []string) error {
 		if utils.IsUntrustedCertErr(err) {
 			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
-		log.Errorf("Cannot connect to the auth server. Is the auth server running on %q? %v",
-			cfg.AuthServerAddresses()[0].Addr, err)
+		fmt.Fprintf(os.Stderr,
+			"ERROR: Cannot connect to the auth server. Is the auth server running on %q?\n",
+			cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
 
@@ -218,7 +220,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	ctx, cancel := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
 	defer cancel()
 	if err := common.ShowClusterAlerts(ctx, client, os.Stderr, nil,
-		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+		types.AlertSeverity_HIGH); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 

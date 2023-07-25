@@ -17,8 +17,9 @@ limitations under the License.
 import React from 'react';
 import { Card } from 'design';
 
-import { Props, NewCredentials, SliderProps } from './NewCredentials';
+import { NewCredentials } from './NewCredentials';
 import { NewMfaDevice } from './NewMfaDevice';
+import { NewCredentialsProps, SliderProps } from './types';
 
 export default {
   title: 'Teleport/Welcome/Form',
@@ -152,6 +153,17 @@ export const SuccessAndPrivateKeyEnabledReset = () => (
     privateKeyPolicyEnabled={true}
   />
 );
+export const SuccessRegisterDashboard = () => (
+  <NewCredentials {...props} success={true} isDashboard={true} />
+);
+export const SuccessResetDashboard = () => (
+  <NewCredentials
+    {...props}
+    success={true}
+    resetMode={true}
+    isDashboard={true}
+  />
+);
 
 function CardWrapper({ children }) {
   return (
@@ -173,7 +185,7 @@ const sliderProps: SliderProps & {
   password: '',
   updatePassword: () => null,
 };
-const props: Props = {
+const props: NewCredentialsProps = {
   auth2faType: 'off',
   primaryAuthType: 'local',
   isPasswordlessEnabled: true,
@@ -233,4 +245,5 @@ const props: Props = {
       'QUKIICFEkBAiSAgRJIQ8GZ3rjnbtD76d3X92ber60v0xsClnB9/OsnUO3pAgIUSQECJICBEkhAgSQgQJ' +
       'IYKEEEFCiCAh5KMwdgQ8OCEhRJAQ8v8AAAD//1QuL6EmJFBiAAAAAElFTkSuQmCC',
   },
+  isDashboard: false,
 };

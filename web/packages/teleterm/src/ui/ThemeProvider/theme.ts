@@ -19,23 +19,11 @@ import {
   darkTheme as designDarkTheme,
   lightTheme as designLightTheme,
 } from 'design/theme';
-import { lighten } from 'design/theme/utils/colorManipulator';
 
 const sansSerif = 'system-ui';
 
 export const darkTheme = {
   ...designDarkTheme,
-  colors: {
-    ...designDarkTheme.colors,
-    terminal: {
-      ...designDarkTheme.colors.terminal,
-      background: designDarkTheme.colors.levels.sunken,
-      cursorAccent: designDarkTheme.colors.levels.sunken,
-      brightWhite: lighten(designDarkTheme.colors.levels.sunken, 0.89),
-      white: lighten(designDarkTheme.colors.levels.sunken, 0.78),
-      brightBlack: lighten(designDarkTheme.colors.levels.sunken, 0.61),
-    },
-  },
   font: sansSerif,
   fonts: {
     sansSerif,

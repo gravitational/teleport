@@ -109,23 +109,10 @@ func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string, 
 	}, nil
 }
 
-func statusFromStatusCode(httpCode int) types.PluginStatus {
-	var code types.PluginStatusCode
-	switch {
-	case httpCode == http.StatusUnauthorized:
-		code = types.PluginStatusCode_UNAUTHORIZED
-	case httpCode >= 200 && httpCode < 400:
-		code = types.PluginStatusCode_RUNNING
-	default:
-		code = types.PluginStatusCode_OTHER_ERROR
-	}
-	return &types.PluginStatusV1{Code: code}
-}
-
 func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 	return func(_ *resty.Client, resp *resty.Response) error {
 		log := logger.Get(resp.Request.Context())
-		status := statusFromStatusCode(resp.StatusCode())
+		status := common.StatusFromStatusCode(resp.StatusCode())
 
 		// No usable context in scope, use background with a reasonable timeout
 		ctx, cancel := context.WithTimeout(context.Background(), pdStatusUpdateTimeout)
@@ -136,11 +123,22 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 		}
 
 		if resp.IsError() {
-			result := resp.Error()
-			if result, ok := result.(*ErrorResult); ok {
-				return trace.Errorf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
+			var details string
+			switch result := resp.Error().(type) {
+			case *ErrorResult:
+				// Do we have a formatted PagerDuty API error response? We set
+				// an empty `ErrorResult` in the pre-request hook, and if the
+				// HTTP server returns an error, the `resty` middleware will
+				// attempt to unmarshal the error response into it.
+				details = fmt.Sprintf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
+			default:
+				details = fmt.Sprintf("unknown error result %#v", result)
 			}
-			return trace.Errorf("unknown error result %#v", result)
+
+			if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
+				return trace.AccessDenied(details)
+			}
+			return trace.Errorf(details)
 		}
 		return nil
 	}

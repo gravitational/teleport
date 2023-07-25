@@ -33,10 +33,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/lib/ai/model"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
 // createAssistantConversationResponse is a response for POST /webapi/assistant/conversations.
@@ -250,7 +252,7 @@ type generateAssistantTitleRequest struct {
 	Message string `json:"message"`
 }
 
-// generateAssistantTitle is a handler for POST /webapi/assistant/conversations/:conversation_id/generate_title.
+// generateAssistantTitle is a handler for POST /webapi/assistant/title/summary.
 func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	_ httprouter.Params, sctx *SessionContext,
 ) (any, error) {
@@ -268,7 +270,7 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := assist.NewAssist(r.Context(), h.cfg.ProxyClient,
+	client, err := assist.NewClient(r.Context(), h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -283,11 +285,26 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 		Title: titleSummary,
 	}
 
+	// We only want to emmit
+	if modules.GetModules().Features().Cloud {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			class, err := client.ClassifyMessage(ctx, req.Message, assist.MessageClasses)
+			if err != nil {
+				return
+			}
+			h.log.Debugf("message classified as '%s'", class)
+			// TODO(shaka): emit event here to report the message class
+		}()
+
+	}
+
 	return conversationInfo, nil
 }
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params,
-	sctx *SessionContext, site reversetunnel.RemoteSite,
+	sctx *SessionContext, site reversetunnelclient.RemoteSite,
 ) (any, error) {
 	if err := runAssistant(h, w, r, sctx, site); err != nil {
 		h.log.Warn(trace.DebugReport(err))
@@ -295,6 +312,37 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 	}
 
 	return nil, nil
+}
+
+func (h *Handler) reportTokenUsage(usedTokens *model.TokenCount, lookaheadTokens int, conversationID string, authClient auth.ClientI) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	promptTokens, completionTokens := usedTokens.CountAll()
+
+	// Once we know how many tokens were consumed for prompt+completion,
+	// consume the remaining tokens from the rate limiter bucket.
+	extraTokens := promptTokens + completionTokens - lookaheadTokens
+	if extraTokens < 0 {
+		extraTokens = 0
+	}
+	h.assistantLimiter.ReserveN(time.Now(), extraTokens)
+
+	usageEventReq := &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
+				AssistCompletion: &usageeventsv1.AssistCompletionEvent{
+					ConversationId:   conversationID,
+					TotalTokens:      int64(promptTokens + completionTokens),
+					PromptTokens:     int64(promptTokens),
+					CompletionTokens: int64(completionTokens),
+				},
+			},
+		},
+	}
+	if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+		h.log.WithError(err).Warn("Failed to emit usage event")
+	}
 }
 
 func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
@@ -311,7 +359,7 @@ func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
 
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
-	sctx *SessionContext, site reversetunnel.RemoteSite,
+	sctx *SessionContext, site reversetunnelclient.RemoteSite,
 ) (err error) {
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
@@ -328,12 +376,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return trace.Wrap(err)
 	}
 
-	identity, err := createIdentityContext(sctx.GetUser(), sctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), sctx, sctx.GetUser(), h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -410,13 +453,13 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
 
-	assistClient, err := assist.NewAssist(ctx, h.cfg.ProxyClient,
+	assistClient, err := assist.NewClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	chat, err := assistClient.NewChat(ctx, authClient, conversationID, sctx.GetUser())
+	chat, err := assistClient.NewChat(ctx, authClient, authClient.EmbeddingClient(), conversationID, sctx.GetUser())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -471,32 +514,11 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 			return trace.Wrap(err)
 		}
 
-		// Once we know how many tokens were consumed for prompt+completion,
-		// consume the remaining tokens from the rate limiter bucket.
-		extraTokens := usedTokens.Prompt + usedTokens.Completion - lookaheadTokens
-		if extraTokens < 0 {
-			extraTokens = 0
-		}
-		h.assistantLimiter.ReserveN(time.Now(), extraTokens)
-
-		usageEventReq := &proto.SubmitUsageEventRequest{
-			Event: &usageeventsv1.UsageEventOneOf{
-				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
-					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
-						ConversationId:   conversationID,
-						TotalTokens:      int64(usedTokens.Prompt + usedTokens.Completion),
-						PromptTokens:     int64(usedTokens.Prompt),
-						CompletionTokens: int64(usedTokens.Completion),
-					},
-				},
-			},
-		}
-		if err := authClient.SubmitUsageEvent(r.Context(), usageEventReq); err != nil {
-			h.log.WithError(err).Warn("Failed to emit usage event")
-		}
+		// Token usage reporting is asynchronous as we might still be streaming
+		// a message, and we don't want to block everything.
+		go h.reportTokenUsage(usedTokens, lookaheadTokens, conversationID, authClient)
 	}
 
-	h.log.Debugf("end assistant conversation loop")
-
+	h.log.Debug("end assistant conversation loop")
 	return nil
 }

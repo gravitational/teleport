@@ -495,7 +495,10 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 
 // removeAppLocalFiles removes generated local files for the provided app.
 func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
-	utils.RemoveFileIfExist(profile.AppLocalCAPath(appName))
+	err := utils.RemoveFileIfExist(profile.AppLocalCAPath(appName))
+	if err != nil {
+		log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(appName))
+	}
 }
 
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to

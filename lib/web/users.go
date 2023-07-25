@@ -176,6 +176,10 @@ func getUsers(m userAPIGetter) ([]ui.UserListEntry, error) {
 
 	var uiUsers []ui.UserListEntry
 	for _, u := range users {
+		// Do not display system users in the WebUI
+		if types.IsSystemResource(u) {
+			continue
+		}
 		uiuser, err := ui.NewUserListEntry(u)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -132,6 +132,10 @@ type AWSOIDCDeployServiceRequest struct {
 	// Region is the AWS Region for the Service.
 	Region string `json:"region"`
 
+	// AccountID is the AWS Account ID.
+	// Optional. sts.GetCallerIdentity is used if the value is not provided.
+	AccountID string `json:"accountId"`
+
 	// SubnetIDs associated with the Service.
 	// If deploying a Database Service, you should use the SubnetIDs returned by the List Database API call.
 	SubnetIDs []string `json:"subnetIds"`

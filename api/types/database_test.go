@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -28,7 +29,7 @@ import (
 // TestDatabaseRDSEndpoint verifies AWS info is correctly populated
 // based on the RDS endpoint.
 func TestDatabaseRDSEndpoint(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
@@ -887,6 +888,43 @@ func TestAWSIsEmpty(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.assert(t, test.input.IsEmpty())
+		})
+	}
+}
+
+func TestValidateDatabaseName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		dbName            string
+		expectErrContains string
+	}{
+		{
+			name:   "valid long name and uppercase chars",
+			dbName: strings.Repeat("aA", 100),
+		},
+		{
+			name:              "invalid trailing hyphen",
+			dbName:            "invalid-database-name-",
+			expectErrContains: `"invalid-database-name-" does not match regex`,
+		},
+		{
+			name:              "invalid first character",
+			dbName:            "1-invalid-database-name",
+			expectErrContains: `"1-invalid-database-name" does not match regex`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateDatabaseName(test.dbName)
+			if test.expectErrContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectErrContains)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }

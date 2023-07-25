@@ -36,6 +36,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -88,10 +89,12 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
+	"github.com/gravitational/teleport/lib/events/azsessions"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
 	"github.com/gravitational/teleport/lib/events/gcssessions"
+	"github.com/gravitational/teleport/lib/events/pgevents"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -225,7 +228,7 @@ const (
 	// been set up.
 	InstanceReady = "InstanceReady"
 
-	// DiscoveryReady is generated when the Teleport database proxy service
+	// DiscoveryReady is generated when the Teleport discovery service
 	// is ready to start accepting connections.
 	DiscoveryReady = "DiscoveryReady"
 
@@ -256,6 +259,15 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
+)
+
+const (
+	// embeddingInitialDelay is the time to wait before the first embedding
+	// routine is started.
+	embeddingInitialDelay = 10 * time.Second
+	// embeddingPeriod is the time between two embedding routines.
+	// A seventh jitter is applied on the period.
+	embeddingPeriod = 20 * time.Minute
 )
 
 // Connector has all resources process needs to connect to other parts of the
@@ -470,20 +482,6 @@ func (process *TeleportProcess) getInstanceRoles() []types.SystemRole {
 	out := make([]types.SystemRole, 0, len(process.instanceRoles))
 	for role := range process.instanceRoles {
 		out = append(out, role)
-	}
-	return out
-}
-
-// getInstanceRoleEventMapping returns the same instance roles as getInstanceRoles, but as a mapping
-// of the form `role => event_name`. This can be used to determine what identity event should be
-// awaited in order to get a connector for a given role. Used in assertion-based migration to
-// iteratively create a system role assertion through each client.
-func (process *TeleportProcess) getInstanceRoleEventMapping() map[types.SystemRole]string {
-	process.Lock()
-	defer process.Unlock()
-	out := make(map[types.SystemRole]string, len(process.instanceRoles))
-	for role, event := range process.instanceRoles {
-		out[role] = event
 	}
 	return out
 }
@@ -1063,7 +1061,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if cfg.Tracing.Enabled {
 		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
-	if cfg.Discovery.Enabled {
+	if process.shouldInitDiscovery() {
 		eventMapping.In = append(eventMapping.In, DiscoveryReady)
 	}
 
@@ -1115,6 +1113,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		process.initDatabases()
 		serviceStarted = true
 	} else {
+		if process.Config.Databases.Enabled {
+			process.log.Warn("Database service is enabled with empty configuration, skipping initialization")
+		}
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDatabase), process.log)
 	}
 
@@ -1136,6 +1137,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		process.initDiscovery()
 		serviceStarted = true
 	} else {
+		if process.Config.Discovery.Enabled {
+			process.log.Warn("Discovery service is enabled with empty configuration, skipping initialization")
+		}
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
 	}
 
@@ -1155,7 +1159,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// run one upload completer per-process
 	// even in sync recording modes, since the recording mode can be changed
 	// at any time with dynamic configuration
-	process.RegisterFunc("common.upload", process.initUploaderService)
+	process.RegisterFunc("common.upload.init", process.initUploaderService)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
@@ -1353,6 +1357,16 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 			return nil, trace.Wrap(err)
 		}
 		return handler, nil
+	case teleport.SchemeAZBlob, teleport.SchemeAZBlobHTTP:
+		var config azsessions.Config
+		if err := config.SetFromURL(uri); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		handler, err := azsessions.NewHandler(ctx, config)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return handler, nil
 	case teleport.SchemeFile:
 		if err := os.MkdirAll(uri.Path, teleport.SharedDirMode); err != nil {
 			return nil, trace.ConvertSystemError(err)
@@ -1381,6 +1395,17 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			return nil, trace.Wrap(err)
 		}
 		switch uri.Scheme {
+		case pgevents.Schema, pgevents.AltSchema:
+			hasNonFileLog = true
+			var cfg pgevents.Config
+			if err := cfg.SetFromURL(uri); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			logger, err := pgevents.New(ctx, cfg)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			loggers = append(loggers, logger)
 		case firestore.GetName():
 			hasNonFileLog = true
 			cfg := firestoreevents.EventsConfig{}
@@ -1521,8 +1546,7 @@ func (process *TeleportProcess) initAuthService() error {
 			"turned off. This is dangerous, you will not be able to view audit events " +
 			"or save and playback recorded sessions."
 		process.log.Warn(warningMessage)
-		discard := events.NewDiscardEmitter()
-		emitter, streamer = discard, discard
+		emitter, streamer = events.NewDiscardEmitter(), events.NewDiscardStreamer()
 	} else {
 		// check if session recording has been disabled. note, we will continue
 		// logging audit events, we just won't record sessions.
@@ -1594,15 +1618,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	checkingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner:       streamer,
-		Clock:       process.Clock,
-		ClusterName: clusterName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	traceClt := tracing.NewNoopClient()
 	if cfg.Tracing.Enabled {
 		traceConf, err := process.Config.Tracing.Config()
@@ -1619,63 +1634,82 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
+	var embedderClient ai.Embedder
+	if cfg.Auth.AssistAPIKey != "" {
+		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
+		// Like for proxy, if a custom OpenAIConfig is passed, the token from
+		// cfg.Auth.AssistAPIKey is ignored and the one from the config is used.
+		if cfg.OpenAIConfig != nil {
+			embedderClient = ai.NewClientFromConfig(*cfg.OpenAIConfig)
+		} else {
+			embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+		}
+	}
+
+	embeddingsRetriever := ai.NewSimpleRetriever()
+
 	// first, create the AuthServer
-	authServer, err := auth.Init(auth.InitConfig{
-		Backend:                 b,
-		Authority:               cfg.Keygen,
-		ClusterConfiguration:    cfg.ClusterConfiguration,
-		ClusterAuditConfig:      cfg.Auth.AuditConfig,
-		ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
-		SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
-		ClusterName:             cfg.Auth.ClusterName,
-		AuthServiceName:         cfg.Hostname,
-		DataDir:                 cfg.DataDir,
-		HostUUID:                cfg.HostUUID,
-		NodeName:                cfg.Hostname,
-		Authorities:             cfg.Auth.Authorities,
-		ApplyOnStartupResources: cfg.Auth.ApplyOnStartupResources,
-		BootstrapResources:      cfg.Auth.BootstrapResources,
-		ReverseTunnels:          cfg.ReverseTunnels,
-		Trust:                   cfg.Trust,
-		Presence:                cfg.Presence,
-		Events:                  cfg.Events,
-		Provisioner:             cfg.Provisioner,
-		Identity:                cfg.Identity,
-		Access:                  cfg.Access,
-		UsageReporter:           cfg.UsageReporter,
-		StaticTokens:            cfg.Auth.StaticTokens,
-		Roles:                   cfg.Auth.Roles,
-		AuthPreference:          cfg.Auth.Preference,
-		OIDCConnectors:          cfg.OIDCConnectors,
-		AuditLog:                process.auditLog,
-		CipherSuites:            cfg.CipherSuites,
-		KeyStoreConfig:          cfg.Auth.KeyStore,
-		Emitter:                 checkingEmitter,
-		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
-		TraceClient:             traceClt,
-		FIPS:                    cfg.FIPS,
-		LoadAllCAs:              cfg.Auth.LoadAllCAs,
-		Clock:                   cfg.Clock,
-		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
-	}, func(as *auth.Server) error {
-		if !process.Config.CachePolicy.Enabled {
+	authServer, err := auth.Init(
+		process.ExitContext(),
+		auth.InitConfig{
+			Backend:                 b,
+			Authority:               cfg.Keygen,
+			ClusterConfiguration:    cfg.ClusterConfiguration,
+			ClusterAuditConfig:      cfg.Auth.AuditConfig,
+			ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
+			SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
+			ClusterName:             cfg.Auth.ClusterName,
+			AuthServiceName:         cfg.Hostname,
+			DataDir:                 cfg.DataDir,
+			HostUUID:                cfg.HostUUID,
+			NodeName:                cfg.Hostname,
+			Authorities:             cfg.Auth.Authorities,
+			ApplyOnStartupResources: cfg.Auth.ApplyOnStartupResources,
+			BootstrapResources:      cfg.Auth.BootstrapResources,
+			ReverseTunnels:          cfg.ReverseTunnels,
+			Trust:                   cfg.Trust,
+			Presence:                cfg.Presence,
+			Events:                  cfg.Events,
+			Provisioner:             cfg.Provisioner,
+			Identity:                cfg.Identity,
+			Access:                  cfg.Access,
+			UsageReporter:           cfg.UsageReporter,
+			StaticTokens:            cfg.Auth.StaticTokens,
+			Roles:                   cfg.Auth.Roles,
+			AuthPreference:          cfg.Auth.Preference,
+			OIDCConnectors:          cfg.OIDCConnectors,
+			AuditLog:                process.auditLog,
+			CipherSuites:            cfg.CipherSuites,
+			KeyStoreConfig:          cfg.Auth.KeyStore,
+			Emitter:                 checkingEmitter,
+			Streamer:                events.NewReportingStreamer(streamer, process.Config.UploadEventsC),
+			TraceClient:             traceClt,
+			FIPS:                    cfg.FIPS,
+			LoadAllCAs:              cfg.Auth.LoadAllCAs,
+			Clock:                   cfg.Clock,
+			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+			EmbeddingRetriever:      embeddingsRetriever,
+			EmbeddingClient:         embedderClient,
+			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
+		}, func(as *auth.Server) error {
+			if !process.Config.CachePolicy.Enabled {
+				return nil
+			}
+
+			cache, err := process.newAccessCache(accessCacheConfig{
+				services:  as.Services,
+				setup:     cache.ForAuth,
+				cacheName: []string{teleport.ComponentAuth},
+				events:    true,
+				unstarted: true,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			as.Cache = cache
+
 			return nil
-		}
-
-		cache, err := process.newAccessCache(accessCacheConfig{
-			services:  as.Services,
-			setup:     cache.ForAuth,
-			cacheName: []string{teleport.ComponentAuth},
-			events:    true,
-			unstarted: true,
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		as.Cache = cache
-
-		return nil
-	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1696,19 +1730,37 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
-	if cfg.Auth.AssistAPIKey != "" {
+	if embedderClient != nil {
 		log.Debugf("Starting embedding watcher")
-		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-			AIClient:     openAIClient,
-			EmbeddingSrv: authServer,
-			NodeSrv:      authServer,
-			Log:          log,
-			Jitter:       retryutils.NewFullJitter(),
+			AIClient:            embedderClient,
+			EmbeddingsRetriever: embeddingsRetriever,
+			EmbeddingSrv:        authServer,
+			NodeSrv:             authServer,
+			Log:                 log,
+			Jitter:              retryutils.NewFullJitter(),
 		})
 
 		process.RegisterFunc("ai.embedding-processor", func() error {
-			return embeddingProcessor.Run(process.ExitContext(), ai.EmbeddingPeriod)
+			// We check the Assist feature flag here rather than on creation of TeleportProcess,
+			// as when running Enterprise and the feature source is Cloud,
+			// features may be loaded at two different times:
+			// 1. When Cloud is reachable, features will be fetched from Cloud
+			//    before constructing TeleportProcess
+			// 2. When Cloud is not reachable, we will attempt to load cached features
+			//    from the Teleport backend.
+			// In the second case, we don't know the final value of Features().Assist
+			// when constructing the process.
+			// Services in the supervisor will only start after either 1 or 2 has succeeded,
+			// so we can make the decision here.
+			//
+			// Ref: e/tool/teleport/process/process.go
+			if !modules.GetModules().Features().Assist {
+				log.Debug("Skipping start of embedding processor: Assist feature not enabled for license")
+				return nil
+			}
+			log.Debugf("Starting embedding processor")
+			return embeddingProcessor.Run(process.GracefulExitContext(), embeddingInitialDelay, embeddingPeriod)
 		})
 	}
 
@@ -1926,6 +1978,12 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
+
+	// Periodically update labels on discovered instances.
+	process.RegisterFunc("auth.server_info", func() error {
+		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
+	})
+
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2059,6 +2117,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		SAMLIdPServiceProviders: cfg.services,
 		UserGroups:              cfg.services,
 		Okta:                    cfg.services.OktaClient(),
+		AccessLists:             cfg.services.AccessListClient(),
 		Integrations:            cfg.services,
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
@@ -2407,20 +2466,6 @@ func (process *TeleportProcess) initSSH() error {
 		}
 		defer func() { warnOnErr(asyncEmitter.Close(), log) }()
 
-		clusterName, err := authClient.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-			Inner:       conn.Client,
-			Clock:       process.Clock,
-			ClusterName: clusterName.GetClusterName(),
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: teleport.ComponentNode,
@@ -2444,7 +2489,7 @@ func (process *TeleportProcess) initSSH() error {
 			Semaphores:     authClient,
 			AccessPoint:    authClient,
 			LockEnforcer:   lockWatcher,
-			Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer},
+			Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client},
 			Component:      teleport.ComponentNode,
 			Logger:         process.log.WithField(trace.Component, "sessionctrl"),
 			TracerProvider: process.TracingProvider,
@@ -2470,7 +2515,7 @@ func (process *TeleportProcess) initSSH() error {
 			conn.Client,
 			regular.SetLimiter(limiter),
 			regular.SetShell(cfg.SSH.Shell),
-			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer}),
+			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),
 			regular.SetNamespace(namespace),
 			regular.SetPermitUserEnvironment(cfg.SSH.PermitUserEnvironment),
@@ -3554,17 +3599,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner:       conn.Client,
-		Clock:       process.Clock,
-		ClusterName: clusterName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	streamEmitter := &events.StreamerAndEmitter{
 		Emitter:  asyncEmitter,
-		Streamer: streamer,
+		Streamer: conn.Client,
 	}
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
@@ -3630,7 +3667,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
-	var tsrv reversetunnel.Server
+	var tsrv reversetunnelclient.Server
 	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
@@ -3732,7 +3769,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		Semaphores:     accessPoint,
 		AccessPoint:    accessPoint,
 		LockEnforcer:   lockWatcher,
-		Emitter:        &events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer},
+		Emitter:        asyncEmitter,
 		Component:      teleport.ComponentProxy,
 		Logger:         process.log.WithField(trace.Component, "sessionctrl"),
 		TracerProvider: process.TracingProvider,
@@ -3794,7 +3831,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			CipherSuites:     cfg.CipherSuites,
 			FIPS:             cfg.FIPS,
 			AccessPoint:      accessPoint,
-			Emitter:          streamEmitter,
+			Emitter:          asyncEmitter,
 			PluginRegistry:   process.PluginRegistry,
 			HostUUID:         process.Config.HostUUID,
 			Context:          process.ExitContext(),
@@ -3807,14 +3844,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxyKubeAddr:    proxyKubeAddr,
 			TraceClient:      traceClt,
 			Router:           proxyRouter,
-			SessionControl:   sessionController,
-			PROXYSigner:      proxySigner,
+			SessionControl: web.SessionControllerFunc(func(ctx context.Context, sctx *web.SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
+				controller := srv.WebSessionController(sessionController)
+				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
+				return ctx, trace.Wrap(err)
+			}),
+			PROXYSigner:  proxySigner,
+			OpenAIConfig: cfg.OpenAIConfig,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		proxyLimiter.WrapHandle(webHandler)
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
 				Listener: tls.NewListener(listeners.web, tlsConfigWeb),
@@ -3837,7 +3878,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
-				Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
+				Handler: utils.ChainHTTPMiddlewares(
+					webHandler,
+					makeXForwardedForMiddleware(cfg),
+					limiter.MakeMiddleware(proxyLimiter),
+					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
+				),
 				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
 				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
@@ -3918,6 +3964,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
+	staticLabels := make(map[string]string, 2)
+	if cfg.Proxy.ProxyGroupID != "" {
+		staticLabels[types.ProxyGroupIDLabel] = cfg.Proxy.ProxyGroupID
+	}
+	if cfg.Proxy.ProxyGroupGeneration != 0 {
+		staticLabels[types.ProxyGroupGenerationLabel] = strconv.FormatUint(cfg.Proxy.ProxyGroupGeneration, 10)
+	}
+	if len(staticLabels) > 0 {
+		log.Infof("Enabling proxy group labels: group ID = %q, generation = %v.", cfg.Proxy.ProxyGroupID, cfg.Proxy.ProxyGroupGeneration)
+	}
+
 	sshProxy, err := regular.New(
 		process.ExitContext(),
 		cfg.SSH.Addr,
@@ -3949,6 +4006,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetIngressReporter(ingress.SSH, ingressReporter),
 		regular.SetPROXYSigner(proxySigner),
 		regular.SetPublicAddrs(cfg.Proxy.PublicAddrs),
+		regular.SetLabels(staticLabels, services.CommandLabels(nil), labels.Importer(nil)),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -4017,7 +4075,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LockWatcher: lockWatcher,
 		Clock:       process.Clock,
 		ServerID:    serverID,
-		Emitter:     streamEmitter,
+		Emitter:     asyncEmitter,
 		Logger:      process.log,
 	})
 	if err != nil {
@@ -4142,7 +4200,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ReverseTunnelSrv:              tsrv,
 				Authz:                         authorizer,
 				AuthClient:                    conn.Client,
-				StreamEmitter:                 streamEmitter,
+				Emitter:                       asyncEmitter,
 				DataDir:                       cfg.DataDir,
 				CachingAuthClient:             accessPoint,
 				HostID:                        cfg.HostUUID,
@@ -4169,6 +4227,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Log:                      log,
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
+			EnableProxyProtocol:      cfg.Proxy.EnableProxyProtocol,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4559,7 +4618,7 @@ func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) u
 	return config.Kube.ListenAddr
 }
 
-func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
+func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnelclient.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
@@ -5249,7 +5308,26 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 	}
 	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
 
-	creds, err := cert.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
+	hosts := []string{cfg.Hostname, "localhost"}
+	var ips []string
+
+	// add web public address hosts to self-signed cert
+	for _, addr := range cfg.Proxy.PublicAddrs {
+		proxyHost, _, err := net.SplitHostPort(addr.String())
+		if err != nil {
+			// log and skip error since this is a nice to have
+			cfg.Log.Warnf("Error parsing proxy.public_address %v, skipping adding to self-signed cert: %v", addr.String(), err)
+			continue
+		}
+		// If the address is a IP have it added as IP SAN
+		if ip := net.ParseIP(proxyHost); ip != nil {
+			ips = append(ips, proxyHost)
+		} else {
+			hosts = append(hosts, proxyHost)
+		}
+	}
+
+	creds, err := cert.GenerateSelfSignedCert(hosts, ips)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5682,4 +5760,11 @@ func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint
 	tlsConfig.GetConfigForClient = auth.WithClusterCAs(tlsConfig.Clone(), accessPoint, clusterName, log)
 
 	return tlsConfig
+}
+
+func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
+	if cfg.Proxy.TrustXForwardedFor {
+		return web.NewXForwardedForMiddleware
+	}
+	return utils.NoopHTTPMiddleware
 }

@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestWriteUpgradeResponse(t *testing.T) {
@@ -53,11 +54,17 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	t.Parallel()
 
 	expectedPayload := "hello@"
+	expectedIP := "1.2.3.4"
 	alpnHandler := func(_ context.Context, conn net.Conn) error {
 		// Handles connection asynchronously to verify web handler waits until
 		// connection is closed.
 		go func() {
 			defer conn.Close()
+
+			clientIP, err := utils.ClientIPFromConn(conn)
+			require.NoError(t, err)
+			require.Equal(t, expectedIP, clientIP)
+
 			n, err := conn.Write([]byte(expectedPayload))
 			require.NoError(t, err)
 			require.Equal(t, len(expectedPayload), n)
@@ -89,7 +96,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		defer serverConn.Close()
 		defer clientConn.Close()
 
-		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPN, serverConn, clientConn)
+		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPN, serverConn, clientConn, expectedIP)
 
 		// Verify clientConn receives data sent by Config.ALPNHandler.
 		receive, err := bufio.NewReader(clientConn).ReadString(byte('@'))
@@ -102,7 +109,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		defer serverConn.Close()
 		defer clientConn.Close()
 
-		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPNPing, serverConn, clientConn)
+		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPNPing, serverConn, clientConn, expectedIP)
 
 		// Verify ping-wrapped clientConn receives data sent by Config.ALPNHandler.
 		receive, err := bufio.NewReader(pingconn.New(clientConn)).ReadString(byte('@'))
@@ -111,17 +118,26 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	})
 }
 
-func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, serverConn, clientConn net.Conn) {
+func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, serverConn, clientConn net.Conn, xForwardedFor string) {
 	t.Helper()
 
 	r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 	require.NoError(t, err)
 	r.Header.Add("Upgrade", upgradeType)
+	r.Header.Add("X-Forwarded-For", xForwardedFor)
+
+	// serverConn will be hijacked.
+	w := newResponseWriterHijacker(nil, serverConn)
+	require.NoError(t, err)
 
 	go func() {
-		// serverConn will be hijacked.
-		w := newResponseWriterHijacker(nil, serverConn)
-		_, err := h.connectionUpgrade(w, r, nil)
+		// Use XForwardedFor middleware to set IPs.
+		var err error
+		connUpgradeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err = h.connectionUpgrade(w, r, nil)
+		})
+		NewXForwardedForMiddleware(connUpgradeHandler).ServeHTTP(w, r)
+
 		require.NoError(t, err)
 	}()
 
@@ -145,7 +161,7 @@ type responseWriterHijacker struct {
 	conn net.Conn
 }
 
-func newResponseWriterHijacker(w http.ResponseWriter, conn net.Conn) *responseWriterHijacker {
+func newResponseWriterHijacker(w http.ResponseWriter, conn net.Conn) http.ResponseWriter {
 	if w == nil {
 		w = httptest.NewRecorder()
 	}
@@ -155,6 +171,6 @@ func newResponseWriterHijacker(w http.ResponseWriter, conn net.Conn) *responseWr
 	}
 }
 
-func (h responseWriterHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (h *responseWriterHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return h.conn, nil, nil
 }
