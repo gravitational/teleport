@@ -394,13 +394,25 @@ func (u *UnifiedResourceWatcher) Close() error {
 
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
 func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
+	var resources []types.ResourceWithLabels
+
+	// if the watcher is not initialized, instead of returning nothing, return upstream nodes
+	if !u.IsInitialized() {
+		nodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, node := range nodes {
+			resources = append(resources, node)
+		}
+		return resources, nil
+	}
+
 	result, err := u.current.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var resources []types.ResourceWithLabels
-
 	for _, item := range result.Items {
 		resources = append(resources, item.Value)
 	}
