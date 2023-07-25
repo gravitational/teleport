@@ -57,7 +57,7 @@ export class AgentRunner {
     const args = [
       'start',
       `--config=${configFile}`,
-      this.settings.appVersion === '1.0.0-dev' && '--skip-version-check',
+      this.settings.isLocalBuild && '--skip-version-check',
     ].filter(Boolean);
 
     this.logger.info(

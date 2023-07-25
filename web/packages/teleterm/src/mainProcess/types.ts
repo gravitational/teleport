@@ -51,6 +51,11 @@ export type RuntimeSettings = {
   arch: string;
   osVersion: string;
   appVersion: string;
+  /**
+   * The {@link appVersion} is set to a real version only for packaged apps that went through our CI build pipeline.
+   * In local builds, both for the development version and for packaged apps, settings.appVersion is set to 1.0.0-dev.
+   */
+  isLocalBuild: boolean;
 };
 
 export type MainProcessClient = {

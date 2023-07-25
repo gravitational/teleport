@@ -37,7 +37,10 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   getResolvedChildProcessAddresses = () =>
-    Promise.resolve({ tsh: '', shared: '' });
+    Promise.resolve({
+      tsh: '',
+      shared: '',
+    });
 
   openTerminalContextMenu() {}
 
@@ -46,7 +49,10 @@ export class MockMainProcessClient implements MainProcessClient {
   openTabContextMenu() {}
 
   showFileSaveDialog() {
-    return Promise.resolve({ canceled: false, filePath: '' });
+    return Promise.resolve({
+      canceled: false,
+      filePath: '',
+    });
   }
 
   fileStorage = createMockFileStorage();
@@ -88,6 +94,7 @@ export class MockMainProcessClient implements MainProcessClient {
   runAgent(): Promise<void> {
     return Promise.resolve();
   }
+
   subscribeToAgentUpdate() {
     return { cleanup: () => undefined };
   }
@@ -123,5 +130,6 @@ export const makeRuntimeSettings = (
   arch: 'arm64',
   osVersion: '22.2.0',
   appVersion: '11.1.0',
+  isLocalBuild: runtimeSettings?.appVersion === '1.0.0-dev',
   ...runtimeSettings,
 });
