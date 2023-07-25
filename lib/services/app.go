@@ -18,19 +18,13 @@ package services
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
@@ -171,143 +165,44 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 	return nil, trace.BadParameter("unsupported app server resource version %q", h.Version)
 }
 
-// NewApplicationsFromKubeService creates application resources from kubernetes service.
+// NewApplicationFromKubeService creates application resources from kubernetes service.
 // It transforms service fields and annotations into appropriate Teleport app fields.
-// Service labels are copied to app labels. App's protocol is set either by explicit
-// annotation or by using heuristics. Apps with TCP protocol are created only if explicitly set by annotation.
-// One service can result in multiple application resources if there are multiple ports exposed, app's name
-// in that case will include port's name.
-func NewApplicationsFromKubeService(service v1.Service, clusterName string, pc ProtocolChecker, logger logrus.FieldLogger) ([]types.Application, error) {
-	var apps types.Apps
+// Service labels are copied to app labels.
+func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
+	appURI := buildAppURI(protocol, getServiceFQDN(service), port.Port)
 
-	if logger == nil {
-		logger = logrus.StandardLogger()
-	}
-
-	protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
-
-	ports, err := getServicePorts(service)
+	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "could not get app rewrite config")
 	}
-
-	var appsMu sync.Mutex
-	g := errgroup.Group{}
-	g.SetLimit(5)
-	for _, port := range ports {
-		port := port
-		g.Go(func() error {
-			protocol := ""
-			switch protocolAnnotation {
-			case protoHTTPS, protoHTTP, protoTCP:
-				protocol = protocolAnnotation
-			default:
-				protocol = autoProtocolDetection(getServiceFQDN(service), port, pc)
-				if protocol == protoTCP {
-					logger.Debugf("Skipping port %d for service %q since TCP protocol was not explicitly set by annotation",
-						port, service.GetName())
-					return nil
-				}
-			}
-			appURI := buildAppURI(protocol, getServiceFQDN(service), port.Port)
-
-			rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
-			if err != nil {
-				logger.Errorf(
-					"could not get app rewrite config from annotation for discovered Kubernetes service %q: %v", service.GetName(), err)
-				return nil
-			}
-			a, err := types.NewAppV3(types.Metadata{
-				Name:        getAppName(service.GetName(), service.GetNamespace(), clusterName, ""),
-				Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
-				Labels:      getAppLabels(service.GetLabels(), clusterName),
-			}, types.AppSpecV3{
-				URI:     appURI,
-				Rewrite: rewriteConfig,
-
-				// Temporary usage to have app's name with port name, in case there are more than one app
-				// created from this service.
-				PublicAddr: getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name),
-			})
-			if err != nil {
-				logger.Errorf("could not create an app from discovered Kubernetes service %q: %v", service.GetName(), err)
-				return nil
-			}
-			appsMu.Lock()
-			apps = append(apps, a)
-			appsMu.Unlock()
-			return nil
-		})
-	}
-	err = g.Wait()
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name),
+		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
+		Labels:      getAppLabels(service.GetLabels(), clusterName),
+	}, types.AppSpecV3{
+		URI:     appURI,
+		Rewrite: rewriteConfig,
+	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
 	}
 
-	// If we ended up with more than one app from the service, we'll have port name in the app name to distinguish them.
-	// We can only do this now because we don't know how many apps there will be until all ports are processed by errgroup.
-	for i := range apps {
-		if len(apps) > 1 {
-			apps[i].SetName(apps[i].(*types.AppV3).Spec.PublicAddr)
-		}
-		apps[i].(*types.AppV3).Spec.PublicAddr = "" // Clear temporary used for name field.
-	}
-
-	return apps, nil
+	return app, nil
 }
 
-// ProtocolChecker is an interface used to check what protocol uri serves
-type ProtocolChecker interface {
-	CheckProtocol(uri string) string
-}
-
-func getServiceFQDN(s v1.Service) string {
+func getServiceFQDN(s corev1.Service) string {
 	host := s.GetName()
-	if s.Spec.Type == v1.ServiceTypeExternalName {
+	if s.Spec.Type == corev1.ServiceTypeExternalName {
 		host = s.Spec.ExternalName
 	}
 	return fmt.Sprintf("%s.%s.svc.cluster.local", host, s.GetNamespace())
 }
-
-const (
-	protoHTTPS = "https"
-	protoHTTP  = "http"
-	protoTCP   = "tcp"
-)
 
 func buildAppURI(protocol, serviceFQDN string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
 		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
 	}).String()
-}
-
-// autoProtocolDetection tries to determine port's protocol. It uses heuristics and port HTTP pinging if needed, provided
-// by protocol checker. It is used when no explicit annotation for port's protocol was provided.
-func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolChecker) string {
-	if port.AppProtocol != nil {
-		switch strings.ToLower(*port.AppProtocol) {
-		case protoHTTP, protoHTTPS:
-			return strings.ToLower(*port.AppProtocol)
-		}
-	}
-
-	if port.Port == 443 || strings.EqualFold(port.Name, protoHTTPS) {
-		return protoHTTPS
-	}
-
-	if pc != nil {
-		result := pc.CheckProtocol(fmt.Sprintf("%s:%d", serviceFQDN, port.Port))
-		if result != protoTCP {
-			return result
-		}
-	}
-
-	if port.Port == 80 || port.Port == 8080 || strings.EqualFold(port.Name, protoHTTP) {
-		return protoHTTP
-	}
-
-	return protoTCP
 }
 
 func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) {
@@ -349,57 +244,4 @@ func getAppLabels(serviceLabels map[string]string, clusterName string) map[strin
 	result[types.KubernetesClusterLabel] = clusterName
 
 	return result
-}
-
-func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
-	preferredPort := ""
-	for k, v := range s.GetAnnotations() {
-		if k == types.DiscoveryPortLabel {
-			preferredPort = v
-		}
-	}
-	availablePorts := []v1.ServicePort{}
-	for _, p := range s.Spec.Ports {
-		// Only supporting TCP ports.
-		if p.Protocol != v1.ProtocolTCP {
-			continue
-		}
-		availablePorts = append(availablePorts, p)
-		// If preferred port is specified and we found it in available ports, use this one
-		if preferredPort != "" && (preferredPort == strconv.Itoa(int(p.Port)) || p.Name == preferredPort) {
-			return []v1.ServicePort{p}, nil
-		}
-	}
-
-	// If preferred port is specified and we're here, it means we couldn't find it in service's ports.
-	if preferredPort != "" {
-		return nil, trace.BadParameter("Specified preferred port %s is absent among available service ports", preferredPort)
-	}
-
-	return availablePorts, nil
-}
-
-type protoChecker struct {
-	InsecureSkipVerify bool
-}
-
-func (p *protoChecker) CheckProtocol(uri string) string {
-	client := http.Client{
-		Timeout: 2 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: p.InsecureSkipVerify,
-			},
-		},
-	}
-
-	resp, err := client.Head(fmt.Sprintf("https://%s", uri))
-	if err == nil {
-		_ = resp.Body.Close()
-		return protoHTTPS
-	} else if strings.Contains(err.Error(), "server gave HTTP response to HTTPS client") {
-		return protoHTTP
-	}
-
-	return protoTCP
 }
