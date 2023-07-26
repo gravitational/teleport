@@ -28,7 +28,9 @@ import (
 
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
+	logrusprovider "github.com/grpc-ecosystem/go-grpc-middleware/providers/logrus/v2"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -465,46 +467,63 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 	return handler(srv, &authenticatedStream{ctx: ctx, ServerStream: serverStream})
 }
 
+// loggingInterceptorOpts is used with [logging.UnaryServerInterceptor] and
+// [logging.StreamServerInterceptor].
+var loggingInterceptorOpts = []logging.Option{
+	logging.WithDecider(func(_ string, err error) logging.Decision {
+		if err != nil {
+			return logging.LogFinishCall
+		}
+		return logging.NoLogCall
+	}),
+}
+
 // UnaryInterceptor returns a gPRC unary interceptor which performs rate
 // limiting, authenticates requests, and passes the user information as context
 // metadata.
 func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
-	if a.GRPCMetrics != nil {
-		return utils.ChainUnaryServerInterceptors(
-			otelgrpc.UnaryServerInterceptor(),
-			om.UnaryServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerUnaryErrorInterceptor,
-			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
-			a.withAuthenticatedUserUnaryInterceptor,
-		)
-	}
-	return utils.ChainUnaryServerInterceptors(
+	is := []grpc.UnaryServerInterceptor{
+		logging.UnaryServerInterceptor(
+			logrusprovider.InterceptorLogger(log.WithField(trace.Component, teleport.ComponentGRPC)),
+			loggingInterceptorOpts...,
+		),
 		otelgrpc.UnaryServerInterceptor(),
+	}
+
+	if a.GRPCMetrics != nil {
+		is = append(is, om.UnaryServerInterceptor(a.GRPCMetrics))
+	}
+
+	is = append(is,
 		utils.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
+	return utils.ChainUnaryServerInterceptors(is[0], is[1:]...)
 }
 
 // StreamInterceptor returns a gPRC stream interceptor which performs rate
 // limiting, authenticates requests, and passes the user information as context
 // metadata.
 func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
-	if a.GRPCMetrics != nil {
-		return utils.ChainStreamServerInterceptors(
-			otelgrpc.StreamServerInterceptor(),
-			om.StreamServerInterceptor(a.GRPCMetrics),
-			utils.GRPCServerStreamErrorInterceptor,
-			a.Limiter.StreamServerInterceptor,
-			a.withAuthenticatedUserStreamInterceptor,
-		)
-	}
-	return utils.ChainStreamServerInterceptors(
+	is := []grpc.StreamServerInterceptor{
+		logging.StreamServerInterceptor(
+			logrusprovider.InterceptorLogger(log.WithField(trace.Component, teleport.ComponentGRPC)),
+			loggingInterceptorOpts...,
+		),
 		otelgrpc.StreamServerInterceptor(),
+	}
+
+	if a.GRPCMetrics != nil {
+		is = append(is, om.StreamServerInterceptor(a.GRPCMetrics))
+	}
+
+	is = append(is,
 		utils.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)
+	return utils.ChainStreamServerInterceptors(is[0], is[1:]...)
 }
 
 // authenticatedStream wraps around the embedded grpc.ServerStream

@@ -5368,8 +5368,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	server := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
+		grpc.UnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.StreamInterceptor(cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
