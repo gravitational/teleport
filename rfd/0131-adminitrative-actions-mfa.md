@@ -43,93 +43,6 @@ action.
 
 ## Details
 
-### UX
-
-The UX of this feature will be very similar to Per-session MFA for `tsh`, `tctl`,
-and the WebUI, and Teleport Connect.
-
-When a user performs an admin action, they will be prompted to tap their MFA key.
-Each admin action will require a single unique tap or OTP code.
-
-```console
-$ tctl rm roles/access
-Tap any security key
-# success
-```
-
-#### Editing resources
-
-With `tctl edit` or the WebUI, it is possible to edit existing resources in a
-text editor. In this case, MFA will be prompted before proceeding to the text
-editor to prevent data loss from a failed MFA challenge.
-
-```console
-$ tctl edit roles/access
-Tap any security key
-# edit role in Vim
-# success
-```
-
-### Server configuration
-
-The requirement for MFA on admin actions will be made configurable through
-`cluster_auth_preference.admin_action_mfa: off | on`.
-
-When set to on, MFA will be required for admin actions for all users.
-
-When set to off, MFA will only be required for actions which already require MFA.
-
-This value will default to on/off based on the value of `cluster_auth_preference.second_factor`:
-
-- `second_factor = off | optional` => `admin_action_mfa = off`
-- `second_factor = on | otp | webauthn` => `admin_action_mfa = on`
-
-#### Backward Compatibility
-
-Once the Auth server begins to require MFA for admin actions, old clients with
-no way of providing MFA verification will fail to carry out admin actions.
-
-In order to maintain backwards compatibility between old clients and an upgraded
-server, we can't actually default `admin_action_mfa = on` as planned above.
-
-Instead, in the first major version of this feature (likely Teleport 14), it will
-always default to `off`. In the next major version (Teleport 15), the defaults
-above will be used.
-
-#### Built-in Roles
-
-Built-in roles will not require MFA to complete admin actions. This includes
-the `Admin` role which is used by `tctl` when performing operations directly
-on the Auth Server.
-
-#### Automated Use Cases
-
-In order to support automated use cases such as the
-[Teleport Terraform Provider](https://goteleport.com/docs/management/guides/terraform-provider/)
-or [Access Request Plugins](https://goteleport.com/docs/access-controls/access-request-plugins/),
-we need to provide a way for specific users to bypass MFA for admin actions.
-
-We will introduce a new role option, `robot`, to bypass MFA requirements.
-At first, this will only bypass the MFA requirement for admin actions, but
-could be reused to bypass other features which are not compatible with
-automated use cases.
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: access-request-plugin
-spec:
-  options:
-    robot: true
-  allow:
-    rules:
-      - resources: ['access_request']
-        verbs: ['list', 'read', 'update']
-      - resources: ['access_plugin_data']
-        verbs: ['update']
-```
-
 ### Administrative Actions
 
 An administrative action will be defined as an action which creates, updates,
@@ -225,13 +138,7 @@ user's role rather than the user itself. For example:
   - `AddMFADeviceSync`, `DeleteMFADeviceSync`
 - Actions which only require `DefaultImplicitRole`:
   - `SubmitUsageEvent`
-- Actions which are limited to [built-in service roles](#built-in-roles). For example:
-  - `CreateSessionTracker`, `RemoveSessionTracker`, `UpdateSessionTracker`
-  - `GenerateWindowsDesktopCert`, `GenerateOpenSSHCert`
-  - `InventoryControlStream`
-  - `SendKeepAlives`
-  - `EmitAuditEvent`, `CreateAuditStream`, `ResumeAuditStream`
-  - `ProcessKubeCSR`, `SignDatabaseCSR`
+- Actions which are limited to [built-in service roles](#built-in-roles).
 
 #### Caveat
 
@@ -260,6 +167,45 @@ MVP goal will be limited to the following RBAC centric endpoints:
 - `SetSessionRecordingConfig`, `ResetSessionRecordingConfig`
 - `SetAuthPreference`, `ResetAuthPreference`
 - `SetNetworkRestrictions`, `DeleteNetworkRestrictions`
+
+### Server configuration
+
+MFA for admin actions will be required on any cluster with 
+`cluster_auth_preference.second_factor` set to `on`, `optional`, `otp`, or
+`webauthn`.
+
+Note: `second_factor: optional` is used to bridge the gap between `off` and
+`on`, since existing users will not have an MFA device registered yet. This
+change will make it a requirement for admins with `second_factor: optional`
+to register an MFA device before they can perform more admin actions.
+
+#### Built-in Roles
+
+Built-in roles will not require MFA to complete admin actions. For example:
+
+- `Auth`, `Proxy`, `Node`, and other service roles.
+- `Admin` role used by `tctl` directly on an Auth server.
+- `Bot` role used by MachineID to generate certificates.
+
+#### Automated Use Cases
+
+In order to support automated use cases such as the
+[Teleport Terraform Provider](https://goteleport.com/docs/management/guides/terraform-provider/)
+or [Access Request Plugins](https://goteleport.com/docs/access-controls/access-request-plugins/),
+we need to provide a way for non-interactive identities to bypass MFA for admin actions.
+
+First, we will narrow the scope of what constitutes a non-interactive identity.
+A non-interactive identity is a set of certificates generated with impersonation
+by either the `Bot` or `Admin` built in role, which is done with MachineID or
+`tctl auth sign` on the Auth server respectively.
+
+If an API client's certificates have the `impersonator` extension set to a
+user with the `Bot` or `Admin` role, then MFA will not be attempted nor
+required for admin actions.
+
+Impersonated certificates generated by a user will still require MFA for admin
+actions. We currently use this type of impersonation for our API and plugin
+guides, so each of these guides will need to be updated to use MachineID.
 
 ### MFA enforcement
 
@@ -321,6 +267,10 @@ Cons:
 - Requires custom changes to both the client and server implementations for
   each affected endpoint, both to pass the MFA challenge response from the
   client and for the Auth server to verify it for the request.
+- Old clients have no way to pass MFA until the `MFAAuthenticateResponse`
+  message is included in the proto specification. In order to maintain backwards
+  compatibility, each request that we change to an admin action will take a full
+  major version before we can actually require MFA for that action.
 
 2. Allow clients to pass `MFAAuthenticateResponse` as client request metadata.
 
@@ -404,29 +354,33 @@ for MFA when necessary.
 ##### Infer MFA Requirement
 
 Before making an admin action request, Teleport clients can check the server's
-`cluster_auth_preference.admin_action_mfa` settings with a ping request. When
-set to on, the client should first make a `CreateAuthenticateChallenge` request,
-solve the returned challenge, and attach it to the admin action request.
+`cluster_auth_preference.second_factor` settings with a ping request. If MFA is
+required for the set `second_factor`, the client will first make a
+`CreateAuthenticateChallenge` request, solve the returned challenge, and attach
+it to the admin action request.
 
 If a user has no MFA device registered, `CreateAuthenticateChallenge` will fail.
 In this case, the client will make the request without the MFA challenge response,
-in case we are handling a special case (e.g. Built-in `Admin` role, bot user
-for automated use cases).
-
-Additionally, if the client doesn't whether an action requires MFA or not, it
-will first attempt without it. If the server responds with `ErrAdminActionMFARequired`,
-the client will attempt to retry the request with MFA.
+in case we are handling a special case (e.g. Built-in role, `Bot` or `Admin`
+impersonation).
 
 ### Proto Specification
 
 Each Admin action API request will need to include the `MFAAuthenticateResponse`
-field in its proto specification.
+field in its proto specification. This will be contained withing a new wrapper
+message for consistency and extensibility:
 
-Clients will automatically check for the `MFAAuthenticateResponse` in order to
-determine whether it must prompt for MFA. This will be done seamlessly within
-a `grpc.UnaryInterceptor`.
+```proto
+message AugmentAuthentication {
+  MFAAuthenticateResponse mfa_authenticate_response = 1;
+}
+```
 
-Likewise, the Server will automatically check for an `MFAAuthenticateResponse` in
+Clients will automatically check for the `AugmentAuthentication` field in order
+to determine whether it must prompt for MFA. This will be done seamlessly
+within a `grpc.UnaryInterceptor`.
+
+Likewise, the Server will automatically check for an `AugmentAuthentication` field
 using a `grpc.UnaryInterceptor`. If found, this will be passed down the chain
 through the `AuthContext` (like user) where it can be verified by `ServerWithRoles`
 if required.
@@ -442,7 +396,7 @@ closer to [fully deprecating the HTTP API](https://github.com/gravitational/tele
 
 Many any of our existing gRPC API requests do not use unique request or response
 messages, despite it being a best practice. As a result, it is not trivial to add
-the `MFAAuthenticateResponse` field to some requests.
+the `AugmentAuthentication` field to some requests.
 
 For example:
 
@@ -478,6 +432,33 @@ service UserService {
 }
 ```
 
+### UX
+
+The UX of this feature will be very similar to Per-session MFA for `tsh`, `tctl`,
+and the WebUI, and Teleport Connect.
+
+When a user performs an admin action, they will be prompted to tap their MFA key.
+Each admin action will require a single unique tap or OTP code.
+
+```console
+$ tctl rm roles/access
+Tap any security key
+# success
+```
+
+#### Editing resources
+
+With `tctl edit` or the WebUI, it is possible to edit existing resources in a
+text editor. In this case, MFA will be prompted before proceeding to the text
+editor to prevent data loss from a failed MFA challenge.
+
+```console
+$ tctl edit roles/access
+Tap any security key
+# edit role in Vim
+# success
+```
+
 ### Test Plan
 
 The implementation of this feature will include automated unit tests to ensure
@@ -491,24 +472,38 @@ to our security outlook.
 Here are a few key points to review:
 
 - [Server Configuration](#server-configuration):
-  - In order to maintain backwards compatibility and non-MFA
-  compatible use cases (automated plugins), we give server admins the option to
-  turn off MFA for admin actions for the cluster or specific roles. This also
-  means that an admin can turn off the requirement for themselves, potentially
-  opening them back up to the vulnerability we are trying to close. As a counter
-  measure, we will not recommend turning off MFA for admin actions outside of use
-  cases which absolutely require it. Our Docs should use warning language whenever
-  this option is mentioned.
-  - MFA will be required for admin actions by default if a cluster's second
-  factor setting allows it (`on`, `webauthn`, `otp`). This default won't apply
-  until the second major version of this feature for backwards compatibility.
+  - MFA will be required for admin actions if a cluster's second factor setting
+  allows it (`optional`, `on`, `webauthn`, `otp`).
   - [Built-in roles](#built-in-roles) will not require MFA for admin actions, including the
   `Admin` role used when executing `tctl` directly on an Auth Server.
+  - [MachineID](#automated-use-cases) certificates generated with MachineID or
+  Admin impersonation will not require MFA. Users with access to the Auth server
+  directly or with `create` permissions on the `role`, `user`, and `token` could
+  use their privileges to generate impersonated certificates that do not
+  require MFA for admin actions.
+- [Backwards Compatibility](#backward-compatibility): MFA will not be required
+for an admin action until one major version after it was changed to an admin
+action, resulting in lagging security improvement.
 - [Limited MVP](#mvp-admin-actions-subset): The changes necessary to convert
 all admin actions to requiring MFA is too large to complete in one go. However,
 We should take care not to let the priority of the full implementation slip
 away once the MVP is complete, since this will reduce the security impact of the
 feature.
+
+#### Backward Compatibility
+
+When an API request is changed to require MFA as an admin action, old clients
+with the old gRPC specification will have no way to provide the
+`AugmentedAuthentication` field in the request.
+
+In order to maintain backwards compatibility, each admin action request will
+take one Major version cycle before we can strictly require MFA for that
+request:
+
+|        | Version X-1 | Version X   | Version X+1 |
+|--------|-------------|-------------|-------------|
+| Server | Does not require MFA | Verifies MFA if provided | Requires MFA |
+| Client | Does not provide MFA | Provides MFA | Provides MFA |
 
 ### Other considerations
 
