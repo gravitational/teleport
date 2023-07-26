@@ -80,7 +80,7 @@ To spin up a new server using Docker:
 
 1. Open a terminal shell on your workstation.
 
-2. Start a Docker container on your workstation to prepare a server that you want enroll 
+1. Start a Docker container on your workstation to prepare a server that you want enroll 
 as a resource in your Teleport Team cluster:
    
    ```code
@@ -89,7 +89,7 @@ as a resource in your Teleport Team cluster:
    
    This command starts a new shell session in the `ubuntu:22.10` container. 
 
-3. Run the following command to install `curl` and `telnet` from the package management repository:
+1. Run the following command to install `curl` and `telnet` from the package management repository:
    
    ```code
    $ apt update && apt install -y curl telnet
@@ -106,19 +106,19 @@ To install the Teleport SSH Service on your server:
 1. Open a browser and go to the address for your Teleport Team cluster, 
 <Var name="cluster-url"/>`.teleport.sh` (for example, `mycluster.teleport.sh`).
 
-2. Sign in with the account credentials you used to activate your Teleport Team account.
+1. Sign in with the account credentials you used to activate your Teleport Team account.
    
    The first time you sign in, you are prompted to add your first resource: 
    
    ![Add your first resource](../../img/cloud/getting-started/add-my-first-resource@2x.png)
 
-3. Click **Add my first resource** to open **Enroll New Resource**. 
+1. Click **Add my first resource** to open **Enroll New Resource**. 
 
-4. Type _server_ in the search box to filter the list of resources.
+1. Type *server* in the search box to filter the list of resources.
    
    ![Select resource type](../../img/cloud/getting-started/choose-resource@2x.png)
 
-5. Click *Ubuntu 14.04+* to register the server in the Docker container.
+1. Click *Ubuntu 14.04+* to register the server in the Docker container.
    
    After you select *Ubuntu 14.04+* as the resource type, the script to install and 
    configure the Teleport service is displayed. For example:
@@ -129,14 +129,14 @@ To install the Teleport SSH Service on your server:
    Docker container. Before copying the command to run the installation script, you 
    need to alias `sudo` in the container terminal shell session.
 
-6. In the terminal with the container shell session, alias `sudo` by running 
+1. In the terminal with the container shell session, alias `sudo` by running 
 the following command:
    
    ```code
    $ alias sudo=""
    ```
 
-7. Copy the command to run the installation script from the Web UI and paste it 
+1. Copy the command to run the installation script from the Web UI and paste it 
 into the container shell session.
    
    Leave the script running in the shell. After Teleport is installed on the server, 
@@ -146,11 +146,11 @@ into the container shell session.
    
    To continue, click **Next**.
 
-8. Confirm that you want to authenticate as the `root` user and click **Next**:
+1. Confirm that you want to authenticate as the `root` user and click **Next**:
    
    ![Choose your user](../../img/cloud/getting-started/set-up-access@2x.png)
 
-9. Click **Test Connection** to verify access to the server.
+1. Click **Test Connection** to verify access to the server.
    
    ![Start session](../../img/cloud/getting-started/test-connection@2x.png)
 
@@ -174,13 +174,13 @@ To start a session on the server you just added to Teleport Team:
    
    </Notice>
     
-2. Execute some commands in your terminal. 
+1. Execute some commands in your terminal. 
 
-3. Enter the `exit` command to end the remote interactive session and close the browser tab.
+1. Enter the `exit` command to end the remote interactive session and close the browser tab.
 
-4. In the last step of **Enroll New Resource**, click **Finish**.
+1. In the last step of **Enroll New Resource**, click **Finish**.
 
-5. Click **Browse existing resources** to see your new server listed in the Teleport Web UI.
+1. Click **Browse existing resources** to see your new server listed in the Teleport Web UI.
 
 ## Step 4/5. Play back your session
 
@@ -192,14 +192,14 @@ To playback a session in the Teleport Web UI:
 
 1. Set the dropdown menu on the upper left of the screen to **Management**.
 
-2. Under Activity, click **Session Recordings**.
+1. Under Activity, click **Session Recordings**.
    
    You will see the recording for your interactive session from the previous step listed.
    For example:
    
    ![Session recordings](../../img/cloud/getting-started/session-recordings@2x.png)
 
-3. Click **Play** to see a full recording of your session.
+1. Click **Play** to see a full recording of your session.
 
 ## Step 5/5. Access the server from the command line
 
@@ -207,7 +207,7 @@ To access the server using commands in a terminal:
 
 1. Open a new terminal window.
 
-2. Sign in to your Teleport Team cluster by running the `tsh login` command  with the URL 
+1. Sign in to your Teleport Team cluster by running the `tsh login` command  with the URL 
 of your cluster and the name of your Teleport user:
    
    ```code
@@ -219,15 +219,15 @@ of your cluster and the name of your Teleport user:
    
    ```code
    > Profile URL:      https://cluster-url.teleport.sh:443
-   Logged in as:       admin@teleport.example.com
-   Cluster:            cluster-url.teleport.sh
-   Roles:              access, auditor, editor
-   Logins:             root
-   Kubernetes:         enabled
-   Valid until:        2023-07-08 01:35:20 -0700 PDT [valid for 12h0m0s]
-   Extensions:         login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+     Logged in as:       admin@teleport.example.com
+     Cluster:            cluster-url.teleport.sh
+     Roles:              access, auditor, editor
+     Logins:             root
+     Kubernetes:         enabled
+     Valid until:        2023-07-08 01:35:20 -0700 PDT [valid for 12h0m0s]
+     Extensions:         login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
 
-3. List the servers your Teleport user can access. 
+1. List the servers your Teleport user can access. 
    
    ```code
    $ tsh ls
@@ -241,7 +241,7 @@ of your cluster and the name of your Teleport user:
    000000000000 ⟵ Tunnel   hostname=000000000000,teleport.internal/resource-id=000000000000
    ```
 
-4. Access your server as the `root` user:
+1. Access your server as the `root` user:
 
    ```code
    $ tsh ssh root@<Var name="node-name" />
@@ -261,11 +261,13 @@ clusters, cloud provider APIs, and Windows desktops. Role-based access control
 ensures that only authorized users are allowed access to those resources.
 
 For more information about deploying agents, see the following topics:
+
 - [Run Teleport Agents](../agents/introduction.mdx)
 - [Deploy Teleport Agents with Terraform](../agents/deploy-agents-terraform.mdx)
 - [Join Services to your Teleport Cluster](../agents/join-services-to-your-cluster.mdx)
 
 For information about configuring roles, see the following topics:
+
 - [Getting Started with Access Controls](../access-controls/getting-started.mdx)
 - [Cluster Access and RBAC](../access-controls/guides.mdx)
 - [Access Controls for Servers](../server-access/rbac.mdx#role-configuration)
