@@ -14,7 +14,7 @@
 
 use crate::errors::invalid_data_error;
 use rdp::model::error::RdpResult;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, ops::Deref};
 use utf16string::{WString, LE};
 
 /// According to [MS-RDPEFS] 1.1 Glossary:
@@ -56,6 +56,23 @@ pub fn unicode_size(s: &str, with_null_term: bool) -> u32 {
 
 pub fn vec_u8_debug(v: &[u8]) -> String {
     format!("&[u8] of length {}", v.len())
+}
+
+pub struct ThreadSafe<T: Send + Sync>(T);
+
+impl<T: Send + Sync> ThreadSafe<T> {
+    pub fn new(t: T) -> Self {
+        ThreadSafe(t)
+    }
+}
+
+impl<T: Send + Sync> Deref for ThreadSafe<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &T {
+        &self.0
+    }
 }
 
 #[cfg(test)]
