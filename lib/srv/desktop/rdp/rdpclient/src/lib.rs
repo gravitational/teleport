@@ -74,7 +74,6 @@ use std::os::raw::c_char;
 use std::{mem, ptr, slice, time};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::Mutex;
-use util::ThreadSafe;
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -95,20 +94,21 @@ impl IronRDPClient {
     }
 }
 
-/// Client is a wrapper around a pointer to a ThreadSafe<ClientInternal> which is built
-/// to be passed to and from Go. Being ThreadSafe means that it can be passed from Go
-/// from arbitrary goroutines (read: threads) and used concurrently.
+/// Client is a wrapper around a pointer to a ClientInternal which is built
+/// to be passed to and from Go. ClientInternal is forced to be Send + Sync
+/// which means that it can be passed back in to Rust from Go from arbitrary
+/// goroutines (read: threads) and used concurrently.
 ///
 /// After calling [`Client::new()`], the caller is responsible for calling [`Client::drop()`].
-/// Letting the client go out of scope without calling [`Client::drop()`] will result in a memory
+/// Letting the Client go out of scope without calling [`Client::drop()`] will result in a memory
 /// leak.
 ///
 /// Using the Client after calling [`Client::drop()`] will result in undefined behavior.
 ///
-/// Client implements [`Deref`] to [`ThreadSafe<ClientInternal>`], which means that it can be
-/// used as a [`ThreadSafe<ClientInternal>`] in Rust code.
+/// Client implements [`Deref`] to [`ClientInternal`], which means that it can be
+/// used directly as a &ClientInternal in Rust code.
 #[repr(C)]
-pub struct Client(*const ThreadSafe<ClientInternal>);
+pub struct Client(*const ClientInternal);
 impl Client {
     /// Creates a new [`Client`]
     fn new(
@@ -116,8 +116,10 @@ impl Client {
         go_ref: usize,
         tokio_rt: tokio::runtime::Runtime,
     ) -> Self {
-        Self(Box::into_raw(Box::new(ThreadSafe::new(
-            ClientInternal::new(iron_rdp_client, go_ref, tokio_rt),
+        Self(Box::into_raw(Box::new(ClientInternal::new(
+            iron_rdp_client,
+            go_ref,
+            tokio_rt,
         ))))
     }
 
@@ -127,10 +129,10 @@ impl Client {
     /// memory problems. For example, a double-free may occur if the
     /// function is called twice on the same Client.
     ///
-    /// While Rust's memory semantics make this impossible in pure rust,
+    /// While Rust's memory semantics make this impossible in pure Rust,
     /// it is possible to call this function twice from Go.
     unsafe fn drop(self) {
-        drop(Box::from_raw(self.0 as *mut ThreadSafe<ClientInternal>));
+        drop(Box::from_raw(self.0 as *mut ClientInternal));
     }
 
     fn new_null() -> Self {
@@ -139,7 +141,7 @@ impl Client {
 }
 
 impl Deref for Client {
-    type Target = ThreadSafe<ClientInternal>;
+    type Target = ClientInternal;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -149,33 +151,27 @@ impl Deref for Client {
 
 /// # Safety
 ///
-/// Client is a pointer to a ThreadSafe, which is Send
+/// Client is a pointer to a ClientInternal, which is Send
+/// per assert_impl_all!(Client: Send, Sync);
 unsafe impl Send for Client {}
 /// # Safety
 ///
-/// Client is a pointer to a ThreadSafe, which is Sync, and only
-/// implements Deref, meaning that only immutable references of
-/// ThreadSafe (themselves Sync) can be obtained.
+/// Client is a pointer to a ClientInternal, which is Sync per
+/// assert_impl_all!(Client: Send, Sync);
+/// Client only implements Deref to ClientInernal, meaning that
+/// only immutable references of ClientInternal (themselves Sync)
+/// can be used.
 unsafe impl Sync for Client {}
 
-/// Client has an unusual lifecycle:
-/// - The function connect_rdp calls Client::new(), which creates it on the heap (Box::new), grabs a raw pointer(Box::into_raw),
-///   and returns in to Go.
-/// - Most other exported rdp functions (pub unsafe extern "C") take the raw pointer and convert it (Box::leak(Box::from_raw(ptr)))
-///   to a reference (&'static mut Client), which can then be used without dropping the client.
-/// - The function free_rdp takes the raw pointer and drops it.
-///
-/// The Client makes use of asynchronous rust via the tokio runtime. A single runtime is created in connect_rdp and held on to by the
-/// Client. The exported rdp functions which need to call async rust functions start with `client.tokio_rt.handle().clone().block_on( ... )`,
-/// which creates a new task on the tokio runtime and blocks the current thread until it completes. Since these functions are called from
-/// Go, the "current thread" can be thought of as whichever goroutine the exported rdp function is called from. Because the client might
-/// be being used by multiple goroutines concurrently, it is up to the programmer to consider any synchronization mechanisms that might
-/// need to be implemented as features are added to the Client going forward.
+/// ClientClientInternal must be Send + Sync, see [`Client`] for more details.
 pub struct ClientInternal {
     iron_rdp_client: Mutex<IronRDPClient>,
     tokio_rt: tokio::runtime::Runtime,
     go_ref: usize,
 }
+
+// Forces ClientInternal to be Send + Sync
+assert_impl_all!(Client: Send, Sync);
 
 impl ClientInternal {
     fn new(

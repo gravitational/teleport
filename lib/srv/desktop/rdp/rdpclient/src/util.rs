@@ -58,21 +58,19 @@ pub fn vec_u8_debug(v: &[u8]) -> String {
     format!("&[u8] of length {}", v.len())
 }
 
-pub struct ThreadSafe<T: Send + Sync>(T);
-
-impl<T: Send + Sync> ThreadSafe<T> {
-    pub fn new(t: T) -> Self {
-        ThreadSafe(t)
-    }
-}
-
-impl<T: Send + Sync> Deref for ThreadSafe<T> {
-    type Target = T;
-
-    #[inline]
-    fn deref(&self) -> &T {
-        &self.0
-    }
+/// A helper function to assert that a type implements all traits in a list.
+///
+/// Ripped directly from the
+/// [static_assertions crate v1.1.0](https://docs.rs/static_assertions/1.1.0/src/static_assertions/assert_impl.rs.html#113-121)
+#[macro_export]
+macro_rules! assert_impl_all {
+    ($type:ty: $($trait:path),+ $(,)?) => {
+        const _: fn() = || {
+            // Only callable when `$type` implements all traits in `$($trait)+`.
+            fn assert_impl_all<T: ?Sized $(+ $trait)+>() {}
+            assert_impl_all::<$type>();
+        };
+    };
 }
 
 #[cfg(test)]
