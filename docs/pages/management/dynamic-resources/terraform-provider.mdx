@@ -1,6 +1,6 @@
 ---
 title: Terraform Provider
-description: How to deploy infrastructure-as-code using the Teleport Terraform provider.
+description: How to manage dynamic resources using the Teleport Terraform provider.
 videoBanner: YgNHD4SS8dg
 ---
 
@@ -29,11 +29,11 @@ authority to manage resources in the cluster.
 You can create a local Teleport user for this purpose or you can use a 
 [Machine ID](../../machine-id/introduction.mdx) to generate credentials.
 
-If you intend to run Terraform from a CI/CD platform, a Machine ID is often a better 
+If you intend to run Terraform from a CI/CD platform, Machine ID is often a better 
 option for generating credentials.  Machine ID can provision ephemeral short-lived 
 certificates that are appropriate for CI/CD workflows instead of using manually-generated 
 credentials that have a longer time-to-live (TTL) period. For more information about
-using a Machine ID, see the [Machine ID Getting Started Guide](../../machine-id/getting-started.mdx).
+using Machine ID, see the [Machine ID Getting Started Guide](../../machine-id/getting-started.mdx).
 
 To prepare credentials for a local Teleport user:
 
@@ -118,7 +118,7 @@ the following content into the `terraform-impersonator.yaml` file:
          roles: ['terraform']
    ```
 
-1. Create the terraform-impersonator role by running the following command:
+1. Create the `terraform-impersonator` role by running the following command:
    
    ```code
    $ tctl create terraform-impersonator.yaml
@@ -166,7 +166,7 @@ To apply the configuration:
    # main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
    ```
 
-1. Initialize the working directory that containsTerraform configuration files by running the 
+1. Initialize the working directory that contains Terraform configuration files by running the 
 following command:
    
    ```code
