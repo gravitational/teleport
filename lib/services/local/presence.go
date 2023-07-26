@@ -1719,6 +1719,8 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 	})
 }
 
+// FakePaginateParams is used in FakePaginate to help filter down listing of resources into pages
+// and includes required fields to support ListResources and ListUnifiedResources requests
 type FakePaginateParams struct {
 	// ResourceType is the resource that is going to be retrieved.
 	// This only needs to be set explicitly for the `ListResources` rpc.
@@ -1744,6 +1746,8 @@ type FakePaginateParams struct {
 	// Kinds is a list of kinds to match against a resource's kind. This can be used in a
 	// unified resource request that can include multiple types.
 	Kinds []string
+	// NeedTotalCount indicates whether or not the caller also wants the total number of resources after filtering.
+	NeedTotalCount bool
 }
 
 func (m *FakePaginateParams) GetWindowsDesktopFilter() types.WindowsDesktopFilter {
