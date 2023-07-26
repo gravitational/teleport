@@ -20,9 +20,10 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/client/identityfile"
 )
 
 // tarWriter implements a ConfigWriter that generates a tarfile from the
