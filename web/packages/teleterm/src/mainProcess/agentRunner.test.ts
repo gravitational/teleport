@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import childProcess, { ChildProcess } from 'node:child_process';
-import { EventEmitter } from 'node:events';
-import { PassThrough } from 'node:stream';
+import path from 'node:path';
 
 import Logger, { NullService } from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -26,41 +24,15 @@ import { makeRuntimeSettings } from './fixtures/mocks';
 import { AgentRunner } from './agentRunner';
 import { AgentProcessState } from './types';
 
-jest.mock('node:child_process');
-
-let eventEmitter: EventEmitter;
-let childProcessMock: ChildProcess;
 beforeEach(() => {
   Logger.init(new NullService());
-
-  eventEmitter = new EventEmitter();
-  childProcessMock = {
-    stderr: new PassThrough(),
-    once: (event, listener) => {
-      eventEmitter.once(event, listener);
-      return this;
-    },
-    on: (event, listener) => {
-      eventEmitter.on(event, listener);
-      return this;
-    },
-    off: (event, listener) => {
-      eventEmitter.off(event, listener);
-      return this;
-    },
-    kill: jest.fn().mockImplementation(() => {
-      eventEmitter.emit('exit', 0);
-    }),
-  } as unknown as ChildProcess;
-
-  jest.spyOn(childProcess, 'spawn').mockReturnValue(childProcessMock);
 });
 
 const userDataDir = '/Users/test/Application Data/Teleport Connect';
-const agentBinaryPath = '/Users/test/Caches/Teleport Connect/teleport/teleport';
+const agentBinaryPath = path.join(__dirname, 'agentTestProcess.mjs');
 const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
 
-test('agent process starts with correct arguments', () => {
+test('agent process starts with correct arguments', async () => {
   const agentRunner = new AgentRunner(
     makeRuntimeSettings({
       agentBinaryPath,
@@ -68,16 +40,21 @@ test('agent process starts with correct arguments', () => {
     }),
     () => {}
   );
-  agentRunner.start(rootClusterUri);
 
-  expect(childProcess.spawn).toHaveBeenCalledWith(
-    agentBinaryPath,
-    ['start', `--config=${userDataDir}/agents/cluster.local/config.yaml`],
-    expect.anything()
-  );
+  try {
+    const agentProcess = await agentRunner.start(rootClusterUri);
+
+    expect(agentProcess.spawnargs).toEqual([
+      agentBinaryPath,
+      'start',
+      `--config=${userDataDir}/agents/cluster.local/config.yaml`,
+    ]);
+  } finally {
+    await agentRunner.killAll();
+  }
 });
 
-test('previous agent process is killed when a new one is started', () => {
+test('previous agent process is killed when a new one is started', async () => {
   const agentRunner = new AgentRunner(
     makeRuntimeSettings({
       agentBinaryPath,
@@ -85,13 +62,18 @@ test('previous agent process is killed when a new one is started', () => {
     }),
     () => {}
   );
-  agentRunner.start(rootClusterUri);
-  agentRunner.start(rootClusterUri);
 
-  expect(childProcessMock.kill).toHaveBeenCalledWith('SIGKILL');
+  try {
+    const firstProcess = await agentRunner.start(rootClusterUri);
+    await agentRunner.start(rootClusterUri);
+
+    expect(firstProcess.killed).toBeTruthy();
+  } finally {
+    await agentRunner.killAll();
+  }
 });
 
-test('status updates are sent', () => {
+test('status updates are sent on a successful start', async () => {
   const updateSender = jest.fn();
   const agentRunner = new AgentRunner(
     makeRuntimeSettings({
@@ -101,21 +83,47 @@ test('status updates are sent', () => {
     updateSender
   );
 
-  agentRunner.start(rootClusterUri);
-  expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
-    status: 'running',
-  } as AgentProcessState);
+  try {
+    const agentProcess = await agentRunner.start(rootClusterUri);
+    await new Promise(resolve => agentProcess.on('spawn', resolve));
+    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
+      status: 'running',
+    } as AgentProcessState);
 
-  const error = new Error('unknown error');
-  eventEmitter.emit('error', error);
-  expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
-    status: 'error',
-    message: `${error}`,
-  } as AgentProcessState);
+    await agentRunner.kill(rootClusterUri);
+    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
+      status: 'exited',
+      code: null,
+      signal: 'SIGTERM',
+    } as AgentProcessState);
 
-  agentRunner.kill(rootClusterUri);
-  expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
-    status: 'exited',
-    code: 0,
-  } as AgentProcessState);
+    expect(updateSender).toHaveBeenCalledTimes(2);
+  } finally {
+    await agentRunner.killAll();
+  }
+});
+
+test('status updates are sent on a failed start', async () => {
+  const updateSender = jest.fn();
+  const nonExisingPath = path.join(__dirname, 'agentTestProcess-nonExisting.mjs');
+  const agentRunner = new AgentRunner(
+    makeRuntimeSettings({
+      agentBinaryPath: nonExisingPath,
+      userDataDir,
+    }),
+    updateSender
+  );
+
+  try {
+    const agentProcess = await agentRunner.start(rootClusterUri);
+    await new Promise(resolve => agentProcess.on('error', resolve));
+
+    expect(updateSender).toHaveBeenCalledTimes(1);
+    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
+      status: 'error',
+      message: `Error: spawn ${nonExisingPath} ENOENT`,
+    } as AgentProcessState);
+  } finally {
+    await agentRunner.killAll();
+  }
 });

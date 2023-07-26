@@ -42,7 +42,7 @@ export class AgentRunner {
    * Starts a new agent process.
    * If an existing process exists for the given root cluster, the old one will be killed.
    */
-  async start(rootClusterUri: RootClusterUri): Promise<void> {
+  async start(rootClusterUri: RootClusterUri): Promise<ChildProcess> {
     if (this.agentProcesses.has(rootClusterUri)) {
       await this.kill(rootClusterUri);
       this.logger.warn(`Killed agent process for ${rootClusterUri}`);
@@ -69,12 +69,10 @@ export class AgentRunner {
       env: process.env,
     });
 
-    this.sendProcessState(rootClusterUri, {
-      status: 'running',
-    });
-
     this.addListeners(rootClusterUri, agentProcess);
     this.agentProcesses.set(rootClusterUri, agentProcess);
+
+    return agentProcess;
   }
 
   async kill(rootClusterUri: RootClusterUri): Promise<void> {
@@ -104,7 +102,15 @@ export class AgentRunner {
       stderrOutput = limitProcessOutputLines(stderrOutput);
     });
 
+    const spawnHandler = () => {
+      this.sendProcessState(rootClusterUri, {
+        status: 'running',
+      });
+    };
+
     const errorHandler = (error: Error) => {
+      process.off('spawn', spawnHandler);
+
       this.sendProcessState(rootClusterUri, {
         status: 'error',
         message: `${error}`,
@@ -115,17 +121,19 @@ export class AgentRunner {
       code: number | null,
       signal: NodeJS.Signals | null
     ) => {
-      // Remove error handler when the process exits.
+      // Remove handlers when the process exits.
       process.off('error', errorHandler);
+      process.off('spawn', spawnHandler);
 
       this.sendProcessState(rootClusterUri, {
         status: 'exited',
         code,
         signal,
-        stackTrace: code !== 0 ? stderrOutput : undefined,
+        stackTrace: signal !== 'SIGTERM' ? stderrOutput : undefined,
       });
     };
 
+    process.once('spawn', spawnHandler);
     process.once('error', errorHandler);
     process.once('exit', exitHandler);
   }
