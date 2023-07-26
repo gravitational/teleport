@@ -438,21 +438,17 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 		updateMessages["GCP service accounts"] = accounts
 	}
 
-	if u.hostUserUIDProvided {
-		if u.hostUserUIDProvided && u.hostUserUID != "" {
-			if _, err := strconv.Atoi(u.hostUserUID); err != nil {
-				return trace.BadParameter("host user UID must be a numeric ID")
-			}
+	if u.hostUserUIDProvided && u.hostUserUID != "" {
+		if _, err := strconv.Atoi(u.hostUserUID); err != nil {
+			return trace.BadParameter("host user UID must be a numeric ID")
 		}
 
 		user.SetHostUserUID(u.hostUserUID)
 		updateMessages["Host user UID"] = []string{u.hostUserUID}
 	}
-	if u.hostUserGIDProvided {
-		if u.hostUserGIDProvided && u.hostUserGID != "" {
-			if _, err := strconv.Atoi(u.hostUserGID); err != nil {
-				return trace.BadParameter("host user GID must be a numeric ID")
-			}
+	if u.hostUserGIDProvided && u.hostUserGID != "" {
+		if _, err := strconv.Atoi(u.hostUserGID); err != nil {
+			return trace.BadParameter("host user GID must be a numeric ID")
 		}
 		user.SetHostUserGID(u.hostUserGID)
 		updateMessages["Host user GID"] = []string{u.hostUserGID}

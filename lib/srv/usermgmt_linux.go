@@ -60,7 +60,7 @@ func (*HostUsersProvisioningBackend) LookupGroup(name string) (*user.Group, erro
 }
 
 // LookupGroup host group information lookup by GID
-func (*HostUsersProvisioningBackend) LookupGroupId(gid string) (*user.Group, error) {
+func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, error) {
 	return user.LookupGroupId(gid)
 }
 
