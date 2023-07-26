@@ -16,10 +16,7 @@ limitations under the License.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
-import {
-  makeEmptyAttempt,
-  useAsync,
-} from 'shared/hooks/useAsync';
+import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import * as Alerts from 'design/Alert';
 import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
@@ -29,11 +26,14 @@ import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
+import Logger from 'teleterm/logger';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
   doc: types.DocumentConnectMyComputerSetup;
 }
+
+const logger = new Logger('DocumentConnectMyComputerSetup');
 
 export function DocumentConnectMyComputerSetup(
   props: DocumentConnectMyComputerSetupProps
@@ -150,10 +150,14 @@ function AgentSetup() {
           throw new Error('Node token is empty');
         }
         await runAgentAndWaitForNodeToJoin();
-        await ctx.connectMyComputerService.deleteToken(
-          cluster.uri,
-          nodeToken.current
-        );
+        try {
+          await ctx.connectMyComputerService.deleteToken(
+            cluster.uri,
+            nodeToken.current
+          );
+        } catch (error) {
+          logger.error('Failed to delete token', error);
+        }
       }, [
         runAgentAndWaitForNodeToJoin,
         ctx.connectMyComputerService,
