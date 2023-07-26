@@ -27,6 +27,8 @@ import (
 
 // App describes an application
 type App struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// Name is the name of the application.
 	Name string `json:"name"`
 	// Description is the app description.
