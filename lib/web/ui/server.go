@@ -38,6 +38,8 @@ type Label struct {
 
 // Server describes a server for webapp
 type Server struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// Tunnel indicates of this server is connected over a reverse tunnel.
 	Tunnel bool `json:"tunnel"`
 	// Name is this server name
@@ -71,33 +73,37 @@ func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+func MakeServer(clusterName string, server types.Server, accessChecker services.AccessChecker) (Server, error) {
+	serverLabels := server.GetStaticLabels()
+	serverCmdLabels := server.GetCmdLabels()
+	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
+
+	serverLogins, err := accessChecker.GetAllowedLoginsForResource(server)
+	if err != nil {
+		return Server{}, trace.Wrap(err)
+	}
+
+	return Server{
+		Kind:        types.KindNode,
+		ClusterName: clusterName,
+		Labels:      uiLabels,
+		Name:        server.GetName(),
+		Hostname:    server.GetHostname(),
+		Addr:        server.GetAddr(),
+		Tunnel:      server.GetUseTunnel(),
+		SSHLogins:   serverLogins,
+	}, nil
+}
+
 // MakeServers creates server objects for webapp
 func MakeServers(clusterName string, servers []types.Server, accessChecker services.AccessChecker) ([]Server, error) {
 	uiServers := []Server{}
-	for _, server := range servers {
-		serverLabels := server.GetStaticLabels()
-		serverCmdLabels := server.GetCmdLabels()
-		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
-
-		serverLogins, err := accessChecker.GetAllowedLoginsForResource(server)
+	for _, s := range servers {
+		server, err := MakeServer(clusterName, s, accessChecker)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "making server for ui")
 		}
-
-		s := Server{
-			ClusterName: clusterName,
-			Labels:      uiLabels,
-			Name:        server.GetName(),
-			Hostname:    server.GetHostname(),
-			Addr:        server.GetAddr(),
-			Tunnel:      server.GetUseTunnel(),
-			SSHLogins:   serverLogins,
-		}
-		if server.GetCloudMetadata() != nil {
-			s.AWS = server.GetCloudMetadata().AWS
-		}
-
-		uiServers = append(uiServers, s)
+		uiServers = append(uiServers, server)
 	}
 
 	return uiServers, nil
@@ -105,6 +111,8 @@ func MakeServers(clusterName string, servers []types.Server, accessChecker servi
 
 // KubeCluster describes a kube cluster.
 type KubeCluster struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// Name is the name of the kube cluster.
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
@@ -113,6 +121,20 @@ type KubeCluster struct {
 	KubeUsers []string `json:"kubernetes_users"`
 	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
 	KubeGroups []string `json:"kubernetes_groups"`
+}
+
+func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker) KubeCluster {
+	staticLabels := cluster.GetStaticLabels()
+	dynamicLabels := cluster.GetDynamicLabels()
+	uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
+	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
+	return KubeCluster{
+		Kind:       types.KindKubernetesCluster,
+		Name:       cluster.GetName(),
+		Labels:     uiLabels,
+		KubeUsers:  kubeUsers,
+		KubeGroups: kubeGroups,
+	}
 }
 
 // MakeKubeClusters creates ui kube objects and returns a list.
@@ -233,6 +255,8 @@ func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTr
 
 // Database describes a database server.
 type Database struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// Name is the name of the database.
 	Name string `json:"name"`
 	// Desc is the database description.
@@ -339,6 +363,8 @@ func MakeDatabaseServices(databaseServices []types.DatabaseService) []DatabaseSe
 
 // Desktop describes a desktop to pass to the ui.
 type Desktop struct {
+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
+	Kind string `json:"kind"`
 	// OS is the os of this desktop. Should be one of constants.WindowsOS, constants.LinuxOS, or constants.DarwinOS.
 	OS string `json:"os"`
 	// Name is name (uuid) of the windows desktop.
