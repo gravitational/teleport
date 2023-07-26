@@ -126,7 +126,7 @@ type Client struct {
 	handle cgo.Handle
 
 	// RDP client on the Rust side.
-	rustClient *C.Client
+	rustClient C.GoArc_Client
 
 	// Synchronization point to prevent input messages from being forwarded
 	// until the connection is established.
