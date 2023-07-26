@@ -45,7 +45,8 @@ apps that are selected by appropriate labels.
 Name of the created Teleport app will consist of Kubernetes service name, namespace and Kubernetes cluster name:
 `$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. This is done to avoid naming collisions in discovered apps.
 Dots in the cluster name will be replaces with hyphens "-", remaining parts of the name should already only contain alphanumeric
-symbols and hyphens. Though app names
+symbols and hyphens. There's still corner cases with small possibility of collisions if service name and namespace contain
+hyphens in specific manner - if we detect naming collision we will not import both apps, logging an error instead. Though app names
 will be long in that case, there's ongoing work to improve UX when working with long resources names in Teleport, 
 see [RFD 129](https://github.com/gravitational/teleport/pull/27258).
 
