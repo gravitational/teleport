@@ -150,7 +150,7 @@ func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, e
 // GenerateCommandSummary summarizes the output of a command executed on one or
 // many nodes. The conversation history is also sent into the prompt in order
 // to gather context and know what information is relevant in the command output.
-func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, error) {
+func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, *model.TokenCount, error) {
 	// Create system prompt
 	modelMessages := []openai.ChatCompletionMessage{
 		{Role: openai.ChatMessageRoleSystem, Content: model.PromptSummarizeCommand},
@@ -162,7 +162,7 @@ func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.
 		if role != "" && role != openai.ChatMessageRoleSystem {
 			payload, err := formatMessagePayload(message)
 			if err != nil {
-				return "", trace.Wrap(err)
+				return "", nil, trace.Wrap(err)
 			}
 			modelMessages = append(modelMessages, openai.ChatCompletionMessage{Role: role, Content: payload})
 		}
