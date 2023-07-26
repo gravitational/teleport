@@ -29,7 +29,6 @@ import {
   nativeTheme,
   shell,
 } from 'electron';
-import { wait } from 'shared/utils/wait';
 
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
@@ -51,6 +50,7 @@ import { WindowsManager } from './windowsManager';
 import { downloadAgent, FileDownloader } from './agentDownloader';
 import { createAgentConfigFile } from './createAgentConfigFile';
 import { AgentRunner } from './agentRunner';
+import { killProcess } from './processKiller';
 
 import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
 
@@ -107,19 +107,15 @@ export default class MainProcess {
     return instance;
   }
 
-  dispose() {
-    this.killTshdProcess();
-    this.sharedProcess.kill('SIGTERM');
-    this.agentRunner.killAll();
-    const processesExit = Promise.all([
-      promisifyProcessExit(this.tshdProcess),
-      promisifyProcessExit(this.sharedProcess),
+  async dispose(): Promise<void> {
+    await Promise.all([
+      // sending usage events on tshd shutdown has 10-seconds timeout
+      killProcess(this.tshdProcess, 10_000, () => {
+        this.gracefullyKillTshdProcess();
+      }),
+      killProcess(this.sharedProcess),
+      this.agentRunner.killAll(),
     ]);
-    // sending usage events on tshd shutdown has 10 seconds timeout
-    const timeout = wait(10_000).then(() =>
-      this.logger.error('Child process(es) did not exit within 10 seconds')
-    );
-    return Promise.race([processesExit, timeout]);
   }
 
   private _init() {
@@ -333,13 +329,13 @@ export default class MainProcess {
 
     ipcMain.handle(
       'main-process-connect-my-computer-run-agent',
-      (
+      async (
         _,
         args: {
           rootClusterUri: RootClusterUri;
         }
       ) => {
-        this.agentRunner.start(args.rootClusterUri);
+        await this.agentRunner.start(args.rootClusterUri);
       }
     );
 
@@ -418,7 +414,7 @@ export default class MainProcess {
    * kill a process is to send Ctrl-Break to its console. This task is done by
    * `tsh daemon stop` program. On Unix, the standard `SIGTERM` signal is sent.
    */
-  private killTshdProcess() {
+  private gracefullyKillTshdProcess() {
     if (this.settings.platform !== 'win32') {
       this.tshdProcess.kill('SIGTERM');
       return;
@@ -445,10 +441,6 @@ const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);
-}
-
-function promisifyProcessExit(childProcess: ChildProcess) {
-  return new Promise(resolve => childProcess.once('exit', resolve));
 }
 
 /** Shares promise returned from `promiseFn` across multiple concurrent callers. */

@@ -22,6 +22,7 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { generateAgentConfigPaths } from './createAgentConfigFile';
 import { AgentProcessState, RuntimeSettings } from './types';
+import { killProcess } from './processKiller';
 
 const MAX_STDERR_LINES = 10;
 
@@ -39,13 +40,12 @@ export class AgentRunner {
 
   /**
    * Starts a new agent process.
-   * If an existing process exists for the given root cluster, the old one will be killed with SIGKILL.
-   * To kill the old process gracefully before starting the new one, use `kill()`.
+   * If an existing process exists for the given root cluster, the old one will be killed.
    */
-  start(rootClusterUri: RootClusterUri): void {
+  async start(rootClusterUri: RootClusterUri): Promise<void> {
     if (this.agentProcesses.has(rootClusterUri)) {
-      this.agentProcesses.get(rootClusterUri).kill('SIGKILL');
-      this.logger.warn(`Forcefully killed agent process for ${rootClusterUri}`);
+      await this.kill(rootClusterUri);
+      this.logger.warn(`Killed agent process for ${rootClusterUri}`);
     }
 
     const { agentBinaryPath } = this.settings;
@@ -77,16 +77,19 @@ export class AgentRunner {
     this.agentProcesses.set(rootClusterUri, agentProcess);
   }
 
-  kill(rootClusterUri: RootClusterUri): void {
-    this.agentProcesses.get(rootClusterUri).kill('SIGTERM');
+  async kill(rootClusterUri: RootClusterUri): Promise<void> {
+    await killProcess(this.agentProcesses.get(rootClusterUri));
     this.agentProcesses.delete(rootClusterUri);
   }
 
-  killAll(): void {
-    this.agentProcesses.forEach((agent, rootClusterUri) => {
-      agent.kill('SIGTERM');
-      this.agentProcesses.delete(rootClusterUri);
-    });
+  async killAll(): Promise<void> {
+    const processes = Array.from(this.agentProcesses.entries());
+    await Promise.all(
+      processes.map(async ([rootClusterUri, agent]) => {
+        await killProcess(agent);
+        this.agentProcesses.delete(rootClusterUri);
+      })
+    );
   }
 
   private addListeners(
