@@ -900,3 +900,12 @@ const (
 	// already existing users are not deleted
 	TeleportServiceGroup = "teleport-system"
 )
+
+const (
+	// JWTClaimsRewriteRolesAndTraits includes both roles and traits in the JWT token.
+	JWTClaimsRewriteRolesAndTraits = "roles-and-traits"
+	// JWTClaimsRewriteRoles includes only the roles in the JWT token.
+	JWTClaimsRewriteRoles = "roles"
+	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
+	JWTClaimsRewriteNone = "none"
+)
