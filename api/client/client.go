@@ -3076,6 +3076,11 @@ func (c *Client) GetResources(ctx context.Context, req *proto.ListResourcesReque
 	return resp, trail.FromGRPC(err)
 }
 
+// GetUnifiedResources returns a paginated list of unified resources that the user has access to.
+// `nextKey` is used as `startKey` in another call to GetUnifiedResources to retrieve
+// the next page.
+// It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
+// message size.
 func (c *Client) GetUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -3091,6 +3096,8 @@ type GetResourcesClient interface {
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
 }
 
+// GetUnifiedResourcesClient is an interface used by GetUnifiedResources to abstract over implementations of
+// the ListUnifiedResources method.
 type GetUnifiedResourcesClient interface {
 	GetUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 }
