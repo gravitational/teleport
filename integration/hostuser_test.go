@@ -195,6 +195,10 @@ func TestRootHostUsers(t *testing.T) {
 
 		testUID := "1234"
 		testGID := "1337"
+
+		_, err := user.LookupGroupId(testGID)
+		require.ErrorIs(t, err, user.UnknownGroupIdError(testGID))
+
 		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			UID:  testUID,
@@ -203,6 +207,10 @@ func TestRootHostUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, []string{types.TeleportServiceGroup}))
+
+		group, err := user.LookupGroupId(testGID)
+		require.NoError(t, err)
+		require.Equal(t, testuser, group.Name)
 
 		u, err := user.Lookup(testuser)
 		require.NoError(t, err)

@@ -64,8 +64,8 @@ type HostUsersBackend interface {
 	Lookup(name string) (*user.User, error)
 	// LookupGroup retrieves a group by name.
 	LookupGroup(group string) (*user.Group, error)
-	// LookupGroup retrieves a group by name.
-	LookupGroupId(group string) (*user.Group, error)
+	// LookupGroupByID retrieves a group by its ID.
+	LookupGroupByID(gid string) (*user.Group, error)
 	// CreateGroup creates a group on a host.
 	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.

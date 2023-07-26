@@ -80,7 +80,7 @@ func (tm *testHostUserBackend) LookupGroup(groupname string) (*user.Group, error
 	}, nil
 }
 
-func (tm *testHostUserBackend) LookupGroupId(gid string) (*user.Group, error) {
+func (tm *testHostUserBackend) LookupGroupByID(gid string) (*user.Group, error) {
 	return &user.Group{
 		Gid:  tm.groups[gid],
 		Name: gid,
