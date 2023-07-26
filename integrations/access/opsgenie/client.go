@@ -81,6 +81,19 @@ type ClientConfig struct {
 	ClusterName string
 }
 
+func (cfg *ClientConfig) CheckAndSetDefaults() error {
+	if cfg.APIKey == "" {
+		return trace.BadParameter("missing required value APIKey")
+	}
+	if cfg.APIEndpoint == "" {
+		return trace.BadParameter("missing required value APIEndpoint")
+	}
+	if cfg.WebProxyURL == nil {
+		return trace.BadParameter("missing required value WebProxyURL")
+	}
+	return nil
+}
+
 // NewClient creates a new Opsgenie client for managing alerts.
 func NewClient(conf ClientConfig) (*Client, error) {
 	client := resty.NewWithClient(defaults.Config().HTTPClient)

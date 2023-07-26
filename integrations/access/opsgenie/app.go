@@ -250,7 +250,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 }
 
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
-	if len(req.GetResolveAnnotations()()) == 0 {
+	if len(req.GetResolveAnnotations()) == 0 {
 		logger.Get(ctx).Debug("Cannot proceed further. Request is missing any annotations")
 		return nil
 	}
