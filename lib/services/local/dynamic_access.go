@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -43,6 +44,9 @@ func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 
 // CreateAccessRequest stores a new access request.
 func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	if err := s.verifyAccessRequestMonthlyLimit(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,6 +279,26 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 	if _, err := s.Put(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func (s *DynamicAccessService) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
+	f := modules.GetModules().Features()
+	if !f.IsUsageBasedBilling {
+		return nil // unlimited
+	}
+
+	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
+
+	limit := f.AccessRequests.MonthlyRequestLimit
+	used, err := s.getAccessRequestMonthlyUsage(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if used >= limit {
+		return trace.AccessDenied(limitReachedMessage)
+	}
+
 	return nil
 }
 
