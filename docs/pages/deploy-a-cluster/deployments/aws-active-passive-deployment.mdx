@@ -87,10 +87,11 @@ Balancer.
 - Post successful completion of Replication DynamoDB and S3 proceed to Step 5/6.
 
 ## Step 5/6. Set up Teleport cluster in Secondary Region same as Step 3/6:
-- We will use the same `aws-values.yaml` & `aws-issuer.yaml` config files from the Primary region cluster to install the `teleport-cluster` Helm chart in the Secondary Region (`us-east-1`), by changing the `clusterName`.
-  So that it will use same backend as defined in Primary Region (us-west-1) for DynamoDB and S3 buckets. 
-  Once the Teleport Cluster in Secondary Region (us-east-1) is ready, you can check the SSO access by logging in via Secondary region (us-east-1) UI/tsh
-  Configuration. SSO login will work fine from both the Primary (us-west-1) and Secondary (us-east-1) region Teleport clusters.
+- We will use the same `aws-values.yaml` & `aws-issuer.yaml` config files from the Primary region cluster to install the `teleport-cluster` 
+  Helm chart in the Secondary Region (`us-east-1`), by changing the `clusterName`. So that it will use same backend as defined in Primary 
+  Region (us-west-1) for DynamoDB and S3 buckets. Once the Teleport Cluster in Secondary Region (us-east-1) is ready, you can check the SSO 
+  access by logging in via Secondary region (us-east-1) UI/tsh Configuration. SSO login will work fine from both the Primary (us-west-1) and 
+  Secondary (us-east-1) region Teleport clusters.
 ## Step 6/6. Configure Proxy Peering:
 In this deployment architecture, [Proxy Peering](../../architecture/proxy-peering.mdx) is used to restrict the number of connections made from 
 resources to proxies in the Teleport Cluster.
@@ -98,8 +99,10 @@ resources to proxies in the Teleport Cluster.
 ### Auth Service Proxy Peering configuration 
 
 The Teleport Auth Service must be configured to use the `proxy_peering` tunnel strategy as shown in the example below:
-The Teleport proxy pod replica count should always be 2 per cluster all times in the active region. The default configuration of two proxy replicas in each active region of Teleport is, in part, a recommendation for high availability ensuring uninterrupted access. 
-Having more than one proxy also allows for load to be distributed across multiple proxies, reducing the risk of a single point of failure and increasing the system's resilience to outages.
+The Teleport proxy pod replica count should always be 2 per cluster all times in the active region. The default configuration of two proxy replicas 
+in each active region of Teleport is, in part, a recommendation for high availability ensuring uninterrupted access. Having more than one proxy also 
+allows for load to be distributed across multiple proxies, reducing the risk of a single point of failure and increasing the system's resilience to 
+outages.
 - To enable proxy peering using Helm chart, we should make slight modifications to the `teleportConfig` section within proxy 
   configuration of your Teleport Helm chart.
 - In the teleportConfig section, you can customize the Teleport configuration for proxy pods. To set up proxy peering, you would 
@@ -113,7 +116,7 @@ Having more than one proxy also allows for load to be distributed across multipl
           type: proxy_peering
           agent_connection_count: 2
   ```
-  - In the above snippet, the `type` is set to `proxy_peering` and `agent_connection_count` is set to `1`. The `agent_connection_count` 
+  - In the above snippet, the `type` is set to `proxy_peering` and `agent_connection_count` is set to `2`. The `agent_connection_count` 
     indicates how many Teleport Proxy instances agents are required to connect to. You might want to set this to a value more than `1` for 
     higher availability. Remember to look at these changes to your Helm chart accordingly.
   - Just note that the Teleport Helm chart generates its own configuration, but anything you provide in `teleportConfig` will merge with, 
