@@ -4330,27 +4330,11 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 	return &authpb.CRL{CRL: crl}, nil
 }
 
-// ListResources retrieves a paginated list of resources.
-func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := auth.ListResources(ctx, *req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	protoResp := &authpb.ListResourcesResponse{
-		NextKey:    resp.NextKey,
-		Resources:  make([]*authpb.PaginatedResource, len(resp.Resources)),
-		TotalCount: int32(resp.TotalCount),
-	}
-
-	for i, resource := range resp.Resources {
+func makePaginatedResources(resources []types.ResourceWithLabels) ([]*authpb.PaginatedResource, error) {
+	paginatedResources := make([]*authpb.PaginatedResource, 0)
+	for _, resource := range resources {
 		var protoResource *authpb.PaginatedResource
-		switch req.ResourceType {
+		switch resource.GetKind() {
 		case types.KindDatabaseServer:
 			database, ok := resource.(*types.DatabaseServerV3)
 			if !ok {
@@ -4441,10 +4425,59 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 			}
 
 		default:
-			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
+			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 		}
 
-		protoResp.Resources[i] = protoResource
+		paginatedResources = append(paginatedResources, protoResource)
+	}
+	return paginatedResources, nil
+}
+
+func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.ListUnifiedResources(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	paginatedResources, err := makePaginatedResources(resp.Resources)
+	if err != nil {
+		return nil, trace.Wrap(err, "making paginated resources")
+	}
+
+	protoResp := &authpb.ListUnifiedResourcesResponse{
+		NextKey:    resp.NextKey,
+		Resources:  paginatedResources,
+		TotalCount: int32(resp.TotalCount),
+	}
+
+	return protoResp, nil
+}
+
+// ListResources retrieves a paginated list of resources.
+func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.ListResources(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	paginatedResources, err := makePaginatedResources(resp.Resources)
+	if err != nil {
+		return nil, trace.Wrap(err, "making paginated resources")
+	}
+	protoResp := &authpb.ListResourcesResponse{
+		NextKey:    resp.NextKey,
+		Resources:  paginatedResources,
+		TotalCount: int32(resp.TotalCount),
 	}
 
 	return protoResp, nil
