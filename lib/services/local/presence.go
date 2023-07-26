@@ -1709,12 +1709,70 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
 	}
 
-	return FakePaginate(resources, req)
+	return FakePaginate(resources, FakePaginateParams{
+		ResourceType:        req.ResourceType,
+		Limit:               req.Limit,
+		Labels:              req.Labels,
+		SearchKeywords:      req.SearchKeywords,
+		PredicateExpression: req.PredicateExpression,
+		StartKey:            req.StartKey,
+	})
+}
+
+type FakePaginateParams struct {
+	// ResourceType is the resource that is going to be retrieved.
+	// This only needs to be set explicitly for the `ListResources` rpc.
+	ResourceType string
+	// Namespace is the namespace of resources.
+	Namespace string
+	// Limit is the maximum amount of resources to retrieve.
+	Limit int32
+	// StartKey is used to start listing resources from a specific spot. It
+	// should be set to the previous NextKey value if using pagination, or
+	// left empty.
+	StartKey string
+	// Labels is a label-based matcher if non-empty.
+	Labels map[string]string
+	// PredicateExpression defines boolean conditions that will be matched against the resource.
+	PredicateExpression string
+	// SearchKeywords is a list of search keywords to match against resource field values.
+	SearchKeywords []string
+	// SortBy describes which resource field and which direction to sort by.
+	SortBy types.SortBy
+	// WindowsDesktopFilter specifies windows desktop specific filters.
+	WindowsDesktopFilter types.WindowsDesktopFilter
+	// Kinds is a list of kinds to match against a resource's kind. This can be used in a
+	// unified resource request that can include multiple types.
+	Kinds []string
+}
+
+func (m *FakePaginateParams) GetWindowsDesktopFilter() types.WindowsDesktopFilter {
+	if m != nil {
+		return m.WindowsDesktopFilter
+	}
+	return types.WindowsDesktopFilter{}
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (req *FakePaginateParams) CheckAndSetDefaults() error {
+	if req.Namespace == "" {
+		req.Namespace = apidefaults.Namespace
+	}
+	// If the Limit parameter was not provided instead of returning an error fallback to the default limit.
+	if req.Limit == 0 {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
+
+	if req.Limit < 0 {
+		return trace.BadParameter("negative parameter limit")
+	}
+
+	return nil
 }
 
 // FakePaginate is used when we are working with an entire list of resources upfront but still requires pagination.
 // While applying filters, it will also deduplicate matches found.
-func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+func FakePaginate(resources []types.ResourceWithLabels, req FakePaginateParams) (*types.ListResourcesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1726,6 +1784,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 		Labels:              req.Labels,
 		SearchKeywords:      req.SearchKeywords,
 		PredicateExpression: req.PredicateExpression,
+		Kinds:               req.Kinds,
 	}
 
 	// Iterate and filter every resource, deduplicating while matching.
