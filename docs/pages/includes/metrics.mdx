@@ -107,20 +107,21 @@
 
 ### Kubernetes Access
 
-The following tables identify all metrics available in the proxy service if Kubernetes access is enabled.
+The following tables identify all metrics available in the proxy service if
+Kubernetes access is enabled.
 
 #### Client
 
-The following table identifies all metrics available when the service connects to upstream servers.
-In the case of `proxy`, the upstream server can be a `kubernetes_service` or Kubernetes Cluster if it's running
-in legacy mode.
+The following table identifies all metrics available when the service connects
+to upstream servers. In the case of `proxy`, the upstream server can be a
+`kubernetes_service` or Kubernetes Cluster if it's running in legacy mode.
 
 | Name                                                              | Type      | Component                 | Description                                                                                               |
 | ----------------------------------------------------------------- | --------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `teleport_kubernetes_client_in_flight_requests`                   | gauge     | Teleport Kubernetes Proxy | In-flight requests waiting for the upstream response.                                                     |
-| `teleport_kubernetes_client_requests_total`                       | counter   | Teleport Kubernetes Proxy | Total number of requests sent to the upstream teleport proxy, kube_service or Kubernetes Cluster servers. |
+| `teleport_kubernetes_client_requests_total`                       | counter   | Teleport Kubernetes Proxy | Total number of requests sent to the upstream Teleport proxy, kube_service or Kubernetes Cluster servers. |
 | `teleport_kubernetes_client_tls_duration_seconds`                 | histogram | Teleport Kubernetes Proxy | Latency distribution of TLS handshakes.                                                                   |
-| `teleport_kubernetes_client_got_conn_duration_seconds`            | histogram | Teleport Kubernetes Proxy | Latency distribution of time to dial to the upstream server - using reversetunnel or direct dialer.       |
+| `teleport_kubernetes_client_got_conn_duration_seconds`            | histogram | Teleport Kubernetes Proxy | Latency distribution of time to dial to the upstream server - using reverse tunnel or direct dialer.       |
 | `teleport_kubernetes_client_first_byte_response_duration_seconds` | histogram | Teleport Kubernetes Proxy | Latency distribution of time to receive the first response byte from the upstream server.                 |
 | `teleport_kubernetes_client_request_duration_seconds`             | histogram | Teleport Kubernetes Proxy | Latency distribution of the upstream request time.                                                        |
 
@@ -150,8 +151,9 @@ The following table identifies all metrics available for incoming connections.
 
 ## Teleport Kubernetes Service
 
-The following table identifies all metrics available when the service connects to upstream servers.
-In the case of `kubernetes_service`, the upstream server is always a Kubernetes cluster.
+The following table identifies all metrics available when the service connects
+to upstream servers. In the case of `kubernetes_service`, the upstream server
+is always a Kubernetes cluster.
 
 | Name                                                              | Type      | Component                   | Description                                                                                               |
 | ----------------------------------------------------------------- | --------- | --------------------------- | --------------------------------------------------------------------------------------------------------- |
