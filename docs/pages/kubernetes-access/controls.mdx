@@ -226,18 +226,17 @@ spec:
 ```
 
 The value of `kubernetes_groups` and `kubernetes_users` is a list of names of
-groups, users or service accounts to enable impersonation for.
+groups, users, or service accounts to enable impersonation for.
 
 #### Kubernetes Users and Groups
 
 Kubernetes Users and Groups are entities that exist in
 the Kubernetes Cluster and for which permissions are controlled through
-`ClusterRoleBinding` or `RoleBinding` resources. If by any chance they do not
+`ClusterRoleBinding` or `RoleBinding` resources. If they do not
 exist in the cluster, Kubernetes RBAC will ignore them.
 
-An example of a `ClusterRoleBinding` resource that assigns the built-in `view`
-`ClusterRole` to a Group `cluster-viewer-group` and to a User `cluster-viewer-user`
-can be found below.
+Here's an example of a `ClusterRoleBinding` resource that assigns the built-in `view`
+`ClusterRole` to a Group `cluster-viewer-group` and to a User `cluster-viewer-user`:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
