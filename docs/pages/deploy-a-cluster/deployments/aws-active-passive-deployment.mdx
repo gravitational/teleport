@@ -40,6 +40,7 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
   - Use health checks to determine Teleport cluster availability. Route53 will automatically send the traffic to the 
     Passive cluster in the event of an outage in the Active region. It will then automatically route the traffic back to the Active 
     cluster once the Active cluster's health checks report a normal state.
+
 <Notice type="warning">
 
 If you are using proxy peering then we will have to use Latency based routing for the proxy service and Failover Routing only on the Auth Server Load
@@ -90,7 +91,7 @@ Balancer.
   configuration of your Teleport Helm chart.
 - In the teleportConfig section, you can customize the Teleport configuration for proxy pods. To set up proxy peering, you would 
   insert the `auth_service` section and define the `tunnel_strategy` within that:
-  `yaml`
+ ## yaml
   ```
   proxy:
     teleportConfig:
@@ -101,16 +102,15 @@ Balancer.
   ```
   - In the above snippet, the `type` is set to `proxy_peering` and `agent_connection_count` is set to `1`. The `agent_connection_count` 
     indicates how many Teleport Proxy instances agents are required to connect to. You might want to set this to a value more than `1` for 
-    higher availability
-    Remember ti aookt these changes to your Helm chart accordingly.
+    higher availability. Remember to look at these changes to your Helm chart accordingly.
+  - Just note that the Teleport Helm chart generates its own configuration, but anything you provide in `teleportConfig` will merge with, 
+    and take precedence over, the auto-generated config. Be aware that it can potentially lead to conflicts if not done carefully.
 
 ## Step 6/7. Set up Teleport cluster in Secondary Region same as Step 3/7:
 - We will use the same `aws-values.yaml` & `aws-issuer.yaml` config files from the Primary region cluster to install the `teleport-cluster` Helm chart in the Secondary Region (`us-east-1`), by changing the `clusterName`.
   So that it will use same backend as defined in Primary Region (us-west-1) for DynamoDB and S3 buckets. 
   Once the Teleport Cluster in Secondary Region (us-east-1) is ready, you can check the SSO access by logging in via Secondary region (us-east-1) UI/tsh
   Configuration. SSO login will work fine from both the Primary (us-west-1) and Secondary (us-east-1) region Teleport clusters.
-- Just note that the Teleport Helm chart generates its own configuration, but anything you provide in `teleportConfig` will merge with, 
-  and take precedence over, the auto-generated config. Be aware that it can potentially lead to conflicts if not done carefully
 ## Step 7/7. Configure Proxy Peering:
 In this deployment architecture, [Proxy Peering](../../architecture/proxy-peering.mdx) is used to restrict the number of connections made from 
 resources to proxies in the Teleport Cluster.
