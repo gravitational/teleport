@@ -117,6 +117,7 @@ func (e *TraitsTemplateExpression) Interpolate(varValidation func(namespace, nam
 
 	var out []string
 	for _, val := range result {
+		// Filter out values that mapped to the empty string.
 		if len(val) > 0 {
 			out = append(out, e.prefix+val+e.suffix)
 		}
@@ -213,7 +214,7 @@ func RegexpReplace(inputs []string, match string, replacement string) ([]string,
 		return nil, trace.Wrap(err, "invalid regexp %q", match)
 	}
 	return stringListMap(inputs, func(in string) (string, error) {
-		// filter out inputs which do not match the regexp at all
+		// Filter out inputs which do not match the regexp at all.
 		if !re.MatchString(in) {
 			return "", nil
 		}
@@ -381,13 +382,17 @@ func (n notMatcher) Match(in string) bool {
 }
 
 func stringListMap(inputs []string, f func(string) (string, error)) ([]string, error) {
-	out := make([]string, len(inputs))
-	for i, input := range inputs {
-		var err error
-		out[i], err = f(input)
+	out := make([]string, 0, len(inputs))
+	for _, input := range inputs {
+		mapped, err := f(input)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Filter out values that mapped to the empty string.
+		if len(mapped) == 0 {
+			continue
+		}
+		out = append(out, mapped)
 	}
 	return out, nil
 }

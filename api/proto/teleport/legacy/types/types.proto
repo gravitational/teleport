@@ -6106,7 +6106,7 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke".
+  // Types are GKE resource types to match: "gke", "vm".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
   // Locations are GKE locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
@@ -6118,6 +6118,11 @@ message GCPMatcher {
   ];
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
+  // ServiceAccounts are the emails of service accounts attached to VMs.
+  repeated string ServiceAccounts = 5 [(gogoproto.jsontag) = "service_accounts,omitempty"];
+  // Params sets the join method when installing on
+  // discovered GCP nodes.
+  InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
 }
 
 // KubernetesMatcher matches Kubernetes services.
