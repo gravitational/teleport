@@ -169,6 +169,8 @@ type DynamicAccessCore interface {
 	AccessRequestGetter
 	// CreateAccessRequest stores a new access request.
 	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+	// CreateAccessRequestV2 stores a new access request.
+	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
 	DeleteAccessRequest(ctx context.Context, reqID string) error
 	// UpdatePluginData updates a per-resource PluginData entry.
@@ -1103,16 +1105,20 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// Calculate the expiration time of the elevated certificate that will
+		// be issued if the Access Request is approved.
+		sessionTTL, err := m.sessionTTL(ctx, identity, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		req.SetSessionTLL(now.Add(sessionTTL))
+
 		// If the maxDuration flag is set, use it instead of the session TTL.
 		if maxDuration > 0 {
 			ttl = maxDuration
 		} else {
-			// Calculate the expiration time of the elevated certificate that will
-			// be issued if the Access Request is approved.
-			ttl, err = m.sessionTTL(ctx, identity, req)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+			ttl = sessionTTL
 		}
 
 		accessTTL := now.Add(ttl)

@@ -52,6 +52,10 @@ type AccessRequest interface {
 	// SetAccessExpiry sets the expiration time for the elevated certificate
 	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
+	// GetSessionTLL gets the session TTL for generated certificates.
+	GetSessionTLL() time.Time
+	// SetSessionTLL sets the session TTL for generated certificates.
+	SetSessionTLL(time.Time)
 	// GetRequestReason gets the reason for the request's creation.
 	GetRequestReason() string
 	// SetRequestReason sets the reason for the request's creation.
@@ -185,6 +189,16 @@ func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 // SetAccessExpiry sets AccessExpiry
 func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
 	r.Spec.Expires = expiry.UTC()
+}
+
+// GetSessionTLL gets SessionTLL
+func (r *AccessRequestV3) GetSessionTLL() time.Time {
+	return r.Spec.SessionTTL
+}
+
+// SetSessionTLL sets SessionTLL
+func (r *AccessRequestV3) SetSessionTLL(t time.Time) {
+	r.Spec.SessionTTL = t.UTC()
 }
 
 // GetRequestReason gets RequestReason
@@ -479,7 +493,8 @@ func (r *AccessRequestV3) SetOrigin(origin string) {
 
 // String returns a text representation of this AccessRequest
 func (r *AccessRequestV3) String() string {
-	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
+	return fmt.Sprintf("%+v", r.Spec)
+	//return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
 }
 
 func (c AccessReviewConditions) IsZero() bool {
