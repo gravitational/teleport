@@ -329,7 +329,7 @@ func chunkInstances(insts EC2Instances) []Instances {
 			Instances:    insts.Instances[i:end],
 			Rotation:     insts.Rotation,
 		}
-		instColl = append(instColl, Instances{EC2Instances: &inst})
+		instColl = append(instColl, Instances{EC2: &inst})
 	}
 	return instColl
 }
@@ -360,7 +360,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					for _, ec2inst := range res.Instances[i:end] {
 						f.cachedInstances.add(ownerID, aws.StringValue(ec2inst.InstanceId))
 					}
-					instances = append(instances, Instances{EC2Instances: &inst})
+					instances = append(instances, Instances{EC2: &inst})
 				}
 			}
 			return true
