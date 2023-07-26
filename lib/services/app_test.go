@@ -281,7 +281,8 @@ func TestGetAppLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := getAppLabels(tt.labels, tt.clusterName)
+		result, err := getAppLabels(tt.labels, tt.clusterName)
+		require.NoError(t, err)
 
 		require.Equal(t, tt.expected, result)
 	}

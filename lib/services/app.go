@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -174,19 +173,24 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 
 	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 	if err != nil {
-		return nil, trace.Wrap(err, "could not get app rewrite config for a service")
+		return nil, trace.Wrap(err, "could not get app rewrite config for the service")
 	}
 
 	appNameAnnotation := service.GetAnnotations()[types.DiscoveryAppNameLabel]
 	appName, err := getAppName(service.GetName(), service.GetNamespace(), clusterName, port.Name, appNameAnnotation)
 	if err != nil {
-		return nil, trace.Wrap(err, "could not create app name for a service")
+		return nil, trace.Wrap(err, "could not create app name for the service")
+	}
+
+	labels, err := getAppLabels(service.GetLabels(), clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not get labels for the service")
 	}
 
 	app, err := types.NewAppV3(types.Metadata{
 		Name:        appName,
 		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
-		Labels:      getAppLabels(service.GetLabels(), clusterName),
+		Labels:      labels,
 	}, types.AppSpecV3{
 		URI:     appURI,
 		Rewrite: rewriteConfig,
@@ -252,18 +256,17 @@ func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation st
 	return fmt.Sprintf("%s-%s-%s", serviceName, namespace, clusterName), nil
 }
 
-func getAppLabels(serviceLabels map[string]string, clusterName string) map[string]string {
+func getAppLabels(serviceLabels map[string]string, clusterName string) (map[string]string, error) {
 	result := make(map[string]string, len(serviceLabels)+1)
 
 	for k, v := range serviceLabels {
 		if !types.IsValidLabelKey(k) {
-			logrus.Debugf("Skipping label %q as invalid while creating app labels from service", k)
-			continue
+			return nil, trace.BadParameter("invalid label key: %q", k)
 		}
 
 		result[k] = v
 	}
 	result[types.KubernetesClusterLabel] = clusterName
 
-	return result
+	return result, nil
 }
