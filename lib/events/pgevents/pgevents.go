@@ -52,8 +52,7 @@ const (
 
 // URL parameters for configuration.
 const (
-	authModeParam      = "auth_mode"
-	azureClientIDParam = "azure_client_id"
+	authModeParam = "auth_mode"
 
 	disableCleanupParam  = "disable_cleanup"
 	cleanupIntervalParam = "cleanup_interval"
@@ -88,8 +87,7 @@ type Config struct {
 	Log        logrus.FieldLogger
 	PoolConfig *pgxpool.Config
 
-	AuthMode      AuthMode
-	AzureClientID string
+	AuthMode AuthMode
 
 	DisableCleanup  bool
 	RetentionPeriod time.Duration
@@ -119,7 +117,6 @@ func (c *Config) SetFromURL(u *url.URL) error {
 	c.PoolConfig = poolConfig
 
 	c.AuthMode = AuthMode(params.Get(authModeParam))
-	c.AzureClientID = params.Get(azureClientIDParam)
 
 	if s := params.Get(disableCleanupParam); s != "" {
 		b, err := strconv.ParseBool(s)
@@ -159,10 +156,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if c.AzureClientID != "" && c.AuthMode != AzureADAuth {
-		return trace.BadParameter("azure client ID requires azure auth mode")
-	}
-
 	if c.RetentionPeriod < 0 {
 		return trace.BadParameter("retention period must be non-negative")
 	}
@@ -192,7 +185,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	if cfg.AuthMode == AzureADAuth {
-		bc, err := pgcommon.AzureBeforeConnect(cfg.AzureClientID, cfg.Log)
+		bc, err := pgcommon.AzureBeforeConnect(cfg.Log)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
