@@ -2316,12 +2316,26 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	forwarder, err := reverseproxy.New(
-		reverseproxy.WithFlushInterval(100*time.Millisecond),
+	opts := []reverseproxy.Option{
+		reverseproxy.WithFlushInterval(100 * time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
 		reverseproxy.WithLogger(f.log),
 		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
+	}
+	if f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
+		// If the target cluster is local, i.e. the cluster that is served by this
+		// teleport service, then we set up the forwarder to allow re-writing
+		// the response to the client to include user friendly error messages.
+		// This is done by adding a response modifier to the forwarder.
+		// Right now, the only error that is re-written is the 403 Forbidden error
+		// that is returned when the user tries to access a GKE Autopilot cluster
+		// with system:masters group impersonation.
+		//nolint:bodyclose // the caller closes the response body in httputils.ReverseProxy
+		opts = append(opts, reverseproxy.WithResponseModifier(f.rewriteResponseForbidden(sess)))
+	}
+
+	forwarder, err := reverseproxy.New(
+		opts...,
 	)
 
 	return forwarder, trace.Wrap(err)
