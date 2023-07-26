@@ -422,19 +422,33 @@ func TestResourceIDs(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			out, err := ResourceIDsToString(tc.in)
+			resourceIdsStr, err := ResourceIDsToString(tc.in)
 			require.NoError(t, err)
-			require.Equal(t, tc.expected, out)
+			require.Equal(t, tc.expected, resourceIdsStr, "marshaled resource IDs do not match expected")
 
-			// Parse the ids from the string and make sure they match the
-			// original.
-			parsed, err := ResourceIDsFromString(out)
-			if tc.expectParseError {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.in, parsed)
+			t.Run("ResourceIDsFromString", func(t *testing.T) {
+				parsed, err := ResourceIDsFromString(resourceIdsStr)
+				if tc.expectParseError {
+					require.Error(t, err, "expected to get an error parsing resource IDs")
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, tc.in, parsed, "parsed resource IDs do not match the originals")
+			})
+
+			t.Run("ResourceIDsFromStrings", func(t *testing.T) {
+				resourceIDStrs := make([]string, len(tc.in))
+				for i, resourceID := range tc.in {
+					resourceIDStrs[i] = ResourceIDToString(resourceID)
+				}
+				parsed, err := ResourceIDsFromStrings(resourceIDStrs)
+				if tc.expectParseError {
+					require.Error(t, err, "expected to get an error parsing resource IDs")
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, tc.in, parsed, "parsed resource IDs do not match the originals")
+			})
 		})
 	}
 }

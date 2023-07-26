@@ -86,6 +86,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
 function AgentSetup() {
   const ctx = useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
+  const cluster = ctx.clustersService.findCluster(rootClusterUri);
 
   const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
     useCallback(async () => {
@@ -121,9 +122,16 @@ function AgentSetup() {
     )
   );
   const [generateConfigFileAttempt, runGenerateConfigFileAttempt] = useAsync(
-    useCallback(() => wait(1_000), [])
+    useCallback(
+      () =>
+        retryWithRelogin(ctx, rootClusterUri, () =>
+          ctx.connectMyComputerService.createAgentConfigFile(cluster)
+        ),
+      [cluster, ctx, rootClusterUri]
+    )
   );
   const [joinClusterAttempt, runJoinClusterAttempt] = useAsync(
+    // TODO(gzdunek): delete node token after joining the cluster
     useCallback(() => wait(1_000), [])
   );
 
@@ -151,7 +159,7 @@ function AgentSetup() {
     const actions = [
       runSetUpRolesAttempt,
       runDownloadAgentAttempt,
-      // runGenerateConfigFileAttempt,
+      runGenerateConfigFileAttempt,
       // runJoinClusterAttempt,
     ];
     for (const action of actions) {
