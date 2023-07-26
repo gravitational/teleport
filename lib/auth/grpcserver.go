@@ -4433,6 +4433,7 @@ func makePaginatedResources(resources []types.ResourceWithLabels) ([]*authpb.Pag
 	return paginatedResources, nil
 }
 
+// ListUnifiedResources retrieves a paginated list of unified resources.
 func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
