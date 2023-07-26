@@ -493,8 +493,7 @@ func (r *AccessRequestV3) SetOrigin(origin string) {
 
 // String returns a text representation of this AccessRequest
 func (r *AccessRequestV3) String() string {
-	return fmt.Sprintf("%+v", r.Spec)
-	//return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
+	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
 }
 
 func (c AccessReviewConditions) IsZero() bool {

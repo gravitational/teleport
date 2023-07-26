@@ -1112,12 +1112,13 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.SetSessionTLL(now.Add(sessionTTL))
 
-		// If the maxDuration flag is set, use it instead of the session TTL.
+		// If the maxDuration flag is set, consider it instead of only using the session TTL.
 		if maxDuration > 0 {
+			req.SetSessionTLL(now.Add(minDuration(sessionTTL, maxDuration)))
 			ttl = maxDuration
 		} else {
+			req.SetSessionTLL(now.Add(sessionTTL))
 			ttl = sessionTTL
 		}
 
@@ -1126,6 +1127,15 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	}
 
 	return nil
+}
+
+// minDuration returns the smaller of two durations.
+// DELETE after upgrading to Go 1.21. Replace with min function.
+func minDuration(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // calculateMaxAccessDuration calculates the maximum time for the access request.
