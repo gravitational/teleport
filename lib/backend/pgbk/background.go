@@ -219,7 +219,7 @@ FROM jdata`, slotName, b.cfg.ChangeFeedBatchSize)
 	var action string
 	var key []byte
 	var value []byte
-	var expires zeronull.Timestamp
+	var expires zeronull.Timestamptz
 	var revision zeronull.UUID
 	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires, &revision}, func() error {
 		switch action {
