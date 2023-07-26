@@ -146,7 +146,7 @@ group in any Kubernetes cluster:
 
 ```yaml
 kind: role
-version: v5
+version: v7
 metadata:
   name: k8s-admin
 spec:
@@ -190,7 +190,7 @@ allows access to Autopilot clusters.
 
 ```yaml
 kind: role
-version: v5
+version: v7
 metadata:
   name: k8s-admin-non-gke-autopilot
 spec:
@@ -199,7 +199,7 @@ spec:
     kubernetes_groups: ["system:masters"]
 ---
 kind: role
-version: v5
+version: v7
 metadata:
   name: k8s-admin-gke-autopilot
 spec:
