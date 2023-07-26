@@ -20,9 +20,9 @@ import os from 'node:os';
 import Logger from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { generateAgentConfigPaths } from './createAgentConfigFile';
-import { AgentProcessState, RuntimeSettings } from './types';
-import { killProcess } from './processKiller';
+import { generateAgentConfigPaths } from '../createAgentConfigFile';
+import { AgentProcessState, RuntimeSettings } from '../types';
+import { killProcess } from '../processKiller';
 
 const MAX_STDERR_LINES = 10;
 

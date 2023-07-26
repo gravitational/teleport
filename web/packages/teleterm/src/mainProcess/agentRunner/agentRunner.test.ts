@@ -19,10 +19,10 @@ import path from 'node:path';
 import Logger, { NullService } from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { makeRuntimeSettings } from './fixtures/mocks';
+import { makeRuntimeSettings } from '../fixtures/mocks';
+import { AgentProcessState } from '../types';
 
 import { AgentRunner } from './agentRunner';
-import { AgentProcessState } from './types';
 
 beforeEach(() => {
   Logger.init(new NullService());
@@ -105,7 +105,10 @@ test('status updates are sent on a successful start', async () => {
 
 test('status updates are sent on a failed start', async () => {
   const updateSender = jest.fn();
-  const nonExisingPath = path.join(__dirname, 'agentTestProcess-nonExisting.mjs');
+  const nonExisingPath = path.join(
+    __dirname,
+    'agentTestProcess-nonExisting.mjs'
+  );
   const agentRunner = new AgentRunner(
     makeRuntimeSettings({
       agentBinaryPath: nonExisingPath,
