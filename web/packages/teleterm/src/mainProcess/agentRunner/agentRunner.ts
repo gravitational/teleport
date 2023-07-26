@@ -66,7 +66,6 @@ export class AgentRunner {
 
     const agentProcess = spawn(agentBinaryPath, args, {
       windowsHide: true,
-      env: process.env,
     });
 
     this.addListeners(rootClusterUri, agentProcess);
