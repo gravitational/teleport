@@ -57,8 +57,8 @@ export class PtyCreate extends jspb.Message {
     clearEnv(): void;
     getEnv(): google_protobuf_struct_pb.Struct | undefined;
     setEnv(value?: google_protobuf_struct_pb.Struct): PtyCreate;
-    getHelpmsg(): string;
-    setHelpmsg(value: string): PtyCreate;
+    getInitMessage(): string;
+    setInitMessage(value: string): PtyCreate;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): PtyCreate.AsObject;
@@ -76,7 +76,7 @@ export namespace PtyCreate {
         argsList: Array<string>,
         cwd: string,
         env?: google_protobuf_struct_pb.Struct.AsObject,
-        helpmsg: string,
+        initMessage: string,
     }
 }
 

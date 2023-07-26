@@ -241,7 +241,10 @@ async function setUpPtyProcess(
 
   const refreshTitle = async () => {
     // TODO(ravicious): Enable updating cwd in doc.gateway_kube titles by
-    // moving title-updating logic to DocumentsService.
+    // moving title-updating logic to DocumentsService. The logic behind
+    // updating the title should be encapsulated in a single place, so that
+    // useDocumentTerminal doesn't need to know the details behind the title of
+    // each document kind.
     if (doc.kind !== 'doc.terminal_shell') {
       return;
     }
@@ -409,19 +412,18 @@ function createCmd(
         `No KUBECONFIG provided for gateway ${gateway.targetUri}`
       );
     }
-    const helpMsg =
-      "Started local proxy for Kubernetes cluster '" +
-      gateway.targetName +
-      "' and environment variable 'KUBECONFIG' is updated to the kubeconfig provided by the local proxy.\r\n\r\n" +
-      "Try 'kubectl version' to test the connection.\r\n\r\n";
+    const helpMessage =
+      `Started a local proxy for Kubernetes cluster "${gateway.targetName}".\r\n\r\n` +
+      'The KUBECONFIG env var can be used with third-party tools as long as the proxy is running.\r\n' +
+      'Close the proxy from Connections in the top left corner or by closing Teleport Connect.\r\n\r\n' +
+      'Try "kubectl version" to test the connection.\r\n\r\n';
 
     return {
-      ...doc,
       kind: 'pty.shell',
       proxyHost,
       clusterName,
       env,
-      helpMsg,
+      helpMessage,
     };
   }
 

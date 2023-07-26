@@ -440,7 +440,7 @@ proto.PtyCreate.toObject = function(includeInstance, msg) {
     argsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
     cwd: jspb.Message.getFieldWithDefault(msg, 5, ""),
     env: (f = msg.getEnv()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f),
-    helpmsg: jspb.Message.getFieldWithDefault(msg, 8, "")
+    initMessage: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -496,7 +496,7 @@ proto.PtyCreate.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
-      msg.setHelpmsg(value);
+      msg.setInitMessage(value);
       break;
     default:
       reader.skipField();
@@ -556,7 +556,7 @@ proto.PtyCreate.serializeBinaryToWriter = function(message, writer) {
       google_protobuf_struct_pb.Struct.serializeBinaryToWriter
     );
   }
-  f = message.getHelpmsg();
+  f = message.getInitMessage();
   if (f.length > 0) {
     writer.writeString(
       8,
@@ -677,10 +677,10 @@ proto.PtyCreate.prototype.hasEnv = function() {
 
 
 /**
- * optional string helpmsg = 8;
+ * optional string init_message = 8;
  * @return {string}
  */
-proto.PtyCreate.prototype.getHelpmsg = function() {
+proto.PtyCreate.prototype.getInitMessage = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
 };
 
@@ -689,7 +689,7 @@ proto.PtyCreate.prototype.getHelpmsg = function() {
  * @param {string} value
  * @return {!proto.PtyCreate} returns this
  */
-proto.PtyCreate.prototype.setHelpmsg = function(value) {
+proto.PtyCreate.prototype.setInitMessage = function(value) {
   return jspb.Message.setProto3StringField(this, 8, value);
 };
 

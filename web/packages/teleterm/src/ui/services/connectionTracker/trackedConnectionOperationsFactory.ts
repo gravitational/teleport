@@ -194,58 +194,16 @@ export class TrackedConnectionOperationsFactory {
               .forEach(document => {
                 documentsService.close(document.uri);
               });
+            // Remove deprecated DocumentTshKube documents.
+            documentsService
+              .getDocuments()
+              .filter(getGatewayKubeDocumentByConnection(connection))
+              .forEach(document => {
+                documentsService.close(document.uri);
+              });
           });
       },
       remove: async () => {},
-    };
-  }
-
-  private getConnectionKubeOperations(
-    connection: TrackedKubeConnection
-  ): TrackedConnectionOperations {
-    const { rootClusterId, leafClusterId } = routing.parseKubeUri(
-      connection.kubeUri
-    ).params;
-    const { rootClusterUri, leafClusterUri } = this.getClusterUris({
-      rootClusterId,
-      leafClusterId,
-    });
-
-    const documentsService =
-      this._workspacesService.getWorkspaceDocumentService(rootClusterUri);
-
-    return {
-      rootClusterUri,
-      leafClusterUri,
-      activate: params => {
-        let kubeConn = documentsService
-          .getDocuments()
-          .find(getKubeDocumentByConnection(connection));
-
-        if (!kubeConn) {
-          kubeConn = documentsService.createTshKubeDocument({
-            kubeUri: connection.kubeUri,
-            kubeConfigRelativePath: connection.kubeConfigRelativePath,
-            origin: params.origin,
-          });
-
-          documentsService.add(kubeConn);
-        }
-        documentsService.open(kubeConn.uri);
-      },
-      disconnect: async () => {
-        documentsService
-          .getDocuments()
-          .filter(getKubeDocumentByConnection(connection))
-          .forEach(document => {
-            documentsService.close(document.uri);
-          });
-      },
-      remove: () => {
-        return this._clustersService.removeKubeConfig(
-          connection.kubeConfigRelativePath
-        );
-      },
     };
   }
 

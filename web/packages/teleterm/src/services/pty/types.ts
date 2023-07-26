@@ -44,7 +44,12 @@ export type ShellCommand = PtyCommandBase & {
   // env is a record of additional env variables that need to be set for the shell terminal and it
   // will be merged with process env.
   env?: Record<string, string>;
-  helpMsg?: string;
+  // helpMessage is a help message presented to the user at the beginning of
+  // the shell to provide extra context.
+  //
+  // The helpMessage is rendered on the terminal UI without being written or
+  // read by the underlying PTY.
+  helpMessage?: string;
 };
 
 export type TshLoginCommand = PtyCommandBase & {
