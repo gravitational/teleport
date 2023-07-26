@@ -506,7 +506,7 @@ func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 // CloseWatchers implements [backend.Backend].
 func (b *Backend) CloseWatchers() { b.buf.Clear() }
 
-// Clock implements implements [backend.Backend].
+// Clock implements [backend.Backend].
 func (b *Backend) Clock() clockwork.Clock {
 	// we don't support a custom clock, because deciding which items still exist
 	// in the backend depends on which items are still stored but expired, and
