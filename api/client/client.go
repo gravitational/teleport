@@ -3108,10 +3108,23 @@ func (c *Client) GetResources(ctx context.Context, req *proto.ListResourcesReque
 	return resp, trail.FromGRPC(err)
 }
 
+func (c *Client) GetUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.grpc.ListUnifiedResources(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
 // GetResourcesClient is an interface used by GetResources to abstract over implementations of
 // the ListResources method.
 type GetResourcesClient interface {
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+}
+
+type GetUnifiedResourcesClient interface {
+	GetUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 }
 
 // ResourcePage holds a page of results from [GetResourcePage].
@@ -3124,6 +3137,84 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	Total int
 	// NextKey is the start of the next page
 	NextKey string
+}
+
+// getTypeFromUnifiedResource is used to extract the resource kind from the PaginatedResource returned
+// from the rpc ListUnifiedResources
+func getTypeFromUnifiedResource(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
+	var out types.ResourceWithLabels
+	if r := resource.GetNode(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetDatabaseServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetDatabaseService(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetWindowsDesktop(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetWindowsDesktopService(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetKubeCluster(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetKubernetesServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetUserGroup(); r != nil {
+		out = r
+		return out, nil
+	} else {
+		return nil, trace.BadParameter("received unsupported resource %T", resource)
+	}
+}
+
+// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provide request.
+func GetUnifiedResourcePage(ctx context.Context, clt GetUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
+	var out ResourcePage[types.ResourceWithLabels]
+
+	// Set the limit to the default size if one was not provided within
+	// an acceptable range.
+	if req.Limit == 0 || req.Limit > int32(defaults.DefaultChunkSize) {
+		req.Limit = int32(defaults.DefaultChunkSize)
+	}
+
+	for {
+		resp, err := clt.GetUnifiedResources(ctx, req)
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
+				req.Limit /= 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if req.Limit == 0 {
+					return out, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return out, trail.FromGRPC(err)
+		}
+
+		for _, respResource := range resp.Resources {
+			resource, err := getTypeFromUnifiedResource(respResource)
+			if err != nil {
+				return out, trace.Wrap(err)
+			}
+			out.Resources = append(out.Resources, resource)
+		}
+
+		out.NextKey = resp.NextKey
+		out.Total = int(resp.TotalCount)
+
+		return out, nil
+	}
 }
 
 // GetResourcePage is a helper for getting a single page of resources that match the provide request.

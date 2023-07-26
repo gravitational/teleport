@@ -848,4 +848,7 @@ type ClientI interface {
 
 	// GetResources returns a paginated list of resources.
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+
+	// GetUnifiedResources returns a paginated list of unified resources.
+	GetUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 }
