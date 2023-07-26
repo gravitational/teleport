@@ -1525,6 +1525,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
 				Headers:  headers,
+				JWTClaims: application.Rewrite.JWTClaims,
 			}
 		}
 		if application.AWS != nil {
