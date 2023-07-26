@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/container v1.23.0
 	cloud.google.com/go/firestore v1.11.0
 	cloud.google.com/go/iam v1.1.1
-	cloud.google.com/go/kms v1.12.1
+	cloud.google.com/go/kms v1.14.0
 	cloud.google.com/go/storage v1.31.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
@@ -24,7 +24,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.1.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
 	github.com/ClickHouse/ch-go v0.58.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.10.1
+	github.com/ClickHouse/clickhouse-go/v2 v2.11.0
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/ThalesIgnite/crypto11 v1.2.5
@@ -86,7 +86,7 @@ require (
 	github.com/google/go-tpm-tools v0.3.12
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
-	github.com/googleapis/gax-go/v2 v2.11.0
+	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
@@ -114,6 +114,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0 // replaced
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
 	github.com/kyroy/kdtree v0.0.0-20200419114247-70830f883f1d
+	github.com/mailgun/holster/v3 v3.16.2
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
@@ -168,8 +169,8 @@ require (
 	golang.org/x/term v0.10.0
 	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0
-	google.golang.org/api v0.130.0
-	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
+	google.golang.org/api v0.132.0
+	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
 	google.golang.org/grpc v1.56.2
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
@@ -181,7 +182,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.27.4
-	k8s.io/apiextensions-apiserver v0.27.3
+	k8s.io/apiextensions-apiserver v0.27.4
 	k8s.io/apimachinery v0.27.4
 	k8s.io/apiserver v0.27.4
 	k8s.io/cli-runtime v0.27.4
@@ -192,7 +193,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.15.0
 	sigs.k8s.io/controller-tools v0.12.0
 	sigs.k8s.io/yaml v1.3.0
-	software.sslmate.com/src/go-pkcs12 v0.2.0
+	software.sslmate.com/src/go-pkcs12 v0.2.1
 )
 
 // Indirect mailgun dependencies.
@@ -203,10 +204,10 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.110.2 // indirect
-	cloud.google.com/go/compute v1.20.1
-	cloud.google.com/go/longrunning v0.5.0 // indirect
-	cloud.google.com/go/pubsub v1.31.0 // indirect
+	cloud.google.com/go v0.110.4 // indirect
+	cloud.google.com/go/compute v1.22.0
+	cloud.google.com/go/longrunning v0.5.1 // indirect
+	cloud.google.com/go/pubsub v1.32.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
@@ -397,8 +398,8 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230629202037-9506855d4529 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230629202037-9506855d4529
+	google.golang.org/genproto/googleapis/api v0.0.0-20230706204954-ccb25ca9f130 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
 	k8s.io/component-helpers v0.27.4 // indirect
