@@ -1732,6 +1732,8 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 	// Headers is a list of extra headers to inject in the request.
 	Headers []string `yaml:"headers,omitempty"`
+	// JWTClaims configures whether roles/traits are included in the JWT token
+	JWTClaims string `yaml:"jwt_claims,omitempty"`
 }
 
 // AppAWS contains additional options for AWS applications.
