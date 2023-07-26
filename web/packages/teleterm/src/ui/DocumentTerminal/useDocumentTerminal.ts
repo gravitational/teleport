@@ -352,6 +352,7 @@ function createCmd(
     };
   }
 
+  // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
   if (doc.kind === 'doc.terminal_tsh_kube') {
     return {
       ...doc,

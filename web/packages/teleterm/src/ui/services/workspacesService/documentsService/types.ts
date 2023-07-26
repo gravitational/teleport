@@ -82,6 +82,7 @@ export interface DocumentTshNodeWithLoginHost extends DocumentTshNodeBase {
   // force places which use DocumentTshNode to narrow down the type before using it.
 }
 
+// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
 export interface DocumentTshKube extends DocumentBase {
   kind: 'doc.terminal_tsh_kube';
   // status is used merely to show a progress bar when the document is being set up.

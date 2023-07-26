@@ -47,7 +47,6 @@ export class TrackedConnectionOperationsFactory {
       case 'connection.gateway':
         return this.getConnectionGatewayOperations(connection);
       case 'connection.kube':
-        // Deprecated this.getConnectionKubeOperations(connection);
         return this.getConnectionGatewayKubeOperations(connection);
     }
   }
@@ -194,10 +193,12 @@ export class TrackedConnectionOperationsFactory {
               .forEach(document => {
                 documentsService.close(document.uri);
               });
-            // Remove deprecated DocumentTshKube documents.
+
+            // Remove deprecated doc.terminal_tsh_kube documents.
+            // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
             documentsService
               .getDocuments()
-              .filter(getGatewayKubeDocumentByConnection(connection))
+              .filter(getKubeDocumentByConnection(connection))
               .forEach(document => {
                 documentsService.close(document.uri);
               });
