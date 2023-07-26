@@ -200,6 +200,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 		CollectedData: collectedData,
 		Source:        source,
 		Profile:       profile,
+		Owner:         res.Spec.Owner,
 	}, nil
 }
 
@@ -293,6 +294,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			CollectedData: collectedData,
 			Source:        source,
 			Profile:       profile,
+			Owner:         dev.Owner,
 		},
 	}
 	_ = res.CheckAndSetDefaults() // assign default fields
