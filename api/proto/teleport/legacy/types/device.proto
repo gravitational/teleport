@@ -61,6 +61,7 @@ message DeviceSpec {
   repeated DeviceCollectedData collected_data = 7 [(gogoproto.jsontag) = "collected_data,omitempty"];
   DeviceSource source = 8 [(gogoproto.jsontag) = "source,omitempty"];
   DeviceProfile profile = 9 [(gogoproto.jsontag) = "profile,omitempty"];
+  string owner = 10 [(gogoproto.jsontag) = "owner,omitempty"];
 }
 
 // DeviceCredential is the resource representation of

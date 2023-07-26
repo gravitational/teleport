@@ -56,18 +56,18 @@ connect to a database.
 1. A user logs into the cluster with `tsh login` command and retrieves
    a client certificate. See [Issuing User Certificates](../architecture/authentication.mdx)
    for more details on how it works.
-2. The user picks the database they want to connect to from the list of available
+1. The user picks the database they want to connect to from the list of available
    databases shown in `tsh db ls` command.
-3. The user connects to the database with the `tsh db connect` command, which
+1. The user connects to the database with the `tsh db connect` command, which
    first retrieves a short-lived X.509 certificate and then launches the
    standard database client (e.g. `psql`) with this client certificate to
    authenticate with the Teleport Proxy service.
-4. The Proxy authenticates the connection and dispatches it to the appropriate
+1. The Proxy authenticates the connection and dispatches it to the appropriate
    Database Service based on the routing information encoded in the client
    certificate, over the reverse tunnel.
-5. The Database Service authenticates the connection, performs an authorization
+1. The Database Service authenticates the connection, performs an authorization
    check, and then establishes the connection to the database.
-6. The Database Service begins proxying traffic between the user's database
+1. The Database Service begins proxying traffic between the user's database
    client and the database. Additionally, it interprets the database wire
    protocol messages and submits events to the Teleport audit log.
 

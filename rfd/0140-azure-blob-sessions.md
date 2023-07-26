@@ -32,9 +32,9 @@ teleport:
     audit_sessions_uri: "azblob://<storage account name>.blob.core.windows.net"
 ```
 
-It's possible to specify a client ID for a managed identity (to allow for different identities to be used for backend, events and sessions, as opposed to setting the `AZURE_CLIENT_ID` envvar and using the default credentials) by specifying a URL fragment of `#azure_client_id=11111111-2222-3333-4444-555555555555`. The `azblob` schema is only used by Teleport to identify the storage backend, and will actually result in a `https` URL. For testing against simulators (or other services with the same API surface) over `http`, the `azblob-http` schema is also supported (but we will leave it undocumented for end users).
+The `azblob` schema is only used by Teleport to identify the storage backend, and will actually result in a `https` URL. For testing against simulators (or other services with the same API surface) over `http`, the `azblob-http` schema is also supported (but we will leave it undocumented for end users).
 
-Teleport will require access to two containers in the storage account, named `session`, which will store the completed session files, and `inprogress`, which will be used as temporary space to hold parts. The container names can be tweaked with query parameters in the fragment: `session_container=foo&inprogress_container=bar`.
+Teleport will require access to two containers in the storage account, named `session`, which will store the completed session files, and `inprogress`, which will be used as temporary space to hold parts. The container names can be tweaked with query parameters in the fragment of the URL: `#session_container=foo&inprogress_container=bar`.
 
 To signify the creation of an upload, a random UUID is generated, and an empty blob is created in `inprogress` with name `upload/<session id>/<upload id>`; this will be used when listing unfinished uploads, by listing blobs whose name begins with `upload/`. Parts are uploaded in `inprogress` with name `part/<session id>/<upload id>/<part number>`, which will allow listing the parts for a specific upload. To complete an upload, parts will be used as blocks to compose the final session recording in the `session` container (in a blob that has the session ID as its name); this can be done efficiently with the "Put Block By URL" call.
 
