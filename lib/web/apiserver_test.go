@@ -3779,6 +3779,10 @@ func TestClusterDatabasesGet(t *testing.T) {
 			Spec: types.DatabaseSpecV3{
 				Protocol: "test-protocol",
 				URI:      "test-uri:1234",
+				AWS: types.AWS{
+					IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID,
+					Region:          "us-west-2",
+				},
 			},
 		},
 	})
@@ -3817,10 +3821,16 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Name:     "db1",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
-		Type:     types.DatabaseTypeSelfHosted,
+		Type:     types.DatabaseTypeRDS,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
 		Hostname: "test-uri",
 		URI:      "test-uri:1234",
+		AWS: &ui.AWS{
+			AWS: types.AWS{
+				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID,
+				Region:          "us-west-2",
+			},
+		},
 	}, {
 		Name:     "db2",
 		Type:     types.DatabaseTypeSelfHosted,
@@ -3857,12 +3867,18 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Name:          "db1",
 		Desc:          "test-description",
 		Protocol:      "test-protocol",
-		Type:          types.DatabaseTypeSelfHosted,
+		Type:          types.DatabaseTypeRDS,
 		Labels:        []ui.Label{{Name: "test-field", Value: "test-value"}},
 		Hostname:      "test-uri",
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
 		URI:           "test-uri:1234",
+		AWS: &ui.AWS{
+			AWS: types.AWS{
+				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID,
+				Region:          "us-west-2",
+			},
+		},
 	}, {
 		Name:          "db2",
 		Type:          types.DatabaseTypeSelfHosted,
@@ -3873,6 +3889,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		DatabaseNames: []string{"name1"},
 		URI:           "test-uri:1234",
 	}})
+
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
