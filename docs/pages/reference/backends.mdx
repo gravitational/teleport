@@ -172,7 +172,7 @@ teleport:
      etcd_max_client_msg_size_bytes: 15728640
 ```
 
-## PostgreSQL (preview)
+## PostgreSQL (Preview)
 
 <Admonition type="warning" title="Preview">
   The PostgreSQL cluster state and audit log storage is currently in Preview.
@@ -865,6 +865,75 @@ teleport:
   and the session recordings **must** be stored in a GCS bucket, i.e. both `audit_xxx` settings must
   be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
+
+## Azure Blob Storage (Preview)
+
+<Admonition type="warning" title="Preview">
+  Azure Blob Storage for session storage is currently in Preview.
+</Admonition>
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
+  in Teleport Architecture documentation.
+</Admonition>
+
+Azure Blob Storage can be used as storage for recorded sessions. Azure Blob
+Storage cannot store the audit log or the cluster state. Below is an example of
+how to configure a Teleport auth server to store the recorded sessions in an
+Azure Blob Storage storage account.
+
+```yaml
+teleport:
+  storage:
+    audit_sessions_uri: azblob://account-name.core.blob.windows.net
+```
+
+Teleport makes use of two containers in the account, whose names default to
+`inprogress` and `session`, but they can be configured with parameters in the
+fragment of the URI.
+
+```yaml
+teleport:
+  storage:
+    audit_sessions_uri: azblob://account-name.core.blob.windows.net#session_container=session_container_name&inprogress_container=inprogress_container_name
+```
+
+### Permissions
+
+Teleport needs the following permissions on the `inprogress` container:
+- `Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read`
+- `Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write`
+- `Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete` (only on the `inprogress` container)
+
+In addition, Teleport will check if the containers exist at startup, and it will
+attempt to create them if they can't be confirmed to exist; giving Teleport
+`Microsoft.Storage/storageAccounts/blobServices/containers/read` will allow for
+checking and `Microsoft.Storage/storageAccounts/blobServices/containers/write`
+will allow for creating them.
+
+It's highly recommended to set up a [time-based retention
+policy](https://learn.microsoft.com/azure/storage/blobs/immutable-time-based-retention-policy-overview)
+for the `session` container, as well as a [lifecycle management
+policy](https://learn.microsoft.com/azure/storage/blobs/lifecycle-management-overview),
+so that recordings are kept in an immutable state for a given period, then
+deleted. Teleport will not delete recordings automatically.
+
+With a time-based retention policy in place, it's safe to give Teleport the
+"Blob Storage Data Contributor" role scoped to the containers, instead of having
+to define a custom role for it.
+
+### Authentication
+
+Teleport will make use of the Azure AD credentials specified by [environment
+variables](https://learn.microsoft.com/azure/developer/go/azure-sdk-authentication#2-authenticate-with-azure),
+[Azure AD Workload
+Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview)
+credentials, or [managed
+identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
+credentials.
 
 ## SQLite
 
