@@ -617,9 +617,9 @@ type Server struct {
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
 
-	// unifiedResourceWatcher is used to watch and collect multiple resource kinds to be presented
+	// UnifiedResourceWatcher is used to watch and collect multiple resource kinds to be presented
 	// in a unified manner in the web UI.
-	unifiedResourceWatcher *services.UnifiedResourceWatcher
+	UnifiedResourceWatcher *services.UnifiedResourceWatcher
 
 	inventory *inventory.Controller
 
@@ -776,10 +776,10 @@ func (a *Server) CloseContext() context.Context {
 }
 
 // SetUnifiedResourceWatcher sets the unified resource watcher.
-func (a *Server) SetUnifiedResourceWatcher(unifiedResourceWatcher *services.UnifiedResourceWatcher) {
+func (a *Server) SetUnifiedResourceWatcher(UnifiedResourceWatcher *services.UnifiedResourceWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	a.unifiedResourceWatcher = unifiedResourceWatcher
+	a.UnifiedResourceWatcher = UnifiedResourceWatcher
 }
 
 // SetLockWatcher sets the lock watcher.
@@ -1332,11 +1332,6 @@ func (a *Server) Close() error {
 		}
 	}
 
-	if a.unifiedResourceWatcher != nil {
-		if err := a.unifiedResourceWatcher.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
 	return trace.NewAggregate(errs...)
 }
 

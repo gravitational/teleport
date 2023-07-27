@@ -746,10 +746,6 @@ func lockMapValues(lockMap map[string]types.Lock) []types.Lock {
 	return locks
 }
 
-type DatabaseServersGetter interface {
-	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
-}
-
 // DatabaseWatcherConfig is a DatabaseWatcher configuration.
 type DatabaseWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
@@ -889,10 +885,6 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 }
 
 func (*databaseCollector) notifyStale() {}
-
-type AppServersGetter interface {
-	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
-}
 
 type SAMLIdpServiceProviderGetter interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)

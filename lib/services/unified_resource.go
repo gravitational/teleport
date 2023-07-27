@@ -41,34 +41,22 @@ type config struct {
 	Clock clockwork.Clock
 	// Component is a logging component
 	Component string
-	// EventsOff turns off events generation
-	EventsOff bool
-	// BufferSize sets up event buffer size
-	BufferSize int
 }
 
-// New creates a new memory cache that holds the unified resources
-func NewunifiedResourceCache(cfg config) (*unifiedResourceCache, error) {
+// NewUnified creates a new memory cache that holds the unified resources
+func NewUnifiedResourceCache(cfg config) (*unifiedResourceCache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "setting defaults for unified resource cache")
 	}
-	ctx, cancel := context.WithCancel(cfg.Context)
-	buf := backend.NewCircularBuffer(
-		backend.BufferCapacity(cfg.BufferSize),
-	)
-	buf.SetInit()
 	m := &unifiedResourceCache{
-		mu: &sync.Mutex{},
+		mu: sync.Mutex{},
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentMemory,
 		}),
 		cfg: cfg,
-		tree: btree.NewG(cfg.BTreeDegree, func(a, b *btreeItem) bool {
+		tree: btree.NewG(cfg.BTreeDegree, func(a, b *Item) bool {
 			return a.Less(b)
 		}),
-		cancel: cancel,
-		ctx:    ctx,
-		buf:    buf,
 	}
 	return m, nil
 }
@@ -77,9 +65,6 @@ func NewunifiedResourceCache(cfg config) (*unifiedResourceCache, error) {
 func (cfg *config) CheckAndSetDefaults() error {
 	if cfg.Context == nil {
 		cfg.Context = context.Background()
-	}
-	if cfg.BufferSize == 0 {
-		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.BTreeDegree <= 0 {
 		cfg.BTreeDegree = 8
@@ -93,16 +78,11 @@ func (cfg *config) CheckAndSetDefaults() error {
 	return nil
 }
 
-type btreeItem struct {
-	Item
-	index int
-}
-
 // less is used for Btree operations,
 // returns true if item is less than the other one
-func (i *btreeItem) Less(iother btree.Item) bool {
+func (i *Item) Less(iother btree.Item) bool {
 	switch other := iother.(type) {
-	case *btreeItem:
+	case *Item:
 		return bytes.Compare(i.Key, other.Key) < 0
 	case *prefixItem:
 		return !iother.Less(i)
@@ -119,7 +99,7 @@ type prefixItem struct {
 
 // Less is used for Btree operations
 func (p *prefixItem) Less(iother btree.Item) bool {
-	other := iother.(*btreeItem)
+	other := iother.(*Item)
 	return !bytes.HasPrefix(other.Key, p.prefix)
 }
 
@@ -132,17 +112,11 @@ type Item struct {
 
 // unifiedResourceCache contains a representation of all resources that are displayable in the UI
 type unifiedResourceCache struct {
-	mu  *sync.Mutex
+	mu  sync.Mutex
 	log *log.Entry
 	cfg config
 	// tree is a BTree with items
-	tree *btree.BTreeG[*btreeItem]
-	// cancel is a function that cancels
-	// all operations
-	cancel context.CancelFunc
-	// ctx is a context signaling close
-	ctx context.Context
-	buf *backend.CircularBuffer
+	tree *btree.BTreeG[*Item]
 }
 
 // Event represents an event that happened in the backend
@@ -153,19 +127,6 @@ type Event struct {
 	Item Item
 }
 
-// Close closes memory backend
-func (c *unifiedResourceCache) Close() error {
-	c.cancel()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.buf.Close()
-}
-
-// Clock returns clock used by this backend
-func (c *unifiedResourceCache) Clock() clockwork.Clock {
-	return c.cfg.Clock
-}
-
 // Create creates item if it does not exist
 func (c *unifiedResourceCache) Create(ctx context.Context, i Item) error {
 	if len(i.Key) == 0 {
@@ -173,7 +134,7 @@ func (c *unifiedResourceCache) Create(ctx context.Context, i Item) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.tree.Has(&btreeItem{Item: i}) {
+	if c.tree.Has(&i) {
 		return trace.AlreadyExists("key %q already exists", string(i.Key))
 	}
 	event := Event{
@@ -191,34 +152,16 @@ func (c *unifiedResourceCache) Get(ctx context.Context, key []byte) (*Item, erro
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	i, found := c.tree.Get(&btreeItem{Item: Item{Key: key}})
+	i, found := c.tree.Get(&Item{Key: key})
 	if !found {
 		return nil, trace.NotFound("key %q is not found", string(key))
 	}
-	return &i.Item, nil
-}
-
-// Update updates item if it exists, or returns NotFound error
-func (c *unifiedResourceCache) Update(ctx context.Context, i Item) error {
-	if len(i.Key) == 0 {
-		return trace.BadParameter("missing parameter key")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !c.tree.Has(&btreeItem{Item: i}) {
-		return trace.NotFound("key %q is not found", string(i.Key))
-	}
-	event := Event{
-		Type: types.OpPut,
-		Item: i,
-	}
-	c.processEvent(event)
-	return nil
+	return i, nil
 }
 
 // Put puts value into backend (creates if it does not
 // exist, updates it otherwise)
-func (c *unifiedResourceCache) Put(ctx context.Context, i Item) error {
+func (c *unifiedResourceCache) put(ctx context.Context, i Item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -254,13 +197,13 @@ func (c *unifiedResourceCache) PutRange(ctx context.Context, items []Item) error
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (c *unifiedResourceCache) Delete(ctx context.Context, key []byte) error {
+func (c *unifiedResourceCache) delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.tree.Has(&btreeItem{Item: Item{Key: key}}) {
+	if !c.tree.Has(&Item{Key: key}) {
 		return trace.NotFound("key %q is not found", string(key))
 	}
 	event := Event{
@@ -270,28 +213,6 @@ func (c *unifiedResourceCache) Delete(ctx context.Context, key []byte) error {
 		},
 	}
 	c.processEvent(event)
-	return nil
-}
-
-// DeleteRange deletes range of items with keys between startKey and endKey
-// Note that elements deleted by range do not produce any events
-func (c *unifiedResourceCache) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
-	if len(startKey) == 0 {
-		return trace.BadParameter("missing parameter startKey")
-	}
-	if len(endKey) == 0 {
-		return trace.BadParameter("missing parameter endKey")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	re := c.getRange(ctx, startKey, endKey, backend.NoLimit)
-	for _, item := range re.Items {
-		event := Event{
-			Type: types.OpDelete,
-			Item: item,
-		}
-		c.processEvent(event)
-	}
 	return nil
 }
 
@@ -315,43 +236,14 @@ func (c *unifiedResourceCache) GetRange(ctx context.Context, startKey []byte, en
 	return &re, nil
 }
 
-// CompareAndSwap compares item with existing item and replaces it with replaceWith item
-func (c *unifiedResourceCache) CompareAndSwap(ctx context.Context, expected Item, replaceWith Item) error {
-	if len(expected.Key) == 0 {
-		return trace.BadParameter("missing parameter Key")
-	}
-	if len(replaceWith.Key) == 0 {
-		return trace.BadParameter("missing parameter Key")
-	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
-		return trace.BadParameter("expected and replaceWith keys should match")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	i, found := c.tree.Get(&btreeItem{Item: expected})
-	if !found {
-		return trace.CompareFailed("key %q is not found", string(expected.Key))
-	}
-	existingItem := i.Item
-	if existingItem.Value != expected.Value {
-		return trace.CompareFailed("current value does not match expected for %v", string(expected.Key))
-	}
-	event := Event{
-		Type: types.OpPut,
-		Item: replaceWith,
-	}
-	c.processEvent(event)
-	return nil
-}
-
 type getResult struct {
 	Items []Item
 }
 
 func (c *unifiedResourceCache) getRange(ctx context.Context, startKey, endKey []byte, limit int) getResult {
 	var res getResult
-	c.tree.AscendRange(&btreeItem{Item: Item{Key: startKey}}, &btreeItem{Item: Item{Key: endKey}}, func(item *btreeItem) bool {
-		res.Items = append(res.Items, item.Item)
+	c.tree.AscendRange(&Item{Key: startKey}, &Item{Key: endKey}, func(item *Item) bool {
+		res.Items = append(res.Items, *item)
 		if limit > 0 && len(res.Items) >= limit {
 			return false
 		}
@@ -363,16 +255,12 @@ func (c *unifiedResourceCache) getRange(ctx context.Context, startKey, endKey []
 func (c *unifiedResourceCache) processEvent(event Event) {
 	switch event.Type {
 	case types.OpPut:
-		item := &btreeItem{Item: event.Item, index: -1}
+		item := &event.Item
 		c.tree.ReplaceOrInsert(item)
 	case types.OpDelete:
-		item, found := c.tree.Get(&btreeItem{Item: event.Item})
-		if !found {
-			return
-		}
-		c.tree.Delete(item)
+		c.tree.Delete(&event.Item)
 	default:
-		// skip unsupported record
+		c.log.Warnf("unsupported event type %s.", event.Type)
 	}
 }
 
@@ -392,12 +280,6 @@ type UnifiedResourceWatcherConfig struct {
 type UnifiedResourceWatcher struct {
 	*resourceWatcher
 	*unifiedResourceCollector
-}
-
-// Close closes the underlying resource watcher
-func (u *UnifiedResourceWatcher) Close() error {
-	u.resourceWatcher.Close()
-	return u.unifiedResourceCollector.Close()
 }
 
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
@@ -434,7 +316,7 @@ func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherCo
 		return nil, trace.Wrap(err, "setting defaults for unified resource watcher config")
 	}
 
-	mem, err := NewunifiedResourceCache(config{})
+	mem, err := NewUnifiedResourceCache(config{})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating a new unified resource cache")
 	}
@@ -457,7 +339,7 @@ func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherCo
 }
 
 func keyOf(r types.Resource) []byte {
-	return backend.Key(prefix, r.GetMetadata().Namespace, r.GetName(), r.GetKind())
+	return backend.Key(prefix, r.GetName(), r.GetKind())
 }
 
 type unifiedResourceCollector struct {
@@ -467,10 +349,6 @@ type unifiedResourceCollector struct {
 	initializationC chan struct{}
 	once            sync.Once
 	stale           bool
-}
-
-func (u *unifiedResourceCollector) Close() error {
-	return u.current.Close()
 }
 
 func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
@@ -515,7 +393,7 @@ func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error 
 	if err != nil {
 		return trace.Wrap(err, "getting nodes for unified resource watcher")
 	}
-	nodes := make([]Item, 0)
+	nodes := make([]Item, 0, len(newNodes))
 	for _, node := range newNodes {
 		nodes = append(nodes, Item{
 			Key:   keyOf(node),
@@ -531,7 +409,7 @@ func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) er
 	if err != nil {
 		return trace.Wrap(err, "getting databases for unified resource watcher")
 	}
-	dbs := make([]Item, 0)
+	dbs := make([]Item, 0, len(newDbs))
 	for _, db := range newDbs {
 		dbs = append(dbs, Item{
 			Key:   keyOf(db),
@@ -547,7 +425,7 @@ func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error 
 	if err != nil {
 		return trace.Wrap(err, "getting kubes for unified resource watcher")
 	}
-	kubes := make([]Item, 0)
+	kubes := make([]Item, 0, len(newKubes))
 	for _, kube := range newKubes {
 		kubes = append(kubes, Item{
 			Key:   keyOf(kube),
@@ -564,7 +442,7 @@ func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
 		return trace.Wrap(err, "getting apps for unified resource watcher")
 	}
 
-	apps := make([]Item, 0)
+	apps := make([]Item, 0, len(newApps))
 	for _, app := range newApps {
 		apps = append(apps, Item{
 			Key:   keyOf(app),
@@ -608,7 +486,7 @@ func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) err
 		return trace.Wrap(err, "getting desktops for unified resource watcher")
 	}
 
-	desktops := make([]Item, 0)
+	desktops := make([]Item, 0, len(newDesktops))
 	for _, desktop := range newDesktops {
 		desktops = append(desktops, Item{
 			Key:   keyOf(desktop),
@@ -639,9 +517,9 @@ func (u *unifiedResourceCollector) processEventAndUpdateCurrent(ctx context.Cont
 	defer u.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
-		u.current.Delete(ctx, keyOf(event.Resource))
+		u.current.delete(ctx, keyOf(event.Resource))
 	case types.OpPut:
-		u.current.Put(ctx, Item{
+		u.current.put(ctx, Item{
 			Key:   keyOf(event.Resource),
 			Value: event.Resource.(types.ResourceWithLabels),
 		})

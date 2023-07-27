@@ -1731,7 +1731,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
-	unifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
+	UnifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:    teleport.ComponentUnifiedResource,
 			Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
@@ -1749,7 +1749,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	authServer.SetUnifiedResourceWatcher(unifiedResourceWatcher)
+	authServer.SetUnifiedResourceWatcher(UnifiedResourceWatcher)
 
 	if embedderClient != nil {
 		log.Debugf("Starting embedding watcher")
