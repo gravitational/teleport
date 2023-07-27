@@ -20,17 +20,16 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
-import { Acl } from 'teleport/services/user';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { getAcl, createTeleportContext } from 'teleport/mocks/contexts';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { getOSSFeatures } from 'teleport/features';
 import cfg from 'teleport/config';
 import {
-  SERVERS,
   APPLICATIONS,
   KUBERNETES,
+  SERVERS,
   WINDOWS_DESKTOPS,
 } from 'teleport/Discover/SelectResource/resources';
 import {
@@ -41,15 +40,15 @@ import {
 
 import { ResourceKind } from './Shared';
 
-describe('discover', () => {
-  function create(initialEntry: string, userAcl: Acl) {
-    const ctx = createTeleportContext({ customAcl: userAcl });
+const create = (initialEntry: string) => {
+  const userAcl = getAcl()
+  const ctx = createTeleportContext({ customAcl: userAcl });
 
-    return render(
+  return render(
       <MemoryRouter
-        initialEntries={[
-          { pathname: cfg.routes.discover, state: { entity: initialEntry } },
-        ]}
+          initialEntries={[
+            { pathname: cfg.routes.discover, state: { entity: initialEntry } },
+          ]}
       >
         <TeleportContextProvider ctx={ctx}>
           <FeaturesContextProvider value={getOSSFeatures()}>
@@ -57,58 +56,96 @@ describe('discover', () => {
           </FeaturesContextProvider>
         </TeleportContextProvider>
       </MemoryRouter>
+  );
+}
+
+test('displays all resources by default', () => {
+  create('')
+
+  expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
+    SERVERS.length
+  );
+  expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
+    WINDOWS_DESKTOPS.length
+  );
+  expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
+    DATABASES.length + DATABASES_UNGUIDED.length + DATABASES_UNGUIDED_DOC.length
+  );
+  expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
+    APPLICATIONS.length
+  );
+  expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
+    KUBERNETES.length
+  );
+});
+
+describe('location state', () => {
+  test('displays servers when the location state is server', () => {
+    create('server');
+
+    expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
+      SERVERS.length
     );
-  }
 
-  describe('server', () => {
-    test('shows all the servers when location state is server', () => {
-      create('server', getAcl());
+    // we assert three databases for servers because the naming convention includes "server"
+    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(3);
 
-      expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
-        SERVERS.length
-      );
-    });
+    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Application)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Kubernetes)).not.toBeInTheDocument();
   });
 
-  describe('desktop', () => {
-    test('shows the desktops when the location state is desktop', () => {
-      create('desktop', getAcl());
+  test('displays desktops when the location state is desktop', () => {
+    create('desktop');
 
-      expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-        WINDOWS_DESKTOPS.length
-      );
-    });
+    expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
+      WINDOWS_DESKTOPS.length
+    );
+
+    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Application)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Kubernetes)).not.toBeInTheDocument();
   });
 
-  describe('application', () => {
-    test('shows the apps when the location state is application', () => {
-      create('application', getAcl());
+  test('displays apps when the location state is application', () => {
+    create('application');
 
-      expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
-        APPLICATIONS.length
-      );
-    });
+    expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
+      APPLICATIONS.length
+    );
+
+    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Kubernetes)).not.toBeInTheDocument();
   });
 
-  describe('database', () => {
-    test('shows the database when the location state is database', () => {
-      create('database', getAcl());
+  test('displays databases when the location state is database', () => {
+    create('database');
 
-      expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
-        DATABASES.length +
-          DATABASES_UNGUIDED.length +
-          DATABASES_UNGUIDED_DOC.length
-      );
-    });
+    expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
+      DATABASES.length +
+        DATABASES_UNGUIDED.length +
+        DATABASES_UNGUIDED_DOC.length
+    );
+
+    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Application)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Kubernetes)).not.toBeInTheDocument();
   });
 
-  describe('kube', () => {
-    test('shows the kubes when the location state is kubernetes', () => {
-      create('kubernetes', getAcl());
+  test('displays kube resources when the location state is kubernetes', () => {
+    create('kubernetes');
 
-      expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
-        KUBERNETES.length
-      );
-    });
+    expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
+      KUBERNETES.length
+    );
+
+    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
+    expect(screen.queryByTestId(ResourceKind.Application)).not.toBeInTheDocument();
   });
 });
