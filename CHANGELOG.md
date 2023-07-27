@@ -1,5 +1,20 @@
 # Changelog
 
+## 11.3.19 (07/27/23)
+
+* Fixed enhanced recording of missing `session.command` events when PAM enabled. [#29030](https://github.com/gravitational/teleport/issues/29030) [#29582](https://github.com/gravitational/teleport/pull/29582)
+* Fixed a panic in the S3 uploader. [#29468](https://github.com/gravitational/teleport/pull/29468)
+* Fixed Database RBAC to take dynamic labels into account. [#29382](https://github.com/gravitational/teleport/pull/29382)
+* Fixed memory leak in statistics reporter. [#29332](https://github.com/gravitational/teleport/pull/29332)
+* Fixed issue with viewing audit log when using Firestore backend. [#29116](https://github.com/gravitational/teleport/pull/29116)
+* Added ability to disable proxy protocol in Kubernetes Access. [#29276](https://github.com/gravitational/teleport/pull/29276)
+* Updated Kubernetes operator CRDs. [#29438](https://github.com/gravitational/teleport/issues/29438) [#29556](https://github.com/gravitational/teleport/pull/29556)
+* Updated Go to `1.20.6`. [#29075](https://github.com/gravitational/teleport/pull/29075)
+* Improved `tsh play` error handling. [#29080](https://github.com/gravitational/teleport/pull/29080)
+* Provided warning when `tsh` ignores the `--user` flag due to SSO. [#29223](https://github.com/gravitational/teleport/pull/29223)
+* Allow spaces in `data_dir` path. [#29101](https://github.com/gravitational/teleport/pull/29101)
+* Cleaned up session uploader logging to suppress S3 permission errors. [#29142](https://github.com/gravitational/teleport/pull/29142)
+
 ## 11.3.17 (07/13/23)
 
 * Application Access
