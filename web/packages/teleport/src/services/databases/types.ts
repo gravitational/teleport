@@ -16,7 +16,7 @@ limitations under the License.
 
 import { DbProtocol } from 'shared/services/databases';
 
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentLabel, UnifiedResourceKind } from 'teleport/services/agents';
 
 import { AwsRdsDatabase, RdsEngine } from '../integrations';
 
@@ -25,6 +25,7 @@ export type Aws = {
 };
 
 export interface Database {
+  kind: 'db';
   name: string;
   description: string;
   type: string;

@@ -246,8 +246,6 @@ const theme = {
   regular: fontWeights.regular,
   bold: fontWeights.bold,
   ...sharedStyles,
-  // disabled media queries for styled-system
-  breakpoints: [],
 };
 
 export default theme;

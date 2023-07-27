@@ -30,6 +30,8 @@ export type AgentKind =
   | Desktop
   | WindowsDesktopService;
 
+export type UnifiedResourceKind = AgentKind['kind'];
+
 export type AgentResponse<T extends AgentKind> = {
   agents: T[];
   startKey?: string;

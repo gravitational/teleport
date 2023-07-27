@@ -23,6 +23,7 @@ export function makeDesktop(json): Desktop {
   const logins = json.logins || [];
 
   return {
+    kind: 'windows_desktop',
     os,
     name,
     addr,
