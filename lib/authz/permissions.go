@@ -1375,7 +1375,7 @@ func IsLocalUser(authContext Context) bool {
 	return ok
 }
 
-// IsLocalUserAction checks if the identity is a local user and the username
-func IsLocalUserAction(authContext Context, username string) bool {
+// IsCurrentUser checks if the identity is a local user matching the given username
+func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
 }
