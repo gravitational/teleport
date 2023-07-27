@@ -20,7 +20,7 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	encoding_binary "encoding/binary"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
@@ -81,7 +81,7 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		Value: []byte(modules.GetModules().BuildType()),
 	}, pkix.Extension{
 		Id:    tlsca.DesktopsCountOID,
-		Value: encoding_binary.LittleEndian.AppendUint32(nil, uint32(len(desktops))),
+		Value: []byte(strconv.Itoa(len(desktops))),
 	})
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
