@@ -275,5 +275,5 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 
 // userHasAccess returns true if the user should have access to the resource.
 func userHasAccess(authCtx *authz.Context, req interface{ GetUsername() string }) bool {
-	return !authz.IsLocalUserAction(*authCtx, req.GetUsername()) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))
+	return !authz.IsCurrentUser(*authCtx, req.GetUsername()) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))
 }
