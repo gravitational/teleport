@@ -1105,6 +1105,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, 2, res.TotalCount)
 	require.ElementsMatch(t, res.Items, []ui.Server{
 		{
+			Kind:        types.KindNode,
 			ClusterName: clusterName,
 			Name:        server1.GetName(),
 			Hostname:    server1.GetHostname(),
@@ -1114,6 +1115,7 @@ func TestClusterNodesGet(t *testing.T) {
 			SSHLogins:   []string{pack.login},
 		},
 		{
+			Kind:        types.KindNode,
 			ClusterName: clusterName,
 			Name:        "server2",
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -4458,6 +4460,7 @@ func TestClusterAppsGet(t *testing.T) {
 	require.Len(t, resp.Items, 3)
 	require.Equal(t, 3, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
+		Kind:        types.KindAppServer,
 		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -4468,6 +4471,7 @@ func TestClusterAppsGet(t *testing.T) {
 		AWSConsole:  true,
 		UserGroups:  []ui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
 	}, {
+		Kind:       types.KindAppServer,
 		Name:       "app2",
 		URI:        "uri",
 		Labels:     []ui.Label{},
@@ -4476,6 +4480,7 @@ func TestClusterAppsGet(t *testing.T) {
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
 	}, {
+		Kind:        types.KindSAMLIdPServiceProvider,
 		Name:        "test-saml-app",
 		Description: "SAML Application",
 		URI:         "",

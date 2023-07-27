@@ -142,6 +142,9 @@ type ResourceSeenKey struct{ name, addr string }
 // is not provided but is provided for kind `KubernetesCluster`.
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
+	if resource == nil {
+		return false, trace.NotImplemented("resource cannot be nil")
+	}
 	resourceKind := resource.GetKind()
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
@@ -188,7 +191,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		// of cases we need to handle. If the resource type didn't match any arm before
 		// and it is not a Kubernetes resource kind, we return an error.
 		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
-			return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
+			return false, trace.NotImplemented("filtering for resource kind %q not supported", resourceKind)
 		}
 		specResource = resource
 		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)

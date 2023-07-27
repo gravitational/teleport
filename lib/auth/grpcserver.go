@@ -4330,11 +4330,15 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 	return &authpb.CRL{CRL: crl}, nil
 }
 
-func makePaginatedResources(resources []types.ResourceWithLabels) ([]*authpb.PaginatedResource, error) {
+func makePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*authpb.PaginatedResource, error) {
 	paginatedResources := make([]*authpb.PaginatedResource, 0)
 	for _, resource := range resources {
 		var protoResource *authpb.PaginatedResource
-		switch resource.GetKind() {
+		resourceKind := requestType
+		if requestType == types.KindUnifiedResource {
+			resourceKind = resource.GetKind()
+		}
+		switch resourceKind {
 		case types.KindDatabaseServer:
 			database, ok := resource.(*types.DatabaseServerV3)
 			if !ok {
@@ -4445,9 +4449,9 @@ func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListU
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := makePaginatedResources(resp.Resources)
+	paginatedResources, err := makePaginatedResources(types.KindUnifiedResource, resp.Resources)
 	if err != nil {
-		return nil, trace.Wrap(err, "making paginated resources")
+		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
 
 	protoResp := &authpb.ListUnifiedResourcesResponse{
@@ -4471,7 +4475,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 		return nil, trace.Wrap(err)
 	}
 
-	paginatedResources, err := makePaginatedResources(resp.Resources)
+	paginatedResources, err := makePaginatedResources(req.ResourceType, resp.Resources)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated resources")
 	}
