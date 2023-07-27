@@ -82,7 +82,7 @@ for later use.
 For example:
 
 ```code
-kubectl exec ${KUBECTL_FLAGS} -- tctl auth sign --user alice --format tls -o alice.local | tar xv
+kubectl exec ${KUBECTL_FLAGS} -- tctl auth sign --user alice --format tls -o alice.local --tar | tar xv
 x alice.local.crt
 x alice.local.key
 x alice.local.cas
