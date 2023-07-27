@@ -51,7 +51,7 @@ export const SERVERS: ResourceSpec[] = [
     event: DiscoverEventResource.Server,
   },
   {
-    name: 'Amazon Linux 2',
+    name: 'Amazon Linux 2/2023',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'amazon linux',
     icon: 'Aws',
