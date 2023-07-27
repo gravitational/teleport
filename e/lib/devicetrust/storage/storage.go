@@ -316,7 +316,7 @@ func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *devic
 		case getErr == nil: // Existing asset tag
 			retry, lastErr = s.appendDeviceRef(ctx, current, ref)
 			if lastErr != nil {
-				logger.WithError(getErr).Debug("Failed to append to asset tag mapping, retrying")
+				logger.WithError(lastErr).Debug("Failed to append to asset tag mapping, retrying")
 			}
 
 		default: // getErr != nil
