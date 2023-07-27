@@ -53,24 +53,26 @@ export const DocumentGatewayKube = (props: {
   const { documentsService } = useWorkspaceContext();
   const { params } = routing.parseKubeUri(doc.targetUri);
   const [connectAttempt, createGateway] = useAsync(async () => {
-    await retryWithRelogin(ctx, doc.targetUri, () =>
-      ctx.clustersService.createGateway({
-        targetUri: doc.targetUri,
-        user: '',
-      })
-    );
+    documentsService.update(doc.uri, { status: 'connecting' });
+
+    try {
+      await retryWithRelogin(ctx, doc.targetUri, () =>
+        // Creating a kube gateway twice with the same params is a noop. tshd
+        // will return the URI of an already existing gateway.
+        ctx.clustersService.createGateway({
+          targetUri: doc.targetUri,
+          user: '',
+        })
+      );
+    } catch (error) {
+      documentsService.update(doc.uri, { status: 'error' });
+      throw error;
+    }
   });
 
   useEffect(() => {
-    documentsService.update(doc.uri, { status: 'connecting' });
-
     if (connectAttempt.status === '') {
-      (async () => {
-        const [, error] = await createGateway();
-        if (!(error instanceof CanceledError)) {
-          documentsService.update(doc.uri, { status: 'error' });
-        }
-      })();
+      createGateway();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
