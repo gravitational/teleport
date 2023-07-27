@@ -385,6 +385,37 @@ message DatabaseStatusV3 {
   ];
 }
 
+// IAMPolicyStatus represents states that describe if an AWS database
+// has its IAM policy properly configured or not.
+// This enum is set in a Sync.Map during an IAM task that checks for the
+// validity of IAM policy, and the database gets updated with the value
+// from this map during a heartbeat.
+enum IAMPolicyStatus {
+  // IAM_POLICY_STATUS_UNSPECIFIED represents a zero value where
+  // nothing has been attempted yet.
+  IAM_POLICY_STATUS_UNSPECIFIED = 0;
+  // IAM_POLICY_STATUS_PENDING represents a state where iam policy status
+  // is pending to be checked. This enum value is set at the start of
+  // registering a database -> IAM setup (before the db heartbeat starts).
+  //
+  // This state was required for two reasons:
+  //   1) To be able to tell apart from an older service that do not update
+  //      the IAMPolicyStatus (in which case the enum value will remain the
+  //      zero value).
+  //   2) When starting a database, the heartbeat and its IAM task starts,
+  //      and the heartbeat may run first before the IAM task finishes.
+  IAM_POLICY_STATUS_PENDING = 1;
+  // IAM_POLICY_STATUS_ERROR represents a state where an error occured
+  // while checking for IAM policy status eg: no AWS credentials provider found.
+  IAM_POLICY_STATUS_ERROR = 2;
+  // IAM_POLICY_STATUS_VALID represents a state where IAM policy was configured
+  // correctly.
+  IAM_POLICY_STATUS_VALID = 3;
+  // IAM_POLICY_STATUS_INVALID represents a state where the IAM policy
+  // was misconfigured eg: permission issues.
+  IAM_POLICY_STATUS_INVALID = 4;
+}
+
 // AWS contains AWS metadata about the database.
 message AWS {
   // Region is a AWS cloud region.
@@ -437,10 +468,13 @@ message AWS {
     (gogoproto.jsontag) = "opensearch,omitempty"
   ];
 
-  // IAMPolicyExists indicates whether the IAM Policy is configured properly for database access.
+  reserved 13;
+  reserved "IAMPolicyExists";
+
+  // IAMPolicyStatus indicates whether the IAM Policy is configured properly for database access.
   // If not, the user must update the AWS profile identity to allow access to the Database.
-  // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database
-  bool IAMPolicyExists = 13 [(gogoproto.jsontag) = "iam_policy_exists"];
+  // Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.
+  IAMPolicyStatus IAMPolicyStatus = 14 [(gogoproto.jsontag) = "iam_policy_status"];
 }
 
 // SecretStore contains secret store configurations.
