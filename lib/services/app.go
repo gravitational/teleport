@@ -203,11 +203,7 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 }
 
 func getServiceFQDN(s corev1.Service) string {
-	host := s.GetName()
-	if s.Spec.Type == corev1.ServiceTypeExternalName {
-		host = s.Spec.ExternalName
-	}
-	return fmt.Sprintf("%s.%s.svc.cluster.local", host, s.GetNamespace())
+	return fmt.Sprintf("%s.%s.svc.cluster.local", s.GetName(), s.GetNamespace())
 }
 
 func buildAppURI(protocol, serviceFQDN string, port int32) string {

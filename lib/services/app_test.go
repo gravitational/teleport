@@ -148,9 +148,10 @@ func TestGetServiceFQDN(t *testing.T) {
 			expected:  "service1.ns1.svc.cluster.local",
 		},
 		{
+			name:         "service2",
 			externalName: "external-service2",
 			namespace:    "ns2",
-			expected:     "external-service2.ns2.svc.cluster.local",
+			expected:     "service2.ns2.svc.cluster.local",
 		},
 	}
 
