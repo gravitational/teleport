@@ -112,7 +112,7 @@ func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, 
 	res := make(map[string]*kubeDetails, len(cfg.Contexts))
 	// Convert kubeconfig contexts into kubeCreds.
 	for cluster, clientCfg := range cfg.Contexts {
-		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, log, checkImpersonation)
+		clusterCreds, err := extractKubeCreds(ctx, serviceType, cluster, clientCfg, log, checkImpersonation)
 		if err != nil {
 			log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)
 			continue
@@ -134,7 +134,7 @@ func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, 
 	return res, nil
 }
 
-func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
+func extractKubeCreds(ctx context.Context, component string, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	log = log.WithField("cluster", cluster)
 
 	log.Debug("Checking Kubernetes impersonation permissions.")
@@ -168,7 +168,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
 	}
 
-	transport, err := newDirectTransports(tlsConfig, transportConfig)
+	transport, err := newDirectTransports(component, tlsConfig, transportConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate transport from kubeconfig: %v", err)
 	}
@@ -186,7 +186,7 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 
 // newDirectTransports creates a new http.Transport that will be used to connect to the Kubernetes API server.
 // It is a direct connection, not going through a proxy.
-func newDirectTransports(tlsConfig *tls.Config, transportConfig *transport.Config) (httpTransport, error) {
+func newDirectTransports(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (httpTransport, error) {
 	h1Transport, err := wrapTransport(newH1Transport(tlsConfig, nil), transportConfig)
 	if err != nil {
 		return httpTransport{}, trace.Wrap(err)
@@ -202,8 +202,8 @@ func newDirectTransports(tlsConfig *tls.Config, transportConfig *transport.Confi
 	}
 
 	return httpTransport{
-		h1Transport: h1Transport,
-		h2Transport: h2Transport,
+		h1Transport: instrumentedRoundtripper(component, h1Transport),
+		h2Transport: instrumentedRoundtripper(component, h2Transport),
 	}, nil
 }
 

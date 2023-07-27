@@ -469,6 +469,7 @@
     "kubeconfig",
     "kubeconfigs",
     "kubectl",
+    "portforward",
     "kvno",
     "lastname",
     "ldapsearch",
