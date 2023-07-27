@@ -562,7 +562,7 @@
             {
               "title": "Enroll Agents in Automatic Updates",
               "slug": "/management/operations/enroll-agent-into-automatic-updates/",
-              "forScopes": ["enterprise", "cloud"]
+              "forScopes": ["enterprise", "cloud", "team"]
             }
           ]
         },
