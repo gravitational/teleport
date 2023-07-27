@@ -108,7 +108,7 @@ spec:
   Some of the fields you will see when printing resources are used only internally and are not meant to be changed. Others are reserved for future use.
 </Admonition>
 
-## Dynamic resources
+## List of dynamic resources
 
 Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
 
@@ -119,10 +119,10 @@ Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
 | connector | Authentication connectors for [Single Sign-On](../access-controls/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
 | node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | cluster | A trusted cluster. See [here](../management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
-| login_rule | A Login Rule, see the [Login Rules guide](../access-controls/login-rules.mdx) for more info. |
-| device | A Teleport Trusted Device, see the [Device Trust guide](../access-controls/device-trust/guide.mdx) for more info. |
+| [login_rule](#login-rules) | A Login Rule, see the [Login Rules guide](../access-controls/login-rules.mdx) for more info. |
+| [device](#device) | A Teleport Trusted Device, see the [Device Trust guide](../access-controls/device-trust/guide.mdx) for more info. |
 | [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service |
-| cluster_auth_preference | Configuration for the cluster's auth preferences. |
+| [cluster_auth_preference](#cluster-auth-preferences) | Configuration for the cluster's auth preferences. |
 
 **Examples:**
 
@@ -159,7 +159,7 @@ $ tctl get cluster_auth_preference
   Although `tctl get connectors` will show you every connector, when working with an individual connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each connector's `kind` at the top of its YAML output from `tctl get connectors`.
 </Admonition>
 
-### User
+## User
 
 Teleport supports interactive local users, non-interactive local users (bots)
 and single-sign on users that are represented as a resource.
@@ -195,7 +195,7 @@ spec:
       name: builtin-Admin
 ```
 
-### Role
+## Role
 
 Interactive and non-interactive users (bots) assume one or many roles.
 
@@ -203,25 +203,25 @@ Roles govern access to databases, SSH servers, Kubernetes clusters, web services
 
 (!docs/pages/includes/role-spec.mdx!)
 
-### Login Rules
+## Login Rules
 
 Login rules contain logic to transform SSO user traits during login.
 
 (!docs/pages/includes/login-rule-spec.mdx!)
 
-### Device
+## Device
 
 Device contains information identifying a trusted device.
 
 (!docs/pages/includes/device-spec.mdx!)
 
-### UI config
+## UI config
 
 Global configuration options for the Web UI served by the Proxy Service. This resource is not set by default, which means a `tctl get ui` will result in an error if used before this resource has been set.
 
 (!docs/pages/includes/ui-config-spec.mdx!)
 
-### Cluster Auth Preferences
+## Cluster Auth Preferences
 
 Global cluster configuration options for authentication.
 
@@ -264,8 +264,9 @@ spec:
     attestation_denied_cas: []
 
   # Enforce per-session MFA or PIV-hardware key restrictions on user login sessions.
-  # Possible values: true, false, "hardware_key", "hardware_key_touch"
-  require_mfa_type: "off"
+  # Possible values: true, false, "hardware_key", "hardware_key_touch".
+  # Defaults to false.
+  require_session_mfa: false
 
   # Sets whether connections with expired client certificates will be disconnected.
   disconnect_expired_cert: false
