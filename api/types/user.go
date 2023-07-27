@@ -117,6 +117,10 @@ type User interface {
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
+	// GetTrustedDeviceIDs returns the IDs of the user's trusted devices.
+	GetTrustedDeviceIDs() []string
+	// SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
+	SetTrustedDeviceIDs(ids []string)
 }
 
 // NewUser creates new empty user
@@ -221,6 +225,16 @@ func (u *UserV2) GetTraits() map[string][]string {
 // SetTraits sets the trait map for this user used to populate role variables.
 func (u *UserV2) SetTraits(traits map[string][]string) {
 	u.Spec.Traits = traits
+}
+
+// GetTrustedDeviceIDs returns the IDs of the user's trusted devices.
+func (u *UserV2) GetTrustedDeviceIDs() []string {
+	return u.Spec.TrustedDeviceIDs
+}
+
+// SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
+func (u *UserV2) SetTrustedDeviceIDs(ids []string) {
+	u.Spec.TrustedDeviceIDs = ids
 }
 
 // setStaticFields sets static resource header and metadata fields.

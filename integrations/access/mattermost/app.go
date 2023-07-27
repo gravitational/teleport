@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2023 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-import React from 'react';
+package mattermost
 
-import { Questionnaire } from './Questionnaire';
+import (
+	"github.com/gravitational/teleport/integrations/access/common"
+)
 
-export default {
-  title: 'Teleport/Welcome/Questionnaire',
-  args: { userContext: true },
-};
+const (
+	// mattermostPluginName is used to tag PluginData and as a Delegator in Audit log.
+	mattermostPluginName = "mattermost"
+)
 
-export const Loaded = () => {
-  return <Questionnaire username="" />;
-};
+func NewMattermostApp(conf *Config) *common.BaseApp {
+	return common.NewApp(conf, mattermostPluginName)
+}

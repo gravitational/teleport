@@ -424,6 +424,10 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   color: rgba(255,255,255,0.36);
 }
 
+.c13 .react-select__input {
+  color: #FFFFFF;
+}
+
 .c7 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -1108,6 +1112,10 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 .c14 .react-select--is-disabled .react-select__indicator,
 .c14 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c14 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c8 {
@@ -1820,6 +1828,10 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 .c16 .react-select--is-disabled .react-select__indicator,
 .c16 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c16 .react-select__input {
+  color: #FFFFFF;
 }
 
 .c8 {

@@ -74,10 +74,8 @@ export function NavigationMenu(props: NavigationMenuProps) {
       <Popover
         open={isPopoverOpened}
         anchorEl={iconRef.current}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'right',
-        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         onClose={() => setIsPopoverOpened(false)}
       >
         <Container width="200px">

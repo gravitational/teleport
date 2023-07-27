@@ -29,7 +29,7 @@ import (
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (s *Service) UpdateHeadlessAuthenticationState(ctx context.Context, clusterURI, headlessID string, state api.HeadlessAuthenticationState) error {
-	cluster, err := s.ResolveCluster(clusterURI)
+	cluster, _, err := s.ResolveCluster(clusterURI)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -46,7 +46,7 @@ func (s *Service) StartHeadlessWatcher(uri string) error {
 	s.headlessWatcherClosersMu.Lock()
 	defer s.headlessWatcherClosersMu.Unlock()
 
-	cluster, err := s.ResolveCluster(uri)
+	cluster, _, err := s.ResolveCluster(uri)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -85,10 +85,11 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 		return trace.Wrap(err)
 	}
 
+	maxBackoffDuration := defaults.MaxWatcherBackoff
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(defaults.HighResPollingPeriod / 10),
-		Step:   defaults.HighResPollingPeriod / 5,
-		Max:    defaults.HighResPollingPeriod,
+		First:  utils.FullJitter(maxBackoffDuration / 10),
+		Step:   maxBackoffDuration / 5,
+		Max:    maxBackoffDuration,
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  s.cfg.Storage.Clock,
 	})
@@ -131,7 +132,7 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 					return trace.Wrap(err)
 				}
 			case <-watcher.Done():
-				return trace.Wrap(err)
+				return trace.Wrap(watcher.Error())
 			case <-watchCtx.Done():
 				return nil
 			}
@@ -141,17 +142,33 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 	log := s.cfg.Log.WithField("cluster", cluster.URI.String())
 	log.Debugf("Starting headless watch loop.")
 	go func() {
-		defer watchCancel()
+		defer func() {
+			s.headlessWatcherClosersMu.Lock()
+			defer s.headlessWatcherClosersMu.Unlock()
+
+			select {
+			case <-watchCtx.Done():
+				// watcher was canceled by an outside call to stopHeadlessWatcher.
+			default:
+				// watcher closed due to error or cluster disconnect.
+				if err := s.stopHeadlessWatcher(cluster.URI.String()); err != nil {
+					log.WithError(err).Debug("Failed to remove headless watcher.")
+				}
+			}
+		}()
+
 		for {
 			if !cluster.Connected() {
 				log.Debugf("Not connected to cluster. Returning from headless watch loop.")
-				if err := s.StopHeadlessWatcher(cluster.URI.String()); err != nil {
-					log.WithError(err).Debugf("Failed to remove headless watcher.")
-				}
 				return
 			}
 
 			err := watch()
+			if trace.IsNotImplemented(err) {
+				// Don't retry watch if we are connecting to an old Auth Server.
+				log.WithError(err).Debug("Headless watcher not supported.")
+				return
+			}
 
 			startedWaiting := s.cfg.Storage.Clock.Now()
 			select {
