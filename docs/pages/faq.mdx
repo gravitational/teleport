@@ -70,7 +70,7 @@ a distroless image can be tricky due to the absence of a shell and other OS tool
 
 Where possible, you should log into the cluster using `tsh` and use `tctl auth sign`
 locally to generate certificates. This way the action will be logged against your
-Teleport user and be subject to all or the usual Teleport RBAC policies in your
+Teleport user and be subject to all of the usual Teleport RBAC policies in your
 cluster.
 
 If this is not possible, use `tctl auth sign --tar` to collect all the files
