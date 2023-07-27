@@ -42,7 +42,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	apigrpc "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -51,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
 )
 
 const (
@@ -470,7 +470,7 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	logger := log.WithField(trace.Component, teleport.ComponentGRPC)
 	is := []grpc.UnaryServerInterceptor{
-		apigrpc.UnaryLoggingInterceptor(logger),
+		grpcutils.UnaryLoggingInterceptor(logger),
 		otelgrpc.UnaryServerInterceptor(),
 	}
 
@@ -489,7 +489,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 	logger := log.WithField(trace.Component, teleport.ComponentGRPC)
 	is := []grpc.StreamServerInterceptor{
-		apigrpc.StreamLoggingInterceptor(logger),
+		grpcutils.StreamLoggingInterceptor(logger),
 		otelgrpc.StreamServerInterceptor(),
 	}
 
