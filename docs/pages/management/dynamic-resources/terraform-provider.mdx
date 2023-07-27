@@ -26,11 +26,11 @@ This guide demonstrates how to:
 
 Terraform needs a signed identity file from the Teleport cluster certificate
 authority to manage resources in the cluster.
-You can create a local Teleport user for this purpose or you can use a 
-[Machine ID](../../machine-id/introduction.mdx) to generate credentials.
+You can create a local Teleport user for this purpose or you can use the machine identity agent 
+[(Machine ID)](../../machine-id/introduction.mdx) to generate credentials.
 
 If you intend to run Terraform from a CI/CD platform, Machine ID is often a better 
-option for generating credentials.  Machine ID can provision ephemeral short-lived 
+option for generating credentials. Machine ID can provision ephemeral short-lived 
 certificates that are appropriate for CI/CD workflows instead of using manually-generated 
 credentials that have a longer time-to-live (TTL) period. For more information about
 using Machine ID, see the [Machine ID Getting Started Guide](../../machine-id/getting-started.mdx).
@@ -110,7 +110,7 @@ the following content into the `terraform-impersonator.yaml` file:
      name: terraform-impersonator
    spec:
      allow:
-       # This impersonate rule will allow any user with this role to impersonate
+       # This impersonate role allows any user assigned to this role to impersonate
        # and generate certificates for the user named "terraform" with a role also
        # named "terraform".
        impersonate:
@@ -173,7 +173,7 @@ following command:
    $ terraform init
    ```
 
-1. Executes the Terraform plan defined int he configuration file by running the 
+1. Execute the Terraform plan defined in the configuration file by running the 
 following command:
    
    ```code
@@ -182,5 +182,5 @@ following command:
 
 ## Next steps
 
-- Find the full list of [supported Terraform provider resources](../../reference/terraform-provider.mdx).
+- Explore the full list of supported [Terraform provider resources](../../reference/terraform-provider.mdx).
 - Read more about [impersonation](../../access-controls/guides/impersonation.mdx).
