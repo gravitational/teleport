@@ -1,12 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render with URL loc state set to "server" 1`] = `
-.c8 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .c0 {
   box-sizing: border-box;
   margin-top: 24px;
@@ -74,6 +68,12 @@ exports[`render with URL loc state set to "server" 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
+}
+
+.c8 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c19 {

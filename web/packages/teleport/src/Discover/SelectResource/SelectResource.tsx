@@ -14,32 +14,35 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
-import { useLocation, useHistory } from 'react-router';
+import React, { useEffect, useState } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Text, Link } from 'design';
+import { Box, Flex, Link, Text } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl } from 'teleport/services/user';
 import {
-  ResourceKind,
   Header,
   HeaderSubtitle,
   PermissionsErrorMessage,
+  ResourceKind,
 } from 'teleport/Discover/Shared';
 import {
   getResourcePretitle,
   RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
+import { useUser } from 'teleport/User/UserContext';
+import { resourceMapping } from 'teleport/Discover/SelectResource/constants';
 
 import { DiscoverIcon } from './icons';
 
+import { SearchResource } from './types';
+
 import type { ResourceSpec } from './types';
-import type { AddButtonResourceKind } from 'teleport/components/AgentButtonAdd/AgentButtonAdd';
 
 interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;
@@ -47,8 +50,9 @@ interface SelectResourceProps {
 
 export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
-  const location = useLocation<{ entity: AddButtonResourceKind }>();
+  const location = useLocation<{ entity: SearchResource }>();
   const history = useHistory();
+  const { preferences } = useUser();
 
   const [search, setSearch] = useState('');
   const [resources, setResources] = useState<ResourceSpec[]>([]);
@@ -73,7 +77,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     onSearch('');
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Apply access check to each resource.
     const userContext = ctx.storeUser.state;
     const { acl } = userContext;
@@ -101,10 +105,28 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
-    } else {
-      setResources(sortedResources);
+      return;
     }
 
+    // A user can have preferredResources set via their onboarding survey.
+    // We sort the list by the preferred resource type,
+    // and then apply a search filter to it to reduce
+    // the amount of results.
+    const preferredResources = preferences.onboard.preferredResources;
+    if (preferredResources.length > 0) {
+      // resourceKindSpecifiedByPreferences currently only looks at the first item in the list, until we support multiple filter/sort options
+      const resourceKindSpecifiedByPreferences =
+        resourceMapping[preferredResources[0]];
+
+      const sortedResourcesByKind = sortResourcesByKind(
+        resourceKindSpecifiedByPreferences,
+        sortedResources
+      );
+      onSearch(resourceKindSpecifiedByPreferences, sortedResourcesByKind);
+      return;
+    }
+
+    setResources(sortedResources);
     // Processing of the lists should only happen once on init.
     // User perms remain static and URL loc state does not change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -232,6 +254,7 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
       css={`
         font-size: 12px;
         opacity: 0.7;
+
         :hover {
           cursor: pointer;
           opacity: 1;
@@ -281,36 +304,36 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
 }
 
 function sortResourcesByKind(
-  resourceKind: AddButtonResourceKind,
+  resourceKind: SearchResource,
   resources: ResourceSpec[]
 ) {
   let sorted: ResourceSpec[] = [];
   switch (resourceKind) {
-    case 'server':
+    case SearchResource.SERVER:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Server),
         ...resources.filter(r => r.kind !== ResourceKind.Server),
       ];
       break;
-    case 'application':
+    case SearchResource.APPLICATION:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Application),
         ...resources.filter(r => r.kind !== ResourceKind.Application),
       ];
       break;
-    case 'database':
+    case SearchResource.DATABASE:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Database),
         ...resources.filter(r => r.kind !== ResourceKind.Database),
       ];
       break;
-    case 'desktop':
+    case SearchResource.DESKTOP:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Desktop),
         ...resources.filter(r => r.kind !== ResourceKind.Desktop),
       ];
       break;
-    case 'kubernetes':
+    case SearchResource.KUBERNETES:
       sorted = [
         ...resources.filter(r => r.kind === ResourceKind.Kubernetes),
         ...resources.filter(r => r.kind !== ResourceKind.Kubernetes),
@@ -394,6 +417,7 @@ const InputWrapper = styled.div`
   border-radius: 200px;
   height: 40px;
   border: 1px solid ${props => props.theme.colors.spotBackground[2]};
+
   &:hover,
   &:focus,
   &:active {
