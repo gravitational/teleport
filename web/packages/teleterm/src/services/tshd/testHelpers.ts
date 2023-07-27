@@ -75,7 +75,7 @@ export const makeRootCluster = (
   ...props,
 });
 
-export const makeDBGateway = (
+export const makeDatabaseGateway = (
   props: Partial<tsh.Gateway> = {}
 ): tsh.Gateway => ({
   uri: '/gateways/foo',

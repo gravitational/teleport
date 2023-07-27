@@ -16,7 +16,7 @@
 
 import React, { useEffect } from 'react';
 
-import { useAsync, CanceledError } from 'shared/hooks/useAsync';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';

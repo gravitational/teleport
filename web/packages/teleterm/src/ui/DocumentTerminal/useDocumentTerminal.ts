@@ -413,7 +413,7 @@ function createCmd(
         `No KUBECONFIG provided for gateway ${gateway.targetUri}`
       );
     }
-    const helpMessage =
+    const initMessage =
       `Started a local proxy for Kubernetes cluster "${gateway.targetName}".\r\n\r\n` +
       'The KUBECONFIG env var can be used with third-party tools as long as the proxy is running.\r\n' +
       'Close the proxy from Connections in the top left corner or by closing Teleport Connect.\r\n\r\n' +
@@ -424,7 +424,7 @@ function createCmd(
       proxyHost,
       clusterName,
       env,
-      helpMessage,
+      initMessage,
     };
   }
 

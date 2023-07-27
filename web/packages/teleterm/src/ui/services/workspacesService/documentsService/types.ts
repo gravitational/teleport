@@ -211,13 +211,6 @@ export type CreateGatewayDocumentOpts = {
   origin: DocumentOrigin;
 };
 
-export type CreateGatewayKubeDocumentOpts = {
-  gatewayUri?: uri.GatewayUri;
-  targetUri: uri.KubeUri;
-  title?: string;
-  origin: DocumentOrigin;
-};
-
 export type CreateClusterDocumentOpts = {
   clusterUri: uri.ClusterUri;
 };

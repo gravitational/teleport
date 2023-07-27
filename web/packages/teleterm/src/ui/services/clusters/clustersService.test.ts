@@ -18,7 +18,7 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import {
-  makeDBGateway,
+  makeDatabaseGateway,
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
 
@@ -70,7 +70,7 @@ const leafClusterMock: tsh.Cluster = {
   },
 };
 
-const gatewayMock = makeDBGateway({
+const gatewayMock = makeDatabaseGateway({
   uri: '/gateways/gatewayTestUri',
   targetUri: `${clusterUri}/dbs/databaseTestUri`,
 });
@@ -122,15 +122,15 @@ test('add cluster', async () => {
 test('remove cluster', async () => {
   const { removeGateway } = getClientMocks();
   const service = createService({ removeGateway });
-  const gatewayFromRootCluster = makeDBGateway({
+  const gatewayFromRootCluster = makeDatabaseGateway({
     uri: '/gateways/1',
     targetUri: `${clusterMock.uri}/dbs/foo`,
   });
-  const gatewayFromLeafCluster = makeDBGateway({
+  const gatewayFromLeafCluster = makeDatabaseGateway({
     uri: '/gateways/2',
     targetUri: `${leafClusterMock.uri}/dbs/foo`,
   });
-  const gatewayFromOtherCluster = makeDBGateway({
+  const gatewayFromOtherCluster = makeDatabaseGateway({
     uri: '/gateways/3',
     targetUri: `/clusters/bogus-cluster/dbs/foo`,
   });
@@ -264,7 +264,7 @@ test('remove a kube gateway', async () => {
   expect(removeGateway).toHaveBeenCalledWith(kubeGatewayMock.uri);
   expect(service.findGateway(kubeGatewayMock.uri)).toBeUndefined();
 
-  // Calling it againt should not increase mock calls.
+  // Calling it again should not increase mock calls.
   await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
   expect(removeGateway).toHaveBeenCalledTimes(1);
 });

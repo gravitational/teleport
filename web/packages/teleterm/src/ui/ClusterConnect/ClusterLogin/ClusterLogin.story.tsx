@@ -21,7 +21,7 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 import {
-  makeDBGateway,
+  makeDatabaseGateway,
   makeKubeGateway,
 } from 'teleterm/services/tshd/testHelpers';
 
@@ -343,7 +343,7 @@ const TestContainer: React.FC = ({ children }) => (
   </>
 );
 
-const dbGateway = makeDBGateway({
+const dbGateway = makeDatabaseGateway({
   uri: '/gateways/gateway1',
   targetName: 'postgres',
   targetUri: '/clusters/teleport-local/dbs/postgres',

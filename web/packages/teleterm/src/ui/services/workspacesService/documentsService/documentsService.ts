@@ -21,6 +21,7 @@ import {
   paths,
   routing,
   RootClusterUri,
+  KubeUri,
 } from 'teleterm/ui/uri';
 
 import {
@@ -193,7 +194,13 @@ export class DocumentsService {
     };
   }
 
-  createGatewayKubeDocument({ targetUri, origin }): DocumentGatewayKube {
+  createGatewayKubeDocument({
+    targetUri,
+    origin,
+  }: {
+    targetUri: KubeUri;
+    origin: DocumentOrigin;
+  }): DocumentGatewayKube {
     const uri = routing.getDocUri({ docId: unique() });
     const { params } = routing.parseKubeUri(targetUri);
 

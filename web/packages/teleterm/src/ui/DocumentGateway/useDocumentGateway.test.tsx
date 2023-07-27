@@ -19,7 +19,7 @@ import { renderHook, act } from '@testing-library/react-hooks';
 
 import {
   makeRootCluster,
-  makeDBGateway,
+  makeDatabaseGateway,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { DocumentGateway } from 'teleterm/ui/services/workspacesService';
@@ -109,7 +109,7 @@ it('does not attempt to create a gateway immediately after closing it if the gat
 const testSetup = () => {
   const appContext = new MockAppContext();
   const cluster = makeRootCluster({ connected: true });
-  const gateway = makeDBGateway();
+  const gateway = makeDatabaseGateway();
   const doc: DocumentGateway = {
     uri: '/docs/1',
     kind: 'doc.gateway',
