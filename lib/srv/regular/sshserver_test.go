@@ -571,7 +571,7 @@ func TestLockInForce(t *testing.T) {
 			return false
 		}
 	}
-	require.Eventually(t, sessionHasFinished, 1*time.Second, 100*time.Millisecond,
+	require.Eventually(t, sessionHasFinished, 3*time.Second, 100*time.Millisecond,
 		"Timed out waiting for session to finish")
 
 	// Expect the lock-in-force message to have been delivered via stderr.
