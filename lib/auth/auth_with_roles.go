@@ -5636,6 +5636,10 @@ func (a *ServerWithRoles) CreateDatabase(ctx context.Context, database types.Dat
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
 	}
+	// Don't allow discovery service to create databases with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(database.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered database must not have dynamic labels")
+	}
 	return trace.Wrap(a.authServer.CreateDatabase(ctx, database))
 }
 
@@ -5655,6 +5659,10 @@ func (a *ServerWithRoles) UpdateDatabase(ctx context.Context, database types.Dat
 	}
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
+	}
+	// Don't allow discovery service to create databases with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(database.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered database must not have dynamic labels")
 	}
 	return trace.Wrap(a.authServer.UpdateDatabase(ctx, database))
 }
