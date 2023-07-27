@@ -289,9 +289,9 @@ deploy-cloud-login:
 #
 
 $(RELEASE_DIR):
-	mkdir -p $@
+	mkdir $@
 
-.PHONY: release
+.PHONY:
 export
 release:
 	@echo "---> $(RELEASE_ENT_MESSAGE)"
@@ -465,13 +465,12 @@ pkg: | $(RELEASE_DIR)
 
 # build .rpm
 .PHONY: rpm
-rpm: | $(RELEASE_DIR)
+rpm:
 	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh ../build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cp -a ../build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-	cp $(BUILDDIR)/teleport-ent-*.rpm* $(RELEASE_DIR)
 
 # build unsigned .rpm (for testing)
 .PHONY: rpm-unsigned
@@ -480,12 +479,11 @@ rpm-unsigned:
 
 # build enterprise .deb only
 .PHONY: ent-deb
-ent-deb: | $(RELEASE_DIR)
+ent-deb:
 	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh ../build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-	cp $(BUILDDIR)/teleport-ent_*.deb* $(RELEASE_DIR)
 
 # Left here for compatiblity reasons
 # build .deb
