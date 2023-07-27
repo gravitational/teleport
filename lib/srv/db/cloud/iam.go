@@ -18,6 +18,7 @@ package cloud
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -141,6 +142,9 @@ func (c *IAM) Start(ctx context.Context) error {
 
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
+	fmt.Println("------ db/cloud/iam.go Setup: ", database.GetName())
+	c.iamPolicyStatus.Store(database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_PENDING)
+
 	if c.isSetupRequiredForDatabase(database) {
 		return c.addTask(iamTask{
 			isSetup:  true,
@@ -163,15 +167,26 @@ func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 
 // UpdateIAMStatus updates the IAMPolicyExists for the Database.
 func (c *IAM) UpdateIAMStatus(database types.Database) error {
+	fmt.Println("------ db/cloud/iam.go UpdateIAMStatus-1: ", database.GetName())
+
 	if c.isSetupRequiredForDatabase(database) {
 		awsStatus := database.GetAWS()
 
 		iamPolicyStatus, ok := c.iamPolicyStatus.Load(database.GetName())
 		if !ok {
-			iamPolicyStatus = false
+			fmt.Println("------ db/cloud/iam.go UpdateIAMStatus-2 NOT ok?: ", database.GetName())
+
+			// If there was no key found it was a result of un-registering database
+			// (and policy) as a result of deletion or failing to re-register from
+			// updating database.
+			awsStatus.IAMPolicyStatus = types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED
+			database.SetStatusAWS(awsStatus)
+			return nil
 		}
 
-		awsStatus.IAMPolicyExists = iamPolicyStatus.(bool)
+		fmt.Println("------ db/cloud/iam.go UpdateIAMStatus-2 OK: ", database.GetName(), iamPolicyStatus.(types.IAMPolicyStatus))
+
+		awsStatus.IAMPolicyStatus = iamPolicyStatus.(types.IAMPolicyStatus)
 		database.SetStatusAWS(awsStatus)
 	}
 	return nil
@@ -266,8 +281,10 @@ func (c *IAM) getPolicyName() (string, error) {
 
 // processTask runs an IAM task.
 func (c *IAM) processTask(ctx context.Context, task iamTask) error {
+	fmt.Println("------ process task STARTING", task.database.GetName())
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
+		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_ERROR)
 		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
 			c.log.Warnf("No AWS credentials provider. Skipping IAM task for database %v.", task.database.GetName())
 			return nil
@@ -300,6 +317,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		},
 	})
 	if err != nil {
+		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_ERROR)
 		return trace.Wrap(err)
 	}
 
@@ -311,12 +329,20 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	}()
 
 	if task.isSetup {
+
 		iamAuthErr := configurator.setupIAMAuth(ctx)
 		iamPolicySetup, iamPolicyErr := configurator.setupIAMPolicy(ctx)
-		c.iamPolicyStatus.Store(task.database.GetName(), iamPolicySetup)
+		statusEnum := types.IAMPolicyStatus_IAM_POLICY_STATUS_INVALID
+		if iamPolicySetup {
+			statusEnum = types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID
+		}
+		c.iamPolicyStatus.Store(task.database.GetName(), statusEnum)
+		fmt.Println("------ process task task.isSetup block", task.database.GetName(), "----", statusEnum.String())
 
 		return trace.NewAggregate(iamAuthErr, iamPolicyErr)
 	}
+
+	fmt.Println("------ process task ENDING", task.database.GetName())
 
 	c.iamPolicyStatus.Delete(task.database.GetName())
 	return configurator.teardownIAM(ctx)

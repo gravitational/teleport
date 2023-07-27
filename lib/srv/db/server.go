@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -518,6 +519,8 @@ func (s *Server) stopDynamicLabels(name string) {
 // registerDatabase initializes the provided database and adds it to the list
 // of databases this server proxies.
 func (s *Server) registerDatabase(ctx context.Context, database types.Database) error {
+	fmt.Println("------ db/server.go registerDatabase: ", database.GetName())
+
 	if err := s.startDatabase(ctx, database); err != nil {
 		// Cleanup in case database was initialized only partially.
 		if errStop := s.stopDatabase(ctx, database.GetName()); errStop != nil {
@@ -533,6 +536,8 @@ func (s *Server) registerDatabase(ctx context.Context, database types.Database) 
 
 // updateDatabase updates database that is already registered.
 func (s *Server) updateDatabase(ctx context.Context, database types.Database) error {
+	fmt.Println("------ db/server.go updateDatabase: ", database.GetName())
+
 	// Stop heartbeat and dynamic labels before starting new ones.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
@@ -550,6 +555,8 @@ func (s *Server) updateDatabase(ctx context.Context, database types.Database) er
 // unregisterDatabase uninitializes the specified database and removes it from
 // the list of databases this server proxies.
 func (s *Server) unregisterDatabase(ctx context.Context, database types.Database) error {
+	fmt.Println("------ db/server.go UNREGISTER database: ", database.GetName())
+
 	// Deconfigure IAM for the cloud database.
 	if err := s.cfg.CloudIAM.Teardown(ctx, database); err != nil {
 		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
