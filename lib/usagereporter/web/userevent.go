@@ -334,6 +334,13 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 					Cta: usageeventsv1.CTA(cta),
 				}}},
 			nil
+
+	case questionnaireSubmitEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiOnboardQuestionnaireSubmit{
+				UiOnboardQuestionnaireSubmit: &usageeventsv1.UIOnboardQuestionnaireSubmitEvent{},
+			}},
+			nil
+
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)
