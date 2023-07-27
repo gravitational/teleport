@@ -99,6 +99,7 @@ func MakeApps(c MakeAppsConfig) []App {
 			}
 
 			resultApp := App{
+				Kind:         appOrSP.GetKind(),
 				Name:         appOrSP.GetName(),
 				Description:  appOrSP.GetDescription(),
 				URI:          app.GetURI(),
@@ -121,6 +122,7 @@ func MakeApps(c MakeAppsConfig) []App {
 		} else {
 			labels := makeLabels(appOrSP.GetSAMLIdPServiceProvider().GetAllLabels())
 			resultApp := App{
+				Kind:         appOrSP.GetKind(),
 				Name:         appOrSP.GetName(),
 				Description:  appOrSP.GetDescription(),
 				PublicAddr:   appOrSP.GetPublicAddr(),
