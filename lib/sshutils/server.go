@@ -22,7 +22,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -41,7 +40,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -833,21 +831,6 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	buff = buff[:n]
 	skip := 0
 
-	// are we reading from a Teleport proxy?
-	if bytes.HasPrefix(buff, []byte(constants.ProxyHelloSignature)) {
-		// the JSON payload ends with a binary zero:
-		payloadBoundary := bytes.IndexByte(buff, 0x00)
-		if payloadBoundary > 0 {
-			var hp sshutils.HandshakePayload
-			payload := buff[len(constants.ProxyHelloSignature):payloadBoundary]
-			if err = json.Unmarshal(payload, &hp); err != nil {
-				c.logger.Error(err)
-			} else {
-				c.traceContext = hp.TracingContext
-			}
-			skip = payloadBoundary + 1
-		}
-	}
 	if bytes.HasPrefix(buff, multiplexer.ProxyV2Prefix) {
 		reader := bufio.NewReader(io.MultiReader(bytes.NewBuffer(buff), c.Conn))
 
