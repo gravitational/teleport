@@ -25,7 +25,6 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	userpreferences "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -66,9 +65,13 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // GetUserPreferences returns the user preferences for a given user.
 func (a *Service) GetUserPreferences(ctx context.Context, req *userpreferences.GetUserPreferencesRequest) (*userpreferences.GetUserPreferencesResponse, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindUser, types.VerbUpdate)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalUser(*authCtx) {
+		return nil, trace.AccessDenied("Non-local user cannot get user preferences")
 	}
 
 	username := authCtx.User.GetName()
@@ -78,9 +81,12 @@ func (a *Service) GetUserPreferences(ctx context.Context, req *userpreferences.G
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
 func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreferences.UpsertUserPreferencesRequest) (*emptypb.Empty, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindUser, types.VerbUpdate)
+	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !authz.IsLocalUser(*authCtx) {
+		return nil, trace.AccessDenied("Non-local user cannot get user preferences")
 	}
 
 	username := authCtx.User.GetName()

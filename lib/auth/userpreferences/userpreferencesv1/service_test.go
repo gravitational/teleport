@@ -33,8 +33,8 @@ import (
 )
 
 const (
-	defaultUser  = "test-user"
-	noAccessUser = "user-no-access"
+	defaultUser     = "test-user"
+	nonExistingUser = "non-existing-user"
 )
 
 func TestService_GetUserPreferences(t *testing.T) {
@@ -66,8 +66,8 @@ func TestService_GetUserPreferences(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name:     "access denied - RBAC rule",
-			userName: noAccessUser,
+			name:     "access denied - user doesn't exist",
+			userName: nonExistingUser,
 			req:      &userpreferencesv1.GetUserPreferencesRequest{},
 			want:     nil,
 			wantErr:  assert.Error,
@@ -117,8 +117,8 @@ func TestService_UpsertUserPreferences(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name:     "access denied - RBAC rule",
-			userName: noAccessUser,
+			name:     "access denied - user doesn't exist",
+			userName: nonExistingUser,
 			req: &userpreferencesv1.UpsertUserPreferencesRequest{
 				Preferences: defaultPreferences,
 			},
@@ -199,12 +199,6 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 	require.NoError(t, err)
 
 	roles[defaultUser] = role
-
-	roleNoAccess, err := types.NewRole("no-rules", types.RoleSpecV6{
-		Allow: types.RoleConditions{},
-	})
-	require.NoError(t, err)
-	roles["user-no-access"] = roleNoAccess
 
 	ctxs := make(map[string]context.Context, len(roles))
 	for username, role := range roles {
