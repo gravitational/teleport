@@ -518,13 +518,11 @@ message DeviceTrustFeature {
 // settings.
 // Requires Teleport Enterprise.
 message AccessRequestsFeature {
-  // True if the Device Trust feature is enabled.
-  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // Usage-based limit for the number of limit for the number of
   // access requests created in a calendar month.
   // Meant for usage-based accounts, like Teleport Team. Has no effect if
   // [Features.IsUsageBased] is `false`.
-  int32 monthly_request_limit = 2 [(gogoproto.jsontag) = "monthly_request_limit"];
+  int32 monthly_request_limit = 1 [(gogoproto.jsontag) = "monthly_request_limit"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

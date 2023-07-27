@@ -91,8 +91,6 @@ type DeviceTrustFeature struct {
 
 // AccessRequestsFeature holds the Access Requests feature general and usage-based settings.
 type AccessRequestsFeature struct {
-	// Enabled is true if the AccessRequests feature is enabled.
-	Enabled bool
 	// MonthlyRequestLimit is the usage-based limit for the number of
 	// access requests created in a calendar month.
 	// Meant for usage-based accounts, like Teleport Team. Has no effect if
@@ -123,7 +121,6 @@ func (f Features) ToProto() *proto.Features {
 			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
 		},
 		AccessRequests: &proto.AccessRequestsFeature{
-			Enabled:             f.AccessRequests.Enabled,
 			MonthlyRequestLimit: int32(f.AccessRequests.MonthlyRequestLimit),
 		},
 	}
@@ -224,9 +221,6 @@ func (p *defaultModules) Features() Features {
 		Desktop:           true,
 		AutomaticUpgrades: p.automaticUpgrades,
 		Assist:            true,
-		AccessRequests: AccessRequestsFeature{
-			Enabled: true,
-		},
 	}
 }
 
