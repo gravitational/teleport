@@ -31,7 +31,7 @@ import (
 
 // ServiceConfig holds configuration options for the user preferences service.
 type ServiceConfig struct {
-	Backend    services.UserPreferencesBackend
+	Backend    services.UserPreferences
 	Authorizer authz.Authorizer
 	Logger     *logrus.Entry
 }
@@ -40,7 +40,7 @@ type ServiceConfig struct {
 type Service struct {
 	userpreferences.UnimplementedUserPreferencesServiceServer
 
-	backend    services.UserPreferencesBackend
+	backend    services.UserPreferences
 	authorizer authz.Authorizer
 	log        *logrus.Entry
 }
@@ -76,7 +76,14 @@ func (a *Service) GetUserPreferences(ctx context.Context, req *userpreferences.G
 
 	username := authCtx.User.GetName()
 
-	return a.backend.GetUserPreferences(ctx, username, req)
+	prefs, err := a.backend.GetUserPreferences(ctx, username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &userpreferences.GetUserPreferencesResponse{
+		Preferences: prefs,
+	}, nil
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
@@ -91,5 +98,5 @@ func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreference
 
 	username := authCtx.User.GetName()
 
-	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req))
+	return &emptypb.Empty{}, trace.Wrap(a.backend.UpsertUserPreferences(ctx, username, req.Preferences))
 }
