@@ -684,6 +684,7 @@
     "splunkd",
     "splunkforwarder",
     "sqlcl",
+    "sqlcmd",
     "sqlnet",
     "sqlserver",
     "sshcacerts",

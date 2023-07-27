@@ -1200,37 +1200,6 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
 
-	// build the general alert msg meant for broader consumption
-	msg, verInUse := makeUpgradeSuggestionMsg(visitor, current, instanceVisitor.Oldest())
-
-	if msg != "" {
-		alert, err := types.NewClusterAlert(
-			releaseAlertID,
-			msg,
-			// Defaulting to "low" severity level. We may want to make this dynamic
-			// in the future depending on the distance from up-to-date.
-			types.WithAlertSeverity(types.AlertSeverity_LOW),
-			types.WithAlertLabel(types.AlertOnLogin, "yes"),
-			types.WithAlertLabel(types.AlertPermitAll, "yes"),
-			types.WithAlertLabel(verInUseLabel, verInUse),
-			types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
-		)
-		if err != nil {
-			log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
-			return
-		}
-		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-			log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
-			return
-		}
-	} else if cleanup {
-		log.Debugf("Cluster appears up to date, clearing %s alert.", releaseAlertID)
-		err := a.DeleteClusterAlert(ctx, releaseAlertID)
-		if err != nil && !trace.IsNotFound(err) {
-			log.Warnf("Failed to delete %s alert: %v", releaseAlertID, err)
-		}
-	}
-
 	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) && !sp.SecurityPatchAltOf(current) {
 		// explicit security patch alerts have a more limited audience, so we generate
 		// them as their own separate alert.
@@ -1267,29 +1236,6 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
 		}
 	}
-}
-
-// makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
-// needed (returns "" if everything looks up to date).
-func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Target) (msg string, ver string) {
-	if next := visitor.NextMajor(); next.Ok() {
-		// at least one stable release exists for the next major version
-		log.Debugf("Generating alert msg for next major version. current=%s, next=%s", current.Version(), next.Version())
-		return fmt.Sprintf("The next major version of Teleport is %s. Please consider upgrading your Cluster.", next.Major()), next.Version()
-	}
-
-	if nc := visitor.NewestCurrent(); nc.Ok() && nc.NewerThan(current) {
-		// newer release of the currently running major version is available
-		log.Debugf("Generating alert msg for new minor or patch release. current=%s, newest=%s", current.Version(), nc.Version())
-		return fmt.Sprintf("Teleport %s is now available, please consider upgrading your Cluster.", nc.Version()), nc.Version()
-	}
-
-	if oldestInstance.Ok() && current.NewerThan(oldestInstance) {
-		// at least one connected instance is older than this auth server
-		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them.", current.Version()
-	}
-
-	return "", ""
 }
 
 // updateVersionMetrics leverages the inventory control stream to report the versions of
