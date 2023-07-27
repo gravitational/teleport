@@ -2313,6 +2313,8 @@ service AuthService {
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.
+  // Deprecated: use CreateAccessRequestV2 instead.
+  // DELETE IN v15.0.0.
   rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
   // CreateAccessRequestV2 creates a new access request.
   rpc CreateAccessRequestV2(types.AccessRequestV3) returns (types.AccessRequestV3);

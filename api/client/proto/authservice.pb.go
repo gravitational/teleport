@@ -14643,6 +14643,8 @@ type AuthServiceClient interface {
 	// GetAccessRequestsV2 gets all pending access requests.
 	GetAccessRequestsV2(ctx context.Context, in *types.AccessRequestFilter, opts ...grpc.CallOption) (AuthService_GetAccessRequestsV2Client, error)
 	// CreateAccessRequest creates a new access request.
+	// Deprecated: use CreateAccessRequestV2 instead.
+	// DELETE IN v15.0.0.
 	CreateAccessRequest(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateAccessRequestV2 creates a new access request.
 	CreateAccessRequestV2(ctx context.Context, in *types.AccessRequestV3, opts ...grpc.CallOption) (*types.AccessRequestV3, error)
@@ -17826,6 +17828,8 @@ type AuthServiceServer interface {
 	// GetAccessRequestsV2 gets all pending access requests.
 	GetAccessRequestsV2(*types.AccessRequestFilter, AuthService_GetAccessRequestsV2Server) error
 	// CreateAccessRequest creates a new access request.
+	// Deprecated: use CreateAccessRequestV2 instead.
+	// DELETE IN v15.0.0.
 	CreateAccessRequest(context.Context, *types.AccessRequestV3) (*emptypb.Empty, error)
 	// CreateAccessRequestV2 creates a new access request.
 	CreateAccessRequestV2(context.Context, *types.AccessRequestV3) (*types.AccessRequestV3, error)
