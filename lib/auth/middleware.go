@@ -28,9 +28,7 @@ import (
 
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
-	logrusprovider "github.com/grpc-ecosystem/go-grpc-middleware/providers/logrus/v2"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -44,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	apigrpc "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -467,24 +466,11 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 	return handler(srv, &authenticatedStream{ctx: ctx, ServerStream: serverStream})
 }
 
-// loggingInterceptorOpts is used with [logging.UnaryServerInterceptor] and
-// [logging.StreamServerInterceptor].
-var loggingInterceptorOpts = []logging.Option{
-	logging.WithDecider(func(_ string, err error) logging.Decision {
-		if err != nil {
-			return logging.LogFinishCall
-		}
-		return logging.NoLogCall
-	}),
-}
-
 // UnaryInterceptors returns the gRPC unary interceptor chain.
 func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
+	logger := log.WithField(trace.Component, teleport.ComponentGRPC)
 	is := []grpc.UnaryServerInterceptor{
-		logging.UnaryServerInterceptor(
-			logrusprovider.InterceptorLogger(log.WithField(trace.Component, teleport.ComponentGRPC)),
-			loggingInterceptorOpts...,
-		),
+		apigrpc.UnaryLoggingInterceptor(logger),
 		otelgrpc.UnaryServerInterceptor(),
 	}
 
@@ -501,11 +487,9 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 
 // StreamInterceptors returns the gRPC stream interceptor chain.
 func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
+	logger := log.WithField(trace.Component, teleport.ComponentGRPC)
 	is := []grpc.StreamServerInterceptor{
-		logging.StreamServerInterceptor(
-			logrusprovider.InterceptorLogger(log.WithField(trace.Component, teleport.ComponentGRPC)),
-			loggingInterceptorOpts...,
-		),
+		apigrpc.StreamLoggingInterceptor(logger),
 		otelgrpc.StreamServerInterceptor(),
 	}
 
