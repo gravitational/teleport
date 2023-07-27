@@ -384,6 +384,10 @@ exports[`render failed state for re-authentication dialog 1`] = `
   color: rgba(255,255,255,0.36);
 }
 
+.c12 .react-select__input {
+  color: #FFFFFF;
+}
+
 <div
   class="c0"
   data-testid="Modal"
@@ -887,6 +891,10 @@ exports[`render re-authentication dialog 1`] = `
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
+}
+
+.c11 .react-select__input {
+  color: #FFFFFF;
 }
 
 <div
