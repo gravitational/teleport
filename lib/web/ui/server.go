@@ -84,7 +84,7 @@ func MakeServer(clusterName string, server types.Server, accessChecker services.
 	}
 
 	return Server{
-		Kind:        types.KindNode,
+		Kind:        server.GetKind(),
 		ClusterName: clusterName,
 		Labels:      uiLabels,
 		Name:        server.GetName(),
@@ -129,7 +129,7 @@ func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChe
 	uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
-		Kind:       types.KindKubernetesCluster,
+		Kind:       cluster.GetKind(),
 		Name:       cluster.GetName(),
 		Labels:     uiLabels,
 		KubeUsers:  kubeUsers,
@@ -298,6 +298,7 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
 	db := Database{
+		Kind:          database.GetKind(),
 		Name:          database.GetName(),
 		Desc:          database.GetDescription(),
 		Protocol:      database.GetProtocol(),
@@ -398,6 +399,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, accessChecker services.Acc
 	}
 
 	return Desktop{
+		Kind:   windowsDesktop.GetKind(),
 		OS:     constants.WindowsOS,
 		Name:   windowsDesktop.GetName(),
 		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
