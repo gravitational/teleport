@@ -199,7 +199,8 @@ The PostgreSQL backend requires PostgreSQL 13 or later, and, for the cluster
 state only, the [`wal2json`](https://github.com/eulerto/wal2json) logical
 decoding plugin. Teleport needs separate databases for the cluster state and the
 audit log, and it will attempt to create them if given permissions to do so; it
-will also set up the database schemas as needed, so
+will also set up the database schemas as needed, so we recommend giving the user
+ownership over the databases.
 
 The PostgreSQL backend for cluster state relies on the ability to use [logical
 decoding](https://www.postgresql.org/docs/current/logicaldecoding.html) to get a
