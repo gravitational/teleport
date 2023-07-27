@@ -19,7 +19,6 @@ package utils
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -30,52 +29,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	pb "google.golang.org/grpc/examples/features/proto/echo"
 )
-
-func TestChainUnaryServerInterceptors(t *testing.T) {
-	t.Parallel()
-
-	handler := func(context.Context, interface{}) (interface{}, error) { return "resp", fmt.Errorf("error") }
-
-	interceptors := []grpc.UnaryServerInterceptor{}
-	for i := 1; i < 5; i++ {
-		i := i
-		interceptors = append(
-			interceptors,
-			func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-				resp, err := handler(ctx, req)
-				return fmt.Sprintf("%d %v", i, resp), fmt.Errorf("%d %v", i, err)
-			})
-	}
-
-	chainedInterceptor := ChainUnaryServerInterceptors(interceptors[0], interceptors[1:]...)
-
-	// interceptors should be called in order and errors should be propagated
-	resp, err := chainedInterceptor(nil, nil, nil, handler)
-	require.Equal(t, "1 2 3 4 resp", resp)
-	require.Equal(t, "1 2 3 4 error", err.Error())
-}
-
-func TestChainStreamServerInterceptors(t *testing.T) {
-	t.Parallel()
-
-	handler := func(interface{}, grpc.ServerStream) error { return fmt.Errorf("handler") }
-
-	interceptors := []grpc.StreamServerInterceptor{}
-	for i := 1; i < 5; i++ {
-		i := i
-		interceptors = append(
-			interceptors,
-			func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-				return fmt.Errorf("%d %v", i, handler(srv, ss))
-			})
-	}
-
-	chainedInterceptor := ChainStreamServerInterceptors(interceptors[0], interceptors[1:]...)
-
-	// interceptors should be called in order
-	err := chainedInterceptor(nil, nil, nil, handler)
-	require.Equal(t, "1 2 3 4 handler", err.Error())
-}
 
 // service is used to implement EchoServer
 type service struct {
