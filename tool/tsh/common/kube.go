@@ -1227,14 +1227,24 @@ func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClie
 func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
 	switch {
 	case c.kubeCluster != "":
-		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q. Start the local proxy:
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.
+
+Use 'tsh kubectl' to run the Kubernetes client, for example:
+  tsh kubectl version
+
+Or start a local proxy:
   tsh proxy kube -p 8443
 
 Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
 `, c.kubeCluster)
 
 	default:
-		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available. Start the local proxy:
+		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available.
+
+Use 'tsh kubectl' to run the Kubernetes client, for example:
+  tsh kubectl config get-contexts
+
+Or start a local proxy:
   tsh proxy kube -p 8443
 
 Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
