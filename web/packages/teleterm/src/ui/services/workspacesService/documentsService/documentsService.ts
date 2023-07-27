@@ -86,7 +86,10 @@ export class DocumentsService {
     };
   }
 
-  // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+  /**
+   * @deprecated Use createGatewayKubeDocument instead.
+   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+   */
   createTshKubeDocument(
     options: CreateTshKubeDocumentOptions
   ): DocumentTshKube {
