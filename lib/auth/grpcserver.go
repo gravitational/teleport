@@ -4455,7 +4455,7 @@ func makePaginatedResources(resources []types.ResourceWithLabels) ([]*authpb.Pag
 			}
 
 			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_UserGroup{UserGroup: userGroup}}
-		case types.KindAppOrSAMLIdPServiceProvider:
+		case types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
 			switch appOrSP := resource.(type) {
 			case *types.AppServerV3:
 				protoResource = &authpb.PaginatedResource{

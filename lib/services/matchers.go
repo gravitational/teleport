@@ -162,16 +162,6 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 		return matchAndFilterKubeClusters(resource, filter)
 
-	case types.KindAppServer:
-		server, ok := resource.(types.AppServer)
-		if !ok {
-			return false, trace.BadParameter("expected types.AppServer, got %T", resource)
-		}
-		specResource = server.GetApp()
-		app := server.GetApp()
-		resourceKey.name = fmt.Sprintf("%s/%s/", app.GetName(), app.GetKind())
-		resourceKey.addr = app.GetPublicAddr()
-
 	case types.KindDatabaseServer:
 		server, ok := resource.(types.DatabaseServer)
 		if !ok {
@@ -180,7 +170,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		specResource = server.GetDatabase()
 		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
 
-	case types.KindAppOrSAMLIdPServiceProvider:
+	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
 		switch appOrSP := resource.(type) {
 		case types.AppServer:
 			app := appOrSP.GetApp()
