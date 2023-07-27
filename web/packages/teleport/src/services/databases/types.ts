@@ -16,7 +16,7 @@ limitations under the License.
 
 import { DbProtocol } from 'shared/services/databases';
 
-import { AgentLabel, UnifiedResourceKind } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 
 import { AwsRdsDatabase, RdsEngine } from '../integrations';
 

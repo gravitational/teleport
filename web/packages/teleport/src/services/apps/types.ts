@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { AgentLabel, UnifiedResourceKind } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 
 export interface App {
   kind: 'app';
