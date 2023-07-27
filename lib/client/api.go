@@ -3334,9 +3334,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
-
 	if tc.KeyTTL == 0 {
 		tc.KeyTTL = time.Duration(pr.Auth.DefaultSessionTTL)
 	}
@@ -3382,9 +3379,6 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	webLoginFunc, err := tc.getWebLoginFunc(pr)
@@ -4193,6 +4187,12 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if err := tc.applyProxySettings(pr.Proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Perform the ALPN handshake test during Ping as it's part of the Proxy
+	// settings. Only do this when Ping is successful. If tc.lastPing is
+	// cached, there is no need to do this test again.
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+
 	tc.applyAuthSettings(pr.Auth)
 
 	tc.lastPing = pr
