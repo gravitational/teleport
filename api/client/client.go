@@ -3177,8 +3177,11 @@ func getTypeFromUnifiedResource(resource *proto.PaginatedResource) (types.Resour
 	} else if r := resource.GetUserGroup(); r != nil {
 		out = r
 		return out, nil
+	} else if r := resource.GetAppServer(); r != nil {
+		out = r
+		return out, nil
 	} else {
-		return nil, trace.BadParameter("received unsupported resource %T", resource)
+		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
 }
 
