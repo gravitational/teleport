@@ -1535,6 +1535,16 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 				filteredResources = append(filteredResources, resource)
 			}
+		case types.KubeCluster:
+			if err := a.checkAccessToKubeCluster(r); err != nil {
+				if trace.IsAccessDenied(err) {
+					continue
+				}
+
+				return nil, trace.Wrap(err)
+			}
+
+			filteredResources = append(filteredResources, resource)
 		case types.WindowsDesktop:
 			{
 				if err := a.checkAccessToWindowsDesktop(r); err != nil {
