@@ -39,14 +39,12 @@ export class TshdNotificationsService {
       if (gateway) {
         targetName = gateway.targetName;
         targetUser = gateway.targetUser;
-      }
-
-      // Try to get target name from target URI.
-      if (!targetName) {
-        targetName = routing.parseDbUri(targetUri)?.params['dbId'];
-      }
-      if (!targetName) {
-        targetName = routing.parseKubeUri(targetUri)?.params['kubeId'];
+      } else {
+        // Try to get target name from target URI.
+        targetName =
+          routing.parseDbUri(targetUri)?.params['dbId'] ||
+          routing.parseKubeUri(targetUri)?.params['kubeId'] ||
+          targetUri;
       }
 
       if (targetUser) {
