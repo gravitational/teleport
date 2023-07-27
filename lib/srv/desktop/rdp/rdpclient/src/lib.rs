@@ -111,7 +111,7 @@ impl IronRDPClient {
 pub struct Client(*const ClientInternal);
 impl Client {
     /// Creates a new [`Client`]
-    fn new(
+    pub fn new(
         iron_rdp_client: IronRDPClient,
         go_ref: usize,
         tokio_rt: tokio::runtime::Runtime,
@@ -135,7 +135,7 @@ impl Client {
         drop(Box::from_raw(self.0 as *mut ClientInternal));
     }
 
-    fn new_null() -> Self {
+    pub fn new_null() -> Self {
         Self(ptr::null())
     }
 }
@@ -145,7 +145,16 @@ impl Deref for Client {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.0 }
+        // Safety:
+        //
+        // Panic if the pointer is null.
+        unsafe {
+            if let Some(c) = self.0.as_ref() {
+                c
+            } else {
+                panic!("attempted to dereference a null Client");
+            }
+        }
     }
 }
 
