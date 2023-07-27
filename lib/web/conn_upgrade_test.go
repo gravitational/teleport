@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -128,28 +129,27 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 				connUpgradeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					_, err := h.connectionUpgrade(w, r, nil)
 					handlerErrChan <- err
-
-					// Catch the case where an error is not expected but still
-					// happened. Close the connection to unblock the client
-					// reader and print out the error.
-					if test.checkHandlerError == nil {
-						clientConn.Close()
-						require.NoError(t, err)
-					}
 				})
 
 				NewXForwardedForMiddleware(connUpgradeHandler).ServeHTTP(w, r)
 			}()
 
-			if test.checkHandlerError != nil {
-				handlerErr := <-handlerErrChan
-				require.Error(t, handlerErr)
-				require.True(t, test.checkHandlerError(handlerErr))
-				return
-			}
+			select {
+			case handlerErr := <-handlerErrChan:
+				if test.checkHandlerError != nil {
+					require.Error(t, handlerErr)
+					require.True(t, test.checkHandlerError(handlerErr))
+				} else {
+					require.NoError(t, handlerErr)
+				}
 
-			mustReadSwitchProtocolsResponse(t, r, clientConn, test.inputUpgradeType)
-			test.checkClientConnString(t, clientConn, expectedPayload)
+			case <-w.hijackedCtx.Done():
+				mustReadSwitchProtocolsResponse(t, r, clientConn, test.inputUpgradeType)
+				test.checkClientConnString(t, clientConn, expectedPayload)
+
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "timed out waiting for handler to serve")
+			}
 		})
 	}
 }
@@ -203,18 +203,26 @@ func mustReadClientPingConnString(t *testing.T, clientConn net.Conn, expectedPay
 type responseWriterHijacker struct {
 	http.ResponseWriter
 	conn net.Conn
+
+	// hijackedCtx is canceled when Hijack is called
+	hijackedCtx       context.Context
+	hijackedCtxCancel context.CancelFunc
 }
 
-func newResponseWriterHijacker(w http.ResponseWriter, conn net.Conn) http.ResponseWriter {
+func newResponseWriterHijacker(w http.ResponseWriter, conn net.Conn) *responseWriterHijacker {
+	hijackedCtx, hijackedCtxCancel := context.WithCancel(context.Background())
 	if w == nil {
 		w = httptest.NewRecorder()
 	}
 	return &responseWriterHijacker{
-		ResponseWriter: w,
-		conn:           conn,
+		ResponseWriter:    w,
+		conn:              conn,
+		hijackedCtx:       hijackedCtx,
+		hijackedCtxCancel: hijackedCtxCancel,
 	}
 }
 
 func (h *responseWriterHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h.hijackedCtxCancel()
 	return h.conn, nil, nil
 }
