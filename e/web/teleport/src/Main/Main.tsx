@@ -2,6 +2,8 @@ import React, { ReactNode, useMemo } from 'react';
 
 import { Main } from 'teleport/Main/Main';
 
+import localStorage from 'teleport/services/localStorage';
+
 import { useBanner } from 'e-teleport/Banner/useBanner';
 import useTeleport from 'e-teleport/useTeleportE';
 import SwitchBack from 'e-teleport/Banner/Switchback';
@@ -10,6 +12,7 @@ import cfg from 'e-teleport/config';
 import { StripeLoader } from 'e-teleport/Billing/StripeLoader/StripeLoader';
 import { BillingInformation } from 'e-teleport/services/cloud';
 import { UsageBasedUpgrade } from 'e-teleport/Banner/UsageBasedUpgrade/UsageBasedUpgrade';
+import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
 
 export function MainE() {
   const ctx = useTeleport();
@@ -68,12 +71,39 @@ export function MainE() {
     billingBanners.push(usageBasedUpgradeBanner);
   }
 
+  const requiresOnboardingSurvey = surveyUnanswered();
+  const questionnaire =
+    (usageBased && requiresOnboardingSurvey && Questionnaire) || null;
+
   return (
     <Main
       features={getEnterpriseFeatures()}
       initialAlerts={initialAlerts}
       customBanners={customBanners}
       billingBanners={billingBanners}
+      Questionnaire={questionnaire}
     />
   );
 }
+
+// SurveyUnanswered checks both the user preferences and the survey
+// since survey data is moved into preferences on login, this means a user may have just filled
+// out the survey but the results are not yet in preferences.
+const surveyUnanswered = (): boolean => {
+  const onboardPreferences = localStorage.getOnboardUserPreference();
+
+  if (
+    onboardPreferences &&
+    onboardPreferences.preferredResources &&
+    onboardPreferences.preferredResources.length > 0
+  ) {
+    return false;
+  }
+
+  const survey = localStorage.getOnboardSurvey();
+  return !(
+    survey &&
+    survey.clusterResources &&
+    survey.clusterResources.length > 0
+  );
+};

@@ -2,6 +2,11 @@ import React from 'react';
 import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 
 import { userEventService } from 'teleport/services/userEvent';
+import api from 'teleport/services/api';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+
+import { surveyService } from 'e-teleport/services/survey';
 
 import { Questionnaire } from './Questionnaire';
 import { QuestionnaireProps } from './types';
@@ -13,10 +18,20 @@ describe('questionnaire', () => {
     props = {
       full: false,
       username: '',
+      onboard: true,
     };
 
+    // general mocks:
     jest.spyOn(userEventService, 'capturePreUserEvent');
+    jest.spyOn(userEventService, 'captureUserEvent');
+
+    // non-onboard mocks:
+    jest.spyOn(api, 'put').mockImplementation(() => Promise.resolve());
+    jest.spyOn(surveyService, 'submitSurvey');
+    mockUserContextProviderWith(makeTestUserContext());
   });
+
+  afterEach(() => jest.resetAllMocks());
 
   test('loads each question', () => {
     props.full = true;
@@ -75,11 +90,16 @@ describe('questionnaire', () => {
       JSON.parse(localStorage.getItem('grv_teleport_onboard_survey'))
     ).toBeNull();
 
+    // assert data was not sent to sales center
+    expect(surveyService.submitSurvey).not.toHaveBeenCalled();
+
     // assert prehog event was not triggered
     expect(userEventService.capturePreUserEvent).not.toHaveBeenCalled();
+    expect(userEventService.captureUserEvent).not.toHaveBeenCalled();
   });
 
-  test('submits responses', async () => {
+  test('submits responses in onboard mode', async () => {
+    props.onboard = true;
     props.full = true;
     props.username = 'user-000';
     render(<Questionnaire {...props} />);
@@ -125,10 +145,59 @@ describe('questionnaire', () => {
     );
     localStorage.clear();
 
+    // assert data was not sent to sales center
+    expect(surveyService.submitSurvey).not.toHaveBeenCalled();
+
     // assert posthog event triggered
     expect(userEventService.capturePreUserEvent).toHaveBeenCalledWith({
       event: 'tp.ui.onboard.questionnaire.submit',
       username: 'user-000',
+    });
+    expect(userEventService.captureUserEvent).not.toHaveBeenCalled();
+  });
+
+  test('submits responses in non-onboard mode', async () => {
+    props.onboard = false;
+    props.full = true;
+    props.username = 'user-000';
+    render(<Questionnaire {...props} />);
+
+    expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
+
+    const companyNameInput: HTMLInputElement =
+      screen.getByLabelText('Company Name');
+    fireEvent.change(companyNameInput, { target: { value: 'Teleport' } });
+    expect(companyNameInput.value).toBe('Teleport');
+
+    await userEvent.click(screen.getByText(/Select Company Size/i));
+    await userEvent.click(screen.getByText(/5000+/i));
+
+    await userEvent.click(screen.getByText(/Select Team/i));
+    await userEvent.click(screen.getByText(/Legal/i));
+
+    await userEvent.click(screen.getByText(/Select Job Title/i));
+    await userEvent.click(screen.getByText(/VP/i));
+
+    await userEvent.click(screen.getByText(/Applications/i));
+    await userEvent.click(screen.getByText(/Desktops/i));
+    await userEvent.click(screen.getByText(/Kubernetes/i));
+
+    await userEvent.click(screen.getByRole('button', { name: /Submit/i }));
+
+    // assert data is not saved to local storage
+    expect(
+      JSON.parse(localStorage.getItem('grv_teleport_onboard_survey'))
+    ).toBeNull();
+    localStorage.clear();
+
+    // assert data was sent to sales center
+    expect(surveyService.submitSurvey).toHaveBeenCalled();
+    expect(api.put).toHaveBeenCalled();
+
+    // assert posthog event triggered
+    expect(userEventService.capturePreUserEvent).not.toHaveBeenCalled();
+    expect(userEventService.captureUserEvent).toHaveBeenCalledWith({
+      event: 'tp.ui.onboard.questionnaire.submit',
     });
   });
 });

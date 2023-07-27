@@ -1,9 +1,15 @@
+// Note: QuestionnaireProps is duplicated in OSS (teleport/Welcome/NewCredentials)
 export type QuestionnaireProps = {
-  // full indicates if a full survey should be presented,
-  // false indicates that a partial survey is shown (some questions are skipped)
+  // Full indicates if a full survey should be presented,
+  // false indicates that a partial survey is shown (some questions are skipped).
   full: boolean;
-  username: string;
-  // optional callback to handle parent interaction
+  // Onboard indicates if the questionnaire is being shown during onboarding (true) or
+  // after login (false). This impacts the submission of the form.
+  onboard: boolean;
+  // Username is optional; it is only required during the onboarding flow to submit a posthog event.
+  // After login, we use the auth endpoint to set the user.
+  username?: string;
+  // onSubmit is an optional callback to handle parent interaction.
   onSubmit?: () => void;
 };
 

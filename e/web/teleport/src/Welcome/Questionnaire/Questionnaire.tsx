@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { ButtonPrimary, Card, Text } from 'design';
+import { ButtonPrimary, Text } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 import { ClusterResource } from 'teleport/services/userPreferences/types';
+import * as service from 'teleport/services/userPreferences';
 
 import localStorage, {
   LocalStorageSurvey,
+  SurveyRequest,
 } from 'teleport/services/localStorage';
+
+import { surveyService } from 'e-teleport/services/survey';
 
 import {
   QuestionnaireFormFields,
@@ -21,7 +25,8 @@ import { resourceMapping } from './constants';
 
 export const Questionnaire = ({
   full,
-  username,
+  onboard,
+  username = '',
   onSubmit,
 }: QuestionnaireProps): React.ReactElement => {
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
@@ -44,7 +49,7 @@ export const Questionnaire = ({
     });
   };
 
-  const submitForm = (validator: Validator) => {
+  const submitForm = async (validator: Validator) => {
     if (!validator.validate()) {
       return;
     }
@@ -54,24 +59,46 @@ export const Questionnaire = ({
       r => resourceMapping[ResourceOption[r]]
     );
 
-    const request: LocalStorageSurvey = {
+    const request: SurveyRequest = {
       companyName: formFields.companyName,
       employeeCount: formFields.employeeCount,
       resources: formFields.resources,
-      clusterResources: clusterResources,
       role: formFields.role,
       team: formFields.team,
     };
 
-    // set survey result in localstorage, because we do not have a bearer-token this
-    // early in onboarding (will be sent when onboarding completes)
-    localStorage.setOnboardSurvey(request);
+    if (onboard) {
+      // set survey result in localstorage, because we do not have a bearer-token this
+      // early in onboarding (will be sent when onboarding completes)
+      const lsRequest: LocalStorageSurvey = {
+        ...request,
+        clusterResources: clusterResources,
+      };
+      localStorage.setOnboardSurvey(lsRequest);
 
-    // submit a posthog event
-    userEventService.capturePreUserEvent({
-      event: CaptureEvent.PreUserOnboardQuestionnaireSubmitEvent,
-      username: username,
-    });
+      if (username) {
+        // submit a pre-user posthog event
+        userEventService.capturePreUserEvent({
+          event: CaptureEvent.OnboardQuestionnaireSubmitEvent,
+          username: username,
+        });
+      }
+    } else {
+      // submit answers to BE for storage in Sales Center
+      surveyService.submitSurvey(request);
+
+      // set resources on new user preferences cluster state
+      await service.updateUserPreferences({
+        onboard: {
+          preferredResources: clusterResources,
+        },
+      });
+
+      // submit a posthog event
+      userEventService.captureUserEvent({
+        event: CaptureEvent.OnboardQuestionnaireSubmitEvent,
+      });
+    }
 
     // callback to continue flow
     if (onSubmit) {
@@ -81,7 +108,7 @@ export const Questionnaire = ({
 
   // todo (michellescripts) only display <Company .../> if the survey is unanswered for the account
   return (
-    <Card mx="auto" maxWidth="600px" p="4">
+    <>
       <Text typography="h2" mb={4}>
         Tell us about yourself
       </Text>
@@ -117,6 +144,6 @@ export const Questionnaire = ({
           </>
         )}
       </Validation>
-    </Card>
+    </>
   );
 };

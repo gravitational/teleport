@@ -1,0 +1,121 @@
+import React from 'react';
+import { render, screen } from 'design/utils/testing';
+
+import { ContextProvider } from 'teleport';
+import { MemoryRouter } from 'react-router';
+
+import { events } from 'teleport/Audit/fixtures';
+import { clusters } from 'teleport/Clusters/fixtures';
+import { nodes } from 'teleport/Nodes/fixtures';
+import { sessions } from 'teleport/Sessions/fixtures';
+import { apps } from 'teleport/Apps/fixtures';
+import { kubes } from 'teleport/Kubes/fixtures';
+import { databases } from 'teleport/Databases/fixtures';
+import { desktops } from 'teleport/Desktops/fixtures';
+import { userContext } from 'teleport/Main/fixtures';
+
+import TeleportContext from 'teleport/teleportContext';
+
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+
+import { KeysEnum } from 'teleport/services/localStorage';
+
+import {
+  MockedStoreAccessRequests,
+  MockedWorkflowService,
+} from 'e-teleport/Workflow/fixtures';
+import TeleportContextE from 'e-teleport/teleportContextE';
+
+import cfg from 'e-teleport/config';
+
+import { MainE } from './Main';
+
+const setupContext = (): TeleportContext => {
+  const ctx = new TeleportContextE();
+  ctx.isEnterprise = true;
+  ctx.auditService.fetchEvents = () =>
+    Promise.resolve({ startKey: '', events });
+  ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
+  ctx.nodeService.fetchNodes = () => Promise.resolve({ agents: nodes });
+  ctx.sshService.fetchSessions = () => Promise.resolve(sessions);
+  ctx.appService.fetchApps = () => Promise.resolve({ agents: apps });
+  ctx.kubeService.fetchKubernetes = () => Promise.resolve({ agents: kubes });
+  ctx.databaseService.fetchDatabases = () =>
+    Promise.resolve({ agents: databases });
+  ctx.desktopService.fetchDesktops = () =>
+    Promise.resolve({ agents: desktops });
+  ctx.storeUser.setState(userContext);
+  ctx.storeAccessRequests = new MockedStoreAccessRequests();
+  ctx.workflowService = new MockedWorkflowService();
+
+  return ctx;
+};
+
+test('displays questionnaire if unanswered in both survey and preferences', () => {
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = setupContext();
+  cfg.oss.isUsageBasedBilling = true;
+  localStorage.clear();
+  localStorage.setItem(KeysEnum.ONBOARD_SURVEY, '{"clusterResources": []}');
+  localStorage.setItem(
+    KeysEnum.USER_PREFERENCES,
+    '{"onboard": {"preferredResources": []}}'
+  );
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <LayoutContextProvider>
+          <MainE />
+        </LayoutContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
+});
+
+test('does not display questionnaire if answered via survey', () => {
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = setupContext();
+  cfg.oss.isUsageBasedBilling = true;
+  localStorage.setItem(KeysEnum.ONBOARD_SURVEY, '{"clusterResources": [1]}');
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <LayoutContextProvider>
+          <MainE />
+        </LayoutContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(screen.queryByText('Tell us about yourself')).not.toBeInTheDocument();
+});
+
+test('does not display questionnaire if answered via preferences', () => {
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = setupContext();
+  cfg.oss.isUsageBasedBilling = true;
+  localStorage.setItem(
+    KeysEnum.USER_PREFERENCES,
+    '{"onboard": {"preferredResources": [1]}}'
+  );
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <LayoutContextProvider>
+          <MainE />
+        </LayoutContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(screen.queryByText('Tell us about yourself')).not.toBeInTheDocument();
+});
