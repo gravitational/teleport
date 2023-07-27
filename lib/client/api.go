@@ -1918,6 +1918,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
+	if session.GetSessionKind() == types.KubernetesSessionKind {
+		return trace.BadParameter("session joining for Kubernetes is supported with the command tsh kube join")
+	}
 	if session.GetSessionKind() != types.SSHSessionKind {
 		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
 	}
