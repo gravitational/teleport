@@ -289,9 +289,9 @@ deploy-cloud-login:
 #
 
 $(RELEASE_DIR):
-	mkdir $@
+	mkdir -p $@
 
-.PHONY:
+.PHONY: release
 export
 release:
 	@echo "---> $(RELEASE_ENT_MESSAGE)"
@@ -465,7 +465,7 @@ pkg: | $(RELEASE_DIR)
 
 # build .rpm
 .PHONY: rpm
-rpm:
+rpm: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh ../build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -480,7 +480,7 @@ rpm-unsigned:
 
 # build enterprise .deb only
 .PHONY: ent-deb
-ent-deb:
+ent-deb: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh ../build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
