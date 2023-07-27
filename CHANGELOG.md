@@ -1,6 +1,6 @@
 # Changelog
 
-## 11.3.18 (07/26/23)
+## 11.3.19 (07/27/23)
 
 * Fixed enhanced recording of missing `session.command` events when PAM enabled. [#29030](https://github.com/gravitational/teleport/issues/29030) [#29582](https://github.com/gravitational/teleport/pull/29582)
 * Fixed a panic in the S3 uploader. [#29468](https://github.com/gravitational/teleport/pull/29468)
