@@ -18,7 +18,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
@@ -28,27 +27,11 @@ import (
 
 // AzureBeforeConnect will return a pgx BeforeConnect function suitable for
 // Azure AD authentication. The returned function will set the password of the
-// pgx.ConnConfig to a token for the relevant scope. If a client ID is provided,
-// authentication will only be attempted as the managed identity with said ID
-// rather than with all the default credentials.
-func AzureBeforeConnect(clientID string, log logrus.FieldLogger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
-	var cred azcore.TokenCredential
-	if clientID != "" {
-		log.WithField("azure_client_id", clientID).Debug("Using Azure AD authentication with managed identity.")
-		c, err := azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
-			ID: azidentity.ClientID(clientID),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err, "creating Azure managed identity credentials")
-		}
-		cred = c
-	} else {
-		log.Debug("Using Azure AD authentication with default credentials.")
-		c, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating default Azure credentials")
-		}
-		cred = c
+// connection to a token for the relevant scope.
+func AzureBeforeConnect(log logrus.FieldLogger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating Azure credentials")
 	}
 
 	beforeConnect := func(ctx context.Context, config *pgx.ConnConfig) error {

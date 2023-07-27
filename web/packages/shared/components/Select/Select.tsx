@@ -222,6 +222,10 @@ export const StyledSelect = styled.div`
     }
   }
 
+  .react-select__input {
+    color: ${props => props.theme.colors.text.main};
+  }
+
   ${width}
   ${space}
 `;

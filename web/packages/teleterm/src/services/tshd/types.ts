@@ -233,6 +233,13 @@ export type TshClient = {
   createConnectMyComputerRole: (
     rootClusterUri: uri.RootClusterUri
   ) => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: (
+    clusterUri: uri.RootClusterUri,
+    token: string
+  ) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -322,6 +329,9 @@ export type Label = apiLabel.Label.AsObject;
 
 export type CreateConnectMyComputerRoleResponse =
   apiService.CreateConnectMyComputerRoleResponse.AsObject;
+
+export type CreateConnectMyComputerNodeTokenResponse =
+  apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
