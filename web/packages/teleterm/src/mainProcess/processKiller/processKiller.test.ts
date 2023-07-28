@@ -54,10 +54,11 @@ test('kills a process using SIGKILL when a graceful kill did not work', async ()
   expect(process.signalCode).toBe('SIGKILL');
 });
 
-test('killing a process that has already stopped is noop', async () => {
+test('killing a process that failed to start is noop', async () => {
   const process = fork(path.join(__dirname, 'testProcess-nonExisting.mjs'), {
     silent: true,
   });
+  jest.spyOn(process, 'kill');
 
   // wait for the process
   await new Promise(resolve => process.once('close', resolve));
@@ -65,4 +66,20 @@ test('killing a process that has already stopped is noop', async () => {
 
   expect(process.exitCode).toBe(1);
   expect(process.signalCode).toBeNull();
+  expect(process.kill).toHaveBeenCalledTimes(0);
+});
+
+test('killing a process that has been already killed is noop', async () => {
+  const process = fork(path.join(__dirname, 'testProcess.mjs'), {
+    silent: true,
+  });
+  jest.spyOn(process, 'kill');
+
+  process.kill('SIGTERM');
+  await new Promise(resolve => process.once('exit', resolve));
+  expect(process.killed).toBeTruthy();
+  expect(process.signalCode).toBe('SIGTERM');
+
+  await killProcess(process, 1_000);
+  expect(process.kill).toHaveBeenCalledTimes(1); // called only once, in the test
 });
