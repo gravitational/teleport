@@ -205,7 +205,16 @@ of Teleport data:
 
 The PostgreSQL backend requires PostgreSQL 13 or later, and, for the cluster
 state only, the [`wal2json`](https://github.com/eulerto/wal2json) logical
-decoding plugin. Teleport needs separate databases for the cluster state and the
+decoding plugin. The plugin is available in packages for all stable versions in
+the PostgreSQL [Apt](https://apt.postgresql.org/) and
+[Yum](https://yum.postgresql.org/) repositories for Debian- and RPM-based Linux
+distributions respectively, or it can be compiled following [the
+instructions](https://github.com/eulerto/wal2json#build-and-install) provided in
+its repository. The plugin is pre-installed with no extra steps to take in
+[Azure Database for
+PostgreSQL](https://azure.microsoft.com/en-us/products/postgresql).
+
+Teleport needs separate databases for the cluster state and the
 audit log, and it will attempt to create them if given permissions to do so; it
 will also set up the database schemas as needed, so we recommend giving the user
 ownership over the databases.
@@ -313,9 +322,8 @@ storing them in Teleport's configuration file.
 
 If you are running Teleport on Azure, Teleport can make use of [Azure AD
 authentication](https://learn.microsoft.com/azure/postgresql/flexible-server/concepts-azure-ad-authentication)
-to connect to an [Azure Database for
-PostgreSQL](https://azure.microsoft.com/en-us/products/postgresql) server
-without having to manage any secrets:
+to connect to an Azure Database for PostgreSQL server without having to manage
+any secrets:
 
 ```yaml
 teleport:
