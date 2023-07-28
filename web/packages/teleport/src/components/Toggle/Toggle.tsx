@@ -45,7 +45,7 @@ type Props = {
   className?: string;
 };
 
-const StyledWrapper = styled.label`
+export const StyledWrapper = styled.label`
   position: relative;
   display: flex;
   align-items: center;
@@ -56,11 +56,11 @@ const StyledWrapper = styled.label`
   }
 `;
 
-const StyledSlider = styled.div`
+export const StyledSlider = styled.div`
   width: 32px;
   height: 12px;
   border-radius: 12px;
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.levels.popout};
   cursor: inherit;
   flex-shrink: 0;
 
