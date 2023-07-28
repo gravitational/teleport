@@ -1462,9 +1462,6 @@
       },
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
-    "soc2": {
-      "last_report": "August 9th, 2022"
-    },
     "teleport": {
       "major_version": "12",
       "version": "12.4.12",
