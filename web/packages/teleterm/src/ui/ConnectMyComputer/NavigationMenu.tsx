@@ -79,7 +79,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
         onClose={() => setIsPopoverOpened(false)}
       >
         <Container width="200px">
-          <ListItem onClick={openSetupDocument}>Set up agent</ListItem>
+          <ListItem onClick={openSetupDocument}>Connect computer</ListItem>
         </Container>
       </Popover>
     </>
