@@ -874,7 +874,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindServerInfo, services.RW()),
 					},
-					// Discovery service should only access/create kubes/dbs with "cloud" origin.
+					// Discovery service should only access kubes/dbs with "cloud" origin.
 					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
 					DatabaseLabels:   types.Labels{types.OriginLabel: []string{types.OriginCloud}},
 				},
