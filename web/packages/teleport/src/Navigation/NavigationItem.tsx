@@ -154,6 +154,18 @@ export function NavigationItem(props: NavigationItemProps) {
     []
   );
 
+  // shouldAlert returns red dot alert if the feature name exist in recommendFeature
+  // context and the feature value is set true.
+  function shouldAlert(featureName: string): JSX.Element {
+    if (
+      featureName in ctx?.recommendFeature &&
+      ctx?.recommendFeature?.FeatureDeviceTrust
+    ) {
+      return <DotAlert />;
+    }
+    return null;
+  }
+
   if (navigationItem) {
     const linkProps = {
       style: {
@@ -213,9 +225,7 @@ export function NavigationItem(props: NavigationItemProps) {
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
             {navigationItemVersion.title}
-            {props.feature.constructor.name === 'FeatureDeviceTrust' ? (
-              <DotAlert />
-            ) : null}
+            {shouldAlert(props.feature.constructor.name)}
           </LinkContent>
         </Link>
       );

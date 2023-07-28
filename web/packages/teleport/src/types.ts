@@ -118,3 +118,11 @@ export type LockedFeatures = {
   premiumSupport: boolean;
   trustedDevices: boolean;
 };
+
+// RecommendFeature is used for recommending features to drive adoption.
+// Feature name should match class names as defined in features.tsx:
+// - OSS - https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/features.tsx
+// - enterprise - https://github.com/gravitational/teleport.e/blob/master/web/teleport/src/features.tsx
+export type RecommendFeature = {
+  FeatureDeviceTrust: boolean;
+};
