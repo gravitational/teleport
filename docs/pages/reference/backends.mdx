@@ -218,15 +218,40 @@ parameter must be set to `logical` and
 [`max_replication_slots`](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-MAX-REPLICATION-SLOTS)
 must be set to at least as many Teleport auth servers as you'll be running (a
 higher number is recommended, to account for network timeouts and
-reconnections). In addition, the database user must have the `initiating
-replication` [role
+reconnections). `wal_level` can only be set at server start, so it should be set
+in `postgresql.conf`:
+```
+# the default value for wal_level is replica
+wal_level = logical
+
+# the default value for max_replication_slots is 10
+max_replication_slots = 10
+```
+
+In addition, the database user must have the `initiating replication` [role
 attribute](https://www.postgresql.org/docs/current/role-attributes.html) (as
-well as `login privilege`, of course). Since replication permissions allow for
-essentially full read access over the entire cluster (with a physical
-replication connection) or to all databases that the user can connect to, it's
-recommended to prevent the user from opening replication connections, or from
-connecting to databases other than the ones used for Teleport, if the PostgreSQL
-cluster is shared between Teleport and other applications.
+well as `login privilege`, of course). In the `psql` shell:
+
+```
+postgres=# CREATE USER new_user WITH REPLICATION;
+CREATE ROLE
+
+postgres=# ALTER ROLE existing_user WITH LOGIN REPLICATION;
+ALTER ROLE
+```
+
+Since replication permissions allow for essentially full read access over the
+entire cluster (with a physical replication connection) or to all databases that
+the user can connect to, it's recommended to prevent the user from opening
+replication connections, or from connecting to databases other than the ones
+used for Teleport, if the PostgreSQL cluster is shared between Teleport and
+other applications.
+
+For convenience, Teleport will attempt to grant itself the `initiating
+replication` role attribute, if given the ability to do so (with a `superuser
+status` user, or similar privileged access as can be granted in managed
+PostgreSQL services such as Azure Databases for PostgreSQL or Amazon RDS for
+PostgreSQL).
 
 To configure Teleport to use PostgreSQL:
 - Configure all Teleport Auth servers to use the PostgreSQL back-end in the
