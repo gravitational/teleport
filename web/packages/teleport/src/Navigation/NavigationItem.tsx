@@ -171,7 +171,7 @@ export function NavigationItem(props: NavigationItemProps) {
       featureName in ctx.recommendFeature &&
       ctx.recommendFeature.FeatureDeviceTrust
     ) {
-      return <DotAlert />;
+      return <RedDot />;
     }
     return null;
   }
@@ -252,49 +252,11 @@ export function NavigationItem(props: NavigationItemProps) {
   );
 }
 
-function DotAlert() {
-  return (
-    <DotContainer>
-      <Dot />
-      <DotPulse />
-    </DotContainer>
-  );
-}
-
-const DotContainer = styled.div`
-  margin-left: 10px;
+const RedDot = styled.div`
+  margin-left: 15px;
   margin-top: 2px;
-  width: 13px;
-  height: 13px;
-  position: relative;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-`;
-
-const Dot = styled.div`
   width: 7px;
   height: 7px;
-  position: absolute;
   border-radius: 50%;
-  background-color: red;
-`;
-
-const DotPulse = styled.div`
-  width: 10px;
-  height: 10px;
-  background-color: red;
-  opacity: 0;
-  animation: pulse 4s infinite;
-  @keyframes pulse {
-    50%   {
-      transform: scale(2);
-      opacity: 0.5
-    }
-    100%   {
-      transform: scale(2);
-      opacity: 0
-    }
+  background-color:  ${props => props.theme.colors.error.main};
 `;
