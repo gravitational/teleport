@@ -699,7 +699,7 @@ type mockTSHDEventsService struct {
 func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
 	tshdEventsService := &mockTSHDEventsService{}
 
-	ls, err := net.Listen("tcp", ":0")
+	ls, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer()

@@ -1027,7 +1027,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Create a fake client XServer listener which echos
 	// back whatever it receives.
-	fakeClientDisplay, err := net.Listen("tcp", ":0")
+	fakeClientDisplay, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	go func() {
 		for {
@@ -2075,7 +2075,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	}
 	cfg.AddHostKey(signer)
 
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	_, port, err := net.SplitHostPort(listener.Addr().String())

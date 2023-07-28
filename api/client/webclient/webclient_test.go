@@ -95,7 +95,7 @@ func TestPlainHttpFallback(t *testing.T) {
 				// replace the test-supplied loopback listener with the first available
 				// non-loopback address
 				nonLoopbackSvr.Listener.Close()
-				l, err := net.Listen("tcp", "0.0.0.0:0")
+				l, err := net.Listen("tcp", "localhost:0")
 				require.NoError(t, err)
 				nonLoopbackSvr.Listener = l
 				nonLoopbackSvr.Start()
