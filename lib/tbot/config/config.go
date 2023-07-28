@@ -425,6 +425,12 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 			return nil, trace.Wrap(err)
 		}
 		return v, nil
+	case DestinationKubernetesSecretType:
+		v := &DestinationKubernetesSecret{}
+		if err := node.Decode(v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return v, nil
 	default:
 		return nil, trace.BadParameter("unrecognized destination type (%s)", header.Type)
 	}
