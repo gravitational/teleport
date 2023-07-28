@@ -15,6 +15,8 @@
 package webauthn
 
 import (
+	"encoding/base64"
+
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
@@ -67,7 +69,7 @@ func CredentialAssertionFromProtocol(a *protocol.CredentialAssertion) *Credentia
 
 	return &CredentialAssertion{
 		Response: PublicKeyCredentialRequestOptions{
-			Challenge:          a.Response.Challenge,
+			Challenge:          Challenge(a.Response.Challenge),
 			Timeout:            a.Response.Timeout,
 			RelyingPartyID:     a.Response.RelyingPartyID,
 			AllowedCredentials: credentialDescriptorsFromProtocol(a.Response.AllowedCredentials),
@@ -219,7 +221,7 @@ func CredentialCreationFromProtocol(cc *protocol.CredentialCreation) *Credential
 
 	return &CredentialCreation{
 		Response: PublicKeyCredentialCreationOptions{
-			Challenge: cc.Response.Challenge,
+			Challenge: Challenge(cc.Response.Challenge),
 			RelyingParty: RelyingPartyEntity{
 				CredentialEntity: cc.Response.RelyingParty.CredentialEntity,
 				ID:               cc.Response.RelyingParty.ID,
@@ -276,7 +278,19 @@ type AuthenticatorAttestationResponse struct {
 	AttestationObject protocol.URLEncodedBase64 `json:"attestationObject"`
 }
 
-type Challenge = protocol.Challenge
+type Challenge []byte
+
+func CreateChallenge() (Challenge, error) {
+	chal, err := protocol.CreateChallenge()
+	if err != nil {
+		return nil, err
+	}
+	return Challenge(chal), nil
+}
+
+func (c Challenge) String() string {
+	return base64.RawURLEncoding.EncodeToString(c)
+}
 
 type CredentialDescriptor struct {
 	Type            protocol.CredentialType           `json:"type"`

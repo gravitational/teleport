@@ -243,7 +243,7 @@ func TestFIDO2Login(t *testing.T) {
 	legacy1 := mustNewFIDO2Device("/legacy1", "" /* pin */, &libfido2.DeviceInfo{Options: authOpts})
 	legacy1.wantRPID = appID
 
-	challenge, err := protocol.CreateChallenge()
+	challenge, err := wanlib.CreateChallenge()
 	require.NoError(t, err, "CreateChallenge failed")
 
 	baseAssertion := &wanlib.CredentialAssertion{
@@ -1435,7 +1435,7 @@ func TestFIDO2Register(t *testing.T) {
 	none1 := mustNewFIDO2Device("/none1", "" /* pin */, &libfido2.DeviceInfo{Options: authOpts})
 	none1.format = "none"
 
-	challenge, err := protocol.CreateChallenge()
+	challenge, err := wanlib.CreateChallenge()
 	require.NoError(t, err, "CreateChallenge failed")
 
 	baseCC := &wanlib.CredentialCreation{
