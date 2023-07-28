@@ -799,3 +799,9 @@ const (
 	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"
 )
+
+const (
+	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
+	// generating their names Server names.
+	KubeLegacyProxySuffix = "-proxy_service"
+)
