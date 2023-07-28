@@ -2075,7 +2075,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	}
 	cfg.AddHostKey(signer)
 
-	listener, err := net.Listen("tcp", "localhost:0")
+	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
 	_, port, err := net.SplitHostPort(listener.Addr().String())
