@@ -5299,6 +5299,8 @@ message PluginSpecV1 {
     PluginPagerDutySettings pager_duty = 6;
     // Settings for the Mattermost plugin
     PluginMattermostSettings mattermost = 7;
+    // Settings for the JIRA plugin
+    PluginJiraSettings jira = 8;
   }
 }
 
@@ -5335,6 +5337,23 @@ message PluginPagerDutySettings {
 
   // APIEndpoint is the address of PagerDuty API.
   string api_endpoint = 2;
+}
+
+message PluginJiraSettings {
+  option (gogoproto.equal) = true;
+
+  // ServerURL is the address of the target JIRA Server instance.
+  string server_url = 1;
+
+  // Project is the key of the Jira project that will receive
+  // notifications and issues from the plugin.
+  string project = 2;
+
+  // IssueType is the type of Jira Issue that the plugin will create
+  string issue_type = 3;
+
+  // Username of the Jira user
+  string username = 4;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.
