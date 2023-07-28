@@ -186,16 +186,7 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 
 	roles := map[string]types.Role{}
 
-	role, err := types.NewRole("allow-rules", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindUser},
-					Verbs:     []string{types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
-				},
-			},
-		},
-	})
+	role, err := types.NewRole("allow-rules", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	roles[defaultUser] = role
