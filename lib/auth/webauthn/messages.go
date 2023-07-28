@@ -276,6 +276,9 @@ type CredentialCreationResponse struct {
 type AuthenticatorAttestationResponse struct {
 	AuthenticatorResponse
 	AttestationObject protocol.URLEncodedBase64 `json:"attestationObject"`
+
+	// Added by go-webauthn/webauthn v0.7.2.
+	// Transports []string `json:"transports,omitempty"`
 }
 
 type Challenge []byte
@@ -303,6 +306,9 @@ type PublicKeyCredential struct {
 	Credential
 	RawID      protocol.URLEncodedBase64              `json:"rawId"`
 	Extensions *AuthenticationExtensionsClientOutputs `json:"extensions,omitempty"`
+
+	// Added by go-webauthn/webauthn v0.7.2.
+	// AuthenticatorAttachment string `json:"authenticatorAttachment,omitempty"`
 }
 
 type Credential protocol.Credential
