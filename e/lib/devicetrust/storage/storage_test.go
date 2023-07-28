@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
@@ -29,10 +30,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestS_BulkCreateDevices(t *testing.T) {
@@ -85,6 +88,7 @@ func TestS_BulkCreateDevices(t *testing.T) {
 				SerialNumber: resource1Tag,
 			},
 		},
+		Owner: "llama",
 	}
 
 	// listAll is a helper that lists all devices in storage.
@@ -310,6 +314,7 @@ func TestS_CreateDevice(t *testing.T) {
 			JamfBinaryVersion:   "10.44.1-t1677509507",
 			ExternalId:          "99",
 		},
+		Owner: "llama",
 	}
 
 	tests := []struct {
@@ -367,6 +372,7 @@ func TestS_CreateDevice(t *testing.T) {
 				want.UpdateTime = dev.UpdateTime
 				want.EnrollStatus = dev.EnrollStatus
 				want.Credential = dev.Credential
+				want.Owner = dev.Owner
 
 				// Ignored on pure Create/Update methods.
 				want.CollectedData = nil
@@ -859,10 +865,11 @@ func TestS_UpdateDevice(t *testing.T) {
 	clock := env.Clock
 	ctx := context.Background()
 
+	const owner = "llama"
 	enrolledDev, _, err := createAndEnroll(ctx, s, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	})
+	}, owner)
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -942,6 +949,7 @@ func TestS_UpdateDevice(t *testing.T) {
 				want.UpdateTime = updated.UpdateTime
 				want.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
 				want.Credential = nil // credential automatically cleared
+				want.Owner = ""       // owner automatically cleared
 				if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
 					t.Errorf("UpdateDevice mismatch (-want +got)\n%s", diff)
 				}
@@ -1863,6 +1871,7 @@ func TestS_EnrollDevice(t *testing.T) {
 		baseDev *devicepb.Device
 		cred    *devicepb.DeviceCredential
 		cd      *devicepb.DeviceCollectedData
+		owner   string
 	}{
 		{
 			name:    "ok",
@@ -1876,6 +1885,7 @@ func TestS_EnrollDevice(t *testing.T) {
 				OsType:       dev.OsType,
 				SerialNumber: dev.AssetTag,
 			},
+			owner: "llama",
 		},
 		{
 			// Note: this test case depends on the device being successfully enrolled
@@ -1891,37 +1901,41 @@ func TestS_EnrollDevice(t *testing.T) {
 				OsType:       dev.OsType,
 				SerialNumber: dev.AssetTag,
 			},
+			owner: "alpaca",
 		},
 	}
 	for _, test := range tests {
-		deviceID := test.baseDev.Id
-		got, err := s.EnrollDevice(ctx, deviceID, test.cred, test.cd)
-		if err != nil {
-			t.Fatalf("EnrollDevice failed: %v", err)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			deviceID := test.baseDev.Id
+			got, err := s.EnrollDevice(ctx, deviceID, test.cred, test.cd, test.owner)
+			if err != nil {
+				t.Fatalf("EnrollDevice failed: %v", err)
+			}
 
-		if got.UpdateTime.AsTime().Before(test.baseDev.UpdateTime.AsTime()) {
-			t.Errorf("got.UpdateTime = %v, want >= %v", got.UpdateTime, test.baseDev.UpdateTime)
-		}
+			if got.UpdateTime.AsTime().Before(test.baseDev.UpdateTime.AsTime()) {
+				t.Errorf("got.UpdateTime = %v, want >= %v", got.UpdateTime, test.baseDev.UpdateTime)
+			}
 
-		want := proto.Clone(test.baseDev).(*devicepb.Device)
-		want.UpdateTime = got.UpdateTime
-		want.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
-		want.Credential = test.cred
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("EnrollDevice mismatch (-want +got):\n%s", diff)
-		}
+			want := proto.Clone(test.baseDev).(*devicepb.Device)
+			want.UpdateTime = got.UpdateTime
+			want.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
+			want.Credential = test.cred
+			want.Owner = test.owner
+			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("EnrollDevice mismatch (-want +got):\n%s", diff)
+			}
 
-		// Are changes reflected in storage?
-		stored, err := s.GetDeviceByID(ctx, deviceID)
-		if err != nil {
-			t.Fatalf("GetDeviceByID failed: %v", err)
-		}
-		// TODO(codingllama): Assert collected data on tests.
-		stored.CollectedData = nil
-		if diff := cmp.Diff(got, stored, protocmp.Transform()); diff != "" {
-			t.Errorf("GetDeviceByID mismatch (-want +got):\n%s", diff)
-		}
+			// Are changes reflected in storage?
+			stored, err := s.GetDeviceByID(ctx, deviceID)
+			if err != nil {
+				t.Fatalf("GetDeviceByID failed: %v", err)
+			}
+			// TODO(codingllama): Assert collected data on tests.
+			stored.CollectedData = nil
+			if diff := cmp.Diff(got, stored, protocmp.Transform()); diff != "" {
+				t.Errorf("GetDeviceByID mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -1933,11 +1947,14 @@ func TestS_EnrollDevice_reEnroll(t *testing.T) {
 	clock := env.Clock
 	ctx := context.Background()
 
+	const user1 = "llama"
+	const user2 = "llamaer"
+
 	// Device is created and enrolled.
 	dev, _, err := createAndEnroll(ctx, s, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama1",
-	})
+	}, user1)
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -1966,7 +1983,7 @@ func TestS_EnrollDevice_reEnroll(t *testing.T) {
 	assertCD(dev, 3)
 
 	// Re-enroll.
-	dev, _, err = enroll(ctx, s, dev)
+	dev, _, err = enroll(ctx, s, dev, user2)
 	if err != nil {
 		t.Fatalf("enroll failed: %v", err)
 	}
@@ -2012,11 +2029,14 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 		return errors.Is(err, &storage.CollectedDataDriftError{})
 	}
 
+	const owner = "llama"
+
 	tests := []struct {
 		name       string
 		deviceID   string
 		createCred func() *devicepb.DeviceCredential
 		createCD   func() *devicepb.DeviceCollectedData
+		owner      string
 		assertErr  func(error) bool
 		wantErr    string
 	}{
@@ -2025,6 +2045,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 			deviceID:   "unknown",
 			createCred: func() *devicepb.DeviceCredential { return validCred },
 			createCD:   func() *devicepb.DeviceCollectedData { return validCD },
+			owner:      owner,
 			assertErr:  trace.IsNotFound,
 		},
 		{
@@ -2032,6 +2053,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 			deviceID:   dev.Id,
 			createCred: func() *devicepb.DeviceCredential { return nil },
 			createCD:   func() *devicepb.DeviceCollectedData { return validCD },
+			owner:      owner,
 			assertErr:  trace.IsBadParameter,
 			wantErr:    "credential required",
 		},
@@ -2044,6 +2066,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 			},
 			createCD:  func() *devicepb.DeviceCollectedData { return validCD },
+			owner:     owner,
 			assertErr: trace.IsBadParameter,
 			wantErr:   "credential ID",
 		},
@@ -2056,6 +2079,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 			},
 			createCD:  func() *devicepb.DeviceCollectedData { return validCD },
+			owner:     owner,
 			assertErr: trace.IsBadParameter,
 			wantErr:   "credential ID exceeds",
 		},
@@ -2068,6 +2092,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 			},
 			createCD:  func() *devicepb.DeviceCollectedData { return validCD },
+			owner:     owner,
 			assertErr: trace.IsBadParameter,
 			wantErr:   "public key required",
 		},
@@ -2080,6 +2105,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 			},
 			createCD:  func() *devicepb.DeviceCollectedData { return validCD },
+			owner:     owner,
 			assertErr: trace.IsBadParameter,
 			wantErr:   "invalid credential public key",
 		},
@@ -2088,6 +2114,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 			deviceID:   dev.Id,
 			createCred: func() *devicepb.DeviceCredential { return validCred },
 			createCD:   func() *devicepb.DeviceCollectedData { return nil },
+			owner:      owner,
 			assertErr:  trace.IsBadParameter,
 			wantErr:    "collected data required",
 		},
@@ -2101,6 +2128,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 
 			},
+			owner:     owner,
 			assertErr: trace.IsBadParameter,
 			wantErr:   "collect time missing",
 		},
@@ -2114,6 +2142,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 
 			},
+			owner:     owner,
 			assertErr: isDriftError,
 			wantErr:   "OS type mismatch",
 		},
@@ -2126,6 +2155,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				cp.SerialNumber = ""
 				return cp
 			},
+			owner:     owner,
 			assertErr: trace.IsBadParameter,
 			wantErr:   "serial number required",
 		},
@@ -2138,6 +2168,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				cp.SerialNumber = strings.Repeat("A", 41)
 				return cp
 			},
+			owner:     owner,
 			assertErr: trace.IsBadParameter,
 			wantErr:   "serial number exceeds",
 		},
@@ -2151,13 +2182,14 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 
 			},
+			owner:     owner,
 			assertErr: isDriftError,
 			wantErr:   "serial number mismatch",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := s.EnrollDevice(ctx, test.deviceID, test.createCred(), test.createCD())
+			_, err := s.EnrollDevice(ctx, test.deviceID, test.createCred(), test.createCD(), test.owner)
 			if !test.assertErr(err) {
 				t.Errorf("EnrollDevice: assertErr failed, err=%v", err)
 			}
@@ -2179,10 +2211,11 @@ func TestS_DeviceCollectedData_crud(t *testing.T) {
 	}
 
 	// Use a couple of distinct enrolled devices.
+	const owner = "llama"
 	dev1, _, err := createAndEnroll(ctx, s, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	})
+	}, owner)
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -2190,7 +2223,7 @@ func TestS_DeviceCollectedData_crud(t *testing.T) {
 	dev2, _, err := createAndEnroll(ctx, s, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "alpaca",
-	})
+	}, owner)
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -2387,6 +2420,7 @@ func TestS_RecordDeviceAuthnData(t *testing.T) {
 	}
 
 	// Create test devices.
+	const owner = "llama"
 	var allDevs []*devicepb.Device
 	for _, dev := range []*devicepb.Device{
 		{
@@ -2398,7 +2432,7 @@ func TestS_RecordDeviceAuthnData(t *testing.T) {
 			AssetTag: "win",
 		},
 	} {
-		created, _, err := createAndEnroll(ctx, s, dev)
+		created, _, err := createAndEnroll(ctx, s, dev, owner)
 		if err != nil {
 			t.Fatalf("createAndEnroll(%q) failed: %v", dev.AssetTag, err)
 		}
@@ -2514,6 +2548,7 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 	clock := env.Clock
 	ctx := context.Background()
 
+	const owner = "llama"
 	devWithProfile, _, err := createAndEnroll(ctx, s, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "alpaca",
@@ -2524,7 +2559,7 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 			OsUsernames:       []string{"admin", "llama"},
 			JamfBinaryVersion: "10.45.0-t1678116779",
 		},
-	})
+	}, owner)
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -2728,15 +2763,15 @@ func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
 	}
 }
 
-func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.Device, crypto.PrivateKey, error) {
+func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device, owner string) (*devicepb.Device, crypto.PrivateKey, error) {
 	dev, err := s.CreateDevice(ctx, dev, false /* createAsResource */)
 	if err != nil {
 		return nil, nil, fmt.Errorf("calling CreateDevice: %v", err)
 	}
-	return enroll(ctx, s, dev)
+	return enroll(ctx, s, dev, owner)
 }
 
-func enroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.Device, crypto.PrivateKey, error) {
+func enroll(ctx context.Context, s *storage.S, dev *devicepb.Device, owner string) (*devicepb.Device, crypto.PrivateKey, error) {
 	var cred *devicepb.DeviceCredential
 	var key crypto.PublicKey
 	switch dev.OsType {
@@ -2768,7 +2803,7 @@ func enroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.
 		return nil, nil, fmt.Errorf("unhandled OS Type: %s", dev.OsType)
 	}
 
-	dev, err := s.EnrollDevice(ctx, dev.Id, cred, collectedDataForDevice(dev))
+	dev, err := s.EnrollDevice(ctx, dev.Id, cred, collectedDataForDevice(dev), owner)
 	if err != nil {
 		return nil, nil, err // unwrapped for simpler comparisons
 	}
@@ -2960,13 +2995,14 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 
+	const owner = "llama"
 	devEnrolled, _, err := createAndEnroll(ctx, s, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama2",
 		// A nil Profile makes this device very easy to auto-enroll, if not for the
 		// fact that it already is enrolled.
 		Profile: nil,
-	})
+	}, owner)
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -3341,9 +3377,10 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 	})
 
 	// Enroll a few devices and verify the side-effects.
+	const owner = "llama"
 	wantEnrolled := devicesLimit - 1
 	for _, dev := range allDevs[:wantEnrolled] {
-		if _, _, err := enroll(ctx, s, dev); err != nil {
+		if _, _, err := enroll(ctx, s, dev, owner); err != nil {
 			t.Errorf("enroll returned err=%v, want success", err)
 		}
 	}
@@ -3363,7 +3400,7 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 		for _, dev := range allDevs[wantEnrolled:] {
 			dev := dev
 			g.Go(func() error {
-				switch _, _, err := enroll(ctx, s, dev); {
+				switch _, _, err := enroll(ctx, s, dev, owner); {
 				case err == nil:
 					successes.Add(1)
 				case !trace.IsAccessDenied(err):
@@ -3385,6 +3422,283 @@ func TestS_DevicesUsageLimit(t *testing.T) {
 	})
 }
 
+func TestS_AssignDeviceOwner(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	identity := env.IdentityService
+	s := env.S
+	ctx := context.Background()
+
+	const user1 = "llama"
+	const user2 = "alpaca"
+
+	var allDevs []*devicepb.Device
+	for _, d := range []*devicepb.Device{
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "emptyOwner",
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "onlyDevice",
+			Owner:    user1,
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "onlyUser", // Assigned below.
+		},
+	} {
+		created, err := s.CreateDevice(ctx, d, true /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		allDevs = append(allDevs, created)
+	}
+	devEmptyOwner := allDevs[0]
+	devOnlyDevice := allDevs[1]
+	devOnlyUser := allDevs[2]
+
+	// Create test users.
+	u1, _ := types.NewUser(user1)
+	u2, _ := types.NewUser(user2)
+	u2.SetTrustedDeviceIDs([]string{devOnlyUser.Id})
+	if err := identity.CreateUser(u1); err != nil {
+		t.Fatalf("CreateUser(%q) failed: %v", u1.GetName(), err)
+	}
+	if err := identity.CreateUser(u2); err != nil {
+		t.Fatalf("CreateUser(%q) failed: %v", u2.GetName(), err)
+	}
+
+	tests := []struct {
+		name string
+		dev  *devicepb.Device
+		user string
+	}{
+		{
+			name: "device without owner",
+			dev:  devEmptyOwner,
+			user: user1,
+		},
+		{
+			name: "device assigned, user not assigned",
+			dev:  devOnlyDevice,
+			user: user1,
+		},
+		{
+			name: "device not assigned, user assigned",
+			dev:  devOnlyUser,
+			user: user2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deviceID := test.dev.Id
+			got, err := s.AssignDeviceOwner(ctx, deviceID, test.user)
+			if err != nil {
+				t.Fatalf("AssignDeviceOwner returned err=%v", err)
+			}
+
+			// Assert returned device.
+			want := test.dev
+			want.Owner = test.user
+			want.UpdateTime = got.UpdateTime // System-managed.
+			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("AssignDeviceOwner mismatch (-want +got)\n%s", diff)
+			}
+
+			// Assert stored device.
+			stored, err := s.GetDeviceByID(ctx, deviceID)
+			if err != nil {
+				t.Fatalf("GetDeviceByID failed: %v", err)
+			}
+			if diff := cmp.Diff(got, stored, protocmp.Transform()); diff != "" {
+				t.Errorf("GetDeviceByID mismatch (-want +got)\n%s", diff)
+			}
+
+			// Assert user trusted devices.
+			u, err := identity.GetUser(test.user, false /* withSecrets */)
+			if err != nil {
+				t.Fatalf("GetUser failed: %v", err)
+			}
+			if !slices.Contains(u.GetTrustedDeviceIDs(), deviceID) {
+				t.Errorf(
+					"User %q missing trusted device %q, u.TrustedDeviceIDs=%v",
+					test.user, test.dev.Id, u.GetTrustedDeviceIDs())
+			}
+		})
+	}
+}
+
+// TestS_UserTrustedDeviceIDs tests various methods that update the user's
+// trusted device IDs as part of their side-effects.
+// See [TestS_AssignDeviceOwner] for [storage.S.AssignDeviceOwner] tests.
+func TestS_UserTrustedDeviceIDs(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	identity := env.IdentityService
+	s := env.S
+	ctx := context.Background()
+
+	// Create test users.
+	const user1 = "llama"
+	const user2 = "alpaca"
+	u1, _ := types.NewUser(user1)
+	u2, _ := types.NewUser(user2)
+	if err := identity.CreateUser(u1); err != nil {
+		t.Fatalf("CreateUser(%q) failed: %v", u1.GetName(), err)
+	}
+	if err := identity.CreateUser(u2); err != nil {
+		t.Fatalf("CreateUser(%q) failed: %v", u2.GetName(), err)
+	}
+
+	// Create a couple of previously-owned devices.
+	var allDevs []*devicepb.Device
+	for _, d := range []*devicepb.Device{
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "re-enroll",
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "unenroll",
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "delete",
+		},
+	} {
+		created, _, err := createAndEnroll(ctx, s, d, user1)
+		if err != nil {
+			t.Fatalf("createAndEnroll failed: %v", err)
+		}
+		allDevs = append(allDevs, created)
+	}
+	reEnrollDev := allDevs[0]
+	unenrollDev := allDevs[1]
+	deleteDev := allDevs[2]
+
+	tests := []struct {
+		name string
+		// baseDev is created if it lacks an Id.
+		baseDev *devicepb.Device
+		// baseUser is the Teleport user to be assigned/unassigned the device.
+		baseUser types.User
+		// fn assigns/unassigns an owner to dev
+		fn           func(dev *devicepb.Device, user string) (*devicepb.Device, error)
+		wantOwner    string // If distinct from "" or baseUser.
+		wantAssigned bool   // If true, then baseUser is the owner of baseDev.
+	}{
+		{
+			name: "EnrollDevice assigns owner",
+			baseDev: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "enroll1",
+			},
+			baseUser: u1,
+			fn: func(dev *devicepb.Device, user string) (*devicepb.Device, error) {
+				dev, _, err := enroll(ctx, s, dev, user)
+				return dev, err
+			},
+			wantAssigned: true,
+		},
+		{
+			name:     "EnrollDevice re-enroll unassigns previous owner",
+			baseDev:  reEnrollDev,
+			baseUser: u1, // Previous owner, unassigned.
+			fn: func(dev *devicepb.Device, _ string) (*devicepb.Device, error) {
+				dev, _, err := enroll(ctx, s, dev, user2)
+				return dev, err
+			},
+			wantOwner:    user2,
+			wantAssigned: false,
+		},
+		{
+			name:     "UpdateDevice unenroll removes owner",
+			baseDev:  unenrollDev,
+			baseUser: u1,
+			fn: func(dev *devicepb.Device, _ string) (*devicepb.Device, error) {
+				return s.UpdateDevice(ctx, dev.Id, func(stored *devicepb.Device) *devicepb.Device {
+					stored.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+					return stored
+				})
+			},
+			wantAssigned: false,
+		},
+		{
+			name:     "DeleteDevice removes owner",
+			baseDev:  deleteDev,
+			baseUser: u1,
+			fn: func(dev *devicepb.Device, _ string) (*devicepb.Device, error) {
+				err := s.DeleteDevice(ctx, dev.Id)
+				return nil, err
+			},
+			wantAssigned: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dev := test.baseDev
+			user := test.baseUser.GetName()
+
+			if dev.Id == "" {
+				var err error
+				dev, err = s.CreateDevice(ctx, test.baseDev, false /* createAsResource */)
+				if err != nil {
+					t.Fatalf("CreateDevice failed: %v", err)
+				}
+			}
+
+			// Sanity check: device is assigned before `fn`.
+			if !test.wantAssigned {
+				storedUser, err := identity.GetUser(user, false /* withSecrets */)
+				switch {
+				case err != nil:
+					t.Fatalf("GetUser failed: %v", err)
+				case !slices.Contains(storedUser.GetTrustedDeviceIDs(), dev.Id):
+					t.Fatalf(
+						"User %q does not have trusted device %q, u.TrustedDeviceIDs=%v",
+						user, dev.Id, storedUser.GetTrustedDeviceIDs())
+				}
+			}
+
+			// Enroll, Update, Delete, etc.
+			got, err := test.fn(dev, user)
+			if err != nil {
+				t.Fatalf("fn returned err=%v, want nil", err)
+			}
+
+			// Verify returned device.
+			wantOwner := ""
+			if test.wantOwner != "" {
+				wantOwner = test.wantOwner
+			} else if test.wantAssigned {
+				wantOwner = user
+			}
+			if got.GetOwner() != wantOwner {
+				t.Errorf("fn returned dev.Owner=%q, want %q", got.GetOwner(), wantOwner)
+			}
+
+			// Verify user trusted devices.
+			storedUser, err := identity.GetUser(user, false /* withSecrets */)
+			if err != nil {
+				t.Fatalf("GetUser failed: %v", err)
+			}
+			trustedIDs := storedUser.GetTrustedDeviceIDs()
+			if got, want := slices.Contains(trustedIDs, dev.Id), test.wantAssigned; got != want {
+				var msg string
+				if want {
+					msg = "Device %q not assigned to user %q, User.TrustedDeviceIDs=%v"
+				} else {
+					msg = "Device %q not unassigned from user %q, User.TrustedDeviceIDs=%v"
+				}
+				t.Errorf(msg, dev.Id, user, trustedIDs)
+			}
+		})
+	}
+}
+
 // diffDevices diffs two slices of devices, sorting both by ID first.
 func diffDevices(want, got []*devicepb.Device) string {
 	sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
@@ -3396,8 +3710,9 @@ func diffDevices(want, got []*devicepb.Device) string {
 type storageEnv struct {
 	// Clock is the underlying FakeClock.
 	// nil if withClock() is used with a real clock.
-	Clock clockwork.FakeClock
-	S     *storage.S
+	Clock           clockwork.FakeClock
+	IdentityService *local.IdentityService
+	S               *storage.S
 
 	memClock clockwork.Clock // actual mem clock, always set.
 	mem      *memory.Memory
@@ -3456,7 +3771,11 @@ func newEnv(opts ...opt) (*storageEnv, error) {
 		return nil, err
 	}
 
-	env.S, err = storage.New(env.mem)
+	env.IdentityService = local.NewIdentityService(env.mem)
+	env.S, err = storage.New(storage.Params{
+		Backend:      env.mem,
+		UsersService: env.IdentityService,
+	})
 	if err != nil {
 		return nil, err
 	}

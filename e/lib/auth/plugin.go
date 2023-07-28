@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -124,21 +125,9 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 		plugin: p,
 	})
 
-	// Register Device Trust.
-	deviceStorage, err := dtstorage.New(p.authServer.GetBackend())
-	if err != nil {
+	if err := registerDeviceTrustService(gRPCServer, p.authServer); err != nil {
 		return trace.Wrap(err)
 	}
-	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
-		AuthServer: p.authServer.AuthServer,
-		Authorizer: p.authServer.Authorizer,
-		Emitter:    p.authServer.Emitter,
-		Storage:    deviceStorage,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	devicepb.RegisterDeviceTrustServiceServer(gRPCServer, deviceService)
 
 	if err := p.registerLoginRuleService(p.authServer); err != nil {
 		return trace.Wrap(err)
@@ -236,6 +225,32 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 
 	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
 
+	return nil
+}
+
+func registerDeviceTrustService(s *grpc.Server, authGRPC *auth.GRPCServer) error {
+	authServer := authGRPC.AuthServer
+
+	deviceStorage, err := dtstorage.New(dtstorage.Params{
+		Backend:      authGRPC.GetBackend(),
+		UsersService: authServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
+		AuthServer:         authServer,
+		Authorizer:         authGRPC.Authorizer,
+		CachedUsersService: authServer.Cache,
+		Emitter:            authGRPC.Emitter,
+		Storage:            deviceStorage,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	devicepb.RegisterDeviceTrustServiceServer(s, deviceService)
 	return nil
 }
 

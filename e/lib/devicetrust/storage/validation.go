@@ -394,6 +394,8 @@ func validateDeviceForUpdate(updated, stored *devicepb.Device) error {
 		return trace.BadParameter("update_time is readonly and cannot be updated")
 	case !proto.Equal(updated.Credential, stored.Credential):
 		return trace.BadParameter("credential is readonly and cannot be updated")
+	case updated.Owner != stored.Owner:
+		return trace.BadParameter("owner is readonly and cannot be updated")
 	}
 
 	// EnrollStatus can only transition to NOT_ENROLLED.

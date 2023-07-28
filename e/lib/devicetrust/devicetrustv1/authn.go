@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -22,6 +23,7 @@ import (
 type authnCeremony struct {
 	logger           *log.Entry
 	storage          *storage.S
+	cachedUsers      UsersService
 	augmentCertsFunc func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
 	auditCallback    func(d *devicepb.Device, err error)
 }
@@ -35,11 +37,41 @@ type authnCeremony struct {
 // The ceremony auditCallback is guaranteed to be called exactly once, either
 // after the first error or before the last Send of the stream.
 // The outcome of the last Send is not considered for audit purposes.
-func (c *authnCeremony) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) (*devicepb.Device, error) {
+func (c *authnCeremony) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer, user string) (*devicepb.Device, error) {
 	dev, userCerts, err := c.authenticateDevice(stream)
 	c.auditCallback(dev, err)
 	if err != nil {
 		return dev, trace.Wrap(err)
+	}
+
+	// Attempt to "backfill" owner and trusted device IDs.
+	owner := dev.Owner
+	backfill := false
+	if owner == "" {
+		owner = user
+		backfill = true
+	} else {
+		u, err := c.cachedUsers.GetUser(owner, false /* withSecrets */)
+		backfill = err == nil && !slices.Contains(u.GetTrustedDeviceIDs(), dev.Id)
+	}
+	if backfill {
+		c.logger.
+			WithFields(log.Fields{
+				"device_id": dev.Id,
+				"asset_tag": dev.AssetTag,
+				"owner":     owner,
+			}).
+			Debug("Backfilling device owner")
+		if _, err := c.storage.AssignDeviceOwner(stream.Context(), dev.Id, owner); err != nil {
+			c.logger.
+				WithError(err).
+				WithFields(log.Fields{
+					"device_id": dev.Id,
+					"asset_tag": dev.AssetTag,
+					"owner":     owner,
+				}).
+				Warn("Failed to backfill device owner or user trusted device IDs")
+		}
 	}
 
 	// Success (only send after audit).

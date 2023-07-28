@@ -22,6 +22,7 @@ type storedDevice struct {
 	Credential   *storedDeviceCredential `json:"credential,omitempty"`    // Optional. Present if enrolled.
 	Source       *storedDeviceSource     `json:"source,omitempty"`        // Optional.
 	Profile      *storedDeviceProfile    `json:"profile,omitempty"`       // Optional.
+	Owner        string                  `json:"owner,omitempty"`         // Optional (added after v13.2)
 }
 
 // deviceRef is stored as reference to a device in manually managed indexes.

@@ -95,6 +95,12 @@ type AuthServer interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
+// UsersService represents the [local.IdentityService] methods used by
+// [Service].
+type UsersService interface {
+	GetUser(user string, withSecrets bool) (types.User, error)
+}
+
 // RateLimiter is a subset of [limiter.RateLimiter].
 type RateLimiter interface {
 	RegisterRequest(token string, customRate *ratelimit.RateSet) error
@@ -107,25 +113,28 @@ type Service struct {
 
 	logger *log.Entry
 
-	authServer AuthServer
-	authorizer authz.Authorizer
-	emitter    apievents.Emitter
-	limiter    RateLimiter
-	storage    *storage.S
+	authServer  AuthServer
+	authorizer  authz.Authorizer
+	cachedUsers UsersService
+	emitter     apievents.Emitter
+	limiter     RateLimiter
+	storage     *storage.S
 }
 
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
-	Logger     log.FieldLogger
-	AuthServer AuthServer
-	Authorizer authz.Authorizer
-	Emitter    apievents.Emitter
+	Logger             log.FieldLogger
+	AuthServer         AuthServer
+	Authorizer         authz.Authorizer
+	CachedUsersService UsersService
+	Emitter            apievents.Emitter
+	Storage            *storage.S
+
 	// Limiter is the rate limiter for loosely-authorized requests, like
 	// auto-enrollment token creation or device authentication.
 	// Requests are typically rate-limited by user.
 	// If `nil` a default limiter is used.
 	Limiter RateLimiter
-	Storage *storage.S
 }
 
 // New creates a new DeviceTrustService implementer.
@@ -140,6 +149,8 @@ func New(params ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("parameter AuthServer required")
 	case params.Authorizer == nil:
 		return nil, trace.BadParameter("parameter Authorizer required")
+	case params.CachedUsersService == nil:
+		return nil, trace.BadParameter("parameter CachedUsersService required")
 	case params.Emitter == nil:
 		return nil, trace.BadParameter("parameter Emitter required")
 	case params.Storage == nil:
@@ -171,12 +182,13 @@ func New(params ServiceParams) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     baseLogger.WithField(trace.Component, "devicetrust.service"),
-		authServer: params.AuthServer,
-		authorizer: params.Authorizer,
-		emitter:    params.Emitter,
-		limiter:    rateLimiter,
-		storage:    params.Storage,
+		logger:      baseLogger.WithField(trace.Component, "devicetrust.service"),
+		authServer:  params.AuthServer,
+		authorizer:  params.Authorizer,
+		cachedUsers: params.CachedUsersService,
+		emitter:     params.Emitter,
+		limiter:     rateLimiter,
+		storage:     params.Storage,
 	}, nil
 }
 
@@ -187,7 +199,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	} else {
 		verbs = []string{types.VerbCreate}
 	}
-	if err := s.authorizeAccess(ctx, types.KindDevice, verbs...); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, verbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -233,7 +245,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 }
 
 func (s *Service) UpdateDevice(ctx context.Context, req *devicepb.UpdateDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbUpdate); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -298,7 +310,7 @@ func applyDeviceUpdateMask(paths []string, dst, src *devicepb.Device) error {
 }
 
 func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate, types.VerbUpdate); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -334,6 +346,7 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 			dev.CreateTime = stored.CreateTime
 			dev.UpdateTime = stored.UpdateTime
 			dev.Credential = stored.Credential
+			dev.Owner = stored.Owner
 
 			// Use the request device for all else.
 			return dev
@@ -358,7 +371,7 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 }
 
 func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRequest) (*emptypb.Empty, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbDelete); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -384,7 +397,7 @@ func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRe
 }
 
 func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequest) (*devicepb.FindDevicesResponse, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList, types.VerbRead); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if req.IdOrTag == "" {
@@ -435,7 +448,7 @@ func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequ
 }
 
 func (s *Service) GetDevice(ctx context.Context, req *devicepb.GetDeviceRequest) (*devicepb.Device, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbRead); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -444,7 +457,7 @@ func (s *Service) GetDevice(ctx context.Context, req *devicepb.GetDeviceRequest)
 }
 
 func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequest) (*devicepb.ListDevicesResponse, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList, types.VerbRead); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -466,7 +479,7 @@ func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequ
 }
 
 func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreateDevicesRequest) (*devicepb.BulkCreateDevicesResponse, error) {
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if len(req.Devices) == 0 {
@@ -618,12 +631,14 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	defer func() { err = s.redactDataDriftErr(dev, err) }()
 
 	ctx := stream.Context()
-	if err := s.authorizeAccess(ctx, types.KindDevice, types.VerbEnroll); err != nil {
+	authCtx, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbEnroll)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.storage.VerifyEnrolledDevicesLimit(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	user := authCtx.User.GetName()
 
 	authPref, err := s.authServer.GetAuthPreference(ctx)
 	if err != nil {
@@ -664,7 +679,7 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 			})
 		},
 	}
-	dev, err = c.EnrollDevice(stream)
+	dev, err = c.EnrollDevice(stream, user)
 	return trace.Wrap(err)
 }
 
@@ -716,13 +731,15 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	}
 
 	// Rate limit device authn.
-	if err := s.rateLimitByUser(authCtx.User.GetName()); err != nil {
+	user := authCtx.User.GetName()
+	if err := s.rateLimitByUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
 	c := &authnCeremony{
-		logger:  s.logger,
-		storage: s.storage,
+		logger:      s.logger,
+		storage:     s.storage,
+		cachedUsers: s.cachedUsers,
 		augmentCertsFunc: func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
 			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
@@ -751,7 +768,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 			})
 		},
 	}
-	dev, err = c.AuthenticateDevice(stream)
+	dev, err = c.AuthenticateDevice(stream, user)
 	return trace.Wrap(err)
 }
 
@@ -763,7 +780,7 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		types.VerbDelete, // removal of missing devices
 	}
 	ctx := stream.Context()
-	if err := s.authorizeAccess(ctx, types.KindDevice, verbs...); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindDevice, verbs...); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -822,7 +839,7 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 }
 
 func (s *Service) GetDevicesUsage(ctx context.Context, req *devicepb.GetDevicesUsageRequest) (*devicepb.DevicesUsage, error) {
-	if err := s.authorizeAccess(ctx, types.KindBilling, types.VerbRead); err != nil {
+	if _, err := s.authorizeAccess(ctx, types.KindBilling, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -865,10 +882,10 @@ func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {
 
 // authorizeAccess authorizes the ctx user, verifies the Device Trust feature
 // settings and verifies rule/verb access.
-func (s *Service) authorizeAccess(ctx context.Context, rule string, verbs ...string) error {
+func (s *Service) authorizeAccess(ctx context.Context, rule string, verbs ...string) (*authz.Context, error) {
 	authCtx, err := s.authorize(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	ruleCtx := &services.Context{
@@ -876,10 +893,10 @@ func (s *Service) authorizeAccess(ctx context.Context, rule string, verbs ...str
 	}
 	for _, verb := range verbs {
 		if err := authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, rule, verb, false /* silent */); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
-	return nil
+	return authCtx, nil
 }
 
 // authorize authorizes the ctx user and verifies the Device Trust feature

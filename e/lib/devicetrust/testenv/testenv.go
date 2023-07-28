@@ -26,8 +26,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// DefaultUser is the default RPC caller, when not using a custom
+// [WithAuthorizer].
+const DefaultUser = "llama"
 
 // AugmentContextCertsFunc mimics the signature of
 // [auth.Server.AugmentContextUserCertificates].
@@ -35,7 +40,8 @@ type AugmentContextCertsFunc func(ctx context.Context, authCtx *authz.Context, o
 
 // E is an integrated test environment for device trust.
 type E struct {
-	DevicesClient devicepb.DeviceTrustServiceClient
+	DevicesClient   devicepb.DeviceTrustServiceClient
+	IdentityService *local.IdentityService
 
 	augmentCertsFunc AugmentContextCertsFunc
 	authSpec         *types.AuthPreferenceSpecV2
@@ -148,7 +154,11 @@ func New(opts ...Opt) (*E, error) {
 	}
 	e.closers = append(e.closers, mem.Close)
 
-	dtStorage, err := storage.New(mem)
+	e.IdentityService = local.NewIdentityService(mem)
+	dtStorage, err := storage.New(storage.Params{
+		Backend:      mem,
+		UsersService: e.IdentityService,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -163,10 +173,11 @@ func New(opts ...Opt) (*E, error) {
 			augmentFunc: e.augmentCertsFunc,
 			authSpec:    e.authSpec,
 		},
-		Authorizer: e.authorizer,
-		Emitter:    e.emitter,
-		Limiter:    e.limiter,
-		Storage:    dtStorage,
+		Authorizer:         e.authorizer,
+		CachedUsersService: e.IdentityService,
+		Emitter:            e.emitter,
+		Limiter:            e.limiter,
+		Storage:            dtStorage,
 	})
 	if err != nil {
 		return nil, err
@@ -246,7 +257,7 @@ func (s *fakeAuthServer) GetAuthPreference(ctx context.Context) (types.AuthPrefe
 type noopAuthorizer struct{}
 
 func (*noopAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
-	user, err := types.NewUser("llama")
+	user, err := types.NewUser(DefaultUser)
 	if err != nil {
 		return nil, err
 	}

@@ -629,6 +629,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			wantDev.Credential = test.simulator.wantCredential()
 			wantDev.Credential.DeviceAttestationType = test.wantAttestationType
 			wantDev.CollectedData = nil // not expected here
+			wantDev.Owner = testenv.DefaultUser
 			if diff := cmp.Diff(wantDev, gotDev, protocmp.Transform()); diff != "" {
 				t.Errorf("EnrollDevice mismatch (-want +got):\n%s", diff)
 			}

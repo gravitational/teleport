@@ -885,7 +885,8 @@ func TestService_UpdateDevice(t *testing.T) {
 				want := proto.Clone(enrolled).(*devicepb.Device)
 				want.UpdateTime = updated.UpdateTime
 				want.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
-				want.Credential = nil
+				want.Credential = nil // Automatically cleared.
+				want.Owner = ""       // Automatically cleared.
 				if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
 					t.Errorf("UpdateDevice mismatch (-want +got)\n%s", diff)
 				}
@@ -1165,6 +1166,7 @@ func TestService_UpsertDevice(t *testing.T) {
 				want := base
 				want.UpdateTime = upserted.UpdateTime // updated
 				want.Credential = nil                 // removed on unenroll
+				want.Owner = ""                       // removed on unenroll
 				if diff := cmp.Diff(want, upserted, protocmp.Transform()); diff != "" {
 					t.Errorf("UpsertDevice mismatch (-want +got)\n%s", diff)
 				}

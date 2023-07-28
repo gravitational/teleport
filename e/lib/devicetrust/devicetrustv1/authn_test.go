@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -667,6 +668,105 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 			// Assert no audit noise.
 			if events := emitter.Events(); len(events) > 0 {
 				t.Errorf("AuthenticateDevice issued unexpected audit events: %v, want no events", events)
+			}
+		})
+	}
+}
+
+func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
+	env := testenv.NewUsingT(t)
+
+	devices := env.DevicesClient
+	identity := env.IdentityService
+	ctx := context.Background()
+
+	legacyKey, err := newFakeEnclaveKey()
+	if err != nil {
+		t.Fatalf("newFakeEnclaveKey failed: %v", err)
+	}
+
+	user, _ := types.NewUser(testenv.DefaultUser)
+	if err := identity.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// legacyDev has no user assigned.
+	legacyDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:       devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag:     "legacyNoOwner",
+			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+			Credential: &devicepb.DeviceCredential{
+				Id:           legacyKey.id,
+				PublicKeyDer: legacyKey.pubKeyDER,
+			},
+		},
+		CreateAsResource: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	// enrolledDev has an owner, but we'll update the user and remove its trusted
+	// device ID
+	enrolledDev, enrolledKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "enrolled1",
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	user, err = identity.UpdateAndSwapUser(ctx, user.GetName(), false /* withSecrets */, func(u types.User) (changed bool, err error) {
+		u.SetTrustedDeviceIDs(nil)
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("UpdateAndSwapUser failed: %v", err)
+	}
+
+	wantOwner := user.GetName()
+
+	tests := []struct {
+		name string
+		dev  *devicepb.Device
+		key  *fakeEnclaveKey
+	}{
+		{
+			name: "legacyDev without owner",
+			dev:  legacyDev,
+			key:  legacyKey,
+		},
+		{
+			name: "user missing trusted_device_ids",
+			dev:  enrolledDev,
+			key:  enrolledKey,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := authenticateDevice(ctx, devices, test.dev, test.key, defaultCollectData); err != nil {
+				t.Fatalf("AuthenticateDevice failed: %v", err)
+			}
+
+			deviceID := test.dev.Id
+			storedDev, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+				DeviceId: deviceID,
+			})
+			switch {
+			case err != nil:
+				t.Fatalf("GetDevice failed: %v", err)
+			case storedDev.Owner != wantOwner:
+				t.Errorf("AuthenticateDevice: Device owner not backfilled, got=%q, want %q", storedDev.Owner, wantOwner)
+			}
+
+			storedUser, err := identity.GetUser(wantOwner, false /* withSecrets */)
+			switch {
+			case err != nil:
+				t.Fatalf("GetUser failed: %v", err)
+			case !slices.Contains(storedUser.GetTrustedDeviceIDs(), deviceID):
+				t.Errorf(
+					"AuthenticateDevice: User %q trusted_device_ids not backfilled, got=%q, want %q",
+					storedUser.GetName(), storedUser.GetTrustedDeviceIDs(), deviceID)
 			}
 		})
 	}

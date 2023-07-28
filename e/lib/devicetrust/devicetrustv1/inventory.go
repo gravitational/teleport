@@ -251,6 +251,7 @@ func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.De
 					dev.UpdateTime = stored.UpdateTime
 					dev.EnrollStatus = stored.EnrollStatus
 					dev.Credential = stored.Credential
+					dev.Owner = stored.Owner
 					return dev
 				})
 				// err handled below

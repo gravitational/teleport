@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
@@ -23,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -44,21 +46,38 @@ const (
 	enrollmentDataID = "1"
 )
 
+// UsersService represents the subset of [services.UsersService] used by [S].
+type UsersService interface {
+	// UpdateAndSwapUser reads and updates a user.
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(u types.User) (changed bool, err error)) (types.User, error)
+}
+
+// Params are creational params for [S].
+type Params struct {
+	Backend      backend.Backend
+	UsersService UsersService
+}
+
 // S implements the Device Trust storage, backed by a backend.Backend.
 type S struct {
 	logger  *log.Entry
 	backend backend.Backend
+	users   UsersService
 }
 
 // New returns a new Device Trust storage instance.
-func New(backend backend.Backend) (*S, error) {
-	if backend == nil {
-		return nil, trace.BadParameter("backend required")
+func New(params Params) (*S, error) {
+	switch {
+	case params.Backend == nil:
+		return nil, trace.BadParameter("param Backend required")
+	case params.UsersService == nil:
+		return nil, trace.BadParameter("param UsersService required")
 	}
 
 	return &S{
 		logger:  log.WithField(trace.Component, "devicetrust.storage"),
-		backend: backend,
+		backend: params.Backend,
+		users:   params.UsersService,
 	}, nil
 }
 
@@ -282,6 +301,9 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 		storedDev.Profile.UpdateTime = updateTime.AsTime()
 	}
 
+	// Owner (normally set on enroll or authn).
+	storedDev.Owner = d.Owner
+
 	return deviceID, storedDev
 }
 
@@ -447,13 +469,22 @@ func (s *S) UpdateDevice(
 		updated.Profile.UpdateTime = timestamppb.New(now)
 	}
 
-	// System-managed: erase credential and collected data if device was
-	// unenrolled.
+	// System-managed: perform unenrollment, if necessary:
+	// * Erase device credential
+	// * Erase device owner
+	// * Erase collected data
 	if stored.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED &&
 		updated.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
-		updated.Credential = nil
+		updated.Credential = nil // Written below.
+		updated.Owner = ""       // Written below.
+
 		if err := s.deleteCollectedData(ctx, deviceID); err != nil {
 			return nil, trace.Wrap(err, "deleting collected data on unenroll")
+		}
+
+		owner := stored.Owner
+		if err := s.unassignDeviceFromUser(ctx, owner, deviceID); err != nil {
+			return nil, trace.Wrap(err, "unassigning device from user")
 		}
 	}
 
@@ -478,11 +509,106 @@ func (s *S) UpdateDevice(
 	return storedToDevice(deviceID, storedU), nil
 }
 
+// AssignDeviceOwner assigns an owner to the device.
+// The device must not be owned by another user.
+func (s *S) AssignDeviceOwner(ctx context.Context, deviceID, owner string) (*devicepb.Device, error) {
+	if owner == "" {
+		return nil, trace.BadParameter("owner required")
+	}
+
+	dev, err := s.assignDeviceOwner(ctx, deviceID, owner)
+	if err != nil {
+		return nil, trace.Wrap(err, "assigning owner to device")
+	}
+
+	if err := s.assignDeviceToUser(ctx, owner, deviceID); err != nil {
+		return nil, trace.Wrap(err, "assigning device to user")
+	}
+
+	return dev, nil
+}
+
+func (s *S) assignDeviceOwner(ctx context.Context, deviceID, owner string) (*devicepb.Device, error) {
+	dev, stored, item, err := s.getDeviceByID(ctx, deviceID)
+	switch {
+	case err != nil:
+		return nil, trace.Wrap(err)
+	case stored.Owner == owner:
+		return dev, nil // Nothing to do.
+	case stored.Owner != "":
+		return nil, trace.BadParameter("device already has an owner")
+	}
+
+	stored.UpdateTime = s.nowUTC()
+	stored.Owner = owner
+	val, err := json.Marshal(stored)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := s.backend.CompareAndSwap(ctx, *item, backend.Item{
+		Key:   item.Key,
+		Value: val,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return storedToDevice(deviceID, stored), nil
+}
+
+func (s *S) assignDeviceToUser(ctx context.Context, user, deviceID string) error {
+	if user == "" {
+		return nil
+	}
+
+	_, err := s.users.UpdateAndSwapUser(ctx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
+		ids := u.GetTrustedDeviceIDs()
+		if slices.Contains(ids, deviceID) {
+			return false, nil // Nothing to do.
+		}
+
+		u.SetTrustedDeviceIDs(append(ids, deviceID))
+		return true, nil
+	})
+	return trace.Wrap(err)
+}
+
+func (s *S) unassignDeviceFromUser(ctx context.Context, user, deviceID string) error {
+	if user == "" {
+		return nil // Nothing to do. May happen for legacy devices.
+	}
+
+	_, err := s.users.UpdateAndSwapUser(ctx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
+		ids := u.GetTrustedDeviceIDs()
+		if !slices.Contains(ids, deviceID) {
+			return false, nil // Nothing to do
+		}
+
+		for i := 0; i < len(ids); i++ {
+			if ids[i] == deviceID {
+				ids = slices.Delete(ids, i, i+1)
+				i--
+			}
+		}
+		u.SetTrustedDeviceIDs(ids)
+		return true, nil
+	})
+	if trace.IsNotFound(err) {
+		return nil // Nothing to do in this case.
+	}
+	return trace.Wrap(err)
+}
+
+type deviceToDelete struct {
+	ID       string `json:"-"`
+	AssetTag string `json:"asset_tag"`
+	Owner    string `json:"owner"`
+}
+
 // DeleteDevicePredicate hard-deletes the specified device from storage if it
 // matches the predicate.
 func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d *devicepb.Device) error) error {
-	// Read the complete device, we need it for the predicate.
-	dev, _, _, err := s.getDeviceByID(ctx, deviceID)
+	dev, stored, _, err := s.getDeviceByID(ctx, deviceID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -491,11 +617,11 @@ func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.deleteDevice(ctx, deviceID, dev.AssetTag))
-}
-
-type deviceToDelete struct {
-	AssetTag string `json:"asset_tag"`
+	return trace.Wrap(s.deleteDevice(ctx, &deviceToDelete{
+		ID:       deviceID,
+		AssetTag: stored.AssetTag, // Don't copy from `dev` in case `p` does something funky.
+		Owner:    stored.Owner,
+	}))
 }
 
 // DeleteDevice hard-deletes a device from storage.
@@ -515,52 +641,47 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 	if err := json.Unmarshal(item.Value, dev); err != nil {
 		return trace.Wrap(err)
 	}
+	dev.ID = deviceID
 
-	return trace.Wrap(s.deleteDevice(ctx, deviceID, dev.AssetTag))
+	return trace.Wrap(s.deleteDevice(ctx, dev))
 }
 
-func (s *S) deleteDevice(ctx context.Context, deviceID, assetTag string) error {
+func (s *S) deleteDevice(ctx context.Context, dev *deviceToDelete) error {
+	// Unassign device from user.
+	if err := s.unassignDeviceFromUser(ctx, dev.Owner, dev.ID); err != nil {
+		return trace.Wrap(err, "unassigning device from user")
+	}
+
 	// Delete the device.
 	// If this succeeds the invocation is considered a success: the device key is
 	// the source of truth for a device existing, the system can handle "hanging"
 	// asset tags.
-	if err := s.backend.Delete(ctx, deviceKey(deviceID)); err != nil {
+	if err := s.backend.Delete(ctx, deviceKey(dev.ID)); err != nil {
 		return trace.Wrap(err)
 	}
 
+	logger := func() log.FieldLogger {
+		return s.logger.WithFields(log.Fields{
+			"device_id": dev.ID,
+			"asset_tag": dev.AssetTag,
+		})
+	}
+
 	// Remove asset tag mapping.
-	if err := s.removeFromAssetTagIndex(ctx, deviceID, assetTag); err != nil {
-		s.logger.
-			WithError(err).
-			WithFields(log.Fields{
-				"device_id": deviceID,
-				"asset_tag": assetTag,
-			}).
-			Warn("Failed to remove asset tag mapping for device")
+	if err := s.removeFromAssetTagIndex(ctx, dev.ID, dev.AssetTag); err != nil {
+		logger().WithError(err).Warn("Failed to remove asset tag mapping for device")
 		// err swallowed on purpose.
 	}
 
 	// Remove enroll token, if present.
-	if err := s.backend.Delete(ctx, deviceTokenKey(deviceID)); err != nil && !trace.IsNotFound(err) {
-		s.logger.
-			WithError(err).
-			WithFields(log.Fields{
-				"device_id": deviceID,
-				"asset_tag": assetTag,
-			}).
-			Warn("Failed to remove enroll token for device")
+	if err := s.backend.Delete(ctx, deviceTokenKey(dev.ID)); err != nil && !trace.IsNotFound(err) {
+		logger().WithError(err).Warn("Failed to remove enroll token for device")
 		// err swallowed on purpose.
 	}
 
 	// Remove collected data.
-	if err := s.deleteCollectedData(ctx, deviceID); err != nil {
-		s.logger.
-			WithError(err).
-			WithFields(log.Fields{
-				"device_id": deviceID,
-				"asset_tag": assetTag,
-			}).
-			Warn("Failed to remove collected data for device")
+	if err := s.deleteCollectedData(ctx, dev.ID); err != nil {
+		logger().WithError(err).Warn("Failed to remove collected data for device")
 		// err swallowed on purpose.
 	}
 
@@ -976,7 +1097,9 @@ func deviceIDFromPageToken(pageToken string) (string, error) {
 // Returns the updated device, without collected data.
 func (s *S) EnrollDevice(
 	ctx context.Context,
-	deviceID string, cred *devicepb.DeviceCredential, cd *devicepb.DeviceCollectedData) (*devicepb.Device, error) {
+	deviceID string, cred *devicepb.DeviceCredential, cd *devicepb.DeviceCollectedData,
+	owner string,
+) (*devicepb.Device, error) {
 	if err := ValidateCollectedData(cd); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1003,6 +1126,8 @@ func (s *S) EnrollDevice(
 		TPMEKCertSerial:       cred.TpmEkcertSerial,
 		TPMAKPublic:           cred.TpmAkPublic,
 	}
+	prevOwner := stored.Owner // Save so we can unassign the device.
+	stored.Owner = owner
 	val, err := json.Marshal(stored)
 	if err != nil {
 		return nil, trace.Wrap(err, "marshal device")
@@ -1037,6 +1162,14 @@ func (s *S) EnrollDevice(
 		return trace.Wrap(err)
 	}
 
+	// Unassign device from previous owner, if any.
+	// The service layer will redo the assignment if any following updates fail.
+	if prevOwner != "" && prevOwner != owner {
+		if err := s.unassignDeviceFromUser(ctx, prevOwner, deviceID); err != nil {
+			return nil, trace.Wrap(err, "unassigning device from user")
+		}
+	}
+
 	// Verify limits if the account is usage-based, otherwise just update.
 	var completeEnrollFn func() error
 	if f := modules.GetModules().Features(); f.IsUsageBasedBilling {
@@ -1061,6 +1194,22 @@ func (s *S) EnrollDevice(
 
 	if err := completeEnrollFn(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Assign trusted device to user.
+	// This comes after enrollment proper because that's when we check for limits.
+	// Since enrollment already happened, any errors here are swallowed.
+	// The service layer will redo the assignment if this fails.
+	if err := s.assignDeviceToUser(ctx, owner, deviceID); err != nil {
+		s.logger.
+			WithError(err).
+			WithFields(log.Fields{
+				"device_id": deviceID,
+				"asset_tag": dev.AssetTag,
+				"user":      owner,
+			}).
+			Warn("Failed to assign device to user")
+		// err swallowed on purpose.
 	}
 
 	return storedToDevice(deviceID, stored), nil
@@ -1513,6 +1662,7 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 		Credential:   cred,
 		Source:       source,
 		Profile:      profile,
+		Owner:        sd.Owner,
 	}
 }
 
