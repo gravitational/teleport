@@ -247,15 +247,32 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	}
 
 	domainName := cfg.ClusterName.GetClusterName()
-	lock, err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
-	if err != nil {
+	if err := backend.RunWhileLocked(ctx,
+		backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:  cfg.Backend,
+				LockName: domainName,
+				TTL:      30 * time.Second,
+			},
+			RefreshLockInterval: 20 * time.Second,
+		}, func(ctx context.Context) error {
+			return trace.Wrap(initCluster(ctx, cfg, asrv))
+		}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer lock.Release(ctx, cfg.Backend)
 
+	return asrv, nil
+}
+
+// initCluster configures the cluster based on the user provided configuration. This should
+// only be called when the init lock is held to prevent multiple instances of Auth from attempting
+// to bootstrap the cluster at the same time.
+func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
+	span := oteltrace.SpanFromContext(ctx)
+	domainName := cfg.ClusterName.GetClusterName()
 	firstStart, err := isFirstStart(ctx, asrv, cfg)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// if bootstrap resources are supplied, use them to bootstrap backend state
@@ -264,10 +281,10 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		if firstStart {
 			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.BootstrapResources))
 			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
-				return nil, trace.Wrap(err, "refusing to bootstrap backend")
+				return trace.Wrap(err, "refusing to bootstrap backend")
 			}
 			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
-				return nil, trace.Wrap(err, "backend bootstrap failed")
+				return trace.Wrap(err, "backend bootstrap failed")
 			}
 		} else {
 			log.Warnf("Ignoring %v bootstrap resources (previously initialized)", len(cfg.BootstrapResources))
@@ -279,7 +296,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		log.Infof("Applying %v resources (apply-on-startup)", len(cfg.ApplyOnStartupResources))
 
 		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources); err != nil {
-			return nil, trace.Wrap(err, "applying resources failed")
+			return trace.Wrap(err, "applying resources failed")
 		}
 	}
 
@@ -291,7 +308,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	// singletons). However, we need to keep them around while Telekube uses them.
 	for _, role := range cfg.Roles {
 		if err := asrv.UpsertRole(ctx, role); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		log.Infof("Created role: %v.", role)
 	}
@@ -308,7 +325,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		// this part of code is only used in tests.
 		if err := asrv.CreateCertAuthority(ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		} else {
 			log.Infof("Created trusted certificate authority: %q, type: %q.", ca.GetName(), ca.GetType())
@@ -316,7 +333,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
 		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
 	}
@@ -398,7 +415,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	})
 
 	if err := g.Wait(); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Override user passed in cluster name with what is in the backend.
@@ -407,7 +424,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	// Migrate Host CA as Database CA before certificates generation. Otherwise, the Database CA will be
 	// generated which we don't want for existing installations.
 	if err := migrateDBAuthority(ctx, asrv); err != nil {
-		return nil, trace.Wrap(err, "failed to migrate database CA")
+		return trace.Wrap(err, "failed to migrate database CA")
 	}
 
 	// generate certificate authorities if they don't exist
@@ -506,7 +523,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Delete any unused keys from the keyStore. This is to avoid exhausting
@@ -528,14 +545,14 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	span.AddEvent("migrating legacy resources")
 	// Migrate any legacy resources to new format.
 	if err := migrateLegacyResources(ctx, asrv); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	span.AddEvent("completed migration legacy resources")
 
 	span.AddEvent("creating presets")
 	// Create presets - convenience and example resources.
 	if err := createPresets(ctx, asrv); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	span.AddEvent("completed creating presets")
 
@@ -546,7 +563,7 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 		log.Infof("Auth server is skipping periodic operations.")
 	}
 
-	return asrv, nil
+	return nil
 }
 
 // generateAuthority creates a new self-signed authority of the provided type

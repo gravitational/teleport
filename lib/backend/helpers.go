@@ -54,28 +54,55 @@ func randomID() ([]byte, error) {
 	return bytes[:], nil
 }
 
-// AcquireLock grabs a lock that will be released automatically in TTL
-func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time.Duration) (Lock, error) {
-	if lockName == "" {
-		return Lock{}, trace.BadParameter("missing parameter lock name")
+type LockConfiguration struct {
+	Backend  Backend
+	LockName string
+	// TTL defines when lock will be released automatically
+	TTL time.Duration
+	// RetryInterval defines interval which is used to retry locking after
+	// initial lock failed due to someone else holding lock.
+	RetryInterval time.Duration
+}
+
+func (l *LockConfiguration) CheckAndSetDefaults() error {
+	if l.Backend == nil {
+		return trace.BadParameter("missing Backend")
 	}
-	key := lockKey(lockName)
+	if l.LockName == "" {
+		return trace.BadParameter("missing LockName")
+	}
+	if l.TTL == 0 {
+		return trace.BadParameter("missing TTL")
+	}
+	if l.RetryInterval == 0 {
+		l.RetryInterval = 250 * time.Millisecond
+	}
+	return nil
+}
+
+// AcquireLock grabs a lock that will be released automatically in TTL
+func AcquireLock(ctx context.Context, cfg LockConfiguration) (Lock, error) {
+	err := cfg.CheckAndSetDefaults()
+	if err != nil {
+		return Lock{}, trace.Wrap(err)
+	}
+	key := lockKey(cfg.LockName)
 	id, err := randomID()
 	if err != nil {
 		return Lock{}, trace.Wrap(err)
 	}
 	for {
 		// Get will clear TTL on a lock
-		backend.Get(ctx, key)
+		cfg.Backend.Get(ctx, key)
 
 		// CreateVal is atomic:
-		_, err = backend.Create(ctx, Item{Key: key, Value: id, Expires: backend.Clock().Now().UTC().Add(ttl)})
+		_, err = cfg.Backend.Create(ctx, Item{Key: key, Value: id, Expires: cfg.Backend.Clock().Now().UTC().Add(cfg.TTL)})
 		if err == nil {
 			break // success
 		}
 		if trace.IsAlreadyExists(err) { // locked? wait and repeat:
 			select {
-			case <-backend.Clock().After(250 * time.Millisecond):
+			case <-cfg.Backend.Clock().After(cfg.RetryInterval):
 				// OK, go around and try again
 				continue
 
@@ -86,7 +113,7 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 		}
 		return Lock{}, trace.ConvertSystemError(err)
 	}
-	return Lock{key: key, id: id, ttl: ttl}, nil
+	return Lock{key: key, id: id, ttl: cfg.TTL}, nil
 }
 
 // Release forces lock release
@@ -134,22 +161,52 @@ func (l *Lock) resetTTL(ctx context.Context, backend Backend) error {
 	return nil
 }
 
+// RunWhileLockedConfig is configuration for RunWhileLocked function.
+type RunWhileLockedConfig struct {
+	// LockConfiguration is configuration for acquire lock.
+	LockConfiguration
+
+	// ReleaseCtxTimeout defines timeout used for calling lock.Release method (optional).
+	ReleaseCtxTimeout time.Duration
+	// RefreshLockInterval defines interval at which lock will be refreshed
+	// if fn is still running (optional).
+	RefreshLockInterval time.Duration
+}
+
+func (c *RunWhileLockedConfig) CheckAndSetDefaults() error {
+	if err := c.LockConfiguration.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if c.ReleaseCtxTimeout <= 0 {
+		c.ReleaseCtxTimeout = 300 * time.Millisecond
+	}
+	if c.RefreshLockInterval <= 0 {
+		c.RefreshLockInterval = c.LockConfiguration.TTL / 2
+	}
+	return nil
+}
+
 // RunWhileLocked allows you to run a function while a lock is held.
-func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl time.Duration, fn func(context.Context) error) error {
-	lock, err := AcquireLock(ctx, backend, lockName, ttl)
+func RunWhileLocked(ctx context.Context, cfg RunWhileLockedConfig, fn func(context.Context) error) error {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	lock, err := AcquireLock(ctx, cfg.LockConfiguration)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	subContext, cancelFunction := context.WithCancel(ctx)
+	defer cancelFunction()
 
 	stopRefresh := make(chan struct{})
 	go func() {
-		refreshAfter := ttl / 2
+		refreshAfter := cfg.RefreshLockInterval
 		for {
 			select {
-			case <-backend.Clock().After(refreshAfter):
-				if err := lock.resetTTL(ctx, backend); err != nil {
+			case <-cfg.Backend.Clock().After(refreshAfter):
+				if err := lock.resetTTL(ctx, cfg.Backend); err != nil {
 					cancelFunction()
 					log.Errorf("%v", err)
 					return
@@ -163,7 +220,11 @@ func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl t
 	fnErr := fn(subContext)
 	close(stopRefresh)
 
-	if err := lock.Release(ctx, backend); err != nil {
+	// lock.Release should be called with separate ctx. If someone cancels via ctx
+	// RunWhileLocked method, we want to at least try releasing lock.
+	releaseLockCtx, releaseLockCancel := context.WithTimeout(context.Background(), cfg.ReleaseCtxTimeout)
+	defer releaseLockCancel()
+	if err := lock.Release(releaseLockCtx, cfg.Backend); err != nil {
 		return trace.NewAggregate(fnErr, err)
 	}
 
