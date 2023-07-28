@@ -21,6 +21,7 @@ import {
   paths,
   routing,
   RootClusterUri,
+  KubeUri,
 } from 'teleterm/ui/uri';
 
 import {
@@ -33,6 +34,7 @@ import {
   DocumentCluster,
   DocumentConnectMyComputerSetup,
   DocumentGateway,
+  DocumentGatewayKube,
   DocumentGatewayCliClient,
   DocumentOrigin,
   DocumentTshKube,
@@ -85,6 +87,10 @@ export class DocumentsService {
     };
   }
 
+  /**
+   * @deprecated Use createGatewayKubeDocument instead.
+   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+   */
   createTshKubeDocument(
     options: CreateTshKubeDocumentOptions
   ): DocumentTshKube {
@@ -185,6 +191,27 @@ export class DocumentsService {
       targetUser,
       targetName,
       targetProtocol,
+    };
+  }
+
+  createGatewayKubeDocument({
+    targetUri,
+    origin,
+  }: {
+    targetUri: KubeUri;
+    origin: DocumentOrigin;
+  }): DocumentGatewayKube {
+    const uri = routing.getDocUri({ docId: unique() });
+    const { params } = routing.parseKubeUri(targetUri);
+
+    return {
+      uri,
+      kind: 'doc.gateway_kube',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      targetUri,
+      title: `${params.kubeId}`,
+      origin,
     };
   }
 

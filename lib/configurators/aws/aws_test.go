@@ -1770,12 +1770,20 @@ func TestExtractTargetConfig(t *testing.T) {
 	role7 := "arn:aws:iam::123456789012:role/role-7"
 	roleTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:role/target-role")
 	require.NoError(t, err)
+	roleTargetWithManualModePlaceholders, err := awslib.IdentityFromArn(
+		buildIAMARN(
+			targetIdentityARNSectionPlaceholder,
+			targetIdentityARNSectionPlaceholder,
+			"role", "target-role",
+		))
+	require.NoError(t, err)
 
 	tests := map[string]struct {
-		target awslib.Identity
-		flags  configurators.BootstrapFlags
-		cfg    *servicecfg.Config
-		want   targetConfig
+		target  awslib.Identity
+		flags   configurators.BootstrapFlags
+		cfg     *servicecfg.Config
+		want    targetConfig
+		wantErr string
 	}{
 		"target in assume roles": {
 			target: roleTarget,
@@ -1804,7 +1812,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget,
+				// identity field is ignored in want/got diff, see comment in test loop.
 				assumesAWSRoles: []string{role1},
 				databases:       []*servicecfg.Database{{Name: "db4", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: roleTarget.String()}}},
 				awsMatchers: []types.AWSMatcher{
@@ -1832,7 +1840,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget,
+				// identity field is ignored in want/got diff, see comment in test loop.
 				assumesAWSRoles: []string{role1},
 				awsMatchers: []types.AWSMatcher{
 					{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
@@ -1859,7 +1867,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget,
+				// identity field is ignored in want/got diff, see comment in test loop.
 				assumesAWSRoles: []string{role1},
 				awsMatchers: []types.AWSMatcher{
 					{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
@@ -1898,7 +1906,7 @@ func TestExtractTargetConfig(t *testing.T) {
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget,
+				// identity field is ignored in want/got diff, see comment in test loop.
 				assumesAWSRoles: []string{role1, role2, role3, role4, role6, role7},
 				databases:       []*servicecfg.Database{{Name: "db3"}},
 				awsMatchers: []types.AWSMatcher{
@@ -1928,10 +1936,99 @@ func TestExtractTargetConfig(t *testing.T) {
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget,
+				// identity field is ignored in want/got diff, see comment in test loop.
 				assumesAWSRoles: []string{role1, role2, role3},
 				awsMatchers: []types.AWSMatcher{
 					{Types: []string{services.AWSMatcherEC2}},
+				},
+			},
+		},
+		"manual mode role name target with full role ARN assuming config roles is ok": {
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, Manual: true},
+			cfg: &servicecfg.Config{
+				Discovery: servicecfg.DiscoveryConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+					},
+				},
+				Databases: servicecfg.DatabasesConfig{
+					Databases: []servicecfg.Database{
+						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role2}},
+					},
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
+						{Types: []string{services.AWSMatcherEC2}},
+					},
+				},
+			},
+			want: targetConfig{
+				// identity field is ignored in want/got diff, see comment in test loop.
+				awsMatchers: []types.AWSMatcher{
+					{Types: []string{services.AWSMatcherEC2}},
+				},
+				assumesAWSRoles: []string{role1, role2, role4},
+			},
+		},
+		"manual mode role name target assuming config roles is an error": {
+			target: roleTargetWithManualModePlaceholders,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, Manual: true},
+			cfg: &servicecfg.Config{
+				Discovery: servicecfg.DiscoveryConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+					},
+				},
+				Databases: servicecfg.DatabasesConfig{
+					Databases: []servicecfg.Database{
+						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role2}},
+					},
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role4}},
+					},
+				},
+			},
+			wantErr: "please specify the full role ARN",
+		},
+		"manual mode role name target assuming only forced roles is ok": {
+			target: roleTargetWithManualModePlaceholders,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, Manual: true},
+			cfg: &servicecfg.Config{
+				Discovery: servicecfg.DiscoveryConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: &types.AssumeRole{RoleARN: roleTarget.String()}},
+					},
+				},
+				Databases: servicecfg.DatabasesConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: &types.AssumeRole{RoleARN: role1}},
+					},
+				},
+			},
+			want: targetConfig{
+				// identity field is ignored in want/got diff, see comment in test loop.
+				assumesAWSRoles: []string{role1},
+			},
+		},
+		"manual mode role name target without any assume roles is ok": {
+			target: roleTargetWithManualModePlaceholders,
+			flags:  configurators.BootstrapFlags{Manual: true},
+			cfg: &servicecfg.Config{
+				Discovery: servicecfg.DiscoveryConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDSProxy}},
+					},
+				},
+				Databases: servicecfg.DatabasesConfig{
+					AWSMatchers: []types.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}},
+					},
+				},
+			},
+			want: targetConfig{
+				// identity field is ignored in want/got diff, see comment in test loop.
+				awsMatchers: []types.AWSMatcher{
+					{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}},
 				},
 			},
 		},
@@ -1939,6 +2036,10 @@ func TestExtractTargetConfig(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := getTargetConfig(tt.flags, tt.cfg, tt.target)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			require.Equal(t, tt.target, got.identity)
 			// for test convenience, use cmp.Diff to equate []Type(nil) and []Type{}.
