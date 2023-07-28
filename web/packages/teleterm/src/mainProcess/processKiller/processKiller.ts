@@ -33,11 +33,13 @@ export async function killProcess(
     process.kill('SIGTERM')
 ): Promise<void> {
   if (!isProcessRunning(process)) {
-    logger.info(`Process is not running. Nothing to kill.`);
+    logger.info(
+      `Process ${process.spawnfile} is not running. Nothing to kill.`
+    );
     return;
   }
 
-  const processClose = promisifyProcessClose(process);
+  const processExit = promisifyProcessExit(process);
 
   async function startKillingSequence(): Promise<void> {
     gracefullyKill(process);
@@ -47,7 +49,7 @@ export async function killProcess(
     if (isProcessRunning(process)) {
       const timeoutInSeconds = timeout / 1_000;
       logger.error(
-        `Process ${process.spawnfile} did not close within ${timeoutInSeconds} seconds. Sending SIGKILL.`
+        `Process ${process.spawnfile} did not exit within ${timeoutInSeconds} seconds. Sending SIGKILL.`
       );
       process.kill('SIGKILL');
     }
@@ -55,11 +57,11 @@ export async function killProcess(
 
   startKillingSequence();
 
-  await processClose;
+  await processExit;
 }
 
-function promisifyProcessClose(childProcess: ChildProcess): Promise<void> {
-  return new Promise(resolve => childProcess.once('close', resolve));
+function promisifyProcessExit(childProcess: ChildProcess): Promise<void> {
+  return new Promise(resolve => childProcess.once('exit', resolve));
 }
 
 function isProcessRunning(process: ChildProcess): boolean {

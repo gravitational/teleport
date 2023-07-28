@@ -61,7 +61,7 @@ test('killing a process that failed to start is noop', async () => {
   jest.spyOn(process, 'kill');
 
   // wait for the process
-  await new Promise(resolve => process.once('close', resolve));
+  await new Promise(resolve => process.once('exit', resolve));
   await killProcess(process, 1_000);
 
   expect(process.exitCode).toBe(1);
