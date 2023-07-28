@@ -6066,3 +6066,93 @@ func createAppServerOrSPFromSP(sp types.SAMLIdPServiceProvider) types.AppServerO
 
 	return appServerOrSP
 }
+
+func TestKubeKeepAliveServer(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	domainName, err := srv.Auth().GetDomainName()
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		builtInRole types.SystemRole
+		assertErr   require.ErrorAssertionFunc
+	}{
+		"as kube service": {
+			builtInRole: types.RoleKube,
+			assertErr:   require.NoError,
+		},
+		"as legacy proxy service": {
+			builtInRole: types.RoleProxy,
+			assertErr:   require.NoError,
+		},
+		"as database service": {
+			builtInRole: types.RoleDatabase,
+			assertErr:   require.Error,
+		},
+	}
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			hostID := uuid.New().String()
+			// Create a kubernetes cluster.
+			kube, err := types.NewKubernetesClusterV3(
+				types.Metadata{
+					Name:      "kube",
+					Namespace: defaults.Namespace,
+				},
+				types.KubernetesClusterSpecV3{},
+			)
+			require.NoError(t, err)
+			// Create a kubernetes server.
+			// If the built-in role is proxy, the server name should be
+			// kube-proxy_service
+			serverName := "kube"
+			if test.builtInRole == types.RoleProxy {
+				serverName += teleport.KubeLegacyProxySuffix
+			}
+			kubeServer, err := types.NewKubernetesServerV3(
+				types.Metadata{
+					Name:      serverName,
+					Namespace: defaults.Namespace,
+				},
+				types.KubernetesServerSpecV3{
+					Cluster: kube,
+					HostID:  hostID,
+				},
+			)
+			require.NoError(t, err)
+			// Upsert the kubernetes server into the backend.
+			_, err = srv.Auth().UpsertKubernetesServer(context.Background(), kubeServer)
+			require.NoError(t, err)
+
+			// Create a built-in role.
+			authContext, err := authz.ContextForBuiltinRole(
+				authz.BuiltinRole{
+					Role:     test.builtInRole,
+					Username: fmt.Sprintf("%s.%s", hostID, domainName),
+				},
+				types.DefaultSessionRecordingConfig(),
+			)
+			require.NoError(t, err)
+
+			// Create a server with the built-in role.
+			srv := ServerWithRoles{
+				authServer: srv.Auth(),
+				context:    *authContext,
+			}
+			// Keep alive the server.
+			err = srv.KeepAliveServer(context.Background(),
+				types.KeepAlive{
+					Type:      types.KeepAlive_KUBERNETES,
+					Expires:   time.Now().Add(5 * time.Minute),
+					Name:      serverName,
+					Namespace: defaults.Namespace,
+					HostID:    hostID,
+				},
+			)
+			test.assertErr(t, err)
+		},
+		)
+	}
+}
