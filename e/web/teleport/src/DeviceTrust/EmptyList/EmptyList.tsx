@@ -16,14 +16,32 @@ export const EmptyList = () => {
           Register Trusted Device
         </Text>
         <Text typography="subtitle1" mb={3}>
-          Device Trust allows Teleport admins to enforce the use of trusted
-          devices. Resources protected by the device mode "required" will
-          enforce the use of a trusted device, in addition to establishing the
-          user's identity and enforcing the necessary roles.
+          Device Trust enables authenticated device access. Resources protected
+          by the Device Trust mode "required" will enforce the use of a Trusted
+          Device, in addition to establishing the user's identity and enforcing
+          the necessary roles.
+        </Text>
+        <Text typography="subtitle1" mb={3}>
+          Trusted Devices can be registered manually using{' '}
+          <Link
+            color="text.main"
+            href="https://goteleport.com/docs/access-controls/device-trust/guide/?scope=enterprise#step-12-register-a-trusted-device"
+            target="_blank"
+          >
+            tctl client
+          </Link>{' '}
+          or synced automatically from MDM services like{' '}
+          <Link
+            color="text.main"
+            href="https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise"
+            target="_blank"
+          >
+            Jamf
+          </Link>
+          .
         </Text>
         <Text typography="subtitle1">
-          Furthermore, users using a trusted device leave audit trails that
-          include the device's information. Please{' '}
+          Please{' '}
           <Link
             color="text.main"
             href="https://goteleport.com/docs/access-controls/guides/device-trust/"

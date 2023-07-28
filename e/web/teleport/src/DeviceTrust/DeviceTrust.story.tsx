@@ -46,6 +46,14 @@ export function Loaded() {
   );
 }
 
+export function LoadedWithCTA() {
+  return (
+    <ContextProvider ctx={ctx}>
+      <DeviceTrust {...props} showTrustedDevicesCTA={true} />
+    </ContextProvider>
+  );
+}
+
 export function Failed() {
   return (
     <ContextProvider ctx={ctx}>

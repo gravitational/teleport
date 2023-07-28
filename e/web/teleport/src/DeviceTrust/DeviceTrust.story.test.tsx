@@ -1,10 +1,21 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import { Loaded, Failed, Empty, EmptyWithCTA } from './DeviceTrust.story';
+import {
+  Loaded,
+  Failed,
+  Empty,
+  EmptyWithCTA,
+  LoadedWithCTA,
+} from './DeviceTrust.story';
 
 test('loaded', () => {
   const { container } = render(<Loaded />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('loaded with CTA', () => {
+  const { container } = render(<LoadedWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
