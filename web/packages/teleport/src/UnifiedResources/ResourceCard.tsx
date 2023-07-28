@@ -29,7 +29,7 @@ import {
   ServersIcon,
 } from 'design/SVGIcon';
 
-import { AgentKind, UnifiedResourceKind } from 'teleport/services/agents';
+import { UnifiedResource, UnifiedResourceKind } from 'teleport/services/agents';
 
 const SingleLineBox = styled(Box)`
   overflow: hidden;
@@ -43,7 +43,7 @@ const TruncatingLabel = styled(Label)`
 `;
 
 type Props = {
-  resource: AgentKind;
+  resource: UnifiedResource;
 };
 export const ResourceCard = ({ resource }: Props) => {
   const name = resourceName(resource);
@@ -98,11 +98,11 @@ export const ResourceCard = ({ resource }: Props) => {
   );
 };
 
-function resourceName(resource: AgentKind) {
+function resourceName(resource: UnifiedResource) {
   return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
-function resourceDescription(resource: AgentKind) {
+function resourceDescription(resource: UnifiedResource) {
   switch (resource.kind) {
     case 'app':
       return {
@@ -125,7 +125,7 @@ function resourceDescription(resource: AgentKind) {
   }
 }
 
-function resourceIconName(resource: AgentKind): ResourceIconName {
+function resourceIconName(resource: UnifiedResource): ResourceIconName {
   switch (resource.kind) {
     case 'app':
       return 'Application';

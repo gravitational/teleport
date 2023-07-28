@@ -28,9 +28,9 @@ import { kubes } from 'teleport/Kubes/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 
-import { ResourceCard as ResourceCard } from './ResourceCard';
-import { AgentKind } from 'teleport/services/agents';
 import makeApp from 'teleport/services/apps/makeApps';
+
+import { ResourceCard as ResourceCard } from './ResourceCard';
 
 const additionalResources = [
   makeApp({

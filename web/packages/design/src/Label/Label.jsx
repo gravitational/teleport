@@ -19,7 +19,7 @@ import styled from 'styled-components';
 
 import PropTypes from 'prop-types';
 
-import { minWidth, size, space } from 'design/system';
+import { space } from 'design/system';
 
 const kind = ({ kind, theme }) => {
   if (kind === 'secondary') {
