@@ -1770,7 +1770,7 @@ func TestMaxDuration(t *testing.T) {
 		},
 		"setMaxTTLRole": {
 			options: types.RoleOptions{
-				MaxSessionTTL: types.Duration(8 * time.Hour),
+				MaxSessionTTL: types.Duration(6 * time.Hour),
 			},
 		},
 		"defaultRole": {
@@ -1834,6 +1834,8 @@ func TestMaxDuration(t *testing.T) {
 		maxDuration time.Duration
 		// expectedAccessDuration is the expected access duration
 		expectedAccessDuration time.Duration
+		// expectedSessionTTL is the expected session TTL
+		expectedSessionTTL time.Duration
 	}{
 		{
 			desc:                   "role maxDuration is respected",
@@ -1841,12 +1843,14 @@ func TestMaxDuration(t *testing.T) {
 			roles:                  []string{"requestedRole"},
 			maxDuration:            7 * day,
 			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
 			desc:                   "maxDuration not set, default maxTTL (8h)",
 			requestor:              "bob",
 			roles:                  []string{"requestedRole"},
 			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
 			desc:                   "maxDuration inside request is respected",
@@ -1854,6 +1858,7 @@ func TestMaxDuration(t *testing.T) {
 			roles:                  []string{"requestedRole"},
 			maxDuration:            5 * time.Hour,
 			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
 			desc:                   "users with no MaxDuration are constrained by normal maxTTL logic",
@@ -1861,20 +1866,23 @@ func TestMaxDuration(t *testing.T) {
 			roles:                  []string{"requestedRole"},
 			maxDuration:            2 * day,
 			expectedAccessDuration: 8 * time.Hour,
+			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
 			desc:                   "maxDuration can't exceed maxTTL by default",
 			requestor:              "bob",
 			roles:                  []string{"setMaxTTLRole"},
 			maxDuration:            day,
-			expectedAccessDuration: 8 * time.Hour,
+			expectedAccessDuration: 6 * time.Hour,
+			expectedSessionTTL:     6 * time.Hour,
 		},
 		{
 			desc:                   "maxDuration is ignored if max_duration is not set in role",
 			requestor:              "bob",
 			roles:                  []string{"setMaxTTLRole"},
 			maxDuration:            2 * time.Hour,
-			expectedAccessDuration: 8 * time.Hour,
+			expectedAccessDuration: 6 * time.Hour,
+			expectedSessionTTL:     6 * time.Hour,
 		},
 		{
 			desc:                   "maxDuration can exceed maxTTL if max_duration is set in role",
@@ -1882,6 +1890,7 @@ func TestMaxDuration(t *testing.T) {
 			roles:                  []string{"setMaxTTLRole"},
 			maxDuration:            day,
 			expectedAccessDuration: day,
+			expectedSessionTTL:     6 * time.Hour,
 		},
 		{
 			desc:                   "maxDuration shorter than maxTTL if max_duration is set in role",
@@ -1889,6 +1898,7 @@ func TestMaxDuration(t *testing.T) {
 			roles:                  []string{"setMaxTTLRole"},
 			maxDuration:            2 * time.Hour,
 			expectedAccessDuration: 2 * time.Hour,
+			expectedSessionTTL:     2 * time.Hour,
 		},
 		{
 			desc:                   "only required roles are considered for maxDuration",
@@ -1896,6 +1906,7 @@ func TestMaxDuration(t *testing.T) {
 			roles:                  []string{"requestedRole"},
 			maxDuration:            5 * day,
 			expectedAccessDuration: 3 * day,
+			expectedSessionTTL:     8 * time.Hour,
 		},
 		{
 			desc:                   "only required roles are considered for maxDuration #2",
@@ -1903,6 +1914,7 @@ func TestMaxDuration(t *testing.T) {
 			roles:                  []string{"requestedRole2"},
 			maxDuration:            6 * day,
 			expectedAccessDuration: day,
+			expectedSessionTTL:     8 * time.Hour,
 		},
 	}
 
@@ -1928,6 +1940,7 @@ func TestMaxDuration(t *testing.T) {
 
 			require.NoError(t, validator.Validate(context.Background(), req, identity))
 			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
+			require.Equal(t, now.Add(tt.expectedSessionTTL), req.GetSessionTLL())
 		})
 	}
 }

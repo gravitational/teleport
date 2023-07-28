@@ -1018,6 +1018,16 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	return trail.FromGRPC(err)
 }
 
+// CreateAccessRequestV2 registers a new access request with the auth server.
+func (c *Client) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	r, ok := req.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected access request type %T", req)
+	}
+	resp, err := c.grpc.CreateAccessRequestV2(ctx, r)
+	return resp, trail.FromGRPC(err)
+}
+
 // DeleteAccessRequest deletes an access request.
 func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	_, err := c.grpc.DeleteAccessRequest(ctx, &proto.RequestID{ID: reqID})

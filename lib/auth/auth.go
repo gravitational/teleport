@@ -3971,17 +3971,21 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	}
 	return a.Services.DeleteNamespace(namespace)
 }
-
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
+	_, err := a.CreateAccessRequestV2(ctx, req, identity)
+	return trace.Wrap(err)
+}
+
+func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only, this ensures the
+	// Always perform variable expansion on creation only; this ensures the
 	// access request that is reviewed is the same that is approved.
 	expandOpts := services.ExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Look for user groups and associated applications to the request.
@@ -4006,7 +4010,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 
 		userGroup, err := a.GetUserGroup(ctx, resource.Name)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		for _, app := range userGroup.GetApplications() {
@@ -4030,13 +4034,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if req.GetDryRun() {
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
-		return nil
+		return req, nil
 	}
 
 	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
 
-	if err := a.Services.CreateAccessRequest(ctx, req); err != nil {
-		return trace.Wrap(err)
+	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
@@ -4057,7 +4061,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
-	return nil
+	return req, nil
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
