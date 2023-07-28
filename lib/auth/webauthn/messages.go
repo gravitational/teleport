@@ -16,6 +16,7 @@ package webauthn
 
 import (
 	"encoding/base64"
+	"fmt"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
@@ -219,6 +220,20 @@ func CredentialCreationFromProtocol(cc *protocol.CredentialCreation) *Credential
 		return nil
 	}
 
+	// Based on our configuration we should always get a protocol.URLEncodedBase64
+	// user ID, but the go-webauthn/webauthn is capable of generating strings too.
+	var userID []byte
+	if id := cc.Response.User.ID; id != nil {
+		switch uid := id.(type) {
+		case protocol.URLEncodedBase64:
+			userID = uid
+		case string:
+			userID = []byte(uid)
+		default:
+			panic(fmt.Sprintf("Unexpected WebAuthn cc.Response.User.ID type: %T", id))
+		}
+	}
+
 	return &CredentialCreation{
 		Response: PublicKeyCredentialCreationOptions{
 			Challenge: Challenge(cc.Response.Challenge),
@@ -229,7 +244,7 @@ func CredentialCreationFromProtocol(cc *protocol.CredentialCreation) *Credential
 			User: UserEntity{
 				CredentialEntity: cc.Response.User.CredentialEntity,
 				DisplayName:      cc.Response.User.Name,
-				ID:               cc.Response.User.ID,
+				ID:               userID,
 			},
 			Parameters: credentialParametersFromProtocol(cc.Response.Parameters),
 			AuthenticatorSelection: AuthenticatorSelection{
