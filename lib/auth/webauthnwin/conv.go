@@ -70,18 +70,10 @@ func rpToCType(in wanlib.RelyingPartyEntity) (*webauthnRPEntityInformation, erro
 	if err != nil {
 		return nil, err
 	}
-	var icon *uint16
-	if in.Icon != "" {
-		icon, err = utf16PtrFromString(in.Icon)
-		if err != nil {
-			return nil, err
-		}
-	}
 	return &webauthnRPEntityInformation{
 		dwVersion: 1,
 		pwszID:    id,
 		pwszName:  name,
-		pwszIcon:  icon,
 	}, nil
 }
 
@@ -104,20 +96,12 @@ func userToCType(in wanlib.UserEntity) (*webauthnUserEntityInformation, error) {
 			return nil, err
 		}
 	}
-	var icon *uint16
-	if in.Icon != "" {
-		icon, err = utf16PtrFromString(in.Icon)
-		if err != nil {
-			return nil, err
-		}
-	}
 	return &webauthnUserEntityInformation{
 		dwVersion:       1,
 		cbID:            uint32(len(in.ID)),
 		pbID:            &in.ID[0],
 		pwszName:        name,
 		pwszDisplayName: displayName,
-		pwszIcon:        icon,
 	}, nil
 }
 

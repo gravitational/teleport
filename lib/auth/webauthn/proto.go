@@ -216,7 +216,6 @@ func rpEntityToProto(rp RelyingPartyEntity) *wantypes.RelyingPartyEntity {
 	return &wantypes.RelyingPartyEntity{
 		Id:   rp.ID,
 		Name: rp.Name,
-		Icon: rp.Icon,
 	}
 }
 
@@ -225,7 +224,6 @@ func userEntityToProto(user UserEntity) *wantypes.UserEntity {
 		Id:          user.ID,
 		Name:        user.Name,
 		DisplayName: user.DisplayName,
-		Icon:        user.Icon,
 	}
 }
 
@@ -353,7 +351,6 @@ func rpEntityFromProto(rp *wantypes.RelyingPartyEntity) RelyingPartyEntity {
 	return RelyingPartyEntity{
 		CredentialEntity: CredentialEntity{
 			Name: rp.Name,
-			Icon: rp.Icon,
 		},
 		ID: rp.Id,
 	}
@@ -366,7 +363,6 @@ func userEntityFromProto(user *wantypes.UserEntity) UserEntity {
 	return UserEntity{
 		CredentialEntity: CredentialEntity{
 			Name: user.Name,
-			Icon: user.Icon,
 		},
 		DisplayName: user.DisplayName,
 		ID:          user.Id,
