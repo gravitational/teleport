@@ -225,7 +225,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	// First, try to make sure all destinations are usable.
-	if err := checkDestinations(b.cfg); err != nil {
+	if err := checkDestinations(ctx, b.cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -363,7 +363,7 @@ func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {
 
 // checkDestinations checks all destinations and tries to create any that
 // don't already exist.
-func checkDestinations(cfg *config.BotConfig) error {
+func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 	// Note: This is vaguely problematic as we don't recommend that users
 	// store renewable certs under the same user as end-user certs. That said,
 	//  - if the destination was properly created via tbot init this is a no-op
@@ -372,13 +372,13 @@ func checkDestinations(cfg *config.BotConfig) error {
 	storageDest := cfg.Storage.Destination
 
 	// Note: no subdirs to init for bot's internal storage.
-	if err := storageDest.Init([]string{}); err != nil {
+	if err := storageDest.Init(ctx, []string{}); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// TODO: consider warning if ownership of all destintions is not expected.
 	for _, output := range cfg.Outputs {
-		if err := output.Init(); err != nil {
+		if err := output.Init(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}

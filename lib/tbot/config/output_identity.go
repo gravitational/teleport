@@ -82,13 +82,13 @@ func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity
 	return nil
 }
 
-func (o *IdentityOutput) Init() error {
+func (o *IdentityOutput) Init(ctx context.Context) error {
 	subDirs, err := listSubdirectories(o.templates())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Destination.Init(subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
 func (o *IdentityOutput) GetDestination() bot.Destination {

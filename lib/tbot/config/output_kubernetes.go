@@ -71,13 +71,13 @@ func (o *KubernetesOutput) Render(ctx context.Context, p provider, ident *identi
 	return nil
 }
 
-func (o *KubernetesOutput) Init() error {
+func (o *KubernetesOutput) Init(ctx context.Context) error {
 	subDirs, err := listSubdirectories(o.templates())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Destination.Init(subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
 func (o *KubernetesOutput) CheckAndSetDefaults() error {

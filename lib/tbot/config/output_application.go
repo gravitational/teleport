@@ -72,13 +72,13 @@ func (o *ApplicationOutput) Render(ctx context.Context, p provider, ident *ident
 	return nil
 }
 
-func (o *ApplicationOutput) Init() error {
+func (o *ApplicationOutput) Init(ctx context.Context) error {
 	subDirs, err := listSubdirectories(o.templates())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Destination.Init(subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
 func (o *ApplicationOutput) CheckAndSetDefaults() error {

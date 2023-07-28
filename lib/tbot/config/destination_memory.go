@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -52,7 +53,7 @@ func (dm *DestinationMemory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dm *DestinationMemory) Init(subdirs []string) error {
+func (dm *DestinationMemory) Init(_ context.Context, subdirs []string) error {
 	// Nothing to do.
 	return nil
 }

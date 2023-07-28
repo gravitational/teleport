@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -145,7 +146,7 @@ func mkdir(p string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Init(subdirs []string) error {
+func (dd *DestinationDirectory) Init(_ context.Context, subdirs []string) error {
 	// Create the directory if needed.
 	if err := mkdir(dd.Path); err != nil {
 		return trace.Wrap(err)

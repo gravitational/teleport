@@ -85,11 +85,10 @@ func (dks *DestinationKubernetesSecret) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dks *DestinationKubernetesSecret) Init(subdirs []string) error {
+func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []string) error {
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
 
-	ctx := context.TODO()
 	if dks.namespace == "" {
 		dks.namespace = os.Getenv(kubernetesNamespaceEnv)
 		if dks.namespace == "" {
