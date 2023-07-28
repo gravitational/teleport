@@ -105,7 +105,7 @@ function AgentSetup() {
             );
             certsReloaded = response.certsReloaded;
           } catch (error) {
-            if ((error.message as string)?.includes('access denied')) {
+            if (isAccessDeniedError(error)) {
               throw new Error(
                 'Access denied. Contact your administrator for permissions to manage users and roles.'
               );
@@ -156,7 +156,11 @@ function AgentSetup() {
             nodeToken.current
           );
         } catch (error) {
-          logger.error('Failed to delete token', error);
+          // the user may not have permissions to remove the token, but it will expire in a few minutes anyway
+          if (isAccessDeniedError(error)) {
+            logger.error('Access denied when deleting a token.', error);
+          }
+          throw error;
         }
       }, [
         runAgentAndWaitForNodeToJoin,
@@ -288,4 +292,8 @@ function AgentSetup() {
       )}
     </>
   );
+}
+
+function isAccessDeniedError(error: Error): boolean {
+  return (error.message as string)?.includes('access denied');
 }
