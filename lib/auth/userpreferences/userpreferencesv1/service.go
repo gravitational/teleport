@@ -64,7 +64,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 }
 
 // GetUserPreferences returns the user preferences for a given user.
-func (a *Service) GetUserPreferences(ctx context.Context, req *userpreferences.GetUserPreferencesRequest) (*userpreferences.GetUserPreferencesResponse, error) {
+func (a *Service) GetUserPreferences(ctx context.Context, _ *userpreferences.GetUserPreferencesRequest) (*userpreferences.GetUserPreferencesResponse, error) {
 	authCtx, err := a.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -93,7 +93,7 @@ func (a *Service) UpsertUserPreferences(ctx context.Context, req *userpreference
 		return nil, trace.Wrap(err)
 	}
 	if !authz.IsLocalUser(*authCtx) {
-		return nil, trace.AccessDenied("Non-local user cannot get user preferences")
+		return nil, trace.AccessDenied("Non-local user cannot upsert user preferences")
 	}
 
 	username := authCtx.User.GetName()
