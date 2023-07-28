@@ -22,7 +22,7 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { generateAgentConfigPaths } from '../createAgentConfigFile';
 import { AgentProcessState, RuntimeSettings } from '../types';
-import { killProcess } from '../processKiller';
+import { terminateWithTimeout } from '../terminateWithTimeout';
 
 const MAX_STDERR_LINES = 10;
 
@@ -75,7 +75,7 @@ export class AgentRunner {
   }
 
   async kill(rootClusterUri: RootClusterUri): Promise<void> {
-    await killProcess(this.agentProcesses.get(rootClusterUri));
+    await terminateWithTimeout(this.agentProcesses.get(rootClusterUri));
     this.agentProcesses.delete(rootClusterUri);
   }
 
@@ -83,7 +83,7 @@ export class AgentRunner {
     const processes = Array.from(this.agentProcesses.entries());
     await Promise.all(
       processes.map(async ([rootClusterUri, agent]) => {
-        await killProcess(agent);
+        await terminateWithTimeout(agent);
         this.agentProcesses.delete(rootClusterUri);
       })
     );

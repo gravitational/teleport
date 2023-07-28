@@ -19,7 +19,7 @@ import path from 'node:path';
 
 import Logger, { NullService } from 'teleterm/logger';
 
-import { killProcess } from './processKiller';
+import { terminateWithTimeout } from './terminateWithTimeout';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -30,7 +30,7 @@ test('kills a process gracefully when possible', async () => {
     silent: true,
   });
 
-  await killProcess(process);
+  await terminateWithTimeout(process);
 
   expect(process.killed).toBeTruthy();
   expect(process.signalCode).toBe('SIGTERM');
@@ -48,7 +48,7 @@ test('kills a process using SIGKILL when a graceful kill did not work', async ()
   // wait for the process to start and register callbacks
   await new Promise(resolve => process.stdout.once('data', resolve));
 
-  await killProcess(process, 1_000);
+  await terminateWithTimeout(process, 1_000);
 
   expect(process.killed).toBeTruthy();
   expect(process.signalCode).toBe('SIGKILL');
@@ -62,7 +62,7 @@ test('killing a process that failed to start is noop', async () => {
 
   // wait for the process
   await new Promise(resolve => process.once('exit', resolve));
-  await killProcess(process, 1_000);
+  await terminateWithTimeout(process, 1_000);
 
   expect(process.exitCode).toBe(1);
   expect(process.signalCode).toBeNull();
@@ -80,6 +80,6 @@ test('killing a process that has been already killed is noop', async () => {
   expect(process.killed).toBeTruthy();
   expect(process.signalCode).toBe('SIGTERM');
 
-  await killProcess(process, 1_000);
+  await terminateWithTimeout(process, 1_000);
   expect(process.kill).toHaveBeenCalledTimes(1); // called only once, in the test
 });

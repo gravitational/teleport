@@ -26,7 +26,7 @@ const logger = new Logger('processKiller');
  * {@link gracefullyKill} function if provided.
  * If the process doesn't close within the specified {@link timeout}, a SIGKILL signal is sent.
  */
-export async function killProcess(
+export async function terminateWithTimeout(
   process: ChildProcess,
   timeout = 5_000,
   gracefullyKill: (process: ChildProcess) => void = process =>

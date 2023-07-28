@@ -50,7 +50,7 @@ import { WindowsManager } from './windowsManager';
 import { downloadAgent, FileDownloader } from './agentDownloader';
 import { createAgentConfigFile } from './createAgentConfigFile';
 import { AgentRunner } from './agentRunner';
-import { killProcess } from './processKiller';
+import { terminateWithTimeout } from './terminateWithTimeout';
 
 import type { AgentConfigFileClusterProperties } from './createAgentConfigFile';
 
@@ -110,10 +110,10 @@ export default class MainProcess {
   async dispose(): Promise<void> {
     await Promise.all([
       // sending usage events on tshd shutdown has 10-seconds timeout
-      killProcess(this.tshdProcess, 10_000, () => {
+      terminateWithTimeout(this.tshdProcess, 10_000, () => {
         this.gracefullyKillTshdProcess();
       }),
-      killProcess(this.sharedProcess),
+      terminateWithTimeout(this.sharedProcess),
       this.agentRunner.killAll(),
     ]);
   }
