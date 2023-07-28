@@ -21,9 +21,9 @@ but the same concepts apply to Virtual Machines/EC2 instances.
 architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-deployment.png)
 
 ### Key Components
-- Two ReplicaSets of Teleport Auth and Proxy components are deployed in separate regions. In this example, the us-west-1 (Primary)
+- Two ReplicaSets/Auto Scaling Groups of Teleport Auth and Proxy components are deployed in separate regions. In this example, the us-west-1 (Primary)
   region Teleport cluster is the Active cluster, and the us-east-1 (Secondary) region Teleport cluster is the Passive cluster.
-- All teleport cluster components are deployed as ReplicaSets in both regions.
+- All teleport cluster components are deployed as ReplicaSets/Auto Scaling Groups in both regions.
 - DynamoDB is used for cluster state and audit log storage.
   - Enable the us-west-1 (Active Region) DynamoDB table with global replication in the us-east-1 (Passive Region) to ensure cluster 
     state and audit logs are maintained in both regions.
@@ -36,10 +36,15 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
   S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/setting-repl-config-perm-overview.html).
 - Configure the Route53 DNS records pointed to the Teleport Cluster to use the
   [Failover Routing Policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
+  [Latency-Based Routing Policy] (https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html)
   with the Active cluster's load balancer as the primary record and the Passive cluster's load balancer as the secondary record.
   - Use health checks to determine Teleport cluster availability. Route53 will automatically send the traffic to the 
     Passive cluster in the event of an outage in the Active region. It will then automatically route the traffic back to the Active 
     cluster once the Active cluster's health checks report a normal state.
+  - Teleport supports latency-based routing via AWS Route 53 for Global Server Load Balancing. To make this work, Teleport proxy DNS records need 
+    to be configured in a specific manner. In Teleport's client configuration, point the proxy_server: to the GSLB(Global Server Load Balancing) 
+    domain configured in Route53, not to the specific proxy NLB address.
+  - Implementing latency-based routing requires creation of a CNAME record for each region where you have VPCs containing Teleport-connected resources.
 
 <Notice type="warning">
 
