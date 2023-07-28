@@ -14,6 +14,7 @@ export const SummaryPage = ({
     stripeTrialEnd,
     stripeSubscriptionCanceledAt,
   },
+  nonBillableUsage,
   reload,
 }: SummaryProps) => (
   <>
@@ -27,6 +28,7 @@ export const SummaryPage = ({
     {stripeCurrentUsage && (
       <Cycle
         currentUsage={stripeCurrentUsage}
+        nonBillableUsage={nonBillableUsage}
         productName={productName}
         stripeMissingPaymentMethod={stripeMissingPaymentMethod}
         stripeTrialEnd={stripeTrialEnd}

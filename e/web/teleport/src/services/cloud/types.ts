@@ -38,3 +38,10 @@ export type StripeInvoiceList = cloud.Invoice.AsObject[];
 export type StripeInvoiceBillingAddress = cloud.StripeBillingAddress.AsObject;
 
 export type StripeUsage = cloud.StripeUsage.AsObject;
+
+export type NonBillableSummaryInformation = {
+  trustedDeviceUsage: {
+    devicesUsageLimit: number;
+    devicesInUse: number;
+  };
+};

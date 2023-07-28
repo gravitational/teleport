@@ -6,6 +6,8 @@ import { loadStripe } from '@stripe/stripe-js/pure';
 
 import { useTheme } from 'styled-components';
 
+import { Box } from 'design';
+
 import CloudService, {
   BillingInformation,
   BillingSummaryInformation,
@@ -87,7 +89,11 @@ export const StripeLoader = ({
   switch (loaderState.dataSourceStatus) {
     case 'loading':
       if (loadingRender) {
-        return <>{loadingRender()}</>;
+        return (
+          <Box textAlign="center" m={10}>
+            {loadingRender()}
+          </Box>
+        );
       }
       // if no loading child is provided, don't expose to user
       return null;

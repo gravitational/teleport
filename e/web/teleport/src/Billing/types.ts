@@ -9,10 +9,12 @@ import {
   StripeInvoiceBillingAddress,
   StripeInvoiceList,
   StripeUsage,
+  NonBillableSummaryInformation,
 } from 'e-teleport/services/cloud';
 
 export interface SummaryProps {
   data: BillingSummaryInformation;
+  nonBillableUsage: NonBillableSummaryInformation;
   reload: () => void;
 }
 
@@ -41,6 +43,7 @@ export interface CycleProps {
   productName: string;
   stripeMissingPaymentMethod: boolean;
   stripeTrialEnd: number;
+  nonBillableUsage: NonBillableSummaryInformation;
 }
 
 export interface CardsListProps {

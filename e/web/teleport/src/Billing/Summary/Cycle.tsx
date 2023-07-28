@@ -29,6 +29,7 @@ export const Cycle = ({
   productName,
   stripeMissingPaymentMethod,
   stripeTrialEnd,
+  nonBillableUsage: { trustedDeviceUsage },
 }: CycleProps) => {
   const theme = useTheme();
   const start = displayUnixShortDate(periodStart);
@@ -37,6 +38,8 @@ export const Cycle = ({
   const mau = usageMau || 0;
   const tia = usageTia || 0;
   const pr = usagePr || 0;
+  const mad = trustedDeviceUsage?.devicesInUse || 0;
+  const maxMAD = trustedDeviceUsage?.devicesUsageLimit || 5;
 
   const usage: CycleUsage[] = [
     {
@@ -65,6 +68,15 @@ export const Cycle = ({
       hardMax: maxTPR,
       hasFreeTier: true,
       info: 'Any unique resource such as a Kubernetes cluster, SSH server, database instance or serverless endpoint, that has registered itself with the Teleport cluster and is protected by Teleport.',
+    },
+    {
+      name: 'Trusted Devices',
+      total: mad,
+      percentage: Math.round((mad / maxMAD) * 100),
+      percentageMax: maxMAD,
+      hardMax: maxMAD,
+      hasFreeTier: true,
+      info: 'Unique trusted device enrolled in Teleport. Upgrade to enterprise plan for more than five devices.',
     },
   ];
 
@@ -101,10 +113,10 @@ export const Cycle = ({
             )}. To maintain access to your Teleport cluster, upgrade to the Teleport ${productName} Plan by adding a payment method.`
           : `Your next invoice will occur on ${end} at a rate of ${mauRate} per active monthly user.`}
       </Text>
-      <Flex>
+      <Flex flexWrap="wrap">
         {usage.map(u => (
           // todo (michellescripts) add info/hover for description  https://github.com/gravitational/cloud/issues/3536
-          <Box key={u.name} width="30%" data-testid={u.name}>
+          <Box key={u.name} width="30%" flex="40%" data-testid={u.name}>
             <Flex flexDirection="row" alignItems="center" gap={2}>
               <h3>{u.name}</h3>
               <ToolTipInfo children={<Text>{u.info}</Text>} />
@@ -126,17 +138,23 @@ export const Cycle = ({
       <Text color={theme.colors.text.slightlyMuted} mt="12px">
         <i>
           Your team plan includes a limited amount of free usage. <br />
-          If your team exceeds the limit for a given category, your team will be
-          charged for the extra use.&nbsp;
+          If your team exceeds the limit for a given category<sup>[1]</sup>,
+          your team will be charged for the extra use.&nbsp;
           <Link
             color="text.secondary"
             href="https://goteleport.com/teleport-pricing/"
             target="_blank"
           >
             Learn More.
-          </Link>
+          </Link>{' '}
+          <br />
+          <Text color={theme.colors.text.slightlyMuted} fontSize="12px">
+            [1] Trusted Device limit cannot be increased in the team plan.
+            Contact sales for additional devices.
+          </Text>
         </i>
       </Text>
+      <footer></footer>
       <hr
         style={{
           margin: '16px auto 16px -40px',

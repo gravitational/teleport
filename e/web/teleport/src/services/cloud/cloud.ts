@@ -14,6 +14,7 @@ import {
   UpdateCardRequest,
   UpdateEmailRequest,
   UpdatePurchaseOrderRequest,
+  NonBillableSummaryInformation,
 } from './types';
 
 class CloudService {
@@ -45,6 +46,12 @@ class CloudService {
     return api
       .get(cfg.api.billingSummaryPath)
       .then(makeBillingSummaryInformation);
+  }
+
+  fetchNonBillableSummaryInformation(): Promise<NonBillableSummaryInformation> {
+    return api
+      .get(cfg.api.nonBillableUsageSummaryPath)
+      .then(makeNonBillableUsageSummary);
   }
 
   fetchPaymentsAndInvoices(): Promise<PaymentsInvoicesInformation> {
@@ -82,6 +89,10 @@ function makeBillingInformation(json: any) {
 
 function makeBillingSummaryInformation(json: any) {
   return json as BillingSummaryInformation;
+}
+
+function makeNonBillableUsageSummary(json: any) {
+  return json as NonBillableSummaryInformation;
 }
 
 function makePaymentsInvoicesInformation(json: any) {

@@ -52,6 +52,7 @@ const cfg = {
 
     billingPath: '/v1/enterprise/cloud/billing',
     billingSummaryPath: '/v1/enterprise/cloud/billing-summary',
+    nonBillableUsageSummaryPath: '/v1/enterprise/cloud/nonbillable-summary',
     cardPath: '/v1/enterprise/cloud/card',
     emailPath: '/v1/enterprise/cloud/billing-email',
     invoiceSettingsPath: '/v1/enterprise/cloud/invoice-settings',

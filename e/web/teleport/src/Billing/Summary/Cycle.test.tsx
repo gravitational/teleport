@@ -23,6 +23,12 @@ describe('cycle', () => {
         usageTia: 0,
         usagePr: 0,
       },
+      nonBillableUsage: {
+        trustedDeviceUsage: {
+          devicesInUse: 0,
+          devicesUsageLimit: 0,
+        },
+      },
       productName: 'some-product',
       stripeMissingPaymentMethod: false,
       stripeTrialEnd: 0,
@@ -91,12 +97,25 @@ describe('cycle', () => {
       ).toBeVisible();
     });
     await userEvent.unhover;
+
+    const mad = screen.getByTestId(/Trusted Devices/i);
+    const madIcon = within(mad).getByRole(/icon/i);
+    await userEvent.hover(madIcon);
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Unique trusted device enrolled in Teleport. Upgrade to enterprise plan for more than five devices.'
+        )
+      ).toBeVisible();
+    });
+    await userEvent.unhover;
   });
 
   test('renders usage', () => {
     props.currentUsage.usageMau = 0;
     props.currentUsage.usageTia = 10000;
     props.currentUsage.usagePr = 200;
+    props.nonBillableUsage.trustedDeviceUsage.devicesInUse = 1;
 
     renderWithElementsAndContext(<Cycle {...props} />);
     const mau = screen.getByTestId(/Active Users/i);
@@ -112,5 +131,9 @@ describe('cycle', () => {
     const pr = screen.getByTestId(/Teleport Protected Resources/i);
     expect(within(pr).getByText(/200 of 50/i)).toBeInTheDocument();
     expect(within(pr).getByText(/(400%)/i)).toBeInTheDocument();
+
+    const mad = screen.getByTestId(/Trusted Devices/i);
+    expect(within(mad).getByText(/1 of 5/i)).toBeInTheDocument();
+    expect(within(mad).getByText(/(20%)/i)).toBeInTheDocument();
   });
 });

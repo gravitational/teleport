@@ -6,8 +6,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -148,4 +150,30 @@ func (p *Plugin) updateEmailHandle(w http.ResponseWriter, r *http.Request, ctx *
 	}
 
 	return res, nil
+}
+
+// getNonBillableUsageSummaryHandle returns usage report for resources that are not tracked in Stripe.
+// Currently only returns Trusted Device usage summary.
+func (p *Plugin) getNonBillableUsageSummaryHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+
+	authClt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Important: GetDevicesUsage only returns non-zeroed usage values for
+	// usage-based accounts.
+	// See [devicepb.DevicesUsage.AccountUsageType] (or handle the zeroes
+	// accordingly!)
+	devicesUsage, err := authClt.DevicesClient().GetDevicesUsage(r.Context(), &devicepb.GetDevicesUsageRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.NonBillableUsageSummary{
+		TrustedDeviceUsage: ui.TrustedDeviceUsage{
+			DevicesUsageLimit: devicesUsage.DevicesUsageLimit,
+			DevicesInUse:      devicesUsage.DevicesInUse,
+		},
+	}, nil
 }

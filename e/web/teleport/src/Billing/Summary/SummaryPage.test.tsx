@@ -38,6 +38,12 @@ describe('summaryPage', () => {
         stripeSubscriptionCancelAt: 0,
         stripeSubscriptionCanceledAt: 0,
       },
+      nonBillableUsage: {
+        trustedDeviceUsage: {
+          devicesInUse: 0,
+          devicesUsageLimit: 0,
+        },
+      },
       reload: jest.fn(),
     };
   });
