@@ -3853,6 +3853,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}),
 			PROXYSigner:  proxySigner,
 			OpenAIConfig: cfg.OpenAIConfig,
+			NodeWatcher:  nodeWatcher,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
