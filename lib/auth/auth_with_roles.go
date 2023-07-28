@@ -1167,12 +1167,22 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 				return trace.AccessDenied("access denied")
 			}
 		} else { // DELETE IN 13.0. Legacy kubeservice server is heartbeating back.
-			if serverName != handle.Name {
+			name := handle.Name
+			// legacy kube proxy server is heartbeating kubernetes clusters
+			// with the server name suffixed with "-proxy_service".
+			// To compare the server name with the name in the heartbeat
+			// we need to remove the suffix.
+			if a.hasBuiltinRole(types.RoleProxy) {
+				name = strings.TrimSuffix(name, teleport.KubeLegacyProxySuffix)
+			}
+			if name != serverName {
 				return trace.AccessDenied("access denied")
 			}
 		}
 
-		if !a.hasBuiltinRole(types.RoleKube) {
+		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
+		// we need to check if the host has the Kube or Proxy role.
+		if !a.hasBuiltinRole(types.RoleKube, types.RoleProxy) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
