@@ -16,11 +16,31 @@ package webauthn
 
 import (
 	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 )
 
 // CredentialAssertion is the payload sent to authenticators to initiate login.
-type CredentialAssertion protocol.CredentialAssertion
+type CredentialAssertion struct {
+	Response PublicKeyCredentialRequestOptions `json:"publicKey"`
+}
+
+type PublicKeyCredentialRequestOptions struct {
+	Challenge          Challenge                            `json:"challenge"`
+	Timeout            int                                  `json:"timeout,omitempty"`
+	RelyingPartyID     string                               `json:"rpId,omitempty"`
+	AllowedCredentials []CredentialDescriptor               `json:"allowCredentials,omitempty"`
+	UserVerification   protocol.UserVerificationRequirement `json:"userVerification,omitempty"` // Default is "preferred"
+	Extensions         AuthenticationExtensions             `json:"extensions,omitempty"`
+}
+
+func (a *PublicKeyCredentialRequestOptions) GetAllowedCredentialIDs() [][]byte {
+	var allowedCredentialIDs = make([][]byte, len(a.AllowedCredentials))
+	for i, credential := range a.AllowedCredentials {
+		allowedCredentialIDs[i] = credential.CredentialID
+	}
+	return allowedCredentialIDs
+}
 
 // Validate performs client-side validation of CredentialAssertion.
 // It makes sure that data are valid and can be sent to authenticator.
@@ -38,6 +58,42 @@ func (ca *CredentialAssertion) Validate() error {
 	return nil
 }
 
+// CredentialAssertionFromProtocol converts a [protocol.CredentialAssertion] to
+// a [CredentialAssertion].
+func CredentialAssertionFromProtocol(a *protocol.CredentialAssertion) *CredentialAssertion {
+	if a == nil {
+		return nil
+	}
+
+	return &CredentialAssertion{
+		Response: PublicKeyCredentialRequestOptions{
+			Challenge:          a.Response.Challenge,
+			Timeout:            a.Response.Timeout,
+			RelyingPartyID:     a.Response.RelyingPartyID,
+			AllowedCredentials: credentialDescriptorsFromProtocol(a.Response.AllowedCredentials),
+			UserVerification:   a.Response.UserVerification,
+			Extensions:         a.Response.Extensions,
+		},
+	}
+}
+
+func credentialDescriptorsFromProtocol(cs []protocol.CredentialDescriptor) []CredentialDescriptor {
+	if len(cs) == 0 {
+		return nil
+	}
+
+	res := make([]CredentialDescriptor, len(cs))
+	for i, c := range cs {
+		res[i] = CredentialDescriptor{
+			Type:            c.Type,
+			CredentialID:    c.CredentialID,
+			Transport:       c.Transport,
+			AttestationType: c.AttestationType,
+		}
+	}
+	return res
+}
+
 // CredentialAssertionResponse is the reply from authenticators to complete
 // login.
 type CredentialAssertionResponse struct {
@@ -52,9 +108,59 @@ type CredentialAssertionResponse struct {
 	AssertionResponse AuthenticatorAssertionResponse `json:"response"`
 }
 
+type AuthenticatorAssertionResponse struct {
+	AuthenticatorResponse
+	AuthenticatorData protocol.URLEncodedBase64 `json:"authenticatorData"`
+	Signature         protocol.URLEncodedBase64 `json:"signature"`
+	UserHandle        protocol.URLEncodedBase64 `json:"userHandle,omitempty"`
+}
+
+type AuthenticatorResponse protocol.AuthenticatorResponse
+
 // CredentialCreation is the payload sent to authenticators to initiate
 // registration.
-type CredentialCreation protocol.CredentialCreation
+type CredentialCreation struct {
+	Response PublicKeyCredentialCreationOptions `json:"publicKey"`
+}
+
+type PublicKeyCredentialCreationOptions struct {
+	Challenge              Challenge                     `json:"challenge"`
+	RelyingParty           RelyingPartyEntity            `json:"rp"`
+	User                   UserEntity                    `json:"user"`
+	Parameters             []CredentialParameter         `json:"pubKeyCredParams,omitempty"`
+	AuthenticatorSelection AuthenticatorSelection        `json:"authenticatorSelection,omitempty"`
+	Timeout                int                           `json:"timeout,omitempty"`
+	CredentialExcludeList  []CredentialDescriptor        `json:"excludeCredentials,omitempty"`
+	Extensions             AuthenticationExtensions      `json:"extensions,omitempty"`
+	Attestation            protocol.ConveyancePreference `json:"attestation,omitempty"`
+}
+
+type RelyingPartyEntity struct {
+	CredentialEntity
+	ID string `json:"id"`
+}
+
+type UserEntity struct {
+	CredentialEntity
+	DisplayName string `json:"displayName,omitempty"`
+	ID          []byte `json:"id"`
+}
+
+type CredentialEntity = protocol.CredentialEntity
+
+type CredentialParameter struct {
+	Type      protocol.CredentialType              `json:"type"`
+	Algorithm webauthncose.COSEAlgorithmIdentifier `json:"alg"`
+}
+
+type AuthenticatorSelection struct {
+	AuthenticatorAttachment protocol.AuthenticatorAttachment     `json:"authenticatorAttachment,omitempty"`
+	RequireResidentKey      *bool                                `json:"requireResidentKey,omitempty"`
+	ResidentKey             protocol.ResidentKeyRequirement      `json:"residentKey,omitempty"`
+	UserVerification        protocol.UserVerificationRequirement `json:"userVerification,omitempty"`
+}
+
+type AuthenticationExtensions = protocol.AuthenticationExtensions
 
 // RequireResidentKey returns information whether resident key is required or
 // not. It checks ResidentKey and fallbacks to RequireResidentKey.
@@ -104,6 +210,55 @@ func (cc *CredentialCreation) Validate() error {
 	}
 }
 
+// CredentialCreationFromProtocol converts a [protocol.CredentialCreation] to a
+// [CredentialCreation].
+func CredentialCreationFromProtocol(cc *protocol.CredentialCreation) *CredentialCreation {
+	if cc == nil {
+		return nil
+	}
+
+	return &CredentialCreation{
+		Response: PublicKeyCredentialCreationOptions{
+			Challenge: cc.Response.Challenge,
+			RelyingParty: RelyingPartyEntity{
+				CredentialEntity: cc.Response.RelyingParty.CredentialEntity,
+				ID:               cc.Response.RelyingParty.ID,
+			},
+			User: UserEntity{
+				CredentialEntity: cc.Response.User.CredentialEntity,
+				DisplayName:      cc.Response.User.Name,
+				ID:               cc.Response.User.ID,
+			},
+			Parameters: credentialParametersFromProtocol(cc.Response.Parameters),
+			AuthenticatorSelection: AuthenticatorSelection{
+				AuthenticatorAttachment: cc.Response.AuthenticatorSelection.AuthenticatorAttachment,
+				RequireResidentKey:      cc.Response.AuthenticatorSelection.RequireResidentKey,
+				ResidentKey:             cc.Response.AuthenticatorSelection.ResidentKey,
+				UserVerification:        cc.Response.AuthenticatorSelection.UserVerification,
+			},
+			Timeout:               cc.Response.Timeout,
+			CredentialExcludeList: credentialDescriptorsFromProtocol(cc.Response.CredentialExcludeList),
+			Extensions:            cc.Response.Extensions,
+			Attestation:           cc.Response.Attestation,
+		},
+	}
+}
+
+func credentialParametersFromProtocol(ps []protocol.CredentialParameter) []CredentialParameter {
+	if len(ps) == 0 {
+		return nil
+	}
+
+	res := make([]CredentialParameter, len(ps))
+	for i, p := range ps {
+		res[i] = CredentialParameter{
+			Type:      p.Type,
+			Algorithm: p.Algorithm,
+		}
+	}
+	return res
+}
+
 // CredentialCreationResponse is the reply from authenticators to complete
 // registration.
 type CredentialCreationResponse struct {
@@ -116,6 +271,20 @@ type CredentialCreationResponse struct {
 	AttestationResponse AuthenticatorAttestationResponse `json:"response"`
 }
 
+type AuthenticatorAttestationResponse struct {
+	AuthenticatorResponse
+	AttestationObject protocol.URLEncodedBase64 `json:"attestationObject"`
+}
+
+type Challenge = protocol.Challenge
+
+type CredentialDescriptor struct {
+	Type            protocol.CredentialType           `json:"type"`
+	CredentialID    []byte                            `json:"id"`
+	Transport       []protocol.AuthenticatorTransport `json:"transports,omitempty"`
+	AttestationType string                            `json:"-"`
+}
+
 type PublicKeyCredential struct {
 	Credential
 	RawID      protocol.URLEncodedBase64              `json:"rawId"`
@@ -126,18 +295,4 @@ type Credential protocol.Credential
 
 type AuthenticationExtensionsClientOutputs struct {
 	AppID bool `json:"appid,omitempty"`
-}
-
-type AuthenticatorAssertionResponse struct {
-	AuthenticatorResponse
-	AuthenticatorData protocol.URLEncodedBase64 `json:"authenticatorData"`
-	Signature         protocol.URLEncodedBase64 `json:"signature"`
-	UserHandle        protocol.URLEncodedBase64 `json:"userHandle,omitempty"`
-}
-
-type AuthenticatorResponse protocol.AuthenticatorResponse
-
-type AuthenticatorAttestationResponse struct {
-	AuthenticatorResponse
-	AttestationObject protocol.URLEncodedBase64 `json:"attestationObject"`
 }

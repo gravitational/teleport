@@ -22,9 +22,11 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
+
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
-func assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
+func assertOptionsToCType(in wanlib.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
 	allowCredList, err := credentialsExToCType(in.AllowedCredentials)
 	if err != nil {
 		return nil, err
@@ -53,7 +55,7 @@ func assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOp
 	}, nil
 }
 
-func rpToCType(in protocol.RelyingPartyEntity) (*webauthnRPEntityInformation, error) {
+func rpToCType(in wanlib.RelyingPartyEntity) (*webauthnRPEntityInformation, error) {
 	if in.ID == "" {
 		return nil, trace.BadParameter("missing RelyingPartyEntity.Id")
 	}
@@ -83,7 +85,7 @@ func rpToCType(in protocol.RelyingPartyEntity) (*webauthnRPEntityInformation, er
 	}, nil
 }
 
-func userToCType(in protocol.UserEntity) (*webauthnUserEntityInformation, error) {
+func userToCType(in wanlib.UserEntity) (*webauthnUserEntityInformation, error) {
 	if len(in.ID) == 0 {
 		return nil, trace.BadParameter("missing UserEntity.Id")
 	}
@@ -119,7 +121,7 @@ func userToCType(in protocol.UserEntity) (*webauthnUserEntityInformation, error)
 	}, nil
 }
 
-func credParamToCType(in []protocol.CredentialParameter) (*webauthnCoseCredentialParameters, error) {
+func credParamToCType(in []wanlib.CredentialParameter) (*webauthnCoseCredentialParameters, error) {
 	if len(in) == 0 {
 		return nil, trace.BadParameter("missing CredentialParameter")
 	}
@@ -174,7 +176,7 @@ func clientDataToCType(challenge, origin, cdType string) (*webauthnClientData, [
 	}, jsonCD, nil
 }
 
-func credentialsExToCType(in []protocol.CredentialDescriptor) (*webauthnCredentialList, error) {
+func credentialsExToCType(in []wanlib.CredentialDescriptor) (*webauthnCredentialList, error) {
 	exCredList := make([]*webauthnCredentialEX, 0, len(in))
 	for _, e := range in {
 		if e.Type == "" {
@@ -270,7 +272,7 @@ func userVerificationToCType(in protocol.UserVerificationRequirement) uint32 {
 	}
 }
 
-func requirePreferResidentKey(in protocol.AuthenticatorSelection) (requireRK bool, preferRK bool) {
+func requirePreferResidentKey(in wanlib.AuthenticatorSelection) (requireRK bool, preferRK bool) {
 	switch in.ResidentKey {
 	case protocol.ResidentKeyRequirementRequired:
 		return true, false
@@ -286,7 +288,7 @@ func requirePreferResidentKey(in protocol.AuthenticatorSelection) (requireRK boo
 	}
 }
 
-func makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
+func makeCredOptionsToCType(in wanlib.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
 	exCredList, err := credentialsExToCType(in.CredentialExcludeList)
 	if err != nil {
 		return nil, err

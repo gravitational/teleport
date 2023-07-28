@@ -158,7 +158,7 @@ func CredentialCreationResponseFromProto(ccr *wantypes.CredentialCreationRespons
 	}
 }
 
-func authenticatorSelectionToProto(a protocol.AuthenticatorSelection) *wantypes.AuthenticatorSelection {
+func authenticatorSelectionToProto(a AuthenticatorSelection) *wantypes.AuthenticatorSelection {
 	return &wantypes.AuthenticatorSelection{
 		AuthenticatorAttachment: string(a.AuthenticatorAttachment),
 		RequireResidentKey:      a.RequireResidentKey != nil && *a.RequireResidentKey,
@@ -166,7 +166,7 @@ func authenticatorSelectionToProto(a protocol.AuthenticatorSelection) *wantypes.
 	}
 }
 
-func credentialDescriptorsToProto(creds []protocol.CredentialDescriptor) []*wantypes.CredentialDescriptor {
+func credentialDescriptorsToProto(creds []CredentialDescriptor) []*wantypes.CredentialDescriptor {
 	res := make([]*wantypes.CredentialDescriptor, len(creds))
 	for i, cred := range creds {
 		res[i] = &wantypes.CredentialDescriptor{
@@ -177,7 +177,7 @@ func credentialDescriptorsToProto(creds []protocol.CredentialDescriptor) []*want
 	return res
 }
 
-func credentialParametersToProto(params []protocol.CredentialParameter) []*wantypes.CredentialParameter {
+func credentialParametersToProto(params []CredentialParameter) []*wantypes.CredentialParameter {
 	res := make([]*wantypes.CredentialParameter, len(params))
 	for i, p := range params {
 		res[i] = &wantypes.CredentialParameter{
@@ -188,7 +188,7 @@ func credentialParametersToProto(params []protocol.CredentialParameter) []*wanty
 	return res
 }
 
-func inputExtensionsToProto(exts protocol.AuthenticationExtensions) *wantypes.AuthenticationExtensionsClientInputs {
+func inputExtensionsToProto(exts AuthenticationExtensions) *wantypes.AuthenticationExtensionsClientInputs {
 	if len(exts) == 0 {
 		return nil
 	}
@@ -212,7 +212,7 @@ func outputExtensionsToProto(exts *AuthenticationExtensionsClientOutputs) *wanty
 	}
 }
 
-func rpEntityToProto(rp protocol.RelyingPartyEntity) *wantypes.RelyingPartyEntity {
+func rpEntityToProto(rp RelyingPartyEntity) *wantypes.RelyingPartyEntity {
 	return &wantypes.RelyingPartyEntity{
 		Id:   rp.ID,
 		Name: rp.Name,
@@ -220,7 +220,7 @@ func rpEntityToProto(rp protocol.RelyingPartyEntity) *wantypes.RelyingPartyEntit
 	}
 }
 
-func userEntityToProto(user protocol.UserEntity) *wantypes.UserEntity {
+func userEntityToProto(user UserEntity) *wantypes.UserEntity {
 	return &wantypes.UserEntity{
 		Id:          user.ID,
 		Name:        user.Name,
@@ -255,25 +255,25 @@ func authenticatorAttestationResponseFromProto(resp *wantypes.AuthenticatorAttes
 	}
 }
 
-func authenticatorSelectionFromProto(a *wantypes.AuthenticatorSelection) protocol.AuthenticatorSelection {
+func authenticatorSelectionFromProto(a *wantypes.AuthenticatorSelection) AuthenticatorSelection {
 	if a == nil {
-		return protocol.AuthenticatorSelection{}
+		return AuthenticatorSelection{}
 	}
 	rrk := a.RequireResidentKey
-	return protocol.AuthenticatorSelection{
+	return AuthenticatorSelection{
 		AuthenticatorAttachment: protocol.AuthenticatorAttachment(a.AuthenticatorAttachment),
 		RequireResidentKey:      &rrk,
 		UserVerification:        protocol.UserVerificationRequirement(a.UserVerification),
 	}
 }
 
-func credentialDescriptorsFromProto(creds []*wantypes.CredentialDescriptor) []protocol.CredentialDescriptor {
-	var res []protocol.CredentialDescriptor
+func credentialDescriptorsFromProto(creds []*wantypes.CredentialDescriptor) []CredentialDescriptor {
+	var res []CredentialDescriptor
 	for _, cred := range creds {
 		if cred == nil {
 			continue
 		}
-		res = append(res, protocol.CredentialDescriptor{
+		res = append(res, CredentialDescriptor{
 			Type:         protocol.CredentialType(cred.Type),
 			CredentialID: cred.Id,
 		})
@@ -281,13 +281,13 @@ func credentialDescriptorsFromProto(creds []*wantypes.CredentialDescriptor) []pr
 	return res
 }
 
-func credentialParametersFromProto(params []*wantypes.CredentialParameter) []protocol.CredentialParameter {
-	var res []protocol.CredentialParameter
+func credentialParametersFromProto(params []*wantypes.CredentialParameter) []CredentialParameter {
+	var res []CredentialParameter
 	for _, p := range params {
 		if p == nil {
 			continue
 		}
-		res = append(res, protocol.CredentialParameter{
+		res = append(res, CredentialParameter{
 			Type:      protocol.CredentialType(p.Type),
 			Algorithm: webauthncose.COSEAlgorithmIdentifier(p.Alg),
 		})
@@ -295,7 +295,7 @@ func credentialParametersFromProto(params []*wantypes.CredentialParameter) []pro
 	return res
 }
 
-func inputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientInputs) protocol.AuthenticationExtensions {
+func inputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientInputs) AuthenticationExtensions {
 	if exts == nil {
 		return nil
 	}
@@ -315,11 +315,11 @@ func outputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientOutp
 	}
 }
 
-func publicKeyCredentialCreationOptionsFromProto(pubKey *wantypes.PublicKeyCredentialCreationOptions) protocol.PublicKeyCredentialCreationOptions {
+func publicKeyCredentialCreationOptionsFromProto(pubKey *wantypes.PublicKeyCredentialCreationOptions) PublicKeyCredentialCreationOptions {
 	if pubKey == nil {
-		return protocol.PublicKeyCredentialCreationOptions{}
+		return PublicKeyCredentialCreationOptions{}
 	}
-	return protocol.PublicKeyCredentialCreationOptions{
+	return PublicKeyCredentialCreationOptions{
 		Challenge:              pubKey.Challenge,
 		RelyingParty:           rpEntityFromProto(pubKey.Rp),
 		User:                   userEntityFromProto(pubKey.User),
@@ -332,11 +332,11 @@ func publicKeyCredentialCreationOptionsFromProto(pubKey *wantypes.PublicKeyCrede
 	}
 }
 
-func publicKeyCredentialRequestOptionsFromProto(pubKey *wantypes.PublicKeyCredentialRequestOptions) protocol.PublicKeyCredentialRequestOptions {
+func publicKeyCredentialRequestOptionsFromProto(pubKey *wantypes.PublicKeyCredentialRequestOptions) PublicKeyCredentialRequestOptions {
 	if pubKey == nil {
-		return protocol.PublicKeyCredentialRequestOptions{}
+		return PublicKeyCredentialRequestOptions{}
 	}
-	return protocol.PublicKeyCredentialRequestOptions{
+	return PublicKeyCredentialRequestOptions{
 		Challenge:          pubKey.Challenge,
 		Timeout:            int(pubKey.TimeoutMs),
 		RelyingPartyID:     pubKey.RpId,
@@ -346,12 +346,12 @@ func publicKeyCredentialRequestOptionsFromProto(pubKey *wantypes.PublicKeyCreden
 	}
 }
 
-func rpEntityFromProto(rp *wantypes.RelyingPartyEntity) protocol.RelyingPartyEntity {
+func rpEntityFromProto(rp *wantypes.RelyingPartyEntity) RelyingPartyEntity {
 	if rp == nil {
-		return protocol.RelyingPartyEntity{}
+		return RelyingPartyEntity{}
 	}
-	return protocol.RelyingPartyEntity{
-		CredentialEntity: protocol.CredentialEntity{
+	return RelyingPartyEntity{
+		CredentialEntity: CredentialEntity{
 			Name: rp.Name,
 			Icon: rp.Icon,
 		},
@@ -359,12 +359,12 @@ func rpEntityFromProto(rp *wantypes.RelyingPartyEntity) protocol.RelyingPartyEnt
 	}
 }
 
-func userEntityFromProto(user *wantypes.UserEntity) protocol.UserEntity {
+func userEntityFromProto(user *wantypes.UserEntity) UserEntity {
 	if user == nil {
-		return protocol.UserEntity{}
+		return UserEntity{}
 	}
-	return protocol.UserEntity{
-		CredentialEntity: protocol.CredentialEntity{
+	return UserEntity{
+		CredentialEntity: CredentialEntity{
 			Name: user.Name,
 			Icon: user.Icon,
 		},
