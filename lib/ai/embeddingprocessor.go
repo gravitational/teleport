@@ -24,13 +24,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/defaults"
 	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	streamutils "github.com/gravitational/teleport/lib/utils/stream"
 )
 
@@ -40,9 +40,9 @@ const maxEmbeddingAPISize = 1000
 // Embeddings implements the minimal interface used by the Embedding processor.
 type Embeddings interface {
 	// GetEmbeddings returns all embeddings for a given kind.
-	GetEmbeddings(ctx context.Context, kind string) stream.Stream[*Embedding]
+	GetEmbeddings(ctx context.Context, kind string) stream.Stream[*embeddinglib.Embedding]
 	// UpsertEmbedding creates or update a single ai.Embedding in the backend.
-	UpsertEmbedding(ctx context.Context, embedding *Embedding) (*Embedding, error)
+	UpsertEmbedding(ctx context.Context, embedding *embeddinglib.Embedding) (*embeddinglib.Embedding, error)
 }
 
 // NodesStreamGetter is a service that gets nodes.
@@ -52,7 +52,7 @@ type NodesStreamGetter interface {
 }
 
 // MarshalEmbedding marshals the ai.Embedding resource to binary ProtoBuf.
-func MarshalEmbedding(embedding *Embedding) ([]byte, error) {
+func MarshalEmbedding(embedding *embeddinglib.Embedding) ([]byte, error) {
 	data, err := proto.Marshal((*embeddingpb.Embedding)(embedding))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -61,7 +61,7 @@ func MarshalEmbedding(embedding *Embedding) ([]byte, error) {
 }
 
 // UnmarshalEmbedding unmarshals binary ProtoBuf into an ai.Embedding resource.
-func UnmarshalEmbedding(bytes []byte) (*Embedding, error) {
+func UnmarshalEmbedding(bytes []byte) (*embeddinglib.Embedding, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing embedding data")
 	}
@@ -71,37 +71,17 @@ func UnmarshalEmbedding(bytes []byte) (*Embedding, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return (*Embedding)(&embedding), nil
+	return (*embeddinglib.Embedding)(&embedding), nil
 }
 
 // EmbeddingHashMatches returns true if the hash of the embedding matches the
 // given hash.
-func EmbeddingHashMatches(embedding *Embedding, hash Sha256Hash) bool {
+func EmbeddingHashMatches(embedding *embeddinglib.Embedding, hash embeddinglib.Sha256Hash) bool {
 	if len(embedding.EmbeddedHash) != 32 {
 		return false
 	}
 
-	return *(*Sha256Hash)(embedding.EmbeddedHash) == hash
-}
-
-// SerializeNode converts a type.Server into text ready to be fed to an
-// embedding model. The YAML serialization function was chosen over JSON and
-// CSV as it provided better results.
-func SerializeNode(node types.Server) ([]byte, error) {
-	a := struct {
-		Name    string            `yaml:"name"`
-		Kind    string            `yaml:"kind"`
-		SubKind string            `yaml:"subkind"`
-		Labels  map[string]string `yaml:"labels"`
-	}{
-		// Create artificial Name file for the node "name". Using node.GetName() as Name seems to confuse the model.
-		Name:    node.GetHostname(),
-		Kind:    types.KindNode,
-		SubKind: node.GetSubKind(),
-		Labels:  node.GetAllLabels(),
-	}
-	text, err := yaml.Marshal(&a)
-	return text, trace.Wrap(err)
+	return *(*embeddinglib.Sha256Hash)(embedding.EmbeddedHash) == hash
 }
 
 // BatchReducer is a helper that processes data in batches.
@@ -149,7 +129,7 @@ func (b *BatchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
 
 // EmbeddingProcessorConfig is the configuration for EmbeddingProcessor.
 type EmbeddingProcessorConfig struct {
-	AIClient            Embedder
+	AIClient            embeddinglib.Embedder
 	EmbeddingSrv        Embeddings
 	EmbeddingsRetriever *SimpleRetriever
 	NodeSrv             NodesStreamGetter
@@ -160,7 +140,7 @@ type EmbeddingProcessorConfig struct {
 // EmbeddingProcessor is responsible for processing nodes, generating embeddings
 // and storing their embeddings in the backend.
 type EmbeddingProcessor struct {
-	aiClient            Embedder
+	aiClient            embeddinglib.Embedder
 	embeddingSrv        Embeddings
 	embeddingsRetriever *SimpleRetriever
 	nodeSrv             NodesStreamGetter
@@ -188,7 +168,7 @@ type nodeStringPair struct {
 
 // mapProcessFn is a helper function that maps a slice of nodeStringPair,
 // compute embeddings and return them as a slice of ai.Embedding.
-func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStringPair) ([]*Embedding, error) {
+func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStringPair) ([]*embeddinglib.Embedding, error) {
 	dataBatch := make([]string, 0, len(data))
 	for _, pair := range data {
 		dataBatch = append(dataBatch, pair.data)
@@ -199,11 +179,11 @@ func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStrin
 		return nil, trace.Wrap(err)
 	}
 
-	results := make([]*Embedding, 0, len(embeddings))
+	results := make([]*embeddinglib.Embedding, 0, len(embeddings))
 	for i, embedding := range embeddings {
-		emb := NewEmbedding(types.KindNode,
+		emb := embeddinglib.NewEmbedding(types.KindNode,
 			data[i].node.GetName(), embedding,
-			EmbeddingHash([]byte(data[i].data)),
+			embeddinglib.EmbeddingHash([]byte(data[i].data)),
 		)
 		results = append(results, emb)
 	}
@@ -244,7 +224,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		embeddingsStream,
 		// On new node callback. Add the node to the batch.
 		func(node types.Server) error {
-			nodeData, err := SerializeNode(node)
+			nodeData, err := embeddinglib.SerializeNode(node)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -260,12 +240,12 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		},
 		// On equal node callback. Check if the node's embedding hash matches
 		// the one in the backend. If not, add the node to the batch.
-		func(node types.Server, embedding *Embedding) error {
-			nodeData, err := SerializeNode(node)
+		func(node types.Server, embedding *embeddinglib.Embedding) error {
+			nodeData, err := embeddinglib.SerializeNode(node)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			nodeHash := EmbeddingHash(nodeData)
+			nodeHash := embeddinglib.EmbeddingHash(nodeData)
 
 			if !EmbeddingHashMatches(embedding, nodeHash) {
 				vectors, err := batch.Add(ctx, &nodeStringPair{node, string(nodeData)})
@@ -279,7 +259,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 			return nil
 		},
 		// On compare keys callback. Compare the keys for iteration.
-		func(node types.Server, embeddings *Embedding) int {
+		func(node types.Server, embeddings *embeddinglib.Embedding) int {
 			if node.GetName() == embeddings.GetName() {
 				return 0
 			}
@@ -333,7 +313,7 @@ func (e *EmbeddingProcessor) updateMemIndex(ctx context.Context) error {
 }
 
 // upsertEmbeddings is a helper function that upserts the embeddings into the backend.
-func (e *EmbeddingProcessor) upsertEmbeddings(ctx context.Context, rawEmbeddings []*Embedding) error {
+func (e *EmbeddingProcessor) upsertEmbeddings(ctx context.Context, rawEmbeddings []*embeddinglib.Embedding) error {
 	// Store the new embeddings into the backend
 	for _, embedding := range rawEmbeddings {
 		_, err := e.embeddingSrv.UpsertEmbedding(ctx, embedding)

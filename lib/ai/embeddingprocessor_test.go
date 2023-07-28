@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
@@ -43,11 +44,11 @@ import (
 // provides different embeddings.
 type MockEmbedder struct{}
 
-func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]ai.Vector64, error) {
-	result := make([]ai.Vector64, len(input))
+func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]embedding.Vector64, error) {
+	result := make([]embedding.Vector64, len(input))
 	for i, text := range input {
 		hash := sha256.Sum256([]byte(text))
-		vector := make(ai.Vector64, len(hash))
+		vector := make(embedding.Vector64, len(hash))
 		for j, x := range hash {
 			vector[j] = 1 / float64(int(x)+1)
 		}
@@ -126,7 +127,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 
 func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	// We test that float precision is above six digits
-	initial := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0.1234567, 1, 1}, sha256.Sum256([]byte("test")))
+	initial := embedding.NewEmbedding(types.KindNode, "foo", embedding.Vector64{0.1234567, 1, 1}, sha256.Sum256([]byte("test")))
 
 	marshaled, err := ai.MarshalEmbedding(initial)
 	require.NoError(t, err)
@@ -150,7 +151,7 @@ func waitForDone(t *testing.T, done chan struct{}, errMsg string) {
 	}
 }
 
-func validateEmbeddings(t *testing.T, nodesStream stream.Stream[types.Server], embeddingsStream stream.Stream[*ai.Embedding]) {
+func validateEmbeddings(t *testing.T, nodesStream stream.Stream[types.Server], embeddingsStream stream.Stream[*embedding.Embedding]) {
 	t.Helper()
 
 	nodes, err := stream.Collect(nodesStream)

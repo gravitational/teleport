@@ -23,8 +23,12 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/tiktoken-go/tokenizer/codec"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/ai/model"
+)
+
+const (
+	maxOpenAIEmbeddingsPerRequest = 1000
 )
 
 // Client is a client for OpenAI API.
@@ -130,4 +134,53 @@ func (client *Client) ClassifyMessage(ctx context.Context, message string, class
 	}
 
 	return resp.Choices[0].Message.Content, nil
+}
+
+// ComputeEmbeddings taxes a map of nodes and calls openAI to generate
+// embeddings for those nodes. ComputeEmbeddings is responsible for
+// implementing a retry mechanism if the embedding computation is flaky.
+func (client *Client) ComputeEmbeddings(ctx context.Context, input []string) ([]embedding.Vector64, error) {
+	var results []embedding.Vector64
+	for i := 0; maxOpenAIEmbeddingsPerRequest*i < len(input); i++ {
+		result, err := client.computeEmbeddings(ctx, paginateInput(input, i, maxOpenAIEmbeddingsPerRequest))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, vector := range result {
+			results = append(results, embedding.Vector32to64(vector))
+		}
+	}
+	return results, nil
+}
+
+func paginateInput(input []string, page, pageSize int) []string {
+	begin := page * pageSize
+	var end int
+	if len(input) < (page+1)*pageSize {
+		end = len(input)
+	} else {
+		end = (page + 1) * pageSize
+	}
+	return input[begin:end]
+}
+
+// computeEmbeddings calls the openAI embedding model with the provided input.
+// This function should not be called directly, use ComputeEmbeddings instead
+// to ensure input is properly batched.
+func (client *Client) computeEmbeddings(ctx context.Context, input []string) ([]embedding.Vector32, error) {
+	req := openai.EmbeddingRequest{
+		Input: input,
+		Model: openai.AdaEmbeddingV2,
+	}
+
+	// Execute the query
+	resp, err := client.svc.CreateEmbeddings(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	result := make([]embedding.Vector32, len(input))
+	for i, item := range resp.Data {
+		result[i] = item.Embedding
+	}
+	return result, nil
 }
