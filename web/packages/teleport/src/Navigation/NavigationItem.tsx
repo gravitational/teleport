@@ -31,6 +31,8 @@ import {
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import localStorage from 'teleport/services/localStorage';
+
 import { useTeleport } from 'teleport';
 
 import type {
@@ -157,9 +159,17 @@ export function NavigationItem(props: NavigationItemProps) {
   // shouldAlert returns red dot alert if the feature name exist in recommendFeature
   // context and the feature value is set true.
   function shouldAlert(featureName: string): JSX.Element {
+    const onboard = localStorage.getOnboardDiscover();
+    const requiresOnboarding =
+      onboard && !onboard.hasResource && !onboard.notified;
+
+    if (requiresOnboarding) {
+      return null
+    }
+
     if (
-      featureName in ctx?.recommendFeature &&
-      ctx?.recommendFeature?.FeatureDeviceTrust
+      featureName in ctx.recommendFeature &&
+      ctx.recommendFeature.FeatureDeviceTrust
     ) {
       return <DotAlert />;
     }
