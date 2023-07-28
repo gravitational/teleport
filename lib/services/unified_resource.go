@@ -283,11 +283,13 @@ type UnifiedResourceWatcher struct {
 }
 
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
-func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
+func (u *unifiedResourceCollector) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
 	var resources []types.ResourceWithLabels
 
-	// if the watcher is not initialized or stale, instead of returning nothing, return upstream nodes
-	if !u.IsInitialized() || u.stale {
+	// if the cache is not initialized or stale, instead of returning nothing, return upstream nodes
+	if !u.isInitialized() || u.stale {
 		nodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting nodes while unified resource cache is uninitialized or stale")
@@ -505,6 +507,15 @@ func (u *unifiedResourceCollector) notifyStale() {
 
 func (u *unifiedResourceCollector) initializationChan() <-chan struct{} {
 	return u.initializationC
+}
+
+func (u *unifiedResourceCollector) isInitialized() bool {
+	select {
+	case <-u.initializationC:
+		return true
+	default:
+		return false
+	}
 }
 
 func (u *unifiedResourceCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
