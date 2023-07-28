@@ -526,6 +526,31 @@ func TestEvaluate(t *testing.T) {
 				`invalid regexp "(.*@example.com"`,
 			},
 		},
+		{
+			desc: "strings.split",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0,
+					map[string][]string{
+						"logins": {`strings.split(external.commaLogins, ",")`},
+						"localEmails": {
+							`email.local(strings.split(external.oneSpaceEmails, " "))`,
+							`email.local(strings.split(external.twoSpaceEmails, "  "))`,
+							`email.local(strings.split(external.singleEmail, ","))`,
+						},
+					},
+				),
+			},
+			inputTraits: map[string][]string{
+				"commaLogins":    {"alice,bob,charlie"},
+				"oneSpaceEmails": {"alice@example.com bob@example.com charlie@example.com"},
+				"twoSpaceEmails": {"darrell@example.com  esther@example.com"},
+				"singleEmail":    {"frank@example.com"},
+			},
+			expectedTraits: map[string][]string{
+				"logins":      {"alice", "bob", "charlie"},
+				"localEmails": {"alice", "bob", "charlie", "darrell", "esther", "frank"},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := Evaluate(tc.rules, &oss.EvaluationInput{Traits: tc.inputTraits})

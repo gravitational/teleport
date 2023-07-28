@@ -101,6 +101,14 @@ func mustLoginRuleParser() *typical.Parser[evaluationEnv, any] {
 					}
 					return newSet(replaced...), nil
 				}),
+			"strings.split": typical.BinaryFunction[evaluationEnv](
+				func(inputs set, sep string) (set, error) {
+					var outputs []string
+					for input := range inputs {
+						outputs = append(outputs, strings.Split(input, sep)...)
+					}
+					return newSet(outputs...), nil
+				}),
 		},
 		Methods: map[string]typical.Function{
 			"add": typical.BinaryVariadicFunction[evaluationEnv](
