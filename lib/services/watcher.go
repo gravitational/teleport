@@ -70,6 +70,8 @@ type ResourceWatcherConfig struct {
 	MaxStaleness time.Duration
 	// ResetC is a channel to notify of internal watcher reset (used in tests).
 	ResetC chan time.Duration
+	// QueueSize is an optional queue size
+	QueueSize int
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -262,11 +264,16 @@ func (p *resourceWatcher) runWatchLoop() {
 // watch monitors new resource updates, maintains a local view and broadcasts
 // notifications to connected agents.
 func (p *resourceWatcher) watch() error {
-	watcher, err := p.Client.NewWatcher(p.ctx, types.Watch{
+	watch := types.Watch{
 		Name:            p.Component,
 		MetricComponent: p.Component,
 		Kinds:           p.collector.resourceKinds(),
-	})
+	}
+
+	if p.QueueSize > 0 {
+		watch.QueueSize = p.QueueSize
+	}
+	watcher, err := p.Client.NewWatcher(p.ctx, watch)
 	if err != nil {
 		return trace.Wrap(err)
 	}

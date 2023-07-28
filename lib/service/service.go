@@ -1733,6 +1733,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	UnifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
 			Component:    teleport.ComponentUnifiedResource,
 			Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
 			Client:       authServer,
