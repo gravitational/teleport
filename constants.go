@@ -870,3 +870,9 @@ const (
 	// to invite to the session.
 	KubeSessionInvitedQueryParam = "invite"
 )
+
+const (
+	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
+	// generating their names Server names.
+	KubeLegacyProxySuffix = "-proxy_service"
+)
