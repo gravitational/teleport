@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+const sidebarWidth = 256;
+
 // Styles that are shared by all themes.
 export const sharedStyles = {
   boxShadow: [
@@ -22,8 +24,8 @@ export const sharedStyles = {
     '0px 3px 5px -1px rgba(0, 0, 0, 0.2), 0px 6px 10px rgba(0, 0, 0, 0.14), 0px 1px 18px rgba(0, 0, 0, 0.12)',
   ],
   breakpoints: {
-    mobile: 400 + 256, // sidebar width
-    tablet: 800 + 256, // sidebar width
-    desktop: 1200 + 256, // sidebar width
+    mobile: 400 + sidebarWidth,
+    tablet: 800 + sidebarWidth,
+    desktop: 1200 + sidebarWidth,
   },
 };

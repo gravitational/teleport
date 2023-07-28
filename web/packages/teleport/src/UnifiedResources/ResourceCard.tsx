@@ -36,14 +36,20 @@ const SingleLineBox = styled(Box)`
   white-space: nowrap;
 `;
 
+const TruncatingLabel = styled(Label)`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
 type Props = {
   resource: AgentKind;
 };
 export const ResourceCard = ({ resource }: Props) => {
-  const name = agentName(resource);
-  const resIcon = agentIconName(resource);
-  const ResTypeIcon = agentTypeIcon(resource.kind);
-  const description = agentDescription(resource);
+  const name = resourceName(resource);
+  const resIcon = resourceIconName(resource);
+  const ResTypeIcon = resouceTypeIcon(resource.kind);
+  const description = resourceDescription(resource);
   return (
     <CardContainer p={3} alignItems="start">
       <CheckboxInput type="checkbox" mx={0}></CheckboxInput>
@@ -82,46 +88,48 @@ export const ResourceCard = ({ resource }: Props) => {
             </SingleLineBox>
           )}
         </Flex>
-        <div>
+        <Flex gap={1}>
           {resource.labels.map(({ name, value }) => (
-            <Label kind="secondary" mr={1}>{`${name}: ${value}`}</Label>
+            <TruncatingLabel kind="secondary">{`${name}: ${value}`}</TruncatingLabel>
           ))}
-        </div>
+        </Flex>
       </Flex>
     </CardContainer>
   );
 };
 
-function agentName(agent: AgentKind) {
-  return agent.kind === 'node' ? agent.hostname : agent.name;
+function resourceName(resource: AgentKind) {
+  return resource.kind === 'node' ? resource.hostname : resource.name;
 }
 
-function agentDescription(agent: AgentKind) {
-  switch (agent.kind) {
+function resourceDescription(resource: AgentKind) {
+  switch (resource.kind) {
     case 'app':
-      return { primary: agent.addrWithProtocol, secondary: agent.description };
+      return {
+        primary: resource.addrWithProtocol,
+        secondary: resource.description,
+      };
     case 'db':
-      return { primary: agent.type, secondary: agent.description };
+      return { primary: resource.type, secondary: resource.description };
     case 'kube_cluster':
       return { primary: 'Kubernetes' };
     case 'node':
       // TODO: Pass the subkind to display as the primary and push addr to
       // secondary.
-      return { primary: agent.addr };
+      return { primary: resource.addr };
     case 'windows_desktop':
-      return { primary: 'Windows', secondary: agent.addr };
+      return { primary: 'Windows', secondary: resource.addr };
 
     default:
       return {};
   }
 }
 
-function agentIconName(agent: AgentKind): ResourceIconName {
-  switch (agent.kind) {
+function resourceIconName(resource: AgentKind): ResourceIconName {
+  switch (resource.kind) {
     case 'app':
       return 'Application';
     case 'db':
-      // agent.
       return 'Database';
     case 'kube_cluster':
       return 'Kube';
@@ -135,7 +143,7 @@ function agentIconName(agent: AgentKind): ResourceIconName {
   }
 }
 
-function agentTypeIcon(kind: UnifiedResourceKind) {
+function resouceTypeIcon(kind: UnifiedResourceKind) {
   switch (kind) {
     case 'app':
       return ApplicationsIcon;

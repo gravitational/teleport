@@ -29,6 +29,27 @@ import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 
 import { ResourceCard as ResourceCard } from './ResourceCard';
+import { AgentKind } from 'teleport/services/agents';
+import makeApp from 'teleport/services/apps/makeApps';
+
+const additionalResources = [
+  makeApp({
+    name: 'An application with an awfully long name that will be truncated',
+    uri: 'https://you.should.be.ashamed.of.yourself.for.picking.such.ungodly.long.domain.names/',
+    description: 'I love the smell of word wrapping in the morning.',
+    awsConsole: false,
+    labels: [
+      {
+        name: 'some-rather-long-label-name',
+        value:
+          "I don't like to be labeled, do you? I find labels opressive. Label " +
+          "me, and I'll label you back. Or at least truncate my one.",
+      },
+    ],
+    clusterId: 'one',
+    fqdn: 'jenkins.one',
+  }),
+];
 
 const meta: Meta<typeof ResourceCard> = {
   component: ResourceCard,
@@ -48,7 +69,14 @@ export const Cards: Story = {
   render() {
     return (
       <Grid gap={2}>
-        {[...apps, ...databases, ...kubes, ...nodes, ...desktops].map(res => (
+        {[
+          ...apps,
+          ...databases,
+          ...kubes,
+          ...nodes,
+          ...desktops,
+          ...additionalResources,
+        ].map(res => (
           <ResourceCard resource={res} />
         ))}
       </Grid>
