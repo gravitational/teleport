@@ -530,6 +530,18 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportNamespace + "/vm-id"
+	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// id found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	ProjectIDLabel = TeleportNamespace + "/project-id"
+	// ZoneLabek is used to identify virtual machines by GCP zone
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	ZoneLabel = TeleportNamespace + "/zone"
+	// NameLabel is used to identify virtual machines by GCP VM name
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -681,6 +693,12 @@ const (
 	//
 	// See also TeleportNamespace and TeleportInternalLabelPrefix.
 	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
+	// DiscoveredNameLabel is a resource metadata label name used to identify
+	// the discovered name of a resource, i.e. the name of a resource before a
+	// uniquely distinguishing suffix is added by the discovery service.
+	// See: RFD 129 - Avoid Discovery Resource Name Collisions.
+	DiscoveredNameLabel = TeleportInternalLabelPrefix + "discovered-name"
 
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"

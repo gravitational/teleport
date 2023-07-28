@@ -78,7 +78,6 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 	}
 	c.ClientConfig.WebProxyURL = webProxyURL
 	c.ClientConfig.ClusterName = clusterName
-	c.ClientConfig.APIKey = c.Opsgenie.Token
 	client, err := NewClient(c.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

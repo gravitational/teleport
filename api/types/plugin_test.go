@@ -426,3 +426,130 @@ func TestPluginJamfValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestPluginMattermostValidation(t *testing.T) {
+	defaultSettings := &PluginSpecV1_Mattermost{
+		Mattermost: &PluginMattermostSettings{
+			ServerUrl: "https://test.mattermost.com",
+			Team:      "team-llama",
+			Channel:   "teleport",
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		settings  *PluginSpecV1_Mattermost
+		creds     *PluginCredentialsV1
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "no settings",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: nil,
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "missing Mattermost settings")
+			},
+		},
+		{
+			name: "no server url",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: &PluginMattermostSettings{},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "server url is required")
+			},
+		},
+		{
+			name: "no team",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: &PluginMattermostSettings{
+					ServerUrl: "https://test.mattermost.com",
+				},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "team is required")
+			},
+		},
+		{
+			name: "no channel",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: &PluginMattermostSettings{
+					ServerUrl: "https://test.mattermost.com",
+					Team:      "team-llama",
+				},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "channel is required")
+			},
+		},
+		{
+			name:     "no credentials inner",
+			settings: defaultSettings,
+			creds:    &PluginCredentialsV1{},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name:     "invalid credential type (oauth2)",
+			settings: defaultSettings,
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_Oauth2AccessToken{},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name:     "no labels for credentials",
+			settings: defaultSettings,
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
+			},
+		},
+		{
+			name:     "valid settings",
+			settings: defaultSettings,
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := NewPluginV1(Metadata{Name: "foobar"}, PluginSpecV1{
+				Settings: tc.settings,
+			}, tc.creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
