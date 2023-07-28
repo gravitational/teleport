@@ -821,3 +821,9 @@ const (
 	// used for connection upgrades.
 	WebAPIConnUpgradeConnectionType = "Upgrade"
 )
+
+const (
+	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
+	// generating their names Server names.
+	KubeLegacyProxySuffix = "-proxy_service"
+)
