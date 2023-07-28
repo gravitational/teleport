@@ -23,6 +23,8 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
 import { ApiError } from 'teleport/services/api/parseError';
+import { DatabaseLocation } from 'teleport/Discover/SelectResource';
+import { IamPolicyStatus } from 'teleport/services/databases';
 
 import { matchLabels } from '../common';
 
@@ -66,6 +68,8 @@ export function useCreateDatabase() {
   //    - timed out due to failure to query (this would most likely be some kind of
   //      backend error or network failure)
   const [createdDb, setCreatedDb] = useState<CreateDatabaseRequest>();
+
+  const isAws = resourceSpec.dbMeta.location === DatabaseLocation.Aws;
 
   const dbPollingResult = usePoll<DatabaseResource>(
     signal => fetchDatabaseServer(signal),
@@ -115,6 +119,10 @@ export function useCreateDatabase() {
       resourceName: createdDb.name,
       agentMatcherLabels: dbPollingResult.labels,
       db: dbPollingResult,
+      serviceDeployedMethod:
+        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Valid
+          ? 'skipped'
+          : undefined, // User has to deploy a service (can be auto or manual)
     });
 
     setAttempt({ status: 'success' });
@@ -129,7 +137,17 @@ export function useCreateDatabase() {
       .fetchDatabases(clusterId, request, signal)
       .then(res => {
         if (res.agents.length) {
-          return res.agents[0];
+          // If the db response we got is type AWS,
+          // keep polling until an AWS specific flag
+          // "iamPolicyStatus" returns a non zero enum value.
+          const dbServer = res.agents[0];
+          if (!isAws || !dbServer.aws || !dbServer.aws.iamPolicyStatus) {
+            return dbServer;
+          }
+
+          if (dbServer.aws.iamPolicyStatus !== IamPolicyStatus.Pending) {
+            return dbServer;
+          }
         }
         return null;
       });
@@ -285,6 +303,21 @@ export function useCreateDatabase() {
     emitErrorEvent(`${preErrMsg}${message}`);
   }
 
+  function handleNextStep() {
+    if (dbPollingResult) {
+      if (
+        isAws &&
+        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Valid
+      ) {
+        // Skips the deploy db service step AND setting up IAM policy step.
+        return nextStep(3);
+      }
+      // Skips the deploy database service step.
+      return nextStep(2);
+    }
+    nextStep(); // Goes to deploy database service step.
+  }
+
   const access = ctx.storeUser.getDatabaseAccess();
   return {
     createdDb,
@@ -298,9 +331,7 @@ export function useCreateDatabase() {
     dbLocation: resourceSpec.dbMeta.location,
     isDbCreateErr,
     prevStep,
-    // If there was a result from database polling, then
-    // allow user to skip the next step.
-    nextStep: dbPollingResult ? () => nextStep(2) : () => nextStep(),
+    nextStep: handleNextStep,
   };
 }
 
