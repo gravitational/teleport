@@ -86,12 +86,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 			Component: "test",
 			Client:    local.NewEventsService(bk),
 		},
-		NodesGetter:                  authServer,
-		DatabaseServersGetter:        authServer,
-		AppServersGetter:             authServer,
-		KubernetesClusterGetter:      authServer,
-		WindowsDesktopGetter:         authServer,
-		SAMLIdpServiceProviderGetter: authServer,
+		ResourceGetter: authServer,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { w.Close() })

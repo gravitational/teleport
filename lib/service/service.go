@@ -1731,26 +1731,21 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
-	UnifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			QueueSize:    defaults.UnifiedResourcesQueueSize,
-			Component:    teleport.ComponentUnifiedResource,
-			Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
-			Client:       authServer,
-			MaxStaleness: time.Minute,
-		},
-		NodesGetter:                  authServer,
-		DatabaseServersGetter:        authServer,
-		AppServersGetter:             authServer,
-		WindowsDesktopGetter:         authServer,
-		KubernetesClusterGetter:      authServer,
-		SAMLIdpServiceProviderGetter: authServer,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// UnifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
+	// 	ResourceWatcherConfig: services.ResourceWatcherConfig{
+	// 		QueueSize:    defaults.UnifiedResourcesQueueSize,
+	// 		Component:    teleport.ComponentUnifiedResource,
+	// 		Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
+	// 		Client:       authServer,
+	// 		MaxStaleness: time.Minute,
+	// 	},
+	// 	ResourceGetter: authServer,
+	// })
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
 
-	authServer.SetUnifiedResourceWatcher(UnifiedResourceWatcher)
+	// authServer.SetUnifiedResourceWatcher(UnifiedResourceWatcher)
 
 	if embedderClient != nil {
 		log.Debugf("Starting embedding watcher")

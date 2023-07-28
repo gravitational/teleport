@@ -267,12 +267,7 @@ func (c *UnifiedResourceCache) processEvent(event Event) {
 // UnifiedResourceWatcherConfig is a UnifiedResourceWatcher configuration.
 type UnifiedResourceWatcherConfig struct {
 	ResourceWatcherConfig
-	NodesGetter
-	DatabaseServersGetter
-	AppServersGetter
-	WindowsDesktopGetter
-	KubernetesClusterGetter
-	SAMLIdpServiceProviderGetter
+	ResourceGetter
 }
 
 // UnifiedResourceWatcher is built on top of resourceWatcher to monitor additions
@@ -290,7 +285,7 @@ func (u *unifiedResourceCollector) GetUnifiedResources(ctx context.Context) ([]t
 
 	// if the cache is not initialized or stale, instead of returning nothing, return upstream nodes
 	if !u.isInitialized() || u.stale {
-		nodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+		nodes, err := u.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting nodes while unified resource cache is uninitialized or stale")
 		}
@@ -310,6 +305,15 @@ func (u *unifiedResourceCollector) GetUnifiedResources(ctx context.Context) ([]t
 	}
 
 	return resources, nil
+}
+
+type ResourceGetter interface {
+	NodesGetter
+	DatabaseServersGetter
+	AppServersGetter
+	WindowsDesktopGetter
+	KubernetesClusterGetter
+	SAMLIdpServiceProviderGetter
 }
 
 // NewUnifiedResourceWatcher returns a new instance of UnifiedResourceWatcher.
@@ -391,7 +395,7 @@ func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Cont
 
 // getAndUpdateNodes will get nodes and update the current tree with each Node
 func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error {
-	newNodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+	newNodes, err := u.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting nodes for unified resource watcher")
 	}
@@ -407,7 +411,7 @@ func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error 
 
 // getAndUpdateDatabases will get database servers and update the current tree with each DatabaseServer
 func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) error {
-	newDbs, err := u.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
+	newDbs, err := u.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting databases for unified resource watcher")
 	}
@@ -423,7 +427,7 @@ func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) er
 
 // getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
 func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error {
-	newKubes, err := u.KubernetesClusterGetter.GetKubernetesClusters(ctx)
+	newKubes, err := u.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting kubes for unified resource watcher")
 	}
@@ -439,7 +443,7 @@ func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error 
 
 // getAndUpdateApps will get application servers and update the current tree with each AppServer
 func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
-	newApps, err := u.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
+	newApps, err := u.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting apps for unified resource watcher")
 	}
@@ -460,7 +464,7 @@ func (u *unifiedResourceCollector) getAndUpdateSAMLApps(ctx context.Context) err
 	startKey := ""
 
 	for {
-		resp, nextKey, err := u.SAMLIdpServiceProviderGetter.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
+		resp, nextKey, err := u.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
 
 		if err != nil {
 			return trace.Wrap(err, "getting SAML apps for unified resource watcher")
@@ -483,7 +487,7 @@ func (u *unifiedResourceCollector) getAndUpdateSAMLApps(ctx context.Context) err
 
 // getAndUpdateDesktops will get windows desktops and update the current tree with each Desktop
 func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) error {
-	newDesktops, err := u.WindowsDesktopGetter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	newDesktops, err := u.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err, "getting desktops for unified resource watcher")
 	}
