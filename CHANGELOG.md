@@ -1,6 +1,6 @@
 # Changelog
 
-## 13.2.4 (07/27/23)
+## 13.2.5 (07/27/23)
 
 * Removed alerts suggesting upgrade. [#29631](https://github.com/gravitational/teleport/pull/29631)
 * Reduced memory use when migrating events to Athena. [#29604](https://github.com/gravitational/teleport/pull/29604)
