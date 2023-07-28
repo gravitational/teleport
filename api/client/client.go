@@ -4063,3 +4063,11 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 	}
 	return nil
 }
+
+func (c *Client) GetResourceUsage(ctx context.Context, in *proto.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error) {
+	resp, err := c.grpc.GetResourceUsage(ctx, in)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}

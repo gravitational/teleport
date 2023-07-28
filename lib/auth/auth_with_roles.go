@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -6554,6 +6555,11 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 	}
 
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)
+}
+
+// GetResourceUsage is TODO
+func (a *ServerWithRoles) GetResourceUsage(ctx context.Context, req *authpb.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error) {
+	return a.authServer.GetResourceUsage(ctx, req)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

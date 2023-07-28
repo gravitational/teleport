@@ -291,7 +291,7 @@ func (s *DynamicAccessService) verifyAccessRequestMonthlyLimit(ctx context.Conte
 	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
 
 	limit := f.AccessRequests.MonthlyRequestLimit
-	used, err := s.getAccessRequestMonthlyUsage(ctx)
+	used, err := s.GetAccessRequestMonthlyUsage(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -302,8 +302,8 @@ func (s *DynamicAccessService) verifyAccessRequestMonthlyLimit(ctx context.Conte
 	return nil
 }
 
-// getAccessRequestMonthlyUsage TODO
-func (s *DynamicAccessService) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
+// GetAccessRequestMonthlyUsage TODO
+func (s *DynamicAccessService) GetAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
 	const pageSize = 100
 	// Get at most pageSize+1 results to determine if there will be a next key.
 	const maxLimit = pageSize + 1

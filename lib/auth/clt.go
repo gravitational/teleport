@@ -848,4 +848,7 @@ type ClientI interface {
 
 	// GetResources returns a paginated list of resources.
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+
+	// GetResourceUsage is TODO
+	GetResourceUsage(ctx context.Context, req *proto.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error)
 }

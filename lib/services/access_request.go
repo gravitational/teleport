@@ -267,6 +267,9 @@ type DynamicAccessExt interface {
 	DeleteAllAccessRequests(ctx context.Context) error
 	// SetAccessRequestState updates the state of an existing access request.
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) (types.AccessRequest, error)
+	// GetAccessRequestMonthlyUsage returns the amount of access requests used this month.
+	// This is used to present this information to the user in usage-based billing plans
+	GetAccessRequestMonthlyUsage(ctx context.Context) (int, error)
 }
 
 // reviewParamsContext is a simplified view of an access review

@@ -5305,6 +5305,20 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
+// GetResourceUsage is TODO
+func (g *GRPCServer) GetResourceUsage(ctx context.Context, req *authpb.GetResourceUsageRequest) (*authpb.GetResourceUsageResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.GetResourceUsage(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk

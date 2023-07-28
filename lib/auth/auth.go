@@ -5377,6 +5377,23 @@ func (a *Server) UpsertUserPreferences(ctx context.Context, request *userprefere
 	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, request))
 }
 
+// GetResourceUsage is TODO
+func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error) {
+	features := modules.GetModules().Features()
+	if !features.IsUsageBasedBilling {
+		return &proto.GetResourceUsageResponse{}, nil
+	}
+	accessRequestUsage, err := a.GetAccessRequestMonthlyUsage(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.GetResourceUsageResponse{
+		AccessRequestMonthlyLimit: int32(features.AccessRequests.MonthlyRequestLimit),
+		AccessRequestMonthlyUsage: int32(accessRequestUsage),
+	}, nil
+}
+
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
 // finds, or empty otherwise.
 func (a *Server) getProxyPublicAddr() string {
