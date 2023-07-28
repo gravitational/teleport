@@ -20,9 +20,11 @@ import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
 import { Desktop, WindowsDesktopService } from 'teleport/services/desktops';
 
+import { UserGroup } from '../userGroups';
+
 import type { MfaAuthnResponse } from '../mfa';
 
-export type AgentKind =
+export type UnifiedResource =
   | App
   | Database
   | Node
@@ -30,9 +32,9 @@ export type AgentKind =
   | Desktop
   | WindowsDesktopService;
 
-export type UnifiedResourceKind = AgentKind['kind'];
+export type UnifiedResourceKind = UnifiedResource['kind'];
 
-export type AgentResponse<T extends AgentKind> = {
+export type AgentResponse<T extends UnifiedResource | UserGroup> = {
   agents: T[];
   startKey?: string;
   totalCount?: number;
