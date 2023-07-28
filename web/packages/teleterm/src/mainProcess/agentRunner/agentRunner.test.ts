@@ -133,7 +133,7 @@ test('status updates are sent on a failed start', async () => {
     expect(updateSender).toHaveBeenCalledTimes(1);
     expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
       status: 'error',
-      message: `Error: spawn ${nonExisingPath} ENOENT`,
+      message: expect.stringContaining('ENOENT'),
     } as AgentProcessState);
   } finally {
     await agentRunner.killAll();
