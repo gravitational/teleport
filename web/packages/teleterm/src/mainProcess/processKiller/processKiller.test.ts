@@ -36,7 +36,7 @@ test('kills a process gracefully when possible', async () => {
   expect(process.signalCode).toBe('SIGTERM');
 });
 
-test('kills a process using SIGTERM when a graceful kill did not work', async () => {
+test('kills a process using SIGKILL when a graceful kill did not work', async () => {
   const process = fork(
     path.join(__dirname, 'testProcess.mjs'),
     ['ignore-sigterm'],
