@@ -85,7 +85,16 @@ test('status updates are sent on a successful start', async () => {
 
   try {
     const agentProcess = await agentRunner.start(rootClusterUri);
-    await new Promise(resolve => agentProcess.on('spawn', resolve));
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject('Process start timed out.'),
+        4_000
+      );
+      agentProcess.once('spawn', () => {
+        resolve(undefined);
+        clearTimeout(timeout);
+      });
+    });
     expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
       status: 'running',
     } as AgentProcessState);
