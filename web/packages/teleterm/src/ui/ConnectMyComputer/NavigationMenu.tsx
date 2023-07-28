@@ -22,6 +22,7 @@ import { Box } from 'design';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ClusterUri } from 'teleterm/ui/uri';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { NavigationMenuIcon } from './NavigationMenuIcon';
 import { canUseConnectMyComputer } from './permissions';
@@ -34,9 +35,11 @@ export function NavigationMenu(props: NavigationMenuProps) {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const appCtx = useAppContext();
+  const { documentsService, rootClusterUri } = useWorkspaceContext();
   // DocumentCluster renders this component only if the cluster exists.
   const cluster = appCtx.clustersService.findCluster(props.clusterUri);
 
+  // Don't show the navigation icon for leaf clusters.
   if (cluster.leaf) {
     return null;
   }
@@ -48,13 +51,9 @@ export function NavigationMenu(props: NavigationMenuProps) {
   }
 
   function openSetupDocument(): void {
-    const documentService =
-      appCtx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
-    const document = documentService.createConnectMyComputerSetupDocument({
-      rootClusterUri: rootCluster.uri,
+    documentsService.openConnectMyComputerSetupDocument({
+      rootClusterUri,
     });
-    documentService.add(document);
-    documentService.open(document.uri);
     setIsPopoverOpened(false);
   }
 
