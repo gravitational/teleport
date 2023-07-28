@@ -905,8 +905,12 @@ const (
 )
 
 // AzureInviteTokenName is the name of the default token to use
-// when templating the script to be executed.
+// when templating the script to be executed on Azure.
 const AzureInviteTokenName = "azure-discovery-token"
+
+// GCPInviteTokenName is the name of the default token to use
+// when templating the script to be executed on GCP.
+const GCPInviteTokenName = "gcp-discovery-token"
 
 const (
 	// FilePermissions are safe default permissions to use when
