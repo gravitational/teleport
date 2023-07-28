@@ -333,5 +333,7 @@ export type CreateConnectMyComputerRoleResponse =
 export type CreateConnectMyComputerNodeTokenResponse =
   apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
 
+export const UserType = apiCluster.LoggedInUser.UserType;
+
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;
