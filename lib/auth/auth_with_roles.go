@@ -1333,8 +1333,9 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		} else if serverName != handle.HostID {
 			return trace.AccessDenied("access denied")
 		}
-
-		if !a.hasBuiltinRole(types.RoleKube) {
+		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
+		// we need to check if the host has the Kube or Proxy role.
+		if !a.hasBuiltinRole(types.RoleKube, types.RoleProxy) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
