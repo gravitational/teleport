@@ -187,6 +187,7 @@ func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluste
 		resourceMatchers: s.ResourceMatchers,
 		clock:            s.Clock,
 		component:        s.KubeServiceType,
+		teleportCluster:  s.ClusterName,
 	}
 }
 

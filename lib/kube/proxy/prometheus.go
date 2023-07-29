@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -51,6 +52,8 @@ func init() {
 		execSessionsRequestCounter,
 		portforwardSessionsInFlightGauge,
 		portforwardRequestCounter,
+		joinSessionsInFlightGauge,
+		joinSessionsRequestCounter,
 	)
 }
 
@@ -65,7 +68,7 @@ var (
 			Name:      "client_in_flight_requests",
 			Help:      "In-flight requests waiting for the upstream response.",
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	clientRequestCounter = prometheus.NewCounterVec(
@@ -75,7 +78,7 @@ var (
 			Name:      "client_requests_total",
 			Help:      "Total number of requests sent to the upstream teleport proxy, kube_service or Kubernetes Cluster servers.",
 		},
-		[]string{"component", "code", "method"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster, "code", "method"},
 	)
 
 	clientTLSLatencyVec = prometheus.NewHistogramVec(
@@ -86,7 +89,7 @@ var (
 			Help:      "Latency distribution of TLS handshakes.",
 			Buckets:   prometheus.DefBuckets,
 		},
-		[]string{"component", "event"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster, "event"},
 	)
 
 	clietGotConnLatencyVec = prometheus.NewHistogramVec(
@@ -97,7 +100,7 @@ var (
 			Help:      "A histogram of latency to dial to the upstream server.",
 			Buckets:   prometheus.DefBuckets,
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	clientFirstByteLatencyVec = prometheus.NewHistogramVec(
@@ -108,7 +111,7 @@ var (
 			Help:      "Teleport Kubernetes Service | Latency distribution of time to receive the first response byte from the upstream server.",
 			Buckets:   prometheus.DefBuckets,
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	clientRequestDurationHistVec = prometheus.NewHistogramVec(
@@ -119,39 +122,57 @@ var (
 			Help:      "Latency distribution of the upstream request time.",
 			Buckets:   prometheus.DefBuckets,
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster, "code", "method"},
 	)
 )
 
 // instrumentedRoundtripper instruments the provided RoundTripper with
 // Prometheus metrics and OpenTelemetry tracing.
-func instrumentedRoundtripper(component string, tr http.RoundTripper) http.RoundTripper {
+func instrumentedRoundtripper(component, teleportCluster, kubeCluster string, tr http.RoundTripper) http.RoundTripper {
 	// Define functions for the available httptrace.ClientTrace hook
 	// functions that we want to instrument.
 	httpTrace := &promhttp.InstrumentTrace{
 		GotConn: func(t float64) {
-			clietGotConnLatencyVec.WithLabelValues(component).Observe(t)
+			clietGotConnLatencyVec.WithLabelValues(component, teleportCluster, kubeCluster).Observe(t)
 		},
 		GotFirstResponseByte: func(t float64) {
-			clientFirstByteLatencyVec.WithLabelValues(component).Observe(t)
+			clientFirstByteLatencyVec.WithLabelValues(component, teleportCluster, kubeCluster).Observe(t)
 		},
 		TLSHandshakeStart: func(t float64) {
-			clientTLSLatencyVec.WithLabelValues(component, "tls_handshake_start").Observe(t)
+			clientTLSLatencyVec.WithLabelValues(component, teleportCluster, kubeCluster, "tls_handshake_start").Observe(t)
 		},
 		TLSHandshakeDone: func(t float64) {
-			clientTLSLatencyVec.WithLabelValues(component, "tls_handshake_done").Observe(t)
+			clientTLSLatencyVec.WithLabelValues(component, teleportCluster, kubeCluster, "tls_handshake_done").Observe(t)
 		},
 	}
-	curryWith := prometheus.Labels{"component": component}
+	var (
+		opts = []promhttp.Option{
+			metrics.WithLabelFromCtx(
+				teleport.TagCluster,
+			),
+
+			metrics.WithLabelFromCtx(
+				teleport.TagKubernetesCluster,
+			),
+		}
+		curryWith = prometheus.Labels{
+			"component": component,
+		}
+	)
 	return tracehttp.NewTransportWithInner(
 		promhttp.InstrumentRoundTripperInFlight(
-			clientInFlightGauge.WithLabelValues(component),
+			clientInFlightGauge.WithLabelValues(component, teleportCluster, kubeCluster),
 			promhttp.InstrumentRoundTripperCounter(
 				clientRequestCounter.MustCurryWith(curryWith),
 				promhttp.InstrumentRoundTripperTrace(
 					httpTrace,
-					promhttp.InstrumentRoundTripperDuration(clientRequestDurationHistVec.MustCurryWith(curryWith), tr),
+					promhttp.InstrumentRoundTripperDuration(
+						clientRequestDurationHistVec.MustCurryWith(curryWith),
+						tr,
+						opts...,
+					),
 				),
+				opts...,
 			),
 		),
 		// Pass the original RoundTripper to the inner transport so that it can
@@ -181,7 +202,7 @@ var (
 			Name:      "server_api_requests_total",
 			Help:      "Total number of requests handled by the server.",
 		},
-		[]string{"component", "code", "method"},
+		[]string{"component", "code", "method", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	serverRequestDurationHist = prometheus.NewHistogramVec(
@@ -192,7 +213,7 @@ var (
 			Help:      "Latency distribution of the total request time.",
 			Buckets:   prometheus.DefBuckets,
 		},
-		[]string{"component", "method"},
+		[]string{"component", "code", "method", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	serverResponseSizeHist = prometheus.NewHistogramVec(
@@ -205,7 +226,7 @@ var (
 			// [50B 150B 450B 1.32KB 3.96KB 11.87KB 35.6KB 106.79KB 320.36KB 961.08KB 2.82MB 8.45MB 25.34MB]
 			Buckets: prometheus.ExponentialBuckets(50, 3, 13),
 		},
-		[]string{"component"},
+		[]string{"component", "code", "method", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	execSessionsInFlightGauge = prometheus.NewGaugeVec(
@@ -215,7 +236,7 @@ var (
 			Name:      "server_exec_in_flight_sessions",
 			Help:      "Number of active kubectl exec sessions.",
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	execSessionsRequestCounter = prometheus.NewCounterVec(
@@ -225,7 +246,7 @@ var (
 			Name:      "server_exec_sessions_total",
 			Help:      "Total number of kubectl exec sessions. ",
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	portforwardSessionsInFlightGauge = prometheus.NewGaugeVec(
@@ -235,7 +256,7 @@ var (
 			Name:      "server_portforward_in_flight_sessions",
 			Help:      " Number of active kubectl portforward sessions.",
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	portforwardRequestCounter = prometheus.NewCounterVec(
@@ -245,7 +266,7 @@ var (
 			Name:      "server_portforward_sessions_total",
 			Help:      "Number of active kubectl portforward sessions.",
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	joinSessionsInFlightGauge = prometheus.NewGaugeVec(
@@ -255,7 +276,7 @@ var (
 			Name:      "server_join_in_flight_sessions",
 			Help:      "Number of active joining sessions,",
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 
 	joinSessionsRequestCounter = prometheus.NewCounterVec(
@@ -265,41 +286,72 @@ var (
 			Name:      "server_join_sessions_total",
 			Help:      "Total number of joining sessions.",
 		},
-		[]string{"component"},
+		[]string{"component", teleport.TagCluster, teleport.TagKubernetesCluster},
 	)
 )
 
 // instrumentHTTPHandler instruments the HTTP handler with OpenTelemetry and
 // Prometheus metrics.
 func instrumentHTTPHandler(component string, handler http.Handler) http.Handler {
-	return otelhttp.NewHandler(
-		instrumentHTTPHandlerWithPrometheus(component, handler),
-		component,
-		otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
+	// This is a middleware that adds Prometheus labels map to the request
+	// context. This map is used to add labels to Prometheus metrics which
+	// are then used to fill the labels in the metrics.
+	return metrics.DynamicPromLabelsHandler(
+		otelhttp.NewHandler(
+			instrumentHTTPHandlerWithPrometheus(component, handler),
+			component,
+			otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
+		),
 	)
 }
 
 // instrumentHTTPHandlerWithPrometheus instruments the HTTP handler with
 // Prometheus metrics.
 func instrumentHTTPHandlerWithPrometheus(component string, handler http.Handler) http.Handler {
-	curryWith := prometheus.Labels{"component": component}
+	var (
+		opts = []promhttp.Option{
+			metrics.WithLabelFromCtx(
+				teleport.TagCluster,
+			),
+
+			metrics.WithLabelFromCtx(
+				teleport.TagKubernetesCluster,
+			),
+		}
+		curryWith             = prometheus.Labels{"component": component}
+		serverResponseSize    = serverResponseSizeHist.MustCurryWith(curryWith)
+		serverRequestCounter  = serverRequestCounter.MustCurryWith(curryWith)
+		serverRequestDuration = serverRequestDurationHist.MustCurryWith(curryWith)
+	)
+
 	return promhttp.InstrumentHandlerInFlight(
 		serverInFlightGauge.WithLabelValues(component),
 		promhttp.InstrumentHandlerDuration(
-			serverRequestDurationHist.MustCurryWith(
-				curryWith,
-			),
+			serverRequestDuration,
 			promhttp.InstrumentHandlerCounter(
-				serverRequestCounter.MustCurryWith(
-					curryWith,
-				),
+				serverRequestCounter,
 				promhttp.InstrumentHandlerResponseSize(
-					serverResponseSizeHist.MustCurryWith(
-						curryWith,
-					),
+					serverResponseSize,
 					handler,
+					opts...,
 				),
+				opts...,
 			),
+			opts...,
 		),
 	)
+}
+
+// registerDynPromPromLabels sets the Prometheus label for the Kubernetes
+// cluster name and Teleport cluster name.
+// This is required because the Kubernetes cluster name is not available in the
+// prometheus handler and depends on details of the request such as Identity or
+// agent name.
+func registerDynPromPromLabels(ctx context.Context, teleportCluster, kubeCluster string) {
+	labels, ok := metrics.LabelsFromCtx(ctx)
+	if !ok {
+		return
+	}
+	labels[teleport.TagCluster] = teleportCluster
+	labels[teleport.TagKubernetesCluster] = kubeCluster
 }

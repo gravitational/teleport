@@ -146,15 +146,17 @@ type dynamicCredsClient func(ctx context.Context, cluster types.KubeCluster) (cf
 // Unlike `staticKubeCreds`, `dynamicKubeCreds` extracts access credentials using the `client`
 // function and renews them whenever they are about to expire.
 type dynamicKubeCreds struct {
-	ctx         context.Context
-	renewTicker clockwork.Ticker
-	staticCreds *staticKubeCreds
-	log         logrus.FieldLogger
-	closeC      chan struct{}
-	client      dynamicCredsClient
-	checker     servicecfg.ImpersonationPermissionsChecker
-	clock       clockwork.Clock
-	component   KubeServiceType
+	ctx             context.Context
+	renewTicker     clockwork.Ticker
+	staticCreds     *staticKubeCreds
+	log             logrus.FieldLogger
+	closeC          chan struct{}
+	client          dynamicCredsClient
+	checker         servicecfg.ImpersonationPermissionsChecker
+	clock           clockwork.Clock
+	component       KubeServiceType
+	teleportCluster string
+
 	sync.RWMutex
 	wg sync.WaitGroup
 }
@@ -169,6 +171,7 @@ type dynamicCredsConfig struct {
 	initialRenewInterval time.Duration
 	resourceMatchers     []services.ResourceMatcher
 	component            KubeServiceType
+	teleportCluster      string
 }
 
 func (d *dynamicCredsConfig) checkAndSetDefaults() error {
@@ -200,14 +203,15 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 		return nil, trace.Wrap(err)
 	}
 	dyn := &dynamicKubeCreds{
-		ctx:         ctx,
-		log:         cfg.log,
-		closeC:      make(chan struct{}),
-		client:      cfg.client,
-		renewTicker: cfg.clock.NewTicker(cfg.initialRenewInterval),
-		checker:     cfg.checker,
-		clock:       cfg.clock,
-		component:   cfg.component,
+		ctx:             ctx,
+		log:             cfg.log,
+		closeC:          make(chan struct{}),
+		client:          cfg.client,
+		renewTicker:     cfg.clock.NewTicker(cfg.initialRenewInterval),
+		checker:         cfg.checker,
+		clock:           cfg.clock,
+		component:       cfg.component,
+		teleportCluster: cfg.teleportCluster,
 	}
 
 	if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
@@ -287,7 +291,17 @@ func (d *dynamicKubeCreds) renewClientset(cluster types.KubeCluster) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	creds, err := extractKubeCreds(d.ctx, d.component, cluster.GetName(), restConfig, d.log, d.checker)
+
+	creds, err := newStaticKubeCreds(d.ctx,
+		newStaticKubeCredsConfig{
+			kubeClusterName:  cluster.GetName(),
+			clientCfg:        restConfig,
+			log:              d.log,
+			teleportCluster:  d.teleportCluster,
+			serviceType:      d.component,
+			checkPermissions: d.checker,
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -94,6 +94,12 @@ const (
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
 
+	// TagKubernetesCluster is a metric tag for a kubernetes cluster
+	TagKubernetesCluster = "kube_cluster"
+
+	// TagValueRemoteProxy is a metric tag value used when dialing a remote proxy
+	TagValueRemoteProxy = "remote_proxy"
+
 	// MetricTotalInstances provides an instance count
 	MetricTotalInstances = "total_instances"
 

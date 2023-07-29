@@ -71,7 +71,7 @@ func TestCheckImpersonationPermissions(t *testing.T) {
 			allowedVerbs:     tt.allowedVerbs,
 			allowedResources: tt.allowedResources,
 		}
-		err := checkImpersonationPermissions(context.Background(), "test", mock)
+		err := defaultCheckImpersonationPermissions(context.Background(), "test", mock)
 		tt.errAssertion(t, err)
 	}
 }
@@ -281,12 +281,23 @@ current-context: foo
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
-			got, err := getKubeDetails(ctx, logger, teleClusterName, "", tt.kubeconfigPath, tt.serviceType, tt.impersonationCheck)
+			fwd := &Forwarder{
+				clusterDetails: map[string]*kubeDetails{},
+				cfg: ForwarderConfig{
+					ClusterName:                   teleClusterName,
+					KubeClusterName:               "",
+					KubeconfigPath:                tt.kubeconfigPath,
+					KubeServiceType:               tt.serviceType,
+					CheckImpersonationPermissions: tt.impersonationCheck,
+				},
+				log: logger,
+			}
+			err := fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(got, tt.want,
+			require.Empty(t, cmp.Diff(fwd.clusterDetails, tt.want,
 				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),

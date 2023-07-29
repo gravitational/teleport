@@ -227,7 +227,7 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 
 	if f.CheckImpersonationPermissions == nil {
-		f.CheckImpersonationPermissions = checkImpersonationPermissions
+		f.CheckImpersonationPermissions = defaultCheckImpersonationPermissions
 	}
 
 	if f.TracerProvider == nil {
@@ -356,8 +356,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		fwd.log.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
 	}
 	if len(cfg.KubeClusterName) > 0 || len(cfg.KubeconfigPath) > 0 || cfg.KubeServiceType != KubeService {
-		fwd.clusterDetails, err = getKubeDetails(cfg.Context, fwd.log, cfg.ClusterName, cfg.KubeClusterName, cfg.KubeconfigPath, cfg.KubeServiceType, cfg.CheckImpersonationPermissions)
-		if err != nil {
+		if err := fwd.getKubeDetails(cfg.Context); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -814,6 +813,10 @@ func (f *Forwarder) setupContext(
 			kubeCluster = kc
 		}
 	}
+	// sets the kube cluster name and teleport cluster name that this request
+	// is being made against. The registration stores the values in the
+	// [prometheus.Labels] map carried by the context.
+	registerDynPromPromLabels(ctx, teleportClusterName, kubeCluster)
 
 	var (
 		kubeServers []types.KubeServer
@@ -1153,10 +1156,15 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 
 // join joins an existing session over a websocket connection
 func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+	labelsValues := []string{
+		f.cfg.KubeServiceType,
+		ctx.teleportCluster.name,
+		ctx.kubeClusterName,
+	}
 	// Increment the request counter and the in-flight gauge.
-	joinSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	joinSessionsRequestCounter.WithLabelValues(labelsValues...).Inc()
+	joinSessionsInFlightGauge.WithLabelValues(labelsValues...).Inc()
+	defer joinSessionsInFlightGauge.WithLabelValues(labelsValues...).Dec()
 
 	f.log.Debugf("Join %v.", req.URL.String())
 
@@ -1598,10 +1606,15 @@ func exitCode(err error) (errMsg, code string) {
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+	labelsValues := []string{
+		f.cfg.KubeServiceType,
+		authCtx.teleportCluster.name,
+		authCtx.kubeClusterName,
+	}
 	// Increment the request counter and the in-flight gauge.
-	execSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	execSessionsRequestCounter.WithLabelValues(labelsValues...).Inc()
+	execSessionsInFlightGauge.WithLabelValues(labelsValues...).Inc()
+	defer execSessionsInFlightGauge.WithLabelValues(labelsValues...).Dec()
 
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
@@ -1737,10 +1750,15 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 
 // portForward starts port forwarding to the remote cluster
 func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+	labelsValues := []string{
+		f.cfg.KubeServiceType,
+		authCtx.teleportCluster.name,
+		authCtx.kubeClusterName,
+	}
 	// Increment the request counter and the in-flight gauge.
-	portforwardRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	portforwardRequestCounter.WithLabelValues(labelsValues...).Inc()
+	portforwardSessionsInFlightGauge.WithLabelValues(labelsValues...).Inc()
+	defer portforwardSessionsInFlightGauge.WithLabelValues(labelsValues...).Dec()
 
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),

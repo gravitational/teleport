@@ -117,12 +117,22 @@ func (f *Forwarder) transportForRequestWithoutImpersonation(sess *clusterSession
 	}
 	transport := newTransport(sess.DialWithContext(), tlsConfig)
 	if !sess.upgradeToHTTP2 {
-		return instrumentedRoundtripper(f.cfg.KubeServiceType, transport), nil
+		return instrumentedRoundtripper(
+			f.cfg.KubeServiceType,
+			sess.teleportCluster.name,
+			sess.kubeClusterName,
+			transport,
+		), nil
 	}
 	if err := http2.ConfigureTransport(transport); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return instrumentedRoundtripper(f.cfg.KubeServiceType, transport), nil
+	return instrumentedRoundtripper(
+		f.cfg.KubeServiceType,
+		sess.teleportCluster.name,
+		sess.kubeClusterName,
+		transport,
+	), nil
 }
 
 // transportForRequestWithImpersonation returns a transport that supports
@@ -327,7 +337,12 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTri
 		return nil, trace.Wrap(err)
 	}
 
-	return instrumentedRoundtripper(f.cfg.KubeServiceType, auth.NewImpersonatorRoundTripper(h2Transport)), nil
+	return instrumentedRoundtripper(
+		f.cfg.KubeServiceType,
+		clusterName,
+		teleport.TagValueRemoteProxy,
+		auth.NewImpersonatorRoundTripper(h2Transport),
+	), nil
 }
 
 // getTLSConfigForLeafCluster returns a TLS config with the Proxy certificate
@@ -407,7 +422,12 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.Round
 		return nil, trace.Wrap(err)
 	}
 
-	return instrumentedRoundtripper(f.cfg.KubeServiceType, auth.NewImpersonatorRoundTripper(h2Transport)), nil
+	return instrumentedRoundtripper(
+		f.cfg.KubeServiceType,
+		f.cfg.ClusterName,
+		kubeClusterName,
+		auth.NewImpersonatorRoundTripper(h2Transport),
+	), nil
 }
 
 // localClusterDialer returns a dialer that can be used to dial Kubernetes Service

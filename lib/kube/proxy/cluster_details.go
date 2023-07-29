@@ -64,6 +64,8 @@ type clusterDetailsConfig struct {
 	clock clockwork.Clock
 	// component is the Kubernetes component that serves this cluster.
 	component KubeServiceType
+	// teleportCluster is the teleport that the proxy/kube_service is running in.
+	teleportCluster string
 }
 
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
@@ -106,10 +108,18 @@ func (k *kubeDetails) Close() {
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
 func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (kubeCreds, error) {
-	dynCredsCfg := dynamicCredsConfig{kubeCluster: cfg.cluster, log: cfg.log, checker: cfg.checker, resourceMatchers: cfg.resourceMatchers, clock: cfg.clock, component: cfg.component}
+	dynCredsCfg := dynamicCredsConfig{
+		kubeCluster:      cfg.cluster,
+		log:              cfg.log,
+		checker:          cfg.checker,
+		resourceMatchers: cfg.resourceMatchers,
+		clock:            cfg.clock,
+		component:        cfg.component,
+		teleportCluster:  cfg.teleportCluster,
+	}
 	switch {
 	case cfg.cluster.IsKubeconfig():
-		return getStaticCredentialsFromKubeconfig(ctx, cfg.component, cfg.cluster, cfg.log, cfg.checker)
+		return getStaticCredentialsFromKubeconfig(ctx, cfg.component, cfg.teleportCluster, cfg.cluster, cfg.log, cfg.checker)
 	case cfg.cluster.IsAzure():
 		return getAzureCredentials(ctx, cfg.cloudClients, dynCredsCfg)
 	case cfg.cluster.IsAWS():
@@ -144,7 +154,7 @@ func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
 			ResourceGroup:                   cluster.GetAzureConfig().ResourceGroup,
 			ResourceName:                    cluster.GetAzureConfig().ResourceName,
 			TenantID:                        cluster.GetAzureConfig().TenantID,
-			ImpersonationPermissionsChecker: checkImpersonationPermissions,
+			ImpersonationPermissionsChecker: defaultCheckImpersonationPermissions,
 		})
 		return cfg, exp, trace.Wrap(err)
 	}
@@ -262,7 +272,7 @@ func genAWSToken(stsClient stsiface.STSAPI, clusterID string, clock clockwork.Cl
 
 // getStaticCredentialsFromKubeconfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.
 // If the config defines multiple contexts, it will pick one (the order is not guaranteed).
-func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServiceType, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
+func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServiceType, tpClusterName string, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	config, err := clientcmd.Load(cluster.GetKubeconfig())
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "unable to parse kubeconfig for cluster %q", cluster.GetName())
@@ -279,7 +289,16 @@ func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServi
 		return nil, trace.WrapWithMessage(err, "unable to create client from kubeconfig for cluster %q", cluster.GetName())
 	}
 
-	creds, err := extractKubeCreds(ctx, component, cluster.GetName(), restConfig, log, checker)
+	creds, err := newStaticKubeCreds(ctx,
+		newStaticKubeCredsConfig{
+			kubeClusterName:  cluster.GetName(),
+			clientCfg:        restConfig,
+			log:              log,
+			teleportCluster:  tpClusterName,
+			serviceType:      component,
+			checkPermissions: checker,
+		},
+	)
 	return creds, trace.Wrap(err)
 }
 

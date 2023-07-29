@@ -17,11 +17,14 @@ limitations under the License.
 package metrics
 
 import (
+	"context"
+	"net/http"
 	"runtime"
 
 	"github.com/gravitational/trace"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gravitational/teleport"
 )
@@ -88,3 +91,60 @@ func grpcHistogramOpts(labels prometheus.Labels) []om.HistogramOption {
 		om.WithHistogramConstLabels(labels),
 	}
 }
+
+// DynamicPromLabelsHandler is a middleware that adds Prometheus labels map to
+// the request context. This map is used to add labels to Prometheus metrics
+// which are unknown at the time of metric registration.
+// For example, the cluster name is not known at the time [promhttp.Handler]
+// execution and depends on the request certificate. This middleware allows
+// adding the cluster name to registered [prometheus.Labels] map and then
+// using it in the [promhttp.Handler] to fill the labels in the metrics.
+func DynamicPromLabelsHandler(handler http.Handler) http.Handler {
+	return http.HandlerFunc(
+		// This is a middleware that adds Prometheus labels map to the request
+		// context. This map is used to add labels to Prometheus metrics which
+		// are then used to fill the labels in the metrics.
+		func(w http.ResponseWriter, r *http.Request) {
+			r = r.WithContext(context.WithValue(r.Context(), promLabelsKey{}, prometheus.Labels{}))
+			handler.ServeHTTP(w, r)
+		},
+	)
+}
+
+// WithLabelFromCtx is a wrapper around [promhttp.WithLabelFromCtx] that
+// collects the label value from the context and returns it.
+// This function is used to fill the labels in the metrics that are unknown at
+// the time of metric registration.
+// If the label is not found in the context or is empty, it returns "unknown"
+// as value.
+func WithLabelFromCtx(label string) promhttp.Option {
+	return promhttp.WithLabelFromCtx(
+		label,
+		labelGetter(label),
+	)
+}
+
+func labelGetter(label string) func(context.Context) string {
+	return func(ctx context.Context) string {
+		value := "unknown"
+		v, ok := ctx.Value(promLabelsKey{}).(prometheus.Labels)
+		if ok && v[label] != "" {
+			value = v[label]
+		}
+		return value
+	}
+}
+
+// LabelsFromCtx returns Prometheus labels map from the request context.
+// This function is used to retrieve the labels map from the request context
+// and fill the labels values.
+func LabelsFromCtx(ctx context.Context) (prometheus.Labels, bool) {
+	v, ok := ctx.Value(promLabelsKey{}).(prometheus.Labels)
+	return v, ok
+}
+
+// promLabelsKey is the context key used to store Prometheus labels map in the
+// request context.
+// This map is filled by the middleware upstream and should be made available
+// to the Prometheus instrumentation.
+type promLabelsKey struct{}
