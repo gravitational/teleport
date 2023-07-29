@@ -41,13 +41,13 @@ package rdpclient
 //           *output streaming continues...*
 //
 //              *user input messages*
-//  ReadMessage(MouseMove) ------> write_rdp_pointer
-//  ReadMessage(MouseButton) ----> write_rdp_pointer
-//  ReadMessage(KeyboardButton) -> write_rdp_keyboard
+//  ReadMessage(MouseMove) ------> client_write_rdp_pointer
+//  ReadMessage(MouseButton) ----> client_write_rdp_pointer
+//  ReadMessage(KeyboardButton) -> client_write_rdp_keyboard
 //            *user input continues...*
 //
 //        *connection closed (client or server side)*
-//    Wait       -----------------> close_rdp
+//    Wait       -----------------> client_close_rdp
 //
 
 /*
@@ -349,7 +349,7 @@ func (c *Client) start() {
 			switch m := msg.(type) {
 			case tdp.MouseMove:
 				mouseX, mouseY = m.X, m.Y
-				if errCode := C.write_rdp_pointer(
+				if errCode := C.client_write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(m.X),
@@ -358,7 +358,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseMove: write_rdp_pointer @ (%v,%v): %v", m.X, m.Y, errCode)
+					c.cfg.Log.Warningf("MouseMove: client_write_rdp_pointer @ (%v,%v): %v", m.X, m.Y, errCode)
 					return
 				}
 			case tdp.MouseButton:
@@ -374,7 +374,7 @@ func (c *Client) start() {
 				default:
 					button = C.PointerButtonNone
 				}
-				if errCode := C.write_rdp_pointer(
+				if errCode := C.client_write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(mouseX),
@@ -384,7 +384,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseButton: write_rdp_pointer @ (%v, %v) button=%v state=%v: %v",
+					c.cfg.Log.Warningf("MouseButton: client_write_rdp_pointer @ (%v, %v) button=%v state=%v: %v",
 						mouseX, mouseY, button, m.State, errCode)
 					return
 				}
@@ -404,7 +404,7 @@ func (c *Client) start() {
 				default:
 					wheel = C.PointerWheelNone
 				}
-				if errCode := C.write_rdp_pointer(
+				if errCode := C.client_write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:           C.uint16_t(mouseX),
@@ -414,30 +414,30 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseWheel: write_rdp_pointer @ (%v, %v) wheel=%v delta=%v: %v",
+					c.cfg.Log.Warningf("MouseWheel: client_write_rdp_pointer @ (%v, %v) wheel=%v delta=%v: %v",
 						mouseX, mouseY, wheel, m.Delta, errCode)
 					return
 				}
 			case tdp.KeyboardButton:
-				if errCode := C.write_rdp_keyboard(
+				if errCode := C.client_write_rdp_keyboard(
 					c.rustClient,
 					C.CGOKeyboardEvent{
 						code: C.uint16_t(m.KeyCode),
 						down: m.State == tdp.ButtonPressed,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("KeyboardButton: write_rdp_keyboard code=%v state=%v: %v",
+					c.cfg.Log.Warningf("KeyboardButton: client_write_rdp_keyboard code=%v state=%v: %v",
 						m.KeyCode, m.State, errCode)
 					return
 				}
 			case tdp.ClipboardData:
 				if len(m) > 0 {
-					if errCode := C.update_clipboard(
+					if errCode := C.client_update_clipboard(
 						c.rustClient,
 						(*C.uint8_t)(unsafe.Pointer(&m[0])),
 						C.uint32_t(len(m)),
 					); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Warningf("ClipboardData: update_clipboard (len=%v): %v", len(m), errCode)
+						c.cfg.Log.Warningf("ClipboardData: client_update_clipboard (len=%v): %v", len(m), errCode)
 						return
 					}
 				} else {
@@ -447,7 +447,7 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 					driveName := C.CString(m.Name)
 					defer C.free(unsafe.Pointer(driveName))
-					if errCode := C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
+					if errCode := C.client_handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
 						directory_id: C.uint32_t(m.DirectoryID),
 						name:         driveName,
 					}); errCode != C.ErrCodeSuccess {
@@ -459,7 +459,7 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 					path := C.CString(m.Fso.Path)
 					defer C.free(unsafe.Pointer(path))
-					if errCode := C.handle_tdp_sd_info_response(c.rustClient, C.CGOSharedDirectoryInfoResponse{
+					if errCode := C.client_handle_tdp_sd_info_response(c.rustClient, C.CGOSharedDirectoryInfoResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 						fso: C.CGOFileSystemObject{
@@ -478,7 +478,7 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 					path := C.CString(m.Fso.Path)
 					defer C.free(unsafe.Pointer(path))
-					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
+					if errCode := C.client_handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 						fso: C.CGOFileSystemObject{
@@ -495,7 +495,7 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryDeleteResponse:
 				if c.cfg.AllowDirectorySharing {
-					if errCode := C.handle_tdp_sd_delete_response(c.rustClient, C.CGOSharedDirectoryDeleteResponse{
+					if errCode := C.client_handle_tdp_sd_delete_response(c.rustClient, C.CGOSharedDirectoryDeleteResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 					}); errCode != C.ErrCodeSuccess {
@@ -529,7 +529,7 @@ func (c *Client) start() {
 						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
 					}
 
-					if errCode := C.handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
+					if errCode := C.client_handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
 						completion_id:   C.uint32_t(m.CompletionID),
 						err_code:        m.ErrCode,
 						fso_list_length: C.uint32_t(fsoListLen),
@@ -548,7 +548,7 @@ func (c *Client) start() {
 						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
 					}
 
-					if errCode := C.handle_tdp_sd_read_response(c.rustClient, C.CGOSharedDirectoryReadResponse{
+					if errCode := C.client_handle_tdp_sd_read_response(c.rustClient, C.CGOSharedDirectoryReadResponse{
 						completion_id:    C.uint32_t(m.CompletionID),
 						err_code:         m.ErrCode,
 						read_data_length: C.uint32_t(m.ReadDataLength),
@@ -560,7 +560,7 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryWriteResponse:
 				if c.cfg.AllowDirectorySharing {
-					if errCode := C.handle_tdp_sd_write_response(c.rustClient, C.CGOSharedDirectoryWriteResponse{
+					if errCode := C.client_handle_tdp_sd_write_response(c.rustClient, C.CGOSharedDirectoryWriteResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 						bytes_written: C.uint32_t(m.BytesWritten),
@@ -571,7 +571,7 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryMoveResponse:
 				if c.cfg.AllowDirectorySharing {
-					if errCode := C.handle_tdp_sd_move_response(c.rustClient, C.CGOSharedDirectoryMoveResponse{
+					if errCode := C.client_handle_tdp_sd_move_response(c.rustClient, C.CGOSharedDirectoryMoveResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 					}); errCode != C.ErrCodeSuccess {
@@ -587,7 +587,7 @@ func (c *Client) start() {
 				}
 				rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
 
-				if errCode := C.handle_tdp_rdp_response_pdu(
+				if errCode := C.client_handle_tdp_rdp_response_pdu(
 					c.rustClient, rdpResponsePDU, C.uint32_t(pduLen),
 				); errCode != C.ErrCodeSuccess {
 					c.cfg.Log.Errorf("RDPResponsePDU failed: %v", errCode)
@@ -872,7 +872,7 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
 		// Ensure the RDP connection is closed
-		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
+		if errCode := C.client_close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")
 		} else {
 			c.cfg.Log.Debug("RDP connection closed successfully")
