@@ -36,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -531,11 +532,21 @@ var (
 		[]string{teleport.TagUpgrader},
 	)
 
+	accessRequestsCreatedMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricAccessRequestsCreated,
+			Help:      "Tracks the number of created access requests",
+		},
+		[]string{teleport.TagRoles, teleport.TagResources},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
+		accessRequestsCreatedMetric,
 	}
 )
 
@@ -4061,6 +4072,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
+
+	accessRequestsCreatedMetric.WithLabelValues(
+		strconv.Itoa(len(req.GetRoles())),
+		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
 	return req, nil
 }
 
