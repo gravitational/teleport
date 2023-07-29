@@ -77,9 +77,9 @@ func ApplyAzureDatabaseNameSuffix(db types.Database, matcherType string) {
 func getDBMatcherSubtype(matcherType string, db types.Database) string {
 	switch matcherType {
 	case services.AWSMatcherRDS:
-		if db.GetAWS().RDS.ClusterID != "" {
+		if db.GetAWS().RDS.InstanceID == "" {
 			// distinguish RDS instances from clusters by subtyping the RDS
-			// matcher as "rds-aurora" when the DB is a cluster member.
+			// matcher as "rds-aurora".
 			return "aurora"
 		}
 	case services.AzureMatcherRedis:
