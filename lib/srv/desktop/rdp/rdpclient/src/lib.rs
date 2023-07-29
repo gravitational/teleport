@@ -72,6 +72,7 @@ use std::net::ToSocketAddrs;
 use std::os::raw::c_char;
 use std::{mem, ptr, slice, time};
 use tokio::net::TcpStream as TokioTcpStream;
+use tokio::sync::Mutex;
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -95,9 +96,11 @@ impl IronRDPClient {
 /// Client has an unusual lifecycle:
 /// - The function connect_rdp calls Client::new(), which creates it on the heap (Box::new), grabs a raw pointer(Box::into_raw),
 ///   and returns in to Go.
-/// - Most other exported rdp functions (pub unsafe extern "C") take the raw pointer and convert it (Box::leak(Box::from_raw(ptr)))
-///   to a reference (&'static mut Client), which can then be used without dropping the client.
+/// - Most other exported rdp functions (pub unsafe extern "C") take the raw pointer and convert it Client::from_raw
+///   to a reference (&Client), which can then be used without dropping the client.
 /// - The function free_rdp takes the raw pointer and drops it.
+///
+/// The Client is forced to be Sync. See "Go/Rust Interface" in ../README.md for more details.
 ///
 /// The Client makes use of asynchronous rust via the tokio runtime. A single runtime is created in connect_rdp and held on to by the
 /// Client. The exported rdp functions which need to call async rust functions start with `client.tokio_rt.handle().clone().block_on( ... )`,
@@ -106,48 +109,71 @@ impl IronRDPClient {
 /// be being used by multiple goroutines concurrently, it is up to the programmer to consider any synchronization mechanisms that might
 /// need to be implemented as features are added to the Client going forward.
 pub struct Client {
-    iron_rdp_client: IronRDPClient,
+    iron_rdp_client: Mutex<IronRDPClient>,
     tokio_rt: tokio::runtime::Runtime,
     go_ref: usize,
 }
+
+/// Forces the compiler to check that the Client struct is Sync.
+/// See the README for more details.
+const _: () = {
+    const fn assert_sync<T: Sync>() {}
+    assert_sync::<Client>();
+};
 
 impl Client {
     fn new(
         iron_rdp_client: IronRDPClient,
         go_ref: usize,
         tokio_rt: tokio::runtime::Runtime,
-    ) -> *mut Self {
+    ) -> *const Self {
         Box::into_raw(Box::new(Self {
-            iron_rdp_client,
+            iron_rdp_client: Mutex::new(iron_rdp_client),
             tokio_rt,
             go_ref,
         }))
     }
 
-    unsafe fn from_raw(ptr: *mut Self) -> Result<&'static mut Client, CGOErrCode> {
-        match ptr.as_ref() {
+    fn null() -> *const Self {
+        ptr::null()
+    }
+
+    unsafe fn from_raw<'a>(client_ptr: *const Self) -> Result<&'a Client, CGOErrCode> {
+        match client_ptr.as_ref() {
             None => {
-                error!("invalid Rust client pointer");
+                error!("Client pointer is null");
                 Err(CGOErrCode::ErrCodeClientPtr)
             }
-            Some(_) => Ok(Box::leak(Box::from_raw(ptr))),
+            Some(it) => Ok(it),
         }
     }
 
     unsafe fn drop(ptr: *mut Self) {
-        drop(Box::from_raw(ptr))
+        if !ptr.is_null() {
+            drop(Box::from_raw(ptr))
+        }
     }
 
-    async fn read_pdu(&mut self) -> io::Result<(ironrdp_pdu::Action, BytesMut)> {
-        self.iron_rdp_client.framed.read_pdu().await
+    async fn read_pdu(&self) -> io::Result<(ironrdp_pdu::Action, BytesMut)> {
+        self.iron_rdp_client.lock().await.framed.read_pdu().await
     }
 
-    async fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.iron_rdp_client.framed.write_all(buf).await
+    async fn write_all(&self, buf: &[u8]) -> io::Result<()> {
+        self.iron_rdp_client
+            .lock()
+            .await
+            .framed
+            .write_all(buf)
+            .await
     }
 
-    fn process_x224_frame(&mut self, frame: &[u8]) -> SessionResult<Vec<ActiveStageOutput>> {
-        let output = self.iron_rdp_client.x224_processor.process(frame)?;
+    async fn process_x224_frame(&self, frame: &[u8]) -> SessionResult<Vec<ActiveStageOutput>> {
+        let output = self
+            .iron_rdp_client
+            .lock()
+            .await
+            .x224_processor
+            .process(frame)?;
         let mut stage_outputs = Vec::new();
         if !output.is_empty() {
             stage_outputs.push(ActiveStageOutput::ResponseFrame(output));
@@ -159,7 +185,7 @@ impl Client {
     /// Typically returns None if everything goes as expected and the session should continue.
     // TODO(isaiah): this api is weird, should probably return a Result instead of an Option.
     async fn process_active_stage_result(
-        &mut self,
+        &self,
         result: SessionResult<Vec<ActiveStageOutput>>,
     ) -> Option<ReadRdpOutputReturns> {
         match result {
@@ -217,7 +243,7 @@ impl Client {
 
 #[repr(C)]
 pub struct ClientOrError {
-    client: *mut Client,
+    client: *const Client,
     err: CGOErrCode,
 }
 
@@ -261,7 +287,7 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
         Err(err) => {
             error!("{:?}", err);
             ClientOrError {
-                client: ptr::null_mut(),
+                client: Client::null(),
                 err: CGOErrCode::ErrCodeFailure,
             }
         }
@@ -326,7 +352,7 @@ fn connect_rdp_inner(
     go_ref: usize,
     tokio_rt: tokio::runtime::Runtime,
     params: ConnectParams,
-) -> Result<*mut Client, ConnectError> {
+) -> Result<*const Client, ConnectError> {
     match tokio_rt.block_on(async {
         let server_addr = params.addr;
         let server_socket_addr = server_addr.to_socket_addrs()?.next().unwrap();
@@ -527,7 +553,7 @@ pub fn encode_png(
     dest: &mut Vec<u8>,
     width: u16,
     height: u16,
-    mut data: Vec<u8>,
+    data: Vec<u8>,
 ) -> Result<(), png::EncodingError> {
     let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
     encoder.set_compression(png::Compression::Fast);
@@ -560,7 +586,7 @@ impl Drop for CGOPNG {
 /// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
 #[no_mangle]
 pub unsafe extern "C" fn update_clipboard(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     data: *mut u8,
     len: u32,
 ) -> CGOErrCode {
@@ -580,7 +606,7 @@ pub unsafe extern "C" fn update_clipboard(
 /// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_announce(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
     warn!("unimplemented: handle_tdp_sd_announce");
@@ -598,7 +624,7 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
 /// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_info_response(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: handle_tdp_sd_info_response");
@@ -614,7 +640,7 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_create_response(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: handle_tdp_sd_create_response");
@@ -630,7 +656,7 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_delete_response(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: handle_tdp_sd_delete_response");
@@ -650,7 +676,7 @@ pub unsafe extern "C" fn handle_tdp_sd_delete_response(
 /// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_list_response(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     res: CGOSharedDirectoryListResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: handle_tdp_sd_list_response");
@@ -665,7 +691,7 @@ pub unsafe extern "C" fn handle_tdp_sd_list_response(
 /// client_ptr must be a valid pointer
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_read_response(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     res: CGOSharedDirectoryReadResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: handle_tdp_sd_read_response");
@@ -680,7 +706,7 @@ pub unsafe extern "C" fn handle_tdp_sd_read_response(
 /// client_ptr must be a valid pointer
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_write_response(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: handle_tdp_sd_write_response");
@@ -696,7 +722,7 @@ pub unsafe extern "C" fn handle_tdp_sd_write_response(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_sd_move_response(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     res: CGOSharedDirectoryMoveResponse,
 ) -> CGOErrCode {
     warn!("unimplemented: handle_tdp_sd_move_response");
@@ -715,7 +741,7 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn handle_tdp_rdp_response_pdu(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     res: *mut u8,
     res_len: u32,
 ) -> CGOErrCode {
@@ -746,7 +772,7 @@ pub unsafe extern "C" fn handle_tdp_rdp_response_pdu(
 /// `client_ptr` must be a valid pointer to a Client.
 /// `handle_png` *must not* free the memory of CGOPNG.
 #[no_mangle]
-pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpOutputReturns {
+pub unsafe extern "C" fn read_rdp_output(client_ptr: *const Client) -> CGOReadRdpOutputReturns {
     let client = match Client::from_raw(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -766,7 +792,7 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpO
         .block_on(async { read_rdp_output_inner(client).await.into() })
 }
 
-async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
+async fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
     loop {
         trace!("awaiting frame from rdp server");
         let (action, mut frame) = match client.read_pdu().await {
@@ -788,7 +814,7 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
 
         match action {
             ironrdp_pdu::Action::X224 => {
-                let result = client.process_x224_frame(&frame);
+                let result = client.process_x224_frame(&frame).await;
                 if let Some(return_value) = client.process_active_stage_result(result).await {
                     return return_value;
                 }
@@ -876,7 +902,7 @@ impl From<CGOMousePointerEvent> for PointerEvent {
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn write_rdp_pointer(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     pointer: CGOMousePointerEvent,
 ) -> CGOErrCode {
     let client = match Client::from_raw(client_ptr) {
@@ -963,7 +989,7 @@ impl From<CGOKeyboardEvent> for KeyboardEvent {
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
 pub unsafe extern "C" fn write_rdp_keyboard(
-    client_ptr: *mut Client,
+    client_ptr: *const Client,
     key: CGOKeyboardEvent,
 ) -> CGOErrCode {
     warn!("unimplemented: write_rdp_keyboard");
@@ -974,7 +1000,7 @@ pub unsafe extern "C" fn write_rdp_keyboard(
 ///
 /// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
+pub unsafe extern "C" fn close_rdp(client_ptr: *const Client) -> CGOErrCode {
     warn!("unimplemented: close_rdp");
     CGOErrCode::ErrCodeSuccess
 }
