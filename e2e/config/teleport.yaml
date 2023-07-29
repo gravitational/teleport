@@ -14,7 +14,6 @@ teleport:
 
 auth_service:
   enabled: "yes"
-  license_file: /var/lib/teleport/license.pem
   listen_addr: 0.0.0.0:3025
   proxy_listener_mode: multiplex
 
@@ -26,7 +25,7 @@ auth_service:
 
 ssh_service:
   enabled: "yes"
-  public_addr: teleport:3080
+  public_addr: teleport:3022
 
   labels:
     env: example

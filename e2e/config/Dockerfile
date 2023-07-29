@@ -4,7 +4,6 @@ RUN apt-get update && \
     apt-get install -y \
     curl \
     ca-certificates \
-    sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/amd64" && \
@@ -20,4 +19,4 @@ RUN mkdir -p /etc/teleport/certs && \
 COPY ./build/teleport /usr/local/bin/teleport
 COPY ./build/tctl /usr/local/bin/tctl
 
-CMD ["/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
+CMD ["/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--bootstrap", "/etc/teleport/state.yaml"]

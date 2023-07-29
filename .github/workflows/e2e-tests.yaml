@@ -59,4 +59,4 @@ jobs:
           make -C e2e build
       - name: Run Tests
         run: |
-          make -C e2e test
+          make test-e2e

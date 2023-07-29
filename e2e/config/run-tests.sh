@@ -25,7 +25,7 @@ update-ca-certificates
 yarn install
 
 # Wait for the user to be created
-while [ ! -f /var/lib/teleport/user-create ]; do sleep 1; done
+sleep 5
 
 npx playwright install chromium
 npx playwright test --workers 1 --repeat-each 1 --timeout 15000 --project=chromium

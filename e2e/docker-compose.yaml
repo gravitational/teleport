@@ -10,6 +10,7 @@ services:
     volumes:
       - teleport-config:/etc/teleport
       - ./config/teleport.yaml:/etc/teleport/teleport.yaml
+      - ./config/state.yaml:/etc/teleport/state.yaml
       - teleport-data:/var/lib/teleport
     ports:
       - "3080:3080"
@@ -28,26 +29,6 @@ services:
     working_dir: /e2e
     command:
       - /e2e/config/run-tests.sh
-    depends_on:
-        - tctl
-
-  tctl:
-    image: teleport-e2e:latest
-    build:
-      context: ..
-      dockerfile: ./e2e/config/Dockerfile
-    environment:
-      - TELEPORT_CONFIG_FILE=/etc/teleport/teleport.yaml
-    volumes:
-        - teleport-config:/etc/teleport
-        - ./config/teleport.yaml:/etc/teleport/teleport.yaml
-        - ./config/create-user.sh:/create-user.sh
-        - teleport-data:/var/lib/teleport
-    entrypoint:
-      - bash
-      - -c
-    command: # Sleep is needed to keep the container running, otherwise all containers will be stopped by docker-compose
-      - /create-user.sh && sleep infinity
 
 volumes:
   teleport-config: {}
