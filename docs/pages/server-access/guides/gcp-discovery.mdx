@@ -1,6 +1,7 @@
 ---
 title: Automatically Discover GCP Compute Instances (Preview)
 description: How to configure Teleport to automatically enroll GCP compute instances.
+---
 
 The Teleport Discovery Service can connect to GCP and automatically
 discover and enroll compute matching configured labels. It will then
@@ -59,7 +60,66 @@ $ tctl create -f token.yaml
 
 ## Step 2/6. Configure IAM permissions for Teleport
 
-(needed permissions and how to add to service account)
+<Tabs>
+<TabItem label="Console">
+  Go to [IAM > Roles](https://console.cloud.google.com/iam-admin/roles)
+  in the GCP console and click *+ CREATE ROLE*.
+  Pick a name for the role (e.g. `teleport-discovery`) and give it the following permissions:
+  - `compute.instances.get`
+  - `compute.instances.getGuestAttributes`
+  - `compute.instances.list`
+  - `compute.instances.setMetadata`
+
+  ![Custom role](../../../img/server-access/guides/gcp/custom-role@2x.png)
+
+  Click *CREATE*.
+
+  Go to [IAM > Service accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
+  and click *+ CREATE SERVICE ACCOUNT*. Pick a name for the service account
+  (e.g. `teleport-discovery`) and copy its email address to your clipboard.
+  Click *CREATE AND CONTINUE*.
+
+  ![Service account](../../../img/server-access/guides/gcp/create-service-account@2x.png)
+
+  Go to [IAM](https://console.cloud.google.com/iam-admin/iam) and click *Grant Access*.
+  Paste the service account's email into the *New principals* field and select
+  your custom role. Click *Save*.
+
+  ![Role assignment](../../../img/server-access/guides/gcp/assign-role-to-service-account@2x.png)
+
+  Go to [Compute](https://console.cloud.google.com/compute/instances). For each
+  instance that should be discovered, set its service account to the one you created.
+
+  ![Instance service account](../../../img/server-access/guides/gcp/set-service-account-on-instance@2x.png)
+</TabItem>
+<TabItem label="gcloud">
+  Copy the following and paste it into a file called `teleport-discover-role.yaml`:
+  ```yaml
+  title: "teleport-discovery"
+  description: "A role to enable Teleport to discover GCP compute instances"
+  stage: "ALPHA"
+  includedPermissions:
+  - compute.instances.get
+  - compute.instances.getGuestAttributes
+  - compute.instances.list
+  - compute.instances.setMetadata
+  ```
+
+  Then run the following command to create the role:
+
+  ```code
+  $ gcloud iam roles create teleport-discovery \
+  > --project=<> \
+  > --file=teleport-discovery-role.yaml
+  $ gcloud iam service-accounts create teleport-discovery \
+  > --description="A service account to enable Teleport to discover GCP compute instances" \
+  > --display-name="teleport-discovery"
+  $ gcloud projects add-iam-policy-binding <PROJECT-ID> \
+  > --member="serviceAccount:teleport-discovery@<PROJECT-ID>.iam.gserviceaccount.com" \
+  > --role="teleport-discovery"
+  ```
+</TabItem>
+</Tabs>
 
 The Teleport Discovery Service uses Application Default Credentials to (authenticate).
 Refer to [Set Up Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
@@ -67,17 +127,17 @@ to pick a method suitable for your use-case. (example)
 
 ## Step 3/6. (configure instances)
 
-### Enable guest attributes on instances
-
 Ensure that each instance to be discovered has a service account assigned to
 it. No permissions are required on the service account.
+
+### Enable guest attributes on instances
 
 To give Teleport access to instances' SSH host keys,
 [guest attributes must be enabled on the instances](https://cloud.google.com/compute/docs/metadata/manage-guest-attributes#enable_attributes).
 If guest attributes are enabled during instance creation, the guest attributes
 will automatically be populated with the instance's host keys. If guest
 attributes were enabled after the instance was created, you can manually add
-the host keys to the guest attributes by running the following script:
+the host keys to the guest attributes by running the following script on the instance:
 
 ```code
 #!/usr/bin/env bash
