@@ -21,7 +21,10 @@ import (
 	"testing"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -141,7 +144,7 @@ func runRenameTest(t *testing.T, test renameTest) {
 	// try renaming the resource.
 	test.renameFn(test.resource)
 	// verify it was not renamed.
-	requireOverrideLabelSkipsRenaming(t, test.resource, test.nameOverrideLabel)
+	requireOverrideLabelSkipsRenaming(t, test.resource, test.originalName, test.nameOverrideLabel)
 	// clear the override label.
 	labels := test.resource.GetStaticLabels()
 	delete(labels, test.nameOverrideLabel)
@@ -155,22 +158,48 @@ func runRenameTest(t *testing.T, test renameTest) {
 }
 
 func TestApplyAWSDatabaseNameSuffix(t *testing.T) {
-	dbName := "some-db"
-	region := "us-west-1"
-	accountID := "123456789012"
-	for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
-		database := makeRDSDatabase(t, dbName, region, accountID, overrideLabel)
-		test := renameTest{
-			resource: database,
-			renameFn: func(r types.ResourceWithLabels) {
-				db := r.(types.Database)
-				ApplyAWSDatabaseNameSuffix(db, services.AWSMatcherRDS)
-			},
-			originalName:      dbName,
-			nameOverrideLabel: overrideLabel,
-			wantNewName:       "some-db-rds-us-west-1-123456789012",
-		}
-		runRenameTest(t, test)
+	tests := []struct {
+		desc,
+		dbName,
+		region,
+		accountID,
+		wantRename string
+		makeDBFunc func(t *testing.T, name, region, account, overrideLabel string) types.Database
+	}{
+		{
+			desc:       "RDS instance",
+			dbName:     "some-db",
+			region:     "us-west-1",
+			accountID:  "123456789012",
+			wantRename: "some-db-rds-us-west-1-123456789012",
+			makeDBFunc: makeRDSInstanceDB,
+		},
+		{
+			desc:       "RDS Aurora cluster",
+			dbName:     "some-db",
+			region:     "us-west-1",
+			accountID:  "123456789012",
+			wantRename: "some-db-rds-aurora-us-west-1-123456789012",
+			makeDBFunc: makeAuroraPrimaryDB,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			for _, overrideLabel := range types.AWSDatabaseNameOverrideLabels {
+				database := tt.makeDBFunc(t, tt.dbName, tt.region, tt.accountID, overrideLabel)
+				test := renameTest{
+					resource: database,
+					renameFn: func(r types.ResourceWithLabels) {
+						db := r.(types.Database)
+						ApplyAWSDatabaseNameSuffix(db, services.AWSMatcherRDS)
+					},
+					originalName:      tt.dbName,
+					nameOverrideLabel: overrideLabel,
+					wantNewName:       tt.wantRename,
+				}
+				runRenameTest(t, test)
+			}
+		})
 	}
 }
 
@@ -181,15 +210,19 @@ func TestApplyAzureDatabaseNameSuffix(t *testing.T) {
 		region,
 		resourceGroup,
 		subscriptionID,
+		matcherType,
 		wantRename string
+		makeDBFunc func(t *testing.T, name, region, group, subscription string) types.Database
 	}{
 		{
-			desc:           "all parts valid",
+			desc:           "Azure MySQL Flex",
 			dbName:         "some-db",
 			region:         "East US", // we normalize regions, so this should become "eastus".
 			resourceGroup:  "Some Group",
 			subscriptionID: "11111111-2222-3333-4444-555555555555",
+			matcherType:    services.AzureMatcherMySQL,
 			wantRename:     "some-db-mysql-eastus-Some-Group-11111111-2222-3333-4444-555555555555",
+			makeDBFunc:     makeAzureMySQLFlexDatabase,
 		},
 		{
 			desc:           "skips invalid resource group",
@@ -197,17 +230,39 @@ func TestApplyAzureDatabaseNameSuffix(t *testing.T) {
 			region:         "eastus", // use the normalized region.
 			resourceGroup:  "(parens are invalid)",
 			subscriptionID: "11111111-2222-3333-4444-555555555555",
+			matcherType:    services.AzureMatcherMySQL,
 			wantRename:     "some-db-mysql-eastus-11111111-2222-3333-4444-555555555555",
+			makeDBFunc:     makeAzureMySQLFlexDatabase,
+		},
+		{
+			desc:           "Azure Redis",
+			dbName:         "some-db",
+			region:         "eastus",
+			resourceGroup:  "Some Group",
+			subscriptionID: "11111111-2222-3333-4444-555555555555",
+			matcherType:    services.AzureMatcherRedis,
+			wantRename:     "some-db-redis-eastus-Some-Group-11111111-2222-3333-4444-555555555555",
+			makeDBFunc:     makeAzureRedisDB,
+		},
+		{
+			desc:           "Azure Redis Enterprise",
+			dbName:         "some-db",
+			region:         "eastus",
+			resourceGroup:  "Some Group",
+			subscriptionID: "11111111-2222-3333-4444-555555555555",
+			matcherType:    services.AzureMatcherRedis,
+			wantRename:     "some-db-redis-enterprise-eastus-Some-Group-11111111-2222-3333-4444-555555555555",
+			makeDBFunc:     makeAzureRedisEnterpriseDB,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			database := makeAzureMySQLFlexDatabase(t, tt.dbName, tt.region, tt.resourceGroup, tt.subscriptionID)
+			database := tt.makeDBFunc(t, tt.dbName, tt.region, tt.resourceGroup, tt.subscriptionID)
 			runRenameTest(t, renameTest{
 				resource: database,
 				renameFn: func(r types.ResourceWithLabels) {
 					db := r.(types.Database)
-					ApplyAzureDatabaseNameSuffix(db, services.AzureMatcherMySQL)
+					ApplyAzureDatabaseNameSuffix(db, tt.matcherType)
 				},
 				originalName:      tt.dbName,
 				nameOverrideLabel: types.AzureDatabaseNameOverrideLabel,
@@ -289,22 +344,44 @@ func requireDiscoveredNameLabel(t *testing.T, r types.ResourceWithLabels, want, 
 func requireOverrideLabelIsSet(t *testing.T, r types.ResourceWithLabels, overrideLabel string) {
 	t.Helper()
 	override, ok := r.GetLabel(overrideLabel)
-	require.True(t, ok, "override label should be present")
-	require.NotEmpty(t, override, "override label should be present")
-	require.Equal(t, override, r.GetName(), "name should equal the override label")
+	require.True(t, ok, "override label %v should be present", overrideLabel)
+	require.NotEmpty(t, override, "override label %v should be present", overrideLabel)
+	require.Equal(t, override, r.GetName(), "name should equal the %v override label", overrideLabel)
 }
 
-// requireDiscoveredNameLabel is a test helper that requires a resource have
+// requireDiscoveredNameLabel is a test helper that requires a resource
 // not have the originally "discovered" name as a label, and did not change its name.
-func requireOverrideLabelSkipsRenaming(t *testing.T, r types.ResourceWithLabels, overrideLabel string) {
+func requireOverrideLabelSkipsRenaming(t *testing.T, r types.ResourceWithLabels, originalName, overrideLabel string) {
 	t.Helper()
 	requireOverrideLabelIsSet(t, r, overrideLabel)
 	got, gotOk := r.GetLabel(types.DiscoveredNameLabel)
 	require.False(t, gotOk, "should not have the original discovered name saved in a label")
 	require.Empty(t, got, "should not have the original discovered name saved in a label")
+	require.Equal(t, originalName, r.GetName(),
+		"should not have renamed the resource when override label %v is present", overrideLabel)
 }
 
-func makeRDSDatabase(t *testing.T, name, region, accountID, overrideLabel string) types.Database {
+func makeAuroraPrimaryDB(t *testing.T, name, region, accountID, overrideLabel string) types.Database {
+	t.Helper()
+	cluster := &rds.DBCluster{
+		DBClusterArn:                     aws.String(fmt.Sprintf("arn:aws:rds:%s:%s:cluster:%v", region, accountID, name)),
+		DBClusterIdentifier:              aws.String("cluster-1"),
+		DbClusterResourceId:              aws.String("resource-1"),
+		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+		Engine:                           aws.String("aurora-mysql"),
+		EngineVersion:                    aws.String("8.0.0"),
+		Endpoint:                         aws.String("localhost"),
+		Port:                             aws.Int64(3306),
+		TagList: libcloudaws.LabelsToTags[rds.Tag](map[string]string{
+			overrideLabel: name,
+		}),
+	}
+	database, err := services.NewDatabaseFromRDSCluster(cluster)
+	require.NoError(t, err)
+	return database
+}
+
+func makeRDSInstanceDB(t *testing.T, name, region, accountID, overrideLabel string) types.Database {
 	t.Helper()
 	instance := &rds.DBInstance{
 		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%s:%s:db:%v", region, accountID, name)),
@@ -347,13 +424,63 @@ func makeAzureMySQLFlexDatabase(t *testing.T, name, region, group, subscription 
 		},
 		Tags: labelsToAzureTags(map[string]string{
 			types.AzureDatabaseNameOverrideLabel: name,
-		},
-		),
+		}),
 		ID:   &id,
 		Name: &name,
 		Type: &resourceType,
 	}
 	database, err := services.NewDatabaseFromAzureMySQLFlexServer(server)
+	require.NoError(t, err)
+	return database
+}
+
+func makeAzureRedisDB(t *testing.T, name, region, group, subscription string) types.Database {
+	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/Redis/%v", subscription, group, name)
+	resourceInfo := &armredis.ResourceInfo{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(id),
+		Location: to.Ptr(region),
+		Tags: labelsToAzureTags(map[string]string{
+			types.AzureDatabaseNameOverrideLabel: name,
+		}),
+		Properties: &armredis.Properties{
+			HostName:          to.Ptr(fmt.Sprintf("%v.redis.cache.windows.net", name)),
+			SSLPort:           to.Ptr(int32(6380)),
+			ProvisioningState: to.Ptr(armredis.ProvisioningStateSucceeded),
+			RedisVersion:      to.Ptr("6.0"),
+		},
+	}
+	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
+	require.NoError(t, err)
+	return database
+}
+
+func makeAzureRedisEnterpriseDB(t *testing.T, name, region, group, subscription string) types.Database {
+	clusterID := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Cache/redisEnterprise/%v", subscription, group, name)
+	databaseID := fmt.Sprintf("%v/databases/default", clusterID)
+	armCluster := &armredisenterprise.Cluster{
+		Name:     to.Ptr(name),
+		ID:       to.Ptr(clusterID),
+		Location: to.Ptr(region),
+		Tags: labelsToAzureTags(map[string]string{
+			types.AzureDatabaseNameOverrideLabel: name,
+		}),
+		Properties: &armredisenterprise.ClusterProperties{
+			HostName:     to.Ptr(fmt.Sprintf("%v.%v.redisenterprise.cache.azure.net", name, region)),
+			RedisVersion: to.Ptr("6.0"),
+		},
+	}
+	armDatabase := &armredisenterprise.Database{
+		Name: to.Ptr("default"),
+		ID:   to.Ptr(databaseID),
+		Properties: &armredisenterprise.DatabaseProperties{
+			ProvisioningState: to.Ptr(armredisenterprise.ProvisioningStateSucceeded),
+			Port:              to.Ptr(int32(10000)),
+			ClusteringPolicy:  to.Ptr(armredisenterprise.ClusteringPolicyOSSCluster),
+			ClientProtocol:    to.Ptr(armredisenterprise.ProtocolEncrypted),
+		},
+	}
+	database, err := services.NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
 	require.NoError(t, err)
 	return database
 }

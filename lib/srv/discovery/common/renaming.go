@@ -37,6 +37,7 @@ func ApplyAWSDatabaseNameSuffix(db types.Database, matcherType string) {
 	suffix := makeAWSDiscoverySuffix(databaseNamePartValidator,
 		db.GetName(),
 		matcherType,
+		getDBMatcherSubtype(matcherType, db),
 		meta.Region,
 		meta.AccountID,
 	)
@@ -57,11 +58,38 @@ func ApplyAzureDatabaseNameSuffix(db types.Database, matcherType string) {
 	suffix := makeAzureDiscoverySuffix(databaseNamePartValidator,
 		db.GetName(),
 		matcherType,
+		getDBMatcherSubtype(matcherType, db),
 		region,
 		group,
 		subID,
 	)
 	applyDiscoveryNameSuffix(db, suffix)
+}
+
+// getDBMatcherSubtype gets a "subtype" for a given DB matcher, based on the
+// database metadata. This is needed for AWS RDS and Azure Redis databases
+// to ensure unique naming.
+// For example, an Aurora cluster can be named the same as an RDS instance in
+// the same account, region, etc.
+// Likewise, an Azure Redis database can be named the same as an Azure Redis
+// Enterprise database.
+// By subtyping the matcher type, we can ensure these names do not collide.
+func getDBMatcherSubtype(matcherType string, db types.Database) string {
+	switch matcherType {
+	case services.AWSMatcherRDS:
+		if db.GetAWS().RDS.ClusterID != "" {
+			// distinguish RDS instances from clusters by subtyping the RDS
+			// matcher as "rds-aurora" when the DB is a cluster member.
+			return "aurora"
+		}
+	case services.AzureMatcherRedis:
+		if db.GetAzure().Redis.ClusteringPolicy != "" {
+			// distinguish Redis databases from Redis Enterprise database by
+			// subtyping the redis matcher as "redis-enterprise".
+			return "enterprise"
+		}
+	}
+	return ""
 }
 
 // ApplyEKSNameSuffix applies the AWS EKS Discovery name suffix to the given
@@ -76,6 +104,7 @@ func ApplyEKSNameSuffix(cluster types.KubeCluster) {
 	suffix := makeAWSDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
 		services.AWSMatcherEKS,
+		"", // no EKS subtype
 		meta.Region,
 		meta.AccountID,
 	)
@@ -95,6 +124,7 @@ func ApplyAKSNameSuffix(cluster types.KubeCluster) {
 	suffix := makeAzureDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
 		services.AzureMatcherKubernetes,
+		"", // no AKS subtype
 		region,
 		meta.ResourceGroup,
 		meta.SubscriptionID,
@@ -114,6 +144,7 @@ func ApplyGKENameSuffix(cluster types.KubeCluster) {
 	suffix := makeGCPDiscoverySuffix(kubeClusterNamePartValidator,
 		cluster.GetName(),
 		services.GCPMatcherKubernetes,
+		"", // no GKE subtype
 		meta.Location,
 		meta.ProjectID,
 	)
@@ -132,21 +163,21 @@ func hasOverrideLabel(r types.ResourceWithLabels, overrideLabels ...string) bool
 }
 
 // makeAWSDiscoverySuffix makes a discovery suffix for AWS resources, of the
-// form <matcher type>-<region>-<account ID>.
-func makeAWSDiscoverySuffix(fn suffixValidatorFn, name, matcherType, region, accountID string) string {
-	return makeDiscoverySuffix(fn, name, matcherType, region, accountID)
+// form <matcher type>-<subtype>-<region>-<account ID>.
+func makeAWSDiscoverySuffix(fn suffixValidatorFn, name, matcherType, subType, region, accountID string) string {
+	return makeDiscoverySuffix(fn, name, matcherType, subType, region, accountID)
 }
 
 // makeAzureDiscoverySuffix makes a discovery suffix for Azure resources, of the
-// form <matcher type>-<region>-<resource group>-<subscription ID>.
-func makeAzureDiscoverySuffix(fn suffixValidatorFn, name, matcherType, region, resourceGroup, subscriptionID string) string {
-	return makeDiscoverySuffix(fn, name, matcherType, region, resourceGroup, subscriptionID)
+// form <matcher type>-<subtype>-<region>-<resource group>-<subscription ID>.
+func makeAzureDiscoverySuffix(fn suffixValidatorFn, name, matcherType, subType, region, resourceGroup, subscriptionID string) string {
+	return makeDiscoverySuffix(fn, name, matcherType, subType, region, resourceGroup, subscriptionID)
 }
 
 // makeGCPDiscoverySuffix makes a discovery suffix for GCP resources, of the
-// form <matcher type>-<location>-<project ID>.
-func makeGCPDiscoverySuffix(fn suffixValidatorFn, name, matcherType, location, projectID string) string {
-	return makeDiscoverySuffix(fn, name, matcherType, location, projectID)
+// form <matcher type>-<subtype>-<location>-<project ID>.
+func makeGCPDiscoverySuffix(fn suffixValidatorFn, name, matcherType, subType, location, projectID string) string {
+	return makeDiscoverySuffix(fn, name, matcherType, subType, location, projectID)
 }
 
 // applyDiscoveryNameSuffix takes a resource with labels and a suffix to add
