@@ -30,11 +30,11 @@ package rdpclient
 // The flow is roughly this:
 //    Go                                Rust
 // ==============================================
-//  rdpclient.New -----------------> connect_rdp
+//  rdpclient.New -----------------> client_connect
 //                   *connected*
 //
 //            *register output callback*
-//                -----------------> read_rdp_output
+//                -----------------> client_read_rdp_output
 //  handleBitmap  <----------------
 //  handleBitmap  <----------------
 //  handleBitmap  <----------------
@@ -234,13 +234,13 @@ func (c *Client) connect(ctx context.Context) error {
 	}
 
 	// Addr and username strings only need to be valid for the duration of
-	// C.connect_rdp. They are copied on the Rust side and can be freed here.
+	// C.client_connect. They are copied on the Rust side and can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	res := C.connect_rdp(
+	res := C.client_connect(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			go_addr:     addr,
@@ -278,9 +278,9 @@ func (c *Client) start() {
 
 		c.cfg.Log.Info("RDP output streaming starting")
 
-		// C.read_rdp_output blocks for the duration of the RDP connection and
+		// C.client_read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_png repeatedly with the incoming pngs.
-		res := C.read_rdp_output(c.rustClient)
+		res := C.client_read_rdp_output(c.rustClient)
 
 		// Copy the returned message and free the C memory.
 		userMessage := C.GoString(res.user_message)
@@ -894,7 +894,7 @@ func (c *Client) close() {
 func (c *Client) cleanup() {
 	// Let the Rust side free its data
 	if c.rustClient != nil {
-		C.free_rdp(c.rustClient)
+		C.client_drop(c.rustClient)
 	}
 
 	// Release the memory of the cgo.Handle
