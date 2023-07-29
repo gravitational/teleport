@@ -308,7 +308,7 @@ impl Client {
         }
     }
 
-    pub async fn write_rdp_pointer(&self, pointer: CGOMousePointerEvent) -> CGOErrCode {
+    pub async fn client_write_rdp_pointer(&self, pointer: CGOMousePointerEvent) -> CGOErrCode {
         let mut fastpath_events = Vec::new();
         // TODO(isaiah): impl From for this
         let mut flags = match pointer.button {
@@ -447,7 +447,7 @@ pub struct ClientOrError {
 
 /// client_connect establishes an RDP connection to go_addr with the provided credentials and screen
 /// size. If succeeded, the client is internally registered under client_ref. When done with the
-/// connection, the caller must call close_rdp.
+/// connection, the caller must call client_close_rdp.
 ///
 /// # Safety
 ///
@@ -658,7 +658,7 @@ impl Drop for CGOPNG {
     }
 }
 
-/// `update_clipboard` is called from Go, and caches data that was copied
+/// `client_update_clipboard` is called from Go, and caches data that was copied
 /// client-side while notifying the RDP server that new clipboard data is available.
 ///
 /// # Safety
@@ -669,16 +669,16 @@ impl Drop for CGOPNG {
 /// data MUST be a valid pointer.
 /// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
 #[no_mangle]
-pub unsafe extern "C" fn update_clipboard(
+pub unsafe extern "C" fn client_update_clipboard(
     client_ptr: *const Client,
     data: *mut u8,
     len: u32,
 ) -> CGOErrCode {
-    warn!("unimplemented: update_clipboard");
+    warn!("unimplemented: client_update_clipboard");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_sd_announce announces a new drive that's ready to be
+/// client_handle_tdp_sd_announce announces a new drive that's ready to be
 /// redirected over RDP.
 ///
 ///
@@ -689,15 +689,15 @@ pub unsafe extern "C" fn update_clipboard(
 ///
 /// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_announce(
+pub unsafe extern "C" fn client_handle_tdp_sd_announce(
     client_ptr: *const Client,
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
-    warn!("unimplemented: handle_tdp_sd_announce");
+    warn!("unimplemented: client_handle_tdp_sd_announce");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
+/// client_handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
 /// message
 ///
 /// # Safety
@@ -707,15 +707,15 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
 ///
 /// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_info_response(
+pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: handle_tdp_sd_info_response");
+    warn!("unimplemented: client_handle_tdp_sd_info_response");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
+/// client_handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
 /// message
 ///
 /// # Safety
@@ -723,15 +723,15 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_create_response(
+pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: handle_tdp_sd_create_response");
+    warn!("unimplemented: client_handle_tdp_sd_create_response");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
+/// client_handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
 /// message
 ///
 /// # Safety
@@ -739,15 +739,15 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_delete_response(
+pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: handle_tdp_sd_delete_response");
+    warn!("unimplemented: client_handle_tdp_sd_delete_response");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
+/// client_handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
 ///
 /// # Safety
 ///
@@ -759,45 +759,45 @@ pub unsafe extern "C" fn handle_tdp_sd_delete_response(
 ///
 /// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_list_response(
+pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryListResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: handle_tdp_sd_list_response");
+    warn!("unimplemented: client_handle_tdp_sd_list_response");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_sd_read_response handles a TDP Shared Directory Read Response
+/// client_handle_tdp_sd_read_response handles a TDP Shared Directory Read Response
 /// message
 ///
 /// # Safety
 ///
 /// client_ptr must be a valid pointer
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_read_response(
+pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryReadResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: handle_tdp_sd_read_response");
+    warn!("unimplemented: client_handle_tdp_sd_read_response");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_sd_write_response handles a TDP Shared Directory Write Response
+/// client_handle_tdp_sd_write_response handles a TDP Shared Directory Write Response
 /// message
 ///
 /// # Safety
 ///
 /// client_ptr must be a valid pointer
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_write_response(
+pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: handle_tdp_sd_write_response");
+    warn!("unimplemented: client_handle_tdp_sd_write_response");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_sd_move_response handles a TDP Shared Directory Move Response
+/// client_handle_tdp_sd_move_response handles a TDP Shared Directory Move Response
 /// message
 ///
 /// # Safety
@@ -805,26 +805,26 @@ pub unsafe extern "C" fn handle_tdp_sd_write_response(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_move_response(
+pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryMoveResponse,
 ) -> CGOErrCode {
-    warn!("unimplemented: handle_tdp_sd_move_response");
+    warn!("unimplemented: client_handle_tdp_sd_move_response");
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_rdp_response_pdu handles a TDP RDP Response PDU message. It takes a raw encoded RDP PDU
+/// client_handle_tdp_rdp_response_pdu handles a TDP RDP Response PDU message. It takes a raw encoded RDP PDU
 /// created by the ironrdp client on the frontend and sends it directly to the RDP server.
 ///
 /// res is the raw RDP response message to be sent back to the RDP server, without the TDP message type or
 /// array length header.
-///
+///n
 /// # Safety
 ///
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_rdp_response_pdu(
+pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     client_ptr: *const Client,
     res: *mut u8,
     res_len: u32,
@@ -940,7 +940,7 @@ impl From<CGOMousePointerEvent> for PointerEvent {
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn write_rdp_pointer(
+pub unsafe extern "C" fn client_write_rdp_pointer(
     client_ptr: *const Client,
     pointer: CGOMousePointerEvent,
 ) -> CGOErrCode {
@@ -955,7 +955,7 @@ pub unsafe extern "C" fn write_rdp_pointer(
         .tokio_rt
         .handle()
         .clone()
-        .block_on(async { client.write_rdp_pointer(pointer).await })
+        .block_on(async { client.client_write_rdp_pointer(pointer).await })
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
@@ -989,11 +989,11 @@ impl From<CGOKeyboardEvent> for KeyboardEvent {
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn write_rdp_keyboard(
+pub unsafe extern "C" fn client_write_rdp_keyboard(
     client_ptr: *const Client,
     key: CGOKeyboardEvent,
 ) -> CGOErrCode {
-    warn!("unimplemented: write_rdp_keyboard");
+    warn!("unimplemented: client_write_rdp_keyboard");
     CGOErrCode::ErrCodeSuccess
 }
 
@@ -1001,8 +1001,8 @@ pub unsafe extern "C" fn write_rdp_keyboard(
 ///
 /// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub unsafe extern "C" fn close_rdp(client_ptr: *const Client) -> CGOErrCode {
-    warn!("unimplemented: close_rdp");
+pub unsafe extern "C" fn client_close_rdp(client_ptr: *const Client) -> CGOErrCode {
+    warn!("unimplemented: client_close_rdp");
     CGOErrCode::ErrCodeSuccess
 }
 
