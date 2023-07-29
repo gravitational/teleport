@@ -1189,37 +1189,6 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
 
-	// build the general alert msg meant for broader consumption
-	msg, verInUse := makeUpgradeSuggestionMsg(visitor, current, instanceVisitor.Oldest())
-
-	if msg != "" {
-		alert, err := types.NewClusterAlert(
-			releaseAlertID,
-			msg,
-			// Defaulting to "low" severity level. We may want to make this dynamic
-			// in the future depending on the distance from up-to-date.
-			types.WithAlertSeverity(types.AlertSeverity_LOW),
-			types.WithAlertLabel(types.AlertOnLogin, "yes"),
-			types.WithAlertLabel(types.AlertPermitAll, "yes"),
-			types.WithAlertLabel(verInUseLabel, verInUse),
-			types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
-		)
-		if err != nil {
-			log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
-			return
-		}
-		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-			log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
-			return
-		}
-	} else if cleanup {
-		log.Debugf("Cluster appears up to date, clearing %s alert.", releaseAlertID)
-		err := a.DeleteClusterAlert(ctx, releaseAlertID)
-		if err != nil && !trace.IsNotFound(err) {
-			log.Warnf("Failed to delete %s alert: %v", releaseAlertID, err)
-		}
-	}
-
 	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) && !sp.SecurityPatchAltOf(current) {
 		// explicit security patch alerts have a more limited audience, so we generate
 		// them as their own separate alert.
@@ -1256,29 +1225,6 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
 		}
 	}
-}
-
-// makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
-// needed (returns "" if everything looks up to date).
-func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Target) (msg string, ver string) {
-	if next := visitor.NextMajor(); next.Ok() {
-		// at least one stable release exists for the next major version
-		log.Debugf("Generating alert msg for next major version. current=%s, next=%s", current.Version(), next.Version())
-		return fmt.Sprintf("The next major version of Teleport is %s. Please consider upgrading your Cluster.", next.Major()), next.Version()
-	}
-
-	if nc := visitor.NewestCurrent(); nc.Ok() && nc.NewerThan(current) {
-		// newer release of the currently running major version is available
-		log.Debugf("Generating alert msg for new minor or patch release. current=%s, newest=%s", current.Version(), nc.Version())
-		return fmt.Sprintf("Teleport %s is now available, please consider upgrading your Cluster.", nc.Version()), nc.Version()
-	}
-
-	if oldestInstance.Ok() && current.NewerThan(oldestInstance) {
-		// at least one connected instance is older than this auth server
-		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them.", current.Version()
-	}
-
-	return "", ""
 }
 
 // updateVersionMetrics leverages the inventory control stream to report the versions of
@@ -3364,41 +3310,6 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 	return session, trace.Wrap(err)
 }
 
-// GenerateToken generates multi-purpose authentication token.
-// Deprecated: Use CreateToken or UpdateToken.
-// DELETE IN 14.0.0, replaced by methods above (strideynet).
-func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	ttl := defaults.ProvisioningTokenTTL
-	if req.TTL != 0 {
-		ttl = req.TTL.Get()
-	}
-	expires := a.clock.Now().UTC().Add(ttl)
-
-	if req.Token == "" {
-		token, err := utils.CryptoRandomHex(TokenLenBytes)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		req.Token = token
-	}
-
-	token, err := types.NewProvisionToken(req.Token, req.Roles, expires)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	if len(req.Labels) != 0 {
-		meta := token.GetMetadata()
-		meta.Labels = req.Labels
-		token.SetMetadata(meta)
-	}
-
-	if err := a.UpsertToken(ctx, token); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return req.Token, nil
-}
-
 // ExtractHostID returns host id based on the hostname
 func ExtractHostID(hostName string, clusterName string) (string, error) {
 	suffix := "." + clusterName
@@ -3591,18 +3502,6 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: services.GetSSHCheckingKeys(ca),
 	}, nil
-}
-
-// UnstableAssertSystemRole is not a stable part of the public API. Used by older
-// instances to prove that they hold a given system role.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-func (a *Server) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	return trace.Wrap(a.Unstable.AssertSystemRole(ctx, req))
-}
-
-func (a *Server) UnstableGetSystemRoleAssertions(ctx context.Context, serverID string, assertionID string) (proto.UnstableSystemRoleAssertionSet, error) {
-	set, err := a.Unstable.GetSystemRoleAssertions(ctx, serverID, assertionID)
-	return set, trace.Wrap(err)
 }
 
 func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello) error {
@@ -4024,17 +3923,21 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	}
 	return a.Services.DeleteNamespace(namespace)
 }
-
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
+	_, err := a.CreateAccessRequestV2(ctx, req, identity)
+	return trace.Wrap(err)
+}
+
+func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only, this ensures the
+	// Always perform variable expansion on creation only; this ensures the
 	// access request that is reviewed is the same that is approved.
 	expandOpts := services.ExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Look for user groups and associated applications to the request.
@@ -4059,7 +3962,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 
 		userGroup, err := a.GetUserGroup(ctx, resource.Name)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		for _, app := range userGroup.GetApplications() {
@@ -4083,13 +3986,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if req.GetDryRun() {
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
-		return nil
+		return req, nil
 	}
 
 	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
 
-	if err := a.Services.CreateAccessRequest(ctx, req); err != nil {
-		return trace.Wrap(err)
+	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
@@ -4105,11 +4008,12 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
+		MaxDuration:          req.GetMaxDuration(),
 	})
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
-	return nil
+	return req, nil
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -4206,6 +4110,7 @@ func (a *Server) SubmitAccessReview(ctx context.Context, params types.AccessRevi
 		ProposedState: params.Review.ProposedState.String(),
 		Reason:        params.Review.Reason,
 		Reviewer:      params.Review.Author,
+		MaxDuration:   req.GetMaxDuration(),
 	}
 
 	if len(params.Review.Annotations) > 0 {
@@ -5380,63 +5285,6 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 		return trace.Wrap(err)
 	}
 	log.Infof("Successfully added locally usable additional trusted keys to %s CA.", ca.GetType())
-	return nil
-}
-
-// createSelfSignedCA creates a new self-signed CA and writes it to the
-// backend, with the type and clusterName given by the argument caID.
-func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) error {
-	keySet, err := newKeySet(ctx, a.keyStore, caID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        caID.Type,
-		ClusterName: caID.DomainName,
-		ActiveKeys:  keySet,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.CreateCertAuthority(ctx, ca); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// deleteUnusedKeys deletes all teleport keys held in a connected HSM for this
-// auth server which are not currently used in any CAs.
-func (a *Server) deleteUnusedKeys(ctx context.Context) error {
-	clusterName, err := a.Services.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var activeKeys [][]byte
-	for _, caType := range types.CertAuthTypes {
-		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
-		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
-			for _, sshKeyPair := range keySet.SSH {
-				activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
-			}
-			for _, tlsKeyPair := range keySet.TLS {
-				activeKeys = append(activeKeys, tlsKeyPair.Key)
-			}
-			for _, jwtKeyPair := range keySet.JWT {
-				activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
-			}
-		}
-	}
-	if err := a.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
-		// Key deletion is best-effort, log a warning if it fails and carry on.
-		// We don't want to prevent a CA rotation, which may be necessary in
-		// some cases where this would fail.
-		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
-	}
 	return nil
 }
 

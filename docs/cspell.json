@@ -463,6 +463,7 @@
     "kubeconfig",
     "kubeconfigs",
     "kubectl",
+    "portforward",
     "kvno",
     "lastname",
     "ldapsearch",
@@ -684,6 +685,7 @@
     "splunkd",
     "splunkforwarder",
     "sqlcl",
+    "sqlcmd",
     "sqlnet",
     "sqlserver",
     "sshcacerts",
@@ -799,5 +801,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

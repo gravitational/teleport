@@ -133,7 +133,7 @@ export function TopBar() {
   return (
     <TopBarContainer>
       {!hasClusterUrl && (
-        <Text fontSize="18px" bold>
+        <Text fontSize="18px" bold data-testid="title">
           {title}
         </Text>
       )}

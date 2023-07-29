@@ -242,11 +242,23 @@ func testDatabaseLogin(t *testing.T) {
 			if len(selectors) == 0 {
 				selectors = []string{test.databaseName}
 			}
+
+			// override the mysql/postgres config file paths to avoid parallel
+			// updates to the default location in the user home dir.
+			mySqlCnfPath := filepath.Join(tmpHomePath, ".my.cnf")
+			pgCnfPath := filepath.Join(tmpHomePath, ".pg_service.conf")
+			// all subsequent tsh commands need these options.
+			cliOpts := []CliOption{
+				// set .tsh location to the temp dir for this test.
+				setHomePath(tmpHomePath),
+				setOverrideMySQLConfigPath(mySqlCnfPath),
+				setOverridePostgresConfigPath(pgCnfPath),
+			}
 			args := append([]string{
 				// default --db-user and --db-name are selected from roles.
 				"db", "login",
 			}, selectors...)
-			err := Run(context.Background(), args, setHomePath(tmpHomePath))
+			err := Run(context.Background(), args, cliOpts...)
 			require.NoError(t, err)
 
 			// Fetch the active profile.
@@ -270,7 +282,7 @@ func testDatabaseLogin(t *testing.T) {
 					args := append([]string{
 						"db", "config",
 					}, selectors...)
-					err := Run(context.Background(), args, setHomePath(tmpHomePath))
+					err := Run(context.Background(), args, cliOpts...)
 
 					if test.expectErrForConfigCmd {
 						require.Error(t, err)
@@ -284,7 +296,7 @@ func testDatabaseLogin(t *testing.T) {
 					args := append([]string{
 						"db", "env",
 					}, selectors...)
-					err := Run(context.Background(), args, setHomePath(tmpHomePath))
+					err := Run(context.Background(), args, cliOpts...)
 
 					if test.expectErrForEnvCmd {
 						require.Error(t, err)
@@ -299,7 +311,7 @@ func testDatabaseLogin(t *testing.T) {
 				args := append([]string{
 					"db", "logout",
 				}, selectors...)
-				err := Run(context.Background(), args, setHomePath(tmpHomePath))
+				err := Run(context.Background(), args, cliOpts...)
 				require.NoError(t, err)
 			})
 		})

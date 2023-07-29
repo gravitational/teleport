@@ -1,4 +1,4 @@
-suite: Auth StatefulSet
+suite: Auth Deployment
 templates:
   - auth/deployment.yaml
   - auth/config.yaml
@@ -814,3 +814,13 @@ tests:
             mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: auth-serviceaccount-token
             readOnly: true
+
+  - it: should add the azure workload identity label to auth pods in azure mode
+    template: auth/deployment.yaml
+    set:
+      chartMode: azure
+      clusterName: teleport.example.com
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.azure\.workload\.identity/use
+          value: "true"

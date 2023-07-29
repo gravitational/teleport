@@ -119,6 +119,20 @@ func ResourceIDFromString(raw string) (ResourceID, error) {
 	return resourceID, trace.Wrap(resourceID.CheckAndSetDefaults())
 }
 
+// ResourceIDsFromStrings parses a list of ResourceIDs from a list of strings.
+// Each string should have been obtained from ResourceIDToString.
+func ResourceIDsFromStrings(resourceIDStrs []string) ([]ResourceID, error) {
+	resourceIDs := make([]ResourceID, len(resourceIDStrs))
+	var err error
+	for i, resourceIDStr := range resourceIDStrs {
+		resourceIDs[i], err = ResourceIDFromString(resourceIDStr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return resourceIDs, nil
+}
+
 // ResourceIDsToString marshals a list of ResourceIDs to a string.
 func ResourceIDsToString(ids []ResourceID) (string, error) {
 	if len(ids) == 0 {
@@ -138,8 +152,8 @@ func ResourceIDsToString(ids []ResourceID) (string, error) {
 	return string(bytes), nil
 }
 
-// ResourceIDsFromString parses a list for resource IDs from a string. The string
-// should have been obtained from ResourceIDsToString.
+// ResourceIDsFromString parses a list of resource IDs from a single string.
+// The string should have been obtained from ResourceIDsToString.
 func ResourceIDsFromString(raw string) ([]ResourceID, error) {
 	if raw == "" {
 		return nil, nil

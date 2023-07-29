@@ -403,18 +403,24 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 	checkpointValues := checkpoint.checkpointValues()
 	afterCheckpoint := afterCheckpointIn
 
-	scanner := bufio.NewScanner(gzipReader)
 	t.Logger.Debugf("Scanning %d events", dataObj.ItemCount)
 	count := 0
-	for scanner.Scan() {
+	decoder := json.NewDecoder(gzipReader)
+	for decoder.More() {
 		count++
-		ev, err := exportedDynamoItemToAuditEvent(ctx, scanner.Bytes())
+		ev, err := exportedDynamoItemToAuditEvent(ctx, decoder)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 
 		if ev.GetID() == "" || ev.GetID() == uuid.Nil.String() {
 			ev.SetID(uuid.NewString())
+		}
+		// Typically there should not be event without time, however it happen
+		// in past due to some bugs. We decided it's better to keep in athena
+		// then drop it. 1970-01-01 is used to provide valid unix timestamp.
+		if ev.GetTime().IsZero() {
+			ev.SetTime(time.Unix(0, 0))
 		}
 
 		// if checkpoint is present, it means that previous run ended with error
@@ -445,16 +451,13 @@ func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return false, trace.Wrap(err)
-	}
 	return afterCheckpoint, nil
 }
 
 // exportedDynamoItemToAuditEvent converts single line of dynamo export into AuditEvent.
-func exportedDynamoItemToAuditEvent(ctx context.Context, in []byte) (apievents.AuditEvent, error) {
+func exportedDynamoItemToAuditEvent(ctx context.Context, decoder *json.Decoder) (apievents.AuditEvent, error) {
 	var itemMap map[string]map[string]any
-	if err := json.Unmarshal(in, &itemMap); err != nil {
+	if err := decoder.Decode(&itemMap); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
