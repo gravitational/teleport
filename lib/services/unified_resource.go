@@ -403,7 +403,7 @@ func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error 
 	for _, node := range newNodes {
 		nodes = append(nodes, Item{
 			Key:   keyOf(node),
-			Value: node,
+			Value: node.DeepCopy(),
 		})
 	}
 	return u.current.PutRange(ctx, nodes)
@@ -419,7 +419,7 @@ func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) er
 	for _, db := range newDbs {
 		dbs = append(dbs, Item{
 			Key:   keyOf(db),
-			Value: db,
+			Value: db.Copy(),
 		})
 	}
 	return u.current.PutRange(ctx, dbs)
@@ -435,7 +435,7 @@ func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error 
 	for _, kube := range newKubes {
 		kubes = append(kubes, Item{
 			Key:   keyOf(kube),
-			Value: kube,
+			Value: kube.Copy(),
 		})
 	}
 	return u.current.PutRange(ctx, kubes)
@@ -452,7 +452,7 @@ func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
 	for _, app := range newApps {
 		apps = append(apps, Item{
 			Key:   keyOf(app),
-			Value: app,
+			Value: app.Copy(),
 		})
 	}
 	return u.current.PutRange(ctx, apps)
@@ -472,7 +472,7 @@ func (u *unifiedResourceCollector) getAndUpdateSAMLApps(ctx context.Context) err
 		for _, app := range resp {
 			newSAMLApps = append(newSAMLApps, Item{
 				Key:   keyOf(app),
-				Value: app,
+				Value: app.Copy(),
 			})
 		}
 		if nextKey == "" {
@@ -496,7 +496,7 @@ func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) err
 	for _, desktop := range newDesktops {
 		desktops = append(desktops, Item{
 			Key:   keyOf(desktop),
-			Value: desktop,
+			Value: desktop.Copy(),
 		})
 	}
 

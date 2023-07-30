@@ -133,6 +133,8 @@ type WindowsDesktop interface {
 	// NonAD checks whether this is a standalone host that
 	// is not joined to an Active Directory domain.
 	NonAD() bool
+	// Copy returns a copy of this windows desktop
+	Copy() *WindowsDesktopV3
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -202,6 +204,11 @@ func (d *WindowsDesktopV3) GetDomain() string {
 func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetAddr())
 	return MatchSearch(fieldVals, values, nil)
+}
+
+// Copy returns a copy of this windows desktop object.
+func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
+	return utils.CloneProtoMsg(d)
 }
 
 // DeduplicateDesktops deduplicates desktops by name.
