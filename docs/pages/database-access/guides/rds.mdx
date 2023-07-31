@@ -45,8 +45,8 @@ which supports IAM authentication.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-If you plan to run the Teleport Database Service on Kubenetes, you will need the
-following:
+If you plan to run the Teleport Database Service on Kubernetes, you will need
+the following:
 
  - The `aws` CLI in your PATH. Install it by following the [AWS
    documentation](https://aws.amazon.com/cli/).
@@ -225,7 +225,7 @@ $ aws iam create-policy --policy-name teleport-rds-policy --policy-document file
 Next, create a trust policy for the `teleport-rds-role`, which allows the role
 to obtain temporary credentials via the IAM OIDC provider.
 
-Retrieve your OIDCS issuer ID, assigning <Var name="cluster-name" /> to the name
+Retrieve your OIDC issuer ID, assigning <Var name="cluster-name" /> to the name
 of your EKS cluster and <Var name="eks-region" /> to the AWS region where your
 EKS cluster is running:
 
