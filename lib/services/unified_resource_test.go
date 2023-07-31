@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func setupConfig(t *testing.T, ctx context.Context) (auth.InitConfig, *memory.Memory) {
@@ -77,19 +76,20 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	conf, bk := setupConfig(t, ctx)
+	conf, _ := setupConfig(t, ctx)
 	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
 
-	w, err := services.NewUnifiedResourceWatcher(ctx, services.UnifiedResourceWatcherConfig{
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: "test",
-			Client:    local.NewEventsService(bk),
+			Component: teleport.ComponentUnifiedResource,
+			Client:    authServer,
 		},
 		ResourceGetter: authServer,
 	})
+
+	authServer.SetUnifiedResourcesCache(w)
 	require.NoError(t, err)
-	t.Cleanup(func() { w.Close() })
 
 	// No resources expected initially.
 	res, err := w.GetUnifiedResources(ctx)

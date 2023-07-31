@@ -1731,21 +1731,18 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
-	// UnifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
-	// 	ResourceWatcherConfig: services.ResourceWatcherConfig{
-	// 		QueueSize:    defaults.UnifiedResourcesQueueSize,
-	// 		Component:    teleport.ComponentUnifiedResource,
-	// 		Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
-	// 		Client:       authServer,
-	// 		MaxStaleness: time.Minute,
-	// 	},
-	// 	ResourceGetter: authServer,
-	// })
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(process.ExitContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
+			Client:       authServer,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: authServer,
+	})
 
-	// authServer.SetUnifiedResourceWatcher(UnifiedResourceWatcher)
+	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	if embedderClient != nil {
 		log.Debugf("Starting embedding watcher")

@@ -20,17 +20,17 @@ import (
 	"sync"
 
 	"github.com/google/btree"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 )
 
-type config struct {
+type UnifiedResourceCacheConfig struct {
 	// Context is a context for opening the
 	// database
 	Context context.Context
@@ -41,13 +41,29 @@ type config struct {
 	Clock clockwork.Clock
 	// Component is a logging component
 	Component string
+	ResourceWatcherConfig
+	ResourceGetter
+}
+
+// UnifiedResourceCache contains a representation of all resources that are displayable in the UI
+type UnifiedResourceCache struct {
+	mu  sync.Mutex
+	log *log.Entry
+	cfg UnifiedResourceCacheConfig
+	// tree is a BTree with items
+	tree            *btree.BTreeG[*Item]
+	initializationC chan struct{}
+	stale           bool
+	once            sync.Once
+	ResourceGetter
 }
 
 // NewUnifiedResourceCache creates a new memory cache that holds the unified resources
-func NewUnifiedResourceCache(cfg config) (*UnifiedResourceCache, error) {
+func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig) (*UnifiedResourceCache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "setting defaults for unified resource cache")
 	}
+
 	m := &UnifiedResourceCache{
 		mu: sync.Mutex{},
 		log: log.WithFields(log.Fields{
@@ -57,12 +73,20 @@ func NewUnifiedResourceCache(cfg config) (*UnifiedResourceCache, error) {
 		tree: btree.NewG(cfg.BTreeDegree, func(a, b *Item) bool {
 			return a.Less(b)
 		}),
+		initializationC: make(chan struct{}),
+		ResourceGetter:  cfg.ResourceGetter,
+	}
+
+	err := newWatcher(ctx, m, cfg.ResourceWatcherConfig)
+
+	if err != nil {
+		return nil, trace.Wrap(err, "creating unified resource watcher")
 	}
 	return m, nil
 }
 
 // CheckAndSetDefaults checks and sets default values
-func (cfg *config) CheckAndSetDefaults() error {
+func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 	if cfg.Context == nil {
 		cfg.Context = context.Background()
 	}
@@ -76,87 +100,6 @@ func (cfg *config) CheckAndSetDefaults() error {
 		cfg.Component = teleport.ComponentUnifiedResource
 	}
 	return nil
-}
-
-// less is used for Btree operations,
-// returns true if item is less than the other one
-func (i *Item) Less(iother btree.Item) bool {
-	switch other := iother.(type) {
-	case *Item:
-		return bytes.Compare(i.Key, other.Key) < 0
-	case *prefixItem:
-		return !iother.Less(i)
-	default:
-		return false
-	}
-}
-
-// prefixItem is used for prefix matches on a B-Tree
-type prefixItem struct {
-	// prefix is a prefix to match
-	prefix []byte
-}
-
-// Less is used for Btree operations
-func (p *prefixItem) Less(iother btree.Item) bool {
-	other := iother.(*Item)
-	return !bytes.HasPrefix(other.Key, p.prefix)
-}
-
-type Item struct {
-	// Key is a key of the key value item
-	Key []byte
-	// Value represents a resource such as types.Server or types.DatabaseServer
-	Value types.ResourceWithLabels
-}
-
-// UnifiedResourceCache contains a representation of all resources that are displayable in the UI
-type UnifiedResourceCache struct {
-	mu  sync.Mutex
-	log *log.Entry
-	cfg config
-	// tree is a BTree with items
-	tree *btree.BTreeG[*Item]
-}
-
-// Event represents an event that happened in the backend
-type Event struct {
-	// Type is operation type
-	Type types.OpType
-	// Item is event Item
-	Item Item
-}
-
-// Create creates item if it does not exist
-func (c *UnifiedResourceCache) Create(ctx context.Context, i Item) error {
-	if len(i.Key) == 0 {
-		return trace.BadParameter("missing parameter key")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.tree.Has(&i) {
-		return trace.AlreadyExists("key %q already exists", string(i.Key))
-	}
-	event := Event{
-		Type: types.OpPut,
-		Item: i,
-	}
-	c.processEvent(event)
-	return nil
-}
-
-// Get returns a single item or not found error
-func (c *UnifiedResourceCache) Get(ctx context.Context, key []byte) (*Item, error) {
-	if len(key) == 0 {
-		return nil, trace.BadParameter("missing parameter key")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	i, found := c.tree.Get(&Item{Key: key})
-	if !found {
-		return nil, trace.NotFound("key %q is not found", string(key))
-	}
-	return i, nil
 }
 
 // Put puts value into backend (creates if it does not
@@ -264,28 +207,13 @@ func (c *UnifiedResourceCache) processEvent(event Event) {
 	}
 }
 
-// UnifiedResourceWatcherConfig is a UnifiedResourceWatcher configuration.
-type UnifiedResourceWatcherConfig struct {
-	ResourceWatcherConfig
-	ResourceGetter
-}
-
-// UnifiedResourceWatcher is built on top of resourceWatcher to monitor additions
-// and deletions to resources displayable in the UI such as Nodes, Dbs, Apps, etc.
-type UnifiedResourceWatcher struct {
-	*resourceWatcher
-	*unifiedResourceCollector
-}
-
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
-func (u *unifiedResourceCollector) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
-	u.lock.RLock()
-	defer u.lock.RUnlock()
+func (u *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
 
 	// if the cache is not initialized or stale, instead of returning nothing, return upstream nodes
 	if !u.isInitialized() || u.stale {
-		nodes, err := u.GetNodes(ctx, apidefaults.Namespace)
+		nodes, err := u.ResourceGetter.GetNodes(ctx, apidefaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting nodes while unified resource cache is uninitialized or stale")
 		}
@@ -296,7 +224,7 @@ func (u *unifiedResourceCollector) GetUnifiedResources(ctx context.Context) ([]t
 		return resources, nil
 	}
 
-	result, err := u.current.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
+	result, err := u.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting unified resource range")
 	}
@@ -316,49 +244,23 @@ type ResourceGetter interface {
 	SAMLIdpServiceProviderGetter
 }
 
-// NewUnifiedResourceWatcher returns a new instance of UnifiedResourceWatcher.
-func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherConfig) (*UnifiedResourceWatcher, error) {
+// newWatcher starts and returns a new resource watcher for unified resources.
+func newWatcher(ctx context.Context, cache *UnifiedResourceCache, cfg ResourceWatcherConfig) error {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err, "setting defaults for unified resource watcher config")
+		return trace.Wrap(err, "setting defaults for unified resource watcher config")
 	}
-
-	mem, err := NewUnifiedResourceCache(config{})
+	_, err := newResourceWatcher(ctx, cache, cfg)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating a new unified resource cache")
+		return trace.Wrap(err, "creating a new unified resource watcher")
 	}
-
-	collector := &unifiedResourceCollector{
-		UnifiedResourceWatcherConfig: cfg,
-		current:                      mem,
-		initializationC:              make(chan struct{}),
-	}
-
-	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating a new unified resource watcher")
-	}
-
-	return &UnifiedResourceWatcher{
-		resourceWatcher:          watcher,
-		unifiedResourceCollector: collector,
-	}, nil
+	return nil
 }
 
 func keyOf(r types.Resource) []byte {
 	return backend.Key(prefix, r.GetName(), r.GetKind())
 }
 
-type unifiedResourceCollector struct {
-	UnifiedResourceWatcherConfig
-	current         *UnifiedResourceCache
-	lock            sync.RWMutex
-	initializationC chan struct{}
-	once            sync.Once
-	stale           bool
-}
-
-func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	defer u.defineCollectorAsInitialized()
+func (u *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	err := u.getAndUpdateNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -390,12 +292,13 @@ func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Cont
 	}
 
 	u.stale = false
+	u.defineCollectorAsInitialized()
 	return nil
 }
 
 // getAndUpdateNodes will get nodes and update the current tree with each Node
-func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error {
-	newNodes, err := u.GetNodes(ctx, apidefaults.Namespace)
+func (u *UnifiedResourceCache) getAndUpdateNodes(ctx context.Context) error {
+	newNodes, err := u.ResourceGetter.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting nodes for unified resource watcher")
 	}
@@ -403,14 +306,14 @@ func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error 
 	for _, node := range newNodes {
 		nodes = append(nodes, Item{
 			Key:   keyOf(node),
-			Value: node.DeepCopy(),
+			Value: node,
 		})
 	}
-	return u.current.PutRange(ctx, nodes)
+	return u.PutRange(ctx, nodes)
 }
 
 // getAndUpdateDatabases will get database servers and update the current tree with each DatabaseServer
-func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) error {
+func (u *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) error {
 	newDbs, err := u.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting databases for unified resource watcher")
@@ -419,14 +322,14 @@ func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) er
 	for _, db := range newDbs {
 		dbs = append(dbs, Item{
 			Key:   keyOf(db),
-			Value: db.Copy(),
+			Value: db,
 		})
 	}
-	return u.current.PutRange(ctx, dbs)
+	return u.PutRange(ctx, dbs)
 }
 
 // getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
-func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error {
+func (u *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) error {
 	newKubes, err := u.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting kubes for unified resource watcher")
@@ -435,14 +338,14 @@ func (u *unifiedResourceCollector) getAndUpdateKubes(ctx context.Context) error 
 	for _, kube := range newKubes {
 		kubes = append(kubes, Item{
 			Key:   keyOf(kube),
-			Value: kube.Copy(),
+			Value: kube,
 		})
 	}
-	return u.current.PutRange(ctx, kubes)
+	return u.PutRange(ctx, kubes)
 }
 
 // getAndUpdateApps will get application servers and update the current tree with each AppServer
-func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
+func (u *UnifiedResourceCache) getAndUpdateApps(ctx context.Context) error {
 	newApps, err := u.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting apps for unified resource watcher")
@@ -452,14 +355,14 @@ func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
 	for _, app := range newApps {
 		apps = append(apps, Item{
 			Key:   keyOf(app),
-			Value: app.Copy(),
+			Value: app,
 		})
 	}
-	return u.current.PutRange(ctx, apps)
+	return u.PutRange(ctx, apps)
 }
 
 // getAndUpdateSAMLApps will get SAML Idp Service Providers servers and update the current tree with each SAMLIdpServiceProvider
-func (u *unifiedResourceCollector) getAndUpdateSAMLApps(ctx context.Context) error {
+func (u *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
 	var newSAMLApps []Item
 	startKey := ""
 
@@ -472,7 +375,7 @@ func (u *unifiedResourceCollector) getAndUpdateSAMLApps(ctx context.Context) err
 		for _, app := range resp {
 			newSAMLApps = append(newSAMLApps, Item{
 				Key:   keyOf(app),
-				Value: app.Copy(),
+				Value: app,
 			})
 		}
 		if nextKey == "" {
@@ -482,11 +385,11 @@ func (u *unifiedResourceCollector) getAndUpdateSAMLApps(ctx context.Context) err
 		startKey = nextKey
 	}
 
-	return u.current.PutRange(ctx, newSAMLApps)
+	return u.PutRange(ctx, newSAMLApps)
 }
 
 // getAndUpdateDesktops will get windows desktops and update the current tree with each Desktop
-func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) error {
+func (u *UnifiedResourceCache) getAndUpdateDesktops(ctx context.Context) error {
 	newDesktops, err := u.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err, "getting desktops for unified resource watcher")
@@ -496,24 +399,24 @@ func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) err
 	for _, desktop := range newDesktops {
 		desktops = append(desktops, Item{
 			Key:   keyOf(desktop),
-			Value: desktop.Copy(),
+			Value: desktop,
 		})
 	}
 
-	return u.current.PutRange(ctx, desktops)
+	return u.PutRange(ctx, desktops)
 }
 
-func (u *unifiedResourceCollector) notifyStale() {
-	u.lock.Lock()
-	defer u.lock.Unlock()
+func (u *UnifiedResourceCache) notifyStale() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	u.stale = true
 }
 
-func (u *unifiedResourceCollector) initializationChan() <-chan struct{} {
+func (u *UnifiedResourceCache) initializationChan() <-chan struct{} {
 	return u.initializationC
 }
 
-func (u *unifiedResourceCollector) isInitialized() bool {
+func (u *UnifiedResourceCache) isInitialized() bool {
 	select {
 	case <-u.initializationC:
 		return true
@@ -522,30 +425,28 @@ func (u *unifiedResourceCollector) isInitialized() bool {
 	}
 }
 
-func (u *unifiedResourceCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+func (u *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
 	if event.Resource == nil {
-		u.Log.Warnf("Unexpected event: %v.", event)
+		u.log.Warnf("Unexpected event: %v.", event)
 		return
 	}
 
-	u.lock.Lock()
-	defer u.lock.Unlock()
 	switch event.Type {
 	case types.OpDelete:
-		u.current.delete(ctx, keyOf(event.Resource))
+		u.delete(ctx, keyOf(event.Resource))
 	case types.OpPut:
-		u.current.put(ctx, Item{
+		u.put(ctx, Item{
 			Key:   keyOf(event.Resource),
 			Value: event.Resource.(types.ResourceWithLabels),
 		})
 	default:
-		u.Log.Warnf("unsupported event type %s.", event.Type)
+		u.log.Warnf("unsupported event type %s.", event.Type)
 		return
 	}
 }
 
 // resourceKinds returns a list of resources to be watched.
-func (u *unifiedResourceCollector) resourceKinds() []types.WatchKind {
+func (u *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{
 		{Kind: types.KindNode},
 		{Kind: types.KindDatabaseServer},
@@ -556,11 +457,51 @@ func (u *unifiedResourceCollector) resourceKinds() []types.WatchKind {
 	}
 }
 
-func (u *unifiedResourceCollector) defineCollectorAsInitialized() {
+func (u *UnifiedResourceCache) defineCollectorAsInitialized() {
 	u.once.Do(func() {
 		// mark watcher as initialized.
 		close(u.initializationC)
 	})
+}
+
+// less is used for Btree operations,
+// returns true if item is less than the other one
+func (i *Item) Less(iother btree.Item) bool {
+	switch other := iother.(type) {
+	case *Item:
+		return bytes.Compare(i.Key, other.Key) < 0
+	case *prefixItem:
+		return !iother.Less(i)
+	default:
+		return false
+	}
+}
+
+// prefixItem is used for prefix matches on a B-Tree
+type prefixItem struct {
+	// prefix is a prefix to match
+	prefix []byte
+}
+
+// Less is used for Btree operations
+func (p *prefixItem) Less(iother btree.Item) bool {
+	other := iother.(*Item)
+	return !bytes.HasPrefix(other.Key, p.prefix)
+}
+
+type Item struct {
+	// Key is a key of the key value item
+	Key []byte
+	// Value represents a resource such as types.Server or types.DatabaseServer
+	Value types.ResourceWithLabels
+}
+
+// Event represents an event that happened in the backend
+type Event struct {
+	// Type is operation type
+	Type types.OpType
+	// Item is event Item
+	Item Item
 }
 
 const (
