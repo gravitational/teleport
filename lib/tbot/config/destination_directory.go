@@ -215,11 +215,11 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Write(ctx context.Context, name string, data []byte) error {
+func (dd *DestinationDirectory) Write(_ context.Context, name string, data []byte) error {
 	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
 }
 
-func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
+func (dd *DestinationDirectory) Read(ctx context.Context, name string) ([]byte, error) {
 	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
 	if err != nil {
 		return nil, trace.Wrap(err)

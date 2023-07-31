@@ -250,7 +250,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	if b.cfg.Onboarding.RenewableJoinMethod() {
 		// Nil, nil will be returned if no identity can be found in store or
 		// the identity in the store is no longer relevant.
-		loadedIdent, err = b.loadIdentityFromStore(store)
+		loadedIdent, err = b.loadIdentityFromStore(ctx, store)
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}
@@ -315,9 +315,9 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 // loadIdentityFromStore attempts to load a persisted identity from a store.
 // It checks this loaded identity against the configured onboarding profile
 // and ignores the loaded identity if there has been a configuration change.
-func (b *Bot) loadIdentityFromStore(store bot.Destination) (*identity.Identity, error) {
+func (b *Bot) loadIdentityFromStore(ctx context.Context, store bot.Destination) (*identity.Identity, error) {
 	b.log.WithField("store", store).Info("Loading existing bot identity from store.")
-	loadedIdent, err := identity.LoadIdentity(store, identity.BotKinds()...)
+	loadedIdent, err := identity.LoadIdentity(ctx, store, identity.BotKinds()...)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			b.log.Info("No existing bot identity found in store. Bot will join using configured token.")

@@ -156,11 +156,10 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 	return trace.Wrap(err)
 }
 
-func (dks *DestinationKubernetesSecret) Read(name string) ([]byte, error) {
+func (dks *DestinationKubernetesSecret) Read(ctx context.Context, name string) ([]byte, error) {
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
 
-	ctx := context.TODO()
 	secret, err := dks.getSecret(ctx)
 	if err != nil {
 		if kubeerrors.IsNotFound(err) {

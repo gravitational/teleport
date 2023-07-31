@@ -434,7 +434,7 @@ func SaveIdentity(ctx context.Context, id *Identity, d bot.Destination, kinds ..
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(ctx context.Context, d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 
@@ -444,7 +444,7 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 			continue
 		}
 
-		data, err := d.Read(artifact.Key)
+		data, err := d.Read(ctx, artifact.Key)
 		if err != nil {
 			return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
 		}
@@ -459,7 +459,7 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 				artifact.Key,
 				artifact.OldKey,
 			)
-			data, err = d.Read(artifact.OldKey)
+			data, err = d.Read(ctx, artifact.OldKey)
 			if err != nil {
 				return nil, trace.Wrap(
 					err,

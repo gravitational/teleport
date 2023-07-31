@@ -35,7 +35,7 @@ type Destination interface {
 	Write(ctx context.Context, name string, data []byte) error
 
 	// Read fetches data from the destination with a given name.
-	Read(name string) ([]byte, error)
+	Read(ctx context.Context, name string) ([]byte, error)
 
 	// TryLock attempts to lock a destination. This is non-blocking, and will
 	// return an error if it is not possible to lock the destination.
