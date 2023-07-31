@@ -3960,6 +3960,8 @@ message OIDCConnectorSpecV3 {
   bool AllowUnverifiedEmail = 15 [(gogoproto.jsontag) = "allow_unverified_email,omitempty"];
   // UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
   string UsernameClaim = 16 [(gogoproto.jsontag) = "username_claim,omitempty"];
+  // ForceReauthentication forces the user to reauthenticate when logging in.
+  bool ForceReauthentication = 17 [(gogoproto.jsontag) = "force_reauthentication,omitempty"];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC

@@ -95,6 +95,8 @@ type OIDCConnector interface {
 	GetGoogleAdminEmail() string
 	// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
 	GetAllowUnverifiedEmail() bool
+	// GetForceReauthentication returns true if authentication to the OIDC provider should be forced upon each login.
+	GetForceReauthentication() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -435,6 +437,12 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 // GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
 func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
 	return o.Spec.AllowUnverifiedEmail
+}
+
+// GetForceReauthentication returns true if authentication to the OIDC
+// provider should be forced upon each login.
+func (o *OIDCConnectorV3) GetForceReauthentication() bool {
+	return o.Spec.ForceReauthentication
 }
 
 // Check returns nil if all parameters are great, err otherwise
