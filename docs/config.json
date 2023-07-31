@@ -661,6 +661,10 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
+          "title": "Using PuTTY",
+          "slug": "/connect-your-client/putty/"
+        },
+        {
           "title": "Database GUI Clients",
           "slug": "/connect-your-client/gui-clients/"
         }
