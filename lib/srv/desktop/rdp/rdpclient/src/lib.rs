@@ -114,11 +114,11 @@ pub struct Client {
     go_ref: usize,
 }
 
-/// Forces the compiler to check that the Client struct is Sync.
+/// Forces the compiler to check that the Client struct is Send + Sync.
 /// See the README for more details.
 const _: () = {
-    const fn assert_sync<T: Sync>() {}
-    assert_sync::<Client>();
+    const fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<Client>();
 };
 
 impl Client {
