@@ -203,13 +203,12 @@ func (a *App) init(ctx context.Context) error {
 
 	if a.teleport == nil {
 		if err := a.createTeleportClient(ctx); err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 	}
 
-	var pong proto.PingResponse
-	var err error
-	if pong, err = a.checkTeleportVersion(ctx); err != nil {
+	pong, err := a.checkTeleportVersion(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
