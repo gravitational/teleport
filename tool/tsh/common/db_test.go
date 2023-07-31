@@ -60,6 +60,7 @@ func TestTshDB(t *testing.T) {
 	t.Run("Login", testDatabaseLogin)
 	t.Run("List", testListDatabase)
 	t.Run("FilterActiveDatabases", testFilterActiveDatabases)
+	t.Run("GetDatabase", testGetDatabase)
 }
 
 // testDatabaseLogin tests "tsh db login" command and verifies "tsh db
@@ -1054,6 +1055,126 @@ func testFilterActiveDatabases(t *testing.T) {
 				return
 			}
 			require.Zero(t, len(dbs), "unexpected API call to ListDatabases")
+		})
+	}
+}
+
+func testGetDatabase(t *testing.T) {
+	t.Parallel()
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	defaultDBUser := "admin"
+	defaultDBName := "default"
+	alice.SetDatabaseUsers([]string{defaultDBUser})
+	alice.SetDatabaseNames([]string{defaultDBName})
+	alice.SetRoles([]string{"access"})
+	databases := []servicecfg.Database{
+		{
+			Name:     "postgres",
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			StaticLabels: map[string]string{
+				"env": "local",
+			},
+		}, {
+			Name:     "mysql",
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+		}, {
+			Name:     "cassandra",
+			Protocol: defaults.ProtocolCassandra,
+			URI:      "localhost:9042",
+		}, {
+			Name:     "snowflake",
+			Protocol: defaults.ProtocolSnowflake,
+			URI:      "localhost.snowflakecomputing.com",
+		}, {
+			Name:     "mongo",
+			Protocol: defaults.ProtocolMongoDB,
+			URI:      "localhost:27017",
+		}, {
+			Name:     "mssql",
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      "localhost:1433",
+		}, {
+			Name:     "dynamodb",
+			Protocol: defaults.ProtocolDynamoDB,
+			URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+			AWS: servicecfg.DatabaseAWS{
+				AccountID:  "123456789012",
+				ExternalID: "123123123",
+				Region:     "us-west-1",
+			},
+		}}
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			// separate MySQL port with TLS routing.
+			// set the public address to be sure even on v2+, tsh clients will see the separate port.
+			mySQLAddr := localListenerAddr()
+			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
+			cfg.Proxy.MySQLPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = databases
+		}),
+	)
+	s.user = alice
+	// Log into Teleport cluster.
+	tmpHomePath, _ := mustLogin(t, s)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	for _, db := range databases {
+		require.NotEmpty(t, db.Name)
+		require.NotEmpty(t, db.Protocol)
+		route := tlsca.RouteToDatabase{
+			ServiceName: db.Name,
+			Protocol:    db.Protocol,
+			Username:    defaultDBUser,
+			Database:    defaultDBName,
+		}
+		t.Run(route.ServiceName, func(t *testing.T) {
+			t.Run("with active db cert", func(t *testing.T) {
+				cf := &CLIConf{
+					Context:         ctx,
+					TracingProvider: tracing.NoopProvider(),
+					HomePath:        tmpHomePath,
+					tracer:          tracing.NoopTracer(teleport.ComponentTSH),
+				}
+				tc, err := makeClient(cf)
+				require.NoError(t, err)
+				dbInfo, err := newDatabaseInfo(cf, tc, &route)
+				require.NoError(t, err)
+				require.Nil(t, dbInfo.database, "with an active cert the database should not have been fetched")
+				db, err := dbInfo.GetDatabase(cf, tc)
+				require.NoError(t, err)
+				require.Equal(t, route, dbInfo.RouteToDatabase)
+				require.Equal(t, route.ServiceName, db.GetName())
+				require.Equal(t, route.Protocol, db.GetProtocol())
+				require.Equal(t, dbInfo.database, db, "database should have been fetched and cached")
+			})
+			t.Run("without active db cert", func(t *testing.T) {
+				cf := &CLIConf{
+					Context:         ctx,
+					TracingProvider: tracing.NoopProvider(),
+					HomePath:        tmpHomePath,
+					tracer:          tracing.NoopTracer(teleport.ComponentTSH),
+					DatabaseService: route.ServiceName,
+					DatabaseUser:    route.Username,
+					DatabaseName:    route.Database,
+				}
+				tc, err := makeClient(cf)
+				require.NoError(t, err)
+				dbInfo, err := newDatabaseInfo(cf, tc, nil)
+				require.NoError(t, err)
+				require.NotNil(t, dbInfo.database, "without an active cert the database should have been fetched")
+				db, err := dbInfo.GetDatabase(cf, tc)
+				require.NoError(t, err)
+				require.Equal(t, route, dbInfo.RouteToDatabase)
+				require.Equal(t, route.ServiceName, db.GetName())
+				require.Equal(t, route.Protocol, db.GetProtocol())
+				require.Equal(t, dbInfo.database, db, "cached database should be the same")
+			})
 		})
 	}
 }
