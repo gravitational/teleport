@@ -38,9 +38,10 @@ type DestinationKubernetesSecret struct {
 	// to.
 	Name string `yaml:"name"`
 
-	mu        sync.Mutex
-	namespace string
-	k8s       kubernetes.Interface
+	mu          sync.Mutex
+	namespace   string
+	k8s         kubernetes.Interface
+	initialized bool
 }
 
 func (dks *DestinationKubernetesSecret) fieldManager() string {
@@ -108,6 +109,9 @@ func (dks *DestinationKubernetesSecret) CheckAndSetDefaults() error {
 func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []string) error {
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
+	if dks.initialized == true {
+		return trace.BadParameter("destination has already been initialized")
+	}
 
 	if dks.namespace == "" {
 		dks.namespace = os.Getenv(kubernetesNamespaceEnv)
@@ -148,12 +152,16 @@ func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []stri
 		return trace.Wrap(err)
 	}
 
+	dks.initialized = true
 	return nil
 }
 
 func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, data []byte) error {
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
+	if dks.initialized == false {
+		return trace.BadParameter("destination has not been initialized")
+	}
 
 	secret, err := dks.getSecret(ctx)
 	if err != nil {
@@ -175,6 +183,9 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 func (dks *DestinationKubernetesSecret) Read(ctx context.Context, name string) ([]byte, error) {
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
+	if dks.initialized == false {
+		return nil, trace.BadParameter("destination has not been initialized")
+	}
 
 	secret, err := dks.getSecret(ctx)
 	if err != nil {
