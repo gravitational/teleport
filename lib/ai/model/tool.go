@@ -19,6 +19,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -39,6 +41,7 @@ type ToolContext struct {
 
 type AccessRequestClient interface {
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+	ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
 }
 
 // Tool is an interface that allows the agent to interact with the outside world.
@@ -102,7 +105,6 @@ func (*commandExecutionTool) parseInput(input string) (*CompletionCommand, error
 	return &output, nil
 }
 
-// TODO: investigate integrating this into embeddingRetrievalTool
 type accessRequestListRequestableRolesTool struct{}
 
 func (*accessRequestListRequestableRolesTool) Name() string {
@@ -135,6 +137,69 @@ func (a *accessRequestListRequestableRolesTool) Run(ctx context.Context, toolCtx
 	return resp.String(), nil
 }
 
+type accessRequestListRequestableResourcesTool struct{}
+
+func (*accessRequestListRequestableResourcesTool) Name() string {
+	return "List Requestable Resources"
+}
+
+func (*accessRequestListRequestableResourcesTool) Description() string {
+	return `List all resources with IDs that can be requested via access requests.
+This includes nodes via SSH access.`
+}
+
+func (a *accessRequestListRequestableResourcesTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
+	nodeList, err := toolCtx.ListResources(ctx, &proto.ListResourcesRequest{
+		ResourceType:     types.KindNode,
+		Limit:            100,
+		UseSearchAsRoles: true,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	sb := strings.Builder{}
+	for _, resource := range nodeList.GetResources() {
+		node := resource.GetNode()
+		nodeYaml, err := yaml.Marshal(promptResource{
+			Name:       node.GetHostname(),
+			ResourceID: strconv.FormatInt(node.GetResourceID(), 10),
+			Kind:       types.KindNode,
+			SubKind:    node.GetSubKind(),
+			Labels:     node.GetAllLabels(),
+		})
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		sb.WriteString(string(nodeYaml))
+		sb.WriteString("\n")
+	}
+
+	if sb.Len() == 0 {
+		return "No requestable resources found", nil
+	}
+
+	return sb.String(), nil
+}
+
+type promptResource struct {
+	Name       string            `yaml:"name"`
+	ResourceID string            `yaml:"resource_id"`
+	Kind       string            `yaml:"kind"`
+	SubKind    string            `yaml:"subkind"`
+	Labels     map[string]string `yaml:"labels"`
+}
+
+//	// Create artificial Name file for the node "name". Using node.GetName() as Name seems to confuse the model.
+//	Name:    node.GetHostname(),
+//	Kind:    types.KindNode,
+//	SubKind: node.GetSubKind(),
+//	Labels:  node.GetAllLabels(),
+//}
+//text, err := yaml.Marshal(&a)
+//return text, trace.Wrap(err)
+
 type accessRequestCreateTool struct{}
 
 func (*accessRequestCreateTool) Name() string {
@@ -142,13 +207,15 @@ func (*accessRequestCreateTool) Name() string {
 }
 
 func (*accessRequestCreateTool) Description() string {
-	return fmt.Sprintf(`Create an access request with a set of roles, a reason, and a set of suggested reviewers.
+	return fmt.Sprintf(`Create an access request with a set of roles to, a set of resource IDs, a reason, and a set of suggested reviewers.
 You must get this information from the conversations context or by asking the user for clarification.
+A valid access request must be either for one or more roles or for one or more resource IDs.
 The input must be a JSON object with the following schema:
 
 %vjson
 {
 	"roles": []string, \\ The optional set of roles being requested
+	"resource_ids": []string, \\ The optional set of IDs for resources being requested
 	"reason": string, \\ A reason for the request; attempt to ask the user for this if not provided
 	"suggested_reviewers": []string \\ An optional list of suggested reviewers; these must be Teleport usernames
 }
@@ -178,10 +245,10 @@ func (*accessRequestCreateTool) parseInput(input string) (*AccessRequest, error)
 		}
 	}
 
-	if len(output.Roles) == 0 {
+	if len(output.Roles) == 0 && len(output.ResourceIDs) == 0 {
 		return nil, &invalidOutputError{
-			coarse: "access request create: no requested roles",
-			detail: "an access request must be for one or more roles",
+			coarse: "access request create: no requested roles or resources",
+			detail: "an access request must be for one or more roles OR one or more resources",
 		}
 	}
 

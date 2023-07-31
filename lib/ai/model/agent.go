@@ -52,9 +52,10 @@ func NewAgent(toolCtx *ToolContext) *Agent {
 			&commandExecutionTool{},
 			&embeddingRetrievalTool{},
 			&accessRequestCreateTool{},
-			&accessRequestsDisplayTool{},
+			//&accessRequestsDisplayTool{},
 			&accessRequestsListTool{},
 			&accessRequestListRequestableRolesTool{},
+			&accessRequestListRequestableResourcesTool{},
 		},
 		toolCtx: toolCtx,
 	}
