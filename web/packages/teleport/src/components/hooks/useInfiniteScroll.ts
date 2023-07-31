@@ -19,17 +19,23 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
   AgentResponse,
-  AgentKind,
+  UnifiedResource,
   AgentFilter,
 } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
-export function useInfiniteScroll<T extends AgentKind>({
+/**
+ * Supports fetching more data from the server when more data is available. Pass
+ * a `fetchFunc` that retrieves a single batch of data. After the initial
+ * request, the server is expected to return a `startKey` field that denotes the
+ * next `startKey` to use for the next request.
+ */
+export function useInfiniteScroll<T extends UnifiedResource>({
   fetchFunc,
   clusterId,
   params,
-  initialFetchSize = 20,
-  fetchMoreSize = 24,
+  initialFetchSize = 30,
+  fetchMoreSize = 20,
 }: Props<T>): State<T> {
   const { attempt, setAttempt } = useAttempt('processing');
 
@@ -40,13 +46,13 @@ export function useInfiniteScroll<T extends AgentKind>({
   });
 
   const fetch = async () => {
+    setAttempt({ status: 'processing' });
     try {
       const res = await fetchFunc(clusterId, {
         ...params,
         limit: initialFetchSize,
         startKey: '',
       });
-      console.log('res', res);
 
       setFetchedData({
         ...fetchedData,
@@ -62,10 +68,11 @@ export function useInfiniteScroll<T extends AgentKind>({
   };
 
   const fetchMore = async () => {
+    if (attempt.status === 'processing' || !fetchedData.startKey) {
+      return;
+    }
     try {
-      if (!fetchedData.startKey) {
-        return;
-      }
+      setAttempt({ status: 'processing' });
       const res = await fetchFunc(clusterId, {
         ...params,
         limit: fetchMoreSize,
@@ -90,7 +97,7 @@ export function useInfiniteScroll<T extends AgentKind>({
   };
 }
 
-type Props<T extends AgentKind> = {
+type Props<T extends UnifiedResource> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams
@@ -101,7 +108,7 @@ type Props<T extends AgentKind> = {
   fetchMoreSize?: number;
 };
 
-type State<T extends AgentKind> = {
+type State<T extends UnifiedResource> = {
   fetch: (() => void) | null;
   fetchMore: (() => void) | null;
   attempt: Attempt;

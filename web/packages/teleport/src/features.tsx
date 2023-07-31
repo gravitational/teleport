@@ -39,6 +39,8 @@ import {
 
 import cfg from 'teleport/config';
 
+import localStorage from 'teleport/services/localStorage';
+
 import {
   ManagementSection,
   NavigationCategory,
@@ -118,7 +120,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
   category = NavigationCategory.Resources;
 
   hasAccess() {
-    return true;
+    return localStorage.areUnifiedResourcesEnabled();
   }
 }
 

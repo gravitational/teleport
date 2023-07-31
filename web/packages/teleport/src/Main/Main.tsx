@@ -241,7 +241,7 @@ function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
 }
 
 export const ContentMinWidth = styled.div`
-  min-width: calc(400px);
+  min-width: calc(1250px - var(--sidebar-width));
 `;
 
 export const HorizontalSplit = styled.div`

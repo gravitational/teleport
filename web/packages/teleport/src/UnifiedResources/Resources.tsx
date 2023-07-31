@@ -29,8 +29,6 @@ import useTeleport from 'teleport/useTeleport';
 
 import { useResources } from './useResources';
 import { ResourceCard } from './ResourceCard';
-import { UnifiedResource } from 'teleport/services/agents';
-import { gap } from 'design/system';
 
 export function Resources() {
   const teleCtx = useTeleport();
@@ -58,33 +56,29 @@ export function Resources() {
       {attempt.status === 'failed' && (
         <ErrorMessage message={attempt.statusText} />
       )}
-      {attempt.status === 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      )}
-      {attempt.status === 'success' && (
-        <>
-          <ResourcesContainer gap={2}>
-            {fetchedData.agents.map((agent, i) => (
-              <ResourceCard key={i} resource={agent} />
-            ))}
-          </ResourcesContainer>
-          {fetchedData.startKey && (
-            <div ref={observed}>
-              <Indicator />
-            </div>
-          )}
-        </>
-      )}
+      <ResourcesContainer gap={2}>
+        {fetchedData.agents.map((agent, i) => (
+          <ResourceCard key={i} resource={agent} />
+        ))}
+      </ResourcesContainer>
+      <div
+        ref={observed}
+        style={{
+          visibility: attempt.status === 'processing' ? 'visible' : 'hidden',
+        }}
+      >
+        {(attempt.status === 'processing' || fetchedData.startKey) && (
+          <Box
+            textAlign="center"
+            style={{ visible: attempt.status === 'processing' }}
+          >
+            <Indicator />
+          </Box>
+        )}
+      </div>
     </FeatureBox>
   );
 }
-
-// TODO(bl-nero): this is almost certainly not unique.
-// function agentKey(agent: UnifiedResource): string {
-//   return `${agent.kind}:${agent.name}`;
-// }
 
 const ResourcesContainer = styled(Flex)`
   display: grid;

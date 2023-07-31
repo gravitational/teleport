@@ -34,7 +34,7 @@ class ResourceService {
     clusterId?: string,
     params?: UrlResourcesParams,
     signal?: AbortSignal
-  ): Promise<AgentResponse<AgentKind>> {
+  ): Promise<AgentResponse<UnifiedResource>> {
     return api
       .get(cfg.getUnifiedResourcesUrl(clusterId, params), signal)
       .then(json => {

@@ -21,9 +21,13 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
 
+/**
+ * Retrieves a batch of unified resources from the server, taking into
+ * consideration URL filter. Use the returned `fetch` function to fetch the
+ * initial batch, and `fetchMore` to support infinite scrolling.
+ */
 export function useResources(ctx: Ctx) {
   const { clusterId } = useStickyClusterId();
-  // const canCreate = ctx.storeUser.getTokenAccess().create;
 
   const { params, search, ...filteringProps } = useUrlFiltering({
     fieldName: 'name',
@@ -49,32 +53,5 @@ export function useResources(ctx: Ctx) {
     attempt,
   };
 }
-
-// function makeOptions(clusterId: string, node: Node | undefined) {
-//   const nodeLogins = node?.sshLogins || [];
-//   const logins = sortLogins(nodeLogins);
-
-//   return logins.map(login => {
-//     const url = cfg.getSshConnectRoute({
-//       clusterId,
-//       serverId: node?.id || '',
-//       login,
-//     });
-
-//     return {
-//       login,
-//       url,
-//     };
-//   });
-// }
-
-// sort logins by making 'root' as the first in the list
-export const sortLogins = (logins: string[]) => {
-  const noRoot = logins.filter(l => l !== 'root').sort();
-  if (noRoot.length === logins.length) {
-    return logins;
-  }
-  return ['root', ...noRoot];
-};
 
 export type State = ReturnType<typeof useResources>;

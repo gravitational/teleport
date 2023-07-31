@@ -1,10 +1,10 @@
-import { AgentKind, UnifiedResourceKind } from '../agents';
+import { UnifiedResource, UnifiedResourceKind } from '../agents';
 import makeApp from '../apps/makeApps';
 import { makeDatabase } from '../databases/makeDatabase';
 import { makeDesktop } from '../desktops/makeDesktop';
 import makeNode from '../nodes/makeNode';
 
-export function makeUnifiedResource(json: any): AgentKind {
+export function makeUnifiedResource(json: any): UnifiedResource {
   json = json || {};
 
   switch (json.kind as UnifiedResourceKind) {

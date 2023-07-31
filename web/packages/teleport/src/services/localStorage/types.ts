@@ -24,6 +24,7 @@ export const KeysEnum = {
   ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
+  UNIFIED_RESOURCES_ENABLED: 'grv_teleport_unified_resources_enabled',
 };
 
 // LocalStorageSurvey is the SurveyRequest type defined in Enterprise

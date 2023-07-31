@@ -25,6 +25,7 @@ import {
 } from 'teleport/services/userPreferences/types';
 
 import { KeysEnum, LocalStorageSurvey } from './types';
+import { WindowTitleBar } from 'shared/components/Window';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
@@ -159,6 +160,12 @@ const storage = {
   // TODO(ryan): remove in v15
   clearDeprecatedThemePreference() {
     window.localStorage.removeItem(KeysEnum.THEME);
+  },
+
+  areUnifiedResourcesEnabled(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.UNIFIED_RESOURCES_ENABLED) === 'true'
+    );
   },
 
   broadcast(messageType, messageBody) {
