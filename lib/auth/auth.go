@@ -123,7 +123,7 @@ const (
 	OSSDesktopsCheckPeriod  = 5 * time.Minute
 	OSSDesktopsAlertID      = "oss-desktops"
 	OSSDesktopsAlertMessage = "Teleport Community Edition only allows 3 Non-AD desktops configured. " +
-		"You won't be able to connect to any of them if there are more" +
+		"You won't be able to connect to any of them if there are more. " +
 		"Please contact Sales to upgrade your license"
 )
 
