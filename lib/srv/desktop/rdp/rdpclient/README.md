@@ -109,7 +109,7 @@ of that responsibility are:
 
 #### Enforcing proper memory semantics in Rust
 
-We call back into from Go using functions like
+We call back into Rust from Go using functions like
 
 ```rust
 #[no_mangle]
@@ -198,7 +198,7 @@ note: function requires argument type to outlive `'static`
 ```
 
 In other words, the compiler can't guarantee that the memory underlying the `&Client` wont be freed before the thread finishes,
-so it dissalows this entirely.
+so it disallows this entirely.
 
 The solution for this in Rust is to use [scoped threads](https://doc.rust-lang.org/std/thread/fn.scope.html), which ensure the compiler
 that the threads are all joined by the end of the scope, allowing you to pass references into the threads. So semantically, what we should
