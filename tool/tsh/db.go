@@ -964,13 +964,13 @@ func listActiveDatabases(ctx context.Context, tc *client.TeleportClient, routes 
 
 // listDatabasesByName lists database that match a given name.
 func listDatabasesByName(ctx context.Context, tc *client.TeleportClient, name string) (types.Databases, error) {
-	predicate := fmt.Sprintf("name == %s", name)
+	predicate := fmt.Sprintf("name == %q", name)
 	return listDatabasesWithPredicate(ctx, tc, predicate)
 }
 
 // listDatabasesByPrefix lists databases that match a given name prefix.
 func listDatabasesByPrefix(ctx context.Context, tc *client.TeleportClient, prefix string) (types.Databases, error) {
-	predicate := fmt.Sprintf(`hasPrefix(name, "%s")`, prefix)
+	predicate := fmt.Sprintf(`hasPrefix(name, %q)`, prefix)
 	databases, err := listDatabasesWithPredicate(ctx, tc, predicate)
 	if err == nil || !utils.IsPredicateError(err) {
 		return databases, trace.Wrap(err)
