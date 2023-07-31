@@ -150,24 +150,6 @@ Within each PR, we can ensure that every usage of that endpoint is updated in a
 backwards compatible way across all Teleport clients (`tsh`, `tctl`, Teleport
 Connect, Teleport Web UI, Plugins and plugin guides).
 
-#### MVP Admin Actions Subset
-
-Again, this list is too long to implement all changes in one go. This change
-will likely take 1-2 major version cycles to complete. As such, the initial
-MVP goal will be limited to the following RBAC centric endpoints:
-
-- `GenerateUserCerts`, `GenerateHostCerts`
-- `CreateUser`, `UpdateUser`, `DeleteUser`
-- `SetAccessRequestState`, `SubmitAccessReview`
-- `UpsertTokenV2`, `CreateTokenV2`, `GenerateToken`, `DeleteToken`
-- `UpsertOIDCConnector`, `DeleteOIDCConnector`, `CreateOIDCAuthRequest`
-- `UpsertSAMLConnector`, `DeleteSAMLConnector`, `CreateSAMLAuthRequest`
-- `UpsertGithubConnector`, `DeleteGithubConnector`, `CreateGithubAuthRequest`
-- `SetClusterNetworkingConfig`, `ResetClusterNetworkingConfig`
-- `SetSessionRecordingConfig`, `ResetSessionRecordingConfig`
-- `SetAuthPreference`, `ResetAuthPreference`
-- `SetNetworkRestrictions`, `DeleteNetworkRestrictions`
-
 ### Server configuration
 
 MFA for admin actions will be required on any cluster with 
@@ -231,7 +213,7 @@ server respectively.
 #### Server changes
 
 For admin actions, the Auth server will validate MFA for each request using the
-`MFAAuthenticateResponse` passed in the request.
+`MFAAuthenticateResponse` passed in the request metadata.
 
 If the request fails MFA verification, an access denied error will be returned
 to the client.
@@ -328,15 +310,23 @@ Cons:
 - Requires users to create a new client with the reissued certificates, resulting
   in additional connections to the Auth server.
 
-##### Option choice: 1
+##### Option choice: 2
 
 Option 1 and 2 both guarantee that a user's MFA verification applies to just one
 admin action in the fewest number of API requests, solidifying it as a preferable
 solution over option 3 for both security and implementation complexity.
 
 Between option 1 and 2, option 1 is more explicit and simple in how and where MFA
-will be required. This will make the feature easier to use and extend for both
-internal and external developers.
+will be required. This would make the feature easier to use for both internal and
+external developers. However, it requires significant API changes and has some
+backwards compatibility drawbacks.
+
+We will implement option 2 for its simplicity and limited drawbacks. This will
+allow us to quickly implement the feature and apply it to all relevant admin
+actions in Teleport 14.
+
+In the future, we can consider coming back to implement option 1, as they are
+not mutually exclusive.
 
 ##### MFA prompt for non-`tsh` clients
 
@@ -364,26 +354,15 @@ In this case, the client will make the request without the MFA challenge respons
 in case we are handling a special case (e.g. Built-in role, `Bot` or `Admin`
 impersonation).
 
+Additionally, if the client doesn't whether a request requires MFA or not, it
+will first attempt the request without it. If the server responds with
+`ErrAdminActionMFARequired`, the client will attempt to retry the request with
+MFA.
+
 ### Proto Specification
 
-Each Admin action API request will need to include the `MFAAuthenticateResponse`
-field in its proto specification. This will be contained withing a new wrapper
-message for consistency and extensibility:
-
-```proto
-message AugmentAuthentication {
-  MFAAuthenticateResponse mfa_authenticate_response = 1;
-}
-```
-
-Clients will automatically check for the `AugmentAuthentication` field in order
-to determine whether it must prompt for MFA. This will be done seamlessly
-within a `grpc.UnaryInterceptor`.
-
-Likewise, the Server will automatically check for an `AugmentAuthentication` field
-using a `grpc.UnaryInterceptor`. If found, this will be passed down the chain
-through the `AuthContext` (like user) where it can be verified by `ServerWithRoles`
-if required.
+Since the MFA verification will be passed through the gRPC metadata, there are
+no proto changes required.
 
 #### HTTP Endpoints
 
@@ -391,46 +370,6 @@ Some requests which we would like to make admin actions are still used through
 the HTTP API rather than the gRPC API, such as `POST UpsertUser`. Part of this
 work will require converting these requests to gRPC, which will also move us
 closer to [fully deprecating the HTTP API](https://github.com/gravitational/teleport/issues/6394).
-
-#### Non-unique gRPC Requests
-
-Many any of our existing gRPC API requests do not use unique request or response
-messages, despite it being a best practice. As a result, it is not trivial to add
-the `AugmentAuthentication` field to some requests.
-
-For example:
-
-```proto
-rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty);
-```
-
-For these cases, we will need to create replacement requests:
-
-```proto
-rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty);
-rpc UpdateUserV2(UpdateUserV2Request) returns (UpdateUserV2Response);
-```
-
-For many of these cases above, it will make more sense to add or move the rpc
-into a new service. This will allow us to:
-
-- Maintain preferred naming conventions, avoiding `V2` suffixes
-- Reduce reliance on gogoproto which has got to go
-- Reduce size of legacy proto packages which are incompatible with buf
-
-This will be handled on a case by case basis, but user service looks like a
-likely candidate:
-
-```proto
-service UserService {
-  rpc GetUser(GetUserRequest) returns (types.UserV2);
-  rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
-  // We can replace CreateUser and UpdateUser with UpsertUser, as is the latest convention of our API.
-  rpc UpsertUser(UpsertUserRequest) returns (UpsertUserResponse);
-  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
-  ...
-}
-```
 
 ### UX
 
@@ -459,11 +398,6 @@ Tap any security key
 # success
 ```
 
-### Test Plan
-
-The implementation of this feature will include automated unit tests to ensure
-that MFA is required for admin actions across applicable server configurations.
-
 ### Security
 
 The bulk of this RFD is focused on security and will result in a net positive
@@ -481,29 +415,26 @@ Here are a few key points to review:
   directly or with `create` permissions on the `role`, `user`, and `token` could
   use their privileges to generate impersonated certificates that do not
   require MFA for admin actions.
-- [Backwards Compatibility](#backward-compatibility): MFA will not be required
-for an admin action until one major version after it was changed to an admin
-action, resulting in lagging security improvement.
-- [Limited MVP](#mvp-admin-actions-subset): The changes necessary to convert
-all admin actions to requiring MFA is too large to complete in one go. However,
-We should take care not to let the priority of the full implementation slip
-away once the MVP is complete, since this will reduce the security impact of the
-feature.
 
 #### Backward Compatibility
 
-When an API request is changed to require MFA as an admin action, old clients
-with the old gRPC specification will have no way to provide the
-`AugmentedAuthentication` field in the request.
+In order to maintain backwards compatibility with old clients, MFA will not be
+strictly required for admin actions until Teleport 15.
 
-In order to maintain backwards compatibility, each admin action request will
-take one Major version cycle before we can strictly require MFA for that
-request:
-
-|        | Version X-1 | Version X   | Version X+1 |
+|        | Teleport 13 | Teleport 14 | Teleport 15 |
 |--------|-------------|-------------|-------------|
 | Server | Does not require MFA | Verifies MFA if provided | Requires MFA |
 | Client | Does not provide MFA | Provides MFA | Provides MFA |
+
+Additionally, Teleport 14+ clients will be able to provide MFA for admin actions
+whether or not the client has prior knowledge of the request requiring MFA. This
+means that additional endpoints can be changed into admin actions without any
+consequences.
+
+### Test Plan
+
+The implementation of this feature will include automated unit tests to ensure
+that MFA is required for admin actions across applicable server configurations.
 
 ### Other considerations
 
