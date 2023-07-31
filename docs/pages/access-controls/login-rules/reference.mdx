@@ -586,6 +586,47 @@ Expression | Result
 `strings.replaceall(set("user-name"), "-", "_")` | `("user_name")`
 `strings.replaceall(set("user-alice", "user-bob"), "user-", "")` | `("alice", "bob")`
 
+### `strings.split`
+
+<Admonition type="note">
+The `strings.split` helper was introduced in Teleport v13.3.0. All Auth Service
+instances must be running this version or greater before it can be used.
+</Admonition>
+
+#### Signature
+
+```go
+func strings.split(input set, separator string) set
+```
+
+#### Description
+
+`strings.split` splits each element of `input` at each match of `separator` and
+returns a set containing the union of all split strings.
+This may be useful when an IdP does not have the ability to pass multi-valued
+claims, a Login Rule with this helper function can split a single claim value
+into a Teleport trait with multiple values.
+
+#### Arguments
+
+Argument | Type | Description
+-------- | ---- | -----------
+`input` | `set` | set of input strings which should be split |
+`sep` | `string` | literal string separator |
+
+#### Returns
+
+Type | Description
+---- | ----------
+`set`  | the union of all split strings |
+
+#### Examples
+
+Expression | Result
+------- | ------
+`strings.split(set("alice,bob,charlie"), ",")` | `("alice", "bob", "charlie")`
+`strings.split(set("devs security"), " ")` | `("devs", "security")`
+
 ### `email.local`
 
 <Admonition type="note">
