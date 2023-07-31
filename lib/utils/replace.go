@@ -127,6 +127,10 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 	return matchedAny, maps.Keys(verbs), nil
 }
 
+const (
+	KubeCustomResourceDefinition = "CustomResource"
+)
+
 // KubeResourceMatchesRegex checks whether the input matches any of the given
 // expressions.
 // This function returns as soon as it finds the first match or when matchString
@@ -175,6 +179,10 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 			// they should be able to see the "foo" namespace in the list of namespaces
 			// but only if the request is read-only.
 			if ok, err := MatchString(input.Name, resource.Namespace); err != nil || ok {
+				return ok, trace.Wrap(err)
+			}
+		case input.Kind == KubeCustomResourceDefinition && resource.Kind == types.KindKubeNamespace:
+			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
 		default:

@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -174,6 +175,7 @@ func TestAuthenticate(t *testing.T) {
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
 			ClusterFeatures:   fakeClusterFeatures,
+			KubeServiceType:   ProxyService,
 		},
 		getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
 			servers, err := ap.GetKubernetesServers(ctx)
@@ -771,7 +773,7 @@ func TestAuthenticate(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {
-				f.clusterDetails = map[string]*kubeDetails{tt.routeToCluster: {kubeCreds: &staticKubeCreds{targetAddr: "k8s.example.com"}}}
+				f.clusterDetails = map[string]*kubeDetails{tt.routeToCluster: {kubeCreds: &staticKubeCreds{targetAddr: "k8s.example.com"}, rwMu: &sync.RWMutex{}}}
 			} else {
 				f.clusterDetails = nil
 			}
@@ -782,6 +784,7 @@ func TestAuthenticate(t *testing.T) {
 				require.Equal(t, trace.IsAccessDenied(err), tt.wantAuthErr)
 				return
 			}
+			require.NoError(t, err)
 			err = f.authorize(context.Background(), gotCtx)
 			require.NoError(t, err)
 
@@ -1061,6 +1064,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	require.NoError(t, err)
 	f.clusterDetails = map[string]*kubeDetails{
 		"local": {
+			rwMu: &sync.RWMutex{},
 			kubeCreds: &staticKubeCreds{
 				targetAddr: mockKubeAPI.URL,
 				tlsConfig:  mockKubeAPI.TLS,

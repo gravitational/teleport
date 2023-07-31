@@ -151,6 +151,11 @@ func (s *KubeMockServer) setup() {
 	s.router.DELETE("/api/:ver/namespaces/:namespace/secrets/:name", s.withWriter(s.deleteSecret))
 
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
+
+	for _, endpoint := range []string{"/api", "/api/:ver", "/apis", "/apis/resources.teleport.dev/v6"} {
+		s.router.GET(endpoint, s.withWriter(s.discoveryEndpoint))
+	}
+
 	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
 }

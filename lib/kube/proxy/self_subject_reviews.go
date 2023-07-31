@@ -54,15 +54,6 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 	req = req.WithContext(ctx)
 	defer span.End()
 
-	// only allow self subject access reviews for the local teleport cluster
-	// and not for remote clusters
-	if !authCtx.teleportCluster.isRemote {
-		if err := f.validateSelfSubjectAccessReview(authCtx, w, req); trace.IsAccessDenied(err) {
-			return nil, nil
-		} else if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	sess, err := f.newClusterSession(req.Context(), *authCtx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
@@ -82,6 +73,16 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 		return nil, trace.Wrap(err)
 	}
 
+	// only allow self subject access reviews for the local teleport cluster
+	// and not for remote clusters
+	if f.isLocalKubeCluster(sess) {
+		if err := f.validateSelfSubjectAccessReview(sess, w, req); trace.IsAccessDenied(err) {
+			return nil, nil
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if err := f.setupForwardingHeaders(sess, req, true /* withImpersonationHeaders */); err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
@@ -91,15 +92,15 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 	rw := httplib.NewResponseStatusRecorder(w)
 	sess.forwarder.ServeHTTP(rw, req)
 
-	f.emitAuditEvent(authCtx, req, sess, rw.Status())
+	f.emitAuditEvent(req, sess, rw.Status())
 
 	return nil, nil
 }
 
 // validateSelfSubjectAccessReview validates the self subject access review
 // request by applying the kubernetes resources RBAC rules to the request.
-func (f *Forwarder) validateSelfSubjectAccessReview(actx *authContext, w http.ResponseWriter, req *http.Request) error {
-	negotiator := newClientNegotiator()
+func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http.ResponseWriter, req *http.Request) error {
+	negotiator := newClientNegotiator(sess.codecFactory)
 	encoder, decoder, err := newEncoderAndDecoderForContentType(responsewriters.GetContentTypeHeader(req.Header), negotiator)
 	if err != nil {
 		return trace.Wrap(err)
@@ -114,7 +115,7 @@ func (f *Forwarder) validateSelfSubjectAccessReview(actx *authContext, w http.Re
 	}
 
 	namespace := accessReview.Spec.ResourceAttributes.Namespace
-	resource := getResourceWithKey(
+	resource := sess.rbacSupportedResources.getResourceWithKey(
 		allowedResourcesKey{
 			apiGroup:     accessReview.Spec.ResourceAttributes.Group,
 			resourceKind: accessReview.Spec.ResourceAttributes.Resource,
@@ -131,7 +132,7 @@ func (f *Forwarder) validateSelfSubjectAccessReview(actx *authContext, w http.Re
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	actx := sess.authContext
 	state := actx.GetAccessState(authPref)
 	switch err := actx.Checker.CheckAccess(
 		actx.kubeCluster,

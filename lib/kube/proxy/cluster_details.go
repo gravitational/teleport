@@ -17,6 +17,7 @@ package proxy
 import (
 	"context"
 	"encoding/base64"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -45,12 +47,19 @@ type kubeDetails struct {
 	dynamicLabels *labels.Dynamic
 	// kubeCluster is the dynamic kube_cluster or a static generated from kubeconfig and that only has the name populated.
 	kubeCluster types.KubeCluster
+
+	rwMu               *sync.RWMutex
+	kubeCodecs         serializer.CodecFactory
+	rbacSupportedTypes rbacSupportedResources
+	closeC             chan struct{}
 }
 
 // clusterDetailsConfig contains the configuration for creating a proxied cluster.
 type clusterDetailsConfig struct {
 	// cloudClients is the cloud clients to use for dynamic clusters.
 	cloudClients cloud.Clients
+	// kubeCreds is the credentials to use for the cluster.
+	kubeCreds kubeCreds
 	// cluster is the cluster to create a proxied cluster for.
 	cluster types.KubeCluster
 	// log is the logger to use.
@@ -70,11 +79,16 @@ type clusterDetailsConfig struct {
 
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
 func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (*kubeDetails, error) {
-	var dynLabels *labels.Dynamic
-
-	creds, err := getKubeClusterCredentials(ctx, cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var (
+		dynLabels *labels.Dynamic
+		err       error
+	)
+	creds := cfg.kubeCreds
+	if creds == nil {
+		creds, err = getKubeClusterCredentials(ctx, cfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if len(cfg.cluster.GetDynamicLabels()) > 0 {
@@ -91,19 +105,63 @@ func newClusterDetails(ctx context.Context, cfg clusterDetailsConfig) (*kubeDeta
 		go dynLabels.Start()
 	}
 
-	return &kubeDetails{
-		kubeCreds:     creds,
-		dynamicLabels: dynLabels,
-		kubeCluster:   cfg.cluster,
-	}, nil
+	codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	k := &kubeDetails{
+		kubeCreds:          creds,
+		dynamicLabels:      dynLabels,
+		kubeCluster:        cfg.cluster,
+		kubeCodecs:         codecFactory,
+		rbacSupportedTypes: rbacSupportedTypes,
+
+		rwMu:   &sync.RWMutex{},
+		closeC: make(chan struct{}),
+	}
+
+	go func() {
+		defer func() {
+			k.closeC <- struct{}{}
+		}()
+		ticker := cfg.clock.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-k.closeC:
+				return
+			case <-ticker.Chan():
+				codecFactory, rbacSupportedTypes, err := newClusterSchemaBuilder(creds.getKubeClient())
+				if err != nil {
+					cfg.log.WithError(err).Error("Failed to update cluster schema")
+					continue
+				}
+
+				k.rwMu.Lock()
+				k.kubeCodecs = codecFactory
+				k.rbacSupportedTypes = rbacSupportedTypes
+				k.rwMu.Unlock()
+			}
+		}
+	}()
+	return k, nil
 }
 
 func (k *kubeDetails) Close() {
+	k.closeC <- struct{}{}
+	<-k.closeC
 	if k.dynamicLabels != nil {
 		k.dynamicLabels.Close()
 	}
 	// it is safe to call close even for static creds.
 	k.kubeCreds.close()
+}
+
+func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, rbacSupportedResources) {
+	k.rwMu.RLock()
+	defer k.rwMu.RUnlock()
+	return &(k.kubeCodecs), k.rbacSupportedTypes
 }
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.

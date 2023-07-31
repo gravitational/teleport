@@ -160,14 +160,49 @@ type allowedResourcesKey struct {
 	resourceKind string
 }
 
+type rbacSupportedResources map[allowedResourcesKey]string
+
+// getKubeResourceAndAPIGroupFromType returns the Kubernetes resource kind and
+// API group for a given Teleport resource kind. If the Teleport resource kind
+// is not supported, it returns the Teleport resource kind as the Kubernetes
+// resource kind and an empty string as the API group.
+func (r rbacSupportedResources) getKubeResourceAndAPIGroupFromType(s string) (kind string, apiGroup string) {
+	for k, v := range r {
+		if v == s {
+			apiGroup := ""
+			if k.apiGroup != "core" {
+				apiGroup = k.apiGroup
+			}
+			return k.resourceKind, apiGroup
+		}
+	}
+	return s + "s", ""
+}
+
+// getResourceWithKey returns the teleport resource kind for a given resource key if
+// it exists, otherwise returns an empty string.
+func (r rbacSupportedResources) getResourceWithKey(k allowedResourcesKey) string {
+	if k.apiGroup == "" {
+		k.apiGroup = "core"
+	}
+	return r[k]
+}
+
+func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiResource) (string, bool) {
+	resource := getResourceFromAPIResource(api.resourceKind)
+	resourceType, ok := r[allowedResourcesKey{apiGroup: api.apiGroup, resourceKind: resource}]
+	return resourceType, ok
+}
+
 // allowedResources is a map of supported resources and their corresponding
 // teleport resource kind for the purpose of resource rbac.
-var allowedResources = map[allowedResourcesKey]string{
+var allowedResources = rbacSupportedResources{
 	{apiGroup: "core", resourceKind: "pods"}:                                      types.KindKubePod,
 	{apiGroup: "core", resourceKind: "secrets"}:                                   types.KindKubeSecret,
 	{apiGroup: "core", resourceKind: "configmaps"}:                                types.KindKubeConfigmap,
 	{apiGroup: "core", resourceKind: "namespaces"}:                                types.KindKubeNamespace,
 	{apiGroup: "core", resourceKind: "services"}:                                  types.KindKubeService,
+	{apiGroup: "core", resourceKind: "endpoints"}:                                 types.KindKubeService,
 	{apiGroup: "core", resourceKind: "serviceaccounts"}:                           types.KindKubeServiceAccount,
 	{apiGroup: "core", resourceKind: "nodes"}:                                     types.KindKubeNode,
 	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         types.KindKubePersistentVolume,
@@ -186,38 +221,15 @@ var allowedResources = map[allowedResourcesKey]string{
 	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
 }
 
-// getKubeResourceAndAPIGroupFromType returns the Kubernetes resource kind and
-// API group for a given Teleport resource kind. If the Teleport resource kind
-// is not supported, it returns the Teleport resource kind as the Kubernetes
-// resource kind and an empty string as the API group.
-func getKubeResourceAndAPIGroupFromType(s string) (kind string, apiGroup string) {
-	for k, v := range allowedResources {
-		if v == s {
-			apiGroup := ""
-			if k.apiGroup != "core" {
-				apiGroup = k.apiGroup
-			}
-			return k.resourceKind, apiGroup
-		}
-	}
-	return s + "s", ""
-}
-
-// getResourceWithKey returns the teleport resource kind for a given resource key if
-// it exists, otherwise returns an empty string.
-func getResourceWithKey(k allowedResourcesKey) string {
-	if k.apiGroup == "" {
-		k.apiGroup = "core"
-	}
-	return allowedResources[k]
-}
-
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
-func getResourceFromRequest(req *http.Request) (*types.KubernetesResource, apiResource, error) {
+func getResourceFromRequest(req *http.Request, clusterResources rbacSupportedResources) (*types.KubernetesResource, apiResource, error) {
 	apiResource := parseResourcePath(req.URL.Path)
 	verb := apiResource.getVerb(req)
-	resourceType, ok := getTeleportResourceKindFromAPIResource(apiResource)
+	if clusterResources == nil {
+		return nil, apiResource, nil
+	}
+	resourceType, ok := clusterResources.getTeleportResourceKindFromAPIResource(apiResource)
 	switch {
 	case !ok:
 		// if the resource is not supported, return nil.
@@ -248,11 +260,12 @@ func getResourceFromRequest(req *http.Request) (*types.KubernetesResource, apiRe
 // and decodes it into a Kubernetes object. It then extracts the resource name
 // from the object.
 // The body is then reset to the original request body using a new buffer.
+// TODO: fix meee caralhoo
 func extractResourceNameFromPostRequest(req *http.Request) (string, error) {
 	if req.Body == nil {
 		return "", trace.BadParameter("request body is empty")
 	}
-	negotiator := newClientNegotiator()
+	negotiator := newClientNegotiator(&globalKubeCodecs)
 	_, decoder, err := newEncoderAndDecoderForContentType(responsewriters.GetContentTypeHeader(req.Header), negotiator)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -275,12 +288,6 @@ func extractResourceNameFromPostRequest(req *http.Request) (string, error) {
 		return "", trace.BadParameter("object %T does not implement kubeObjectInterface", obj)
 	}
 	return namer.GetName(), nil
-}
-
-func getTeleportResourceKindFromAPIResource(r apiResource) (string, bool) {
-	resource := getResourceFromAPIResource(r.resourceKind)
-	resourceType, ok := allowedResources[allowedResourcesKey{apiGroup: r.apiGroup, resourceKind: resource}]
-	return resourceType, ok
 }
 
 // getResourceFromAPIResource returns the resource kind from the api resource.

@@ -24,11 +24,13 @@ import (
 	"net/url"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -140,11 +142,19 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			f.log.WithError(err).Warnf("failed to create KubernetesClusterV3 from credentials for cluster %q.", cluster)
 			continue
 		}
-		f.clusterDetails[cluster] = &kubeDetails{
-			kubeCreds: clusterCreds,
-			// kubeconfig does not allow labels so we don't define static and dynamic labels for the cluster.
-			// those will be inherited from the service later.
-			kubeCluster: kubeCluster,
+
+		f.clusterDetails[cluster], err = newClusterDetails(ctx,
+			clusterDetailsConfig{
+				cluster:   kubeCluster,
+				kubeCreds: clusterCreds,
+				log:       f.log.WithField("cluster", cluster),
+				checker:   f.cfg.CheckImpersonationPermissions,
+				component: serviceType,
+				clock:     clockwork.NewRealClock(),
+			})
+		if err != nil {
+			f.log.WithError(err).Warnf("failed to create cluster details for cluster %q.", cluster)
+			continue
 		}
 	}
 	return nil
