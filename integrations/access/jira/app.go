@@ -229,7 +229,7 @@ func (a *App) init(ctx context.Context) error {
 	}
 	log.Debug("Jira API health check finished ok")
 
-	if a.conf.EnableWebhook {
+	if !a.conf.DisableWebhook {
 		webhookSrv, err := NewWebhookServer(a.conf.HTTP, a.onJiraWebhook)
 		if err != nil {
 			return trace.Wrap(err)

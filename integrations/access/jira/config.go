@@ -46,9 +46,10 @@ type Config struct {
 	// further processing. Status updates will be ignored if not set.
 	StatusSink common.StatusSink
 
-	// EnableWebhook flags that the plugin shoud run a webhook
-	// server to receive notifications back from the Jira serve.
-	EnableWebhook bool
+	// DisableWebhook flags that the plugin should *not* run a
+	// webhook server to receive notifications back from the Jira
+	// serve. The default behavior is to run one.
+	DisableWebhook bool
 }
 
 type JiraConfig struct {
@@ -68,7 +69,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if c.EnableWebhook {
+	if !c.DisableWebhook {
 		if c.HTTP.ListenAddr == "" {
 			c.HTTP.ListenAddr = ":8081"
 		}
