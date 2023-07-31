@@ -8,6 +8,8 @@ import makeUserContext from 'teleport/services/user/makeUserContext';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 
+import { AccessRequest } from 'e-teleport/services/workflow';
+
 import NewRequest from './NewRequest';
 
 import type { App } from 'teleport/services/apps';
@@ -118,6 +120,13 @@ describe('new request behavior', () => {
     jest
       .spyOn(ctx.workflowService, 'fetchResourceRequestRoles')
       .mockResolvedValueOnce(['access']);
+
+    jest
+      .spyOn(ctx.workflowService, 'createAccessRequest')
+      .mockResolvedValueOnce({
+        maxDuration: new Date(),
+        sessionTTL: new Date(),
+      } as AccessRequest);
 
     render(Component);
 

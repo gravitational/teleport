@@ -9,22 +9,50 @@ export const requestSearchPending: AccessRequest = {
   expiresDuration: '35 minutes',
   created: new Date('12-4-2020'),
   createdDuration: '1 minute ago',
+  maxDuration: null,
+  maxDurationText: '',
+  sessionTTL: new Date(0),
+  sessionTTLDuration: '',
   roles: ['test'],
   requestReason:
     'Testing long message format. I am requesting access for the developer role that i will be using to \
-    commit fixes for our production application. I will need access for the \
-    rest of the day to complete my changes.',
+        commit fixes for our production application. I will need access for the \
+        rest of the day to complete my changes.',
   resolveReason: '',
   reviews: [],
   reviewers: [
-    { name: 'alice', state: 'PENDING' },
-    { name: 'bob', state: 'PENDING' },
+    {
+      name: 'alice',
+      state: 'PENDING',
+    },
+    {
+      name: 'bob',
+      state: 'PENDING',
+    },
   ],
   thresholdNames: ['Default', 'Poplar', 'Admin'],
   resources: [
-    { id: { kind: 'app', name: 'app-name', clusterName: 'cluster-name' } },
-    { id: { kind: 'db', name: 'db-name', clusterName: 'cluster-name' } },
-    { id: { kind: 'node', name: 'node-name', clusterName: 'cluster-name' } },
+    {
+      id: {
+        kind: 'app',
+        name: 'app-name',
+        clusterName: 'cluster-name',
+      },
+    },
+    {
+      id: {
+        kind: 'db',
+        name: 'db-name',
+        clusterName: 'cluster-name',
+      },
+    },
+    {
+      id: {
+        kind: 'node',
+        name: 'node-name',
+        clusterName: 'cluster-name',
+      },
+    },
     {
       id: {
         kind: 'user_group',
@@ -67,16 +95,26 @@ export const requestRolePending: AccessRequest = {
   expiresDuration: '35 minutes',
   created: new Date('12-4-2020'),
   createdDuration: '1 minute ago',
+  maxDuration: null,
+  maxDurationText: '',
+  sessionTTL: new Date(0),
+  sessionTTLDuration: '',
   roles: ['admin'],
   requestReason:
     'Testing long message format. I am requesting access for the developer role that i will be using to \
-    commit fixes for our production application. I will need access for the \
-    rest of the day to complete my changes.',
+        commit fixes for our production application. I will need access for the \
+        rest of the day to complete my changes.',
   resolveReason: '',
   reviews: [],
   reviewers: [
-    { name: 'alice', state: 'PENDING' },
-    { name: 'bob', state: 'PENDING' },
+    {
+      name: 'alice',
+      state: 'PENDING',
+    },
+    {
+      name: 'bob',
+      state: 'PENDING',
+    },
   ],
   thresholdNames: ['Default', 'Poplar', 'Admin'],
   resources: [],
@@ -90,6 +128,10 @@ export const requestRoleDenied: AccessRequest = {
   expiresDuration: '20 hours',
   created: new Date('12-2-2020'),
   createdDuration: '35 minutes ago',
+  maxDuration: null,
+  maxDurationText: '',
+  sessionTTL: new Date(0),
+  sessionTTLDuration: '',
   roles: ['ruhh', 'admin'],
   requestReason: 'Some short request reason',
   resolveReason: '',
@@ -103,8 +145,14 @@ export const requestRoleDenied: AccessRequest = {
     },
   ],
   reviewers: [
-    { name: 'alice', state: 'DENIED' },
-    { name: 'bob', state: 'PENDING' },
+    {
+      name: 'alice',
+      state: 'DENIED',
+    },
+    {
+      name: 'bob',
+      state: 'PENDING',
+    },
   ],
   thresholdNames: ['Default'],
   resources: [],
@@ -118,6 +166,10 @@ export const requestRoleApproved: AccessRequest = {
   expiresDuration: '24 hours',
   created: new Date('12-1-2020'),
   createdDuration: '2 hours ago',
+  maxDuration: null,
+  maxDurationText: '',
+  sessionTTL: new Date(0),
+  sessionTTLDuration: '',
   roles: ['kaco', 'ziuzzow', 'admin'],
   requestReason: '',
   resolveReason: '',
@@ -139,9 +191,18 @@ export const requestRoleApproved: AccessRequest = {
     },
   ],
   reviewers: [
-    { name: 'alice', state: 'APPROVED' },
-    { name: 'bob', state: 'PENDING' },
-    { name: 'test-long-user-name@testing.com', state: 'APPROVED' },
+    {
+      name: 'alice',
+      state: 'APPROVED',
+    },
+    {
+      name: 'bob',
+      state: 'PENDING',
+    },
+    {
+      name: 'test-long-user-name@testing.com',
+      state: 'APPROVED',
+    },
   ],
   thresholdNames: ['Default'],
   resources: [],

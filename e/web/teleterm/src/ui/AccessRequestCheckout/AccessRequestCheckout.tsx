@@ -122,6 +122,13 @@ export function AccessRequestCheckout() {
             requireReason={false}
             numRequestedResources={requestedCount}
             isResourceRequest={data[0]?.kind !== 'role'}
+            durationOptions={[]}
+            fetchStatus={'loaded'}
+            maxDuration={{
+              value: 0,
+              label: '',
+            }}
+            setMaxDuration={() => null}
           />
         )}
       </Transition>

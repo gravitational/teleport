@@ -1,22 +1,22 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import {
-  Box,
-  Flex,
-  ButtonText,
-  ButtonPrimary,
-  Image,
-  Text,
-  LabelInput,
   Alert,
+  Box,
+  ButtonPrimary,
+  ButtonText,
+  Flex,
+  Image,
   Indicator,
+  LabelInput,
+  Text,
 } from 'design';
-import { ArrowBack, Trash, ArrowDown, ArrowRight, Warning } from 'design/Icon';
+import { ArrowBack, ArrowDown, ArrowRight, Trash, Warning } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
-import { Option } from 'shared/components/Select';
+import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'teleport/lib/util';
 
@@ -98,6 +98,10 @@ export function RequestCheckout({
   isResourceRequest,
   selectedResourceRequestRoles,
   setSelectedResourceRequestRoles,
+  fetchStatus,
+  durationOptions,
+  maxDuration,
+  setMaxDuration,
 }: RequestCheckoutProps) {
   const [reason, setReason] = useState('');
   const ref = useRef<HTMLDivElement>();
@@ -128,7 +132,8 @@ export function RequestCheckout({
 
     createRequest(
       reason,
-      selectedReviewers.map(r => r.value)
+      selectedReviewers.map(r => r.value),
+      new Date(maxDuration.value)
     );
   }
 
@@ -185,133 +190,159 @@ export function RequestCheckout({
             children={fetchResourceRequestRolesAttempt.statusText}
           />
         )}
-        {createAttempt.status === 'success' ? (
-          <Box>
-            <Box mt={2} mb={7} textAlign="center">
-              <Text typography="h4" color="text.main" bold>
-                Resources Requested Successfully
-              </Text>
-              <Text typography="subtitle1" color="text.slightlyMuted">
-                You've successfully requested {numRequestedResources}{' '}
-                {pluralize(numRequestedResources, 'resource')}
-              </Text>
-            </Box>
-            <Flex justifyContent="center" mb={3}>
-              <Image src={shieldCheck} width="250px" height="179px" />
-            </Flex>
+        {fetchStatus === 'loading' && (
+          <Box mt={5} textAlign="center">
+            <Indicator />
           </Box>
-        ) : (
-          <Flex mb={3} alignItems="center">
-            <ArrowBack
-              fontSize={25}
-              mr={3}
-              onClick={onClose}
-              style={{ cursor: 'pointer' }}
-            />
-            <Box>
-              <Text typography="h4" color="text.main" bold>
-                {data.length} {pluralize(data.length, 'Resource')} Selected
-              </Text>
-            </Box>
-          </Flex>
         )}
-        {createAttempt.status === 'success' ? (
-          <SuccessComponent cfg={cfg} onClose={onClose} reset={reset} />
-        ) : (
-          <>
-            {createAttempt.status === 'failed' && (
-              <Alert kind="danger" children={createAttempt.statusText} />
-            )}
-            <StyledTable
-              data={data}
-              columns={[
-                {
-                  key: 'kind',
-                  headerText: 'Resource Kind',
-                },
-                {
-                  key: 'name',
-                  headerText: 'Resource Name',
-                },
-                {
-                  altKey: 'delete-btn',
-                  render: resource => (
-                    <Cell align="right">
-                      <Trash
-                        fontSize={13}
-                        borderRadius={2}
-                        p={2}
-                        onClick={() => {
-                          clearAttempt();
-                          toggleResource(
-                            resource.kind,
-                            resource.id,
-                            resource.name
-                          );
-                        }}
-                        disabled={createAttempt.status === 'processing'}
-                        css={`
-                          cursor: pointer;
 
-                          background-color: ${({ theme }) =>
-                            theme.colors.buttons.trashButton.default};
-                          border-radius: 2px;
-                          :hover {
-                            background-color: ${({ theme }) =>
-                              theme.colors.buttons.trashButton.hover};
-                          }
-                        `}
-                      />
-                    </Cell>
-                  ),
-                },
-              ]}
-              emptyText="No resources are selected"
-            />
-            {isResourceRequest && (
-              <ResourceRequestRoles
-                roles={resourceRequestRoles}
-                selectedRoles={selectedResourceRequestRoles}
-                setSelectedRoles={setSelectedResourceRequestRoles}
-                fetchAttempt={fetchResourceRequestRolesAttempt}
-              />
+        {fetchStatus === 'loaded' && (
+          <div>
+            {createAttempt.status === 'success' ? (
+              <Box>
+                <Box mt={2} mb={7} textAlign="center">
+                  <Text typography="h4" color="text.main" bold>
+                    Resources Requested Successfully
+                  </Text>
+                  <Text typography="subtitle1" color="text.slightlyMuted">
+                    You've successfully requested {numRequestedResources}{' '}
+                    {pluralize(numRequestedResources, 'resource')}
+                  </Text>
+                </Box>
+                <Flex justifyContent="center" mb={3}>
+                  <Image src={shieldCheck} width="250px" height="179px" />
+                </Flex>
+              </Box>
+            ) : (
+              <Flex mb={3} alignItems="center">
+                <ArrowBack
+                  fontSize={25}
+                  mr={3}
+                  onClick={onClose}
+                  style={{ cursor: 'pointer' }}
+                />
+                <Box>
+                  <Text typography="h4" color="text.main" bold>
+                    {data.length} {pluralize(data.length, 'Resource')} Selected
+                  </Text>
+                </Box>
+              </Flex>
             )}
-            <Box mt={6} mb={1}>
-              <SelectReviewers
-                reviewers={reviewers}
-                selectedReviewers={selectedReviewers}
-                setSelectedReviewers={setSelectedReviewers}
-              />
-            </Box>
-            <Validation>
-              {({ validator }) => (
-                <>
-                  <TextBox
-                    reason={reason}
-                    updateReason={updateReason}
-                    requireReason={requireReason}
+            {createAttempt.status === 'success' ? (
+              <SuccessComponent cfg={cfg} onClose={onClose} reset={reset} />
+            ) : (
+              <>
+                {createAttempt.status === 'failed' && (
+                  <Alert kind="danger" children={createAttempt.statusText} />
+                )}
+                <StyledTable
+                  data={data}
+                  columns={[
+                    {
+                      key: 'kind',
+                      headerText: 'Resource Kind',
+                    },
+                    {
+                      key: 'name',
+                      headerText: 'Resource Name',
+                    },
+                    {
+                      altKey: 'delete-btn',
+                      render: resource => (
+                        <Cell align="right">
+                          <Trash
+                            fontSize={13}
+                            borderRadius={2}
+                            p={2}
+                            onClick={() => {
+                              clearAttempt();
+                              toggleResource(
+                                resource.kind,
+                                resource.id,
+                                resource.name
+                              );
+                            }}
+                            disabled={createAttempt.status === 'processing'}
+                            css={`
+                              cursor: pointer;
+
+                              background-color: ${({ theme }) =>
+                                theme.colors.buttons.trashButton.default};
+                              border-radius: 2px;
+
+                              :hover {
+                                background-color: ${({ theme }) =>
+                                  theme.colors.buttons.trashButton.hover};
+                              }
+                            `}
+                          />
+                        </Cell>
+                      ),
+                    },
+                  ]}
+                  emptyText="No resources are selected"
+                />
+                {isResourceRequest && (
+                  <ResourceRequestRoles
+                    roles={resourceRequestRoles}
+                    selectedRoles={selectedResourceRequestRoles}
+                    setSelectedRoles={setSelectedResourceRequestRoles}
+                    fetchAttempt={fetchResourceRequestRolesAttempt}
                   />
-                  <Box
-                    py={4}
-                    css={`
-                      position: sticky;
-                      bottom: 0;
-                      background: ${({ theme }) => theme.colors.levels.sunken};
-                    `}
-                  >
-                    <ButtonPrimary
-                      width="100%"
-                      size="large"
-                      onClick={() => handleOnSubmit(validator)}
-                      disabled={submitBtnDisabled}
-                    >
-                      Submit Request
-                    </ButtonPrimary>
+                )}
+                <Box mt={6} mb={1}>
+                  <SelectReviewers
+                    reviewers={reviewers}
+                    selectedReviewers={selectedReviewers}
+                    setSelectedReviewers={setSelectedReviewers}
+                  />
+                </Box>
+                {durationOptions.length > 0 && (
+                  <Box mt={7}>
+                    <LabelInput typography="body2" color="text.slightlyMuted">
+                      Max Access Duration
+                    </LabelInput>
+                    <Select
+                      options={durationOptions}
+                      onChange={(option: Option<number>) =>
+                        setMaxDuration(option)
+                      }
+                      value={maxDuration}
+                    />
                   </Box>
-                </>
-              )}
-            </Validation>
-          </>
+                )}
+                <Validation>
+                  {({ validator }) => (
+                    <>
+                      <TextBox
+                        reason={reason}
+                        updateReason={updateReason}
+                        requireReason={requireReason}
+                      />
+                      <Box
+                        py={4}
+                        css={`
+                          position: sticky;
+                          bottom: 0;
+                          background: ${({ theme }) =>
+                            theme.colors.levels.sunken};
+                        `}
+                      >
+                        <ButtonPrimary
+                          width="100%"
+                          size="large"
+                          onClick={() => handleOnSubmit(validator)}
+                          disabled={submitBtnDisabled}
+                        >
+                          Submit Request
+                        </ButtonPrimary>
+                      </Box>
+                    </>
+                  )}
+                </Validation>
+              </>
+            )}
+          </div>
         )}
       </SidePanel>
     </div>
@@ -391,6 +422,7 @@ function ResourceRequestRoles({
                   width: 100%;
                   cursor: pointer;
                   background: ${({ theme }) => theme.colors.levels.surface};
+
                   &:hover {
                     border-color: ${({ theme }) =>
                       theme.colors.levels.elevated};
@@ -455,7 +487,7 @@ function TextBox({
   const placeholder = `Describe your request...${optionalText}`;
 
   return (
-    <Box mt={7}>
+    <Box mt={2}>
       <LabelInput hasError={hasError}>{labelText}</LabelInput>
       <Box
         as="textarea"
@@ -472,9 +504,11 @@ function TextBox({
         css={`
           outline: none;
           background: transparent;
+
           ::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
           }
+
           &:hover,
           &:focus,
           &:active {
@@ -509,14 +543,17 @@ const SidePanel = styled(Box)`
   &.entering {
     right: -500px;
   }
+
   &.entered {
     right: 0px;
     transition: right 300ms ease-out;
   }
+
   &.exiting {
     right: -500px;
     transition: right 300ms ease-out;
   }
+
   &.exited {
     right: -500px;
   }
@@ -537,9 +574,11 @@ const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: middle;
   }
+
   & > thead > tr > th {
     background: ${props => props.theme.colors.spotBackground[1]};
   }
+
   border-radius: 8px;
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;

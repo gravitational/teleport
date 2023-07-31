@@ -481,6 +481,14 @@ func (m *mockedAccessRequestAPIGetter) CreateAccessRequest(ctx context.Context, 
 	return trace.NotImplemented("mockCreateAccessRequest not implemented")
 }
 
+func (m *mockedAccessRequestAPIGetter) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	if m.mockCreateAccessRequest != nil {
+		return req, m.mockCreateAccessRequest(ctx, req)
+	}
+
+	return nil, trace.NotImplemented("mockCreateAccessRequest not implemented")
+}
+
 func (m *mockedAccessRequestAPIGetter) GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
 	if m.mockGetAccessRequests != nil {
 		return m.mockGetAccessRequests(ctx, filter)

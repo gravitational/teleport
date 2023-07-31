@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import {
-  ButtonPrimary,
-  ButtonBorder,
-  Text,
   Alert,
   Box,
+  ButtonBorder,
+  ButtonPrimary,
   Flex,
-  LabelState,
   Indicator,
+  LabelState,
+  Text,
 } from 'design';
-import { CircleCheck, CircleCross, ChevronCircleDown } from 'design/Icon';
+import { ChevronCircleDown, CircleCheck, CircleCross } from 'design/Icon';
 import Table from 'design/DataTable';
 import { PrivateKeyAccessRequestDialogue } from '@gravitational/teleport/src/components/PrivateKeyPolicy';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 import {
-  RequestState,
   AccessRequestReview,
   AccessRequestReviewer,
+  RequestState,
   Resource,
 } from 'e-teleport/services/workflow';
 
@@ -137,6 +137,7 @@ export function RequestView({
                     is requesting roles:
                   </Text>
                   <RolesRequested roles={request.roles} />
+                  <Text typography="body2">for {request.expiresDuration}</Text>
                 </Flex>
               </Flex>
               <Flex
@@ -145,9 +146,6 @@ export function RequestView({
                 flexWrap="wrap-reverse"
                 flex="1"
               >
-                <Text typography="body2" style={{ whiteSpace: 'nowrap' }}>
-                  (expires in {request.expiresDuration})
-                </Text>
                 <ButtonBorder
                   disabled={!flags.canDelete}
                   onClick={toggleConfirmDelete}
@@ -407,7 +405,10 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
           typography="body2"
           bold
           mr={3}
-          style={{ whiteSpace: 'nowrap', maxWidth: '200px' }}
+          style={{
+            whiteSpace: 'nowrap',
+            maxWidth: '200px',
+          }}
           title={reviewer.name}
         >
           {reviewer.name}
@@ -416,7 +417,10 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
           kind={kind}
           width="10px"
           p={0}
-          style={{ minHeight: '10px', minWidth: '10px' }}
+          style={{
+            minHeight: '10px',
+            minWidth: '10px',
+          }}
         />
       </Flex>
     );

@@ -1,13 +1,23 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { formatDuration } from 'date-fns';
+
+import { Option } from 'shared/components/Select';
+
 import Ctx from 'e-teleport/teleportContextE';
+
+import { middleValues } from 'e-teleport/Workflow/NewRequest/RequestCheckout/timeHelpers';
 
 import { State as NewRequestState, ResourceKind } from '../useNewRequest';
 
 import type { AgentIdKind } from 'teleport/services/agents';
-import type { ResourceId } from 'e-teleport/services/workflow';
+import type { AccessRequest, ResourceId } from 'e-teleport/services/workflow';
+
+const SEVEN_DAYS_IN_MS = 1000 * 60 * 60 * 24 * 7;
+
+type LoadingStatus = 'loading' | 'loaded';
 
 export function useRequestCheckout({
   ctx,
@@ -25,6 +35,15 @@ export function useRequestCheckout({
   const [selectedResourceRequestRoles, setSelectedResourceRequestRoles] =
     useState<string[]>([]);
 
+  const [fetchStatus, setFetchStatus] = useState<LoadingStatus>('loading');
+
+  const [maxDuration, setMaxDuration] = useState<Option<number, string>>({
+    value: 0,
+    label: '',
+  });
+
+  const [durationOptions, setDurationOptions] = useState<Option<number>[]>([]);
+
   // Format data suitable for table listing.
   const data: {
     kind: ResourceKind;
@@ -34,7 +53,11 @@ export function useRequestCheckout({
   const resourceKeys = Object.keys(addedResources) as ResourceKind[];
   resourceKeys.forEach(kind => {
     Object.keys(addedResources[kind]).forEach(id =>
-      data.push({ kind: kind, name: addedResources[kind][id], id: id })
+      data.push({
+        kind: kind,
+        name: addedResources[kind][id],
+        id: id,
+      })
     );
   });
   const [numRequestedResources, setNumRequestedResources] = useState(0);
@@ -43,7 +66,46 @@ export function useRequestCheckout({
     if (isResourceRequest) fetchResourceRequestRoles();
   }, [addedResources]);
 
-  function createRequest(reason = '', suggestedReviewers?: string[]) {
+  React.useEffect(() => {
+    // duration is set to the max - 7 days
+    const maxAccessDuration = new Date(Date.now() + SEVEN_DAYS_IN_MS);
+
+    createAccessRequest('', [], maxAccessDuration, true)
+      .then((resp: AccessRequest) => {
+        // sessionTTL and maxDuration were introduced in v13.3.0.
+        // Older backends will not return these values.
+        if (!resp.sessionTTL || !resp.maxDuration) {
+          setFetchStatus('loaded');
+          return;
+        }
+        const values = middleValues(
+          new Date(resp.sessionTTL),
+          new Date(resp.maxDuration)
+        ).map(e => ({
+          value: e.timestamp,
+          label: formatDuration(e.duration),
+        }));
+
+        setDurationOptions(values);
+        if (values.length >= 1) {
+          setMaxDuration(values[0]);
+        }
+        setFetchStatus('loaded');
+        // setAttemptStatus();
+      })
+      .catch(() => {
+        // If the fetch failed, we can still render the page, but we won't
+        // be able to show the max duration options.
+        setFetchStatus('loaded');
+      });
+  }, []);
+
+  async function createAccessRequest(
+    reason = '',
+    suggestedReviewers?: string[],
+    maxDuration?: Date,
+    dryRun?: boolean
+  ): Promise<AccessRequest> {
     // field 'roles' is expected as just a list of strings
     // in the back.
     let roles: string[];
@@ -59,21 +121,34 @@ export function useRequestCheckout({
       roles = selectedResourceRequestRoles;
     }
 
+    return ctx.workflowService.createAccessRequest({
+      reason,
+      resourceIds,
+      roles,
+      suggestedReviewers,
+      maxDuration,
+      dryRun,
+    });
+  }
+
+  function createRequest(
+    reason = '',
+    suggestedReviewers?: string[],
+    maxDuration?: Date,
+    dryRun?: boolean
+  ) {
     createAttempt.setAttempt({ status: 'processing' });
-    ctx.workflowService
-      .createAccessRequest({
-        reason,
-        resourceIds,
-        roles,
-        suggestedReviewers,
-      })
+    createAccessRequest(reason, suggestedReviewers, maxDuration, dryRun)
       .then(() => {
         createAttempt.setAttempt({ status: 'success' });
         setNumRequestedResources(data.length);
         reset();
       })
       .catch((err: Error) => {
-        createAttempt.setAttempt({ status: 'failed', statusText: err.message });
+        createAttempt.setAttempt({
+          status: 'failed',
+          statusText: err.message,
+        });
       });
   }
 
@@ -121,6 +196,10 @@ export function useRequestCheckout({
     numRequestedResources,
     selectedResourceRequestRoles,
     setSelectedResourceRequestRoles,
+    fetchStatus,
+    durationOptions,
+    maxDuration,
+    setMaxDuration,
   };
 }
 

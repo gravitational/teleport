@@ -18,7 +18,10 @@ export const Failed = () => (
   <RequestCheckout
     {...props}
     requireReason={false}
-    createAttempt={{ status: 'failed', statusText: 'some error message' }}
+    createAttempt={{
+      status: 'failed',
+      statusText: 'some error message',
+    }}
     SuccessComponent={SuccessActionComponent}
   />
 );
@@ -75,11 +78,31 @@ const props: RequestCheckoutProps = {
   reviewers: ['bob', 'cat', 'george washington'],
   createRequest: () => null,
   data: [
-    { kind: 'app', name: 'app-name', id: 'app-name' },
-    { kind: 'db', name: 'app-name', id: 'app-name' },
-    { kind: 'kube_cluster', name: 'kube-name', id: 'app-name' },
-    { kind: 'user_group', name: 'user-group-name', id: 'app-name' },
-    { kind: 'windows_desktop', name: 'desktop-name', id: 'app-name' },
+    {
+      kind: 'app',
+      name: 'app-name',
+      id: 'app-name',
+    },
+    {
+      kind: 'db',
+      name: 'app-name',
+      id: 'app-name',
+    },
+    {
+      kind: 'kube_cluster',
+      name: 'kube-name',
+      id: 'app-name',
+    },
+    {
+      kind: 'user_group',
+      name: 'user-group-name',
+      id: 'app-name',
+    },
+    {
+      kind: 'windows_desktop',
+      name: 'desktop-name',
+      id: 'app-name',
+    },
   ],
   clearAttempt: () => null,
   onClose: () => null,
@@ -90,4 +113,8 @@ const props: RequestCheckoutProps = {
   resourceRequestRoles: ['admin', 'access', 'developer'],
   selectedResourceRequestRoles: ['admin', 'access'],
   setSelectedResourceRequestRoles: () => null,
+  fetchStatus: 'loaded',
+  durationOptions: [],
+  maxDuration: { value: 0, label: '' },
+  setMaxDuration: () => null,
 };

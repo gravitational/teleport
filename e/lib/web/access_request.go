@@ -88,7 +88,23 @@ func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, reques
 
 	req.SetRequestReason(request.Reason)
 	req.SetSuggestedReviewers(request.SuggestedReviewers)
+	req.SetMaxDuration(request.MaxDuration)
+	req.SetDryRun(request.DryRun)
 
+	// If the request is a dry run, then we need to use the V2 API to get the
+	// response with the resource details. Otherwise, we can use the V1 API
+	// for backwards compatibility.
+	if req.GetDryRun() {
+		resp, err := clt.CreateAccessRequestV2(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		usResp, err := ui.NewAccessRequest(resp)
+		return usResp, trace.Wrap(err)
+	}
+
+	// DELETE IN 15.0.0 - use CreateAccessRequestV2 instead
 	if err := clt.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -339,7 +355,11 @@ func (p *Plugin) deleteAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 
 type accessRequestAPIGetter interface {
 	// CreateAccessRequest stores a new access request.
+	// DELETE IN 15.0.0
+	// Deprecated: use CreateAccessRequestV2 instead
 	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
+	// CreateAccessRequestV2 stores a new access request and returns the created request.
+	CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error)
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	// SubmitAccessReview applies a review to a request and returns the post-application state.
@@ -361,4 +381,9 @@ type accessRequestParameters struct {
 	SuggestedReviewers []string `json:"suggestedReviewers"`
 	// ResourceID is a unique identifier for a teleport resource.
 	ResourceIDs []ui.ResourceID `json:"resourceIds"`
+	// MaxDuration is the maximum duration for which the request is valid.
+	MaxDuration time.Time `json:"maxDuration,omitempty"`
+	// DryRun is a flag that indicates whether the request is a dry run to check and set defaults,
+	// and return before actually creating the request in the backend.
+	DryRun bool `json:"dryRun,omitempty"`
 }

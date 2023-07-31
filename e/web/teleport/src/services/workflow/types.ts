@@ -16,6 +16,10 @@ export interface AccessRequest {
   expiresDuration: string;
   created: Date;
   createdDuration: string;
+  maxDuration: Date;
+  maxDurationText: string;
+  sessionTTL: Date;
+  sessionTTLDuration: string;
   roles: string[];
   requestReason: string;
   resolveReason: string;
@@ -69,6 +73,8 @@ export interface CreateAccessRequest {
   roles?: string[];
   resourceIds?: ResourceId[];
   suggestedReviewers?: string[];
+  maxDuration?: Date;
+  dryRun?: boolean;
 }
 
 export interface UpdateAccessRequest {

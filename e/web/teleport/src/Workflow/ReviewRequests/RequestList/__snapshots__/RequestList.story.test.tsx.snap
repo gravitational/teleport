@@ -655,9 +655,9 @@ exports[`loaded state 1`] = `
           </td>
           <td
             style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title="Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes."
+            title="Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes."
           >
-            Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
+            Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
           </td>
           <td>
             1 minute ago
@@ -773,9 +773,9 @@ exports[`loaded state 1`] = `
           </td>
           <td
             style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-            title="Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes."
+            title="Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes."
           >
-            Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
+            Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
           </td>
           <td>
             1 minute ago

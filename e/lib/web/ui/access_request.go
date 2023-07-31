@@ -27,6 +27,11 @@ type AccessRequest struct {
 	Created time.Time `json:"created"`
 	// Expires is when the request will expire.
 	Expires time.Time `json:"expires"`
+	// MaxDuration is the duration for how long the access should be granted.
+	// This value can be nil if the request does not have a max duration.
+	MaxDuration *time.Time `json:"maxDuration,omitempty"`
+	// SessionTTL is the duration for how long the generated certificate will be valid.
+	SessionTTL time.Time `json:"sessionTTL,omitempty"`
 	// Reviews are reviews applied to this access request.
 	Reviews []AccessRequestReview `json:"reviews"`
 	// SuggestedReviewers is a list of reviewers suggested.
@@ -49,6 +54,8 @@ type AccessRequestReview struct {
 	Reason string `json:"reason"`
 	// Created is the time review was submitted.
 	Created time.Time `json:"created"`
+	// MaxDuration is the duration for how long the access should be granted.
+	MaxDuration time.Time `json:"maxDuration"`
 }
 
 type Resource struct {
@@ -128,6 +135,12 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		}
 	}
 
+	var maxDuration *time.Time
+	if !request.GetMaxDuration().IsZero() {
+		reqMaxDuration := request.GetMaxDuration()
+		maxDuration = &reqMaxDuration
+	}
+
 	return &AccessRequest{
 		ID:                 request.GetMetadata().Name,
 		State:              request.GetState().String(),
@@ -136,6 +149,8 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		User:               request.GetUser(),
 		Roles:              request.GetRoles(),
 		Created:            request.GetCreationTime(),
+		MaxDuration:        maxDuration,
+		SessionTTL:         request.GetSessionTLL(),
 		Expires:            request.GetAccessExpiry(),
 		Reviews:            reviews,
 		SuggestedReviewers: request.GetSuggestedReviewers(),

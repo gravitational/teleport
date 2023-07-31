@@ -190,7 +190,7 @@ exports[`loaded approved role based request state 1`] = `
   margin-right: 8px;
 }
 
-.c12 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -341,7 +341,7 @@ exports[`loaded approved role based request state 1`] = `
   flex-wrap: wrap;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   flex: 1;
   display: flex;
@@ -486,19 +486,17 @@ exports[`loaded approved role based request state 1`] = `
                   ziuzzow
                 </div>
               </div>
+              <div
+                class="c11"
+              >
+                for 
+                24 hours
+              </div>
             </div>
           </div>
           <div
-            class="c11"
+            class="c12"
           >
-            <div
-              class="c12"
-              style="white-space: nowrap;"
-            >
-              (expires in 
-              24 hours
-              )
-            </div>
             <button
               class="c13"
               kind="border"
@@ -539,7 +537,7 @@ exports[`loaded approved role based request state 1`] = `
                 Sam
               </div>
               <div
-                class="c12"
+                class="c11"
               >
                 submitted
                  this request 
@@ -574,7 +572,7 @@ exports[`loaded approved role based request state 1`] = `
                   alice
                 </div>
                 <div
-                  class="c12"
+                  class="c11"
                 >
                   approved
                    this request 
@@ -630,7 +628,7 @@ exports[`loaded approved role based request state 1`] = `
                   test-long-user-name@testing.com
                 </div>
                 <div
-                  class="c12"
+                  class="c11"
                 >
                   approved
                    this request 
@@ -882,7 +880,7 @@ exports[`loaded denied role based request state 1`] = `
   margin-right: 8px;
 }
 
-.c12 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1033,7 +1031,7 @@ exports[`loaded denied role based request state 1`] = `
   flex-wrap: wrap;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   flex: 1;
   display: flex;
@@ -1172,19 +1170,17 @@ exports[`loaded denied role based request state 1`] = `
                   ruhh
                 </div>
               </div>
+              <div
+                class="c11"
+              >
+                for 
+                20 hours
+              </div>
             </div>
           </div>
           <div
-            class="c11"
+            class="c12"
           >
-            <div
-              class="c12"
-              style="white-space: nowrap;"
-            >
-              (expires in 
-              20 hours
-              )
-            </div>
             <button
               class="c13"
               kind="border"
@@ -1225,7 +1221,7 @@ exports[`loaded denied role based request state 1`] = `
                 Sam
               </div>
               <div
-                class="c12"
+                class="c11"
               >
                 submitted
                  this request 
@@ -1284,7 +1280,7 @@ exports[`loaded denied role based request state 1`] = `
                   alice
                 </div>
                 <div
-                  class="c12"
+                  class="c11"
                 >
                   denied
                    this request 
@@ -1584,7 +1580,7 @@ exports[`loaded pending role based request state 1`] = `
   margin-right: 8px;
 }
 
-.c12 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1736,7 +1732,7 @@ exports[`loaded pending role based request state 1`] = `
   flex-wrap: wrap;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   flex: 1;
   display: flex;
@@ -2057,19 +2053,17 @@ exports[`loaded pending role based request state 1`] = `
                   admin
                 </div>
               </div>
+              <div
+                class="c11"
+              >
+                for 
+                35 minutes
+              </div>
             </div>
           </div>
           <div
-            class="c11"
+            class="c12"
           >
-            <div
-              class="c12"
-              style="white-space: nowrap;"
-            >
-              (expires in 
-              35 minutes
-              )
-            </div>
             <button
               class="c13"
               kind="border"
@@ -2110,7 +2104,7 @@ exports[`loaded pending role based request state 1`] = `
                 Sam
               </div>
               <div
-                class="c12"
+                class="c11"
               >
                 submitted
                  this request 
@@ -2139,7 +2133,7 @@ exports[`loaded pending role based request state 1`] = `
             <div
               class="c24"
             >
-              Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
+              Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
             </div>
           </div>
           <div
@@ -2516,7 +2510,7 @@ exports[`loaded pending search based request state 1`] = `
   margin-right: 8px;
 }
 
-.c12 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -2668,7 +2662,7 @@ exports[`loaded pending search based request state 1`] = `
   flex-wrap: wrap;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   flex: 1;
   display: flex;
@@ -3081,19 +3075,17 @@ exports[`loaded pending search based request state 1`] = `
                   test
                 </div>
               </div>
+              <div
+                class="c11"
+              >
+                for 
+                35 minutes
+              </div>
             </div>
           </div>
           <div
-            class="c11"
+            class="c12"
           >
-            <div
-              class="c12"
-              style="white-space: nowrap;"
-            >
-              (expires in 
-              35 minutes
-              )
-            </div>
             <button
               class="c13"
               kind="border"
@@ -3134,7 +3126,7 @@ exports[`loaded pending search based request state 1`] = `
                 Sam
               </div>
               <div
-                class="c12"
+                class="c11"
               >
                 submitted
                  this request 
@@ -3163,7 +3155,7 @@ exports[`loaded pending search based request state 1`] = `
             <div
               class="c25"
             >
-              Testing long message format. I am requesting access for the developer role that i will be using to     commit fixes for our production application. I will need access for the     rest of the day to complete my changes.
+              Testing long message format. I am requesting access for the developer role that i will be using to         commit fixes for our production application. I will need access for the         rest of the day to complete my changes.
             </div>
             <div
               class="c26"
