@@ -140,7 +140,7 @@ async function waitForAgentProcessErrors(
         if (agentState.status === 'error') {
           reject(
             new Error(
-              ['Agent process failed to start.', agentState.message].join(' \n')
+              ['Agent process failed to start.', agentState.message].join('\n')
             )
           );
         }
