@@ -1125,3 +1125,79 @@ func makeDBConfigAndRoute(name string, staticLabels map[string]string) (servicec
 	route := tlsca.RouteToDatabase{ServiceName: name}
 	return db, route
 }
+
+func TestChooseOneDatabase(t *testing.T) {
+	t.Parallel()
+	db0, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "my-db",
+		Labels: map[string]string{"foo": "bar"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	db1, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "my-db-1",
+		Labels: map[string]string{"foo": "bar"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	db2, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "my-db-2",
+		Labels: map[string]string{"foo": "bar"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	tests := []struct {
+		desc            string
+		databases       types.Databases
+		wantDB          types.Database
+		wantErrContains string
+	}{
+		{
+			desc:      "only one database to choose from",
+			databases: types.Databases{db1},
+			wantDB:    db1,
+		},
+		{
+			desc:      "multiple databases to choose from with unambiguous name match",
+			databases: types.Databases{db0, db1, db2},
+			wantDB:    db0,
+		},
+		{
+			desc:            "zero databases to choose from is an error",
+			wantErrContains: `database "my-db" with labels "foo=bar" with query (hasPrefix(name, "my-db")) not found, use 'tsh db ls --cluster=local-site'`,
+		},
+		{
+			desc:            "ambiguous databases to choose from is an error",
+			databases:       types.Databases{db1, db2},
+			wantErrContains: `database "my-db" with labels "foo=bar" with query (hasPrefix(name, "my-db")) matches multiple databases`,
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			cf := &CLIConf{
+				Context:             ctx,
+				TracingProvider:     tracing.NoopProvider(),
+				tracer:              tracing.NoopTracer(teleport.ComponentTSH),
+				Labels:              "foo=bar",
+				PredicateExpression: `hasPrefix(name, "my-db")`,
+				SiteName:            "local-site",
+			}
+			db, err := chooseOneDatabase(cf, "my-db", test.databases)
+			if test.wantErrContains != "" {
+				require.ErrorContains(t, err, test.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, db, "should have chosen a database")
+			require.Empty(t, cmp.Diff(test.wantDB, db))
+		})
+	}
+}
