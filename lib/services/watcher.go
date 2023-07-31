@@ -893,10 +893,6 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 
 func (*databaseCollector) notifyStale() {}
 
-type SAMLIdpServiceProviderGetter interface {
-	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
-}
-
 // AppWatcherConfig is an AppWatcher configuration.
 type AppWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
