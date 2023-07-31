@@ -16,22 +16,14 @@ mod consts;
 mod flags;
 pub(crate) mod path;
 mod scard;
+pub(crate) mod tdp;
+
 use self::path::{UnixPath, WindowsPath};
 use self::scard::IoctlCode;
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
-use crate::{util, Encode, Messages, MAX_ALLOWED_VCHAN_MSG_SIZE};
-use crate::{vchan, Message};
-use crate::{
-    FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
-    SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
-    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryListRequest,
-    SharedDirectoryListResponse, SharedDirectoryMoveRequest, SharedDirectoryMoveResponse,
-    SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
-    SharedDirectoryWriteResponse, TdpErrCode,
-};
-
+use crate::{util, vchan, Encode, Message, Messages, Payload, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 pub use consts::CHANNEL_NAME;
 use consts::{
@@ -50,6 +42,14 @@ use std::convert::{TryFrom, TryInto};
 use std::ffi::CString;
 use std::io::{Read, Seek, SeekFrom};
 use std::vec;
+use tdp::{
+    FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
+    SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
+    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryListRequest,
+    SharedDirectoryListResponse, SharedDirectoryMoveRequest, SharedDirectoryMoveResponse,
+    SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
+    SharedDirectoryWriteResponse, TdpErrCode,
+};
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
