@@ -1,4 +1,4 @@
-# This workflow build a Teleport release on a Linux-based buildbox using the
+# This workflow builds a Teleport release on a Linux-based buildbox using the
 # release-* targets defined in build.assets/Makefile of the OSS Teleport
 # repository. Both the OSS and Enterprise release tarballs will be built.
 
@@ -36,18 +36,36 @@ on:
         required: true
         type: string
 
+      build-connect:
+        description: "Should Teleport Connect be built"
+        required: false
+        type: boolean
+        default: false
+
+      builder:
+        # This needs to be encoded as JSON, as parameters can opnly be strings, numbers
+        # or booleans, and we need to pass an array or object if we're running on a
+        # self-hosted runner.
+        description: |
+          JSON-encoded labels and groups for selecting the action runner to use when
+          executing this workflow. This allows callers to select self-hosted runners
+          (e.g. for arm64) or any of the github-supplied runners (e.g. ubuntu-latest)
+          depending on the build requirements.
+          Example - `toJSON({"group": "prod", "labels": ["self-hosted", "X64"]})`
+        required: true
+        type: string
+
 jobs:
   build-release-artifacts:
     permissions:
       contents: read
 
-    # Self-hosted ARC runners are currently (July 2023) not auto-scaling.
-    # If too many scheduling failures, change this to ubuntu-latest.
-    runs-on: [self-hosted, linux, x64]
+    runs-on: ${{ fromJSON(inputs.builder) }}
 
     env:
       # GOMODCACHE and GOCACHE can be removed when we commit to the self-hosted
-      # ARC runners, as these runners set up these vars for us.
+      # ARC runners, as these runners set up these vars for us. We still need
+      # these though for the GitHub runners (ubuntu).
       GOMODCACHE: /tmp/gomodcache
       GOCACHE: /tmp/gocache
 
@@ -73,7 +91,7 @@ jobs:
 
       # The step can be removed when we commit to the self-hosted ARC runners,
       # as it runs with a consistent UID/GID and creates the directories with
-      # the correct ownership.
+      # the correct ownership. We still need this for the GitHub runners though.
       - name: Create cache directories with correct owner/group
         run: |
           sudo mkdir -p "$GOCACHE" "$GOMODCACHE"
@@ -92,3 +110,12 @@ jobs:
       - name: Build Release
         run: |
           make -C build.assets ${{ inputs.release-target }}
+
+      - name: Build Teleport Connect
+        if: inputs.build-connect
+        run: |
+          # VERSION is only set from the top-level Makefile. We need it to be
+          # set so that the build artifacts are named correctly.
+          VERSION=$(grep -oP '^VERSION=\K.*' Makefile)
+          make -C build.assets teleterm VERSION="$VERSION"
+          cp web/packages/teleterm/build/release/teleport-connect* build/artifacts

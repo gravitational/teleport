@@ -27,6 +27,12 @@ on:
         type: string
         required: true
 
+      build-connect:
+        description: "Should Teleport Connect be built"
+        required: false
+        type: boolean
+        default: false
+
       workflow-tag:
         description: |
           Tag used to identify workflow runs spawned by this event
@@ -43,8 +49,28 @@ jobs:
       - name: ${{ inputs.workflow-tag }}
         run: echo ${{ inputs.workflow-tag }}
 
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      builder: ${{ steps.select-builder.outputs.builder }}
+    steps:
+      - name: Select builder
+        id: select-builder
+        env:
+          BUILD_CONNECT: ${{ inputs.build-connect }}
+        # Teleport Connect builds need to use a GitHub runner as the use UID 1000 which
+        # is needed for the Teleport Connect builder image. Self-hosted runners use 1001.
+        # TODO(camscale): Make the connect builder work with UID 1001 as well as 1000.
+        run: |
+          if [ "$BUILD_CONNECT" = 'true' ]; then
+            echo 'builder="ubuntu-22.04-16core"'
+          else
+            echo 'builder={"group": "prod", "labels": ["self-hosted", "linux", "x64"]}'
+          fi >> $GITHUB_OUTPUT
+
   build-artifacts:
     name: Build Artifacts
+    needs: [ select ]
     secrets: inherit
     uses: ./.github/workflows/build-linux.yaml
     with:
@@ -53,3 +79,5 @@ jobs:
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       release: enterprise
       release-target: ${{ inputs.release-target }}
+      builder: ${{ needs.select.outputs.builder }}
+      build-connect: ${{ inputs.build-connect }}
