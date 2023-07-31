@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// TODO(bl-nero): use a CSS var for sidebar width and make the breakpoints work
+// by changing the minimum width on a per-view basis (Main.tsx).
 const sidebarWidth = 256;
 
 // Styles that are shared by all themes.
