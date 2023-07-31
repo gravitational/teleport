@@ -23,13 +23,10 @@ import { AwsRdsDatabase, RdsEngine } from '../integrations';
 export enum IamPolicyStatus {
   // Unspecified flag is most likely a result
   // from an older service that do not set this state
-  Unspecified,
-  Pending,
-  // Error happened before checking the validity of a policy.
-  Error,
-  Valid,
-  // Invalid describes misconfigured policy.
-  Invalid,
+  Unspecified = '',
+  Pending = 'pending',
+  Failed = 'failed',
+  Success = 'success',
 }
 
 export type Aws = {

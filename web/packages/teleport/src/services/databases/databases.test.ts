@@ -46,7 +46,7 @@ test('correct formatting of database fetch response', async () => {
             region: 'us-west-1',
             subnets: ['sn1', 'sn2'],
           },
-          iamPolicyStatus: IamPolicyStatus.Valid,
+          iamPolicyStatus: IamPolicyStatus.Success,
         },
       },
       {
@@ -183,7 +183,7 @@ const mockResponse = {
           region: 'us-west-1',
           subnets: ['sn1', 'sn2'],
         },
-        iam_policy_status: 3, // IamPolicyStatus.Valid
+        iam_policy_status: 'success',
       },
     },
     // non-aws self-hosted

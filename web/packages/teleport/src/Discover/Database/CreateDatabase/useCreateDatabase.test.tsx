@@ -377,7 +377,7 @@ describe('registering new databases, mainly error checking', () => {
       agents: [
         {
           name: 'new-db',
-          aws: { iamPolicyStatus: IamPolicyStatus.Valid },
+          aws: { iamPolicyStatus: IamPolicyStatus.Success },
         } as any,
       ],
     });
@@ -389,7 +389,7 @@ describe('registering new databases, mainly error checking', () => {
       resourceName: 'db-name',
       db: {
         name: 'new-db',
-        aws: { iamPolicyStatus: IamPolicyStatus.Valid },
+        aws: { iamPolicyStatus: IamPolicyStatus.Success },
       },
       serviceDeployedMethod: 'skipped',
     });

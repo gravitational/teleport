@@ -120,7 +120,7 @@ export function useCreateDatabase() {
       agentMatcherLabels: dbPollingResult.labels,
       db: dbPollingResult,
       serviceDeployedMethod:
-        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Valid
+        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
           ? 'skipped'
           : undefined, // User has to deploy a service (can be auto or manual)
     });
@@ -307,7 +307,7 @@ export function useCreateDatabase() {
     if (dbPollingResult) {
       if (
         isAws &&
-        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Valid
+        dbPollingResult.aws?.iamPolicyStatus === IamPolicyStatus.Success
       ) {
         // Skips the deploy db service step AND setting up IAM policy step.
         return nextStep(3);
