@@ -1,5 +1,5 @@
 ---
-title: Kubernetes Access Troubleshooting Guide
+title: Kubernetes Access Troubleshooting
 description: Troubleshooting common issues with Kubernetes access
 ---
 
@@ -16,7 +16,7 @@ ssh: handshake failed: ssh: no authorities for hostname
 
 ### Explanation
 
-Teleport uses Certificate Authorities (CAs) to sign certificates for each
+Teleport uses certificate authorities (CAs) to sign certificates for each
 component. When the component joins the cluster for the first time, it
 receives a certificate signed by the cluster's CA and stores it in its
 state directory. When the component restarts, it uses the certificate stored in
@@ -30,7 +30,7 @@ or renamed.
 
 ### Resolution
 
-The agent's state needs to be reset, so it requests a new certificate and joins
+The agent's state needs to be reset, so it can request a new certificate and join
 the cluster again.
 
 The process for deleting the agent's state depends on whether the agent is
@@ -128,7 +128,7 @@ This group is named, by default, `cluster-admin`, but the name can be changed
 by setting the `adminClusterRoleBinding.name` parameter.
 
 The Kubernetes Group isn't created automatically when installing the chart on
-non-GKE clusters, so please don't change the `kubernetes_groups` parameter to
+non-GKE clusters, so don't change the `kubernetes_groups` parameter to
 `cluster-admin` unless you created the group manually or installed the chart with
 `adminClusterRoleBinding.create` parameter set to `true`.
 
