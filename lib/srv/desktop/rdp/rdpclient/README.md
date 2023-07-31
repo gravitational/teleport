@@ -156,9 +156,9 @@ const _: () = {
 
 ##### Immutable Reference (`&Client`)
 
-One of the foundational memory guarantees of the Rust compiler is that you can only have
-a single mutable reference at a time. (In fact, if you have a mutable reference, you can't
-have an immutable reference to the same thing at the same time either).
+One of the foundational memory guarantees of the Rust compiler is that a mutable borrow (`&mut T`)
+is an _exclusive reference_, meaning that if you have an `&mut T` there can be no other references
+to the same object.
 
 Because every call from Go into Rust is `unsafe`, and it's possible to coerce that pointer into
 more or less whatever we want in `unsafe`, and you can do more with mutable references, there's
