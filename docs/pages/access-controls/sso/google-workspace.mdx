@@ -133,7 +133,7 @@ To configure OAuth consent for the new project:
    
    ![Select Internals](../../../img/sso/googleoidc/google-oauth-consent.png)
 
-1. Configure the connector by doing the following:
+1. Configure the OAuth client consent information by doing the following:
    
    - Type an application name.
    - Select a user or group to receive email messages from users about their OAuth consent.
@@ -152,7 +152,7 @@ To configure OAuth consent for the new project:
 
 ### Enable the required APIs
 
-To enable required APIs:
+To enable required APIs for the OAuth client:
 
 1. Select [Cloud Identity API](https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com) 
 in the API Library, then click **Enable** to support transitive group membership.
@@ -240,7 +240,7 @@ To create a service account:
       "private_key_id": "f06exxxxxxxxxxxxxxxdc18",
       "private_key": "-----BEGIN PRIVATE KEY-----\n0000000000000w==\n-----END PRIVATE KEY-----\n",
       "client_email": "gwsso@teleport-project-xxxxxx.iam.gserviceaccount.com",
-      "client_id": "11xxxxxxxxxxxxx89",
+      "client_id": "11xxxxxxxxxxxxx76",
       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
       "token_uri": "https://oauth2.googleapis.com/token",
       "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
@@ -314,7 +314,7 @@ $ tctl sso configure oidc --preset google --id <CLIENT-ID> \
   "private_key_id": <GOOGLE-PRIVATE-KEY-ID>,
   "private_key": "-----BEGIN PRIVATE KEY-----\n0000000000000w==\n-----END PRIVATE KEY-----\n",
   "client_email": <GOOGLE-SERVICE-ACCOUNT-EMAIL>,
-  "client_id": <CLIENT-ID>,
+  "client_id": <GOOGLE-SERVICE-ACCOUNT-UNIQUE-ID>,
   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
   "token_uri": "https://oauth2.googleapis.com/token",
   "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
@@ -351,11 +351,11 @@ spec:
 
     {
       "type": "service_account",
-      "project_id": <GOOGLE-CLOUD-PROJECT>,
-      "private_key_id": <GOOGLE-PRIVATE-KEY-ID>,
+      "project_id": <GOOGLE-CLOUD-PROJECT-ID>,
+      "private_key_id": <GOOGLE-SERVICE-ACCOUNT-PRIVATE-KEY-ID>,
       "private_key": "-----BEGIN PRIVATE KEY-----\n0000000000000w==\n-----END PRIVATE KEY-----\n",
       "client_email": <GOOGLE-SERVICE-ACCOUNT-EMAIL>,
-      "client_id": <CLIENT-ID>,
+      "client_id": <GOOGLE-SERVICE-ACCOUNT-UNIQUE-ID>,
       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
       "token_uri": "https://oauth2.googleapis.com/token",
       "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
@@ -425,11 +425,13 @@ Don't use the email of the service account for `google_admin_email`. The
 configuration might look the same, but the service account doesn't have
 the required domain-wide delegation.
 
-The `client_id` field must be the unique client ID that you copied for the OAuth client in the 
-Google Cloud console. You can check whether this setting is configured correctly by viewing
-the audit logs on the host running the Teleport Auth Service or from the **Management** tab 
-in the Teleport Web UI. If you see "invalid Google Workspace credentials for scopes [...]" 
-in audit log messages, change the `client_id` setting in the resource configuration file.
+The `client_id` field must be the unique numberic ID for the service account that you created 
+for the OAuth client in the Google Cloud console. You can check whether this setting is configured 
+correctly by viewing the audit logs on the host running the Teleport Auth Service or from 
+the **Management** tab in the Teleport Web UI. If you see "invalid Google Workspace 
+credentials for scopes [...]" in audit log messages, change the `client_id` setting in the 
+resource configuration file. For more information about viewing audit logs, see 
+[Troubleshooting](#troubleshooting).
 
 To test the connector, run the following command:
 
