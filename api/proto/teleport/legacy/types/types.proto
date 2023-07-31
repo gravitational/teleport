@@ -4591,8 +4591,6 @@ message WindowsDesktopFilter {
   string HostID = 1 [(gogoproto.jsontag) = "host_id"];
   // Name is the name of the desktop.
   string Name = 2 [(gogoproto.jsontag) = "name"];
-  // OnlyNonAD decides if only non-AD desktops should match or all of them
-  bool OnlyNonAD = 3 [(gogoproto.jsontag) = "only_non_ad"];
 }
 
 // WindowsDesktopV3 represents a Windows host for desktop access.

@@ -40,6 +40,7 @@ func NewWindowsDesktopService(backend backend.Backend) *WindowsDesktopService {
 	return &WindowsDesktopService{Backend: backend}
 }
 
+// CheckOSSDesktopsLimit checks if number of non-AD is in limit for OSS distribution. Returns always true for Enterprise
 func (s *WindowsDesktopService) CheckOSSDesktopsLimit(ctx context.Context) (bool, error) {
 	if modules.GetModules().BuildType() != modules.BuildOSS {
 		return true, nil
