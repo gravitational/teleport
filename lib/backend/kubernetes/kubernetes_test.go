@@ -350,7 +350,7 @@ func TestBackend_Put(t *testing.T) {
 				func(action k8stesting.Action) (bool, runtime.Object, error) {
 					secretResourceVersion := corev1.SchemeGroupVersion.WithResource("secrets")
 					applyAction := action.(k8stesting.PatchActionImpl)
-
+					
 					var secret *corev1.Secret
 
 					// FIXME(tigrato): in the future merge  applyAction.Patch into the data
