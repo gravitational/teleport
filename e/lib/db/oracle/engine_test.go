@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -94,13 +95,13 @@ func TestOracleEngine(t *testing.T) {
 		client, engineConn := net.Pipe()
 		defer client.Close()
 		defer engineConn.Close()
-		err = engine.InitializeConnection(engineConn, session)
+		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
 		connectBytes := protocol.MustDecodePacketDump(t, testdata.ConnectPacketDump)
 		go func() {
-			_, err = client.Write(connectBytes)
-			require.NoError(t, err)
+			_, wErr := client.Write(connectBytes)
+			assert.NoError(t, wErr)
 		}()
 		go engine.HandleConnection(context.Background(), session)
 
@@ -119,15 +120,15 @@ func TestOracleEngine(t *testing.T) {
 		defer engineConn.Close()
 		// The database encoded in user identity should match the ConnectPacketDump ServerName content.
 		session.Identity.RouteToDatabase.Database = "DB1"
-		err = engine.InitializeConnection(engineConn, session)
+		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
 		connectBytes := protocol.MustDecodePacketDump(t, testdata.ConnectPacketDump)
 		go func() {
-			_, err = client.Write(connectBytes)
-			require.NoError(t, err)
+			_, wErr := client.Write(connectBytes)
+			assert.NoError(t, wErr)
 		}()
-		err := engine.HandleConnection(context.Background(), session)
+		err = engine.HandleConnection(context.Background(), session)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "match between TLS identity database name and Oracle Connect Packet ServerName")
 	})
@@ -138,10 +139,10 @@ func TestOracleEngine(t *testing.T) {
 		defer engineConn.Close()
 		session.DatabaseName = "DB2"
 		session.DatabaseUser = "alice"
-		err = engine.InitializeConnection(engineConn, session)
+		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
-		err := engine.HandleConnection(context.Background(), session)
+		err = engine.HandleConnection(context.Background(), session)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -152,10 +153,10 @@ func TestOracleEngine(t *testing.T) {
 		defer engineConn.Close()
 		session.DatabaseName = "XE"
 		session.DatabaseUser = "bob"
-		err = engine.InitializeConnection(engineConn, session)
+		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
-		err := engine.HandleConnection(context.Background(), session)
+		err = engine.HandleConnection(context.Background(), session)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 	})
