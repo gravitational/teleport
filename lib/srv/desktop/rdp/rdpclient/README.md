@@ -154,6 +154,19 @@ const _: () = {
 };
 ```
 
+and tell the compiler the nature of `Client` in the `where` clause of each function signature at the FFI
+boundary:
+
+```rust
+#[no_mangle]
+pub unsafe extern "C" fn call_into_rust_from_go(client_ptr: *mut Client) -> CGOErrCode
+where
+    Client: Send + Sync, // Tell the compiler that `Client` is `Send + Sync`
+{
+    //...
+}
+```
+
 ##### Immutable Reference (`&Client`)
 
 One of the foundational memory guarantees of the Rust compiler is that a mutable borrow (`&mut T`)
@@ -166,11 +179,14 @@ a temptation to get a `&mut Client` at the top of `call_into_rust_from_go` like
 
 ```rust
 #[no_mangle]
-pub unsafe extern "C" fn call_into_rust_from_go(client_ptr: *mut Client) -> CGOErrCode {
-  // Get immutable reference of Client
-  let client: &mut Client = Box::leak(Box::from_raw(ptr);
-  // Do stuff with our immutable reference to Client
-  client.do_mutable_stuff()
+pub unsafe extern "C" fn call_into_rust_from_go(client_ptr: *mut Client) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    // Get immutable reference of Client
+    let client: &mut Client = Box::leak(Box::from_raw(client_ptr));
+    // Do stuff with our immutable reference to Client
+    client.do_mutable_stuff()
 }
 ```
 
