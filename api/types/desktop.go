@@ -225,7 +225,7 @@ func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 	if f.Name != "" && req.GetName() != f.Name {
 		return false
 	}
-	return req.NonAD() || !f.OnlyNonAD
+	return true
 }
 
 // WindowsDesktops represents a list of Windows desktops.
