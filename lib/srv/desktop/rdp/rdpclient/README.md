@@ -132,20 +132,25 @@ is called from Go, it can be:
 1. scheduled by the Go scheduler on any arbitrary thread, and
 2. can run concurrently with another thread also using the `Client`
 
-##### `Sync`
+##### `Send + Sync`
 
 With these constraints in mind, we can determine that `Client` must be forced to remain `Sync`,
-because the very definition of `Sync` "Types for which it is safe to share references between threads."
+because the very [definition of `Sync`](https://doc.rust-lang.org/std/marker/trait.Sync.html)
+is "[t]ypes for which it is safe to share references between threads."
 Because the `Client` is owned by Go (meaning logically, we can only have references in Rust), and
 per 1 and 2 above the references in Rust must be shared between threads, the `Client` must be safe to
 do so (aka it must be `Sync`).
 
-We enforce `Sync` via this little Rust compiler hack
+`Client` must also be `Send`, because we need to create it in one thread (one call from Go) and then drop it
+in another (another call from an arbitrary goroutine in Go), which in Rust semantics is equivalent to passing
+an owned object over thread boundaries, aka [the definition of `Send`](https://doc.rust-lang.org/std/marker/trait.Send.html).
+
+We enforce `Send + Sync` via this little Rust compiler hack
 
 ```rust
 const _: () = {
-    const fn assert_sync<T: Sync>() {}
-    assert_sync::<Client>();
+    const fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<Client>();
 };
 ```
 
