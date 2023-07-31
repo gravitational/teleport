@@ -18,6 +18,8 @@ const DestinationKubernetesSecretType = "kubernetes_secret"
 const kubernetesNamespaceEnv = "POD_NAMESPACE"
 
 type DestinationKubernetesSecret struct {
+	// Name is the name the Kubernetes Secret that should be created and written
+	// to.
 	Name string `yaml:"name"`
 
 	mu        sync.Mutex
@@ -74,6 +76,8 @@ func (dks *DestinationKubernetesSecret) Verify(_ []string) error {
 }
 
 func (dks *DestinationKubernetesSecret) TryLock() (func() error, error) {
+	// No locking support currently implemented. Users will need to be cautious
+	// to not point two tbots to the same secret.
 	return func() error { return nil }, nil
 }
 
@@ -131,11 +135,10 @@ func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []stri
 	return nil
 }
 
-func (dks *DestinationKubernetesSecret) Write(name string, data []byte) error {
+func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, data []byte) error {
 	dks.mu.Lock()
 	defer dks.mu.Unlock()
 
-	ctx := context.TODO()
 	secret, err := dks.getSecret(ctx)
 	if err != nil {
 		if !kubeerrors.IsNotFound(err) {

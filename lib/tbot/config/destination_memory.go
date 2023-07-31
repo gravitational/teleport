@@ -63,7 +63,7 @@ func (dm *DestinationMemory) Verify(keys []string) error {
 	return nil
 }
 
-func (dm *DestinationMemory) Write(name string, data []byte) error {
+func (dm *DestinationMemory) Write(ctx context.Context, name string, data []byte) error {
 	dm.store[name] = data
 
 	return nil

@@ -32,7 +32,7 @@ type Destination interface {
 	Verify(keys []string) error
 
 	// Write stores data to the destination with the given name.
-	Write(name string, data []byte) error
+	Write(ctx context.Context, name string, data []byte) error
 
 	// Read fetches data from the destination with a given name.
 	Read(name string) ([]byte, error)

@@ -57,7 +57,7 @@ type Bot struct {
 	opts       Options
 }
 
-func (b *Bot) initializeConfig() {
+func (b *Bot) initializeConfig(ctx context.Context) {
 	// Initialize the memory stores. They contain identities renewed by the bot
 	// We're reading certs directly from them
 	rootMemoryStore := &config.DestinationMemory{}
@@ -91,8 +91,8 @@ func (b *Bot) initializeConfig() {
 	destMemoryStore.CheckAndSetDefaults()
 
 	for _, artifact := range identity.GetArtifacts() {
-		_ = destMemoryStore.Write(artifact.Key, []byte{})
-		_ = rootMemoryStore.Write(artifact.Key, []byte{})
+		_ = destMemoryStore.Write(ctx, artifact.Key, []byte{})
+		_ = rootMemoryStore.Write(ctx, artifact.Key, []byte{})
 	}
 
 }
@@ -120,7 +120,7 @@ func (b *Bot) GetClient(ctx context.Context) (*client.Client, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if err := b.cfg.Outputs[0].GetDestination().Write(artifact.Key, value); err != nil {
+			if err := b.cfg.Outputs[0].GetDestination().Write(nil, artifact.Key, value); err != nil {
 				return nil, trace.Wrap(err)
 			}
 
@@ -228,7 +228,7 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 		opts:       opts,
 	}
 
-	bot.initializeConfig()
+	bot.initializeConfig(ctx)
 	return bot, ping.ServerFeatures, nil
 }
 

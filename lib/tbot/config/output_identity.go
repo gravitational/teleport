@@ -69,7 +69,7 @@ func (o *IdentityOutput) templates() []template {
 
 func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	dest := o.GetDestination()
-	if err := identity.SaveIdentity(ident, dest, identity.DestinationKinds()...); err != nil {
+	if err := identity.SaveIdentity(ctx, ident, dest, identity.DestinationKinds()...); err != nil {
 		return trace.Wrap(err, "persisting identity")
 	}
 

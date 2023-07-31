@@ -231,7 +231,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 
 	// Start by loading the bot's primary storage.
 	store := b.cfg.Storage.Destination
-	if err := identity.VerifyWrite(store); err != nil {
+	if err := identity.VerifyWrite(ctx, store); err != nil {
 		return nil, trace.Wrap(
 			err, "Could not write to destination %s, aborting.", store,
 		)
@@ -290,7 +290,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
-	if err := identity.SaveIdentity(newIdentity, store, identity.BotKinds()...); err != nil {
+	if err := identity.SaveIdentity(ctx, newIdentity, store, identity.BotKinds()...); err != nil {
 		return unlock, trace.Wrap(err)
 	}
 

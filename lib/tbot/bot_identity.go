@@ -111,7 +111,7 @@ func (b *Bot) renewBotIdentity(
 ) error {
 	currentIdentity := b.ident()
 	// Make sure we can still write to the bot's destination.
-	if err := identity.VerifyWrite(botDestination); err != nil {
+	if err := identity.VerifyWrite(ctx, botDestination); err != nil {
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
@@ -142,7 +142,7 @@ func (b *Bot) renewBotIdentity(
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
 	b.setIdent(newIdentity)
 
-	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
+	if err := identity.SaveIdentity(ctx, newIdentity, botDestination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err)
 	}
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot identity persisted.")
