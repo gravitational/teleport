@@ -29,12 +29,26 @@ import useTeleport from 'teleport/useTeleport';
 
 import { useResources } from './useResources';
 import { ResourceCard } from './ResourceCard';
-import { AgentKind } from 'teleport/services/agents';
+import { UnifiedResource } from 'teleport/services/agents';
 import { gap } from 'design/system';
 
 export function Resources() {
   const teleCtx = useTeleport();
   const { attempt, fetchedData, fetchMore } = useResources(teleCtx);
+  const observed = React.useRef(null);
+
+  React.useEffect(() => {
+    if (observed.current) {
+      const observer = new IntersectionObserver(entries => {
+        console.log('INTERSECT', entries[0]);
+        if (entries[0].isIntersecting) {
+          fetchMore();
+        }
+      });
+      observer.observe(observed.current);
+      return () => observer.disconnect();
+    }
+  });
 
   return (
     <FeatureBox>
@@ -52,13 +66,15 @@ export function Resources() {
       {attempt.status === 'success' && (
         <>
           <ResourcesContainer gap={2}>
-            {fetchedData.agents.map(agent => (
-              <ResourceCard key={agent.name} resource={agent} />
+            {fetchedData.agents.map((agent, i) => (
+              <ResourceCard key={i} resource={agent} />
             ))}
           </ResourcesContainer>
-          <div style={{ marginTop: 16 }}>
-            <ButtonPrimary onClick={fetchMore}>Fetch More</ButtonPrimary>
-          </div>
+          {fetchedData.startKey && (
+            <div ref={observed}>
+              <Indicator />
+            </div>
+          )}
         </>
       )}
     </FeatureBox>
@@ -66,9 +82,9 @@ export function Resources() {
 }
 
 // TODO(bl-nero): this is almost certainly not unique.
-function agentKey(agent: AgentKind): string {
-  return `${agent.kind}:${agent.name}`;
-}
+// function agentKey(agent: UnifiedResource): string {
+//   return `${agent.kind}:${agent.name}`;
+// }
 
 const ResourcesContainer = styled(Flex)`
   display: grid;

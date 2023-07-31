@@ -57,8 +57,7 @@
       "gen-proto-js/*": [
         "gen/proto/js/*"
       ]
-    },
-    "outDir": "dist"
+    }
   },
   "include": [
     "e/web/**/*.ts",
@@ -70,11 +69,7 @@
     "web/**/*.js",
     "web/**/*.jsx"
   ],
-  "references": [
-    {
-      "path": "./tsconfig.node.json"
-    }
-  ],
+  "references": [{ "path": "./tsconfig.node.json"}],
   "exclude": [
     "**/vite.config.ts",
     "web/packages/build/**/*",
@@ -84,5 +79,5 @@
     "**/dist/*",
     "**/build/app/**",
     "**/build/release/**"
-  ],
+  ]
 }

@@ -49,7 +49,7 @@ import type { TeleportFeature, FeatureFlags } from './types';
 const Audit = lazy(() => import('./Audit'));
 const Nodes = lazy(() => import('./Nodes'));
 const Sessions = lazy(() => import('./Sessions'));
-const Resources = lazy(() => import('./Resources'));
+const UnifiedResources = lazy(() => import('./UnifiedResources'));
 const Account = lazy(() => import('./Account'));
 const Applications = lazy(() => import('./Apps'));
 const Kubes = lazy(() => import('./Kubes'));
@@ -103,7 +103,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
     title: 'Resources',
     path: cfg.routes.resources,
     exact: true,
-    component: Resources,
+    component: UnifiedResources,
   };
 
   navigationItem = {

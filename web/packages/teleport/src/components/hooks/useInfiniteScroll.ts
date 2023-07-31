@@ -63,6 +63,9 @@ export function useInfiniteScroll<T extends AgentKind>({
 
   const fetchMore = async () => {
     try {
+      if (!fetchedData.startKey) {
+        return;
+      }
       const res = await fetchFunc(clusterId, {
         ...params,
         limit: fetchMoreSize,
