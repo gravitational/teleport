@@ -1741,6 +1741,9 @@ func (process *TeleportProcess) initAuthService() error {
 		},
 		ResourceGetter: authServer,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
