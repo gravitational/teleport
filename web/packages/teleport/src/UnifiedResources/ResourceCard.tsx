@@ -42,13 +42,23 @@ const TruncatingLabel = styled(Label)`
   white-space: nowrap;
 `;
 
+/**
+ * This box serves twofold purpose: first, it prevents the underlying icon from
+ * being squeezed if the parent flexbox starts shrinking items. Second, it
+ * prevents the icon from magically occupying too much space, since the SVG
+ * element somehow forces the parent to occupy at least full line height.
+ */
+const ResTypeIconBox = styled(Box)`
+  line-height: 0;
+`;
+
 type Props = {
   resource: UnifiedResource;
 };
 export const ResourceCard = ({ resource }: Props) => {
   const name = resourceName(resource);
   const resIcon = resourceIconName(resource);
-  const ResTypeIcon = resouceTypeIcon(resource.kind);
+  const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
   return (
     <CardContainer p={3} alignItems="start">
@@ -56,8 +66,8 @@ export const ResourceCard = ({ resource }: Props) => {
       <ResourceIcon
         alignSelf="center"
         name={resIcon}
-        width="60px"
-        height="60px"
+        width="45px"
+        height="45px"
         ml={2}
       />
       {/* MinWidth is important to prevent descriptions from overflowing. */}
@@ -68,11 +78,10 @@ export const ResourceCard = ({ resource }: Props) => {
           </SingleLineBox>
           <ButtonBorder size="small">Connect</ButtonBorder>
         </Flex>
-        <Flex flexDirection="row">
-          {/* This box prevents the icon from being squeezed if the flexbox starts shrinking items. */}
-          <Box>
+        <Flex flexDirection="row" alignItems="center">
+          <ResTypeIconBox>
             <ResTypeIcon size={18} />
-          </Box>
+          </ResTypeIconBox>
           {description.primary && (
             <SingleLineBox ml={1} title={description.primary}>
               <Text typography="body2" color="text.slightlyMuted">
@@ -89,9 +98,14 @@ export const ResourceCard = ({ resource }: Props) => {
           )}
         </Flex>
         <Flex gap={1}>
-          {resource.labels.map(({ name, value }) => (
-            <TruncatingLabel kind="secondary">{`${name}: ${value}`}</TruncatingLabel>
-          ))}
+          {resource.labels.map(({ name, value }) => {
+            const label = `${name}: ${value}`;
+            return (
+              <TruncatingLabel key={label} title={label} kind="secondary">
+                {label}
+              </TruncatingLabel>
+            );
+          })}
         </Flex>
       </Flex>
     </CardContainer>
@@ -114,8 +128,8 @@ function resourceDescription(resource: UnifiedResource) {
     case 'kube_cluster':
       return { primary: 'Kubernetes' };
     case 'node':
-      // TODO: Pass the subkind to display as the primary and push addr to
-      // secondary.
+      // TODO(bl-nero): Pass the subkind to display as the primary and push addr
+      // to secondary.
       return { primary: resource.addr };
     case 'windows_desktop':
       return { primary: 'Windows', secondary: resource.addr };
@@ -143,7 +157,7 @@ function resourceIconName(resource: UnifiedResource): ResourceIconName {
   }
 }
 
-function resouceTypeIcon(kind: UnifiedResourceKind) {
+function resourceTypeIcon(kind: UnifiedResourceKind) {
   switch (kind) {
     case 'app':
       return ApplicationsIcon;
