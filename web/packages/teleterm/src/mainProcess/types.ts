@@ -49,6 +49,8 @@ export type RuntimeSettings = {
   arch: string;
   osVersion: string;
   appVersion: string;
+  username: string;
+  hostname: string;
 };
 
 export type MainProcessClient = {

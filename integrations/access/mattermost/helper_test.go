@@ -16,8 +16,16 @@
 
 package mattermost
 
+import (
+	"context"
+	"sync/atomic"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
+)
+
 type MattermostPostSlice []Post
-type MattermostDataPostSet map[MattermostDataPost]struct{}
+type MattermostDataPostSet map[common.MessageData]struct{}
 
 func (slice MattermostPostSlice) Len() int {
 	return len(slice)
@@ -34,11 +42,28 @@ func (slice MattermostPostSlice) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func (set MattermostDataPostSet) Add(msg MattermostDataPost) {
+func (set MattermostDataPostSet) Add(msg common.MessageData) {
 	set[msg] = struct{}{}
 }
 
-func (set MattermostDataPostSet) Contains(msg MattermostDataPost) bool {
+func (set MattermostDataPostSet) Contains(msg common.MessageData) bool {
 	_, ok := set[msg]
 	return ok
+}
+
+type fakeStatusSink struct {
+	status atomic.Pointer[types.PluginStatus]
+}
+
+func (s *fakeStatusSink) Emit(_ context.Context, status types.PluginStatus) error {
+	s.status.Store(&status)
+	return nil
+}
+
+func (s *fakeStatusSink) Get() types.PluginStatus {
+	status := s.status.Load()
+	if status == nil {
+		panic("expected status to be set, but it has not been")
+	}
+	return *status
 }
