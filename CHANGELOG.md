@@ -2,7 +2,7 @@
 
 ## 13.3.0 (08/01/23)
 
-* Added azure support [#29734](https://github.com/gravitational/teleport/pull/29734)
+* Added azure support to Helm charts[#29734](https://github.com/gravitational/teleport/pull/29734)
 * Fixed Kubernetes Legacy Proxy heartbeats [#29738](https://github.com/gravitational/teleport/pull/29738)
 * Added Postgres backend and Azure session storage [#29705](https://github.com/gravitational/teleport/pull/29705)
 * Bumped Buf to v1.25.0 [#29701](https://github.com/gravitational/teleport/pull/29701)
