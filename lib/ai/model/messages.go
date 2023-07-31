@@ -56,7 +56,7 @@ type CompletionCommand struct {
 // CompletionRequest represents an access request suggestion returned by OpenAI's completion API.
 type AccessRequest struct {
 	Roles              []string `json:"roles"`
-	ResourceIDs        []string `json:"resource_ids"`
+	Resources          []string `json:"resources"`
 	Reason             string   `json:"reason"`
 	SuggestedReviewers []string `json:"suggested_reviewers"`
 }

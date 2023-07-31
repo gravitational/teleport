@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
@@ -222,7 +223,8 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	case *accessRequestCreateTool:
-		request, err := tool.parseInput(action.Input)
+		accessRequest, err := tool.parseInput(action.Input)
+		fmt.Printf("%#v\n", accessRequest)
 		if err != nil {
 			action := &AgentAction{
 				Action: actionException,
@@ -233,7 +235,27 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 			return stepOutput{action: action, observation: action.Input}, nil
 		}
 
-		return stepOutput{finish: &agentFinish{output: request}}, nil
+		resourceIDs := make([]types.ResourceID, 0, len(accessRequest.Resources))
+		for _, resourceName := range accessRequest.Resources {
+			resourceIDs = append(resourceIDs, types.ResourceID{
+				ClusterName: a.toolCtx.ClusterName,
+				Kind:        types.KindNode,
+				Name:        resourceName,
+			})
+		}
+
+		accessRequestItem, err := types.NewAccessRequestWithResources(uuid.NewString(), a.toolCtx.User, accessRequest.Roles, resourceIDs)
+		if err != nil {
+			return stepOutput{}, trace.Wrap(err)
+		}
+
+		err = a.toolCtx.CreateAccessRequest(ctx, accessRequestItem)
+		if err != nil {
+			return stepOutput{}, trace.Wrap(err)
+		}
+
+		output := observationPrefix + "Created access request"
+		return stepOutput{action: action, observation: output}, nil
 	case *accessRequestsDisplayTool:
 		requests, err := a.toolCtx.GetAccessRequests(ctx, types.AccessRequestFilter{
 			User: a.toolCtx.User,
