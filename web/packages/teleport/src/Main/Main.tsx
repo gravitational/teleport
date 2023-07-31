@@ -160,7 +160,7 @@ export function Main(props: MainProps) {
       >
         <MainContainer>
           <Navigation />
-          <HorizontalSplit id="h-split">
+          <HorizontalSplit>
             <ContentMinWidth>
               <Suspense fallback={null}>
                 <TopBar />

@@ -17,11 +17,11 @@
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 
-import { AgentKind, AgentResponse } from '../agents';
+import { UnifiedResource, AgentResponse } from '../agents';
 
 import { makeUnifiedResource } from './makeUnifiedResource';
 
-import { UnifiedResource, makeResource, makeResourceList } from './';
+import { makeResource, makeResourceList } from './';
 
 class ResourceService {
   fetchTrustedClusters() {
