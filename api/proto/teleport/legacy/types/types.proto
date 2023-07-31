@@ -5345,15 +5345,12 @@ message PluginJiraSettings {
   // ServerURL is the address of the target JIRA Server instance.
   string server_url = 1;
 
-  // Project is the key of the Jira project that will receive
+  // ProjectKey is the key of the Jira project that will receive
   // notifications and issues from the plugin.
-  string project = 2;
+  string project_key = 2;
 
   // IssueType is the type of Jira Issue that the plugin will create
   string issue_type = 3;
-
-  // Username of the Jira user
-  string username = 4;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.

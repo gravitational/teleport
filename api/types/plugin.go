@@ -410,6 +410,14 @@ func (s *PluginJiraSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("Jira server URL must be set")
 	}
 
+	if s.ProjectKey == "" {
+		return trace.BadParameter("Jira project key must be set")
+	}
+
+	if s.IssueType == "" {
+		return trace.BadParameter("Jira issue type must be set")
+	}
+
 	return nil
 }
 
