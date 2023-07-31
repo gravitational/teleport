@@ -158,18 +158,22 @@ export function NavigationItem(props: NavigationItemProps) {
 
   // shouldAlert returns red dot alert if the feature name exist in recommendFeature
   // context and the feature value is set true.
-  function shouldAlert(featureName: string): JSX.Element {
+  function shouldAlert(featureName: any): JSX.Element {
+    // We'll only ever recommend features once initial onboarding is completed.
+      // if onboarding is required, let's skip below.
     const onboard = localStorage.getOnboardDiscover();
     const requiresOnboarding =
       onboard && !onboard.hasResource && !onboard.notified;
 
     if (requiresOnboarding) {
-      return null
+      return null;
     }
 
+    const recommendFeature = localStorage.getFeatureRecommendationStatus();
+
     if (
-      featureName in ctx.recommendFeature &&
-      ctx.recommendFeature.FeatureDeviceTrust
+      featureName === 'Trusted Devices' &&
+      recommendFeature?.TrustedDevices === 'Pending'
     ) {
       return <RedDot />;
     }
@@ -235,7 +239,7 @@ export function NavigationItem(props: NavigationItemProps) {
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
             {navigationItemVersion.title}
-            {shouldAlert(props.feature.constructor.name)}
+            {shouldAlert(props.feature.navigationItem.title)}
           </LinkContent>
         </Link>
       );
@@ -258,5 +262,5 @@ const RedDot = styled.div`
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color:  ${props => props.theme.colors.error.main};
+  background-color: ${props => props.theme.colors.error.main};
 `;

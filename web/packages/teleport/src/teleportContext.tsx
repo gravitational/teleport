@@ -74,10 +74,6 @@ class TeleportContext implements types.Context {
     trustedDevices: cfg.isUsageBasedBilling,
   };
 
-  recommendFeature: types.RecommendFeature = {
-    FeatureDeviceTrust: false,
-  };
-
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
   // block.
