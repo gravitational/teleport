@@ -579,6 +579,36 @@ func (e *EditorChangeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 	}
 }
 
+type AssistExecutionEvent prehogv1a.AssistExecutionEvent
+
+func (e *AssistExecutionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistExecution{
+			AssistExecution: &prehogv1a.AssistExecutionEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				ConversationId:   e.ConversationId,
+				NodeCount:        e.NodeCount,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
+type AssistNewConversationEvent prehogv1a.AssistNewConversationEvent
+
+func (e *AssistNewConversationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistNewConversation{
+			AssistNewConversation: &prehogv1a.AssistNewConversationEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Category: e.Category,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
@@ -844,6 +874,22 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			TotalTokens:      e.AssistCompletion.TotalTokens,
 			PromptTokens:     e.AssistCompletion.PromptTokens,
 			CompletionTokens: e.AssistCompletion.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistExecution:
+		ret := &AssistExecutionEvent{
+			UserName:         userMD.Username,
+			ConversationId:   e.AssistExecution.ConversationId,
+			NodeCount:        e.AssistExecution.NodeCount,
+			TotalTokens:      e.AssistExecution.TotalTokens,
+			PromptTokens:     e.AssistExecution.PromptTokens,
+			CompletionTokens: e.AssistExecution.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistNewConversation:
+		ret := &AssistNewConversationEvent{
+			UserName: userMD.Username,
+			Category: e.AssistNewConversation.Category,
 		}
 		return ret, nil
 	default:

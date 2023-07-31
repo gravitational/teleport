@@ -20,11 +20,12 @@ import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
 import {
+  OnboardUserPreferences,
   ThemePreference,
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
 
-import { KeysEnum } from './types';
+import { KeysEnum, LocalStorageSurvey } from './types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
@@ -119,6 +120,24 @@ const storage = {
     );
   },
 
+  getOnboardSurvey(): LocalStorageSurvey {
+    const survey = window.localStorage.getItem(KeysEnum.ONBOARD_SURVEY);
+    if (survey) {
+      return JSON.parse(survey);
+    }
+    return null;
+  },
+
+  setOnboardSurvey(survey: LocalStorageSurvey) {
+    const json = JSON.stringify(survey);
+
+    window.localStorage.setItem(KeysEnum.ONBOARD_SURVEY, json);
+  },
+
+  clearOnboardSurvey() {
+    window.localStorage.removeItem(KeysEnum.ONBOARD_SURVEY);
+  },
+
   getThemePreference(): ThemePreference {
     const userPreferences = storage.getUserPreferences();
     if (userPreferences) {
@@ -131,6 +150,15 @@ const storage = {
     }
 
     return ThemePreference.Light;
+  },
+
+  getOnboardUserPreference(): OnboardUserPreferences {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.onboard;
+    }
+
+    return { preferredResources: [] };
   },
 
   // DELETE IN 15 (ryan)

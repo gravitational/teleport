@@ -899,6 +899,16 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 		| tee $(TEST_LOG_DIR)/integration-root.json \
 		| $(RENDER_TESTS) -report-by test
 
+
+.PHONY: e2e-aws
+e2e-aws: FLAGS ?= -v -race
+e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
+e2e-aws: $(TEST_LOG_DIR) $(RENDER_TESTS)
+	@echo TEST_KUBE: $(TEST_KUBE)
+	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) \
+		| tee $(TEST_LOG_DIR)/e2e-aws.json \
+		| $(RENDER_TESTS) -report-by test
+
 #
 # Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
@@ -1226,6 +1236,15 @@ protos-up-to-date/host: must-start-clean/host grpc/host
 must-start-clean/host:
 	@if ! $(GIT) diff --quiet; then \
 		echo 'This must be run from a repo with no unstaged commits.'; \
+		exit 1; \
+	fi
+
+# crds-up-to-date checks if the generated CRDs from the protobuf stubs are up to date.
+.PHONY: crds-up-to-date
+crds-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/operator manifests
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make -C integrations/operator manifests.'; \
 		exit 1; \
 	fi
 

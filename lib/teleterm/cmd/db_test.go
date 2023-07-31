@@ -24,6 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -52,14 +53,24 @@ type fakeStorage struct {
 	clusters []*clusters.Cluster
 }
 
-func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, error) {
+func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	for _, cluster := range f.clusters {
 		if strings.HasPrefix(resourceURI.String(), cluster.URI.String()) {
-			return cluster, nil
+			siteName := ""
+			if cluster.URI.IsLeaf() {
+				siteName = cluster.Name
+			}
+			tc := &client.TeleportClient{
+				Config: client.Config{
+					SiteName: siteName,
+				},
+			}
+
+			return cluster, tc, nil
 		}
 	}
 
-	return nil, trace.NotFound("not found")
+	return nil, nil, trace.NotFound("not found")
 }
 
 type fakeDatabaseGateway struct {

@@ -134,7 +134,8 @@ export default class AppContext implements IAppContext {
       this.clustersService
     );
     this.connectMyComputerService = new ConnectMyComputerService(
-      this.mainProcessClient
+      this.mainProcessClient,
+      tshClient
     );
   }
 

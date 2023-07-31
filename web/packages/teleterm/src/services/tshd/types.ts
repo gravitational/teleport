@@ -46,7 +46,7 @@ export interface Server extends apiServer.Server.AsObject {
 
 export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri;
   // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
   gatewayCliCommand: GatewayCLICommand;
 }
@@ -229,6 +229,17 @@ export type TshClient = {
     abortSignal?: TshAbortSignal
   ) => FileTransferListeners;
   reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
+
+  createConnectMyComputerRole: (
+    rootClusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: (
+    clusterUri: uri.RootClusterUri
+  ) => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: (
+    clusterUri: uri.RootClusterUri,
+    token: string
+  ) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -261,7 +272,7 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.KubeUri;
   port?: string;
   user: string;
   subresource_name?: string;
@@ -315,6 +326,12 @@ export type AssumedRequest = {
 export { FileTransferDirection };
 
 export type Label = apiLabel.Label.AsObject;
+
+export type CreateConnectMyComputerRoleResponse =
+  apiService.CreateConnectMyComputerRoleResponse.AsObject;
+
+export type CreateConnectMyComputerNodeTokenResponse =
+  apiService.CreateConnectMyComputerNodeTokenResponse.AsObject;
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

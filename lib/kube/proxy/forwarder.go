@@ -42,7 +42,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -106,7 +105,7 @@ const (
 	// LegacyProxyService is a Teleport proxy_service with the kubernetes section
 	// enabled. A LegacyProxyService can forward requests directly to a Kubernetes
 	// endpoint, or to another Teleport LegacyProxyService or KubeService.
-	LegacyProxyService = "legacy_proxy (legacy kubernetes)"
+	LegacyProxyService = "legacy_proxy"
 )
 
 // ForwarderConfig specifies configuration for proxy forwarder
@@ -351,10 +350,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
-	fwd.router = otelhttp.NewHandler(router,
-		fwd.cfg.KubeServiceType,
-		otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
-	)
+	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
 
 	if cfg.ClusterOverride != "" {
 		fwd.log.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
@@ -570,7 +566,10 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	// kubeResource is the Kubernetes Resource the request is targeted at.
 	// Currently only supports Pods and it includes the pod name and namespace.
-	kubeResource, apiResource := getResourceFromRequest(req)
+	kubeResource, apiResource, err := getResourceFromRequest(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, apiResource, kubeResource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
@@ -1154,6 +1153,11 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 
 // join joins an existing session over a websocket connection
 func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+	// Increment the request counter and the in-flight gauge.
+	joinSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	defer joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+
 	f.log.Debugf("Join %v.", req.URL.String())
 
 	sess, err := f.newClusterSession(req.Context(), *ctx)
@@ -1594,6 +1598,11 @@ func exitCode(err error) (errMsg, code string) {
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+	// Increment the request counter and the in-flight gauge.
+	execSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	defer execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/exec",
@@ -1728,6 +1737,11 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 
 // portForward starts port forwarding to the remote cluster
 func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+	// Increment the request counter and the in-flight gauge.
+	portforwardRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
+	defer portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/portForward",

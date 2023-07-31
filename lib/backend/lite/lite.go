@@ -275,6 +275,10 @@ type Backend struct {
 	closedFlag int32
 }
 
+func (l *Backend) GetName() string {
+	return GetName()
+}
+
 // showPragmas is used to debug SQLite database connection
 // parameters, when called, logs some key PRAGMA values
 func (l *Backend) showPragmas() error {
