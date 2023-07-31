@@ -101,7 +101,7 @@ func buildWorkflows(releaseEnvironmentFilePath string, packageDeployments []osPa
 			workflows = append(workflows, ghaWorkflow{
 				stepName:          fmt.Sprintf("Publish %s to stable/%s %s repo", packageDeployment.displayName, packageDeployment.versionChannel, repoType),
 				name:              "deploy-packages.yaml",
-				ref:               "refs/heads/master",
+				ref:               "refs/heads/fred/oprt-parallel-2",
 				timeout:           12 * time.Hour, // DR takes a long time
 				shouldTagWorkflow: true,
 				seriesRun:         true,
