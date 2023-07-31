@@ -506,7 +506,7 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
 				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
-			clustersNotUpdated: []string{"eks-cluster1"},
+			clustersNotUpdated: []string{mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup).GetName()},
 		},
 		{
 			name: "1 cluster in auth that belongs the same discovery group but has unmatched labels + import 2 prod clusters from EKS",
@@ -593,7 +593,7 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
 				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], mainDiscoveryGroup),
 			},
-			clustersNotUpdated: []string{"aks-cluster1"},
+			clustersNotUpdated: []string{mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup).GetName()},
 		},
 		{
 			name:                 "no clusters in auth server, import 2 prod clusters from GKE",
@@ -1061,7 +1061,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "update existing database",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should be updated",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
 				}, types.DatabaseSpecV3{
@@ -1085,7 +1085,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "update existing database with assumed role",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-rds",
+					Name:        awsRDSDBWithRole.GetName(),
 					Description: "should be updated",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
 				}, types.DatabaseSpecV3{
@@ -1105,7 +1105,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "delete existing database",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should not be deleted",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
 				}, types.DatabaseSpecV3{
@@ -1120,7 +1120,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}},
 			expectDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should not be deleted",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
 				}, types.DatabaseSpecV3{

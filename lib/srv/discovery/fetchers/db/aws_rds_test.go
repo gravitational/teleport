@@ -245,7 +245,6 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	customDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 	require.NoError(t, err)
 	databases = append(databases, customDatabases...)
-
 	return cluster, databases
 }
 
