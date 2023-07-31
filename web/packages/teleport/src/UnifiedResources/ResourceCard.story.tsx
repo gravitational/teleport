@@ -53,7 +53,7 @@ const additionalResources = [
 
 const meta: Meta<typeof ResourceCard> = {
   component: ResourceCard,
-  title: 'Teleport/Resources/ResourceCard',
+  title: 'Teleport/UnifiedResources/ResourceCard',
 };
 
 const Grid = styled.div`
