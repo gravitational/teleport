@@ -66,8 +66,8 @@ following:
    If you have an IAM OIDC provider associated with your cluster, this command
    will print its ID.
 
- - The [`jq` CLI](https://jqlang.github.io/jq/), which we use to process JSON
-   data in this guide.
+ - The [`jq` CLI tool](https://jqlang.github.io/jq/), which we use to process
+   JSON data in this guide.
 
 ## Step 1/6. Create a Teleport user
 
@@ -79,9 +79,9 @@ In this section, you will configure the Teleport Database Service. To do so, you
 will:
 
 - Create a join token for the service to demonstrate trust with your Teleport
-  cluster
-- Set up your package manager so you can install and run the Database Service
-- Generate a configuration for the Database Service
+  cluster.
+- Set up your package manager so you can install and run the Database Service.
+- Generate a configuration for the Database Service.
 
 ### Create a join token
 
@@ -127,23 +127,22 @@ Install Teleport on the host where you will run the Teleport Database Service:
 Generate a configuration for the Teleport Database Service:
 
 Run the command below on your Linux host. Assign <Var
-name="mytenant.teleport.sh:443" /> to the host **and port** of your Teleport
-Proxy Service or Enterprise Cloud/Team tenant. Assign <Var name="us-west-1" />
-to the region associated with the RDS databases you would like Teleport to
+name="example.teleport.sh:443" /> to the host **and port** of your Teleport
+Proxy Service or Enterprise Cloud/Team site. Assign <Var name="us-west-1" /> to
+the region associated with the RDS databases you would like Teleport to
 discover.
 
 ```code
 $ teleport db configure create \
    -o file \
-   --proxy=<Var name="mytenant.teleport.sh:443" />  \
+   --proxy=<Var name="example.teleport.sh:443" />  \
    --token=/tmp/token \
    --rds-discovery=<Var name="us-west-1" />
 ```
 
-The command will generate a Database Service configuration with RDS/Aurora
-database auto-discovery enabled on the configured region and place it at the
-`/etc/teleport.yaml` location.
-
+The command will generate a Teleport Database Service configuration with
+RDS/Aurora database auto-discovery enabled on the configured region and place it
+at the `/etc/teleport.yaml` location.
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -161,8 +160,7 @@ The Teleport Database Service needs AWS IAM permissions to be able to:
 - Configure IAM authentication for them.
 
 In this step, we will show you how to provide the Teleport Database Service
-access to AWS credentials by using the Teleport configuration file we created
-earlier to automatically create and attach IAM policies:
+access to AWS credentials:
 
 <Tabs>
 <TabItem label="Linux Host">
@@ -239,8 +237,7 @@ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 Create a file called `trustpolicy.json` with the following content, assigning
 <Var name="oidc-issuer" /> to the issuer string you retrieved:
 
-```code
-$ cat > trustpolicy.json << EOF
+```var
 {
     "Version": "2012-10-17",
     "Statement": [
@@ -258,7 +255,6 @@ $ cat > trustpolicy.json << EOF
         }
     ]
 }
-EOF
 ```
 
 Create an IAM role with your trust policy. On success, the command will show the
@@ -302,14 +298,13 @@ Token                            Type Labels Expiry Time (UTC)
 
 Create a Helm values file called `values.yaml`, assigning <Var name="token" />
 to the value of the join token you retrieved above, <Var
-name="mytenant.teleport.sh:443" /> to the host **and port** of your Teleport
+name="example.teleport.sh:443" /> to the host **and port** of your Teleport
 Proxy Service, and <Var name="rds-uri" /> to the host **and port** of your RDS
 database (e.g., `myrds.us-east-1.rds.amazonaws.com:5432`):
 
-```code
-cat > values.yaml << EOF
+```var
 authToken: <Var name="token" />
-proxyAddr: <Var name="mytenant.teleport.sh:443" />
+proxyAddr: <Var name="example.teleport.sh:443" />
 roles: db
 databases:
 - name: example
@@ -322,7 +317,6 @@ databases:
 annotations:
   serviceAccount:
     eks.amazonaws.com/role-arn: arn:aws:iam::<Var name="aws-account" />:role/teleport-rds-role
-EOF
 ```
 
 Install the Helm chart for Teleport agent services, `teleport-kube-agent`:
@@ -395,7 +389,7 @@ Once the Database Service has started and joined the cluster, log in as the
 `alice` user you created earlier to see the registered databases:
 
 ```code
-$ tsh login --proxy=<Var name="mytenant.teleport.sh:443" /> --user=alice
+$ tsh login --proxy=<Var name="example.teleport.sh:443" /> --user=alice
 $ tsh db ls
 # Name                           Description                                   Labels
 # ------------------------------ --------------------------------------------- --------
@@ -412,7 +406,7 @@ $ tsh db ls
   `<cluster-id>`, `<cluster-id>-reader`, and
   `<cluster-id>-custom-<endpoint-name>` respectively.
 
-  You can override the `<cluster-id>` part of the name with
+  You can override the `<cluster-id>` part of the name with the
   `TeleportDatabaseName` AWS tag.
 
 </Admonition>
