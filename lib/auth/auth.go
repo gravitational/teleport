@@ -398,13 +398,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		)
 	}
 
-	go func() {
-		for {
-			as.CheckOSSDesktopsLimit(context.Background())
-			time.Sleep(OSSDesktopsCheckPeriod)
-		}
-	}()
-
 	return &as, nil
 }
 
@@ -941,6 +934,12 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer instancePeriodics.Stop()
 
+	ossDesktopsCheck := interval.New(interval.Config{
+		Duration:      OSSDesktopsCheckPeriod,
+		FirstDuration: utils.HalfJitter(time.Second * 10),
+		Jitter:        retryutils.NewHalfJitter(),
+	})
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -1001,6 +1000,10 @@ func (a *Server) runPeriodicOperations() {
 			// instance periodics are rate-limited and may be time-consuming in large
 			// clusters, so launch them in the background.
 			go a.doInstancePeriodics(ctx)
+		case <-ossDesktopsCheck.Next():
+			if _, err := a.CheckOSSDesktopsLimit(ctx); err != nil {
+				log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+			}
 		}
 	}
 }
@@ -4295,7 +4298,9 @@ func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) 
 	if err := a.Services.DeleteWindowsDesktop(ctx, hostID, name); err != nil {
 		return trace.Wrap(err)
 	}
-	a.CheckOSSDesktopsLimit(ctx)
+	if _, err := a.CheckOSSDesktopsLimit(ctx); err != nil {
+		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+	}
 	return nil
 }
 
