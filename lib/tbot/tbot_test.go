@@ -235,17 +235,17 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, identityOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 	})
 
 	t.Run("output: identity with role specified", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, identityOutputWithRoles.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botParams.UserName)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, kubeOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
@@ -253,7 +253,7 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: application", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, appOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
@@ -262,7 +262,7 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: database", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(t, dbOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(ctx, t, dbOutput.GetDestination())
 		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
