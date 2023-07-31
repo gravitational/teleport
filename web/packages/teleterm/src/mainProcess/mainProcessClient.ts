@@ -92,6 +92,12 @@ export default function createMainProcessClient(): MainProcessClient {
         clusterProperties
       );
     },
+    getAgentState(clusterProperties: { rootClusterUri: RootClusterUri }) {
+      return ipcRenderer.sendSync(
+        'main-process-connect-my-computer-get-agent-state',
+        clusterProperties
+      );
+    },
     subscribeToAgentUpdate: (rootClusterUri, listener) => {
       const onChange = (
         _,

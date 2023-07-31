@@ -44,9 +44,14 @@ export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
 }> = props => {
   const { mainProcessClient, connectMyComputerService } = useAppContext();
-  const [agentState, setAgentState] = useState<AgentProcessState>(() => ({
-    status: 'not-started',
-  }));
+  const [agentState, setAgentState] = useState<AgentProcessState>(
+    () =>
+      mainProcessClient.getAgentState({
+        rootClusterUri: props.rootClusterUri,
+      }) || {
+        status: 'not-started',
+      }
+  );
 
   const runAgentAndWaitForNodeToJoin = useCallback(async () => {
     await connectMyComputerService.runAgent(props.rootClusterUri);

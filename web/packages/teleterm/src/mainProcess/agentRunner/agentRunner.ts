@@ -28,7 +28,13 @@ const MAX_STDERR_LINES = 10;
 
 export class AgentRunner {
   private logger = new Logger('AgentRunner');
-  private agentProcesses = new Map<RootClusterUri, ChildProcess>();
+  private agentProcesses = new Map<
+    RootClusterUri,
+    {
+      process: ChildProcess;
+      state: AgentProcessState;
+    }
+  >();
 
   constructor(
     private settings: RuntimeSettings,
@@ -45,7 +51,6 @@ export class AgentRunner {
   async start(rootClusterUri: RootClusterUri): Promise<ChildProcess> {
     if (this.agentProcesses.has(rootClusterUri)) {
       await this.kill(rootClusterUri);
-      this.logger.warn(`Killed agent process for ${rootClusterUri}`);
     }
 
     const { agentBinaryPath } = this.settings;
@@ -61,29 +66,45 @@ export class AgentRunner {
     ].filter(Boolean);
 
     this.logger.info(
-      `Starting agent from ${agentBinaryPath} with arguments ${args.join(' ')}`
+      `Starting agent for ${rootClusterUri} from ${agentBinaryPath} with arguments ${args.join(
+        ' '
+      )}`
     );
 
     const agentProcess = spawn(agentBinaryPath, args, {
       windowsHide: true,
     });
 
+    this.agentProcesses.set(rootClusterUri, {
+      process: agentProcess,
+      state: { status: 'not-started' },
+    });
     this.addListeners(rootClusterUri, agentProcess);
-    this.agentProcesses.set(rootClusterUri, agentProcess);
 
     return agentProcess;
   }
 
+  getState(rootClusterUri: RootClusterUri): AgentProcessState | undefined {
+    return this.agentProcesses.get(rootClusterUri)?.state;
+  }
+
   async kill(rootClusterUri: RootClusterUri): Promise<void> {
-    await terminateWithTimeout(this.agentProcesses.get(rootClusterUri));
-    this.agentProcesses.delete(rootClusterUri);
+    const agent = this.agentProcesses.get(rootClusterUri);
+    if (agent) {
+      await terminateWithTimeout(
+        this.agentProcesses.get(rootClusterUri).process
+      );
+      this.agentProcesses.delete(rootClusterUri);
+      this.logger.info(`Killed agent for ${rootClusterUri}`);
+    }
+    this.logger.warn(`Cannot get an agent to kill for ${rootClusterUri}`);
   }
 
   async killAll(): Promise<void> {
     const processes = Array.from(this.agentProcesses.entries());
     await Promise.all(
       processes.map(async ([rootClusterUri, agent]) => {
-        await terminateWithTimeout(agent);
+        await terminateWithTimeout(agent.process);
         this.agentProcesses.delete(rootClusterUri);
       })
     );
@@ -102,7 +123,7 @@ export class AgentRunner {
     });
 
     const spawnHandler = () => {
-      this.sendProcessState(rootClusterUri, {
+      this.updateProcessState(rootClusterUri, {
         status: 'running',
       });
     };
@@ -110,7 +131,7 @@ export class AgentRunner {
     const errorHandler = (error: Error) => {
       process.off('spawn', spawnHandler);
 
-      this.sendProcessState(rootClusterUri, {
+      this.updateProcessState(rootClusterUri, {
         status: 'error',
         message: `${error}`,
       });
@@ -124,7 +145,7 @@ export class AgentRunner {
       process.off('error', errorHandler);
       process.off('spawn', spawnHandler);
 
-      this.sendProcessState(rootClusterUri, {
+      this.updateProcessState(rootClusterUri, {
         status: 'exited',
         code,
         signal,
@@ -135,6 +156,17 @@ export class AgentRunner {
     process.once('spawn', spawnHandler);
     process.once('error', errorHandler);
     process.once('exit', exitHandler);
+  }
+
+  private updateProcessState(
+    rootClusterUri: RootClusterUri,
+    state: AgentProcessState
+  ): void {
+    const agent = this.agentProcesses.get(rootClusterUri);
+    if (agent) {
+      agent.state = state;
+    }
+    this.sendProcessState(rootClusterUri, state);
   }
 }
 

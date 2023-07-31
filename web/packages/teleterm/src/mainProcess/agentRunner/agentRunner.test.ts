@@ -84,7 +84,11 @@ test('status updates are sent on a successful start', async () => {
   );
 
   try {
+    expect(agentRunner.getState(rootClusterUri)).toBeUndefined();
     const agentProcess = await agentRunner.start(rootClusterUri);
+    expect(agentRunner.getState(rootClusterUri)).toStrictEqual({
+      status: 'not-started',
+    } as AgentProcessState);
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(
         () => reject('Process start timed out.'),
@@ -95,16 +99,18 @@ test('status updates are sent on a successful start', async () => {
         clearTimeout(timeout);
       });
     });
-    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
-      status: 'running',
-    } as AgentProcessState);
+    const runningState: AgentProcessState = { status: 'running' };
+    expect(agentRunner.getState(rootClusterUri)).toStrictEqual(runningState);
+    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, runningState);
 
     await agentRunner.kill(rootClusterUri);
-    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
+    const exitedState: AgentProcessState = {
       status: 'exited',
       code: null,
       signal: 'SIGTERM',
-    } as AgentProcessState);
+    };
+    expect(agentRunner.getState(rootClusterUri)).toBeUndefined(); // the agent has been killed and removed
+    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, exitedState);
 
     expect(updateSender).toHaveBeenCalledTimes(2);
   } finally {
@@ -131,10 +137,12 @@ test('status updates are sent on a failed start', async () => {
     await new Promise(resolve => agentProcess.on('error', resolve));
 
     expect(updateSender).toHaveBeenCalledTimes(1);
-    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, {
+    const errorState: AgentProcessState = {
       status: 'error',
       message: expect.stringContaining('ENOENT'),
-    } as AgentProcessState);
+    };
+    expect(agentRunner.getState(rootClusterUri)).toStrictEqual(errorState);
+    expect(updateSender).toHaveBeenCalledWith(rootClusterUri, errorState);
   } finally {
     await agentRunner.killAll();
   }

@@ -20,6 +20,7 @@ import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mo
 // teleterm/services/config/index.ts reexports the config service client which depends on electron.
 // Importing electron breaks the fixtures if that's done from within storybook.
 import { createConfigService } from 'teleterm/services/config/configService';
+import { AgentProcessState } from 'teleterm/mainProcess/types';
 
 export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;
@@ -93,6 +94,10 @@ export class MockMainProcessClient implements MainProcessClient {
 
   runAgent(): Promise<void> {
     return Promise.resolve();
+  }
+
+  getAgentState(): AgentProcessState {
+    return { status: 'not-started' };
   }
 
   subscribeToAgentUpdate() {
