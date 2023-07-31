@@ -21,7 +21,7 @@ import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/resourceheader.proto";
 import "teleport/trait/v1/trait.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1;accesslist";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1;accesslistv1";
 
 // AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be

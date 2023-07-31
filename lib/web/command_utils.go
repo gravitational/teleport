@@ -46,7 +46,7 @@ type WSConn interface {
 }
 
 const (
-	envelopeTypeStdout  = "stdout"
+	EnvelopeTypeStdout  = "stdout"
 	envelopeTypeStderr  = "stderr"
 	envelopeTypeError   = "teleport-error"
 	envelopeTypeSummary = "summary"

@@ -4,15 +4,11 @@ description: How to configure Teleport deployment for high-availability using st
 ---
 
 A Teleport cluster stores different types of data in different locations. By
-default everything is stored in a local directory at the Auth server.
-Integration with other storage types is implemented based on the nature of the
-stored data (size, read/write ratio, mutability, etc.).
+default everything is stored in a local directory on the Auth Service host.
 
-<ScopedBlock scope={["cloud"]}>
-
-Teleport Cloud manages Auth Service and Proxy Service data for you, so there is
-no need to configure a backend.
-</ScopedBlock>
+For self-hosted Teleport deployments, you can configure Teleport to integrate
+with other storage types based on the nature of the stored data (size,
+read/write ratio, mutability, etc.).
 
 | Data type | Description | Supported storage backends |
 | - | - | - |

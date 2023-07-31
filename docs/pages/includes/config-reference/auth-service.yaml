@@ -135,6 +135,11 @@ auth_service:
         # (https://goteleport.com/docs/enterprise/ssh-kubernetes-fedramp/)
         #local_auth: true
 
+        # Enforce per-session MFA or PIV-hardware key restrictions on user login sessions.
+        # Possible values: true, false, "hardware_key", "hardware_key_touch".
+        # Defaults to false.
+        require_session_mfa: false
+
         # second_factor can be 'off', 'on', 'optional', 'otp' or 'webauthn'.
         # - 'on' requires either otp or webauthn second factor.
         # - 'optional' allows otp and webauthn second factor.
@@ -303,11 +308,12 @@ auth_service:
     # certificates expire in the middle of an active session. (default is 'no')
     disconnect_expired_cert: no
 
-    # Determines the interval at which Teleport will send keep-alive messages.
+    # keep_alive_interval determines the interval at which Teleport will 
+    # send keep-alive messages for client and reverse tunnel connections.
     # The default is set to 5 minutes (300 seconds) to stay lower than the
     # common load balancer timeout of 350 seconds.
     # keep_alive_count_max is the number of missed keep-alive messages before
-    # the server tears down the connection to the client.
+    # the Teleport cluster tears down the connection to the client or service.
     keep_alive_interval: 5m
     keep_alive_count_max: 3
 
@@ -377,3 +383,15 @@ auth_service:
     # in a leaf cluster. Defaults to false.
     load_all_cas: false
 
+  # Configuration for the Teleport Assist functionality
+  assist:
+    openai:
+      # An absolute path to the file containing the API token for OpenAI.
+      # This is required for Assist functionality.
+      api_token_path: /etc/teleport/openai_key
+
+    # When executing commands on servers through Teleport Assist,
+    # this is the maximum number of servers that Assist will connect to in parallel.
+    # This only applies in the context of a single command execution -
+    # if multiple users are using Assist concurrently, more connections may be made.
+    command_execution_workers: 30

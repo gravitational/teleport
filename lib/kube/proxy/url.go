@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"net/http"
 	"path"
 	"strings"
 
@@ -31,6 +32,7 @@ type apiResource struct {
 	resourceKind    string
 	resourceName    string
 	skipEvent       bool
+	isWatch         bool
 }
 
 // parseResourcePath does best-effort parsing of a Kubernetes API request path.
@@ -92,6 +94,7 @@ func parseResourcePath(p string) apiResource {
 	// Watch API endpoints have an extra /watch/ prefix. For now, silently
 	// strip it from our result.
 	if len(parts) > 0 && parts[0] == "watch" {
+		r.isWatch = true
 		parts = parts[1:]
 	}
 
@@ -206,8 +209,8 @@ func getResourceWithKey(k allowedResourcesKey) string {
 
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
-func getResourceFromRequest(requestURI string) (*types.KubernetesResource, apiResource) {
-	apiResource := parseResourcePath(requestURI)
+func getResourceFromRequest(req *http.Request) (*types.KubernetesResource, apiResource) {
+	apiResource := parseResourcePath(req.URL.Path)
 	resourceType, ok := getTeleportResourceKindFromAPIResource(apiResource)
 	// if the resource is not supported, return nil.
 	// if the resource is supported but the resource name is not present, return nil because it's a list request.
@@ -218,6 +221,7 @@ func getResourceFromRequest(requestURI string) (*types.KubernetesResource, apiRe
 		Kind:      resourceType,
 		Namespace: apiResource.namespace,
 		Name:      apiResource.resourceName,
+		Verbs:     []string{apiResource.getVerb(req)},
 	}, apiResource
 }
 
@@ -235,4 +239,49 @@ func getResourceFromAPIResource(resourceKind string) string {
 		return resourceKind[:idx]
 	}
 	return resourceKind
+}
+
+// isKubeWatchRequest returns true if the request is a watch request.
+func isKubeWatchRequest(req *http.Request, r apiResource) bool {
+	if values := req.URL.Query()["watch"]; len(values) > 0 {
+		switch strings.ToLower(values[0]) {
+		case "false", "0":
+		default:
+			return true
+		}
+	}
+	return r.isWatch
+}
+
+func (r apiResource) getVerb(req *http.Request) string {
+	verb := ""
+	isWatch := isKubeWatchRequest(req, r)
+	switch req.Method {
+	case http.MethodPost:
+		verb = types.KubeVerbCreate
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		switch {
+		case isWatch:
+			return types.KubeVerbWatch
+		case r.resourceName == "":
+			return types.KubeVerbList
+		default:
+			return types.KubeVerbGet
+		}
+	case http.MethodPut:
+		verb = types.KubeVerbUpdate
+	case http.MethodPatch:
+		verb = types.KubeVerbPatch
+	case http.MethodDelete:
+		switch {
+		case r.resourceName != "":
+			verb = types.KubeVerbDelete
+		default:
+			verb = types.KubeVerbDeleteCollection
+		}
+	default:
+		verb = ""
+	}
+
+	return verb
 }

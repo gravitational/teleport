@@ -720,6 +720,8 @@ type DiscoveryAccessPoint interface {
 	UpdateDatabase(ctx context.Context, database types.Database) error
 	// DeleteDatabase deletes a database resource.
 	DeleteDatabase(ctx context.Context, name string) error
+	// UpsertServerInfo upserts a server info resource.
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1210,6 +1212,11 @@ func (w *DiscoveryWrapper) UpdateDatabase(ctx context.Context, database types.Da
 // DeleteDatabase deletes a database resource.
 func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) error {
 	return w.NoCache.DeleteDatabase(ctx, name)
+}
+
+// UpsertServerInfo upserts a server info resource.
+func (w *DiscoveryWrapper) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	return w.NoCache.UpsertServerInfo(ctx, si)
 }
 
 // Close closes all associated resources

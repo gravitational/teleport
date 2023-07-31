@@ -147,7 +147,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	switch filter.ResourceKind {
 	case types.KindNode,
 		types.KindDatabaseService,
-		types.KindKubernetesCluster, types.KindKubePod,
+		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
@@ -178,7 +178,14 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		resourceKey.name = specResource.GetName()
 
 	default:
-		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
+		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
+		// of cases we need to handle. If the resource type didn't match any arm before
+		// and it is not a Kubernetes resource kind, we return an error.
+		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
+			return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
+		}
+		specResource = resource
+		resourceKey.name = specResource.GetName()
 	}
 
 	var match bool

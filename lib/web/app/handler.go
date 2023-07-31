@@ -26,7 +26,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -129,7 +128,8 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleAuth))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(h.handleAuth)))
+	h.router.OPTIONS("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(nil)))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleForward)
 
@@ -138,56 +138,6 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 
 // ServeHTTP hands the request to the request router.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/x-teleport-auth" {
-		// Allow minimal CORS from only the proxy origin
-		// This allows for requests from the proxy to `POST` to `/x-teleport-auth` and only
-		// permits the headers `X-Cookie-Value` and `X-Subject-Cookie-Value`.
-		// This is for the web UI to post a request to the application to get the proper app session
-		// cookie set on the right application subdomain.
-		w.Header().Set("Access-Control-Allow-Methods", "POST")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Access-Control-Allow-Headers", "X-Cookie-Value, X-Subject-Cookie-Value")
-
-		// Validate that the origin for the request matches any of the public proxy addresses.
-		// This is instead of protecting via CORS headers, as that only supports a single domain.
-		originValue := r.Header.Get("Origin")
-		origin, err := url.Parse(originValue)
-		if err != nil {
-			h.log.Errorf("malformed Origin header: %v", err)
-
-			w.WriteHeader(http.StatusBadRequest)
-
-			return
-		}
-
-		var match bool
-		originPort := origin.Port()
-		if originPort == "" {
-			originPort = "443"
-		}
-
-		for _, addr := range h.c.ProxyPublicAddrs {
-			if strconv.Itoa(addr.Port(0)) == originPort && addr.Host() == origin.Hostname() {
-				match = true
-				break
-			}
-		}
-
-		if !match {
-			w.WriteHeader(http.StatusForbidden)
-
-			return
-		}
-
-		// As we've already checked the origin matches a public proxy address, we can allow requests from that origin
-		// We do this dynamically as this header can only contain one value
-		w.Header().Set("Access-Control-Allow-Origin", originValue)
-
-		if r.Method == http.MethodOptions {
-			return
-		}
-	}
-
 	h.router.ServeHTTP(w, r)
 }
 

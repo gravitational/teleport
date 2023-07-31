@@ -68,5 +68,10 @@ export default function createMainProcessClient(): MainProcessClient {
         cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
       };
     },
+    downloadAgent() {
+      return ipcRenderer.invoke(
+        'main-process-connect-my-computer-download-agent'
+      );
+    },
   };
 }

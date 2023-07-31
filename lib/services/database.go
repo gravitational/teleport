@@ -44,7 +44,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -147,13 +146,6 @@ func ValidateDatabase(db types.Database) error {
 		return trace.Wrap(err)
 	}
 
-	// Unlike application access proxy, database proxy name doesn't necessarily
-	// need to be a valid subdomain but use the same validation logic for the
-	// simplicity and consistency.
-	if errs := validation.IsDNS1035Label(db.GetName()); len(errs) > 0 {
-		return trace.BadParameter("invalid database %q name: %v", db.GetName(), errs)
-	}
-
 	if !slices.Contains(defaults.DatabaseProtocols, db.GetProtocol()) {
 		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v", db.GetName(), db.GetProtocol(), defaults.DatabaseProtocols)
 	}
@@ -188,7 +180,7 @@ func ValidateDatabase(db types.Database) error {
 	}
 
 	// Validate Active Directory specific configuration, when Kerberos auth is required.
-	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
+	if needsADValidation(db) {
 		if db.GetAD().KeytabFile == "" && db.GetAD().KDCHostName == "" {
 			return trace.BadParameter("either keytab file path or kdc_host_name must be provided for database %q, both are missing", db.GetName())
 		}
@@ -226,6 +218,28 @@ func ValidateDatabase(db types.Database) error {
 	}
 
 	return nil
+}
+
+// needsADValidation returns whether a database AD configuration needs to
+// be validated.
+func needsADValidation(db types.Database) bool {
+	if db.GetProtocol() != defaults.ProtocolSQLServer {
+		return false
+	}
+
+	// Domain is always required when configuring the AD section, so we assume
+	// users intend to use Kerberos authentication if the configuration has it.
+	if db.GetAD().Domain != "" {
+		return true
+	}
+
+	// Azure-hosted databases and RDS Proxy support other authentication
+	// methods, and do not require this section to be validated.
+	if strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix) || db.GetAWS().RDSProxy.Name != "" {
+		return false
+	}
+
+	return true
 }
 
 // needsURIValidation returns whether a database URI needs to be validated.

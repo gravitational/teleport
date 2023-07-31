@@ -43,8 +43,13 @@ type OptionFile struct {
 	path string
 }
 
-func DefaultConfigPath() (string, error) {
-	// Default location is .my.cnf file in the user's home directory.
+// DefaultConfigPath returns the default config path, which is .my.cnf file in
+// the user's home directory. Home dir is determined by environment if not
+// supplied as an argument.
+func DefaultConfigPath(home string) (string, error) {
+	if home != "" {
+		return filepath.Join(home, mysqlOptionFile), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		usr, err := utils.CurrentUser()
@@ -58,8 +63,8 @@ func DefaultConfigPath() (string, error) {
 }
 
 // Load loads MySQL option file from the default location.
-func Load() (*OptionFile, error) {
-	cnfPath, err := DefaultConfigPath()
+func Load(home string) (*OptionFile, error) {
+	cnfPath, err := DefaultConfigPath(home)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

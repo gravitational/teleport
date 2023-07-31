@@ -20,6 +20,8 @@ import { Text, Box, Flex, Link } from 'design';
 import { Danger } from 'design/Alert';
 import { InfoFilled } from 'design/Icon';
 import TextEditor from 'shared/components/TextEditor';
+import { FieldTextArea } from 'shared/components/FieldTextArea';
+import Validation from 'shared/components/Validation';
 
 import useTeleport from 'teleport/useTeleport';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -100,19 +102,21 @@ export function MutualTlsView({
               signed by a third-party CA. Adding a copy allows Teleport to trust
               it.
             </Text>
-            <Box
-              mt={2}
-              height="100px"
-              width="800px"
-              as="textarea"
-              p={2}
-              borderRadius={2}
-              placeholder="Copy and paste your CA certificate"
-              value={caCert}
-              onChange={e => setCaCert(e.target.value)}
-              autoFocus
-              style={{ outline: 'none' }}
-            />
+            <Validation>
+              <FieldTextArea
+                mt={2}
+                placeholder="Copy and paste your CA certificate"
+                value={caCert}
+                onChange={e => setCaCert(e.target.value)}
+                resizable={true}
+                autoFocus
+                textAreaCss={`
+                font-size: 14px;
+                height: 100px;
+                width: 800px;
+                `}
+              />
+            </Validation>
           </Box>
         </>
       )}

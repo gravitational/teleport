@@ -72,6 +72,8 @@ func TestTeleterm(t *testing.T) {
 }
 
 func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	t.Helper()
+
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,

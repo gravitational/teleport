@@ -30,7 +30,6 @@ import (
 	"net"
 	"net/http"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
@@ -125,9 +123,8 @@ type ForwarderConfig struct {
 	AuthClient auth.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
 	CachingAuthClient auth.ReadKubernetesAccessPoint
-	// StreamEmitter is used to create audit streams
-	// and emit audit events
-	StreamEmitter events.StreamEmitter
+	// Emitter is used to emit audit events
+	Emitter apievents.Emitter
 	// DataDir is a data dir to store logs
 	DataDir string
 	// Namespace is a namespace of the proxy server (not a K8s namespace)
@@ -193,8 +190,8 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.Authz == nil {
 		return trace.BadParameter("missing parameter Authz")
 	}
-	if f.StreamEmitter == nil {
-		return trace.BadParameter("missing parameter StreamEmitter")
+	if f.Emitter == nil {
+		return trace.BadParameter("missing parameter Emitter")
 	}
 	if f.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
@@ -460,8 +457,8 @@ type authContext struct {
 	// kubeResource.Namespace is the resource namespace and kubeResource.Name
 	// is the resource name.
 	kubeResource *types.KubernetesResource
-	// httpMethod is the request HTTP Method.
-	httpMethod string
+	// requestVerb is the Kubernetes Verb.
+	requestVerb string
 	// kubeServers are the registered agents for the kubernetes cluster the request
 	// is targeted to.
 	kubeServers []types.KubeServer
@@ -573,7 +570,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	// kubeResource is the Kubernetes Resource the request is targeted at.
 	// Currently only supports Pods and it includes the pod name and namespace.
-	kubeResource, apiResource := getResourceFromRequest(req.URL.Path)
+	kubeResource, apiResource := getResourceFromRequest(req)
 	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, apiResource, kubeResource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
@@ -862,7 +859,7 @@ func (f *Forwarder) setupContext(
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			isRemote:   isRemoteCluster,
 		},
-		httpMethod:  req.Method,
+		requestVerb: apiResource.getVerb(req),
 		kubeServers: kubeServers,
 		apiResource: apiResource,
 	}, nil
@@ -1049,7 +1046,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if actx.kubeResource != nil {
 		notFoundMessage = kubeResourceDeniedAccessMsg(
 			actx.User.GetName(),
-			actx.httpMethod,
+			actx.requestVerb,
 			actx.kubeResource,
 		)
 		roleMatchers = services.RoleMatchers{
@@ -1153,30 +1150,6 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 		return false, trace.Wrap(err)
 	}
 	return result, nil
-}
-
-// newStreamer returns sync or async streamer based on the configuration
-// of the server and the session, sync streamer sends the events
-// directly to the auth server and blocks if the events can not be received,
-// async streamer buffers the events to disk and uploads the events later
-func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
-	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
-		f.log.Debug("Using sync streamer for session.")
-		return f.cfg.AuthClient, nil
-	}
-	f.log.Debug("Using async streamer for session.")
-	dir := filepath.Join(
-		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingSessionsDir, apidefaults.Namespace,
-	)
-	fileStreamer, err := filesessions.NewStreamer(dir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TeeStreamer sends non-print and non disk events
-	// to the audit log in async mode, while buffering all
-	// events on disk for further upload at the end of the session
-	return events.NewTeeStreamer(fileStreamer, f.cfg.StreamEmitter), nil
 }
 
 // join joins an existing session over a websocket connection
@@ -1514,7 +1487,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		SessionRecording: ctx.recordingConfig.GetMode(),
 	}
 
-	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
+	if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
 		f.log.WithError(err).Warn("Failed to emit event.")
 	}
 
@@ -1535,7 +1508,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	defer func() {
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
+		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit exec event.")
 		}
 
@@ -1558,7 +1531,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 			SessionRecording:          ctx.recordingConfig.GetMode(),
 		}
 
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
+		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	}()
@@ -1819,7 +1792,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		if !success {
 			portForward.Code = events.PortForwardFailureCode
 		}
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, portForward); err != nil {
+		if err := f.cfg.Emitter.EmitAuditEvent(f.ctx, portForward); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}
@@ -2572,7 +2545,7 @@ func (f *Forwarder) listResources(authCtx *authContext, w http.ResponseWriter, r
 		allowedResources, deniedResources := authCtx.Checker.GetKubeResources(authCtx.kubeCluster)
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.
-		isWatch := req.URL.Query().Get("watch") == "true"
+		isWatch := isKubeWatchRequest(req, sess.authContext.apiResource)
 		if !isWatch {
 			// List pods and return immediately.
 			status, err = f.listResourcesList(req, w, sess, allowedResources, deniedResources)
@@ -2606,10 +2579,11 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
 	}
+	verb := sess.requestVerb
 	// filterBuffer filters the response to exclude pods the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(resourceKind, allowedResources, deniedResources, f.log),
+		newResourceFilterer(resourceKind, verb, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -2637,11 +2611,13 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
 	}
+	verb := sess.requestVerb
 	rw, err := responsewriters.NewWatcherResponseWriter(
 		w,
 		negotiator,
 		newResourceFilterer(
 			resourceKind,
+			verb,
 			allowedResources,
 			deniedResources,
 			f.log,
@@ -3082,27 +3058,8 @@ func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.Del
 // kubeResourceDeniedAccessMsg creates a Kubernetes API like forbidden response.
 // Logic from:
 // https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/staging/src/k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/errors.go#L51
-func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.KubernetesResource) string {
+func kubeResourceDeniedAccessMsg(user, verb string, kubeResource *types.KubernetesResource) string {
 	resource, apiGroup := getKubeResourceAndAPIGroupFromType(kubeResource.Kind)
-	// <resource> "<name>" is forbidden: User "<user>" cannot create resource "<resource>" in API group "<api_group>"
-	if kubeResource.Namespace == "" {
-		return fmt.Sprintf(
-			"%s %q is forbidden: User %q cannot %s resource %q in API group %q\n"+
-				"Ask your Teleport admin to ensure that your Teleport role includes access to the %s in %q field.\n"+
-				"Check by running: kubectl auth can-i %s %s/%s",
-			resource,
-			kubeResource.Name,
-			user,
-			getRequestVerb(method),
-			resource,
-			apiGroup,
-			kubeResource.Kind,
-			kubernetesResourcesKey,
-			getRequestVerb(method),
-			resource,
-			kubeResource.Name,
-		)
-	}
 	// <resource> "<pod_name>" is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
 	return fmt.Sprintf(
 		"%s %q is forbidden: User %q cannot %s resource %q in API group %q in the namespace %q\n"+
@@ -3111,35 +3068,17 @@ func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.Kubern
 		resource,
 		kubeResource.Name,
 		user,
-		getRequestVerb(method),
+		verb,
 		resource,
 		apiGroup,
 		kubeResource.Namespace,
 		kubeResource.Kind,
 		kubernetesResourcesKey,
-		getRequestVerb(method),
+		verb,
 		resource,
 		kubeResource.Name,
 		kubeResource.Namespace,
 	)
-}
-
-// getRequestVerb converts the request method into a Kubernetes Verb.
-func getRequestVerb(method string) string {
-	apiVerb := ""
-	switch method {
-	case http.MethodPost:
-		apiVerb = "create"
-	case http.MethodGet:
-		apiVerb = "get"
-	case http.MethodPut:
-		apiVerb = "update"
-	case http.MethodPatch:
-		apiVerb = "patch"
-	case http.MethodDelete:
-		apiVerb = "delete"
-	}
-	return apiVerb
 }
 
 // errorToKubeStatusReason returns an appropriate StatusReason based on the
@@ -3220,7 +3159,7 @@ func deleteResources[T kubeObjectInterface](
 				params.authCtx.Checker.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
-				getKubeResource(kind, item),
+				getKubeResource(kind, types.KubeVerbDeleteCollection, item),
 			),
 		)
 		// no match was found, we ignore the request.

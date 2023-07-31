@@ -256,6 +256,7 @@ func getAssistantClient(ctx context.Context, proxyClient PluginGetter,
 	}
 
 	// Allow using the passed config if passed.
+	// In this case, apiKey is ignored, the one from the OpenAI config is used.
 	if openaiCfg != nil {
 		return ai.NewClientFromConfig(*openaiCfg), nil
 	}

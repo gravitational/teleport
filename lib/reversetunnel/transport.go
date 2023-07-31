@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -82,8 +82,8 @@ type transport struct {
 	// (perform handshake and handle request).
 	server ServerHandler
 
-	// emitter is an audit stream emitter.
-	emitter events.StreamEmitter
+	// emitter is an audit event emitter.
+	emitter apievents.Emitter
 
 	// proxySigner is used to sign PROXY headers and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner

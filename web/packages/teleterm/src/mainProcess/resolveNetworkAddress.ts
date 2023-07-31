@@ -79,7 +79,7 @@ function waitForMatchInStdout(
     const removeListeners = () => {
       process.stdout.off('data', findAddressInChunk);
       process.off('error', rejectOnError);
-      process.off('exit', rejectOnExit);
+      process.off('close', rejectOnClose);
       clearTimeout(timeout);
     };
 
@@ -97,14 +97,14 @@ function waitForMatchInStdout(
       removeListeners();
     };
 
-    const rejectOnExit = (code: number, signal: NodeJS.Signals) => {
+    const rejectOnClose = (code: number, signal: NodeJS.Signals) => {
       const codeOrSignal = [
         // code can be 0, so we cannot just check it the same way as the signal.
         code != null && `code ${code}`,
         signal && `signal ${signal}`,
       ]
         .filter(Boolean)
-        .join(' and ');
+        .join(' ');
       const details = codeOrSignal ? ` with ${codeOrSignal}` : '';
       rejectOnError(
         new ResolveError(
@@ -117,7 +117,11 @@ function waitForMatchInStdout(
 
     process.stdout.on('data', findAddressInChunk);
     process.on('error', rejectOnError);
-    process.on('exit', rejectOnExit);
+    // Listen for close instead of exit. This doesn't make much difference in prod usage, but it's
+    // meaningful in tests. testProcess.mjs exits soon after printing to stdout, so we have to make
+    // sure that stdio streams are closed to avoid process.on('exit') being processed before
+    // stdout.on('data').
+    process.on('close', rejectOnClose);
   });
 }
 

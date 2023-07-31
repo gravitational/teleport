@@ -76,6 +76,10 @@ export class MockMainProcessClient implements MainProcessClient {
   subscribeToNativeThemeUpdate() {
     return { cleanup: () => undefined };
   }
+
+  downloadAgent() {
+    return Promise.resolve();
+  }
 }
 
 export const makeRuntimeSettings = (
@@ -84,6 +88,9 @@ export const makeRuntimeSettings = (
   platform: 'darwin' as const,
   dev: true,
   userDataDir: '',
+  sessionDataDir: '',
+  tempDataDir: '',
+  agentBinaryPath: '',
   binDir: '',
   certsDir: '',
   kubeConfigsDir: '',

@@ -100,7 +100,7 @@ func (p *ForwardProxy) Start() error {
 
 // Close closes the forward proxy.
 func (p *ForwardProxy) Close() error {
-	if err := p.cfg.Listener.Close(); err != nil {
+	if err := p.cfg.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil

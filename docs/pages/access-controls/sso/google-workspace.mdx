@@ -221,7 +221,7 @@ Create the OIDC connector resource using `tctl`. We will explain how to choose
 values for fields within the resource spec below:
 
 <Tabs>
-<TabItem scope={["oss", "enterprise", "cloud"]} label="Embedded JSON">
+<TabItem label="Embedded JSON">
 
 Use this method to define the service account JSON in the connector resource.
 This method doesn't require providing the JSON file to the host(s) running the
@@ -274,7 +274,7 @@ version: v3
 ```
 
 </TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Uploaded JSON file">
+<TabItem label="Uploaded JSON file">
 
 Use this method for single self-hosted Teleport Auth instances, or when you can
 easily and reliably make the JSON file available to all hosts running the Auth

@@ -682,7 +682,8 @@
                 "pod",
                 "service",
                 "serviceAccount",
-                "certSecret"
+                "certSecret",
+                "ingress"
             ],
             "properties": {
                 "config": {
@@ -734,6 +735,23 @@
                     "type": "object",
                     "default": {}
                 }
+            }
+        },
+        "ingress": {
+            "enabled": {
+                "$id": "#/properties/ingress/enabled",
+                "type": "boolean",
+                "default": false
+            },
+            "suppressAutomaticWildcards": {
+                "$id": "#/properties/ingress/suppressAutomaticWildcards",
+                "type": "boolean",
+                "default": false
+            },
+            "spec": {
+                "$id": "#/properties/ingress/spec",
+                "type": "object",
+                "default": {}
             }
         },
         "serviceAccount": {
