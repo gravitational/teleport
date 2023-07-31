@@ -167,10 +167,11 @@ func (a *accessRequestListRequestableResourcesTool) Run(ctx context.Context, too
 	for _, resource := range nodeList.Resources {
 		node := resource.(types.Server)
 		nodeYaml, err := yaml.Marshal(promptResource{
-			Name:    node.GetHostname(),
-			Kind:    types.KindNode,
-			SubKind: node.GetSubKind(),
-			Labels:  node.GetAllLabels(),
+			Name:       node.GetHostname(),
+			ResourceID: node.GetName(),
+			Kind:       types.KindNode,
+			SubKind:    node.GetSubKind(),
+			Labels:     node.GetAllLabels(),
 		})
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -188,10 +189,11 @@ func (a *accessRequestListRequestableResourcesTool) Run(ctx context.Context, too
 }
 
 type promptResource struct {
-	Name    string            `yaml:"name"`
-	Kind    string            `yaml:"kind"`
-	SubKind string            `yaml:"subkind"`
-	Labels  map[string]string `yaml:"labels"`
+	Name       string            `yaml:"name"`
+	ResourceID string            `yaml:"resource_id"`
+	Kind       string            `yaml:"kind"`
+	SubKind    string            `yaml:"subkind"`
+	Labels     map[string]string `yaml:"labels"`
 }
 
 type accessRequestCreateTool struct{}
@@ -201,10 +203,10 @@ func (*accessRequestCreateTool) Name() string {
 }
 
 func (*accessRequestCreateTool) Description() string {
-	return fmt.Sprintf(`Create an access request with a set of roles to, a set of resource names, a reason, and a set of suggested reviewers.
+	return fmt.Sprintf(`Create an access request with a set of roles to, a set of resource UUIDs, a reason, and a set of suggested reviewers.
 You must get this information from the conversations context or by asking the user for clarification.
 A valid access request must be either for one or more roles or for one or more resource IDs.
-If the user is not specific enough, you may try to determine the correct roles or resource IDs from the context and your available tools.
+If the user is not specific enough, you may try to determine the correct roles or resource UUIDs from the context and your available tools.
 
 You may never invoke this tool unless directly asked to by the user.
 
@@ -213,7 +215,7 @@ The input must be a JSON object with the following schema:
 %vjson
 {
 	"roles": []string, \\ The optional set of roles being requested
-	"resources": []string, \\ The optional set of names for resources being requested
+	"resource_ids": []string, \\ The optional set of UUIDs for resources being requested
 	"reason": string, \\ A reason for the request. This cannot be made up or inferred, it must be explicitly said by the user
 	"suggested_reviewers": []string \\ An optional list of suggested reviewers; these must be Teleport usernames
 }
@@ -243,7 +245,7 @@ func (*accessRequestCreateTool) parseInput(input string) (*AccessRequest, error)
 		}
 	}
 
-	if len(output.Roles) == 0 && len(output.Resources) == 0 {
+	if len(output.Roles) == 0 && len(output.ResourceIDs) == 0 {
 		return nil, &invalidOutputError{
 			coarse: "access request create: no requested roles or resources",
 			detail: "an access request must be for one or more roles OR one or more resources",

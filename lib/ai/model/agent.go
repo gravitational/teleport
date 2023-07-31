@@ -235,12 +235,12 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 			return stepOutput{action: action, observation: action.Input}, nil
 		}
 
-		resourceIDs := make([]types.ResourceID, 0, len(accessRequest.Resources))
-		for _, resourceName := range accessRequest.Resources {
+		resourceIDs := make([]types.ResourceID, 0, len(accessRequest.ResourceIDs))
+		for _, resourceID := range accessRequest.ResourceIDs {
 			resourceIDs = append(resourceIDs, types.ResourceID{
 				ClusterName: a.toolCtx.ClusterName,
 				Kind:        types.KindNode,
-				Name:        resourceName,
+				Name:        resourceID,
 			})
 		}
 
@@ -248,6 +248,8 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		if err != nil {
 			return stepOutput{}, trace.Wrap(err)
 		}
+
+		fmt.Printf("%#v\n", accessRequestItem.(*types.AccessRequestV3))
 
 		err = a.toolCtx.CreateAccessRequest(ctx, accessRequestItem)
 		if err != nil {
