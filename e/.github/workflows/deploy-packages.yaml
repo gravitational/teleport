@@ -477,6 +477,9 @@ jobs:
           - registry.access.redhat.com/ubi7:7.9
           - registry.access.redhat.com/ubi8:8.7
           - registry.access.redhat.com/ubi9:9.1
+          # SUSE Linux Enterprise Edition
+          - registry.suse.com/suse/sles12sp5:latest # The other tags are too specific so latest is used instead
+          - registry.suse.com/bci/bci-base:15.5
     container:
       image: ${{ matrix.container-image }}
     defaults:

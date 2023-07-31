@@ -158,6 +158,12 @@ func NewYumRunner() (*YumRunner, error) {
 				"2022", // (new naming scheme, preview) aka 2022.0.20220531
 				"2023", // 2023, which should match 2023.0.20230503 and similar releasever
 			},
+			// SUSE uses Zypper, which is compatible with YUM repos
+			// SUSE Linux Enterprise Edition
+			"sles": { // See https://www.suse.com/support/kb/doc/?id=000019587 for details
+				"12",
+				"15",
+			},
 		},
 	}
 
