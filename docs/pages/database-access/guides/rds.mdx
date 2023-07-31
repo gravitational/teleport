@@ -4,11 +4,17 @@ h1: Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB
 description: How to configure Teleport database access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
 ---
 
-This guide will help you to:
+Access to AWS or RDS Aurora databases can be provided by [Teleport Database
+Access](../introduction.mdx). This allows for
+fine-grain access control through [Teleport's RBAC](../rbac.mdx).
 
-- Install Teleport `(=teleport.version=)`.
-- Set up Teleport to access your RDS instances and Aurora clusters.
-- Connect to your databases through Teleport.
+This guide demonstrates how to use Teleport to connect to AWS or RDS Aurora databases.
+
+In this guide, you will:
+
+1. Configure AWS RDS or Aurora databases with IAM authentication.
+2. Join the AWS RDS or Aurora databases to your Teleport cluster.
+3. Connect to the AWS RDS or Aurora database via the Teleport Database Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
