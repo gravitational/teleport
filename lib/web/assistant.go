@@ -247,7 +247,7 @@ func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	return OK(), nil
 }
 
-// generateAssistantTitleRequest is a request for POST /webapi/assistant/conversations/:conversation_id/generate_title.
+// generateAssistantTitleRequest is a request for POST /webapi/assistant/title/summary.
 type generateAssistantTitleRequest struct {
 	Message string `json:"message"`
 }
@@ -296,6 +296,18 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 			}
 			h.log.Debugf("message classified as '%s'", class)
 			// TODO(shaka): emit event here to report the message class
+			usageEventReq := &proto.SubmitUsageEventRequest{
+				Event: &usageeventsv1.UsageEventOneOf{
+					Event: &usageeventsv1.UsageEventOneOf_AssistNewConversation{
+						AssistNewConversation: &usageeventsv1.AssistNewConversationEvent{
+							Category: class,
+						},
+					},
+				},
+			}
+			if err := authClient.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+				h.log.WithError(err).Warn("Failed to emit usage event")
+			}
 		}()
 
 	}
