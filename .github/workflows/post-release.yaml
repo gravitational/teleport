@@ -29,7 +29,7 @@ jobs:
       - name: Determine release latest flag and version
         id: artifacts
         run: |
-          LATEST_RELEASE_ID=$(gh release view --json id -q id)
+          LATEST_RELEASE_ID=$(gh release view --json id -q .id)
           CURRENT_RELEASE_ID=${{ github.event.release.node_id }}
 
           if [ "$LATEST_RELEASE_ID" == "$CURRENT_RELEASE_ID" ]; then

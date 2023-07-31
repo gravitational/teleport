@@ -40,11 +40,16 @@ func TestRoleSetupRun_WithNonLocalUser(t *testing.T) {
 	oidcUser.SetCreatedBy(types.CreatedBy{
 		Connector: &types.ConnectorRef{Type: "oidc", ID: "google"},
 	})
-	accessAndIdentity := &mockAccessAndIdentity{user: oidcUser}
+	accessAndIdentity := &mockAccessAndIdentity{
+		user:       oidcUser,
+		callCounts: make(map[string]int),
+		events:     &mockEvents{},
+	}
 	certManager := &mockCertManager{}
 
 	_, err = roleSetup.Run(ctx, accessAndIdentity, certManager, &clusters.Cluster{URI: uri.NewClusterURI("foo")})
-	require.True(t, trace.IsBadParameter(err))
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected the error to be BadParameter")
 }
 
 // During development, I already managed to introduce a bug in a conditional which resulted in a
