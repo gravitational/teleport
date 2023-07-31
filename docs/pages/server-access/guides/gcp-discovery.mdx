@@ -60,10 +60,13 @@ $ tctl create -f token.yaml
 
 ## Step 2/6. Configure IAM permissions for Teleport
 
+Create a service account that will give Teleport IAM permissions needed to
+discover instances.
+
 <Tabs>
 <TabItem label="Console">
   Go to [IAM > Roles](https://console.cloud.google.com/iam-admin/roles)
-  in the GCP console and click *+ CREATE ROLE*.
+  in the GCP console and click *+ Create Role*.
   Pick a name for the role (e.g. `teleport-discovery`) and give it the following permissions:
   - `compute.instances.get`
   - `compute.instances.getGuestAttributes`
@@ -72,12 +75,12 @@ $ tctl create -f token.yaml
 
   ![Custom role](../../../img/server-access/guides/gcp/custom-role@2x.png)
 
-  Click *CREATE*.
+  Click *Create*.
 
   Go to [IAM > Service accounts](https://console.cloud.google.com/iam-admin/serviceaccounts)
-  and click *+ CREATE SERVICE ACCOUNT*. Pick a name for the service account
+  and click *+ Create Service Account*. Pick a name for the service account
   (e.g. `teleport-discovery`) and copy its email address to your clipboard.
-  Click *CREATE AND CONTINUE*.
+  Click *Create and Continue*.
 
   ![Service account](../../../img/server-access/guides/gcp/create-service-account@2x.png)
 
@@ -86,15 +89,11 @@ $ tctl create -f token.yaml
   your custom role. Click *Save*.
 
   ![Role assignment](../../../img/server-access/guides/gcp/assign-role-to-service-account@2x.png)
-
-  Go to [Compute](https://console.cloud.google.com/compute/instances). For each
-  instance that should be discovered, set its service account to the one you created.
-
-  ![Instance service account](../../../img/server-access/guides/gcp/set-service-account-on-instance@2x.png)
 </TabItem>
 <TabItem label="gcloud">
-  Copy the following and paste it into a file called `teleport-discover-role.yaml`:
+  Copy the following and paste it into a file called `teleport-discovery-role.yaml`:
   ```yaml
+  # teleport-discovery-role.yaml
   title: "teleport-discovery"
   description: "A role to enable Teleport to discover GCP compute instances"
   stage: "ALPHA"
@@ -106,40 +105,46 @@ $ tctl create -f token.yaml
   ```
 
   Then run the following command to create the role:
-
   ```code
-  $ gcloud iam roles create teleport-discovery \
-  > --project=<> \
+  $ gcloud iam roles create teleport_discovery \
+  > --project=<Var name="project_id" description="GCP project ID" /> \
   > --file=teleport-discovery-role.yaml
+  ```
+
+  Run the following command to create the service account:
+  ```code
   $ gcloud iam service-accounts create teleport-discovery \
   > --description="A service account to enable Teleport to discover GCP compute instances" \
   > --display-name="teleport-discovery"
-  $ gcloud projects add-iam-policy-binding <PROJECT-ID> \
-  > --member="serviceAccount:teleport-discovery@<PROJECT-ID>.iam.gserviceaccount.com" \
-  > --role="teleport-discovery"
+  ```
+
+  Run the following command to add the new role to the new service account.
+  ```code
+  $ gcloud projects add-iam-policy-binding <Var name="project_id" description="GCP project ID" /> \
+  > --member="serviceAccount:teleport-discovery@<Var name="project_id" />.iam.gserviceaccount.com" \
+  > --role="projects/<Var name="project_id" />/role/teleport_discovery"
   ```
 </TabItem>
 </Tabs>
 
-The Teleport Discovery Service uses Application Default Credentials to (authenticate).
-Refer to [Set Up Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
-to pick a method suitable for your use-case. (example)
-
-## Step 3/6. (configure instances)
+## Step 3/6. Configure instances to be discovered.
 
 Ensure that each instance to be discovered has a service account assigned to
 it. No permissions are required on the service account.
 
 ### Enable guest attributes on instances
 
-To give Teleport access to instances' SSH host keys,
-[guest attributes must be enabled on the instances](https://cloud.google.com/compute/docs/metadata/manage-guest-attributes#enable_attributes).
+[Guest attributes](https://cloud.google.com/compute/docs/metadata/manage-guest-attributes#enable_attributes)
+must be enabled on instances to be discovered so Teleport can access their SSH
+host keys. Enable guest attributes by setting `enable-guest-attributes` to
+`TRUE` in the instance's metadata.
+
 If guest attributes are enabled during instance creation, the guest attributes
 will automatically be populated with the instance's host keys. If guest
 attributes were enabled after the instance was created, you can manually add
 the host keys to the guest attributes by running the following script on the instance:
 
-```code
+```sh
 #!/usr/bin/env bash
 for file in /etc/ssh/ssh_host_*_key.pub
   do
@@ -207,6 +212,20 @@ discovery_service:
 - Adjust the keys under `discovery_service.gcp` to match your GCO environment,
   specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
   Service.
+
+### GCP credentials
+
+The Teleport Discovery Service must have the credentials of the
+`teleport-discovery` GCP service account we created above in order to be able
+to log in.
+
+The easiest way to ensure that is to run the Discovery Service on a GCP
+instance and assign the service account to that instance. Refer to
+[Set Up Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
+for details on alternate methods.
+
+See [Authenticating as a service account](https://cloud.google.com/docs/authentication/production)
+in the Google Cloud documentation for more details.
 
 ## Step 6/6. [Optional] Customize the default installer script
 
