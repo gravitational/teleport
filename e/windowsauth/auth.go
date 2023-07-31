@@ -27,7 +27,6 @@ import (
 	"math"
 	"os"
 	"os/user"
-	"sync"
 	"syscall"
 	"unsafe"
 
@@ -117,6 +116,7 @@ const (
 	NormalAccount       = uint32(0x200)   // UF_NORMAL_ACCOUNT
 	DontExpirePassword  = uint32(0x10000) // UF_DONT_EXPIRE_PASSWD
 	SmartCardRequired   = uint32(0x40000) // UF_SMARTCARD_REQUIRED
+	AccountDisabled     = uint32(2)       // UF_ACCOUNTDISABLE
 )
 
 // userInfo is Go version of USER_INFO_1 structure
@@ -207,7 +207,7 @@ func ensureUser(name string) error {
 		priv: userPrivUser,
 
 		// TODO(probakowski): consider setting SmartCardRequired as well
-		flags: PasswordNotRequired | NormalAccount | DontExpirePassword,
+		flags: PasswordNotRequired | NormalAccount | DontExpirePassword | AccountDisabled | scriptExecuted,
 	}
 
 	var invalidFieldIndex uint32
@@ -266,42 +266,6 @@ func LsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authe
 	return lsaApLogonUser(clientRequest, logonType, authenticationInformation, clientAuthenticationBase,
 		authenticationInformationLength, profileBuffer, profileBufferLength, (*windows.LUID)(logonId),
 		subStatus, tokenInformationType, tokenInformation, accountName, authenticatingAuthority)
-}
-
-// sessions represent logon sessions managed by this Authentication Package
-type sessions struct {
-	mu            sync.Mutex
-	luidsToNames  map[windows.LUID]string
-	namesToCounts map[string]int
-}
-
-// start associates session logon ID and username and increases number of active sessions for that username.
-// Returns true if starting fresh session i.e. count of active sessions for the username was 0 before this call.
-func (s *sessions) start(luid windows.LUID, name string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.luidsToNames[luid] = name
-	s.namesToCounts[name] += 1
-	return s.namesToCounts[name] == 1
-}
-
-// end marks end of the session for specified logon ID, decreasing number of active sessions for associated username.
-// Returns true if there was username matching the logon ID, and it was last session for this user i.e. active sessions
-// count is 0 after this call
-func (s *sessions) end(luid windows.LUID) (string, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	name, ok := s.luidsToNames[luid]
-	if !ok {
-		return "", false
-	}
-	s.namesToCounts[name] -= 1
-	return name, s.namesToCounts[name] == 0
-}
-
-var logonSessions = sessions{
-	luidsToNames:  make(map[windows.LUID]string),
-	namesToCounts: make(map[string]int),
 }
 
 // lsaApLogonUser authenticates a user's logon credentials.
@@ -622,27 +586,6 @@ func LsaApLogonTerminated(logonId unsafe.Pointer) {
 // lsaApLogonTerminated is called when logon session started by this package ends i.e. user logs out.
 // https://learn.microsoft.com/en-us/windows/win32/api/ntsecpkg/nc-ntsecpkg-lsa_ap_logon_terminated
 func lsaApLogonTerminated(logonId *windows.LUID) {
-	log.WithFields(log.Fields{"luid": *logonId}).Info("terminated")
-	if name, last := logonSessions.end(*logonId); last {
-		//this was last session for the user, disable it
-		log.WithField("name", name).Info("disabling user")
-		if err := setUserStatus(name, false); err != nil {
-			log.WithError(err).Error("can't disable user")
-		}
-	}
-}
-
-// setUserStatus can make user disabled (they can't log in) or enabled.
-func setUserStatus(name string, active bool) error {
-	uname, err := windows.UTF16PtrFromString(name)
-	if err != nil {
-		return fmt.Errorf("can't convert name: %w", err)
-	}
-	newFlags := uint32(scriptExecuted)
-	if !active {
-		newFlags = newFlags | accountDisabled
-	}
-	return NetUserSetFlags(nil, uname, flagsLevel, &flags{flags: newFlags}, nil)
 }
 
 func toLSAString(s string) (C.PUNICODE_STRING, error) {
