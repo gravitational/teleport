@@ -2,10 +2,9 @@
 
 ## 13.3.0 (08/01/23)
 
-* Added azure support to Helm charts[#29734](https://github.com/gravitational/teleport/pull/29734)
+* Added azure support to Helm charts [#29734](https://github.com/gravitational/teleport/pull/29734)
 * Fixed Kubernetes Legacy Proxy heartbeats [#29738](https://github.com/gravitational/teleport/pull/29738)
 * Added Postgres backend and Azure session storage [#29705](https://github.com/gravitational/teleport/pull/29705)
-* Bumped Buf to v1.25.0 [#29701](https://github.com/gravitational/teleport/pull/29701)
 * Fixed auth locking issue [#29706](https://github.com/gravitational/teleport/pull/29706)
 * Fixed an issue where MachineID sometimes did not work behind L7 LB [#29700](https://github.com/gravitational/teleport/pull/29700)
 * Fixed issue where incorrect session recording mode was using during session start and end events [#29689](https://github.com/gravitational/teleport/pull/29689)
