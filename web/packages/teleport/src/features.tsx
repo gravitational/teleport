@@ -44,6 +44,8 @@ import {
   NavigationCategory,
 } from 'teleport/Navigation/categories';
 
+import { NavTitles } from './types';
+
 import type { TeleportFeature, FeatureFlags } from './types';
 
 const Audit = lazy(() => import('./Audit'));
@@ -82,7 +84,7 @@ export class FeatureNodes implements TeleportFeature {
   };
 
   navigationItem = {
-    title: 'Servers',
+    title: NavTitles.Servers,
     icon: <ServersIcon />,
     exact: true,
     getLink(clusterId: string) {
@@ -112,7 +114,7 @@ export class FeatureApps implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Applications',
+    title: NavTitles.Applications,
     icon: <ApplicationsIcon />,
     exact: true,
     getLink(clusterId: string) {
@@ -136,7 +138,7 @@ export class FeatureKubes implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Kubernetes',
+    title: NavTitles.Kubernetes,
     icon: <KubernetesIcon />,
     exact: true,
     getLink(clusterId: string) {
@@ -160,7 +162,7 @@ export class FeatureDatabases implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Databases',
+    title: NavTitles.Databases,
     icon: <DatabasesIcon />,
     exact: true,
     getLink(clusterId: string) {
@@ -184,7 +186,7 @@ export class FeatureDesktops implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Desktops',
+    title: NavTitles.Desktops,
     icon: <DesktopsIcon />,
     exact: true,
     getLink(clusterId: string) {
@@ -208,7 +210,7 @@ export class FeatureSessions implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Active Sessions',
+    title: NavTitles.ActiveSessions,
     icon: <ActiveSessionsIcon />,
     exact: true,
     getLink(clusterId: string) {
@@ -239,7 +241,7 @@ export class FeatureUsers implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Users',
+    title: NavTitles.Users,
     icon: <UsersIcon />,
     exact: true,
     getLink() {
@@ -264,7 +266,7 @@ export class FeatureRoles implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Roles',
+    title: NavTitles.Roles,
     icon: <RolesIcon />,
     exact: true,
     getLink() {
@@ -289,7 +291,7 @@ export class FeatureAuthConnectors implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Auth Connectors',
+    title: NavTitles.AuthConnectors,
     icon: <AuthConnectorsIcon />,
     exact: false,
     getLink() {
@@ -314,7 +316,7 @@ export class FeatureLocks implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Session & Identity Locks',
+    title: NavTitles.SessionAndIdentityLocks,
     icon: <LockIcon />,
     exact: false,
     getLink() {
@@ -351,7 +353,7 @@ export class FeatureDiscover implements TeleportFeature {
   };
 
   navigationItem = {
-    title: 'Enroll New Resource',
+    title: NavTitles.EnrollNewResource,
     icon: <AddIcon />,
     exact: true,
     getLink() {
@@ -387,7 +389,7 @@ export class FeatureIntegrations implements TeleportFeature {
   };
 
   navigationItem = {
-    title: 'Integrations',
+    title: NavTitles.Integrations,
     icon: <IntegrationsIcon />,
     exact: true,
     getLink() {
@@ -416,7 +418,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Enroll New Integration',
+    title: NavTitles.EnrollNewIntegration,
     icon: <AddIcon />,
     getLink() {
       return cfg.getIntegrationEnrollRoute(null);
@@ -448,7 +450,7 @@ export class FeatureRecordings implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Session Recordings',
+    title: NavTitles.SessionRecordings,
     icon: <SessionRecordingsIcon />,
     exact: true,
     getLink(clusterId: string) {
@@ -472,7 +474,7 @@ export class FeatureAudit implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Audit Log',
+    title: NavTitles.AuditLog,
     icon: <AuditLogIcon />,
     getLink(clusterId: string) {
       return cfg.getAuditRoute(clusterId);
@@ -498,7 +500,7 @@ export class FeatureClusters implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Manage Clusters',
+    title: NavTitles.ManageClusters,
     icon: <ManageClustersIcon />,
     exact: false,
     getLink() {
@@ -522,7 +524,7 @@ export class FeatureTrust implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Trusted Clusters',
+    title: NavTitles.TrustedClusters,
     icon: <TrustedClustersIcon />,
     getLink() {
       return cfg.routes.trustedClusters;
@@ -546,7 +548,7 @@ export class FeatureAccount implements TeleportFeature {
   }
 
   topMenuItem = {
-    title: 'Account Settings',
+    title: NavTitles.AccountSettings,
     icon: <UserSettingsIcon size={16} />,
     getLink() {
       return cfg.routes.account;
@@ -567,7 +569,7 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   }
 
   topMenuItem = {
-    title: 'Help & Support',
+    title: NavTitles.HelpAndSupport,
     icon: <SupportIcon size={16} />,
     exact: true,
     getLink() {

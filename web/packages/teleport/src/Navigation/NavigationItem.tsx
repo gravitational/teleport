@@ -1,3 +1,4 @@
+
 /*
 Copyright 2023 Gravitational, Inc.
 
@@ -34,6 +35,8 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import localStorage from 'teleport/services/localStorage';
 
 import { useTeleport } from 'teleport';
+
+import { NavTitles } from 'teleport/types';
 
 import type {
   TeleportFeature,
@@ -159,20 +162,17 @@ export function NavigationItem(props: NavigationItemProps) {
   // shouldAlert returns red dot alert if the feature name exist in recommendFeature
   // context and the feature value is set true.
   function shouldAlert(featureName: any): JSX.Element {
-    // We'll only ever recommend features once initial onboarding is completed.
-      // if onboarding is required, let's skip below.
     const onboard = localStorage.getOnboardDiscover();
     const requiresOnboarding =
       onboard && !onboard.hasResource && !onboard.notified;
 
     if (requiresOnboarding) {
-      return null;
+      return null
     }
 
-    const recommendFeature = localStorage.getFeatureRecommendationStatus();
-
+    const recommendFeature = localStorage.getFeatureRecommendationStatus()
     if (
-      featureName === 'Trusted Devices' &&
+      featureName === NavTitles.TrustedDevices &&
       recommendFeature?.TrustedDevices === 'Pending'
     ) {
       return <RedDot />;
@@ -262,5 +262,5 @@ const RedDot = styled.div`
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: ${props => props.theme.colors.error.main};
+  background-color:  ${props => props.theme.colors.error.main};
 `;
