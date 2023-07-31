@@ -90,22 +90,19 @@ export class AgentRunner {
 
   async kill(rootClusterUri: RootClusterUri): Promise<void> {
     const agent = this.agentProcesses.get(rootClusterUri);
-    if (agent) {
-      await terminateWithTimeout(
-        this.agentProcesses.get(rootClusterUri).process
-      );
-      this.agentProcesses.delete(rootClusterUri);
-      this.logger.info(`Killed agent for ${rootClusterUri}`);
+    if (!agent) {
+      this.logger.warn(`Cannot get an agent to kill for ${rootClusterUri}`);
+      return;
     }
-    this.logger.warn(`Cannot get an agent to kill for ${rootClusterUri}`);
+    await terminateWithTimeout(agent.process);
+    this.logger.info(`Killed agent for ${rootClusterUri}`);
   }
 
   async killAll(): Promise<void> {
-    const processes = Array.from(this.agentProcesses.entries());
+    const processes = Array.from(this.agentProcesses.values());
     await Promise.all(
-      processes.map(async ([rootClusterUri, agent]) => {
+      processes.map(async agent => {
         await terminateWithTimeout(agent.process);
-        this.agentProcesses.delete(rootClusterUri);
       })
     );
   }
@@ -163,9 +160,7 @@ export class AgentRunner {
     state: AgentProcessState
   ): void {
     const agent = this.agentProcesses.get(rootClusterUri);
-    if (agent) {
-      agent.state = state;
-    }
+    agent.state = state;
     this.sendProcessState(rootClusterUri, state);
   }
 }

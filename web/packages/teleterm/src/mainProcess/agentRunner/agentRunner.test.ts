@@ -107,9 +107,10 @@ test('status updates are sent on a successful start', async () => {
     const exitedState: AgentProcessState = {
       status: 'exited',
       code: null,
+      stackTrace: undefined,
       signal: 'SIGTERM',
     };
-    expect(agentRunner.getState(rootClusterUri)).toBeUndefined(); // the agent has been killed and removed
+    expect(agentRunner.getState(rootClusterUri)).toStrictEqual(exitedState);
     expect(updateSender).toHaveBeenCalledWith(rootClusterUri, exitedState);
 
     expect(updateSender).toHaveBeenCalledTimes(2);
