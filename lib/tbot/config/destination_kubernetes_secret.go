@@ -19,6 +19,10 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
+	"os"
+	"sync"
+
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,8 +30,6 @@ import (
 	applyconfigv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"sync"
 )
 
 const DestinationKubernetesSecretType = "kubernetes_secret"
@@ -146,6 +148,10 @@ func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []stri
 		if !kubeerrors.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+		log.WithFields(logrus.Fields{
+			"secret_name":      dks.Name,
+			"secret_namespace": dks.namespace,
+		}).Debug("Did not find an existing Kubernetes secret. One will be created.")
 		secret = dks.secretTemplate()
 	}
 	if err := dks.upsertSecret(ctx, secret); err != nil {
@@ -168,7 +174,10 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 		if !kubeerrors.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.Warn("Kubernetes secret missing on attempt to write data- will create.")
+		log.WithFields(logrus.Fields{
+			"secret_name":      dks.Name,
+			"secret_namespace": dks.namespace,
+		}).Warn("Kubernetes secret missing on attempt to write data. One will be created.")
 		// If the secret doesn't exist, we create it on write - this is ensures
 		// that we can recover if the secret is deleted between renewal loops.
 		secret = dks.secretTemplate()
