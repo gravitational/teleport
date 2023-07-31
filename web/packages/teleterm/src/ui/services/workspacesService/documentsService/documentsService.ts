@@ -215,19 +215,30 @@ export class DocumentsService {
     };
   }
 
-  createConnectMyComputerSetupDocument(opts: {
+  openConnectMyComputerSetupDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
     // However, we decided not to do so because other documents are based only on the provided parameters.
     rootClusterUri: RootClusterUri;
   }): DocumentConnectMyComputerSetup {
+    const existingDoc = this.getDocuments().find(
+      doc => doc.kind === 'doc.connect_my_computer_setup'
+    );
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
     const uri = routing.getDocUri({ docId: unique() });
-    return {
+    const doc = {
       uri,
-      kind: 'doc.connect_my_computer_setup',
+      kind: 'doc.connect_my_computer_setup' as const,
       title: 'Connect My Computer',
       rootClusterUri: opts.rootClusterUri,
     };
+
+    this.add(doc);
+    this.open(doc.uri);
   }
 
   openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {
