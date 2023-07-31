@@ -21,10 +21,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
@@ -83,13 +85,27 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) lib.Serv
 			return nil
 		})
 
+		bk := backoff.NewDecorr(20*time.Millisecond, 5*time.Second, clockwork.NewRealClock())
+
 		log := logger.Get(ctx)
 		for {
 			err := job.watchEvents(ctx)
+			// We are not supporting liveness/readiness yet, but if we do it would make sense to use job's readiness
+			job.SetReady(false)
+
 			switch {
 			case trace.IsConnectionProblem(err):
+<<<<<<< HEAD
 				log.WithError(err).Error("Failed to connect to Teleport Auth server. Reconnecting...")
 			case errors.Is(err, io.EOF):
+=======
+				// Not all connection problems can be retried. The client can
+				// end up in a broken state and won't be able to connect.
+				// Exiting in error is noisier but allows the orchestrator to
+				// know something is not right.
+				return trace.WrapWithMessage(err, "Failed to connect to Teleport server. Exiting.")
+			case trace.IsEOF(err):
+>>>>>>> 5965bbe145 (integrations/access: avoid infinite retry on broken connection)
 				log.WithError(err).Error("Watcher stream closed. Reconnecting...")
 			case lib.IsCanceled(err):
 				log.Debug("Watcher context is canceled")
@@ -98,6 +114,12 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) lib.Serv
 			default:
 				log.WithError(err).Error("Watcher event loop failed")
 				return trace.Wrap(err)
+			}
+
+			// To mitigate a potentially aggressive retry loop, we wait
+			if err := bk.Do(ctx); err != nil {
+				log.Debug("Watcher context was canceled while waiting before a reconnection")
+				return nil
 			}
 		}
 	})
