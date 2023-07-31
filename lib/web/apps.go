@@ -60,8 +60,25 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	page, err := apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](r.Context(), clt, req)
+
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// If the error returned is due to types.KindAppOrSAMLIdPServiceProvider being unsupported, then fallback to attempting to just fetch types.AppServers.
+		// This is for backwards compatibility with leaf clusters that don't support this new type yet.
+		// DELETE IN 15.0
+		if trace.IsNotImplemented(err) {
+			req, err = convertListResourcesRequest(r, types.KindAppServer)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			appServerPage, err := apiclient.GetResourcePage[types.AppServer](r.Context(), clt, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Convert the ResourcePage returned containing AppServers to a ResourcePage containing AppServerOrSAMLIdPServiceProviders.
+			page = appServerOrSPPageFromAppServerPage(appServerPage)
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
@@ -405,4 +422,27 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 		return []string{h.auth.clusterName}
 	}
 	return dnsNames
+}
+
+// appServerOrSPPageFromAppServerPage converts a ResourcePage containing AppServers to a ResourcePage containing AppServerOrSAMLIdPServiceProviders.
+// DELETE IN 15.0
+func appServerOrSPPageFromAppServerPage(appServerPage apiclient.ResourcePage[types.AppServer]) apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider] {
+	resources := make([]types.AppServerOrSAMLIdPServiceProvider, len(appServerPage.Resources))
+
+	for i, appServer := range appServerPage.Resources {
+		// Create AppServerOrSAMLIdPServiceProvider object from appServer.
+		appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+			Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+				AppServer: appServer.(*types.AppServerV3),
+			},
+		}
+
+		resources[i] = appServerOrSP
+	}
+
+	return apiclient.ResourcePage[types.AppServerOrSAMLIdPServiceProvider]{
+		Resources: resources,
+		Total:     appServerPage.Total,
+		NextKey:   appServerPage.NextKey,
+	}
 }
