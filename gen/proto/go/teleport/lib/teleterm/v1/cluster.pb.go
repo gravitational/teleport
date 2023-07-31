@@ -35,6 +35,7 @@ const (
 )
 
 // UserType indicates whether the user was created through an SSO provider or in Teleport itself.
+// Only present when detailed information is queried from the auth server.
 type LoggedInUser_UserType int32
 
 const (
