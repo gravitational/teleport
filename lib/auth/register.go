@@ -714,9 +714,6 @@ type ReRegisterParams struct {
 	Rotation types.Rotation
 	// SystemRoles is a set of additional system roles held by the instance.
 	SystemRoles []types.SystemRole
-	// Used by older instances to requisition a multi-role cert by individually
-	// proving which system roles are held.
-	UnstableSystemRoleAssertionID string
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
@@ -730,16 +727,15 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
-			HostID:                        params.ID.HostID(),
-			NodeName:                      params.ID.NodeName,
-			Role:                          params.ID.Role,
-			AdditionalPrincipals:          params.AdditionalPrincipals,
-			DNSNames:                      params.DNSNames,
-			PublicTLSKey:                  params.PublicTLSKey,
-			PublicSSHKey:                  params.PublicSSHKey,
-			Rotation:                      rotation,
-			SystemRoles:                   params.SystemRoles,
-			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
+			HostID:               params.ID.HostID(),
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			Rotation:             rotation,
+			SystemRoles:          params.SystemRoles,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

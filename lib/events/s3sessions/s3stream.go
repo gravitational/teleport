@@ -201,7 +201,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 				Initiated: *upload.Initiated,
 			})
 		}
-		if !*re.IsTruncated {
+		if !aws.BoolValue(re.IsTruncated) {
 			break
 		}
 		keyMarker = re.KeyMarker

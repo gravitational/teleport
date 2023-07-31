@@ -321,6 +321,9 @@ type CLIConf struct {
 	// be issued if the Access Request is approved.
 	SessionTTL time.Duration
 
+	// MaxDuration specifies how long the access will be granted for.
+	MaxDuration time.Duration
+
 	// executablePath is the absolute path to the current executable.
 	executablePath string
 
@@ -339,6 +342,16 @@ type CLIConf struct {
 
 	// MockHeadlessLogin used in tests to override Headless login handler in teleport client.
 	MockHeadlessLogin client.SSHLoginFunc
+
+	// overrideMySQLOptionFilePath overrides the MySQL option file path to use.
+	// Useful in parallel tests so they don't all use the default path in the
+	// user home dir.
+	overrideMySQLOptionFilePath string
+
+	// overridePostgresServiceFilePath overrides the Postgres service file path.
+	// Useful in parallel tests so they don't all use the default path in the
+	// user home dir.
+	overridePostgresServiceFilePath string
 
 	// HomePath is where tsh stores profiles
 	HomePath string
@@ -990,6 +1003,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("resource", "Resource ID to be requested").StringsVar(&cf.RequestedResourceIDs)
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
+	reqCreate.Flag("max-duration", "How long the the access should be granted for").DurationVar(&cf.MaxDuration)
 
 	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -1819,8 +1833,23 @@ func onLogin(cf *CLIConf) error {
 
 	// If the cluster is using single-sign on, providing the user name
 	// with --user is likely a mistake, so display a warning.
-	if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.Username != "" {
-		fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
+	if cf.Username != "" {
+		var displayIgnoreUserWarning = false
+		if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.AuthConnector != constants.PasswordlessConnector {
+			displayIgnoreUserWarning = true
+		} else if cf.AuthConnector == "" {
+			// Get the Ping so we check if the default Auth type is SSO
+			pr, err := tc.Ping(cf.Context)
+			if err != nil {
+				return trace.Wrap(err, "Teleport proxy not available at %s.", tc.WebProxyAddr)
+			}
+			if pr.Auth.Type != constants.LocalConnector && pr.Auth.Type != constants.PasswordlessConnector {
+				displayIgnoreUserWarning = true
+			}
+		}
+		if displayIgnoreUserWarning {
+			fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
+		}
 	}
 
 	if cf.Username == "" {
@@ -1954,6 +1983,8 @@ func onLogin(cf *CLIConf) error {
 	if err := printProfiles(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
+
+	fmt.Fprint(os.Stderr, "Did you know? Teleport Connect offers the power of tsh in a desktop app.\nLearn more at https://goteleport.com/docs/connect-your-client/teleport-connect/\n\n")
 
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
 	// don't use the alert API very heavily. If we start to make more use of it, we
@@ -2381,13 +2412,9 @@ func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID,
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	roles := utils.SplitIdentifiers(cf.DesiredRoles)
 	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-	var requestedResourceIDs []types.ResourceID
-	for _, resourceIDString := range cf.RequestedResourceIDs {
-		resourceID, err := types.ResourceIDFromString(resourceIDString)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		requestedResourceIDs = append(requestedResourceIDs, resourceID)
+	requestedResourceIDs, err := types.ResourceIDsFromStrings(cf.RequestedResourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 	if err != nil {
@@ -2397,13 +2424,17 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	req.SetSuggestedReviewers(reviewers)
 
 	// Only set RequestTTL and SessionTTL if values are greater than zero.
-	// Otherwise leave defaults and the server will take the zero values and
+	// Otherwise, leave defaults, and the server will take the zero values and
 	// transform them into default expirations accordingly.
 	if cf.RequestTTL > 0 {
 		req.SetExpiry(time.Now().UTC().Add(cf.RequestTTL))
 	}
 	if cf.SessionTTL > 0 {
 		req.SetAccessExpiry(time.Now().UTC().Add(cf.SessionTTL))
+	}
+	if cf.MaxDuration > 0 {
+		// Time will be relative to the approval time instead of the request time.
+		req.SetMaxDuration(time.Now().UTC().Add(cf.MaxDuration))
 	}
 
 	return req, nil
@@ -3233,7 +3264,7 @@ func onSSH(cf *CLIConf) error {
 		}
 		if err != nil {
 			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			fmt.Fprintln(tc.Stderr, utils.UserMessageFromError(err))
 		}
 		err = &common.ExitCodeError{Code: tc.ExitStatus}
 		return trace.Wrap(err)
@@ -3698,6 +3729,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.MockSSOLogin = cf.MockSSOLogin
 	c.MockHeadlessLogin = cf.MockHeadlessLogin
 	c.DTAuthnRunCeremony = cf.DTAuthnRunCeremony
+
+	// pass along MySQL/Postgres path overrides (only used in tests).
+	c.OverrideMySQLOptionFilePath = cf.overrideMySQLOptionFilePath
+	c.OverridePostgresServiceFilePath = cf.overridePostgresServiceFilePath
 
 	// Set tsh home directory
 	c.HomePath = cf.HomePath

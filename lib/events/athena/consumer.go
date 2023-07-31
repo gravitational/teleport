@@ -56,6 +56,12 @@ const (
 	// maxErrorCountForLogsOnSQSReceive defines maximum number of error log messages
 	// printed on receiving error from SQS receiver loop.
 	maxErrorCountForLogsOnSQSReceive = 10
+
+	// maxUniqueDaysInSingleBatch defines how many days are allowed in single batch.
+	// Typically during normal operation there will be only one unique day,
+	// but during a migration from another events backend, there could be a lot and using over 100 can result in huge
+	// memory consumption, due to how s3 manager uploader works: https://github.com/aws/aws-sdk-go-v2/issues/1302.
+	maxUniqueDaysInSingleBatch = 100
 )
 
 // consumer is responsible for receiving messages from SQS, batching them up to
@@ -459,9 +465,12 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 
 				fullBatchMetadataMu.Lock()
 				fullBatchMetadata.Merge(singleReceiveMetadata)
-				if fullBatchMetadata.Count >= s.cfg.batchMaxItems {
+				isOverBatch := fullBatchMetadata.Count >= s.cfg.batchMaxItems
+				isOverMaximumUniqueDays := len(fullBatchMetadata.UniqueDays) > maxUniqueDaysInSingleBatch
+				if isOverBatch || isOverMaximumUniqueDays {
 					fullBatchMetadataMu.Unlock()
 					cancel()
+					s.cfg.logger.Debugf("Batcher aborting early because of maxSize: %v, or maxUniqueDays %v", isOverBatch, isOverMaximumUniqueDays)
 					return
 				}
 				fullBatchMetadataMu.Unlock()
@@ -487,6 +496,8 @@ type collectedEventsMetadata struct {
 	Count int
 	// OldestTimestamp is timestamp of oldest event.
 	OldestTimestamp time.Time
+	// UniqueDays tracks from how many days events are received in current batch.
+	UniqueDays map[string]struct{}
 }
 
 // Merge combines the metadata of two collectedEventsMetadata instances.
@@ -495,8 +506,24 @@ type collectedEventsMetadata struct {
 func (c *collectedEventsMetadata) Merge(in collectedEventsMetadata) {
 	c.Size += in.Size
 	c.Count += in.Count
+	c.mergeUniqueDays(in.UniqueDays)
 	if c.OldestTimestamp.IsZero() || (!in.OldestTimestamp.IsZero() && c.OldestTimestamp.After(in.OldestTimestamp)) {
 		c.OldestTimestamp = in.OldestTimestamp
+	}
+}
+
+func (c *collectedEventsMetadata) mergeUniqueDays(mapToMerge map[string]struct{}) {
+	if mapToMerge == nil {
+		return
+	}
+	if c.UniqueDays == nil {
+		c.UniqueDays = mapToMerge
+		return
+	}
+	for k := range mapToMerge {
+		if _, ok := c.UniqueDays[k]; !ok {
+			c.UniqueDays[k] = struct{}{}
+		}
 	}
 }
 
@@ -507,6 +534,9 @@ func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent, publis
 		Count:           1,
 		Size:            in.Size(),
 		OldestTimestamp: publishedToQueueTimestamp,
+		UniqueDays: map[string]struct{}{
+			in.GetTime().Format(time.DateOnly): {},
+		},
 	})
 }
 
