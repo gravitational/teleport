@@ -41,7 +41,7 @@ type ToolContext struct {
 
 type AccessRequestClient interface {
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-	ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // Tool is an interface that allows the agent to interact with the outside world.
@@ -149,7 +149,7 @@ This includes nodes via SSH access.`
 }
 
 func (a *accessRequestListRequestableResourcesTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
-	nodeList, err := toolCtx.ListResources(ctx, &proto.ListResourcesRequest{
+	nodeList, err := toolCtx.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType:     types.KindNode,
 		Limit:            100,
 		UseSearchAsRoles: true,
@@ -159,8 +159,8 @@ func (a *accessRequestListRequestableResourcesTool) Run(ctx context.Context, too
 	}
 
 	sb := strings.Builder{}
-	for _, resource := range nodeList.GetResources() {
-		node := resource.GetNode()
+	for _, resource := range nodeList.Resources {
+		node := resource.(types.Server)
 		nodeYaml, err := yaml.Marshal(promptResource{
 			Name:       node.GetHostname(),
 			ResourceID: strconv.FormatInt(node.GetResourceID(), 10),
@@ -191,15 +191,6 @@ type promptResource struct {
 	Labels     map[string]string `yaml:"labels"`
 }
 
-//	// Create artificial Name file for the node "name". Using node.GetName() as Name seems to confuse the model.
-//	Name:    node.GetHostname(),
-//	Kind:    types.KindNode,
-//	SubKind: node.GetSubKind(),
-//	Labels:  node.GetAllLabels(),
-//}
-//text, err := yaml.Marshal(&a)
-//return text, trace.Wrap(err)
-
 type accessRequestCreateTool struct{}
 
 func (*accessRequestCreateTool) Name() string {
@@ -210,6 +201,7 @@ func (*accessRequestCreateTool) Description() string {
 	return fmt.Sprintf(`Create an access request with a set of roles to, a set of resource IDs, a reason, and a set of suggested reviewers.
 You must get this information from the conversations context or by asking the user for clarification.
 A valid access request must be either for one or more roles or for one or more resource IDs.
+If the user is not specific enough, you may try to match their request against a set of requestable roles or resources.
 The input must be a JSON object with the following schema:
 
 %vjson
