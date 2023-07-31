@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"github.com/gravitational/teleport/lib/services/local"
 	"strconv"
 
 	"github.com/gravitational/trace"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
