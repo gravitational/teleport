@@ -1487,7 +1487,7 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*types.ListResourcesResponse, error) {
 	// Fetch full list of nodes in the backend.
 	startFetch := time.Now()
-	unifiedResources, err := a.authServer.unifiedResourceWatcher.GetUnifiedResources(ctx)
+	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
