@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -2032,6 +2034,73 @@ func mustGetDatabases(t *testing.T, client *Client, wantDatabases []types.Databa
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.EquateEmpty(),
 	))
+}
+
+func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
+	require.NoError(t, err)
+
+	eksCluster, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
+		Name:   aws.String("eks-cluster1"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
+		Status: aws.String(eks.ClusterStatusActive),
+	})
+	require.NoError(t, err)
+
+	// Discovery service must not have access to non-cloud cluster (cluster
+	// without "cloud" origin label).
+	nonCloudCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "non-cloud",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
+
+	// Discovery service cannot create cluster with dynamic labels.
+	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
+		Name:   aws.String("eks-cluster2"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
+		Status: aws.String(eks.ClusterStatusActive),
+	})
+	require.NoError(t, err)
+	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
+		"hostname": &types.CommandLabelV2{
+			Period:  types.Duration(time.Hour),
+			Command: []string{"hostname"},
+		},
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, nonCloudCluster)))
+		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
+	})
+	t.Run("Read", func(t *testing.T) {
+		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Equal(t, clusters, []types.KubeCluster{eksCluster})
+	})
+	t.Run("Update", func(t *testing.T) {
+		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
+		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
+	})
+	t.Run("Delete", func(t *testing.T) {
+		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
+		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+
+		// Discovery service cannot delete non-cloud clusters.
+		clusters, err = srv.Auth().GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+	})
 }
 
 func TestGetAndList_DatabaseServers(t *testing.T) {
