@@ -36,6 +36,12 @@ import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_p
 
 import * as uri from 'teleterm/ui/uri';
 
+// We want to reexport both the type and the value of UserType. Because it's in a namespace, we have
+// to alias it first to do the reexport.
+// https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
+import UserType = apiCluster.LoggedInUser.UserType;
+export { UserType };
+
 export interface Kube extends apiKube.Kube.AsObject {
   uri: uri.KubeUri;
 }
