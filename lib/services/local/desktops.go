@@ -18,6 +18,8 @@ package local
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 
 	"github.com/gravitational/trace"
 
@@ -25,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+const OSSDesktopsLimit = 3
 
 // WindowsDesktopService manages windows desktop resources in the backend.
 type WindowsDesktopService struct {
@@ -36,26 +40,33 @@ func NewWindowsDesktopService(backend backend.Backend) *WindowsDesktopService {
 	return &WindowsDesktopService{Backend: backend}
 }
 
-func (s *WindowsDesktopService) GetNonADDesktopsCount(ctx context.Context) (uint64, error) {
-	startKey := backend.Key(windowsDesktopsPrefix, "")
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return 0, trace.Wrap(err)
+func (s *WindowsDesktopService) CheckOSSDesktopsLimit(ctx context.Context) (bool, error) {
+	if modules.GetModules().BuildType() != modules.BuildOSS {
+		return true, nil
 	}
-
-	count := uint64(0)
-	for _, item := range result.Items {
+	startKey := backend.ExactKey(windowsDesktopsPrefix)
+	stream := backend.StreamRange(ctx, s, startKey, backend.RangeEnd(startKey), defaults.DefaultChunkSize)
+	var count uint64
+	for stream.Next() {
+		item := stream.Item()
 		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
-			return 0, trace.Wrap(err)
+			stream.Done()
+			return false, trace.Wrap(err)
 		}
 		if desktop.NonAD() {
 			count++
+			if count > OSSDesktopsLimit {
+				stream.Done()
+				return false, nil
+			}
 		}
 	}
-
-	return count, nil
+	if err := stream.Done(); err != nil {
+		return false, trace.Wrap(err)
+	}
+	return true, nil
 }
 
 // GetWindowsDesktops returns all Windows desktops matching filter.

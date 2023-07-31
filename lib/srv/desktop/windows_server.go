@@ -756,13 +756,13 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktop := desktops[0]
 
 	if desktop.NonAD() && buildType == modules.BuildOSS {
-		desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{OnlyNonAD: true})
+		underLimit, err := s.cfg.AccessPoint.CheckOSSDesktopsLimit(ctx)
 		if err != nil {
-			log.WithError(err).Warning("Failed to fetch desktops")
-			sendTDPError("Teleport failed to fetch desktops.")
+			log.WithError(err).Warning("Failed to check desktops limit")
+			sendTDPError("Teleport failed to check desktops limit")
 			return
 		}
-		if len(desktops) > 3 {
+		if !underLimit {
 			log.Warning("More than 3 Non-AD desktops configured")
 			sendTDPError(auth.OSSDesktopsAlertMessage)
 			return

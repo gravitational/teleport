@@ -471,6 +471,11 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	return c.APIClient.ListReleases(ctx, &proto.ListReleasesRequest{})
 }
 
+// CheckOSSDesktopsLimit not implemented: can only be called locally.
+func (c *Client) CheckOSSDesktopsLimit(ctx context.Context) (bool, error) {
+	return false, trace.NotImplemented(notImplementedMessage)
+}
+
 func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
 }

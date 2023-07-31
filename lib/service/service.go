@@ -1198,10 +1198,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// notify parent process that this process has started
 	go process.notifyParent()
 
-	if err := process.GetAuthServer().UpdateOSSDesktopAlert(process.ExitContext()); err != nil {
-		return nil, err
-	}
-
 	return process, nil
 }
 
@@ -2228,7 +2224,7 @@ func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName
 	return auth.NewAppsWrapper(clt, cache), nil
 }
 
-// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
+// newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
 func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {

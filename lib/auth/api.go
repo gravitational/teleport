@@ -649,6 +649,9 @@ type ReadWindowsDesktopAccessPoint interface {
 
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	// CheckOSSDesktopsLimit checks if number of non-AD is in limit for OSS distribution. Returns always true for Enterprise
+	CheckOSSDesktopsLimit(ctx context.Context) (bool, error)
 }
 
 // WindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be

@@ -1961,6 +1961,7 @@ func (windowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) windowsDesk
 type windowsDesktopsGetter interface {
 	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+	CheckOSSDesktopsLimit(ctx context.Context) (bool, error)
 }
 
 var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExecutor{}

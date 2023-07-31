@@ -117,8 +117,9 @@ const (
 )
 
 const (
+	OSSDesktopsCheckPeriod  = 5 * time.Minute
 	OSSDesktopsAlertID      = "oss-desktops"
-	OSSDesktopsAlertMessage = "OSS license only allows 3 Non-AD desktops configured. " +
+	OSSDesktopsAlertMessage = "Teleport Community Edition only allows 3 Non-AD desktops configured. " +
 		"You won't be able to connect to any of them if there are more" +
 		"Please contact Sales to upgrade your license"
 )
@@ -386,6 +387,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		)
 	}
+
+	go func() {
+		for {
+			as.CheckOSSDesktopsLimit(context.Background())
+			time.Sleep(OSSDesktopsCheckPeriod)
+		}
+	}()
 
 	return &as, nil
 }
@@ -4207,45 +4215,18 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 	return lease, nil
 }
 
-// UpdateOSSDesktopAlert manages alert to show OSS users if there are more than 3 non-AD desktops
-func (a *Server) UpdateOSSDesktopAlert(ctx context.Context) error {
-	desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{OnlyNonAD: true})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if modules.GetModules().BuildType() == modules.BuildOSS && len(desktops) > 3 {
-		alert, err := types.NewClusterAlert(OSSDesktopsAlertID, OSSDesktopsAlertMessage,
-			types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
-			types.WithAlertLabel(types.AlertOnLogin, "yes"),
-			types.WithAlertLabel(types.AlertPermitAll, "yes"),
-			types.WithAlertExpires(time.Now().Add(200*24*365*time.Hour)))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(a.UpsertClusterAlert(ctx, alert))
-	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
 	if err := a.Services.DeleteWindowsDesktop(ctx, hostID, name); err != nil {
 		return trace.Wrap(err)
 	}
-
-	return trace.Wrap(a.UpdateOSSDesktopAlert(ctx))
+	a.CheckOSSDesktopsLimit(ctx)
+	return nil
 }
 
 // CreateWindowsDesktop implements [services.WindowsDesktops] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
 	if err := a.Services.CreateWindowsDesktop(ctx, desktop); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.UpdateOSSDesktopAlert(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4265,10 +4246,6 @@ func (a *Server) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	if err := a.UpdateOSSDesktopAlert(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   desktop.GetName(),
 		Kind:   usagereporter.ResourceKindWindowsDesktop,
@@ -4285,10 +4262,6 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	if err := a.UpdateOSSDesktopAlert(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   desktop.GetName(),
 		Kind:   usagereporter.ResourceKindWindowsDesktop,
@@ -4296,6 +4269,24 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	})
 
 	return nil
+}
+
+// CheckOSSDesktopsLimit checks if number of non-AD is in limit for OSS distribution. Returns always true for Enterprise.
+// If there are more non-AD desktops than allowed it also adds cluster alert to notify user.
+func (a *Server) CheckOSSDesktopsLimit(ctx context.Context) (bool, error) {
+	underLimit, err := a.Services.CheckOSSDesktopsLimit(ctx)
+	if underLimit || err != nil {
+		return true, trace.Wrap(err)
+	}
+	alert, err := types.NewClusterAlert(OSSDesktopsAlertID, OSSDesktopsAlertMessage,
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertPermitAll, "yes"),
+		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return false, trace.Wrap(a.UpsertClusterAlert(ctx, alert))
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.

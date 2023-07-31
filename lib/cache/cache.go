@@ -2284,6 +2284,19 @@ func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (type
 	return rg.reader.GetWindowsDesktopService(ctx, name)
 }
 
+// CheckOSSDesktopsLimit checks if number of non-AD is in limit for OSS distribution. Returns always true for Enterprise
+func (c *Cache) CheckOSSDesktopsLimit(ctx context.Context) (bool, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/CheckOSSDesktopsLimit")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.windowsDesktops)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.CheckOSSDesktopsLimit(ctx)
+}
+
 // GetWindowsDesktops returns all registered Windows desktop hosts.
 func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktops")
