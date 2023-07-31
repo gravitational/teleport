@@ -98,6 +98,7 @@ export type MainProcessClient = {
     properties: AgentConfigFileClusterProperties
   ): Promise<void>;
   runAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   subscribeToAgentUpdate: SubscribeToAgentUpdate;
 };
 
