@@ -71,6 +71,9 @@ type Presence interface {
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
+	// StreamNodes streams a list of registered servers.
+	StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server]
+
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]types.Server, error)
 

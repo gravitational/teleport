@@ -121,6 +121,13 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleMDM:            {},
 }
 
+// controlPlaneMapping is the subset of local services which are definitively control plane
+// elements.
+var controlPlaneMapping = map[SystemRole]struct{}{
+	RoleAuth:  {},
+	RoleProxy: {},
+}
+
 // LocalServiceMappings returns the subset of role mappings which happen
 // to be true Teleport services (e.g. db, kube, proxy, etc), excluding
 // those which represent remote service (i.e. remoteproxy).
@@ -276,5 +283,11 @@ func (r *SystemRole) Check() error {
 // as remoteproxy.
 func (r *SystemRole) IsLocalService() bool {
 	_, ok := localServiceMappings[*r]
+	return ok
+}
+
+// IsControlPlane checks if the given system role is a control plane element (i.e. auth/proxy).
+func (r *SystemRole) IsControlPlane() bool {
+	_, ok := controlPlaneMapping[*r]
 	return ok
 }

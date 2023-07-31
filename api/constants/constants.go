@@ -385,14 +385,6 @@ const (
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
 )
-const (
-	// ProxyHelloSignature is a string which Teleport proxy will send
-	// right after the initial SSH "handshake/version" message if it detects
-	// talking to a Teleport server.
-	//
-	// This is also leveraged by tsh to propagate its tracing span ID.
-	ProxyHelloSignature = "Teleport-Proxy"
-)
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
@@ -406,6 +398,11 @@ const (
 	// WebAPIConnUpgradeHeader is the header used to indicate the requested
 	// connection upgrade types in the connection upgrade API.
 	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
+	// indicate the requested connection upgrade types in the connection
+	// upgrade API. This header is sent in addition to "Upgrade" header in case
+	// a load balancer/reverse proxy removes "Upgrade".
+	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
 	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
 	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"

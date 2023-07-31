@@ -668,6 +668,27 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	return values, string(lastKey), nil
 }
 
+func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
+	checkpoint, err := getCheckpointFromStartKey(startKey)
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	if checkpoint.Iterator == nil {
+		return time.Time{}, errors.New("missing iterator")
+	}
+	var e event
+	if err := dynamodbattribute.UnmarshalMap(checkpoint.Iterator, &e); err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	if e.CreatedAt <= 0 {
+		// Value <= 0 means that either createdAt was not returned or
+		// it has 0 values, either way, we can't use that value.
+		return time.Time{}, errors.New("createdAt is invalid")
+	}
+
+	return time.Unix(e.CreatedAt, 0), nil
+}
+
 func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	var checkpoint checkpointKey
 	if startKey == "" {

@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/common"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -368,17 +368,6 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
 }
 
-// FromHeaderMetadata will convert a *header.Metadata object to this metadata object.
-// TODO: Remove this once we get rid of the old Metadata object.
-func FromHeaderMetadata(metadata header.Metadata) Metadata {
-	return Metadata{
-		ID:          metadata.ID,
-		Name:        metadata.Name,
-		Description: metadata.Description,
-		Labels:      metadata.Labels,
-	}
-}
-
 // GetID returns resource ID
 func (m *Metadata) GetID() int64 {
 	return m.ID
@@ -530,4 +519,15 @@ type ListResourcesResponse struct {
 	NextKey string
 	// TotalCount is the total number of resources available as a whole.
 	TotalCount int
+}
+
+// ValidateResourceName validates a resource name using a given regexp.
+func ValidateResourceName(validationRegex *regexp.Regexp, name string) error {
+	if validationRegex.MatchString(name) {
+		return nil
+	}
+	return trace.BadParameter(
+		"%q does not match regex used for validation %q",
+		name, validationRegex.String(),
+	)
 }

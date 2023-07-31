@@ -279,10 +279,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	if !found {
 		// Create a new session ID. These sessions can not be joined
 		sessionID = rsession.NewID()
+		scx.Tracef("Session not found, creating a new session %s", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
 		sessionID = rsession.ID(sid)
+		scx.Tracef("Session found, reusing it %s", sessionID)
 	}
 
 	_, found = scx.GetEnv(teleport.EnableNonInteractiveSessionRecording)
@@ -881,7 +883,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,
 		},
-		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		SessionRecording: s.sessionRecordingMode(),
 		InitialCommand:   initialCommand,
 	}
 
@@ -1039,7 +1041,7 @@ func (s *session) emitSessionEndEvent() {
 		Interactive:       s.term != nil,
 		StartTime:         start,
 		EndTime:           end,
-		SessionRecording:  ctx.SessionRecordingConfig.GetMode(),
+		SessionRecording:  s.sessionRecordingMode(),
 	}
 
 	for _, p := range s.participants {
@@ -1063,6 +1065,23 @@ func (s *session) emitSessionEndEvent() {
 	} else {
 		s.log.WithError(err).Warn("Failed to set up session end event - event will not be recorded")
 	}
+}
+
+func (s *session) sessionRecordingMode() string {
+	sessionRecMode := s.scx.SessionRecordingConfig.GetMode()
+	subKind := s.serverMeta.ServerSubKind
+
+	// agentless connections always record the session at the proxy
+	if !services.IsRecordAtProxy(sessionRecMode) && (subKind == types.SubKindOpenSSHNode ||
+		subKind == types.SubKindOpenSSHEC2InstanceConnectEndpointNode) {
+		if services.IsRecordSync(sessionRecMode) {
+			sessionRecMode = types.RecordAtProxySync
+		} else {
+			sessionRecMode = types.RecordAtProxy
+		}
+	}
+
+	return sessionRecMode
 }
 
 func (s *session) setEndingContext(ctx *ServerContext) {
@@ -1186,6 +1205,11 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Login:          scx.Identity.Login,
 		User:           scx.Identity.TeleportUser,
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
+	}
+
+	if err := s.term.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
+		return trace.Wrap(err)
 	}
 
 	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
@@ -1351,6 +1375,12 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		User:           scx.Identity.TeleportUser,
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
+
+	if err := execRequest.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
+		return trace.Wrap(err)
+	}
+
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
 		s.log.WithError(err).Errorf("Failed to open enhanced recording (exec) session: %v", execRequest.GetCommand())

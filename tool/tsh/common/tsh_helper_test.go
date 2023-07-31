@@ -91,12 +91,13 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleNode, types.RoleTrustedCluster},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
 	})
 	require.NoError(t, err)
+	cfg.SetToken(staticToken)
 
 	user, err := user.Current()
 	require.NoError(t, err)
@@ -134,7 +135,6 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	s.root = runTeleport(t, cfg)
-	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
 func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
@@ -182,6 +182,15 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
+			Expires: time.Now().Add(time.Minute),
+			Token:   staticToken,
+		}},
+	})
+	require.NoError(t, err)
+	cfg.SetToken(staticToken)
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},

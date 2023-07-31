@@ -33,8 +33,8 @@ type Client struct {
 }
 
 // NewClient creates a new client for OpenAI API.
-func NewClient(apiURL string) *Client {
-	return &Client{openai.NewClient(apiURL)}
+func NewClient(authToken string) *Client {
+	return &Client{openai.NewClient(authToken)}
 }
 
 // NewClientFromConfig creates a new client for OpenAI API from config.
@@ -84,9 +84,14 @@ func (client *Client) Summary(ctx context.Context, message string) (string, erro
 // CommandSummary creates a command summary based on the command output.
 // The message history is also passed to the model in order to keep context
 // and extract relevant information from the output.
-func (client *Client) CommandSummary(ctx context.Context, messages []openai.ChatCompletionMessage, output map[string][]byte) (string, error) {
+func (client *Client) CommandSummary(ctx context.Context, messages []openai.ChatCompletionMessage, output map[string][]byte) (string, *model.TokenCount, error) {
 	messages = append(messages, openai.ChatCompletionMessage{
 		Role: openai.ChatMessageRoleUser, Content: model.ConversationCommandResult(output)})
+
+	promptTokens, err := model.NewPromptTokenCounter(messages)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
 
 	resp, err := client.svc.CreateChatCompletion(
 		ctx,
@@ -97,10 +102,14 @@ func (client *Client) CommandSummary(ctx context.Context, messages []openai.Chat
 	)
 
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", nil, trace.Wrap(err)
 	}
 
-	return resp.Choices[0].Message.Content, nil
+	completion := resp.Choices[0].Message.Content
+	completionTokens, err := model.NewSynchronousTokenCounter(completion)
+
+	tc := &model.TokenCount{Prompt: model.TokenCounters{promptTokens}, Completion: model.TokenCounters{completionTokens}}
+	return completion, tc, trace.Wrap(err)
 }
 
 // ClassifyMessage takes a user message, a list of categories, and uses the AI mode as a zero shot classifier.

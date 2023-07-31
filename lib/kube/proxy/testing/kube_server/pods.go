@@ -65,7 +65,7 @@ func newPod(name, namespace string) corev1.Pod {
 func (s *KubeMockServer) listPods(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	items := []corev1.Pod{}
 
-	namespace := p.ByName("podNamespace")
+	namespace := p.ByName("namespace")
 	filter := func(pod corev1.Pod) bool {
 		return len(namespace) == 0 || namespace == pod.Namespace
 	}
@@ -87,8 +87,8 @@ func (s *KubeMockServer) listPods(w http.ResponseWriter, req *http.Request, p ht
 }
 
 func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	namespace := p.ByName("podNamespace")
-	name := p.ByName("podName")
+	namespace := p.ByName("namespace")
+	name := p.ByName("name")
 	filter := func(pod corev1.Pod) bool {
 		return pod.Name == name && namespace == pod.Namespace
 	}
@@ -101,8 +101,8 @@ func (s *KubeMockServer) getPod(w http.ResponseWriter, req *http.Request, p http
 }
 
 func (s *KubeMockServer) deletePod(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	namespace := p.ByName("podNamespace")
-	name := p.ByName("podName")
+	namespace := p.ByName("namespace")
+	name := p.ByName("name")
 	deleteOpts, err := parseDeleteCollectionBody(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)

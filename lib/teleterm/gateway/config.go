@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"crypto/x509"
+	"net"
 	"runtime"
 
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ type Config struct {
 	// TargetName is the remote resource name
 	TargetName string
 	// TargetURI is the remote resource URI
-	TargetURI string
+	TargetURI uri.ResourceURI
 	// TargetUser is the target user name
 	TargetUser string
 	// TargetGroups is a list of target groups
@@ -98,7 +99,7 @@ type Config struct {
 // accepted by the gateway but cannot be proxied because the cert used by the gateway has expired.
 //
 // Handling of the connection is blocked until the function returns.
-type OnExpiredCertFunc func(context.Context, *Gateway) error
+type OnExpiredCertFunc func(context.Context, Gateway) error
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
@@ -122,16 +123,11 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
-	c.Log = c.Log.WithFields(logrus.Fields{
-		"resource": c.TargetURI,
-		"gateway":  c.URI.String(),
-	})
-
 	if c.TargetName == "" {
 		return trace.BadParameter("missing target name")
 	}
 
-	if c.TargetURI == "" {
+	if c.TargetURI.String() == "" {
 		return trace.BadParameter("missing target URI")
 	}
 
@@ -155,6 +151,11 @@ func (c *Config) CheckAndSetDefaults() error {
 			return x509.NewCertPool(), nil
 		}
 	}
+
+	c.Log = c.Log.WithFields(logrus.Fields{
+		"resource": c.TargetURI.String(),
+		"gateway":  c.URI.String(),
+	})
 	return nil
 }
 
@@ -168,4 +169,20 @@ func (c *Config) RouteToDatabase() tlsca.RouteToDatabase {
 		Protocol:    c.Protocol,
 		Username:    c.TargetUser,
 	}
+}
+
+func (c *Config) makeListener() (net.Listener, error) {
+	listener, err := c.TCPPortAllocator.Listen(c.LocalAddress, c.LocalPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// retrieve automatically assigned port number
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.LocalPort = port
+	return listener, nil
 }

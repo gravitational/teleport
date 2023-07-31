@@ -1,6 +1,6 @@
 ---
 authors: STeve Huang (xin.huang@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0123 - TLS Routing behind load balancers
@@ -84,6 +84,11 @@ Teleport Proxy:
 ```
 
 This allows the client to tunnel the "original TLS Routing" call through a Layer 7 (HTTP) load balancer.
+
+In addition to the `Upgrade` header, the following headers are also set from the client:
+- `Connection` header is set to `Upgrade` to meet [RFC spec](https://datatracker.ietf.org/doc/html/rfc2616#section-14.42)
+- `X-Teleport-Upgrade` header is set to the same value as the `Upgrade` header as some load balancers have seen
+  dropping values from the `Upgrade` header
 
 ### Teleport Proxy with self-signed certs
 

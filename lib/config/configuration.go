@@ -722,8 +722,11 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		key, err := os.ReadFile(keyPath)
 		if err != nil {
 			return trace.Errorf("failed to read OpenAI API key file: %w", err)
-		} else {
-			cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+		}
+		cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+
+		if fc.Auth.Assist.CommandExecutionWorkers < 0 {
+			return trace.BadParameter("command_execution_workers must not be negative")
 		}
 	}
 
@@ -741,17 +744,22 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
+		var assistCommandExecutionWorkers int32
+		if fc.Auth.Assist != nil {
+			assistCommandExecutionWorkers = fc.Auth.Assist.CommandExecutionWorkers
+		}
 		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
-			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
-			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
-			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
-			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
-			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
-			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
-			RoutingStrategy:          fc.Auth.RoutingStrategy,
-			TunnelStrategy:           fc.Auth.TunnelStrategy,
-			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
+			ClientIdleTimeout:             fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage:      fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:                fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:             fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:             fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:         fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:             fc.Auth.ProxyListenerMode,
+			RoutingStrategy:               fc.Auth.RoutingStrategy,
+			TunnelStrategy:                fc.Auth.TunnelStrategy,
+			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
+			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1254,9 +1262,9 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
-func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
-	if matcher.InstallParams != nil && matcher.InstallParams.PublicProxyAddr != "" {
-		return matcher.InstallParams.PublicProxyAddr
+func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
+	if installParams != nil && installParams.PublicProxyAddr != "" {
+		return installParams.PublicProxyAddr
 	}
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
@@ -1270,6 +1278,7 @@ func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
 func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
+	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		installParams, err := matcher.InstallParams.Parse()
 		if err != nil {
@@ -1304,22 +1313,29 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
-				PublicProxyAddr: getInstallerProxyAddr(matcher, fc),
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
 		}
 		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
-		cfg.Discovery.GCPMatchers = append(
-			cfg.Discovery.GCPMatchers,
-			types.GCPMatcher{
-				Types:      matcher.Types,
-				Locations:  matcher.Locations,
-				Tags:       matcher.Tags,
-				ProjectIDs: matcher.ProjectIDs,
-			},
-		)
+		m := types.GCPMatcher{
+			Types:           matcher.Types,
+			Locations:       matcher.Locations,
+			Tags:            matcher.Tags,
+			ProjectIDs:      matcher.ProjectIDs,
+			ServiceAccounts: matcher.ServiceAccounts,
+		}
+		if matcher.InstallParams != nil {
+			m.Params = &types.InstallerParams{
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
+				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+				ScriptName:      matcher.InstallParams.ScriptName,
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+		}
+		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)
 	}
 
 	return nil

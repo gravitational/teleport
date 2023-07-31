@@ -34,6 +34,8 @@ import {
   TshAbortSignal,
   TshClient,
   GetRequestableRolesResponse,
+  CreateConnectMyComputerRoleResponse,
+  CreateConnectMyComputerNodeTokenResponse,
 } from '../types';
 
 export class MockTshClient implements TshClient {
@@ -97,4 +99,8 @@ export class MockTshClient implements TshClient {
   logout = () => Promise.resolve();
   transferFile: () => undefined;
   reportUsageEvent: () => undefined;
+
+  createConnectMyComputerRole: () => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: () => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: () => Promise<void>;
 }

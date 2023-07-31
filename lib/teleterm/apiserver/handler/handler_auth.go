@@ -24,7 +24,7 @@ import (
 
 // Login logs in a user to a cluster
 func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -38,18 +38,19 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 		if err := cluster.LocalLogin(ctx, params.Local.User, params.Local.Password, params.Local.Token); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &api.EmptyResponse{}, nil
 	case *api.LoginRequest_Sso:
 		if err := cluster.SSOLogin(ctx, params.Sso.ProviderType, params.Sso.ProviderName); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &api.EmptyResponse{}, nil
 	default:
 		return nil, trace.BadParameter("unsupported login parameters")
 	}
 
+	if err := s.DaemonService.StartHeadlessWatcher(req.ClusterUri); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.EmptyResponse{}, nil
 }
 
 // LoginPasswordless logs in a user to a cluster passwordlessly.
@@ -65,13 +66,17 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 		return trace.BadParameter("cluster URI is required")
 	}
 
-	cluster, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
+	cluster, _, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Start the prompt flow.
 	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.DaemonService.StartHeadlessWatcher(initReq.GetClusterUri()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -89,7 +94,7 @@ func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.Empt
 
 // GetAuthSettings returns cluster auth preferences
 func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsRequest) (*api.AuthSettings, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

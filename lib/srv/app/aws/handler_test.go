@@ -512,7 +512,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	require.NoError(t, err)
 
 	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter:  libevents.NewDiscardEmitterReal(),
+		Emitter:  libevents.NewDiscardEmitter(),
 		Recorder: libevents.WithNoOpPreparer(recorder),
 	})
 	require.NoError(t, err)

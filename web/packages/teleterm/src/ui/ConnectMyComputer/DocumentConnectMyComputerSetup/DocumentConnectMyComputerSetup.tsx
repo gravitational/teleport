@@ -14,11 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState } from 'react';
-import { Box, ButtonPrimary, Text } from 'design';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { useAsync } from 'shared/hooks/useAsync';
+import { wait } from 'shared/utils/wait';
+import * as Alerts from 'design/Alert';
+import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
 import * as types from 'teleterm/ui/services/workspacesService';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -28,8 +35,9 @@ interface DocumentConnectMyComputerSetupProps {
 export function DocumentConnectMyComputerSetup(
   props: DocumentConnectMyComputerSetupProps
 ) {
-  const [step, setStep] =
-    useState<'information' | 'agent-setup'>('information');
+  const [step, setStep] = useState<'information' | 'agent-setup'>(
+    'information'
+  );
 
   return (
     <Document visible={props.visible}>
@@ -47,19 +55,29 @@ export function DocumentConnectMyComputerSetup(
 }
 
 function Information(props: { onSetUpAgentClick(): void }) {
+  const { rootClusterUri } = useWorkspaceContext();
+  const { clustersService, mainProcessClient } = useAppContext();
+  const cluster = clustersService.findCluster(rootClusterUri);
+  const { username: systemUsername, hostname } =
+    mainProcessClient.getRuntimeSettings();
+
   return (
     <>
-      {/* TODO(gzdunek): change the temporary copy */}
       <Text>
-        The setup process will download the teleport agent and configure it to
-        make your computer available in the <strong>acme.teleport.sh</strong>{' '}
-        cluster.
+        The setup process will download and launch the Teleport agent, making
+        your computer available in the <strong>{cluster.name}</strong> cluster
+        as <strong>{hostname}</strong>.
         <br />
-        All cluster users with the role{' '}
-        <strong>connect-my-computer-robert@acme.com</strong> will be able to
-        access your computer as <strong>bob</strong>.
         <br />
-        You can stop computer sharing at any time from Connect My Computer menu.
+        Cluster users with the role{' '}
+        <strong>connect-my-computer-{cluster.loggedInUser.name}</strong> will be
+        able to access your computer as <strong>{systemUsername}</strong>.
+        <br />
+        <br />
+        Your computer will be shared while Teleport Connect is open. To stop
+        sharing, close Teleport Connect or stop the agent through the Connect My
+        Computer tab. Sharing will resume on app restart, unless you stop the
+        agent before exiting.
       </Text>
       <ButtonPrimary
         mt={4}
@@ -69,30 +87,170 @@ function Information(props: { onSetUpAgentClick(): void }) {
         `}
         onClick={props.onSetUpAgentClick}
       >
-        Set up agent
+        Connect
       </ButtonPrimary>
     </>
   );
 }
 
 function AgentSetup() {
+  const ctx = useAppContext();
+  const { rootClusterUri } = useWorkspaceContext();
+  const cluster = ctx.clustersService.findCluster(rootClusterUri);
+
+  const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
+    useCallback(async () => {
+      retryWithRelogin(ctx, rootClusterUri, async () => {
+        let certsReloaded = false;
+
+        try {
+          const response = await ctx.connectMyComputerService.createRole(
+            rootClusterUri
+          );
+          certsReloaded = response.certsReloaded;
+        } catch (error) {
+          if ((error.message as string)?.includes('access denied')) {
+            throw new Error(
+              'Access denied. Contact your administrator for permissions to manage users and roles.'
+            );
+          }
+          throw error;
+        }
+
+        // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
+        // of the cluster to also update the role list in the UI.
+        if (certsReloaded) {
+          await ctx.clustersService.syncRootCluster(rootClusterUri);
+        }
+      });
+    }, [ctx, rootClusterUri])
+  );
+  const [downloadAgentAttempt, runDownloadAgentAttempt] = useAsync(
+    useCallback(
+      () => ctx.connectMyComputerService.downloadAgent(),
+      [ctx.connectMyComputerService]
+    )
+  );
+  const [generateConfigFileAttempt, runGenerateConfigFileAttempt] = useAsync(
+    useCallback(
+      () =>
+        retryWithRelogin(ctx, rootClusterUri, () =>
+          ctx.connectMyComputerService.createAgentConfigFile(cluster)
+        ),
+      [cluster, ctx, rootClusterUri]
+    )
+  );
+  const [joinClusterAttempt, runJoinClusterAttempt] = useAsync(
+    // TODO(gzdunek): delete node token after joining the cluster
+    useCallback(() => wait(1_000), [])
+  );
+
   const steps = [
-    'Setting up roles',
-    'Downloading the agent',
-    'Generating the config file',
-    'Joining the cluster',
+    {
+      name: 'Setting up the role',
+      attempt: setUpRolesAttempt,
+    },
+    {
+      name: 'Downloading the agent',
+      attempt: downloadAgentAttempt,
+    },
+    {
+      name: 'Generating the config file',
+      attempt: generateConfigFileAttempt,
+    },
+    {
+      name: 'Joining the cluster',
+      attempt: joinClusterAttempt,
+    },
   ];
 
+  const runSteps = useCallback(async () => {
+    // uncomment when implemented
+    const actions = [
+      runSetUpRolesAttempt,
+      runDownloadAgentAttempt,
+      runGenerateConfigFileAttempt,
+      // runJoinClusterAttempt,
+    ];
+    for (const action of actions) {
+      const [, error] = await action();
+      if (error) {
+        break;
+      }
+    }
+  }, [
+    runSetUpRolesAttempt,
+    runDownloadAgentAttempt,
+    runGenerateConfigFileAttempt,
+    runJoinClusterAttempt,
+  ]);
+
+  useEffect(() => {
+    if (
+      [
+        setUpRolesAttempt,
+        downloadAgentAttempt,
+        generateConfigFileAttempt,
+        joinClusterAttempt,
+      ].every(attempt => attempt.status === '')
+    ) {
+      runSteps();
+    }
+  }, [
+    downloadAgentAttempt,
+    generateConfigFileAttempt,
+    joinClusterAttempt,
+    setUpRolesAttempt,
+    runSteps,
+  ]);
+
+  const hasSetupFailed = steps.some(s => s.attempt.status === 'error');
+
   return (
-    <ol
-      css={`
-        padding-left: 0;
-        list-style: inside decimal;
-      `}
-    >
-      {steps.map(step => (
-        <li key={step}>{step}</li>
-      ))}
-    </ol>
+    <>
+      <ol
+        css={`
+          padding-left: 0;
+          list-style: inside decimal;
+        `}
+      >
+        {steps.map(step => (
+          <Flex key={step.name} alignItems="baseline" gap={2}>
+            {step.attempt.status === '' && <CirclePlay />}
+            {step.attempt.status === 'processing' && (
+              <Spinner
+                css={`
+                  animation: spin 1s linear infinite;
+                  @keyframes spin {
+                    from {
+                      transform: rotate(0deg);
+                    }
+                    to {
+                      transform: rotate(360deg);
+                    }
+                  }
+                `}
+              />
+            )}
+            {step.attempt.status === 'success' && (
+              <CircleCheck color="success" />
+            )}
+            {step.attempt.status === 'error' && (
+              <CircleCross color="error.main" />
+            )}
+            <li>
+              {step.name}
+              {step.attempt.status === 'error' && (
+                <Alerts.Danger mb={0}>{step.attempt.statusText}</Alerts.Danger>
+              )}
+            </li>
+          </Flex>
+        ))}
+      </ol>
+
+      {hasSetupFailed && (
+        <ButtonPrimary onClick={runSteps}>Retry</ButtonPrimary>
+      )}
+    </>
   );
 }

@@ -247,8 +247,10 @@ func Test_runAssistError(t *testing.T) {
 	ws, err := s.makeAssistant(t, authPack, conversationID)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// Close should yield an error as the server closes the connection
-		require.Error(t, ws.Close())
+		// The TLS connection might or might not be closed, this is an implementation detail.
+		// We want to check whether the websocket gets appropriately closed, not the underlying TLS connection.
+		// The connection will eventually be closed and reclaimed by the server. We can skip checking the error.
+		_ = ws.Close()
 	})
 
 	// verify responses

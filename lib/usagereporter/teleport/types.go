@@ -88,12 +88,20 @@ func (u *SSOCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 type SessionStartEvent prehogv1a.SessionStartEvent
 
 func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	sessionStart := &prehogv1a.SessionStartEvent{
+		UserName:    a.AnonymizeString(u.UserName),
+		SessionType: u.SessionType,
+	}
+	if u.Database != nil {
+		sessionStart.Database = &prehogv1a.SessionStartDatabaseMetadata{
+			DbType:     u.Database.DbType,
+			DbProtocol: u.Database.DbProtocol,
+			DbOrigin:   u.Database.DbOrigin,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
-			SessionStartV2: &prehogv1a.SessionStartEvent{
-				UserName:    a.AnonymizeString(u.UserName),
-				SessionType: u.SessionType,
-			},
+			SessionStartV2: sessionStart,
 		},
 	}
 }
@@ -490,6 +498,7 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 				ContainerRuntime:      u.ContainerRuntime,
 				ContainerOrchestrator: u.ContainerOrchestrator,
 				CloudEnvironment:      u.CloudEnvironment,
+				ExternalUpgrader:      u.ExternalUpgrader,
 			},
 		},
 	}
@@ -565,6 +574,36 @@ func (e *EditorChangeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			EditorChangeEvent: &prehogv1a.EditorChangeEvent{
 				UserName: a.AnonymizeString(e.UserName),
 				Status:   e.Status,
+			},
+		},
+	}
+}
+
+type AssistExecutionEvent prehogv1a.AssistExecutionEvent
+
+func (e *AssistExecutionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistExecution{
+			AssistExecution: &prehogv1a.AssistExecutionEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				ConversationId:   e.ConversationId,
+				NodeCount:        e.NodeCount,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
+type AssistNewConversationEvent prehogv1a.AssistNewConversationEvent
+
+func (e *AssistNewConversationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistNewConversation{
+			AssistNewConversation: &prehogv1a.AssistNewConversationEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Category: e.Category,
 			},
 		},
 	}
@@ -835,6 +874,22 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			TotalTokens:      e.AssistCompletion.TotalTokens,
 			PromptTokens:     e.AssistCompletion.PromptTokens,
 			CompletionTokens: e.AssistCompletion.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistExecution:
+		ret := &AssistExecutionEvent{
+			UserName:         userMD.Username,
+			ConversationId:   e.AssistExecution.ConversationId,
+			NodeCount:        e.AssistExecution.NodeCount,
+			TotalTokens:      e.AssistExecution.TotalTokens,
+			PromptTokens:     e.AssistExecution.PromptTokens,
+			CompletionTokens: e.AssistExecution.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistNewConversation:
+		ret := &AssistNewConversationEvent{
+			UserName: userMD.Username,
+			Category: e.AssistNewConversation.Category,
 		}
 		return ret, nil
 	default:
