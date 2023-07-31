@@ -1,4 +1,4 @@
-.version: &version "14.0.0-dev"
+.version: &version "14.0.0-dev.noah.745e8be7a924468e83e6a345858af3a83f73caad"
 
 name: teleport-cluster
 apiVersion: v2
