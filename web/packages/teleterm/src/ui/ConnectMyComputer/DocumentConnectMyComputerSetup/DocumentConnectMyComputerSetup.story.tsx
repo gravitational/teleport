@@ -16,6 +16,13 @@
 
 import React from 'react';
 
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
+import * as types from 'teleterm/ui/services/workspacesService';
+
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+
 import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
 
 export default {
@@ -23,5 +30,38 @@ export default {
 };
 
 export function Default() {
-  return <DocumentConnectMyComputerSetup visible={true} doc={undefined} />;
+  const cluster = makeRootCluster();
+  const doc: types.DocumentConnectMyComputerSetup = {
+    kind: 'doc.connect_my_computer_setup',
+    rootClusterUri: cluster.uri,
+    title: 'Connect My Computer',
+    uri: '/docs/123',
+  };
+  const appContext = new MockAppContext();
+  appContext.clustersService.state.clusters.set(cluster.uri, cluster);
+  appContext.workspacesService.setState(draftState => {
+    draftState.rootClusterUri = cluster.uri;
+    draftState.workspaces[cluster.uri] = {
+      localClusterUri: cluster.uri,
+      documents: [doc],
+      location: doc.uri,
+      accessRequests: undefined,
+    };
+  });
+
+  return (
+    <MockAppContextProvider appContext={appContext}>
+      <WorkspaceContextProvider
+        value={{
+          accessRequestsService: undefined,
+          documentsService:
+            appContext.workspacesService.getActiveWorkspaceDocumentService(),
+          localClusterUri: cluster.uri,
+          rootClusterUri: appContext.workspacesService.getRootClusterUri(),
+        }}
+      >
+        <DocumentConnectMyComputerSetup visible={true} doc={doc} />
+      </WorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
 }

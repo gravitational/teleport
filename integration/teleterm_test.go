@@ -464,7 +464,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 					Name: roleName,
 				})
 				existingRole = &role
-				err = authServer.UpsertRole(ctx, &role)
+				err := authServer.UpsertRole(ctx, &role)
 				require.NoError(t, err)
 			}
 
