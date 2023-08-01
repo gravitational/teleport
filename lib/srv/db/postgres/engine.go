@@ -313,7 +313,7 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 			clientErrCh <- err
 			return
 		}
-		log.Debugf("Received client message: %#v.", message)
+		log.Tracef("Received client message: %#v.", message)
 		switch msg := message.(type) {
 		case *pgproto3.Query:
 			e.auditQueryMessage(sessionCtx, msg)
@@ -408,7 +408,7 @@ func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.B
 			serverErrCh <- err
 			return
 		}
-		log.Debugf("Received server message: %#v.", message)
+		log.Tracef("Received server message: %#v.", message)
 		// This is where we would plug in custom logic for particular
 		// messages received from the Postgres server (i.e. emitting
 		// an audit event), but for now just pass them along back to

@@ -30,7 +30,11 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
-import { Props as CredentialsProps, SliderProps } from './NewCredentials';
+import {
+  SliderProps,
+  UseTokenState,
+} from 'teleport/Welcome/NewCredentials/types';
+
 import secKeyGraphic from './sec-key-with-bg.png';
 
 export function NewMfaDevice(props: Props) {
@@ -48,7 +52,7 @@ export function NewMfaDevice(props: Props) {
   } = props;
   const [otp, setOtp] = useState('');
   const mfaOptions = createMfaOptions({
-    auth2faType: auth2faType,
+    auth2faType: auth2faType as Auth2faType,
   });
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
   const [deviceName, setDeviceName] = useState(() =>
@@ -241,7 +245,7 @@ function getDefaultDeviceName(mfaType: Auth2faType) {
   return '';
 }
 
-type Props = CredentialsProps &
+type Props = UseTokenState &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;

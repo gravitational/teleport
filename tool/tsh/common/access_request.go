@@ -212,6 +212,10 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
+	if !req.GetAccessExpiry().IsZero() {
+		// Display the expiry time in the local timezone. UTC is confusing.
+		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
+	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err := table.AsBuffer().WriteTo(cf.Stdout())

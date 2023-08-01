@@ -17,7 +17,10 @@
 import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { Platform } from 'teleterm/mainProcess/types';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeRootCluster,
+  makeLoggedInUser,
+} from 'teleterm/services/tshd/testHelpers';
 
 import { canUseConnectMyComputer } from './permissions';
 
@@ -85,14 +88,7 @@ test.each(testCases)('$name', testCase => {
       advancedAccessWorkflows: false,
       isUsageBasedBilling: testCase.isUsageBasedBilling,
     },
-    loggedInUser: {
-      name: 'test',
-      activeRequestsList: [],
-      assumedRequests: {},
-      rolesList: [],
-      sshLoginsList: [],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
+    loggedInUser: makeLoggedInUser({
       acl: {
         tokens: {
           create: testCase.canCreateToken,
@@ -103,7 +99,7 @@ test.each(testCases)('$name', testCase => {
           pb_delete: false,
         },
       },
-    },
+    }),
   });
   const configService = createMockConfigService({
     'feature.connectMyComputer': testCase.isFeatureFlagEnabled,

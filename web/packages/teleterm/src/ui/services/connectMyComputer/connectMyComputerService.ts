@@ -15,11 +15,43 @@
  */
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import {
+  Cluster,
+  CreateConnectMyComputerRoleResponse,
+  TshClient,
+} from 'teleterm/services/tshd/types';
+
+import { routing } from 'teleterm/ui/uri';
+
+import type * as uri from 'teleterm/ui/uri';
 
 export class ConnectMyComputerService {
-  constructor(private mainProcessClient: MainProcessClient) {}
+  constructor(
+    private mainProcessClient: MainProcessClient,
+    private tshClient: TshClient
+  ) {}
 
   async downloadAgent(): Promise<void> {
     await this.mainProcessClient.downloadAgent();
+  }
+
+  createRole(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<CreateConnectMyComputerRoleResponse> {
+    return this.tshClient.createConnectMyComputerRole(rootClusterUri);
+  }
+
+  async createAgentConfigFile(cluster: Cluster): Promise<void> {
+    const { rootClusterId } = routing.parseClusterUri(cluster.uri).params;
+
+    const { token, labelsList } =
+      await this.tshClient.createConnectMyComputerNodeToken(cluster.uri);
+
+    await this.mainProcessClient.createAgentConfigFile({
+      profileName: rootClusterId,
+      proxy: cluster.proxyHost,
+      token: token,
+      labels: labelsList,
+    });
   }
 }

@@ -37,6 +37,12 @@ So databases in AWS and Azure must:
 2. contain only letters, digits, and hyphens.
 3. end with a letter or digit (no trailing hyphens).
 
+#### MongoDB Server versions prior to 3.6 are no longer supported
+
+Teleport 14 includes an update to the MongoDB driver. Due to the MongoDB team
+dropping support for Servers prior to version 3.6, Teleport also will no longer
+be able to support these old server versions.
+
 ## 13.0.1 (05/xx/23)
 
 * Helm Charts

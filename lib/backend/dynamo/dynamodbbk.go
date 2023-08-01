@@ -342,6 +342,10 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	return b, nil
 }
 
+func (b *Backend) GetName() string {
+	return GetName()
+}
+
 // Create creates item if it does not exist
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	err := b.create(ctx, item, modeCreate)
@@ -660,6 +664,13 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 		if *attr.AttributeName == oldPathAttr {
 			return tableStatusNeedsMigration, "", nil
 		}
+	}
+	// the billing mode can be empty unless it was specified on the
+	// initial create table request, and the default billing mode is
+	// PROVISIONED, if unspecified.
+	// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BillingModeSummary.html
+	if td.Table.BillingModeSummary == nil {
+		return tableStatusOK, dynamodb.BillingModeProvisioned, nil
 	}
 	return tableStatusOK, aws.StringValue(td.Table.BillingModeSummary.BillingMode), nil
 }

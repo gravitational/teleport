@@ -80,6 +80,10 @@ export class MockMainProcessClient implements MainProcessClient {
   downloadAgent() {
     return Promise.resolve();
   }
+
+  createAgentConfigFile() {
+    return Promise.resolve();
+  }
 }
 
 export const makeRuntimeSettings = (
@@ -112,5 +116,7 @@ export const makeRuntimeSettings = (
   arch: 'arm64',
   osVersion: '22.2.0',
   appVersion: '11.1.0',
+  username: 'alice',
+  hostname: 'staging-mac-mini',
   ...runtimeSettings,
 });
