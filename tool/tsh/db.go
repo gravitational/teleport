@@ -931,25 +931,44 @@ func (d *databaseInfo) GetDatabase(cf *CLIConf, tc *client.TeleportClient) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(databases) != 1 {
-		// error - we need exactly one database.
-		selectors := resourceSelectors{
-			kind:   "database",
-			name:   name,
-			labels: cf.Labels,
-			query:  cf.PredicateExpression,
-		}
-		if len(databases) == 0 {
-			return nil, trace.NotFound(
-				"%v not found, use '%v' to see registered databases", selectors,
-				formatDatabaseListCommand(cf.SiteName))
-		}
-		errMsg := formatAmbiguousDB(cf, selectors, databases)
-		return nil, trace.BadParameter(errMsg)
+	db, err := chooseOneDatabase(cf, name, databases)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	d.database = databases[0]
+	d.database = db
 	return d.database, nil
+}
+
+// chooseOneDatabase is a helper func for GetDatabase that returns either the
+// only database in a list of databases or returns a database that matches the
+// nameOrPrefix exactly, otherwise an error.
+func chooseOneDatabase(cf *CLIConf, nameOrPrefix string, databases types.Databases) (types.Database, error) {
+	if len(databases) == 1 {
+		return databases[0], nil
+	}
+	// Check if nameOrPrefix matches any database exactly and, if so, choose
+	// that database over any others.
+	for _, db := range databases {
+		if db.GetName() == nameOrPrefix {
+			return db, nil
+		}
+	}
+
+	// error - we need exactly one database.
+	selectors := resourceSelectors{
+		kind:   "database",
+		name:   nameOrPrefix,
+		labels: cf.Labels,
+		query:  cf.PredicateExpression,
+	}
+	if len(databases) == 0 {
+		return nil, trace.NotFound(
+			"%v not found, use '%v' to see registered databases", selectors,
+			formatDatabaseListCommand(cf.SiteName))
+	}
+	errMsg := formatAmbiguousDB(cf, selectors, databases)
+	return nil, trace.BadParameter(errMsg)
 }
 
 // listActiveDatabases lists databases that match active (logged in) databases.
@@ -964,13 +983,13 @@ func listActiveDatabases(ctx context.Context, tc *client.TeleportClient, routes 
 
 // listDatabasesByName lists database that match a given name.
 func listDatabasesByName(ctx context.Context, tc *client.TeleportClient, name string) (types.Databases, error) {
-	predicate := fmt.Sprintf("name == %s", name)
+	predicate := fmt.Sprintf("name == %q", name)
 	return listDatabasesWithPredicate(ctx, tc, predicate)
 }
 
 // listDatabasesByPrefix lists databases that match a given name prefix.
 func listDatabasesByPrefix(ctx context.Context, tc *client.TeleportClient, prefix string) (types.Databases, error) {
-	predicate := fmt.Sprintf(`hasPrefix(name, "%s")`, prefix)
+	predicate := fmt.Sprintf(`hasPrefix(name, %q)`, prefix)
 	databases, err := listDatabasesWithPredicate(ctx, tc, predicate)
 	if err == nil || !utils.IsPredicateError(err) {
 		return databases, trace.Wrap(err)
@@ -1194,11 +1213,10 @@ func pickActiveDatabase(cf *CLIConf, tc *client.TeleportClient) (*tlsca.RouteToD
 // filterActiveDatabases takes a list of active database routes and returns a
 // filtered list and, possibly, their corresponding types.Databases.
 // Callers should therefore not assume that the types.Databases are populated.
-// Filtering is done by matching on database name, label, and query predicate
-// selectors from the Teleport client.
-// When only database name is given, filtering is done by name prefix, unless
-// an active database name matches exactly, in which case all other active
-// databases are filtered out - this is to avoid requiring additional selectors
+// Filtering is done by matching on database name prefix, label, and query
+// predicate selectors from the Teleport client.
+// If an active database name matches exactly, all other active databases are
+// filtered out - this is to avoid requiring additional selectors
 // when a user gives an exact database name.
 func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activeRoutes []tlsca.RouteToDatabase) ([]tlsca.RouteToDatabase, types.Databases, error) {
 	prefix := tc.DatabaseService
@@ -1233,6 +1251,14 @@ func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activ
 	for _, route := range activeRoutes {
 		for _, db := range databases {
 			if db.GetName() == route.ServiceName {
+				if db.GetName() == prefix {
+					// when label/query selectors are used and multiple
+					// databases come back, but one of them matches the prefix
+					// exactly, short-circuit to return just that db.
+					// We can't do that before calling the API because the
+					// labels/query might not actually match the active db.
+					return []tlsca.RouteToDatabase{route}, types.Databases{db}, nil
+				}
 				selectedRoutes = append(selectedRoutes, route)
 				activeDBs = append(activeDBs, db)
 			}
