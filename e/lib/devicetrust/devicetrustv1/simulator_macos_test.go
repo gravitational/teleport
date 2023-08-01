@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
@@ -45,11 +43,7 @@ func (e *macOSSimulator) enrollRequest(
 	init := &devicepb.EnrollDeviceInit{
 		Token:        enrollToken,
 		CredentialId: e.key.id,
-		DeviceData: &devicepb.DeviceCollectedData{
-			CollectTime:  timestamppb.Now(),
-			OsType:       devicepb.OSType_OS_TYPE_MACOS,
-			SerialNumber: dev.AssetTag,
-		},
+		DeviceData:   defaultCollectData(dev),
 		Macos: &devicepb.MacOSEnrollPayload{
 			PublicKeyDer: e.key.pubKeyDER,
 		},
@@ -82,7 +76,7 @@ func (e *macOSSimulator) handleEnrollStream(
 			},
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("challenge: Send failed: %w", err)
+		return nil, fmt.Errorf("challenge Send: %w", err)
 	}
 	resp, err = stream.Recv()
 	if err != nil {
@@ -132,11 +126,7 @@ func (e *macOSSimulator) authenticate(
 	init := &devicepb.AuthenticateDeviceInit{
 		UserCertificates: certs,
 		CredentialId:     e.key.id,
-		DeviceData: &devicepb.DeviceCollectedData{
-			CollectTime:  timestamppb.Now(),
-			OsType:       devicepb.OSType_OS_TYPE_MACOS,
-			SerialNumber: dev.AssetTag,
-		},
+		DeviceData:       defaultCollectData(dev),
 	}
 	if e.behavior.modifyAuthenticateDeviceInit != nil {
 		e.behavior.modifyAuthenticateDeviceInit(init)
@@ -146,7 +136,7 @@ func (e *macOSSimulator) authenticate(
 			Init: init,
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("sending AuthenticateDeviceRequest_Init: %w", err)
+		return nil, fmt.Errorf("init Send: %w", err)
 	}
 	resp, err := stream.Recv()
 	if err != nil {
@@ -155,7 +145,7 @@ func (e *macOSSimulator) authenticate(
 
 	chalResp := resp.GetChallenge()
 	if chalResp == nil {
-		return nil, fmt.Errorf("unexpected payload=%T, want AuthenticateDeviceChallenge ", resp.Payload)
+		return nil, fmt.Errorf("init Recv: unexpected payload=%T, want AuthenticateDeviceChallenge ", resp.Payload)
 	}
 	sig, err := e.signChallenge(chalResp.Challenge, true)
 	if err != nil {
@@ -168,7 +158,7 @@ func (e *macOSSimulator) authenticate(
 			},
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("sending AuthenticateDeviceRequest_ChallengeResponse: %w", err)
+		return nil, fmt.Errorf("challend Send: %w", err)
 	}
 	resp, err = stream.Recv()
 	if err != nil {

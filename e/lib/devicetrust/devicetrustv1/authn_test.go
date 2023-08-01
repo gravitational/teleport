@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -26,28 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
-
-func enrollSimulator(
-	ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device, sim simulator,
-) (*devicepb.Device, error) {
-	stream, err := devices.EnrollDevice(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("starting enroll device stream: %w", err)
-	}
-	req := sim.enrollRequest(dev, dev.EnrollToken.Token)
-	if err := stream.Send(req); err != nil {
-		return nil, fmt.Errorf("sending enroll request: %w", err)
-	}
-	resp, err := stream.Recv()
-	if err != nil {
-		return nil, fmt.Errorf("recv: %w", err)
-	}
-	enrolledDev, err := sim.handleEnrollStream(resp, stream, false /* testBehavior */)
-	if err != nil {
-		return nil, fmt.Errorf("handling enroll stream: %w", err)
-	}
-	return enrolledDev, nil
-}
 
 func TestService_AuthenticateDevice(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
@@ -109,9 +86,7 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CreateDevice failed: %v", err)
 			}
-			enrolledDev, err := enrollSimulator(
-				ctx, devices, dev, test.simulator,
-			)
+			enrolledDev, err := enrollSimulator(ctx, devices, test.simulator, dev)
 			if err != nil {
 				t.Fatalf("enrollSimulator failed: %v", err)
 			}
@@ -126,24 +101,17 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			}
 
 			emitter.Reset()
-			stream, err := devices.AuthenticateDevice(ctx)
-			if err != nil {
-				t.Fatalf("AuthenticateDevice failed: %v", err)
-			}
+
 			initCerts := &devicepb.UserCertificates{
 				X509Der:          []byte("ignored"), // mTLS cert takes its place.
 				SshAuthorizedKey: []byte{1, 2, 3, 4, 6},
 			}
-			resp, err := test.simulator.authenticate(ctx, enrolledDev, stream, initCerts)
+			gotCerts, err := authenticateSimulator(ctx, devices, test.simulator, enrolledDev, initCerts)
 			if err != nil {
-				t.Fatalf("authenticate failed: %v", err)
+				t.Fatalf("authenticateSimulator failed: %v", err)
 			}
 
 			// UserCertificates.
-			gotCerts := resp.GetUserCertificates()
-			if gotCerts == nil {
-				t.Fatalf("Got unexpected payload=%T, want UserCertificates", resp.Payload)
-			}
 			if len(gotCerts.X509Der) == 0 {
 				t.Error("Got empty X509Der, want non-empty")
 			}
@@ -424,20 +392,14 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 				t.Fatalf("CreateDevice failed: %v", err)
 			}
 			if !test.noEnroll {
-				dev, err = enrollSimulator(
-					ctx, devices, dev, test.simulator,
-				)
+				dev, err = enrollSimulator(ctx, devices, test.simulator, dev)
 				if err != nil {
 					t.Fatalf("enrollSimulator failed: %v", err)
 				}
 			}
 			emitter.Reset()
 
-			stream, err := devices.AuthenticateDevice(ctx)
-			if err != nil {
-				t.Fatalf("AuthenticateDevice failed: %v", err)
-			}
-			_, err = test.simulator.authenticate(ctx, dev, stream, &devicepb.UserCertificates{})
+			_, err = authenticateSimulator(ctx, devices, test.simulator, dev, nil /* initCerts */)
 			if !test.assertErr(err) {
 				t.Errorf("AuthenticateDevice: assertErr failed, err=%v", err)
 			}
@@ -509,60 +471,9 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
 
-	// authenticate wraps the AuthenticateDevice logic so error handling is
-	// simpler below.
-	// It specifically relies on dev1, key1 and stops at the "init" step (which is
-	// expected to fail).
 	authenticate := func() error {
-		stream, err := devices.AuthenticateDevice(ctx)
-		if err != nil {
-			return fmt.Errorf("init: %w", err)
-		}
-		defer stream.CloseSend()
-
-		// 1. Init.
-		if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-			Payload: &devicepb.AuthenticateDeviceRequest_Init{
-				Init: &devicepb.AuthenticateDeviceInit{
-					CredentialId: key1.id,
-					DeviceData: &devicepb.DeviceCollectedData{
-						CollectTime:  timestamppb.Now(),
-						OsType:       dev1.OsType,
-						SerialNumber: dev1.AssetTag,
-					},
-				},
-			},
-		}); err != nil {
-			return fmt.Errorf("init Send: %w", err)
-		}
-
-		// 2. Challenge.
-		// Authn fails here for mode="off".
-		resp, err := stream.Recv()
-		if err != nil {
-			return err
-		}
-		chalResp := resp.GetChallenge()
-		sig, err := key1.signChallenge(chalResp.GetChallenge())
-		if err != nil {
-			t.Errorf("signChallenge returned err=%v, this is likely unexpected", err)
-			return err
-		}
-		if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-			Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-				ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-					Signature: sig,
-				},
-			},
-		}); err != nil {
-			return fmt.Errorf("challenge Send: %w", err)
-		}
-
-		// 3. Success.
-		if _, err := stream.Recv(); err != nil {
-			return fmt.Errorf("success Recv: %w", err)
-		}
-		return nil
+		_, err := authenticateSimulator(ctx, devices, key1.simulator(), dev1, nil /* initCerts */)
+		return err
 	}
 
 	// Define a few roles with reasonable-looking allow rules for the following
@@ -744,7 +655,7 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := authenticateDevice(ctx, devices, test.dev, test.key, defaultCollectData); err != nil {
+			if _, err := authenticateSimulator(ctx, devices, test.key.simulator(), test.dev, nil /* initCerts */); err != nil {
 				t.Fatalf("AuthenticateDevice failed: %v", err)
 			}
 

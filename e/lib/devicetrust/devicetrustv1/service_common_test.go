@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -19,7 +20,9 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
-func createAndEnroll(ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device) (*devicepb.Device, *fakeEnclaveKey, error) {
+func createAndEnroll(
+	ctx context.Context,
+	devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device) (*devicepb.Device, *fakeEnclaveKey, error) {
 	dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
 		Device:            dev,
 		CreateEnrollToken: true,
@@ -33,21 +36,18 @@ func createAndEnroll(ctx context.Context, devices devicepb.DeviceTrustServiceCli
 
 func enrollDevice(
 	ctx context.Context,
-	devices devicepb.DeviceTrustServiceClient,
-	dev *devicepb.Device, collectDataFn func(*devicepb.Device) *devicepb.DeviceCollectedData) (*devicepb.Device, *fakeEnclaveKey, error) {
-	if collectDataFn == nil {
-		collectDataFn = defaultCollectData
-	}
-
-	token := dev.EnrollToken.GetToken()
-	if token == "" {
-		devToken, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+	devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device, collectDataFn collectDataFunc,
+) (*devicepb.Device, *fakeEnclaveKey, error) {
+	if dev.EnrollToken.GetToken() == "" {
+		token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
 			DeviceId: dev.Id,
 		})
 		if err != nil {
 			return nil, nil, err
 		}
-		token = devToken.Token
+		// Clear token after execution, if we assigned it.
+		defer func() { dev.EnrollToken = nil }()
+		dev.EnrollToken = token
 	}
 
 	key, err := newFakeEnclaveKey()
@@ -55,106 +55,69 @@ func enrollDevice(
 		return nil, nil, err
 	}
 
-	stream, err := devices.EnrollDevice(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	sendAndRecv := func(msg *devicepb.EnrollDeviceRequest) (*devicepb.EnrollDeviceResponse, error) {
-		if err := stream.Send(msg); err != nil {
-			return nil, err
-		}
-		return stream.Recv()
-	}
-
-	resp, err := sendAndRecv(&devicepb.EnrollDeviceRequest{
-		Payload: &devicepb.EnrollDeviceRequest_Init{
-			Init: &devicepb.EnrollDeviceInit{
-				Token:        token,
-				CredentialId: key.id,
-				DeviceData:   collectDataFn(dev),
-				Macos: &devicepb.MacOSEnrollPayload{
-					PublicKeyDer: key.pubKeyDER,
-				},
-			},
-		},
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	chalResp := resp.GetMacosChallenge()
-	sig, err := key.signChallenge(chalResp.Challenge)
-	if err != nil {
-		return nil, nil, err
-	}
-	resp, err = sendAndRecv(&devicepb.EnrollDeviceRequest{
-		Payload: &devicepb.EnrollDeviceRequest_MacosChallengeResponse{
-			MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
-				Signature: sig,
-			},
-		},
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return resp.GetSuccess().Device, key, nil
-}
-
-func authenticateDevice(
-	ctx context.Context,
-	devices devicepb.DeviceTrustServiceClient,
-	dev *devicepb.Device, devKey *fakeEnclaveKey, collectDataFn func(*devicepb.Device) *devicepb.DeviceCollectedData) error {
 	if collectDataFn == nil {
 		collectDataFn = defaultCollectData
 	}
+	sim := key.simulator(withCollectFn(dev, collectDataFn))
 
-	stream, err := devices.AuthenticateDevice(ctx)
+	enrolledDev, err := enrollSimulator(ctx, devices, sim, dev)
 	if err != nil {
-		return err
+		return nil, nil, err
+	}
+	return enrolledDev, key, err
+}
+
+func enrollSimulator(
+	ctx context.Context,
+	devices devicepb.DeviceTrustServiceClient, sim simulator, dev *devicepb.Device) (*devicepb.Device, error) {
+	stream, err := devices.EnrollDevice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("method EnrollDevice: %w", err)
 	}
 
-	// 1. Init.
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_Init{
-			Init: &devicepb.AuthenticateDeviceInit{
-				CredentialId: devKey.id,
-				DeviceData:   collectDataFn(dev),
-			},
-		},
-	}); err != nil {
-		return err
+	req := sim.enrollRequest(dev, dev.EnrollToken.Token)
+	if err := stream.Send(req); err != nil {
+		return nil, fmt.Errorf("init Send: %w", err)
 	}
 	resp, err := stream.Recv()
 	if err != nil {
-		return err
+		return nil, trace.Wrap(err, "init Recv") // Keep the trace error.
 	}
 
-	// 2. Challenge.
-	sig, err := devKey.signChallenge(resp.GetChallenge().Challenge)
+	enrolledDev, err := sim.handleEnrollStream(resp, stream, false /* testBehavior */)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("simulator enroll: %w", err)
 	}
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-				Signature: sig,
-			},
-		},
-	}); err != nil {
-		return err
-	}
-	resp, err = stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	// 3. Success.
-	if resp.GetUserCertificates() == nil {
-		return fmt.Errorf("got payload type %T, wanted UserCertificates", resp.Payload)
-	}
-	return nil
+	return enrolledDev, nil
 }
+
+func authenticateSimulator(
+	ctx context.Context,
+	devices devicepb.DeviceTrustServiceClient,
+	sim simulator,
+	dev *devicepb.Device,
+	initCerts *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+	stream, err := devices.AuthenticateDevice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("method AuthenticateDevice: %w", err)
+	}
+
+	if initCerts == nil {
+		initCerts = &devicepb.UserCertificates{}
+	}
+	resp, err := sim.authenticate(ctx, dev, stream, initCerts)
+	if err != nil {
+		return nil, trace.Wrap(err, "simulator authenticate") // Keep the trace error.
+	}
+
+	respCerts := resp.GetUserCertificates()
+	if respCerts == nil {
+		return nil, fmt.Errorf("challenge Recv: got payload %T, wanted UserCertificates", resp.Payload)
+	}
+	return respCerts, nil
+}
+
+type collectDataFunc func(*devicepb.Device) *devicepb.DeviceCollectedData
 
 // defaultCollectData attempts to create a devicepb.DeviceCollectedData that
 // correctly matches the device and its profile.
@@ -243,4 +206,36 @@ func (k *fakeEnclaveKey) deviceCredential() *devicepb.DeviceCredential {
 		Id:           k.id,
 		PublicKeyDer: k.pubKeyDER,
 	}
+}
+
+type fakeEnclaveKeySimOpt func(b *macOSBehavior)
+
+func withCollectFn(dev *devicepb.Device, fn collectDataFunc) fakeEnclaveKeySimOpt {
+	return func(b *macOSBehavior) {
+		prevEnroll := b.modifyEnrollDeviceInit
+		prevAuthn := b.modifyAuthenticateDeviceInit
+		b.modifyEnrollDeviceInit = func(init *devicepb.EnrollDeviceInit) {
+			if prevEnroll != nil {
+				prevEnroll(init)
+			}
+			init.DeviceData = fn(dev)
+		}
+		b.modifyAuthenticateDeviceInit = func(init *devicepb.AuthenticateDeviceInit) {
+			if prevAuthn != nil {
+				prevAuthn(init)
+			}
+			init.DeviceData = fn(dev)
+		}
+	}
+}
+
+func (k *fakeEnclaveKey) simulator(opts ...fakeEnclaveKeySimOpt) simulator {
+	b := macOSBehavior{}
+	for _, opt := range opts {
+		opt(&b)
+	}
+
+	sim := newMacOSSimulator(b)
+	sim.key = k
+	return sim
 }

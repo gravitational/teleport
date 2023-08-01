@@ -426,7 +426,8 @@ func TestService_rateLimiting(t *testing.T) {
 		{
 			name: "AuthenticateDevice",
 			rpc: func() error {
-				return authenticateDevice(ctx, devices, enrolledDev, enrolledKey, defaultCollectData)
+				_, err := authenticateSimulator(ctx, devices, enrolledKey.simulator(), enrolledDev, nil /* initCerts */)
+				return err
 			},
 		},
 	}
@@ -656,14 +657,19 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 	}
 	allDevices = append(allDevices, alpacaDev)
 
+	authenticate := func(dev *devicepb.Device, key *fakeEnclaveKey) error {
+		_, err := authenticateSimulator(ctx, devices, key.simulator(), dev, nil /* initCerts */)
+		return err
+	}
+
 	// Authenticate a few times to generate additional collected data.
-	if err := authenticateDevice(ctx, devices, llamaDev, llamaKey, defaultCollectData); err != nil {
+	if err := authenticate(llamaDev, llamaKey); err != nil {
 		t.Fatalf("authenticateDevice failed: %v", err)
 	}
-	if err := authenticateDevice(ctx, devices, llamaDev, llamaKey, defaultCollectData); err != nil {
+	if err := authenticate(llamaDev, llamaKey); err != nil {
 		t.Fatalf("authenticateDevice failed: %v", err)
 	}
-	if err := authenticateDevice(ctx, devices, alpacaDev, alpacaKey, defaultCollectData); err != nil {
+	if err := authenticate(alpacaDev, alpacaKey); err != nil {
 		t.Fatalf("authenticateDevice failed: %v", err)
 	}
 
@@ -2226,8 +2232,15 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 		cd.OsUsername = "llama"
 		return cd
 	}
-	if err := authenticateDevice(ctx, devices, dev, key, organicCollectData); err != nil {
-		t.Fatalf("authenticateDevice failed: %v", err)
+
+	authenticate := func(fn func(dev *devicepb.Device) *devicepb.DeviceCollectedData) error {
+		sim := key.simulator(withCollectFn(dev, fn))
+		_, err := authenticateSimulator(ctx, devices, sim, dev, nil /* initCerts */)
+		return err
+	}
+
+	if err := authenticate(organicCollectData); err != nil {
+		t.Fatalf("authenticate failed: %v", err)
 	}
 
 	badCollectData := func(dev *devicepb.Device) *devicepb.DeviceCollectedData {
@@ -2243,7 +2256,7 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 		{
 			name: "authenticate",
 			rpc: func() error {
-				return authenticateDevice(ctx, devices, dev, key, badCollectData)
+				return authenticate(badCollectData)
 			},
 		},
 		{
@@ -2263,7 +2276,7 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 			if !trace.IsAccessDenied(gotErr) {
 				t.Errorf("Got err=%v (%T), want trace.AccessDeniedError", gotErr, gotErr)
 			}
-			if gotErr.Error() != devicetrustv1.DataDriftDetectedMessage {
+			if !strings.Contains(gotErr.Error(), devicetrustv1.DataDriftDetectedMessage) {
 				t.Errorf("Got err=%v, want %q (redacted data drift message)", gotErr, devicetrustv1.DataDriftDetectedMessage)
 			}
 		})

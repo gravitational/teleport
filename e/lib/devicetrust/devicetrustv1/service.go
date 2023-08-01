@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/status"
@@ -622,6 +623,15 @@ func (s *Service) redactTokenErr(dev *devicepb.Device, user string, checkErr, ac
 func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) (err error) {
 	start := time.Now()
 	defer func() {
+		if err != nil {
+			s.logger.
+				WithFields(log.Fields{
+					"code":  status.Code(trail.ToGRPC(err)),
+					"error": err.Error(),
+				}).
+				Debug("EnrollDevice stream exited with error")
+		}
+
 		enrollHist.
 			WithLabelValues(status.Code(err).String()).
 			Observe(time.Since(start).Seconds())
@@ -688,6 +698,15 @@ var authnDisabledLogOnce sync.Once
 func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) (err error) {
 	start := time.Now()
 	defer func() {
+		if err != nil {
+			s.logger.
+				WithFields(log.Fields{
+					"code":  status.Code(trail.ToGRPC(err)),
+					"error": err.Error(),
+				}).
+				Debug("AuthenticateDevice stream exited with error")
+		}
+
 		authnHist.
 			WithLabelValues(status.Code(err).String()).
 			Observe(time.Since(start).Seconds())
