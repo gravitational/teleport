@@ -1144,7 +1144,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// add db
 	db, err := types.NewDatabaseServerV3(
-		types.Metadata{Name: "db1"},
+		types.Metadata{Name: "aaaa1"},
 		types.DatabaseServerSpecV3{
 			Protocol: "postgres",
 			Hostname: "localhost",
@@ -1157,7 +1157,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// add windows desktop
 	win, err := types.NewWindowsDesktopV3(
-		"win1",
+		"zzzz9",
 		nil,
 		types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
 	)
@@ -1190,6 +1190,25 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Equal(t, 23, res.TotalCount)
 	require.Equal(t, "", res.StartKey)
 
+	// // should return first page with desc sorted names (last of asc shouldbe first of desc)
+	query = url.Values{"sort": []string{"name:desc"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	descRes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &descRes))
+	require.Equal(t, res.Items[len(res.Items)-1], descRes.Items[0])
+
+	// should return second page and have no third page
+	query = url.Values{"sort": []string{"name:desc"}, "limit": []string{"15"}}
+	query.Add("startKey", descRes.StartKey)
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 8)
+	require.Equal(t, 23, res.TotalCount)
+	require.Equal(t, "", res.StartKey)
+
 	// should return muiltiple filtered types
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
 	query.Add("kinds", "db")
@@ -1201,6 +1220,22 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Len(t, res.Items, 2)
 	require.Equal(t, "", res.StartKey)
 	require.Equal(t, 2, res.TotalCount)
+
+	// should return ascending sorted types
+	query = url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
+
+	// should return descending sorted types
+	query = url.Values{"sort": []string{"type:desc"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
 }
 
 type clusterAlertsGetResponse struct {

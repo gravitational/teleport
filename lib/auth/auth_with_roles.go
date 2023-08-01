@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -1483,6 +1484,13 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
+func stringCompare(a string, b string, isDesc bool) bool {
+	if isDesc {
+		return a > b
+	}
+	return a < b
+}
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*types.ListResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
@@ -1491,6 +1499,22 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if req.SortBy.Field != "" {
+		isDesc := req.SortBy.IsDesc
+		switch req.SortBy.Field {
+		case types.ResourceMetadataName:
+			sort.SliceStable(unifiedResources, func(i, j int) bool {
+				return stringCompare(unifiedResources[i].GetMetadata().Name, unifiedResources[j].GetMetadata().Name, isDesc)
+			})
+		case types.ResourceSpecType:
+			sort.SliceStable(unifiedResources, func(i, j int) bool {
+				return stringCompare(unifiedResources[i].GetKind(), unifiedResources[j].GetKind(), isDesc)
+			})
+		default:
+			return nil, trace.NotImplemented("sorting by field %q for unified resource %q is not supported", req.SortBy.Field, types.KindUnifiedResource)
+		}
+	}
+
 	elapsedFetch := time.Since(startFetch)
 
 	// Filter resources to return the ones for the connected identity.
