@@ -239,7 +239,7 @@ func TestAWSIAM(t *testing.T) {
 
 				err = configurator.UpdateIAMStatus(database)
 				require.NoError(t, err)
-				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID, database.GetAWS().IAMPolicyStatus, "must be valid because iam policy was set up")
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS, database.GetAWS().IAMPolicyStatus, "must be success because iam policy was set up")
 
 				// Deconfigure database, policy should get detached.
 				err = configurator.Teardown(ctx, database)
@@ -378,7 +378,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 			err = configurator.UpdateIAMStatus(database)
 			require.NoError(t, err)
-			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_INVALID, database.GetAWS().IAMPolicyStatus, "must be invalid because of perm issues")
+			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED, database.GetAWS().IAMPolicyStatus, "must be invalid because of perm issues")
 
 			err = configurator.processTask(ctx, iamTask{
 				isSetup:  false,

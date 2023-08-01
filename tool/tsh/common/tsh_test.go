@@ -3670,7 +3670,7 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "iam_policy_status": 0,
+        "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
@@ -3699,7 +3699,7 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "iam_policy_status": 0,
+        "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},

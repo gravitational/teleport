@@ -274,7 +274,7 @@ func (c *IAM) getPolicyName() (string, error) {
 func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
-		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_ERROR)
+		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
 		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
 			c.log.Warnf("No AWS credentials provider. Skipping IAM task for database %v.", task.database.GetName())
 			return nil
@@ -307,7 +307,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		},
 	})
 	if err != nil {
-		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_ERROR)
+		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
 		return trace.Wrap(err)
 	}
 
@@ -321,9 +321,9 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	if task.isSetup {
 		iamAuthErr := configurator.setupIAMAuth(ctx)
 		iamPolicySetup, iamPolicyErr := configurator.setupIAMPolicy(ctx)
-		statusEnum := types.IAMPolicyStatus_IAM_POLICY_STATUS_INVALID
+		statusEnum := types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED
 		if iamPolicySetup {
-			statusEnum = types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID
+			statusEnum = types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS
 		}
 		c.iamPolicyStatus.Store(task.database.GetName(), statusEnum)
 

@@ -3780,7 +3780,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 				Protocol: "test-protocol",
 				URI:      "test-uri:1234",
 				AWS: types.AWS{
-					IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID,
+					IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
 					Region:          "us-west-2",
 				},
 			},
@@ -3827,7 +3827,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		URI:      "test-uri:1234",
 		AWS: &ui.AWS{
 			AWS: types.AWS{
-				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID,
+				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
 				Region:          "us-west-2",
 			},
 		},
@@ -3875,7 +3875,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		URI:           "test-uri:1234",
 		AWS: &ui.AWS{
 			AWS: types.AWS{
-				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_VALID,
+				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
 				Region:          "us-west-2",
 			},
 		},
