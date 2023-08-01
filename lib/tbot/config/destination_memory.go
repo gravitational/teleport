@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 )
@@ -52,7 +54,7 @@ func (dm *DestinationMemory) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (dm *DestinationMemory) Init(subdirs []string) error {
+func (dm *DestinationMemory) Init(_ context.Context, subdirs []string) error {
 	// Nothing to do.
 	return nil
 }
@@ -62,13 +64,13 @@ func (dm *DestinationMemory) Verify(keys []string) error {
 	return nil
 }
 
-func (dm *DestinationMemory) Write(name string, data []byte) error {
+func (dm *DestinationMemory) Write(_ context.Context, name string, data []byte) error {
 	dm.store[name] = data
 
 	return nil
 }
 
-func (dm *DestinationMemory) Read(name string) ([]byte, error) {
+func (dm *DestinationMemory) Read(_ context.Context, name string) ([]byte, error) {
 	b, ok := dm.store[name]
 	if !ok {
 		return nil, trace.NotFound("not found: %s", name)

@@ -139,6 +139,7 @@ func (c *templateSSHHostCert) render(
 	cfg := identityfile.WriteConfig{
 		OutputPath: defaultSSHHostCertPrefix,
 		Writer: &BotConfigWriter{
+			ctx:  ctx,
 			dest: destination,
 		},
 		Key:    key,
@@ -164,7 +165,7 @@ func (c *templateSSHHostCert) render(
 	}
 
 	userCAPath := defaultSSHHostCertPrefix + sshHostUserCASuffix
-	if err := destination.Write(userCAPath, []byte(exportedCAs)); err != nil {
+	if err := destination.Write(ctx, userCAPath, []byte(exportedCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
