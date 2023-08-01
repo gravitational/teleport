@@ -645,7 +645,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
 # Install gotestsum if it's not already installed
  ifeq (, $(shell which gotestsum))
-	go install gotest.tools/gotestsum@latest
+	go install gotest.tools/gotestsum@latest || true # ignore errors until gotestsum is added to Dockerfile
 endif
 
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
