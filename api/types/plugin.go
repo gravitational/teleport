@@ -38,7 +38,7 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
-	// PluginTypeJamf is the Jira MDM plugin
+	// PluginTypeJira is the Jira access plugin
 	PluginTypeJira = "jira"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
 	PluginTypeOpsgenie = "opsgenie"
