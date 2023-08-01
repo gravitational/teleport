@@ -3146,9 +3146,9 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
-// getTypeFromUnifiedResource is used to extract the resource kind from the PaginatedResource returned
+// getResourceFromProtoPage extracts the resource from the PaginatedResource returned
 // from the rpc ListUnifiedResources
-func getTypeFromUnifiedResource(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
+func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
 	var out types.ResourceWithLabels
 	if r := resource.GetNode(); r != nil {
 		out = r
@@ -3185,7 +3185,7 @@ func getTypeFromUnifiedResource(resource *proto.PaginatedResource) (types.Resour
 	}
 }
 
-// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provide request.
+// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
 func GetUnifiedResourcePage(ctx context.Context, clt GetUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
 	var out ResourcePage[types.ResourceWithLabels]
 
@@ -3213,7 +3213,7 @@ func GetUnifiedResourcePage(ctx context.Context, clt GetUnifiedResourcesClient, 
 		}
 
 		for _, respResource := range resp.Resources {
-			resource, err := getTypeFromUnifiedResource(respResource)
+			resource, err := getResourceFromProtoPage(respResource)
 			if err != nil {
 				return out, trace.Wrap(err)
 			}

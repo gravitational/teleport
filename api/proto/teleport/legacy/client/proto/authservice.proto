@@ -1743,39 +1743,34 @@ message ListUnifiedResourcesRequest {
   // Kinds is a list of kinds to match against a resource's kind. This can be used in a
   // unified resource request that can include multiple types.
   repeated string Kinds = 1 [(gogoproto.jsontag) = "kinds,omitempty"];
-  // Namespace is the namespace of resources.
-  string Namespace = 2 [(gogoproto.jsontag) = "namespace,omitempty"];
   // Limit is the maximum amount of resources to retrieve.
-  int32 Limit = 3 [(gogoproto.jsontag) = "limit,omitempty"];
+  int32 Limit = 2 [(gogoproto.jsontag) = "limit,omitempty"];
   // StartKey is used to start listing resources from a specific spot. It
   // should be set to the previous NextKey value if using pagination, or
   // left empty.
-  string StartKey = 4 [(gogoproto.jsontag) = "start_key,omitempty"];
+  string StartKey = 3 [(gogoproto.jsontag) = "start_key,omitempty"];
   // Labels is a label-based matcher if non-empty.
-  map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
+  map<string, string> Labels = 4 [(gogoproto.jsontag) = "labels,omitempty"];
   // PredicateExpression defines boolean conditions that will be matched against the resource.
-  string PredicateExpression = 6 [(gogoproto.jsontag) = "predicate_expression,omitempty"];
+  string PredicateExpression = 5 [(gogoproto.jsontag) = "predicate_expression,omitempty"];
   // SearchKeywords is a list of search keywords to match against resource field values.
-  repeated string SearchKeywords = 7 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  repeated string SearchKeywords = 6 [(gogoproto.jsontag) = "search_keywords,omitempty"];
   // SortBy describes which resource field and which direction to sort by.
-  types.SortBy SortBy = 8 [
+  types.SortBy SortBy = 7 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "sort_by,omitempty"
   ];
-  // NeedTotalCount indicates whether or not the caller also wants the total number of resources
-  // after filtering.
-  bool NeedTotalCount = 9 [(gogoproto.jsontag) = "need_total_count,omitempty"];
   // WindowsDesktopFilter specifies windows desktop specific filters.
-  types.WindowsDesktopFilter WindowsDesktopFilter = 10 [
+  types.WindowsDesktopFilter WindowsDesktopFilter = 8 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "windows_desktop_filter,omitempty"
   ];
   // UseSearchAsRoles indicates that the response should include all resources
   // the caller is able to request access to using search_as_roles
-  bool UseSearchAsRoles = 11 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
+  bool UseSearchAsRoles = 9 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
-  bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+  bool UsePreviewAsRoles = 10 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
 }
 
 // ListUnifiedResourceResponse response of ListUnifiedResources.
