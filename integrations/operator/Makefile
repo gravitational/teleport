@@ -8,9 +8,9 @@ VERSION ?= 0.0.1
 # Image URL to use all building/pushing image targets
 IMG ?= teleport-operator:latest
 
-# TODO(jakule): Reuse the value from build.assets/Makefile
-GOLANG_VERSION ?= go1.20.5
-PROTOC_VER ?= 3.20.3
+# Include build.assets/versions.mk to get the latest same versions of tooling
+# across all builds.
+include ../../build.assets/versions.mk
 
 GO_ENV_ARCH := $(shell go env GOARCH)
 ARCH ?= $(GO_ENV_ARCH)

@@ -6,6 +6,7 @@ ARG BUILDARCH
 
 RUN apt-get update && apt-get -y install --no-install-recommends \
     curl \
+    ca-certificates \
     unzip \
     build-essential \
     gcc-arm-linux-gnueabi \
