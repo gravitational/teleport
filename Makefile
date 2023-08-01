@@ -644,7 +644,7 @@ RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
 $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
 # Install gotestsum if it's not already installed
- ifeq (, $(shell which gotestsum))
+ ifeq (, $(shell command -v gotestsum))
 	go install gotest.tools/gotestsum@latest || true # ignore errors until gotestsum is added to Dockerfile
 endif
 
@@ -905,6 +905,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 
 
 .PHONY: e2e-aws
+e2e-aws: $(RENDER_TESTS)
 e2e-aws: FLAGS ?= -v -race
 e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
 e2e-aws: $(TEST_LOG_DIR) $(RENDER_TESTS)
