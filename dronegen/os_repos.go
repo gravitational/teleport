@@ -104,7 +104,7 @@ func buildWorkflows(releaseEnvironmentFilePath string, packageDeployments []osPa
 				ref:               "refs/heads/fred/oprt-parallel-2",
 				timeout:           12 * time.Hour, // DR takes a long time
 				shouldTagWorkflow: true,
-				seriesRun:         true,
+				seriesRun:         false,
 				inputs:            inputs,
 			})
 		}
