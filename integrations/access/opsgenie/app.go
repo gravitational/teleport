@@ -250,7 +250,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 }
 
 func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) error {
-	if len(req.GetResolveAnnotations()) == 0 {
+	if len(req.GetSystemAnnotations()) == 0 {
 		logger.Get(ctx).Debug("Cannot proceed further. Request is missing any annotations")
 		return nil
 	}
@@ -295,7 +295,7 @@ func (a *App) onDeletedRequest(ctx context.Context, reqID string) error {
 }
 
 func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetResolveAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
+	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationNotifyServicesLabel]
 	if !ok {
 		return nil, trace.NotFound("notify services not specified")
 	}
@@ -303,7 +303,7 @@ func (a *App) getNotifyServiceNames(req types.AccessRequest) ([]string, error) {
 }
 
 func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
-	services, ok := req.GetResolveAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
+	services, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]
 	if !ok {
 		return nil, trace.NotFound("on-call schedules not specified")
 	}
@@ -410,7 +410,7 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 		logger.Get(ctx).Debug("Failed to post the note: plugin data is missing")
 		return nil
 	}
-	ctx, _ = logger.WithField(ctx, "opsgneie_alert_id", data.AlertID)
+	ctx, _ = logger.WithField(ctx, "opsgenie_alert_id", data.AlertID)
 
 	slice := reqReviews[oldCount:]
 	if len(slice) == 0 {
