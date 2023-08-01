@@ -96,10 +96,14 @@ func buildWorkflowSteps(workflow ghaWorkflow, checkoutPath string, enableParalle
 	steps := make([]step, 0)
 	workflowStep := buildGHAWorkflowCallStep(workflow, checkoutPath)
 
-	if enableParallelWorkflowRuns && sleepTime > 0 {
-		sleepStep := sleepStep(sleepTime, setupStepNames, workflow.stepName)
-		steps = append(steps, sleepStep)
-		workflowStep.DependsOn = append(workflowStep.DependsOn, sleepStep.Name)
+	if enableParallelWorkflowRuns {
+		if sleepTime > 0 {
+			sleepStep := sleepStep(sleepTime, setupStepNames, workflow.stepName)
+			steps = append(steps, sleepStep)
+			workflowStep.DependsOn = append(workflowStep.DependsOn, sleepStep.Name)
+		} else {
+			workflowStep.DependsOn = append(workflowStep.DependsOn, setupStepNames...)
+		}
 	}
 
 	steps = append(steps, workflowStep)

@@ -6178,6 +6178,8 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+  depends_on:
+  - Determine if release should go to development or production
 - name: Wait - Publish Teleport to stable/${DRONE_TAG} yum repo
   image: alpine:latest
   commands:
@@ -17067,6 +17069,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: cebc9bc68749e580d6c2080874fbf4300614129ea51003e12fd3f7fbd75ce2ce
+hmac: 19adb6bb0b9933753d491711396f3cb72f76c9fc0b9effbfd45a552c8a8c3f34
 
 ...
