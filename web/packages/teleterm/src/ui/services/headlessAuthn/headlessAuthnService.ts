@@ -31,7 +31,11 @@ export class HeadlessAuthenticationService {
     request: SendPendingHeadlessAuthenticationRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
-    this.mainProcessClient.forceFocusWindow();
+    // If the user wants to skip the confirmation step, then don't force the window.
+    // Instead, they can just tap their blinking yubikey with the window in the background.
+    if (!process.env.TELEPORT_HEADLESS_SKIP_CONFIRM) {
+      this.mainProcessClient.forceFocusWindow();
+    }
 
     return new Promise(resolve => {
       const { closeDialog } = this.modalsService.openImportantDialog({

@@ -50,6 +50,12 @@ export function HeadlessPrompt({
 }: HeadlessPromptProps) {
   const [waitForMfa, setWaitForMfa] = useState(false);
 
+  // skip to MFA confirmation step.
+  if (process.env.TELEPORT_HEADLESS_SKIP_CONFIRM) {
+    setWaitForMfa(true);
+    onApprove();
+  }
+
   return (
     <DialogConfirmation
       dialogCss={() => ({
