@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -215,16 +214,6 @@ func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.C
 	t.log.Debugf("Starting subsystem")
 
 	clientAddr := sconn.RemoteAddr()
-
-	// did the client pass us a true client IP ahead of time via an environment variable?
-	// (usually the web client would do that)
-	trueClientIP, ok := serverContext.GetEnv(sshutils.TrueClientAddrVar)
-	if ok {
-		a, err := utils.ParseAddr(trueClientIP)
-		if err == nil {
-			clientAddr = a
-		}
-	}
 
 	// connect to a site's auth server
 	if t.host == "" {

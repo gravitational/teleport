@@ -464,7 +464,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 					Name: roleName,
 				})
 				existingRole = &role
-				err = authServer.UpsertRole(ctx, &role)
+				err := authServer.UpsertRole(ctx, &role)
 				require.NoError(t, err)
 			}
 
@@ -699,7 +699,7 @@ type mockTSHDEventsService struct {
 func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
 	tshdEventsService := &mockTSHDEventsService{}
 
-	ls, err := net.Listen("tcp", ":0")
+	ls, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer()
