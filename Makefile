@@ -905,14 +905,13 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 
 
 .PHONY: e2e-aws
-e2e-aws: $(RENDER_TESTS)
 e2e-aws: FLAGS ?= -v -race
 e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
 e2e-aws: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/e2e-aws.json \
-		| gotestsum --raw-command --format=testname -- cat
+		| $(RENDER_TESTS) -report-by test
 
 #
 # Lint the source code.
