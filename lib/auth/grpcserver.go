@@ -4331,7 +4331,7 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 }
 
 func makePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*authpb.PaginatedResource, error) {
-	paginatedResources := make([]*authpb.PaginatedResource, 0)
+	paginatedResources := make([]*authpb.PaginatedResource, 0, len(resources))
 	for _, resource := range resources {
 		var protoResource *authpb.PaginatedResource
 		resourceKind := requestType

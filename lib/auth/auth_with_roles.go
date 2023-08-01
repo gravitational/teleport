@@ -1492,7 +1492,7 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*types.ListResourcesResponse, error) {
-	// Fetch full list of nodes in the backend.
+	// Fetch full list of resources in the backend.
 	startFetch := time.Now()
 	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
 	if err != nil {
@@ -1593,6 +1593,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 }
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+
 	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}

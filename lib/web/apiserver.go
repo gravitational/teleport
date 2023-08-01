@@ -2509,7 +2509,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	unifiedResources := make([]interface{}, 0)
+	unifiedResources := make([]any, 0, len(page.Resources))
 	for _, resource := range page.Resources {
 		switch r := resource.(type) {
 		case types.Server:
@@ -2539,9 +2539,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
 		}
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	resp := listResourcesGetResponse{
