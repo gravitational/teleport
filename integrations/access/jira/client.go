@@ -113,7 +113,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 					status := statusFromStatusCode(resp.StatusCode())
 
 					// No usable context in scope. We can't use the context from the Resty response,
-					// as that could already be cancelled, which would block us from emitting a status
+					// as that could already be canceled, which would block us from emitting a status
 					// update showing that the plugin is currently broken.
 					//
 					// Using the background context with a reasonable timeout seems the least-bad option.
