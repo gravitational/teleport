@@ -858,6 +858,13 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
+	if fc.Auth.AccessMonitoring != nil {
+		if fc.Auth.AccessMonitoring.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "failed to validate access monitoring config")
+		}
+		cfg.Auth.AccessMonitoring = fc.Auth.AccessMonitoring
+	}
+
 	return nil
 }
 

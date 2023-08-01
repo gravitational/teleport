@@ -904,6 +904,9 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 		Verb:                      req.Method,
 		ResponseCode:              int32(status),
 		KubernetesClusterMetadata: sess.eventClusterMeta(req),
+		SessionMetadata: apievents.SessionMetadata{
+			WithMFA: sess.Identity.GetIdentity().MFAVerified,
+		},
 	}
 
 	r.populateEvent(event)

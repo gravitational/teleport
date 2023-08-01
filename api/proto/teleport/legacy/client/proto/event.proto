@@ -19,6 +19,7 @@ package proto;
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
@@ -136,5 +137,11 @@ message Event {
     teleport.accesslist.v1.Member AccessListMember = 47;
     // DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
     teleport.discoveryconfig.v1.DiscoveryConfig DiscoveryConfig = 48;
+    // AuditQuery is an audit query resource.
+    teleport.secreports.v1.AuditQuery AuditQuery = 50;
+    // SecurityReport is a security report resource.
+    teleport.secreports.v1.Report Report = 51;
+    // SecurityReportState is a security report state resource.
+    teleport.secreports.v1.ReportState ReportState = 52;
   }
 }

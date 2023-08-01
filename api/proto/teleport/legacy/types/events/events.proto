@@ -2171,6 +2171,13 @@ message KubeRequest {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 13 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AppMetadata contains common application information.
@@ -3234,6 +3241,13 @@ message InstanceJoin {
     (gogoproto.jsontag) = "attributes,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+  // TokenExpires contain information about token expiration time.
+  // In case of static token the TokenExpiration time is to the Unix epoch start time.
+  google.protobuf.Timestamp TokenExpires = 9 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "token_expires"
+  ];
 }
 
 // Unknown is a fallback event used when we don't recognize an event from the backend.
@@ -3486,6 +3500,8 @@ message OneOf {
     events.AccessListMemberUpdate AccessListMemberUpdate = 131;
     events.AccessListMemberDelete AccessListMemberDelete = 132;
     events.AccessListMemberDeleteAllForAccessList AccessListMemberDeleteAllForAccessList = 133;
+    events.AuditQueryRun AuditQueryRun = 134;
+    events.SecurityReportRun SecurityReportRun = 135;
   }
 }
 
@@ -5197,4 +5213,82 @@ message AccessListReview {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// AuditQueryRun is emitted when a user runs an audit query.
+message AuditQueryRun {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the read was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Query contains additional query information.
+  AuditQueryDetails Query = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AuditQueryDetails contains additional query information.
+message AuditQueryDetails {
+  // Name is the name of the query.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
+  // Query is the query that was run.
+  string Query = 2 [(gogoproto.jsontag) = "query,omitempty"];
+  // Days is the number of days time range for the query.
+  int32 Days = 3 [(gogoproto.jsontag) = "days,omitempty"];
+  // ExecutionTimeInMillis is the total execution time of the query.
+  int64 ExecutionTimeInMillis = 4 [(gogoproto.jsontag) = "total_execution_time_in_millis,omitempty"];
+  // DataScannedInBytes is the amount of data scanned by the query.
+  int64 DataScannedInBytes = 5 [(gogoproto.jsontag) = "data_scanned_in_bytes"];
+}
+
+// SecurityReportRun is emitted when a user runs an audit query.
+message SecurityReportRun {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the read was successful.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Query is the query that was run.
+  string Name = 4 [(gogoproto.jsontag) = "name,omitempty"];
+  // Version is the version of security report.
+  string Version = 5 [(gogoproto.jsontag) = "version,omitempty"];
+  // TotalExecutionTimeInMillis is the total execution time of the query.
+  int64 TotalExecutionTimeInMillis = 6 [(gogoproto.jsontag) = "total_execution_time_in_millis,omitempty"];
+  // TotalDataScannedInBytes is the amount of data scanned by the query.
+  int64 TotalDataScannedInBytes = 7 [(gogoproto.jsontag) = "total_data_scanned_in_bytes"];
+  // AuditQueries is the list of audit queries that were run.
+  repeated AuditQueryDetails AuditQueries = 8 [(gogoproto.jsontag) = "audit_queries,omitempty"];
 }

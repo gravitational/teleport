@@ -484,7 +484,7 @@ var (
 	// the IP the certificate is pinned to.
 	PinnedIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 15}
 
-	// CreateWindowsUserOID
+	// CreateWindowsUserOID is an extension OID used to indicate that the user should be created.
 	CreateWindowsUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
 
 	// DesktopsLimitExceededOID is an extension OID used indicate if number of non-AD desktops exceeds the limit for OSS distribution.

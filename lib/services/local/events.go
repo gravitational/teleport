@@ -175,6 +175,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = p
 		case types.KindAccessList:
 			parser = newAccessListParser()
+		case types.KindAuditQuery:
+			parser = newAuditQueryParser()
+		case types.KindSecurityReport:
+			parser = newSecurityReportParser()
+		case types.KindSecurityReportState:
+			parser = newSecurityReportStateParser()
 		case types.KindUserLoginState:
 			parser = newUserLoginStateParser()
 		case types.KindAccessListMember:
@@ -1643,6 +1649,78 @@ func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindAccessList, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalAccessList(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAuditQueryParser() *auditQueryParser {
+	return &auditQueryParser{
+		baseParser: newBaseParser(backend.Key(AuditQueryPrefix)),
+	}
+}
+
+type auditQueryParser struct {
+	baseParser
+}
+
+func (p *auditQueryParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAuditQuery, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalAuditQuery(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSecurityReportParser() *securityReportParser {
+	return &securityReportParser{
+		baseParser: newBaseParser(backend.Key(SecurityReportPrefix)),
+	}
+}
+
+type securityReportParser struct {
+	baseParser
+}
+
+func (p *securityReportParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSecurityReport, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalSecurityReport(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSecurityReportStateParser() *securityReportStateParser {
+	return &securityReportStateParser{
+		baseParser: newBaseParser(backend.Key(SecurityReportStatePrefix)),
+	}
+}
+
+type securityReportStateParser struct {
+	baseParser
+}
+
+func (p *securityReportStateParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSecurityReportState, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalSecurityReportState(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

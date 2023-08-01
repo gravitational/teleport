@@ -32,7 +32,7 @@ import (
 // MarshalFunc is a type signature for a marshaling function.
 type MarshalFunc[T types.Resource] func(T, ...services.MarshalOption) ([]byte, error)
 
-// UnmarshalFunc is a type signature for an unmarshaling function.
+// UnmarshalFunc is a type signature for an unmarshalling function.
 type UnmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T, error)
 
 // ServiceConfig is the configuration for the service configuration.

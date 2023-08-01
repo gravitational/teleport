@@ -3143,6 +3143,31 @@ export const events = [
     access_list_name: 'access-list',
     updated_by: 'mike',
   },
+  {
+    cluster_name: 'root.com',
+    code: 'SRE001I',
+    data_scanned_in_bytes: 4045,
+    days: 90,
+    event: 'secreports.audit.query.run',
+    query: 'select * FROM cert_create',
+    success: true,
+    time: '2023-10-09T10:09:10.473Z',
+    total_execution_time_in_millis: 1440,
+    uid: 'dc29d36c-c5b6-4ffc-9aa7-2d9ba18a3953',
+    user: 'marek',
+  },
+  {
+    cluster_name: 'root.com',
+    code: 'SRE002I',
+    data_scanned_in_bytes: 13258,
+    event: 'secreports.report.run',
+    name: 'privilege_access_report_90_days',
+    success: true,
+    time: '2023-10-09T09:10:03.633Z',
+    total_execution_time_in_millis: 14082,
+    uid: 'f44871b9-7247-467b-a760-8159d3f47bac',
+    user: 'system',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
