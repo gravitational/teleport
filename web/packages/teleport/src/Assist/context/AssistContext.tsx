@@ -32,6 +32,7 @@ import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import {
+  AccessRequestStatus,
   ExecutionEnvelopeType,
   ExecutionTeleportErrorType,
   RawPayload,
@@ -48,6 +49,7 @@ import {
 
 import * as service from '../service';
 import {
+  resolveAccessRequestMessage,
   resolveServerAssistThoughtMessage,
   resolveServerCommandMessage,
   resolveServerMessage,
@@ -207,6 +209,26 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           dispatch({
             type: AssistStateActionType.SetStreaming,
             streaming: false,
+          });
+
+          break;
+        }
+
+        case ServerMessageType.AccessRequest: {
+          const message = resolveAccessRequestMessage(data);
+
+          dispatch({
+            type: AssistStateActionType.AddAccessRequest,
+            summary: '',
+            suggested_reviewers: [],
+            requested_resources: message.resources.map(
+              r => r as unknown as string // TODO: fix me
+            ),
+            events: [],
+            status: AccessRequestStatus.Pending,
+            username: '???',
+            reason: message.reason,
+            conversationId,
           });
 
           break;

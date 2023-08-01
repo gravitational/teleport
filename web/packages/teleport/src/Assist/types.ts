@@ -142,6 +142,10 @@ export enum AccessRequestStatus {
   Declined,
 }
 
+export interface AccessRequestEvent {
+  // TODO: missing implementation?
+}
+
 export type ResolvedServerMessage =
   | ResolvedCommandServerMessage
   | ResolvedAssistServerMessage
@@ -224,6 +228,14 @@ export interface SessionData {
 
 export interface SessionEndData {
   node_id: string;
+}
+
+export interface AccessRequestPayload {
+  roles: string[];
+  resource_ids: Resource[];
+  reason: string;
+  suggested_reviewers: string[];
+  created_time: Date;
 }
 
 export interface ExecuteRemoteCommandPayload {

@@ -51,7 +51,7 @@ func NewAgent(toolCtx *ToolContext) *Agent {
 	return &Agent{
 		tools: []Tool{
 			&commandExecutionTool{},
-			&embeddingRetrievalTool{},
+			//&embeddingRetrievalTool{}, // TODO: disabled as confuses the LLM
 			&accessRequestCreateTool{},
 			//&accessRequestsDisplayTool{},
 			&accessRequestsListTool{},
@@ -251,8 +251,25 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 
 		fmt.Printf("%#v\n", accessRequestItem.(*types.AccessRequestV3))
 
+		accessRequestMsg := &AccessRequest{
+			Roles:              accessRequestItem.GetRoles(),
+			ResourceIDs:        accessRequest.ResourceIDs,
+			Reason:             accessRequest.Reason,
+			SuggestedReviewers: accessRequest.SuggestedReviewers,
+		}
+
+		return stepOutput{finish: &agentFinish{output: accessRequestMsg}}, nil
 		err = a.toolCtx.CreateAccessRequest(ctx, accessRequestItem)
 		if err != nil {
+			if trace.IsBadParameter(err) {
+				action := &AgentAction{
+					Action: actionException,
+					Input:  observationPrefix + "Invalid or incomplete response",
+					Log:    thoughtPrefix + err.Error(),
+				}
+
+				return stepOutput{action: action, observation: action.Input}, nil
+			}
 			return stepOutput{}, trace.Wrap(err)
 		}
 

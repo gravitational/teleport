@@ -75,6 +75,9 @@ const ResourceName = styled.div`
 export function Resources(props: ResourcesProps) {
   const theme = useTheme();
 
+  // TODO: Assist can return empty resources array :\
+  if (!props.resources) return <Container />;
+
   return (
     <Container>
       {props.resources.map((resource, index) => (

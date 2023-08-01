@@ -419,7 +419,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			return nil, trace.Wrap(err)
 		}
 
-		if err := onMessage(MessageKindCommand, payloadJson, c.assist.clock.Now().UTC()); nil != err {
+		if err := onMessage(MessageKindAccessRequest, payloadJson, c.assist.clock.Now().UTC()); nil != err {
 			return nil, trace.Wrap(err)
 		}
 	case *model.AccessRequestsDisplay:
@@ -455,7 +455,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			return nil, trace.Wrap(err)
 		}
 
-		if err := onMessage(MessageKindCommand, payloadJson, c.assist.clock.Now().UTC()); nil != err {
+		if err := onMessage(MessageKindAccessRequestsDisplay, payloadJson, c.assist.clock.Now().UTC()); nil != err {
 			return nil, trace.Wrap(err)
 		}
 	default:

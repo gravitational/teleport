@@ -72,6 +72,9 @@ const SubTitle = styled.div`
 export function AccessRequest(props: AccessRequestProps) {
   const [reason, setReason] = useState(props.reason);
 
+  console.log(props.resources);
+  //TODO: Implement the request access API call
+
   return (
     <Container>
       <InfoText style={{ marginTop: 0 }}>Create an access request</InfoText>

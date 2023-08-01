@@ -53,7 +53,7 @@ type CompletionCommand struct {
 	Labels  []Label  `json:"labels,omitempty"`
 }
 
-// CompletionRequest represents an access request suggestion returned by OpenAI's completion API.
+// AccessRequest represents an access request suggestion returned by OpenAI's completion API.
 type AccessRequest struct {
 	Roles              []string `json:"roles"`
 	ResourceIDs        []string `json:"resource_ids"`

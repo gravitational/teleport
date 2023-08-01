@@ -186,12 +186,15 @@ export interface ToggleSidebarAction {
 }
 
 export interface AddAccessRequestAction {
+  suggested_reviewers: string[];
   type: AssistStateActionType.AddAccessRequest;
   conversationId: string;
-  status: AccessRequestStatus;
-  summary: string;
-  username: string;
+  status: AccessRequestStatus; // TODO: I don't fully understand what this field represents. New request are always "pending".
+  summary: string; // TODO: What is summary?
+  requested_resources: string[];
+  username: string; // TODO: ??
   events: AccessRequestEvent[];
+  reason: string;
 }
 
 export type AssistContextAction =
@@ -735,17 +738,21 @@ export function addAccessRequest(
   action: AddAccessRequestAction
 ): AssistState {
   const messages = new Map(state.messages.data);
-
+  console.log('action', action);
   const existingMessages = messages.get(action.conversationId);
 
   messages.set(action.conversationId, [
     ...existingMessages,
     {
-      type: ServerMessageType.AccessRequests,
+      type: ServerMessageType.AccessRequest,
       status: action.status,
       username: action.username,
       events: action.events,
       summary: action.summary,
+      suggested_reviewers: action.suggested_reviewers,
+      requested_resources: action.requested_resources,
+      reason: action.reason,
+      resources: action.summary,
       created: new Date(),
     },
   ]);

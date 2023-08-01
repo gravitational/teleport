@@ -154,7 +154,7 @@ function createComponentForEntry(
           summary={entry.summary}
         />
       );
-
+    // TODO: My IDE says that this is unreachable code
     case ServerMessageType.AccessRequests:
       return (
         <AccessRequests
