@@ -13,7 +13,7 @@ leverage Azure blob storage for session recordings.
 * Added max duration option to access request [#29754](https://github.com/gravitational/teleport/pull/29754)
 * Refactored Teleport Assist token counting [#29753](https://github.com/gravitational/teleport/pull/29753)
 * Added support for displaying onboarding questionnaire for existing users (#29378) [#29713](https://github.com/gravitational/teleport/pull/29713)
-* Added flat to write tarred tctl auth sign output to stdout [#29666](https://github.com/gravitational/teleport/pull/29666)
+* Added flag to write tarred tctl auth sign output to stdout [#29666](https://github.com/gravitational/teleport/pull/29666)
 * Added Azure support to Helm charts [#29734](https://github.com/gravitational/teleport/pull/29734)
 * Fixed Kubernetes Legacy Proxy heartbeats [#29738](https://github.com/gravitational/teleport/pull/29738)
 * Added Postgres backend and Azure session storage [#29705](https://github.com/gravitational/teleport/pull/29705)
