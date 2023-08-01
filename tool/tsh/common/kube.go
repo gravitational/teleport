@@ -1227,29 +1227,26 @@ func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClie
 func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
 	switch {
 	case c.kubeCluster != "":
-		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.
-
-Use 'tsh kubectl' to run the Kubernetes client, for example:
-  tsh kubectl version
-
-Or start a local proxy:
-  tsh proxy kube -p 8443
-
-Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
-`, c.kubeCluster)
+		fmt.Fprintln(cf.Stdout(), fmt.Sprintf(`Logged into Kubernetes cluster %q.`, c.kubeCluster))
 
 	default:
-		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available.
+		fmt.Fprintln(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+	}
 
-Use 'tsh kubectl' to run the Kubernetes client, for example:
-  tsh kubectl config get-contexts
+	fmt.Fprintf(cf.Stdout(), `
+Your Teleport cluster runs behind a layer 7 load balancer or reverse proxy.
 
-Or start a local proxy:
+To access the cluster, use "tsh kubectl" which is a fully featured "kubectl"
+command that works when the Teleport cluster is behind layer 7 load balancer or
+reverse proxy. To run the Kubernetes client, use:
+  tsh kubectl version
+
+Or, start a local proxy with "tsh proxy kube" and use the kubeconfig
+provided by the local proxy with your native Kubernetes clients:
   tsh proxy kube -p 8443
 
-Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
+Learn more at https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview
 `)
-	}
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
