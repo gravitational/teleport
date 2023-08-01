@@ -159,6 +159,10 @@ export class AgentRunner {
     rootClusterUri: RootClusterUri,
     state: AgentProcessState
   ): void {
+    this.logger.info(
+      `Updating agent state ${rootClusterUri}: ${JSON.stringify(state)}`
+    );
+
     const agent = this.agentProcesses.get(rootClusterUri);
     agent.state = state;
     this.sendProcessState(rootClusterUri, state);
