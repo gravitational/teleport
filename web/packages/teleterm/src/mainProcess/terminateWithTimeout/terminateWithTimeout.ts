@@ -19,7 +19,7 @@ import { setTimeout } from 'node:timers/promises';
 
 import Logger from 'teleterm/logger';
 
-const logger = new Logger('processKiller');
+const logger = new Logger('terminateWithTimeout');
 
 /**
  * Tries to kill a process in a graceful way - by sending a SIGTERM signal, or using

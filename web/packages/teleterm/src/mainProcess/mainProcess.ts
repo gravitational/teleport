@@ -90,14 +90,19 @@ export default class MainProcess {
     this.appStateFileStorage = opts.appStateFileStorage;
     this.configFileStorage = opts.configFileStorage;
     this.windowsManager = opts.windowsManager;
-    this.agentRunner = new AgentRunner(this.settings, (rootClusterUri, state) =>
-      this.windowsManager
-        .getWindow()
-        .webContents.send(
+    this.agentRunner = new AgentRunner(
+      this.settings,
+      (rootClusterUri, state) => {
+        const window = this.windowsManager.getWindow();
+        if (window.isDestroyed()) {
+          return;
+        }
+        window.webContents.send(
           'main-process-connect-my-computer-agent-update',
           rootClusterUri,
           state
-        )
+        );
+      }
     );
   }
 
