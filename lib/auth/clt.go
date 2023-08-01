@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -437,6 +438,11 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
+}
+
+// SecReportsClient returns a client for security reports.
+func (c *Client) SecReportsClient() *secreport.Client {
+	return c.APIClient.SecReportsClient()
 }
 
 func (c *Client) AccessListClient() services.AccessLists {
@@ -880,6 +886,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
+
+	// SecReportsClient returns a client for security reports.
+	// Clients connecting to  older Teleport versions, still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	SecReportsClient() *secreport.Client
 
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client

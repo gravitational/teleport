@@ -245,6 +245,9 @@ type InitConfig struct {
 	// UserLoginStates is a service that manages user login states.
 	UserLoginState services.UserLoginStates
 
+	// SecReports is a service that manages security reports.
+	SecReports services.SecReports
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock

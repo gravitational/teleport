@@ -3185,6 +3185,13 @@ message InstanceJoin {
     (gogoproto.jsontag) = "attributes,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+  // TokenExpires contain information about token expiration time.
+  // In case of static token the TokenExpiration time is to the Unix epoch start time.
+  google.protobuf.Timestamp TokenExpires = 9 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "token_expires"
+  ];
 }
 
 // Unknown is a fallback event used when we don't recognize an event from the backend.
