@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -74,20 +73,16 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
 
-	count := local.OSSDesktopsLimit + 1
 	underLimit, err := s.CheckOSSDesktopsLimit(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if underLimit {
-		count = 1
 	}
 	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
 		Id:    tlsca.LicenseOID,
 		Value: []byte(modules.GetModules().BuildType()),
 	}, pkix.Extension{
-		Id:    tlsca.DesktopsCountOID,
-		Value: []byte(strconv.Itoa(count)),
+		Id:    tlsca.DesktopsLimitOID,
+		Value: []byte(strconv.FormatBool(underLimit)),
 	})
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
