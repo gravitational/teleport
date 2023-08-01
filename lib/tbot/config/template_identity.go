@@ -64,6 +64,7 @@ func (t *templateIdentity) render(
 	cfg := identityfile.WriteConfig{
 		OutputPath: IdentityFilePath,
 		Writer: &BotConfigWriter{
+			ctx:  ctx,
 			dest: destination,
 		},
 		Key:    key,

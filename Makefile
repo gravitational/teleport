@@ -643,6 +643,10 @@ TOOLINGDIR := ${abspath ./build.assets/tooling}
 RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
 $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
+# Install gotestsum if it's not already installed
+ ifeq (, $(shell command -v gotestsum))
+	go install gotest.tools/gotestsum@latest || true # ignore errors until gotestsum is added to Dockerfile
+endif
 
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
@@ -704,7 +708,7 @@ test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/
 test-go-unit:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command -- cat
 
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
 # separately.
@@ -717,7 +721,7 @@ test-go-libfido2:
 ifneq ("$(LIBFIDO2_TEST_TAG)", "")
 	$(CGOFLAG) go test -cover -json -tags "$(LIBFIDO2_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command -- cat
 endif
 
 # Make sure untagged touchid code build/tests.
@@ -728,7 +732,7 @@ test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
 	$(CGOFLAG) go test -cover -json $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command -- cat
 endif
 
 # Runs ci tsh tests
@@ -738,7 +742,7 @@ test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh/...
 test-go-tsh:
 	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command -- cat
 
 # Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 .PHONY: test-go-chaos
@@ -746,7 +750,7 @@ test-go-chaos: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs
 test-go-chaos:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command -- cat
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -759,7 +763,7 @@ test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integrat
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit-root.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command -- cat
 
 #
 # Runs Go tests on the api module. These have to be run separately as the package name is different.
@@ -771,7 +775,7 @@ test-api: SUBJECT ?= $(shell cd api && go list ./...)
 test-api:
 	cd api && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command -- cat
 
 #
 # Runs Teleport Operator tests.
@@ -790,7 +794,7 @@ test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater &
 test-kube-agent-updater:
 	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/kube-agent-updater.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command --format=testname -- cat
 
 .PHONY: test-access-integrations
 test-access-integrations:
@@ -810,7 +814,7 @@ test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./
 test-teleport-usage:
 	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/teleport-usage.json \
-		| ${RENDER_TESTS}
+		| gotestsum --raw-command -- cat
 
 #
 # Flaky test detection. Usually run from CI nightly, overriding these default parameters
@@ -870,7 +874,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration.json \
-		| $(RENDER_TESTS) -report-by test
+		| $(RENDER_TESTS) -report-by test # Replace with gotestsum once added to the Docker image
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
@@ -884,7 +888,7 @@ integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-kube.json \
-		| $(RENDER_TESTS) -report-by test
+		| $(RENDER_TESTS) -report-by test # Replace with gotestsum once added to the Docker image
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -897,7 +901,7 @@ integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-root.json \
-		| $(RENDER_TESTS) -report-by test
+		| gotestsum --raw-command --format=testname -- cat
 
 
 .PHONY: e2e-aws
