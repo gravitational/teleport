@@ -96,9 +96,10 @@ type OIDCConnector interface {
 	// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
 	GetAllowUnverifiedEmail() bool
 	// GetMaxAge returns the amount of seconds that user logins are
-	// valid for. If a user logs in, but then does not login again
-	// within this time period, they will be forced to re-authenticate.
-	GetMaxAge() uint32
+	// valid for and true if MaxAge is set. If a user logs in, but then
+	// does not login again within this time period, they will be forced
+	// to re-authenticate.
+	GetMaxAge() (int32, bool)
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -433,6 +434,10 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if o.Spec.MaxAge != nil && o.Spec.MaxAge.Value < 0 {
+		return trace.BadParameter("max_age cannot be negative")
+	}
+
 	return nil
 }
 
@@ -442,10 +447,14 @@ func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
 }
 
 // GetMaxAge returns the amount of seconds that user logins are
-// valid for. If a user logs in, but then does not login again
-// within this time period, they will be forced to re-authenticate.
-func (o *OIDCConnectorV3) GetMaxAge() uint32 {
-	return o.Spec.MaxAge
+// valid for and true if MaxAge is set. If a user logs in, but then
+// does not login again within this time period, they will be forced
+// to re-authenticate.
+func (o *OIDCConnectorV3) GetMaxAge() (int32, bool) {
+	if o.Spec.MaxAge == nil {
+		return 0, false
+	}
+	return o.Spec.MaxAge.Value, true
 }
 
 // Check returns nil if all parameters are great, err otherwise
