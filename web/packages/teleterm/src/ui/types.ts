@@ -26,11 +26,12 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 import { ResourcesService } from 'teleterm/ui/services/resources';
-import { ReloginService } from 'teleterm/services/relogin';
-import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
+import { ReloginService } from 'teleterm/ui/services/relogin/reloginService';
+import { TshdNotificationsService } from 'teleterm/ui/services/tshdNotifications/tshdNotificationService';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ConfigService } from 'teleterm/services/config';
 import { ConnectMyComputerService } from 'teleterm/ui/services/connectMyComputer';
+import { HeadlessAuthenticationService } from 'teleterm/ui/services/headlessAuthn/headlessAuthnService';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -51,6 +52,7 @@ export interface IAppContext {
   usageService: UsageService;
   configService: ConfigService;
   connectMyComputerService: ConnectMyComputerService;
+  headlessAuthenticationService: HeadlessAuthenticationService;
 
   init(): Promise<void>;
 }
