@@ -34,6 +34,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
+  KeysEnum.RECOMMEND_FEATURE,
 ];
 
 const storage = {
