@@ -229,7 +229,22 @@ func (u *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 		return nil, trace.Wrap(err, "getting unified resource range")
 	}
 	for _, item := range result.Items {
-		resources = append(resources, item.Value)
+		switch r := item.Value.(type) {
+		case types.Server:
+			resources = append(resources, r.DeepCopy())
+		case types.AppServer:
+			resources = append(resources, r.Copy())
+		case types.SAMLIdPServiceProvider:
+			resources = append(resources, r.Copy())
+		case types.DatabaseServer:
+			resources = append(resources, r.Copy())
+		case types.KubeCluster:
+			resources = append(resources, r.Copy())
+		case types.WindowsDesktop:
+			resources = append(resources, r.Copy())
+		default:
+			return nil, trace.NotImplemented("unsupported type received from unified resources cache")
+		}
 	}
 
 	return resources, nil
