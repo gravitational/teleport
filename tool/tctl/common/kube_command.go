@@ -72,10 +72,11 @@ func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &kubeServerCollection{servers: kubes, verbose: c.verbose}
+
+	coll := &kubeServerCollection{servers: kubes}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
