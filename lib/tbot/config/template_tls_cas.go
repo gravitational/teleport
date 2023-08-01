@@ -100,15 +100,15 @@ func (t *templateTLSCAs) render(
 	// that mariadb at least does not seem to like being passed more than one
 	// CA so there may be some compat issues to address in the future for the
 	// rare case where a CA rotation is in progress.
-	if err := destination.Write(HostCAPath, concatCACerts(hostCAs)); err != nil {
+	if err := destination.Write(ctx, HostCAPath, concatCACerts(hostCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := destination.Write(UserCAPath, concatCACerts(userCAs)); err != nil {
+	if err := destination.Write(ctx, UserCAPath, concatCACerts(userCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := destination.Write(DatabaseCAPath, concatCACerts(databaseCAs)); err != nil {
+	if err := destination.Write(ctx, DatabaseCAPath, concatCACerts(databaseCAs)); err != nil {
 		return trace.Wrap(err)
 	}
 
