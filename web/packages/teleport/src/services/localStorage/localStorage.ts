@@ -25,13 +25,13 @@ import {
 } from 'teleport/services/userPreferences/types';
 
 import { KeysEnum, LocalStorageSurvey } from './types';
-import { WindowTitleBar } from 'shared/components/Window';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
+  KeysEnum.UNIFIED_RESOURCES_ENABLED,
 ];
 
 const storage = {

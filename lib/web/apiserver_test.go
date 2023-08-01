@@ -3891,6 +3891,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Kind:     types.KindDatabase,
 		Name:     "db1",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
@@ -3899,6 +3900,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Hostname: "test-uri",
 		URI:      "test-uri:1234",
 	}, {
+		Kind:     types.KindDatabase,
 		Name:     "db2",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{},
@@ -3931,6 +3933,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Kind:          types.KindDatabase,
 		Name:          "db1",
 		Desc:          "test-description",
 		Protocol:      "test-protocol",
@@ -3941,6 +3944,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		DatabaseNames: []string{"name1"},
 		URI:           "test-uri:1234",
 	}, {
+		Kind:          types.KindDatabase,
 		Name:          "db2",
 		Type:          types.DatabaseTypeSelfHosted,
 		Labels:        []ui.Label{},
@@ -5854,12 +5858,14 @@ func TestClusterDesktopsGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop1",
 		Addr:   "addr",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
 		HostID: "host",
 	}, {
+		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop2",
 		Addr:   "addr",
@@ -6972,6 +6978,7 @@ func TestCreateDatabase(t *testing.T) {
 			result := ui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
 			require.Equal(t, result, ui.Database{
+				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
 				Type:          types.DatabaseTypeSelfHosted,
@@ -7136,6 +7143,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				CACert: &fakeValidTLSCert,
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "self-hosted",
@@ -7150,6 +7158,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				URI: "something-else:3306",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "self-hosted",
@@ -7172,6 +7181,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7200,6 +7210,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7232,6 +7243,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-0000",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",

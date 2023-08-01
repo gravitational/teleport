@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Flex, Indicator, Box, ButtonPrimary } from 'design';
+import { Flex, Indicator, Box } from 'design';
 
 import styled from 'styled-components';
 
@@ -38,8 +38,7 @@ export function Resources() {
   React.useEffect(() => {
     if (observed.current) {
       const observer = new IntersectionObserver(entries => {
-        console.log('INTERSECT', entries[0]);
-        if (entries[0].isIntersecting) {
+        if (entries[0]?.isIntersecting) {
           fetchMore();
         }
       });
