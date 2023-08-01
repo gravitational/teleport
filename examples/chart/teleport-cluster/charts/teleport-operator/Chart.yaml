@@ -1,4 +1,4 @@
-.version: &version "14.0.0-dev"
+.version: &version "14.0.0-dev.noah.goroutine-leak-patch"
 
 name: teleport-operator
 apiVersion: v2
