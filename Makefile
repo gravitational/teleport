@@ -643,7 +643,10 @@ TOOLINGDIR := ${abspath ./build.assets/tooling}
 RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
 $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
+# Install gotestsum if it's not already installed
+ ifeq (, $(shell which gotestsum))
 	go install gotest.tools/gotestsum@latest
+endif
 
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
@@ -871,7 +874,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration.json \
-		| gotestsum --raw-command --format=testname -- cat
+		| $(RENDER_TESTS) -report-by test # Replace with gotestsum once added to the Docker image
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
@@ -885,7 +888,7 @@ integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-kube.json \
-		| gotestsum --raw-command --format=testname -- cat
+		| $(RENDER_TESTS) -report-by test # Replace with gotestsum once added to the Docker image
 
 #
 # Integration tests which need to be run as root in order to complete successfully
