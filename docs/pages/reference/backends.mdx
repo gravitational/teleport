@@ -225,7 +225,7 @@ stream of changes from the database; because of that, the
 [`wal_level`](https://www.postgresql.org/docs/current/runtime-config-wal.html#GUC-WAL-LEVEL)
 parameter must be set to `logical` and
 [`max_replication_slots`](https://www.postgresql.org/docs/current/runtime-config-replication.html#GUC-MAX-REPLICATION-SLOTS)
-must be set to at least as many Teleport auth servers as you'll be running (a
+must be set to at least as many Teleport Auth Service instances as you'll be running (a
 higher number is recommended, to account for network conditions). `wal_level`
 can only be set at server start, so it should be set in `postgresql.conf`:
 ```
@@ -262,13 +262,13 @@ PostgreSQL services such as Azure Databases for PostgreSQL or Amazon RDS for
 PostgreSQL).
 
 To configure Teleport to use PostgreSQL:
-- Configure all Teleport Auth servers to use the PostgreSQL back-end in the
+- Configure all Teleport Auth Service instances to use the PostgreSQL back-end in the
   `storage` section of `teleport.yaml` as shown below.
-- Deploy several auth servers connected to the PostgreSQL storage back-end.
-- Deploy several proxy nodes.
-- Make sure that the proxy instances and all Teleport resource services that
-  connect directly to the the auth service have the `auth_server` configuration
-  setting populated with the address of a load balancer for auth service
+- Deploy several Auth Service instances connected to the PostgreSQL storage back-end.
+- Deploy several Proxy Service nodes.
+- Make sure that the Proxy Service instances and all Teleport agent services that
+  connect directly to the the Auth Service have the `auth_server` configuration
+  setting populated with the address of a load balancer for Auth Service
   instances.
 
 ```yaml
