@@ -405,15 +405,13 @@ enum IAMPolicyStatus {
   //   2) When starting a database, the heartbeat and its IAM task starts,
   //      and the heartbeat may run first before the IAM task finishes.
   IAM_POLICY_STATUS_PENDING = 1;
-  // IAM_POLICY_STATUS_ERROR represents a state where an error occured
-  // while checking for IAM policy status eg: no AWS credentials provider found.
-  IAM_POLICY_STATUS_ERROR = 2;
-  // IAM_POLICY_STATUS_VALID represents a state where IAM policy was configured
+  // IAM_POLICY_STATUS_FAILED represents a state where an error occured
+  // while checking for IAM policy status eg: no AWS credentials provider found
+  // or the policy was misconfigured.
+  IAM_POLICY_STATUS_FAILED = 2;
+  // IAM_POLICY_STATUS_SUCCESS represents a state where IAM policy was configured
   // correctly.
-  IAM_POLICY_STATUS_VALID = 3;
-  // IAM_POLICY_STATUS_INVALID represents a state where the IAM policy
-  // was misconfigured eg: permission issues.
-  IAM_POLICY_STATUS_INVALID = 4;
+  IAM_POLICY_STATUS_SUCCESS = 3;
 }
 
 // AWS contains AWS metadata about the database.

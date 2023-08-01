@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -927,4 +928,20 @@ func TestValidateDatabaseName(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestIAMPolicyStatusJSON(t *testing.T) {
+	t.Parallel()
+
+	var status IAMPolicyStatus
+	status = IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS
+
+	marshalled, err := status.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, `"IAM_POLICY_STATUS_SUCCESS"`, string(marshalled))
+
+	data, err := json.Marshal("IAM_POLICY_STATUS_FAILED")
+	require.NoError(t, err)
+	require.NoError(t, status.UnmarshalJSON(data))
+	require.Equal(t, IAMPolicyStatus_IAM_POLICY_STATUS_FAILED, status)
 }
