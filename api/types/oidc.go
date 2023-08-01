@@ -95,8 +95,10 @@ type OIDCConnector interface {
 	GetGoogleAdminEmail() string
 	// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
 	GetAllowUnverifiedEmail() bool
-	// GetForceReauthentication returns true if authentication to the OIDC provider should be forced upon each login.
-	GetForceReauthentication() bool
+	// GetMaxAge returns the amount of seconds that user logins are
+	// valid for. If a user logs in, but then does not login again
+	// within this time period, they will be forced to re-authenticate.
+	GetMaxAge() uint32
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -439,10 +441,11 @@ func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
 	return o.Spec.AllowUnverifiedEmail
 }
 
-// GetForceReauthentication returns true if authentication to the OIDC
-// provider should be forced upon each login.
-func (o *OIDCConnectorV3) GetForceReauthentication() bool {
-	return o.Spec.ForceReauthentication
+// GetMaxAge returns the amount of seconds that user logins are
+// valid for. If a user logs in, but then does not login again
+// within this time period, they will be forced to re-authenticate.
+func (o *OIDCConnectorV3) GetMaxAge() uint32 {
+	return o.Spec.MaxAge
 }
 
 // Check returns nil if all parameters are great, err otherwise
