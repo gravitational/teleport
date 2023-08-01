@@ -237,8 +237,8 @@ max_replication_slots = 10
 ```
 
 In addition, the database user must have the `initiating replication` [role
-attribute](https://www.postgresql.org/docs/current/role-attributes.html) (as
-well as `login privilege`, of course). In the `psql` shell:
+attribute](https://www.postgresql.org/docs/current/role-attributes.html). In the
+`psql` shell:
 
 ```
 postgres=# CREATE USER new_user WITH REPLICATION;
