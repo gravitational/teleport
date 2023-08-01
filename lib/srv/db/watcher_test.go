@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -163,6 +164,11 @@ func TestWatcherDynamicResource(t *testing.T) {
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
 		},
+		DiscoveryResourceChecker: &fakeDiscoveryResourceChecker{
+			errorsByName: map[string]error{
+				"db-fail-check": trace.BadParameter("bad db"),
+			},
+		},
 	})
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
 
@@ -238,6 +244,17 @@ func TestWatcherDynamicResource(t *testing.T) {
 		db5.SetAWSAssumeRole("arn:aws:iam::123456789012:role/DBAccess")
 		db5.SetAWSExternalID("external-id")
 
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
+	})
+
+	t.Run("discovery resource - fail check", func(t *testing.T) {
+		// Created a discovery service created database resource that fails the
+		// fakeDiscoveryResourceChecker.
+		dbFailCheck, err := makeDiscoveryDatabase("db-fail-check", map[string]string{"group": "a"}, withRDSURL)
+		require.NoError(t, err)
+		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
+
+		// dbFailCheck should not be proxied.
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
 	})
 }

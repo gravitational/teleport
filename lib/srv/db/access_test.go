@@ -71,6 +71,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
@@ -2203,6 +2204,9 @@ type agentParams struct {
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
 	AzureMatchers []types.AzureMatcher
+	// discoveryResourceChecker performs some pre-checks when creating databases
+	// discovered by the discovery service.
+	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2241,6 +2245,10 @@ func (p *agentParams) setDefaults(c *testContext) {
 			IAM:                &mocks.IAMMock{},
 			GCPSQL:             p.GCPSQL,
 		}
+	}
+
+	if p.DiscoveryResourceChecker == nil {
+		p.DiscoveryResourceChecker = &fakeDiscoveryResourceChecker{}
 	}
 }
 
@@ -2325,7 +2333,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
-		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
+		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
@@ -2989,9 +2997,15 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 	}
 }
 
-type fakeDiscoveryResourceChecker struct{}
+type fakeDiscoveryResourceChecker struct {
+	errorsByName map[string]error
+}
 
-func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
+func (f *fakeDiscoveryResourceChecker) Check(_ context.Context, database types.Database) error {
+	if len(f.errorsByName) == 0 {
+		return nil
+	}
+	return trace.Wrap(f.errorsByName[database.GetName()])
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{
