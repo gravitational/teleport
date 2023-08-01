@@ -31,7 +31,7 @@ env:
   GHA_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-aws-e2e-gha-role
   KUBERNETES_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-kubernetes-service-access-role
   DISCOVERY_SERVICE_ASSUME_ROLE: arn:aws:iam::307493967395:role/tf-eks-discovery-ci-cluster-discovery-service-access-role
-  DISCOVERED_CLUSTER_NAME: gha-discovery-ci
+  DISCOVERED_CLUSTER_NAME: gha-discovery-ci-eks-us-west-2-307493967395
 jobs:
   test:
     name: AWS E2E Tests (Non-root)
