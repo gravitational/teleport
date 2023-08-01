@@ -33,6 +33,7 @@ type ghaWorkflow struct {
 	slackOnError      bool
 	shouldTagWorkflow bool
 	seriesRun         bool
+	seriesRunFilter   string
 	inputs            map[string]string
 }
 
@@ -143,6 +144,10 @@ func buildGHAWorkflowCallStep(workflow ghaWorkflow, checkoutPath string) step {
 
 	if workflow.seriesRun {
 		cmd.WriteString(`-series-run `)
+
+		if workflow.seriesRunFilter != "" {
+			fmt.Fprintf(&cmd, `-series-run-filter %s `, workflow.seriesRunFilter)
+		}
 	}
 
 	fmt.Fprintf(&cmd, `-timeout %s `, workflow.timeout.String())
