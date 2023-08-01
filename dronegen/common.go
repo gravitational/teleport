@@ -157,6 +157,7 @@ type buildType struct {
 	fips            bool
 	centos7         bool
 	windowsUnsigned bool
+	buildConnect    bool
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
