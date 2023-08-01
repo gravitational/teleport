@@ -4,7 +4,7 @@ description: How to configure Teleport to automatically enroll GCP compute insta
 ---
 
 The Teleport Discovery Service can connect to GCP and automatically
-discover and enroll compute matching configured labels. It will then
+discover and enroll compute instances matching configured labels. It will then
 execute a script on these discovered instances that will install Teleport,
 start it and join the cluster.
 
@@ -209,7 +209,7 @@ discovery_service:
 
 - Edit the `teleport.auth_server` or `teleport.proxy_server` key to match your Auth Service or Proxy Service's URI
   and port, respectively.
-- Adjust the keys under `discovery_service.gcp` to match your GCO environment,
+- Adjust the keys under `discovery_service.gcp` to match your GCP environment,
   specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
   Service.
 
@@ -223,9 +223,6 @@ The easiest way to ensure that is to run the Discovery Service on a GCP
 instance and assign the service account to that instance. Refer to
 [Set Up Application Default Credentials](https://cloud.google.com/docs/authentication/provide-credentials-adc)
 for details on alternate methods.
-
-See [Authenticating as a service account](https://cloud.google.com/docs/authentication/production)
-in the Google Cloud documentation for more details.
 
 ## Step 6/6. [Optional] Customize the default installer script
 
