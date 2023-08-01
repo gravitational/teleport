@@ -10264,7 +10264,9 @@ type OIDCConnectorSpecV3 struct {
 	AllowUnverifiedEmail bool `protobuf:"varint,15,opt,name=AllowUnverifiedEmail,proto3" json:"allow_unverified_email,omitempty"`
 	// UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
 	UsernameClaim string `protobuf:"bytes,16,opt,name=UsernameClaim,proto3" json:"username_claim,omitempty"`
-	// ForceReauthentication forces the user to reauthenticate when logging in.
+	// GetMaxAge is the amount of seconds that user logins are
+	// valid for. If a user logs in, but then does not login again
+	// within this time period, they will be forced to re-authenticate.
 	MaxAge               uint32   `protobuf:"varint,17,opt,name=MaxAge,proto3" json:"max_age"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
