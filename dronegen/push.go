@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -40,7 +41,7 @@ func pushCheckoutCommandsWithPath(b buildType, checkoutPath string) []string {
 func pushPipelines() []pipeline {
 	var ps []pipeline
 
-	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "amd64", fips: false}))
+	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "amd64", fips: false, buildConnect: true}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "amd64", fips: true}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "386", fips: false}))
 	ps = append(ps, ghaLinuxPushPipeline(buildType{os: "linux", arch: "arm", fips: false}))
@@ -95,7 +96,10 @@ func ghaLinuxPushPipeline(b buildType) pipeline {
 		srcRefVar:         "DRONE_COMMIT",
 		ref:               "${DRONE_BRANCH}",
 		shouldTagWorkflow: true,
-		inputs:            map[string]string{"release-target": releaseMakefileTarget(b)},
+		inputs: map[string]string{
+			"release-target": releaseMakefileTarget(b),
+			"build-connect":  strconv.FormatBool(b.buildConnect),
+		},
 	}
 	bt := ghaBuildType{
 		buildType:    buildType{os: b.os, arch: b.arch},
