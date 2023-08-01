@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -28,82 +27,39 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// rdsFetcherConfig is the RDS databases fetcher configuration.
-type rdsFetcherConfig struct {
-	// Labels is a selector to match cloud databases.
-	Labels types.Labels
-	// RDS is the RDS API client.
-	RDS rdsiface.RDSAPI
-	// Region is the AWS region to query databases in.
-	Region string
-	// AssumeRole is the AWS IAM role to assume before discovering databases.
-	AssumeRole types.AssumeRole
+// newRDSDBInstancesFetcher returns a new AWS fetcher for RDS databases.
+func newRDSDBInstancesFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
+	return newAWSFetcher(cfg, &rdsDBInstancesPlugin{})
 }
 
-// CheckAndSetDefaults validates the config and sets defaults.
-func (c *rdsFetcherConfig) CheckAndSetDefaults() error {
-	if len(c.Labels) == 0 {
-		return trace.BadParameter("missing parameter Labels")
-	}
-	if c.RDS == nil {
-		return trace.BadParameter("missing parameter RDS")
-	}
-	if c.Region == "" {
-		return trace.BadParameter("missing parameter Region")
-	}
-	return nil
+// rdsDBInstancesPlugin retrieves RDS DB instances.
+type rdsDBInstancesPlugin struct{}
+
+func (f *rdsDBInstancesPlugin) ComponentShortName() string {
+	return "rds"
 }
 
-// rdsDBInstancesFetcher retrieves RDS DB instances.
-type rdsDBInstancesFetcher struct {
-	awsFetcher
-
-	cfg rdsFetcherConfig
-	log logrus.FieldLogger
-}
-
-// newRDSDBInstancesFetcher returns a new RDS DB instances fetcher instance.
-func newRDSDBInstancesFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &rdsDBInstancesFetcher{
-		cfg: config,
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:rds",
-			"labels":        config.Labels,
-			"region":        config.Region,
-			"role":          config.AssumeRole,
-		}),
-	}, nil
-}
-
-// Get returns RDS DB instances matching the watcher's selectors.
-func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	rdsDatabases, err := f.getRDSDatabases(ctx)
+// GetDatabases returns a list of database resources representing RDS instances.
+func (f *rdsDBInstancesPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
+	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	applyAssumeRoleToDatabases(rdsDatabases, f.cfg.AssumeRole)
-	return filterDatabasesByLabels(rdsDatabases, f.cfg.Labels, f.log).AsResources(), nil
-}
-
-// getRDSDatabases returns a list of database resources representing RDS instances.
-func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Databases, error) {
-	instances, err := getAllDBInstances(ctx, f.cfg.RDS, maxAWSPages, f.log)
+	instances, err := getAllDBInstances(ctx, rdsClient, maxAWSPages, cfg.Log)
 	if err != nil {
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 	databases := make(types.Databases, 0, len(instances))
 	for _, instance := range instances {
 		if !services.IsRDSInstanceSupported(instance) {
-			f.log.Debugf("RDS instance %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
+			cfg.Log.Debugf("RDS instance %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
 				aws.StringValue(instance.DBInstanceIdentifier),
 				aws.StringValue(instance.Engine),
 				aws.StringValue(instance.EngineVersion))
@@ -111,7 +67,7 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 		}
 
 		if !services.IsRDSInstanceAvailable(instance.DBInstanceStatus, instance.DBInstanceIdentifier) {
-			f.log.Debugf("The current status of RDS instance %q is %q. Skipping.",
+			cfg.Log.Debugf("The current status of RDS instance %q is %q. Skipping.",
 				aws.StringValue(instance.DBInstanceIdentifier),
 				aws.StringValue(instance.DBInstanceStatus))
 			continue
@@ -119,7 +75,7 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 
 		database, err := services.NewDatabaseFromRDSInstance(instance)
 		if err != nil {
-			f.log.Warnf("Could not convert RDS instance %q to database resource: %v.",
+			cfg.Log.Warnf("Could not convert RDS instance %q to database resource: %v.",
 				aws.StringValue(instance.DBInstanceIdentifier), err)
 		} else {
 			databases = append(databases, database)
@@ -151,57 +107,34 @@ func getAllDBInstances(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages 
 	return instances, trace.Wrap(err)
 }
 
-// String returns the fetcher's string description.
-func (f *rdsDBInstancesFetcher) String() string {
-	return fmt.Sprintf("rdsDBInstancesFetcher(Region=%v, Labels=%v)",
-		f.cfg.Region, f.cfg.Labels)
+// newRDSAuroraClustersFetcher returns a new AWS fetcher for RDS Aurora
+// databases.
+func newRDSAuroraClustersFetcher(cfg awsFetcherConfig) (common.Fetcher, error) {
+	return newAWSFetcher(cfg, &rdsAuroraClustersPlugin{})
 }
 
-// rdsAuroraClustersFetcher retrieves RDS Aurora clusters.
-type rdsAuroraClustersFetcher struct {
-	awsFetcher
+// rdsAuroraClustersPlugin retrieves RDS Aurora clusters.
+type rdsAuroraClustersPlugin struct{}
 
-	cfg rdsFetcherConfig
-	log logrus.FieldLogger
+func (f *rdsAuroraClustersPlugin) ComponentShortName() string {
+	return "aurora"
 }
 
-// newRDSAuroraClustersFetcher returns a new RDS Aurora fetcher instance.
-func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &rdsAuroraClustersFetcher{
-		cfg: config,
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:aurora",
-			"labels":        config.Labels,
-			"region":        config.Region,
-			"role":          config.AssumeRole,
-		}),
-	}, nil
-}
-
-// Get returns Aurora clusters matching the watcher's selectors.
-func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	auroraDatabases, err := f.getAuroraDatabases(ctx)
+// GetDatabases returns a list of database resources representing RDS clusters.
+func (f *rdsAuroraClustersPlugin) GetDatabases(ctx context.Context, cfg *awsFetcherConfig) (types.Databases, error) {
+	rdsClient, err := cfg.AWSClients.GetAWSRDSClient(ctx, cfg.Region,
+		cloud.WithAssumeRole(cfg.AssumeRole.RoleARN, cfg.AssumeRole.ExternalID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	applyAssumeRoleToDatabases(auroraDatabases, f.cfg.AssumeRole)
-	return filterDatabasesByLabels(auroraDatabases, f.cfg.Labels, f.log).AsResources(), nil
-}
-
-// getAuroraDatabases returns a list of database resources representing RDS clusters.
-func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (types.Databases, error) {
-	clusters, err := getAllDBClusters(ctx, f.cfg.RDS, maxAWSPages, f.log)
+	clusters, err := getAllDBClusters(ctx, rdsClient, maxAWSPages, cfg.Log)
 	if err != nil {
 		return nil, trace.Wrap(libcloudaws.ConvertRequestFailureError(err))
 	}
 	databases := make(types.Databases, 0, len(clusters))
 	for _, cluster := range clusters {
 		if !services.IsRDSClusterSupported(cluster) {
-			f.log.Debugf("Aurora cluster %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
+			cfg.Log.Debugf("Aurora cluster %q (engine mode %v, engine version %v) doesn't support IAM authentication. Skipping.",
 				aws.StringValue(cluster.DBClusterIdentifier),
 				aws.StringValue(cluster.EngineMode),
 				aws.StringValue(cluster.EngineVersion))
@@ -209,7 +142,7 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 		}
 
 		if !services.IsRDSClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
-			f.log.Debugf("The current status of Aurora cluster %q is %q. Skipping.",
+			cfg.Log.Debugf("The current status of Aurora cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.DBClusterIdentifier),
 				aws.StringValue(cluster.Status))
 			continue
@@ -234,7 +167,7 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 		if cluster.Endpoint != nil && hasWriterInstance {
 			database, err := services.NewDatabaseFromRDSCluster(cluster)
 			if err != nil {
-				f.log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
+				cfg.Log.Warnf("Could not convert RDS cluster %q to database resource: %v.",
 					aws.StringValue(cluster.DBClusterIdentifier), err)
 			} else {
 				databases = append(databases, database)
@@ -246,7 +179,7 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 		if cluster.ReaderEndpoint != nil && hasReaderInstance {
 			database, err := services.NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 			if err != nil {
-				f.log.Warnf("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
+				cfg.Log.Warnf("Could not convert RDS cluster %q reader endpoint to database resource: %v.",
 					aws.StringValue(cluster.DBClusterIdentifier), err)
 			} else {
 				databases = append(databases, database)
@@ -257,7 +190,7 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 		if len(cluster.CustomEndpoints) > 0 {
 			customEndpointDatabases, err := services.NewDatabasesFromRDSClusterCustomEndpoints(cluster)
 			if err != nil {
-				f.log.Warnf("Could not convert RDS cluster %q custom endpoints to database resources: %v.",
+				cfg.Log.Warnf("Could not convert RDS cluster %q custom endpoints to database resources: %v.",
 					aws.StringValue(cluster.DBClusterIdentifier), err)
 			}
 
@@ -288,12 +221,6 @@ func getAllDBClusters(ctx context.Context, rdsClient rdsiface.RDSAPI, maxPages i
 		return trace.Wrap(err)
 	})
 	return clusters, trace.Wrap(err)
-}
-
-// String returns the fetcher's string description.
-func (f *rdsAuroraClustersFetcher) String() string {
-	return fmt.Sprintf("rdsAuroraClustersFetcher(Region=%v, Labels=%v)",
-		f.cfg.Region, f.cfg.Labels)
 }
 
 // rdsInstanceEngines returns engines to make sure DescribeDBInstances call returns
