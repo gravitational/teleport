@@ -256,10 +256,10 @@ used for Teleport, if the PostgreSQL cluster is shared between Teleport and
 other applications.
 
 For convenience, Teleport will attempt to grant itself the `initiating
-replication` role attribute, if given the ability to do so (with a `superuser
-status` user, or similar privileged access as can be granted in managed
-PostgreSQL services such as Azure Databases for PostgreSQL or Amazon RDS for
-PostgreSQL).
+replication` role attribute, to accomodate the ability of some managed services
+(such as Azure Database for PostgreSQL) to create superuser accounts through
+their API; this should only be leveraged if the entire PostgreSQL cluster is
+dedicated to Teleport.
 
 To configure Teleport to use PostgreSQL:
 - Configure all Teleport Auth Service instances to use the PostgreSQL back-end in the
