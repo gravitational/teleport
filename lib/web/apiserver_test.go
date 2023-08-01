@@ -7184,6 +7184,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				CACert: &fakeValidTLSCert,
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "self-hosted",
@@ -7198,6 +7199,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				URI: "something-else:3306",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "self-hosted",
@@ -7220,6 +7222,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7248,6 +7251,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7280,6 +7284,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-0000",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
