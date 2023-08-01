@@ -112,7 +112,11 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 				if statusSink != nil {
 					status := statusFromStatusCode(resp.StatusCode())
 
-					// No usable context in scope, use background with a reasonable timeout
+					// No usable context in scope. We can't use the context from the Resty response, 
+					// as that could already be cancelled, which would block us from emitting a status 
+					// update showing that the plugin is currently broken. 
+					// 
+					// Using the background context with a reasonable timeout seems the least-bad option.
 					ctx, cancel := context.WithTimeout(context.Background(), jiraStatusUpdateTimeout)
 					defer cancel()
 
