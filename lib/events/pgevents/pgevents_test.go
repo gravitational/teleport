@@ -100,8 +100,7 @@ func TestConfig(t *testing.T) {
 			CleanupInterval: defaultCleanupInterval,
 		},
 
-		"postgres://foo#azure_client_id=not-in-azure-auth-mode": nil,
-		"postgres://foo#auth_mode=invalid-auth-mode":            nil,
+		"postgres://foo#auth_mode=invalid-auth-mode": nil,
 	}
 
 	for u, expectedConfig := range configs {

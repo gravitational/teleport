@@ -57,6 +57,8 @@ function getRuntimeSettings(): RuntimeSettings {
     tshdEvents: tshdEventsAddress,
   } = requestGrpcServerAddresses();
   const { binDir, tshBinPath } = getBinaryPaths();
+  const { username } = os.userInfo();
+  const hostname = os.hostname();
 
   const tshd = {
     insecure: isInsecure,
@@ -115,6 +117,8 @@ function getRuntimeSettings(): RuntimeSettings {
     osVersion: os.release(),
     appVersion,
     isLocalBuild: appVersion === '1.0.0-dev',
+    username,
+    hostname,
   };
 }
 

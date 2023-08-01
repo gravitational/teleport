@@ -312,6 +312,34 @@ $ tsh config
 $ tsh config >> ~/.ssh/config
 ```
 
+### tsh puttyconfig
+
+Adds a PuTTY saved session to the Windows registry for the currently logged in Windows user.
+
+```
+$ tsh puttyconfig [--leaf <leaf-cluster-name>] [login@]hostname
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-l, --login` | none | Linux username | Default Linux username to use. Will translate to SSH config's `User` option. |
+| `-p`, `--port` | 3022 | port | Default SSH port to use. Will translate to SSH config's `Port` option. |
+| `--leaf` | none | Leaf cluster name | Leaf cluster name to add to the saved session. |
+
+#### Examples
+
+```code
+# Add a saved PuTTY session on 'node' for the user 'ec2-user'
+$ tsh puttyconfig ec2-user@node
+
+# Add a saved PuTTY session on leaf-node for the user 'ec2-user' on the leaf cluster 'example.teleport.sh'
+$ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
+```
+
+See [full docs on `tsh puttyconfig` here](../connect-your-client/putty.mdx).
+
 ### tsh apps ls
 
 List all available applications:
@@ -1469,11 +1497,11 @@ proxy_templates:
 
 # Multiple templates can be provided. They are evaluated in order and the first
 # one matching will take effect.
-- template: ... 
+- template: ...
 ```
 
-`tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the 
-host server address `%h:%p` with the configured templates. For each replace rule set, 
+`tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the
+host server address `%h:%p` with the configured templates. For each replace rule set,
 the corresponding cli value will be set.
 
 If leaf certificates are required to connect to the node, `tsh` will automatically
@@ -1492,7 +1520,7 @@ $ tsh ssh -J {{proxy}} node1.none.example.com
 ERROR: proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config
 ```
 
-If the proxy variable `-J {{proxy}}` is not explicitly provided, then `tsh` will 
+If the proxy variable `-J {{proxy}}` is not explicitly provided, then `tsh` will
 still attempt to match a template, but will not fail when there is no match.
 Additionally, it will not replace the `proxy` value when explicitly set by the
 client.
@@ -1503,7 +1531,7 @@ $ tsh ssh -J leaf2.us.example.com:443 node1.leaf2
 $ tsh ssh -J leaf2.us.example.com:443 --cluster leaf2 node1
 ```
 
-Proxy Templates can also be used with OpenSSH by setting the `ProxyCommand` 
+Proxy Templates can also be used with OpenSSH by setting the `ProxyCommand`
 in `~/.ssh/config` to use `tsh proxy ssh`.
 
 ```txt

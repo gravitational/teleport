@@ -58,19 +58,29 @@ export function DocumentConnectMyComputerSetup(
 }
 
 function Information(props: { onSetUpAgentClick(): void }) {
+  const { rootClusterUri } = useWorkspaceContext();
+  const { clustersService, mainProcessClient } = useAppContext();
+  const cluster = clustersService.findCluster(rootClusterUri);
+  const { username: systemUsername, hostname } =
+    mainProcessClient.getRuntimeSettings();
+
   return (
     <>
-      {/* TODO(gzdunek): change the temporary copy */}
       <Text>
-        The setup process will download the teleport agent and configure it to
-        make your computer available in the <strong>acme.teleport.sh</strong>{' '}
-        cluster.
+        The setup process will download and launch the Teleport agent, making
+        your computer available in the <strong>{cluster.name}</strong> cluster
+        as <strong>{hostname}</strong>.
         <br />
-        All cluster users with the role{' '}
-        <strong>connect-my-computer-robert@acme.com</strong> will be able to
-        access your computer as <strong>bob</strong>.
         <br />
-        You can stop computer sharing at any time from Connect My Computer menu.
+        Cluster users with the role{' '}
+        <strong>connect-my-computer-{cluster.loggedInUser.name}</strong> will be
+        able to access your computer as <strong>{systemUsername}</strong>.
+        <br />
+        <br />
+        Your computer will be shared while Teleport Connect is open. To stop
+        sharing, close Teleport Connect or stop the agent through the Connect My
+        Computer tab. Sharing will resume on app restart, unless you stop the
+        agent before exiting.
       </Text>
       <ButtonPrimary
         mt={4}
@@ -80,7 +90,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
         `}
         onClick={props.onSetUpAgentClick}
       >
-        Set up agent
+        Connect
       </ButtonPrimary>
     </>
   );

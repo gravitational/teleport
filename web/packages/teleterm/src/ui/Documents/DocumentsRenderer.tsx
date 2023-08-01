@@ -36,6 +36,7 @@ import {
   ConnectMyComputerContextProvider,
   DocumentConnectMyComputerSetup,
 } from 'teleterm/ui/ConnectMyComputer';
+import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -108,8 +109,12 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentGateway doc={doc} visible={visible} />;
       case 'doc.gateway_cli_client':
         return <DocumentGatewayCliClient doc={doc} visible={visible} />;
+      case 'doc.gateway_kube':
+        return <DocumentGatewayKube doc={doc} visible={visible} />;
       case 'doc.terminal_shell':
       case 'doc.terminal_tsh_node':
+        return <DocumentTerminal doc={doc} visible={visible} />;
+      // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
       case 'doc.terminal_tsh_kube':
         return <DocumentTerminal doc={doc} visible={visible} />;
       case 'doc.access_requests':

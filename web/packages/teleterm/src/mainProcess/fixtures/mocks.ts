@@ -136,5 +136,7 @@ export const makeRuntimeSettings = (
   osVersion: '22.2.0',
   appVersion: '11.1.0',
   isLocalBuild: runtimeSettings?.appVersion === '1.0.0-dev',
+  username: 'alice',
+  hostname: 'staging-mac-mini',
   ...runtimeSettings,
 });
