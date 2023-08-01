@@ -31,6 +31,7 @@ export const Story = () => (
     cluster={makeRootCluster()}
     clientIp="localhost"
     onApprove={async () => {}}
+    abortApproval={() => {}}
     onReject={async () => {}}
     updateHeadlessStateAttempt={makeEmptyAttempt<void>()}
     onCancel={() => {}}

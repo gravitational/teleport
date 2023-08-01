@@ -73,13 +73,11 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
       cluster={cluster}
       clientIp={props.clientIp}
       onApprove={handleHeadlessApprove}
+      abortApproval={refAbortCtrl.current.abort}
       onReject={handleHeadlessReject}
       headlessAuthenticationId={props.headlessAuthenticationId}
       updateHeadlessStateAttempt={updateHeadlessStateAttempt}
-      onCancel={() => {
-        props.onCancel();
-        refAbortCtrl.current.abort();
-      }}
+      onCancel={props.onCancel}
     />
   );
 }
