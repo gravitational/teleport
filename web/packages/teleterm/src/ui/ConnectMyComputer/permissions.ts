@@ -18,6 +18,8 @@ import { Cluster } from 'teleterm/services/tshd/types';
 import { ConfigService } from 'teleterm/services/config';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 
+import * as tsh from 'teleterm/services/tshd/types';
+
 /**
  * Checks if Connect My Computer can be used for the given root cluster.
  *
@@ -44,6 +46,7 @@ export function canUseConnectMyComputer(
     isUnix &&
     rootCluster.loggedInUser?.acl?.tokens.create &&
     rootCluster.features?.isUsageBasedBilling &&
+    rootCluster.loggedInUser?.userType == tsh.UserType.USER_TYPE_LOCAL &&
     configService.get('feature.connectMyComputer').value
   );
 }

@@ -2222,6 +2222,13 @@ message AccessRequestSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "max_duration,omitempty"
   ];
+
+  // SessionTLL indicated how long a certificate for a session should be valid for.
+  google.protobuf.Timestamp SessionTTL = 18 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "session_ttl,omitempty"
+  ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
