@@ -203,7 +203,7 @@ func TestGetServerInfo(t *testing.T) {
 		cas: make(map[string]types.CertAuthority),
 	}
 
-	listener, err := net.Listen("tcp", "")
+	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 
 	srv := &TLSServer{

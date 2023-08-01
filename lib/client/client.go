@@ -1437,14 +1437,6 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		return nil, trace.Wrap(err)
 	}
 
-	// pass the true client IP (if specified) to the proxy so it could pass it into the
-	// SSH session for proper audit
-	if len(proxy.clientAddr) > 0 {
-		if err = proxySession.Setenv(ctx, sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
-			log.Error(err)
-		}
-	}
-
 	// the client only tries to forward an agent when the proxy is in recording
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error

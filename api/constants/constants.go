@@ -398,6 +398,11 @@ const (
 	// WebAPIConnUpgradeHeader is the header used to indicate the requested
 	// connection upgrade types in the connection upgrade API.
 	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
+	// indicate the requested connection upgrade types in the connection
+	// upgrade API. This header is sent in addition to "Upgrade" header in case
+	// a load balancer/reverse proxy removes "Upgrade".
+	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
 	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
 	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"

@@ -57,6 +57,8 @@ function getRuntimeSettings(): RuntimeSettings {
     tshdEvents: tshdEventsAddress,
   } = requestGrpcServerAddresses();
   const { binDir, tshBinPath } = getBinaryPaths();
+  const { username } = os.userInfo();
+  const hostname = os.hostname();
 
   const tshd = {
     insecure: isInsecure,
@@ -112,6 +114,8 @@ function getRuntimeSettings(): RuntimeSettings {
     //
     // A workaround is to read the version from `process.env.npm_package_version`.
     appVersion: dev ? process.env.npm_package_version : app.getVersion(),
+    username,
+    hostname,
   };
 }
 
