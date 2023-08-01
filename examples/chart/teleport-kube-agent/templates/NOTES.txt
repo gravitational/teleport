@@ -36,7 +36,7 @@ To do so, you can use the following Teleport Role resource:
  kind: role
  metadata:
    name: gke-kube-access
- version: v7
+ version: v6
  spec:
    allow:
      kubernetes_labels:
