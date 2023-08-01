@@ -963,6 +963,14 @@
         {
           "title": "Access Controls Reference",
           "slug": "/kubernetes-access/controls/"
+        },
+        {
+          "title": "FAQ",
+          "slug": "/kubernetes-access/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/kubernetes-access/troubleshooting/"
         }
       ]
     },
