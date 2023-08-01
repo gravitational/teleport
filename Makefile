@@ -639,13 +639,20 @@ docs-test-whitespace:
 #
 # Builds some tooling for filtering and displaying test progress/output/etc
 #
+# Deprecated: Use gotestsum instead.
 TOOLINGDIR := ${abspath ./build.assets/tooling}
 RENDER_TESTS := $(TOOLINGDIR)/bin/render-tests
 $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/render-tests
+
+#
+# Install gotestsum to parse test output.
+#
+.PHONY: ensure-gotestsum
+ensure-gotestsum:
 # Install gotestsum if it's not already installed
  ifeq (, $(shell command -v gotestsum))
-	go install gotest.tools/gotestsum@latest || true # ignore errors until gotestsum is added to Dockerfile
+	go install gotest.tools/gotestsum@latest
 endif
 
 DIFF_TEST := $(TOOLINGDIR)/bin/difftest
@@ -657,7 +664,7 @@ $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
 
 .PHONY: tooling
-tooling: $(RENDER_TESTS) $(DIFF_TEST)
+tooling: ensure-gotestsum $(DIFF_TEST)
 
 #
 # Runs all Go/shell tests, called by CI/CD.
@@ -699,7 +706,7 @@ test-go: test-go-prepare test-go-unit test-go-libfido2 test-go-touch-id test-go-
 
 # Runs test prepare steps
 .PHONY: test-go-prepare
-test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS) $(VERSRC)
+test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) ensure-gotestsum $(VERSRC)
 
 # Runs base unit tests
 .PHONY: test-go-unit
@@ -757,7 +764,7 @@ test-go-chaos:
 #
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
-test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) ensure-gotestsum
 test-go-root: FLAGS ?= -race -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
@@ -769,7 +776,7 @@ test-go-root: $(VERSRC)
 # Runs Go tests on the api module. These have to be run separately as the package name is different.
 #
 .PHONY: test-api
-test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-api: $(VERSRC) $(TEST_LOG_DIR) ensure-gotestsum
 test-api: FLAGS ?= -race -shuffle on
 test-api: SUBJECT ?= $(shell cd api && go list ./...)
 test-api:
@@ -788,7 +795,7 @@ test-operator:
 # Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
 #
 .PHONY: test-kube-agent-updater
-test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR) ensure-gotestsum
 test-kube-agent-updater: FLAGS ?= -race -shuffle on
 test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater && go list ./...)
 test-kube-agent-updater:
@@ -808,7 +815,7 @@ test-integrations-lib:
 # Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
 #
 .PHONY: test-teleport-usage
-test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR) ensure-gotestsum
 test-teleport-usage: FLAGS ?= -race -shuffle on
 test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
 test-teleport-usage:
@@ -820,6 +827,7 @@ test-teleport-usage:
 # Flaky test detection. Usually run from CI nightly, overriding these default parameters
 # This runs the same tests as test-go-unit but repeatedly to try to detect flaky tests.
 #
+# TODO(jakule): Migrate to gotestsum
 .PHONY: test-go-flaky
 FLAKY_RUNS ?= 3
 FLAKY_TIMEOUT ?= 1h
@@ -870,11 +878,11 @@ run-etcd:
 .PHONY: integration
 integration: FLAGS ?= -v -race
 integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
-integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
+integration:  $(TEST_LOG_DIR) ensure-gotestsum
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration.json \
-		| $(RENDER_TESTS) -report-by test # Replace with gotestsum once added to the Docker image
+		| gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests that run Kubernetes tests in order to complete successfully
@@ -884,11 +892,11 @@ INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
 integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
-integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
+integration-kube: $(TEST_LOG_DIR) ensure-gotestsum
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-kube.json \
-		| $(RENDER_TESTS) -report-by test # Replace with gotestsum once added to the Docker image
+		| gotestsum --raw-command --format=testname -- cat
 
 #
 # Integration tests which need to be run as root in order to complete successfully
@@ -898,7 +906,7 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
-integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
+integration-root: $(TEST_LOG_DIR) ensure-gotestsum
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-root.json \
 		| gotestsum --raw-command --format=testname -- cat
@@ -907,11 +915,11 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 .PHONY: e2e-aws
 e2e-aws: FLAGS ?= -v -race
 e2e-aws: PACKAGES = $(shell go list ./... | grep 'e2e/aws')
-e2e-aws: $(TEST_LOG_DIR) $(RENDER_TESTS)
+e2e-aws: $(TEST_LOG_DIR) ensure-gotestsum
 	@echo TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/e2e-aws.json \
-		| $(RENDER_TESTS) -report-by test
+		| gotestsum --raw-command --format=testname -- cat
 
 #
 # Lint the source code.
