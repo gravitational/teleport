@@ -29,7 +29,7 @@ import (
 
 type Config struct {
 	common.BaseConfig
-	Mattermost MattermostConfig
+	Mattermost MattermostConfig `toml:"mattermost"`
 	StatusSink common.StatusSink
 }
 
