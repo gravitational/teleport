@@ -46,10 +46,6 @@ type DestinationKubernetesSecret struct {
 	initialized bool
 }
 
-func (dks *DestinationKubernetesSecret) fieldManager() string {
-	return "tbot"
-}
-
 func (dks *DestinationKubernetesSecret) getSecret(ctx context.Context) (*corev1.Secret, error) {
 	secret, err := dks.k8s.CoreV1().Secrets(dks.namespace).Get(ctx, dks.Name, v1.GetOptions{})
 	if err != nil {
@@ -75,15 +71,20 @@ func (dks *DestinationKubernetesSecret) secretTemplate() *corev1.Secret {
 	}
 }
 
-func (dks *DestinationKubernetesSecret) upsertSecret(ctx context.Context, secret *corev1.Secret) error {
+func (dks *DestinationKubernetesSecret) upsertSecret(ctx context.Context, secret *corev1.Secret, dryRun bool) error {
 	apply := applyconfigv1.Secret(dks.Name, dks.namespace).
 		WithData(secret.Data).
 		WithResourceVersion(secret.ResourceVersion).
 		WithType(secret.Type)
 
-	_, err := dks.k8s.CoreV1().Secrets(dks.namespace).Apply(ctx, apply, v1.ApplyOptions{
-		FieldManager: dks.fieldManager(),
-	})
+	applyOpts := v1.ApplyOptions{
+		FieldManager: "tbot",
+	}
+	if dryRun {
+		applyOpts.DryRun = []string{"All"}
+	}
+
+	_, err := dks.k8s.CoreV1().Secrets(dks.namespace).Apply(ctx, apply, applyOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -141,20 +142,18 @@ func (dks *DestinationKubernetesSecret) Init(ctx context.Context, subdirs []stri
 		}
 	}
 
-	// Try and read the secret and then write to it. This lets us fail early
-	// and clearly if the appropriate permissions are missing
+	// Perform an initial dry-run attempt of applying the secret. This ensures
+	// that we have the appropriate RBAC before proceeding, but avoids creating
+	// a secret which will remain empty if something goes wrong later in the
+	// credential generation.
 	secret, err := dks.getSecret(ctx)
 	if err != nil {
 		if !kubeerrors.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		log.WithFields(logrus.Fields{
-			"secret_name":      dks.Name,
-			"secret_namespace": dks.namespace,
-		}).Debug("Did not find an existing Kubernetes secret. One will be created.")
 		secret = dks.secretTemplate()
 	}
-	if err := dks.upsertSecret(ctx, secret); err != nil {
+	if err := dks.upsertSecret(ctx, secret, true); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -185,7 +184,7 @@ func (dks *DestinationKubernetesSecret) Write(ctx context.Context, name string, 
 
 	secret.Data[name] = data
 
-	err = dks.upsertSecret(ctx, secret)
+	err = dks.upsertSecret(ctx, secret, false)
 	return trace.Wrap(err)
 }
 
