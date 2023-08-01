@@ -160,20 +160,15 @@ export function NavigationItem(props: NavigationItemProps) {
 
   // showRedDot returns red dot component if the feature recommendation state is 'NOTIFY'
   function showRedDot(featureName: any): JSX.Element {
-    // We'll only ever recommend features once initial onboarding is completed.
-    // if onboarding is required, let's skip below.
-
-    // get onboarding status
+    // Get onboarding status. We'll only recommend features once user completes
+    // initial onboarding (i.e. connect resources to Teleport cluster).
     const onboard = localStorage.getOnboardDiscover();
-    const requiresOnboarding =
-      onboard && !onboard.hasResource && !onboard.notified;
-
-      // return if requiresOnboarding is true
-    if (requiresOnboarding) {
-      return null
+    if (!onboard?.hasResource) {
+      return null;
     }
 
-    const recommendFeatureStatus = localStorage.getFeatureRecommendationStatus()
+    const recommendFeatureStatus =
+      localStorage.getFeatureRecommendationStatus();
     if (
       featureName === NavTitles.TrustedDevices &&
       recommendFeatureStatus?.TrustedDevices === 'NOTIFY'
@@ -265,5 +260,5 @@ const RedDot = styled.div`
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color:  ${props => props.theme.colors.error.main};
+  background-color: ${props => props.theme.colors.error.main};
 `;
