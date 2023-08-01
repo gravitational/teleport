@@ -4,7 +4,14 @@ ARG BUILDARCH
 
 ## Install dependencies.
 
-RUN apt-get update && apt-get -y install curl unzip build-essential gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+RUN apt-get update && apt-get -y install --no-install-recommends \
+    curl \
+    unzip \
+    build-essential \
+    gcc-arm-linux-gnueabi \
+    binutils-arm-linux-gnueabi \
+    gcc-aarch64-linux-gnu \
+    binutils-aarch64-linux-gnu
 
 # Install Go.
 ARG GOLANG_VERSION
