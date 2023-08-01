@@ -764,29 +764,34 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 	for _, tc := range []struct {
 		name      string
+		timeout   time.Duration
 		update    func(*types.HeadlessAuthentication, *types.MFADevice)
 		expectErr bool
 	}{
 		{
-			name: "OK approved",
+			name:    "OK approved",
+			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 				ha.MfaDevice = mfa
 			},
 		}, {
-			name: "NOK approved without MFA",
+			name:    "NOK approved without MFA",
+			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
 			expectErr: true,
 		}, {
-			name: "NOK denied",
+			name:    "NOK denied",
+			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
 			expectErr: true,
 		}, {
 			name:      "NOK timeout",
+			timeout:   100 * time.Millisecond,
 			update:    func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {},
 			expectErr: true,
 		},
@@ -818,7 +823,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
 
-			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, tc.timeout)
 			defer cancel()
 
 			// Start a goroutine to catch the headless authentication attempt and update with test case values.

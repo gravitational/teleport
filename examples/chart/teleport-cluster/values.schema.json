@@ -305,6 +305,7 @@
             "enum": [
                 "standalone",
                 "aws",
+                "azure",
                 "gcp",
                 "scratch"
             ],
@@ -465,6 +466,52 @@
                         "$id": "#/properties/aws/properties/writeTargetValue",
                         "type": "null"
                     }
+                }
+            }
+        },
+        "azure": {
+            "$id": "#/properties/azure",
+            "type": "object",
+            "properties": {
+                "databaseHost": {
+                    "$id": "#/properties/azure/properties/databaseHost",
+                    "type": "string",
+                    "default": ""
+                },
+                "databaseUser": {
+                    "$id": "#/properties/azure/properties/databaseUser",
+                    "type": "string",
+                    "default": ""
+                },
+                "backendDatabase": {
+                    "$id": "#/properties/azure/properties/backendDatabase",
+                    "type": "string",
+                    "default": "teleport_backend"
+                },
+                "auditLogDatabase": {
+                    "$id": "#/properties/azure/properties/auditLogDatabase",
+                    "type": "string",
+                    "default": "teleport_audit"
+                },
+                "auditLogMirrorOnStdout": {
+                    "$id": "#/properties/azure/properties/auditLogMirrorOnStdout",
+                    "type": "boolean",
+                    "default": false
+                },
+                "sessionRecordingStorageAccount": {
+                    "$id": "#/properties/azure/properties/sessionRecordingStorageAccount",
+                    "type": "string",
+                    "default": ""
+                },
+                "clientID": {
+                    "$id": "#/properties/azure/properties/clientID",
+                    "type": "string",
+                    "default": ""
+                },
+                "databasePoolMaxConnections": {
+                    "$id": "#/properties/azure/properties/databasePoolMaxConnections",
+                    "type": "integer",
+                    "default": 0
                 }
             }
         },

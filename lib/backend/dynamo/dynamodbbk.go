@@ -665,6 +665,13 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 			return tableStatusNeedsMigration, "", nil
 		}
 	}
+	// the billing mode can be empty unless it was specified on the
+	// initial create table request, and the default billing mode is
+	// PROVISIONED, if unspecified.
+	// https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BillingModeSummary.html
+	if td.Table.BillingModeSummary == nil {
+		return tableStatusOK, dynamodb.BillingModeProvisioned, nil
+	}
 	return tableStatusOK, aws.StringValue(td.Table.BillingModeSummary.BillingMode), nil
 }
 
