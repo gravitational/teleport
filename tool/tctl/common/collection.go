@@ -687,7 +687,7 @@ func (c *databaseServerCollection) writeText(w io.Writer, verbose bool) error {
 		labels := stripInternalTeleportLabels(verbose, server.GetDatabase().GetAllLabels())
 		rows = append(rows, []string{
 			server.GetHostname(),
-			server.GetDatabase().GetName(),
+			nameOrDiscoveredName(server.GetDatabase(), verbose),
 			server.GetDatabase().GetProtocol(),
 			server.GetDatabase().GetURI(),
 			labels,
@@ -729,7 +729,10 @@ func (c *databaseCollection) writeText(w io.Writer, verbose bool) error {
 	for _, database := range c.databases {
 		labels := stripInternalTeleportLabels(verbose, database.GetAllLabels())
 		rows = append(rows, []string{
-			database.GetName(), database.GetProtocol(), database.GetURI(), labels,
+			nameOrDiscoveredName(database, verbose),
+			database.GetProtocol(),
+			database.GetURI(),
+			labels,
 		})
 	}
 	headers := []string{"Name", "Protocol", "URI", "Labels"}
@@ -882,7 +885,7 @@ func (c *kubeServerCollection) writeText(w io.Writer, verbose bool) error {
 		labels := stripInternalTeleportLabels(verbose,
 			types.CombineLabels(kube.GetStaticLabels(), types.LabelsToV2(kube.GetDynamicLabels())))
 		rows = append(rows, []string{
-			kube.GetName(),
+			nameOrDiscoveredName(kube, verbose),
 			labels,
 			server.GetTeleportVersion(),
 		})
@@ -933,7 +936,8 @@ func (c *kubeClusterCollection) writeText(w io.Writer, verbose bool) error {
 	for _, cluster := range c.clusters {
 		labels := stripInternalTeleportLabels(verbose, cluster.GetAllLabels())
 		rows = append(rows, []string{
-			cluster.GetName(), labels,
+			nameOrDiscoveredName(cluster, verbose),
+			labels,
 		})
 	}
 	headers := []string{"Name", "Labels"}
@@ -1192,4 +1196,19 @@ func (c *userGroupCollection) writeText(w io.Writer, verbose bool) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+// nameOrDiscoveredName returns the resource's name or its name as originally
+// discovered in the cloud by the Teleport Discovery Service.
+// In verbose mode, it always returns the resource name.
+// In non-verbose mode, if the resource came from discovery and has the
+// discovered name label, it returns the discovered name.
+func nameOrDiscoveredName(r types.ResourceWithLabels, verbose bool) string {
+	if !verbose {
+		originalName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
+		if ok && originalName != "" {
+			return originalName
+		}
+	}
+	return r.GetName()
 }
