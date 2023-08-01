@@ -487,7 +487,7 @@ var (
 	// CreateWindowsUserOID
 	CreateWindowsUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
 
-	// DesktopsLimitOID is an extension OID used to encode non-AD desktops count. This is used for OSS limit check.
+	// DesktopsLimitOID is an extension OID used indicate if number of non-AD desktops is under the limit for OSS distribution.
 	DesktopsLimitOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 17}
 )
 
