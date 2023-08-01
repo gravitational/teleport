@@ -701,6 +701,8 @@ func (c *databaseServerCollection) writeText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by hostname then by name.
+	t.SortRowsBy([]int{0, 1}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -742,6 +744,8 @@ func (c *databaseCollection) writeText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -898,6 +902,8 @@ func (c *kubeServerCollection) writeText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by cluster name.
+	t.SortRowsBy([]int{0}, true)
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -931,7 +937,6 @@ func (c *kubeClusterCollection) resources() (r []types.Resource) {
 // cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
 // If verbose is disabled, labels column can be truncated to fit into the console.
 func (c *kubeClusterCollection) writeText(w io.Writer, verbose bool) error {
-	sort.Sort(types.KubeClusters(c.clusters))
 	var rows [][]string
 	for _, cluster := range c.clusters {
 		labels := stripInternalTeleportLabels(verbose, cluster.GetAllLabels())
@@ -947,6 +952,8 @@ func (c *kubeClusterCollection) writeText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
