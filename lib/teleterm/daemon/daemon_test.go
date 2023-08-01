@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -435,6 +437,102 @@ func TestRetryWithRelogin(t *testing.T) {
 	}
 }
 
+func TestImportantModalSemaphore(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                t.TempDir(),
+		InsecureSkipVerify: true,
+	})
+	require.NoError(t, err)
+
+	daemon, err := New(Config{
+		Storage: storage,
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+	})
+	require.NoError(t, err)
+
+	service, addr := newMockTSHDEventsServiceServer(t)
+	err = daemon.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
+
+	// Claim the important modal semaphore.
+
+	customWaitDuration := 10 * time.Millisecond
+	daemon.importantModalSemaphore.waitDuration = customWaitDuration
+	err = daemon.importantModalSemaphore.Acquire(ctx)
+	require.NoError(t, err)
+
+	// relogin and sending pending headless authentications should be blocked.
+
+	reloginErrC := make(chan error)
+	go func() {
+		reloginErrC <- daemon.relogin(ctx, &api.ReloginRequest{})
+	}()
+
+	sphaErrC := make(chan error)
+	go func() {
+		sphaErrC <- daemon.sendPendingHeadlessAuthentication(ctx, &types.HeadlessAuthentication{}, "")
+	}()
+
+	select {
+	case <-reloginErrC:
+		t.Error("relogin completed successfully without acquiring the important modal semaphore")
+	case <-sphaErrC:
+		t.Error("sendPendingHeadlessAuthentication completed successfully without acquiring the important modal semaphore")
+	case <-time.After(5 * customWaitDuration):
+	}
+
+	// if the request's ctx is canceled, they will unblock and return an error instead.
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	err = daemon.relogin(cancelCtx, &api.ReloginRequest{})
+	require.Error(t, err)
+	err = daemon.sendPendingHeadlessAuthentication(cancelCtx, &types.HeadlessAuthentication{}, "")
+	require.Error(t, err)
+
+	// Release the semaphore. relogin and sending pending headless authentication should
+	// complete successfully after a short delay between each semaphore release.
+
+	releaseTime := time.Now()
+	daemon.importantModalSemaphore.Release()
+
+	var otherC chan error
+	select {
+	case err := <-reloginErrC:
+		require.NoError(t, err)
+		otherC = sphaErrC
+	case err := <-sphaErrC:
+		require.NoError(t, err)
+		otherC = reloginErrC
+	case <-time.After(2 * customWaitDuration):
+		t.Error("important modal operations failed to acquire unclaimed semaphore")
+	}
+
+	if time.Since(releaseTime) < customWaitDuration {
+		t.Error("important modal semaphore should not be acquired before waiting the specified duration")
+	}
+
+	select {
+	case err := <-otherC:
+		require.NoError(t, err)
+	case <-time.After(2 * customWaitDuration):
+		t.Error("important modal operations failed to acquire unclaimed semaphore")
+	}
+
+	if time.Since(releaseTime) < 2*customWaitDuration {
+		t.Error("important modal semaphore should not be acquired before waiting the specified duration")
+	}
+
+	require.Equal(t, 1, service.callCounts["Relogin"], "Unexpected number of calls to service.Relogin")
+	require.Equal(t, 1, service.callCounts["SendPendingHeadlessAuthentication"], "Unexpected number of calls to service.SendPendingHeadlessAuthentication")
+}
+
 type mockTSHDEventsService struct {
 	*api.UnimplementedTshdEventsServiceServer
 	callCounts map[string]int
@@ -474,4 +572,9 @@ func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*
 func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
 	c.callCounts["SendNotification"]++
 	return &api.SendNotificationResponse{}, nil
+}
+
+func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
+	c.callCounts["SendPendingHeadlessAuthentication"]++
+	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
 }

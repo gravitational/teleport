@@ -1606,7 +1606,7 @@ type headlessAuthenticationParser struct {
 func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindIntegration, types.V1, 0)
+		return resourceHeader(event, types.KindHeadlessAuthentication, types.V1, 0)
 	case types.OpPut:
 		ha, err := unmarshalHeadlessAuthentication(event.Item.Value)
 		if err != nil {

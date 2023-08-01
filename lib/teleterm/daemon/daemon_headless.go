@@ -16,6 +16,8 @@ package daemon
 
 import (
 	"context"
+	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -100,17 +102,43 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 	watchCtx, watchCancel := context.WithCancel(s.closeContext)
 	s.headlessWatcherClosers[cluster.URI.String()] = watchCancel
 
+	log := s.cfg.Log.WithField("cluster", cluster.URI.String())
+
+	pendingRequests := make(map[string]context.CancelFunc)
+	pendingRequestsMu := sync.Mutex{}
+
+	cancelPendingRequest := func(name string) {
+		pendingRequestsMu.Lock()
+		defer pendingRequestsMu.Unlock()
+		if cancel, ok := pendingRequests[name]; ok {
+			cancel()
+		}
+	}
+
+	addPendingRequest := func(name string, cancel context.CancelFunc) {
+		pendingRequestsMu.Lock()
+		defer pendingRequestsMu.Unlock()
+		pendingRequests[name] = cancel
+	}
+
 	watch := func() error {
-		watcher, closeWatcher, err := cluster.WatchPendingHeadlessAuthentications(watchCtx)
+		pendingWatcher, closePendingWatcher, err := cluster.WatchPendingHeadlessAuthentications(watchCtx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer closePendingWatcher()
+
+		resolutionWatcher, closeResolutionWatcher, err := cluster.WatchHeadlessAuthentications(watchCtx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer closeResolutionWatcher()
+
 		retry.Reset()
 
-		defer closeWatcher()
 		for {
 			select {
-			case event := <-watcher.Events():
+			case event := <-pendingWatcher.Events():
 				// Ignore non-put events.
 				if event.Type != types.OpPut {
 					continue
@@ -121,25 +149,49 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 					return trace.Errorf("headless watcher returned an unexpected resource type %T", event.Resource)
 				}
 
-				// Notify the Electron App of the pending headless authentication to handle resolution.
-				req := &api.SendPendingHeadlessAuthenticationRequest{
-					RootClusterUri:                 cluster.URI.String(),
-					HeadlessAuthenticationId:       ha.GetName(),
-					HeadlessAuthenticationClientIp: ha.ClientIpAddress,
-				}
+				// headless authentication requests will timeout after 3 minutes, so we can close the
+				// Electron modal once this time is up.
+				sendCtx, cancelSend := context.WithTimeout(s.closeContext, defaults.CallbackTimeout)
 
-				if _, err := s.tshdEventsClient.SendPendingHeadlessAuthentication(watchCtx, req); err != nil {
-					return trace.Wrap(err)
+				// Add the pending request to the map so it is canceled early upon resolution.
+				addPendingRequest(ha.GetName(), cancelSend)
+
+				// Notify the Electron App of the pending headless authentication to handle resolution.
+				// We do this in a goroutine so the watch loop can continue and cancel resolved requests.
+				go func() {
+					defer cancelSend()
+					if err := s.sendPendingHeadlessAuthentication(sendCtx, ha, cluster.URI.String()); err != nil {
+						if !strings.Contains(err.Error(), context.Canceled.Error()) && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+							log.WithError(err).Debug("sendPendingHeadlessAuthentication resulted in unexpected error.")
+						}
+					}
+				}()
+			case event := <-resolutionWatcher.Events():
+				// Watch for pending headless authentications to be approved, denied, or deleted (canceled/timeout).
+				switch event.Type {
+				case types.OpPut:
+					ha, ok := event.Resource.(*types.HeadlessAuthentication)
+					if !ok {
+						return trace.Errorf("headless watcher returned an unexpected resource type %T", event.Resource)
+					}
+
+					switch ha.State {
+					case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+						cancelPendingRequest(ha.GetName())
+					}
+				case types.OpDelete:
+					cancelPendingRequest(event.Resource.GetName())
 				}
-			case <-watcher.Done():
-				return trace.Wrap(watcher.Error())
+			case <-pendingWatcher.Done():
+				return trace.Wrap(pendingWatcher.Error(), "pending watcher error")
+			case <-resolutionWatcher.Done():
+				return trace.Wrap(resolutionWatcher.Error(), "resolution watcher error")
 			case <-watchCtx.Done():
 				return nil
 			}
 		}
 	}
 
-	log := s.cfg.Log.WithField("cluster", cluster.URI.String())
 	log.Debugf("Starting headless watch loop.")
 	go func() {
 		defer func() {
@@ -183,6 +235,23 @@ func (s *Service) startHeadlessWatcher(cluster *clusters.Cluster) error {
 	}()
 
 	return nil
+}
+
+// sendPendingHeadlessAuthentication notifies the Electron App of a pending headless authentication.
+func (s *Service) sendPendingHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication, clusterURI string) error {
+	req := &api.SendPendingHeadlessAuthenticationRequest{
+		RootClusterUri:                 clusterURI,
+		HeadlessAuthenticationId:       ha.GetName(),
+		HeadlessAuthenticationClientIp: ha.ClientIpAddress,
+	}
+
+	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	defer s.importantModalSemaphore.Release()
+
+	_, err := s.tshdEventsClient.SendPendingHeadlessAuthentication(ctx, req)
+	return trace.Wrap(err)
 }
 
 // StopHeadlessWatcher stops the headless watcher for the given cluster URI.
