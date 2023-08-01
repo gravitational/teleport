@@ -610,10 +610,10 @@ jobs:
           if $FORCE_INSTALL_PROD_PUBLIC_KEY; then
             GPG_KEY_PATH="/tmp/teleport.gpg"
             openssl s_client -quiet -connect zypper.releases.teleport.dev:443 -servername zypper.releases.teleport.dev <<EOF 2>/dev/null | sed '1,/^\r$/d' > "$GPG_KEY_PATH"
-            GET /gpg HTTP/1.0
-            Host: zypper.releases.teleport.dev
+          GET /gpg HTTP/1.0
+          Host: zypper.releases.teleport.dev
 
-            EOF
+          EOF
             rpm --import "$GPG_KEY_PATH"
             rm "$GPG_KEY_PATH"
           fi
