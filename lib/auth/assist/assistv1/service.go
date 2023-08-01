@@ -127,7 +127,7 @@ func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assi
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbRead, types.VerbList)
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbList)
 	if err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
@@ -196,7 +196,7 @@ func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabled
 	}
 
 	// Check if this endpoint is called by a user or Proxy.
-	if _, ok := authCtx.UnmappedIdentity.(authz.LocalUser); ok {
+	if authz.IsLocalUser(*authCtx) {
 		checkErr := authCtx.Checker.CheckAccessToRule(
 			&services.Context{User: authCtx.User},
 			defaults.Namespace, types.KindAssistant, types.VerbRead,
