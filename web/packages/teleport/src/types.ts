@@ -165,12 +165,9 @@ export type LockedFeatures = {
   trustedDevices: boolean;
 };
 
-// RecommendFeature is used for recommending features to drive adoption.
-// Feature name should titles as defined in features.tsx:
-// - OSS - https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/features.tsx
-// - enterprise - https://github.com/gravitational/teleport.e/blob/master/web/teleport/src/features.tsx
+// RecommendFeature is used for recommending features if its usage status is zero.
 export type RecommendFeature = {
   TrustedDevices: RecommendationStatus;
 };
 
-export type RecommendationStatus = 'Pending' | 'Done';
+export type RecommendationStatus = 'NOTIFY' | 'DONE';

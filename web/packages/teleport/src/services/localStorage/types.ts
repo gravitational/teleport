@@ -24,7 +24,7 @@ export const KeysEnum = {
   ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
   USER_PREFERENCES: 'grv_teleport_user_preferences',
   ONBOARD_SURVEY: 'grv_teleport_onboard_survey',
-  RECOMMEND_FEATURE: 'grc_recommend_feature',
+  RECOMMEND_FEATURE: 'grv_recommend_feature',
 };
 
 // SurveyRequest is the request for sending data to the back end

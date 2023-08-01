@@ -1,4 +1,3 @@
-
 /*
 Copyright 2023 Gravitational, Inc.
 
@@ -159,21 +158,25 @@ export function NavigationItem(props: NavigationItemProps) {
     []
   );
 
-  // shouldAlert returns red dot alert if the feature name exist in recommendFeature
-  // context and the feature value is set true.
-  function shouldAlert(featureName: any): JSX.Element {
+  // showRedDot returns red dot component if the feature recommendation state is 'NOTIFY'
+  function showRedDot(featureName: any): JSX.Element {
+    // We'll only ever recommend features once initial onboarding is completed.
+    // if onboarding is required, let's skip below.
+
+    // get onboarding status
     const onboard = localStorage.getOnboardDiscover();
     const requiresOnboarding =
       onboard && !onboard.hasResource && !onboard.notified;
 
+      // return if requiresOnboarding is true
     if (requiresOnboarding) {
       return null
     }
 
-    const recommendFeature = localStorage.getFeatureRecommendationStatus()
+    const recommendFeatureStatus = localStorage.getFeatureRecommendationStatus()
     if (
       featureName === NavTitles.TrustedDevices &&
-      recommendFeature?.TrustedDevices === 'Pending'
+      recommendFeatureStatus?.TrustedDevices === 'NOTIFY'
     ) {
       return <RedDot />;
     }
@@ -239,7 +242,7 @@ export function NavigationItem(props: NavigationItemProps) {
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
             {navigationItemVersion.title}
-            {shouldAlert(props.feature.navigationItem.title)}
+            {showRedDot(props.feature.navigationItem.title)}
           </LinkContent>
         </Link>
       );
