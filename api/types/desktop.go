@@ -135,6 +135,9 @@ type WindowsDesktop interface {
 	NonAD() bool
 	// Copy returns a copy of this windows desktop
 	Copy() *WindowsDesktopV3
+	// CloneAny is used to return a clone of the WindowDesktop and match the CloneAny interface
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneAny() any
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -208,6 +211,10 @@ func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
 
 // Copy returns a copy of this windows desktop object.
 func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
+	return utils.CloneProtoMsg(d)
+}
+
+func (d *WindowsDesktopV3) CloneAny() any {
 	return utils.CloneProtoMsg(d)
 }
 

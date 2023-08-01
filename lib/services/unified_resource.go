@@ -229,7 +229,13 @@ func (u *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 		return nil, trace.Wrap(err, "getting unified resource range")
 	}
 	for _, item := range result.Items {
-		resources = append(resources, item.Value)
+		cloned := item.Value.CloneAny()
+		clonedResource, ok := cloned.(types.ResourceWithLabels)
+		if !ok {
+			return nil, trace.BadParameter("clone returned unexpected type %T", clonedResource)
+		}
+
+		resources = append(resources, clonedResource)
 	}
 
 	return resources, nil
@@ -437,7 +443,7 @@ func (u *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context,
 	case types.OpPut:
 		u.put(ctx, Item{
 			Key:   keyOf(event.Resource),
-			Value: event.Resource.(types.ResourceWithLabels),
+			Value: event.Resource.(types.CloneAny),
 		})
 	default:
 		u.log.Warnf("unsupported event type %s.", event.Type)
@@ -493,7 +499,7 @@ type Item struct {
 	// Key is a key of the key value item
 	Key []byte
 	// Value represents a resource such as types.Server or types.DatabaseServer
-	Value types.ResourceWithLabels
+	Value types.CloneAny
 }
 
 // Event represents an event that happened in the backend
