@@ -23,10 +23,10 @@ import { AwsRdsDatabase, RdsEngine } from '../integrations';
 export enum IamPolicyStatus {
   // Unspecified flag is most likely a result
   // from an older service that do not set this state
-  Unspecified = '',
-  Pending = 'pending',
-  Failed = 'failed',
-  Success = 'success',
+  Unspecified = 'IAM_POLICY_STATUS_UNSPECIFIED',
+  Pending = 'IAM_POLICY_STATUS_PENDING',
+  Failed = 'IAM_POLICY_STATUS_FAILED',
+  Success = 'IAM_POLICY_STATUS_SUCCESS',
 }
 
 export type Aws = {

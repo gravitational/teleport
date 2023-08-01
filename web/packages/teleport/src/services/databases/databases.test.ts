@@ -183,7 +183,7 @@ const mockResponse = {
           region: 'us-west-1',
           subnets: ['sn1', 'sn2'],
         },
-        iam_policy_status: 'success',
+        iam_policy_status: 'IAM_POLICY_STATUS_SUCCESS',
       },
     },
     // non-aws self-hosted

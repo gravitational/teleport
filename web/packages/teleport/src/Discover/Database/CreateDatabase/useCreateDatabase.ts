@@ -128,6 +128,8 @@ export function useCreateDatabase() {
     setAttempt({ status: 'success' });
   }, [dbPollingResult]);
 
+  // fetchDatabaseServer is the callback that is run every interval by the poller.
+  // The poller will stop polling once a result returns (a dbServer).
   function fetchDatabaseServer(signal: AbortSignal) {
     const request = {
       search: createdDb.name,
@@ -137,11 +139,12 @@ export function useCreateDatabase() {
       .fetchDatabases(clusterId, request, signal)
       .then(res => {
         if (res.agents.length) {
-          // If the db response we got is type AWS,
-          // keep polling until an AWS specific flag
-          // "iamPolicyStatus" returns a non zero enum value.
           const dbServer = res.agents[0];
-          if (!isAws || !dbServer.aws || !dbServer.aws.iamPolicyStatus) {
+          if (
+            !isAws ||
+            !dbServer.aws?.iamPolicyStatus ||
+            dbServer.aws?.iamPolicyStatus === IamPolicyStatus.Unspecified
+          ) {
             return dbServer;
           }
 
@@ -149,6 +152,11 @@ export function useCreateDatabase() {
             return dbServer;
           }
         }
+        // Returning nothing here will continue the polling.
+        // Either no result came back back yet or
+        // a result did come back but we are waiting for a specific
+        // marker to appear in the result. Specifically for AWS dbs,
+        // we wait for a non-pending flag to appear.
         return null;
       });
   }
