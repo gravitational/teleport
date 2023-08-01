@@ -25,6 +25,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 )
 
@@ -206,6 +207,24 @@ func (t *Table) IsHeadless() bool {
 		}
 	}
 	return true
+}
+
+// SortRowsBy sorts the table rows with the given column indices as the sorting
+// key, optionally performing a stable sort.
+func (t *Table) SortRowsBy(colIdxKey []int, stable bool) {
+	lessFn := func(a, b []string) bool {
+		for _, col := range colIdxKey {
+			if a[col] != b[col] {
+				return a[col] < b[col]
+			}
+		}
+		return false
+	}
+	if stable {
+		slices.SortStableFunc(t.rows, lessFn)
+	} else {
+		slices.SortFunc(t.rows, lessFn)
+	}
 }
 
 func min(a, b int) int {
