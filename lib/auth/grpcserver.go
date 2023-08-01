@@ -5183,7 +5183,7 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *authpb.
 }
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
-func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, stream proto.AuthService_WatchPendingHeadlessAuthenticationsServer) error {
+func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, stream authpb.AuthService_WatchPendingHeadlessAuthenticationsServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
@@ -5214,8 +5214,9 @@ func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, strea
 				return trace.Wrap(err)
 			}
 
-			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
-			watcherEventSizes.Observe(float64(out.Size()))
+			size := float64(proto.Size(out))
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
+			watcherEventSizes.Observe(size)
 
 			if err := stream.Send(out); err != nil {
 				return trace.Wrap(err)
