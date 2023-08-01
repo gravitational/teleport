@@ -124,6 +124,7 @@ func (b *Bot) renewBotIdentity(
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer authClient.Close()
 		newIdentity, err = botIdentityFromAuth(
 			ctx, b.log, currentIdentity, authClient, b.cfg.CertificateTTL,
 		)
