@@ -39,7 +39,7 @@ import (
 )
 
 func TestOracleEngine(t *testing.T) {
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	defer listener.Close()
 

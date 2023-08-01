@@ -31,7 +31,7 @@ func TestClientServerConnReg(t *testing.T) {
 
 	certs, pool := MustCreateSelfSignedCert(t)
 	tlsConfig := &tls.Config{Certificates: []tls.Certificate{certs}}
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	defer l.Close()
 

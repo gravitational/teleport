@@ -450,12 +450,13 @@ func testAuthProcess(t *testing.T) *service.TeleportProcess {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"})
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
