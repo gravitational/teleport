@@ -5305,7 +5305,7 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
-// GetResourceUsage is TODO
+// GetResourceUsage returns the usage data for resources which are limited on usage-based billing plans.
 func (g *GRPCServer) GetResourceUsage(ctx context.Context, req *authpb.GetResourceUsageRequest) (*authpb.GetResourceUsageResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

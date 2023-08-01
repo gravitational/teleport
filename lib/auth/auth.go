@@ -5377,7 +5377,7 @@ func (a *Server) UpsertUserPreferences(ctx context.Context, request *userprefere
 	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, request))
 }
 
-// GetResourceUsage is TODO
+// GetResourceUsage returns the usage data for resources which are limited on usage-based billing plans.
 func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error) {
 	features := modules.GetModules().Features()
 	if !features.IsUsageBasedBilling {
@@ -5389,8 +5389,10 @@ func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsa
 	}
 
 	return &proto.GetResourceUsageResponse{
-		AccessRequestMonthlyLimit: int32(features.AccessRequests.MonthlyRequestLimit),
-		AccessRequestMonthlyUsage: int32(accessRequestUsage),
+		AccessRequestsMonthly: &proto.ResourceUsage{
+			Limit: int32(features.AccessRequests.MonthlyRequestLimit),
+			Used:  int32(accessRequestUsage),
+		},
 	}, nil
 }
 
@@ -5443,6 +5445,8 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 	return len(reviewed), nil
 }
 
+// verifyAccessRequestMonthlyLimit checks whether the cluster has exceeded the monthly access request limit.
+// If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	f := modules.GetModules().Features()
 	if !f.IsUsageBasedBilling {

@@ -2248,8 +2248,13 @@ message GetResourceUsageRequest {}
 // which may be total (e.g. X resources), or time-based (e.g. X new resources created this calendar month).
 // When usage-based billing is not used, the response will be empty.
 message GetResourceUsageResponse {
-  int32 AccessRequestMonthlyLimit = 1;
-  int32 AccessRequestMonthlyUsage = 2;
+  ResourceUsage AccessRequestsMonthly = 1;
+}
+
+// ResourceUsage contains the limit and current usage of a single resource category.
+message ResourceUsage {
+  int32 Limit = 1;
+  int32 Used = 2;
 }
 
 // AuthService is authentication/authorization service implementation
@@ -2919,6 +2924,6 @@ service AuthService {
   // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
   rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
 
-  // GetResourceUsage returns the current usage of resources that might be limited on certain Teleport plans.
+  // GetResourceUsage returns the usage data for resources which are limited on usage-based billing plans.
   rpc GetResourceUsage(GetResourceUsageRequest) returns (GetResourceUsageResponse);
 }

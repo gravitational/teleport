@@ -45,7 +45,7 @@ func (m *mockAuditLogSessionStreamer) SearchEvents(ctx context.Context, req even
 	return results, "", nil
 }
 
-func TestResourceUsage(t *testing.T) {
+func TestAccessRequestLimit(t *testing.T) {
 	const monthlyLimit = 3
 
 	makeEvent := func(eventType string, id string, timestamp time.Time) apievents.AuditEvent {
@@ -123,8 +123,8 @@ func TestResourceUsage(t *testing.T) {
 	// Check July
 	usage, err := p.a.GetResourceUsage(ctx, &proto.GetResourceUsageRequest{})
 	require.NoError(t, err)
-	require.Equal(t, int32(monthlyLimit), usage.AccessRequestMonthlyLimit)
-	require.Equal(t, int32(3), usage.AccessRequestMonthlyUsage)
+	require.Equal(t, int32(monthlyLimit), usage.GetAccessRequestsMonthly().Limit)
+	require.Equal(t, int32(3), usage.GetAccessRequestsMonthly().Used)
 
 	req, err := types.NewAccessRequest(uuid.New().String(), "alice", "access")
 	require.NoError(t, err)
@@ -135,8 +135,8 @@ func TestResourceUsage(t *testing.T) {
 	clock.Advance(31 * 24 * time.Hour)
 	usage, err = p.a.GetResourceUsage(ctx, &proto.GetResourceUsageRequest{})
 	require.NoError(t, err)
-	require.Equal(t, int32(monthlyLimit), usage.AccessRequestMonthlyLimit)
-	require.Equal(t, int32(2), usage.AccessRequestMonthlyUsage)
+	require.Equal(t, int32(monthlyLimit), usage.GetAccessRequestsMonthly().Limit)
+	require.Equal(t, int32(2), usage.GetAccessRequestsMonthly().Used)
 
 	req, err = types.NewAccessRequest(uuid.New().String(), "alice", "access")
 	require.NoError(t, err)

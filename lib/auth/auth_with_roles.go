@@ -6557,7 +6557,7 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)
 }
 
-// GetResourceUsage is TODO
+// GetResourceUsage returns the usage data for resources which are limited on usage-based billing plans.
 func (a *ServerWithRoles) GetResourceUsage(ctx context.Context, req *authpb.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error) {
 	if a.hasBuiltinRole(types.RoleNop) {
 		return nil, trace.AccessDenied("resource usage information is not available to unauthenticated clients")
