@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -44,9 +43,6 @@ func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 
 // CreateAccessRequest stores a new access request.
 func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
-	if err := s.verifyAccessRequestMonthlyLimit(ctx); err != nil {
-		return trace.Wrap(err)
-	}
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -280,70 +276,6 @@ func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req type
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-func (s *DynamicAccessService) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
-	f := modules.GetModules().Features()
-	if !f.IsUsageBasedBilling {
-		return nil // unlimited
-	}
-
-	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
-
-	limit := f.AccessRequests.MonthlyRequestLimit
-	used, err := s.GetAccessRequestMonthlyUsage(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if used >= limit {
-		return trace.AccessDenied(limitReachedMessage)
-	}
-
-	return nil
-}
-
-// GetAccessRequestMonthlyUsage TODO
-func (s *DynamicAccessService) GetAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
-	const pageSize = 100
-	// Get at most pageSize+1 results to determine if there will be a next key.
-	const maxLimit = pageSize + 1
-
-	var count int
-
-	now := s.Clock().Now().UTC()
-	monthStart := time.Date(now.Year(), now.Month(), 0, 0, 0, 0, 0, time.UTC)
-	nextMonthStart := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, time.UTC)
-
-	pageToken := backend.Key(accessRequestsPrefix)
-	for {
-		result, err := s.GetRange(ctx, pageToken, backend.RangeEnd(backend.Key(accessRequestsPrefix)), maxLimit)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		items := result.Items
-		var nextPageToken []byte
-		if len(items) == maxLimit {
-			nextPageToken = items[len(items)-1].Key
-			items = items[:pageSize]
-		}
-
-		for _, item := range items {
-			request, err := itemToAccessRequest(item)
-			if err != nil {
-				return 0, trace.Wrap(err)
-			}
-			if request.GetCreationTime().After(monthStart) && request.GetCreationTime().Before(nextMonthStart) {
-				count++
-			}
-		}
-		if nextPageToken == nil {
-			break
-		}
-		pageToken = nextPageToken
-
-	}
-
-	return count, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.

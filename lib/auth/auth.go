@@ -5383,7 +5383,7 @@ func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsa
 	if !features.IsUsageBasedBilling {
 		return &proto.GetResourceUsageResponse{}, nil
 	}
-	accessRequestUsage, err := a.GetAccessRequestMonthlyUsage(ctx)
+	accessRequestUsage, err := a.getAccessRequestMonthlyUsage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5392,6 +5392,75 @@ func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsa
 		AccessRequestMonthlyLimit: int32(features.AccessRequests.MonthlyRequestLimit),
 		AccessRequestMonthlyUsage: int32(accessRequestUsage),
 	}, nil
+}
+
+// getAccessRequestMonthlyUsage returns the number of access requests that have been used this month.
+// Only requests that were both created and since the start of the current month are included in this number.
+func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
+	now := a.clock.Now().UTC()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	created := make(map[string]struct{})
+	reviewed := make(map[string]struct{})
+
+	var results []apievents.AuditEvent
+	var startKey string
+	var err error
+	for {
+		results, startKey, err = a.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       monthStart,
+			To:         now,
+			Limit:      apidefaults.DefaultChunkSize,
+			Order:      types.EventOrderAscending,
+			EventTypes: []string{events.AccessRequestCreateEvent, events.AccessRequestReviewEvent},
+			StartKey:   startKey,
+		})
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		for _, ev := range results {
+			ev, ok := ev.(*apievents.AccessRequestCreate)
+			if !ok {
+				return 0, trace.BadParameter("expected *AccessRequestCreate, but got %T", ev)
+			}
+			id := ev.RequestID
+			switch ev.GetType() {
+			case events.AccessRequestCreateEvent:
+				created[id] = struct{}{}
+			case events.AccessRequestReviewEvent:
+				if _, ok := created[id]; ok {
+					reviewed[id] = struct{}{}
+				}
+			default:
+				log.Errorf("Expected event type %q or %q, got %q", events.AccessRequestCreateEvent, events.AccessRequestReviewEvent, ev.GetType())
+			}
+		}
+		if startKey == "" {
+			break
+		}
+	}
+
+	return len(reviewed), nil
+}
+
+func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
+	f := modules.GetModules().Features()
+	if !f.IsUsageBasedBilling {
+		return nil // unlimited
+	}
+
+	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
+
+	limit := f.AccessRequests.MonthlyRequestLimit
+	used, err := a.getAccessRequestMonthlyUsage(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if used >= limit {
+		return trace.AccessDenied(limitReachedMessage)
+	}
+
+	return nil
 }
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
