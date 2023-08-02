@@ -1131,10 +1131,11 @@ func TestClusterNodesGet(t *testing.T) {
 func TestUnifiedResourcesGet(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{SAML: true, Kubernetes: true},
 	})
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
+	pack := proxy.authPack(t, "test-user@example.com", nil)
 
 	// Add nodes
 	for i := 0; i < 20; i++ {
@@ -1143,6 +1144,23 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		_, err = env.server.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
+
+	// add kubes
+	cluster2, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "test-kube2",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	server2, err := types.NewKubernetesServerV3FromCluster(
+		cluster2,
+		"test-kube2-hostname",
+		"test-kube2-hostid",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
+	require.NoError(t, err)
 
 	// add a user group
 	ug, err := types.NewUserGroup(types.Metadata{
@@ -1243,7 +1261,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
-	require.Equal(t, 26, res.TotalCount)
+	require.Equal(t, 27, res.TotalCount)
 	require.NotEqual(t, "", res.StartKey)
 
 	// should return second page and have no third page
@@ -1253,8 +1271,8 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 11)
-	require.Equal(t, 26, res.TotalCount)
+	require.Len(t, res.Items, 12)
+	require.Equal(t, 27, res.TotalCount)
 	require.Equal(t, "", res.StartKey)
 
 	// // should return first page with desc sorted names (last of asc shouldbe first of desc)
@@ -1272,8 +1290,8 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 11)
-	require.Equal(t, 26, res.TotalCount)
+	require.Len(t, res.Items, 12)
+	require.Equal(t, 27, res.TotalCount)
 	require.Equal(t, "", res.StartKey)
 
 	// should return muiltiple filtered types
