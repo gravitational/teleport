@@ -17,9 +17,8 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Text } from 'design';
-import Icons from 'design/Icon';
 
-export default function TabIcon(props: Props) {
+export default function TabIcon({ Icon, ...props }: Props) {
   return (
     <StyledTab
       ml="4"
@@ -28,7 +27,7 @@ export default function TabIcon(props: Props) {
       active={props.active}
       onClick={props.onClick}
     >
-      <Icons as={props.Icon} mr="2" />
+      <Icon size="medium" />
       {props.title}
     </StyledTab>
   );
@@ -38,7 +37,7 @@ type Props = {
   active: boolean;
   onClick(): void;
   title: string;
-  Icon(): JSX.Element;
+  Icon: (any) => JSX.Element;
 };
 
 const StyledTab = styled(Text)`
@@ -47,6 +46,10 @@ const StyledTab = styled(Text)`
   padding: 4px 8px;
   cursor: pointer;
   border-bottom: 4px solid transparent;
+
+  svg {
+    margin-right: 8px;
+  }
 
   ${({ active, theme }) =>
     active &&
