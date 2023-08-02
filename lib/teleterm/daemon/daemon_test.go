@@ -79,7 +79,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		WebProxyAddr:          hs.Listener.Addr().String(),
 		CLICommandProvider:    params.CLICommandProvider,
 		TCPPortAllocator:      m.tcpPortAllocator,
-		ProfileDir:            m.t.TempDir(),
+		TempDir:               m.t.TempDir(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -250,6 +250,7 @@ func TestGatewayCRUD(t *testing.T) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                homeDir,
 				InsecureSkipVerify: true,
+				TempDir:            t.TempDir(),
 			})
 			require.NoError(t, err)
 
@@ -289,6 +290,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
+		TempDir:            t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -321,6 +323,7 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                homeDir,
 		InsecureSkipVerify: true,
+		TempDir:            t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -420,6 +423,7 @@ func TestRetryWithRelogin(t *testing.T) {
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                t.TempDir(),
 				InsecureSkipVerify: true,
+				TempDir:            t.TempDir(),
 			})
 			require.NoError(t, err)
 
@@ -468,6 +472,7 @@ func TestImportantModalSemaphore(t *testing.T) {
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                t.TempDir(),
 		InsecureSkipVerify: true,
+		TempDir:            t.TempDir(),
 	})
 	require.NoError(t, err)
 

@@ -17,6 +17,8 @@ limitations under the License.
 package clusters
 
 import (
+	"os"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -26,6 +28,10 @@ import (
 type Config struct {
 	// Dir is the directory to store cluster profiles
 	Dir string
+	// TempDir is the temporary directory to store temporary config files like
+	// kubeconfig for kube gateways. The TempDir is expected to be removed when
+	// the daemon exits.
+	TempDir string
 	// Clock is a clock for time-related operations
 	Clock clockwork.Clock
 	// InsecureSkipVerify is an option to skip TLS cert check
@@ -48,5 +54,13 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log = logrus.WithField(trace.Component, "conn:storage")
 	}
 
+	if c.TempDir == "" {
+		tempDir, err := os.MkdirTemp("", "teleterm-")
+		if err != nil {
+			return trace.WrapWithMessage(err, "failed to make temporary dir")
+		}
+		c.TempDir = tempDir
+		c.Log.Infof("Created temporary dir %v", c.TempDir)
+	}
 	return nil
 }

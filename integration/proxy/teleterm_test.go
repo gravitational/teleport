@@ -119,7 +119,8 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
 		// db cert has expired.
-		Clock: fakeClock,
+		Clock:   fakeClock,
+		TempDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 

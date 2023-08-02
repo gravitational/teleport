@@ -40,8 +40,10 @@ type kube struct {
 // KubeconfigPath returns the kubeconfig path that can be used for clients to
 // connect to the local proxy.
 func (k *kube) KubeconfigPath() string {
+	// Use a temporary dir instead of tsh profile dir to avoid getting deleted when
+	// reissuing user certs.
 	return keypaths.KubeConfigPath(
-		k.cfg.ProfileDir,
+		k.cfg.gatewayTempDir(),
 		k.cfg.TargetURI.GetProfileName(),
 		k.cfg.Username,
 		k.cfg.ClusterName,
@@ -80,11 +82,6 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 	if err := k.writeKubeconfig(key, cas); err != nil {
 		return nil, trace.NewAggregate(err, k.Close())
 	}
-	// make sure kubeconfig is written again on new cert as a relogin may
-	// cleanup profile dir.
-	k.onNewCertFuncs = append(k.onNewCertFuncs, func(_ tls.Certificate) error {
-		return trace.Wrap(k.writeKubeconfig(key, cas))
-	})
 	return k, nil
 }
 

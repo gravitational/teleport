@@ -19,6 +19,7 @@ package clusters
 import (
 	"context"
 	"net"
+	"os"
 
 	"github.com/gravitational/trace"
 
@@ -34,6 +35,12 @@ func NewStorage(cfg Config) (*Storage, error) {
 	}
 
 	return &Storage{Config: cfg}, nil
+}
+
+// Close removes TempDir on close.
+func (s *Storage) Close() error {
+	s.Log.Infof("Removing temporary dir %v", s.TempDir)
+	return trace.ConvertSystemError(os.RemoveAll(s.TempDir))
 }
 
 // ReadAll reads clusters from profiles
@@ -182,6 +189,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
+		tempDir:       s.TempDir,
 		clock:         s.Clock,
 		Log:           s.Log.WithField("cluster", clusterURI),
 	}, clusterClient, nil
@@ -228,6 +236,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
+		tempDir:       s.TempDir,
 		clock:         s.Clock,
 		status:        *status,
 		Log:           s.Log.WithField("cluster", clusterURI),

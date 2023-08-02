@@ -124,7 +124,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		RootClusterCACertPoolFunc:     c.clusterClient.RootClusterCACertPool,
 		ClusterName:                   c.Name,
 		Username:                      c.status.Username,
-		ProfileDir:                    c.status.Dir,
+		TempDir:                       c.tempDir,
 	})
 	return gw, trace.Wrap(err)
 }

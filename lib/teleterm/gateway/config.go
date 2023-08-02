@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/x509"
 	"net"
+	"path"
 	"runtime"
 
 	"github.com/google/uuid"
@@ -91,8 +92,8 @@ type Config struct {
 	// RootClusterCACertPoolFunc is callback function to fetch Root cluster CAs
 	// when ALPN connection upgrade is required.
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
-	// ProfileDir specifies the tsh home dir of the user profile.
-	ProfileDir string
+	// TempDir is the temporary directory to store temporary config files.
+	TempDir string
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
@@ -185,4 +186,8 @@ func (c *Config) makeListener() (net.Listener, error) {
 
 	c.LocalPort = port
 	return listener, nil
+}
+
+func (c *Config) gatewayTempDir() string {
+	return path.Join(c.TempDir, "gateway")
 }
