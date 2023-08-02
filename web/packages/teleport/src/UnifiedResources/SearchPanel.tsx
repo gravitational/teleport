@@ -27,7 +27,7 @@ import useServersideSearchPanel, {
 } from 'teleport/components/ServersideSearchPanel/useServerSideSearchPanel';
 import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
 
-import SearchInput from './SearchInput';
+import { SearchInput } from './SearchInput';
 
 export default function Container(props: Props) {
   const state = useServersideSearchPanel(props);
@@ -43,7 +43,7 @@ export function SearchPanel({
   onSubmitSearch,
 }: State) {
   function onToggle() {
-    setIsAdvancedSearch(!isAdvancedSearch);
+    setIsAdvancedSearch(wasAdvancedSearch => !wasAdvancedSearch);
   }
 
   return (
@@ -65,7 +65,6 @@ const ToggleWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding-right: 16px;
-  padding-left: 16px;
+  padding-inline: ${props => props.theme.space[3]}px;
   width: 120px;
 `;

@@ -4,11 +4,7 @@ import styled from 'styled-components';
 import { height, space, color } from 'design/system';
 
 // Taken from design.dataTable.InputSearch; will be modified later.
-export default function SearchInput({
-  searchValue,
-  setSearchValue,
-  children,
-}: Props) {
+export function SearchInput({ searchValue, setSearchValue, children }: Props) {
   return (
     <WrapperBackground>
       <Wrapper>
