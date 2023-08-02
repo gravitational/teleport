@@ -50,7 +50,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.48.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.1
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.14
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.23.4
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.24.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.21.1
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/aws/smithy-go v1.14.0
