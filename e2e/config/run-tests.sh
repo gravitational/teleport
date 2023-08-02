@@ -24,7 +24,7 @@ update-ca-certificates
 
 yarn install
 
-# Wait for the user to be created
+# Wait for the Teleport to be up and initialized.
 sleep 5
 
 npx playwright install chromium
