@@ -1506,6 +1506,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if req.SortBy.Field != "" {
 		isDesc := req.SortBy.IsDesc
 		switch req.SortBy.Field {
@@ -1572,8 +1573,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					filteredResources = append(filteredResources, resource)
 				}
 			}
-		case types.KubeCluster:
-			if err := a.checkAccessToKubeCluster(r); err != nil {
+		case types.KubeServer:
+			kube := r.GetCluster()
+			if err := a.checkAccessToKubeCluster(kube); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -1581,7 +1583,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				return nil, trace.Wrap(err)
 			}
 
-			filteredResources = append(filteredResources, resource)
+			filteredResources = append(filteredResources, kube)
 		case types.WindowsDesktop:
 			{
 				if err := a.checkAccessToWindowsDesktop(r); err != nil {
