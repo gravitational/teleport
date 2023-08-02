@@ -35,8 +35,10 @@ import (
 const k8sKindPrefix = "Teleport"
 
 // Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
-var kubernetesReservedNames = []string{"role"}
-var regexpResourceName = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)?$`)
+var (
+	kubernetesReservedNames = []string{"role"}
+	regexpResourceName      = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)?$`)
+)
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
 type SchemaGenerator struct {
@@ -203,10 +205,23 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 		}
 
 		jsonName := field.JSONName()
-		if jsonName == "" {
+		if jsonName == "" && field.Name() != "MaxAge" && message.Name() != "OIDCConnectorSpecV3" {
 			return nil, trace.Errorf("empty json tag for %s.%s", message.Name(), field.Name())
 		}
 		if jsonName == "-" {
+			continue
+		}
+
+		// Handle MaxAge as a special case. It's type is a message that is embedded.
+		// Because the message is embedded, MaxAge itself explicitly sets its json
+		// name to an empty string, but the embedded message type has a single field
+		// with a json name, so use that instead.
+		if field.Name() == "MaxAge" && message.Name() == "OIDCConnectorSpecV3" {
+			schema.Properties["max_age"] = apiextv1.JSONSchemaProps{
+				Description: field.LeadingComments(),
+				Type:        "string",
+				Format:      "duration",
+			}
 			continue
 		}
 
