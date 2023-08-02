@@ -59,6 +59,12 @@ to each of these groups.
 
 Create an OIDC connector resource using `tctl`.
 
+On your workstation, write your GitLab client secret to a file:
+
+```code
+$ echo <APPLICATION-SECRET> > client-secret.txt
+```
+
 <Tabs>
 <TabItem label="GitLab.com">
 Replace the application ID and secret with the values from GitLab:
@@ -66,7 +72,7 @@ Replace the application ID and secret with the values from GitLab:
 ```code
 $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
---secret <APPLICATION-SECRET> \
+--secret $( cat client-secret.txt) \
 --claims-to-roles groups,company/admin,admin \
 --claims-to-roles groups,company/dev,dev > oidc.yaml
 ```
@@ -80,7 +86,7 @@ Replace the application ID and secret with the values from GitLab, and replace
 $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
 --issuer-url https://gitlab.company.com \
---secret <APPLICATION-SECRET> \
+--secret $( cat client-secret.txt) \
 --claims-to-roles groups,company/admin,admin \
 --claims-to-roles groups,company/dev,dev > oidc.yaml
 ```
