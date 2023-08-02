@@ -139,13 +139,10 @@ impl Client {
     }
 
     unsafe fn from_raw<'a>(client_ptr: *const Self) -> Result<&'a Client, CGOErrCode> {
-        match client_ptr.as_ref() {
-            None => {
-                error!("Client pointer is null");
-                Err(CGOErrCode::ErrCodeClientPtr)
-            }
-            Some(it) => Ok(it),
-        }
+        client_ptr.as_ref().ok_or_else(|| {
+            error!("Client pointer is null");
+            CGOErrCode::ErrCodeClientPtr
+        })
     }
 
     unsafe fn drop(ptr: *mut Self) {
