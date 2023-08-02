@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -170,23 +171,10 @@ done && ls -l`)
 func tagPipelines() []pipeline {
 	var ps []pipeline
 
-	// amd64 builds
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", fips: false}))
-	ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: "amd64", fips: false, centos7: true}))
-	ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: "amd64", fips: false}))
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", fips: true}))
-	ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: "amd64", fips: true, centos7: true}))
-	ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: "amd64", fips: true}))
-
-	// 386 builds
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "386", fips: false}))
-	ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: "386", fips: false}))
-	ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: "386", fips: false}))
-
-	// arm builds
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "arm", fips: false}))
-	ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: "arm", fips: false}))
-	ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: "arm", fips: false}))
+	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "amd64", fips: false, centos7: true, buildConnect: true, buildDeb: true, buildRPM: true}))
+	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "amd64", fips: true, centos7: true, buildConnect: true, buildDeb: true, buildRPM: true}))
+	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "386", buildDeb: true, buildRPM: true}))
+	ps = append(ps, ghaLinuxTagPipeline(buildType{os: "linux", arch: "arm", buildDeb: true, buildRPM: true}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
 		buildType:    buildType{os: "linux", arch: "arm64", fips: false},
@@ -211,10 +199,10 @@ func tagPipelines() []pipeline {
 		pipelineName: "build-teleport-oci-distroless-images",
 		dependsOn: []string{
 			tagCleanupPipelineName,
-			"build-linux-amd64-deb",
-			"build-linux-amd64-fips-deb",
+			"build-linux-amd64",
+			"build-linux-amd64-fips",
 			"build-linux-arm64-deb",
-			"build-linux-arm-deb",
+			"build-linux-arm",
 		},
 		workflows: []ghaWorkflow{
 			{
@@ -233,8 +221,8 @@ func tagPipelines() []pipeline {
 		pipelineName: "build-teleport-hardened-amis",
 		dependsOn: []string{
 			tagCleanupPipelineName,
-			"build-linux-amd64-deb",
-			"build-linux-amd64-fips-deb",
+			"build-linux-amd64",
+			"build-linux-amd64-fips",
 		},
 		workflows: []ghaWorkflow{
 			{
@@ -265,16 +253,53 @@ func tagPipelines() []pipeline {
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
-	// Also add CentOS artifacts
-	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
-	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
-
 	ps = append(ps, darwinTagPipelineGHA())
 	ps = append(ps, windowsTagPipeline())
 
 	ps = append(ps, tagCleanupPipeline())
 	return ps
+}
+
+// ghaLinuxTagPipeline generates a tag pipeline for a given combination of
+// os/arch/FIPS that calls a GitHub Actions workflow to perform the build on a
+// Linux box. This dispatches to the release-linux.yaml workflow in the
+// teleport.e repo, which is a little more generic than the
+// release-linux-arm64.yml workflow used for the arm64 build. The two will be
+// unified shortly.
+func ghaLinuxTagPipeline(b buildType) pipeline {
+	if b.os == "" {
+		panic("b.os must be set")
+	}
+	if b.arch == "" {
+		panic("b.arch must be set")
+	}
+
+	pipelineName := fmt.Sprintf("build-%s-%s", b.os, b.arch)
+	if b.fips {
+		pipelineName += "-fips"
+	}
+	wf := ghaWorkflow{
+		name:              "release-linux.yaml",
+		timeout:           150 * time.Minute,
+		slackOnError:      true,
+		srcRefVar:         "DRONE_TAG",
+		ref:               "${DRONE_TAG}",
+		shouldTagWorkflow: true,
+		inputs: map[string]string{
+			"release-artifacts": "true",
+			"release-target":    releaseMakefileTarget(b),
+			"build-connect":     strconv.FormatBool(b.buildConnect),
+			"build-deb":         strconv.FormatBool(b.buildDeb),
+			"build-rpm":         strconv.FormatBool(b.buildRPM),
+		},
+	}
+	bt := ghaBuildType{
+		buildType:    buildType{os: b.os, arch: b.arch},
+		trigger:      triggerTag,
+		pipelineName: pipelineName,
+		workflows:    []ghaWorkflow{wf},
+	}
+	return ghaBuildPipeline(bt)
 }
 
 // tagPipeline generates a tag pipeline for a given combination of os/arch/FIPS
