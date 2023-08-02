@@ -154,6 +154,8 @@ type buildType struct {
 	centos7         bool
 	windowsUnsigned bool
 	buildConnect    bool
+	buildDeb        bool
+	buildRPM        bool
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
