@@ -6,7 +6,7 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { Close } from 'design/Icon';
+import { Cross } from 'design/Icon';
 
 const updateSelectedResourceWarning =
   'Resource Access Request cannot be combined with Role Access Request. The current items will be cleared. Are you sure you want to continue?';
@@ -30,7 +30,7 @@ export default function ChangeResourceDialog({
           Remove selected resources?
         </Text>
         <ButtonIcon onClick={onClose} color="text.slightlyMuted">
-          <Close fontSize={5} />
+          <Cross size="small" />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>

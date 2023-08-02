@@ -64,7 +64,7 @@ export const UsageBasedUpgrade = ({
       >
         <Warning
           mr={3}
-          fontSize="3"
+          size="medium"
           role="icon"
           color={theme.colors.text.primaryInverse}
         />

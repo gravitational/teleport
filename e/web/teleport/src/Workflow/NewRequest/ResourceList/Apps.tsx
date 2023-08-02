@@ -177,7 +177,7 @@ function ActionCell({
   if (isAppAdded && agent.userGroups.length === 0) {
     return (
       <Cell align="right">
-        <ButtonPrimary width="134px" size="small" onClick={toggleApp} mb={2}>
+        <ButtonPrimary width="134px" size="small" onClick={toggleApp}>
           Remove
         </ButtonPrimary>
       </Cell>
@@ -191,7 +191,7 @@ function ActionCell({
   return (
     <Cell align="right">
       {showRemoveButton && (
-        <ButtonPrimary width="134px" size="small" onClick={toggleApp} mb={2}>
+        <ButtonPrimary width="134px" size="small" onClick={toggleApp}>
           Remove
         </ButtonPrimary>
       )}

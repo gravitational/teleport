@@ -1,7 +1,7 @@
 import React from 'react';
 
 import { ButtonPrimary, Text } from 'design';
-import { OpenBox } from 'design/Icon';
+import { EnvelopeOpen } from 'design/Icon';
 
 import { useAccessRequestsButton } from 'teleterm/ui/StatusBar/useAccessRequestCheckoutButton';
 
@@ -18,7 +18,7 @@ export function AccessRequestCheckoutButton() {
         size="small"
         title="Toggle Access Request Checkout"
       >
-        <OpenBox mr={2} fontSize="12px" color="buttons.primary.text" />
+        <EnvelopeOpen mr={2} size="small" color="buttons.primary.text" />
         <Text fontSize="12px">{count}</Text>
       </ButtonPrimary>
     );

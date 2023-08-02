@@ -45,16 +45,16 @@ export const IconCell = ({
   let icon;
   switch (osType) {
     case 'Windows':
-      icon = <Icons.Windows style={{ paddingRight: 5 }} />;
+      icon = <Icons.Windows size="small" mr={1} />;
       break;
     case 'Linux':
-      icon = <Icons.Linux style={{ paddingRight: 5 }} />;
+      icon = <Icons.Linux size="small" mr={1} />;
       break;
     default:
-      icon = <Icons.Apple style={{ paddingRight: 5 }} />;
+      icon = <Icons.Apple size="small" mr={1} />;
   }
   return (
-    <Cell align="left">
+    <Cell align="left" style={{ display: 'flex' }}>
       {icon} {osType}
     </Cell>
   );

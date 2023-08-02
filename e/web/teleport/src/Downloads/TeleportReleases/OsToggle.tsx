@@ -20,9 +20,9 @@ export const OsToggle = ({ selectedOS, onClick }: OsToggleProps) => {
   const theme = useTheme();
 
   const buttons: OsButtonProps[] = [
-    { icon: <Icons.Linux />, value: 'Linux' },
-    { icon: <Icons.Apple />, value: 'macOS' },
-    { icon: <Icons.Windows />, value: 'Windows' },
+    { icon: <Icons.Linux size="small" />, value: 'Linux' },
+    { icon: <Icons.Apple size="small" />, value: 'macOS' },
+    { icon: <Icons.Windows size="small" />, value: 'Windows' },
   ];
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {

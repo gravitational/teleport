@@ -36,9 +36,9 @@ export default function Workflow() {
             <ArrowBack
               as={Link}
               mr={2}
-              fontSize={8}
+              size="large"
+              color="text.main"
               to={cfg.getAccessRequestRoute()}
-              style={{ textDecoration: 'none' }}
             />
             <Flex mr={4} alignItems="baseline">
               <Text mr={3}>Request</Text>

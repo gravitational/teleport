@@ -231,27 +231,24 @@ function PluginTile({
       {...tileProps}
     >
       <PluginIcon my={3} type={plugin.type} />
-      <Box mb={2} css={{ position: 'relative' }}>
-        <Text>
-          {plugin.name}
-          {pluginAlreadyEnrolled && (
-            <>
-              {' '}
-              <Icons.Check
-                ml={1}
-                data-testid="plugin-checkmark"
-                color="success"
-                css={`
-                  position: absolute;
-                  display: inline-flex;
-                  align-items: center;
-                  top: 0;
-                  bottom: 0;
-                `}
-              />
-            </>
-          )}
-        </Text>
+      <Box
+        mb={2}
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <Text>{plugin.name}</Text>
+        {pluginAlreadyEnrolled && (
+          <Icons.Check
+            ml={1}
+            data-testid="plugin-checkmark"
+            color="success"
+            size="small"
+          />
+        )}
       </Box>
       {hostedButNoAccess && (
         <ToolTipNoPermBadge

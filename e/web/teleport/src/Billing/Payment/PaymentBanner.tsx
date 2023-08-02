@@ -29,7 +29,7 @@ export const PaymentBanner = ({
           your trial expires.
         </Text>
         <ButtonBorder onClick={() => setOpen(true)} mt="12px">
-          <Icons.Add />
+          <Icons.Add size={13} />
           &nbsp;Add a Payment Method
         </ButtonBorder>
       </Box>

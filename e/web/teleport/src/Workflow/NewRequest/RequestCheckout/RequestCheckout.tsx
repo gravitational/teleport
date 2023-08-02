@@ -12,7 +12,13 @@ import {
   LabelInput,
   Text,
 } from 'design';
-import { ArrowBack, ArrowDown, ArrowRight, Trash, Warning } from 'design/Icon';
+import {
+  ArrowBack,
+  ChevronDown,
+  ChevronRight,
+  Trash,
+  Warning,
+} from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
@@ -192,7 +198,7 @@ export function RequestCheckout({
         )}
         {fetchStatus === 'loading' && (
           <Box mt={5} textAlign="center">
-            <Indicator />
+            <Indicator size="small" />
           </Box>
         )}
 
@@ -216,7 +222,7 @@ export function RequestCheckout({
             ) : (
               <Flex mb={3} alignItems="center">
                 <ArrowBack
-                  fontSize={25}
+                  size="large"
                   mr={3}
                   onClick={onClose}
                   style={{ cursor: 'pointer' }}
@@ -251,7 +257,7 @@ export function RequestCheckout({
                       render: resource => (
                         <Cell align="right">
                           <Trash
-                            fontSize={13}
+                            size="small"
                             borderRadius={2}
                             p={2}
                             onClick={() => {
@@ -361,7 +367,7 @@ function ResourceRequestRoles({
   fetchAttempt: Attempt;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const ArrowIcon = expanded ? ArrowDown : ArrowRight;
+  const ArrowIcon = expanded ? ChevronDown : ChevronRight;
 
   function onInputChange(
     roleName: string,
@@ -395,9 +401,15 @@ function ResourceRequestRoles({
             </Text>
           </Flex>
           {fetchAttempt.status === 'processing' ? (
-            <Box height="100%">
-              <Indicator fontSize="16px" />
-            </Box>
+            <Flex
+              mt={3}
+              mr={1}
+              height="100%"
+              alignItems="center"
+              justifyContent="center"
+            >
+              <Indicator size="medium" />
+            </Flex>
           ) : (
             <Flex
               mt={3}
@@ -406,7 +418,7 @@ function ResourceRequestRoles({
               alignItems="center"
               justifyContent="center"
             >
-              <ArrowIcon fontSize="16px" />
+              <ArrowIcon size="medium" />
             </Flex>
           )}
         </Flex>
@@ -457,7 +469,7 @@ function ResourceRequestRoles({
                 background: ${({ theme }) => theme.colors.levels.surface};
               `}
             >
-              <Warning mr={3} fontSize="16px" color="warning.main" />
+              <Warning mr={3} size="medium" color="warning.main" />
               <Text typography="subtitle2">
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.

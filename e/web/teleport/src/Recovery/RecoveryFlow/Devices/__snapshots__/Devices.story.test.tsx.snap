@@ -10,7 +10,7 @@ exports[`render device list 1`] = `
   box-sizing: border-box;
 }
 
-.c12 {
+.c11 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -38,22 +38,22 @@ exports[`render device list 1`] = `
   width: 100%;
 }
 
-.c12:hover,
-.c12:focus {
+.c11:hover,
+.c11:focus {
   background: #B29DFF;
 }
 
-.c12:active {
+.c11:active {
   background: #C5B6FF;
 }
 
-.c12:disabled {
+.c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c11 {
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -80,25 +80,19 @@ exports[`render device list 1`] = `
   padding: 0px 16px;
 }
 
-.c11:hover,
-.c11:focus {
+.c10:hover,
+.c10:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c11:active {
+.c10:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c11:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
-}
-
-.c9 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
 }
 
 .c0 {
@@ -143,10 +137,16 @@ exports[`render device list 1`] = `
   text-align: center;
 }
 
-.c10 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
+}
+
+.c8 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c6 {
@@ -204,10 +204,8 @@ exports[`render device list 1`] = `
   white-space: nowrap;
 }
 
-.c6 > thead > tr > th .c8 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c6 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c6 > tbody > tr > td {
@@ -287,21 +285,52 @@ exports[`render device list 1`] = `
               Device Name
             </th>
             <th>
-              <a>
+              <a
+                style="display: flex; align-items: center;"
+              >
                 Registered
                 <span
-                  class="c8 c9 icon icon-chevron-down "
+                  class="c8 icon icon-chevrondown"
                   title="sort items desc"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                  >
+                    <path
+                      clip-rule="evenodd"
+                      d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                      fill-rule="evenodd"
+                    />
+                  </svg>
+                </span>
               </a>
             </th>
             <th>
-              <a>
+              <a
+                style="display: flex; align-items: center;"
+              >
                 Last Used
                 <span
-                  class="c8 c9 icon icon-chevrons-expand-vertical "
+                  class="c8 icon icon-chevronsvertical"
                   title="sort items"
-                />
+                >
+                  <svg
+                    fill="currentColor"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    width="24"
+                  >
+                    <path
+                      d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                    />
+                    <path
+                      d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                    />
+                  </svg>
+                </span>
               </a>
             </th>
             <th
@@ -318,7 +347,7 @@ exports[`render device list 1`] = `
               title="iphone 12"
             >
               <div
-                class="c10"
+                class="c9"
                 style="max-width: 96px; white-space: nowrap;"
               >
                 iphone 12
@@ -342,7 +371,7 @@ exports[`render device list 1`] = `
               title="solokey"
             >
               <div
-                class="c10"
+                class="c9"
                 style="max-width: 96px; white-space: nowrap;"
               >
                 solokey
@@ -358,7 +387,7 @@ exports[`render device list 1`] = `
               align="right"
             >
               <button
-                class="c11"
+                class="c10"
                 kind="border"
                 title=""
               >
@@ -374,7 +403,7 @@ exports[`render device list 1`] = `
               title="backup yubikey"
             >
               <div
-                class="c10"
+                class="c9"
                 style="max-width: 96px; white-space: nowrap;"
               >
                 backup yubikey
@@ -390,7 +419,7 @@ exports[`render device list 1`] = `
               align="right"
             >
               <button
-                class="c11"
+                class="c10"
                 kind="border"
                 title=""
               >
@@ -406,7 +435,7 @@ exports[`render device list 1`] = `
               title="yubikey"
             >
               <div
-                class="c10"
+                class="c9"
                 style="max-width: 96px; white-space: nowrap;"
               >
                 yubikey
@@ -422,7 +451,7 @@ exports[`render device list 1`] = `
               align="right"
             >
               <button
-                class="c11"
+                class="c10"
                 kind="border"
                 title=""
               >
@@ -434,7 +463,7 @@ exports[`render device list 1`] = `
       </table>
     </div>
     <button
-      class="c12"
+      class="c11"
       kind="primary"
       type="submit"
       width="100%"

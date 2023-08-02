@@ -1,7 +1,8 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Github, Check } from 'design/Icon';
+import { Check } from 'design/Icon';
 import { AuthProviderType } from 'shared/services';
+import { GitHubIcon } from 'design/SVGIcon';
 
 import Text from 'design/Text';
 
@@ -28,17 +29,19 @@ export default function getSsoIcon(
   if (kind === 'github') {
     return {
       SsoIcon: props => (
-        <Github
-          style={{ textAlign: 'center' }}
-          fontSize="50px"
-          color="text.main"
-          {...props}
-        />
+        <Flex height="72px" alignItems="center">
+          <GitHubIcon
+            style={{ textAlign: 'center' }}
+            size={48}
+            color="text.main"
+            {...props}
+          />
+        </Flex>
       ),
       desc,
       info: isFeatureLocked ? (
         <Flex alignItems="center">
-          <Check fontSize="16px" color="#00bfa5"></Check>
+          <Check size="small" color="#00bfa5"></Check>
           <Text ml="2">Included with Teleport Team Plan</Text>
         </Flex>
       ) : (

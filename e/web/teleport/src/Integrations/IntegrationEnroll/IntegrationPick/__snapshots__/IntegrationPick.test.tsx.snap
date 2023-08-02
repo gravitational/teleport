@@ -12,6 +12,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   margin-top: 16px;
 }
 
+.c14 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -147,12 +152,6 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   height: 100%;
 }
 
-.c14 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-  position: relative;
-}
-
 <div>
   <div
     class="c0"
@@ -242,6 +241,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             />
             <div
               class="c14"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -292,6 +292,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             />
             <div
               class="c14"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -313,6 +314,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             />
             <div
               class="c14"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -334,6 +336,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             />
             <div
               class="c14"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -355,6 +358,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             />
             <div
               class="c14"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -775,6 +779,11 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   margin-top: 16px;
 }
 
+.c16 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -943,12 +952,6 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   height: 100%;
 }
 
-.c16 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-  position: relative;
-}
-
 <div>
   <div
     class="c0"
@@ -1044,6 +1047,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             />
             <div
               class="c16"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1094,6 +1098,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             />
             <div
               class="c16"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1115,6 +1120,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             />
             <div
               class="c16"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1136,6 +1142,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             />
             <div
               class="c16"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1157,6 +1164,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
             />
             <div
               class="c16"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1577,6 +1585,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   margin-top: 16px;
 }
 
+.c15 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1745,12 +1758,6 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   height: 100%;
 }
 
-.c15 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-  position: relative;
-}
-
 <div>
   <div
     class="c0"
@@ -1840,6 +1847,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1865,6 +1873,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1890,6 +1899,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1915,6 +1925,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1940,6 +1951,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -1965,6 +1977,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -2021,6 +2034,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -2042,6 +2056,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -2063,6 +2078,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"
@@ -2084,6 +2100,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             />
             <div
               class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
             >
               <div
                 class="c11"

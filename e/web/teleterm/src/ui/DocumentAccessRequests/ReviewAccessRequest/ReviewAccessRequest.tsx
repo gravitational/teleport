@@ -40,7 +40,7 @@ export function ReviewAccessRequest(props: Props) {
           <Flex alignItems="center">
             <ArrowBack
               mr={2}
-              fontSize={8}
+              size="large"
               onClick={goBack}
               style={{ textDecoration: 'none', cursor: 'pointer' }}
             />

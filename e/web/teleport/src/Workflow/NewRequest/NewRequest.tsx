@@ -283,7 +283,7 @@ export function NewRequest(props: State) {
                       disabled={!prevPage || fetchStatus === 'loading'}
                       mx={0}
                     >
-                      <CircleArrowLeft fontSize="3" />
+                      <CircleArrowLeft />
                     </StyledArrowBtn>
                     <StyledArrowBtn
                       ml={0}
@@ -291,7 +291,7 @@ export function NewRequest(props: State) {
                       title="Next page"
                       disabled={!nextPage || fetchStatus === 'loading'}
                     >
-                      <CircleArrowRight fontSize="3" />
+                      <CircleArrowRight />
                     </StyledArrowBtn>
                   </Flex>
                 </Flex>

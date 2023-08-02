@@ -260,18 +260,18 @@ function Timestamp({
   createdDuration: string;
 }) {
   let iconBgColor = 'levels.elevated';
-  let $icon = <ChevronCircleDown fontSize={8} color="text.muted" />;
+  let $icon = <ChevronCircleDown size={26} color="text.muted" />;
   let verb = `submitted`;
 
   if (state === 'APPROVED') {
     iconBgColor = 'success';
-    $icon = <CircleCheck fontSize={8} color="light" />;
+    $icon = <CircleCheck size={26} color="light" />;
     verb = 'approved';
   }
 
   if (state === 'DENIED') {
     iconBgColor = 'error.main';
-    $icon = <CircleCross fontSize={8} color="light" />;
+    $icon = <CircleCross size={26} color="light" />;
     verb = 'denied';
   }
 
@@ -282,7 +282,6 @@ function Timestamp({
         mr={2}
         bg={iconBgColor}
         p="3px"
-        pl="4px"
         borderRadius="50%"
         style={{ display: 'flex' }}
       >

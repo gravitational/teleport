@@ -61,24 +61,24 @@ export const CardList = ({
   const getIcon = (brand: string): React.ReactNode => {
     switch (brand) {
       case 'visa':
-        return <Icons.Visa fontSize="20px" data-testid={'icon-visa'} />;
+        return <Icons.CCVisa size="small" data-testid={'icon-visa'} />;
       case 'amex':
-        return <Icons.Amex fontSize="20px" data-testid={'icon-amex'} />;
+        return <Icons.CCAmex size="small" data-testid={'icon-amex'} />;
       case 'mastercard':
         return (
-          <Icons.MasterCard fontSize="20px" data-testid={'icon-mastercard'} />
+          <Icons.CCMasterCard size="small" data-testid={'icon-mastercard'} />
         );
       case 'discover':
-        return <Icons.Discover fontSize="20px" data-testid={'icon-discover'} />;
+        return <Icons.CCDiscover size="small" data-testid={'icon-discover'} />;
       case 'cartes_bancaires':
       case 'diners':
       case 'jcb':
       case 'unionpay':
         // generic known/supported card brands
-        return <Icons.Stripe fontSize="20px" data-testid={'icon-generic'} />;
+        return <Icons.CCStripe size="small" data-testid={'icon-generic'} />;
       default:
         // unsupported card brand
-        return <Icons.Cross fontSize="20px" data-testid={'icon-unknown'} />;
+        return <Icons.Cross size="small" data-testid={'icon-unknown'} />;
     }
   };
 
@@ -180,7 +180,7 @@ export const CardList = ({
                 flexDirection="column"
                 height="100%"
               >
-                <Icons.Add fontSize="40px" />
+                <Icons.Add size="small" mb={3} />
                 <Text>Add a Payment Method</Text>
               </Flex>
             </ButtonSecondary>

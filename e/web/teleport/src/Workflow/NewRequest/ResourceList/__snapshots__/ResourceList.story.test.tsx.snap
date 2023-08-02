@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render Apps 1`] = `
-.c7 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -29,28 +29,28 @@ exports[`render Apps 1`] = `
   width: 134px;
 }
 
-.c7:hover,
-.c7:focus {
+.c6:hover,
+.c6:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c7:active {
+.c6:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c7:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c4 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
@@ -111,10 +111,8 @@ exports[`render Apps 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th .c3 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c1 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c1 > tbody > tr > td {
@@ -130,7 +128,7 @@ exports[`render Apps 1`] = `
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -146,7 +144,7 @@ exports[`render Apps 1`] = `
   cursor: pointer;
 }
 
-.c6:hover {
+.c5:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -173,21 +171,53 @@ exports[`render Apps 1`] = `
       <thead>
         <tr>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Name
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Description
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -218,10 +248,10 @@ exports[`render Apps 1`] = `
           </td>
           <td>
             <div
-              class="c5"
+              class="c4"
             >
               <div
-                class="c6"
+                class="c5"
                 kind="secondary"
               >
                 aws_account_id: A1234
@@ -232,7 +262,7 @@ exports[`render Apps 1`] = `
             align="right"
           >
             <button
-              class="c7"
+              class="c6"
               kind="border"
               width="134px"
             >
@@ -247,7 +277,7 @@ exports[`render Apps 1`] = `
 `;
 
 exports[`render Databases 1`] = `
-.c7 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -275,28 +305,28 @@ exports[`render Databases 1`] = `
   width: 134px;
 }
 
-.c7:hover,
-.c7:focus {
+.c6:hover,
+.c6:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c7:active {
+.c6:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c7:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c4 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
@@ -357,10 +387,8 @@ exports[`render Databases 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th .c3 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c1 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c1 > tbody > tr > td {
@@ -376,7 +404,7 @@ exports[`render Databases 1`] = `
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -392,7 +420,7 @@ exports[`render Databases 1`] = `
   cursor: pointer;
 }
 
-.c6:hover {
+.c5:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -419,30 +447,78 @@ exports[`render Databases 1`] = `
       <thead>
         <tr>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Name
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Description
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Type
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -468,10 +544,10 @@ exports[`render Databases 1`] = `
           </td>
           <td>
             <div
-              class="c5"
+              class="c4"
             >
               <div
-                class="c6"
+                class="c5"
                 kind="secondary"
               >
                 cluster: root
@@ -482,7 +558,7 @@ exports[`render Databases 1`] = `
             align="right"
           >
             <button
-              class="c7"
+              class="c6"
               kind="border"
               width="134px"
             >
@@ -497,7 +573,7 @@ exports[`render Databases 1`] = `
 `;
 
 exports[`render Desktops 1`] = `
-.c7 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -525,28 +601,28 @@ exports[`render Desktops 1`] = `
   width: 134px;
 }
 
-.c7:hover,
-.c7:focus {
+.c6:hover,
+.c6:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c7:active {
+.c6:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c7:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c4 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
@@ -607,10 +683,8 @@ exports[`render Desktops 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th .c3 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c1 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c1 > tbody > tr > td {
@@ -626,7 +700,7 @@ exports[`render Desktops 1`] = `
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -642,7 +716,7 @@ exports[`render Desktops 1`] = `
   cursor: pointer;
 }
 
-.c6:hover {
+.c5:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -674,12 +748,28 @@ exports[`render Desktops 1`] = `
             Address
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Name
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -702,10 +792,10 @@ exports[`render Desktops 1`] = `
           </td>
           <td>
             <div
-              class="c5"
+              class="c4"
             >
               <div
-                class="c6"
+                class="c5"
                 kind="secondary"
               >
                 foo: bar
@@ -716,7 +806,7 @@ exports[`render Desktops 1`] = `
             align="right"
           >
             <button
-              class="c7"
+              class="c6"
               kind="border"
               width="134px"
             >
@@ -731,7 +821,7 @@ exports[`render Desktops 1`] = `
 `;
 
 exports[`render Kubes 1`] = `
-.c7 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -759,28 +849,28 @@ exports[`render Kubes 1`] = `
   width: 134px;
 }
 
-.c7:hover,
-.c7:focus {
+.c6:hover,
+.c6:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c7:active {
+.c6:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c7:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c4 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
@@ -841,10 +931,8 @@ exports[`render Kubes 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th .c3 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c1 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c1 > tbody > tr > td {
@@ -860,7 +948,7 @@ exports[`render Kubes 1`] = `
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -876,7 +964,7 @@ exports[`render Kubes 1`] = `
   cursor: pointer;
 }
 
-.c6:hover {
+.c5:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -903,12 +991,28 @@ exports[`render Kubes 1`] = `
       <thead>
         <tr>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Name
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -928,10 +1032,10 @@ exports[`render Kubes 1`] = `
           </td>
           <td>
             <div
-              class="c5"
+              class="c4"
             >
               <div
-                class="c6"
+                class="c5"
                 kind="secondary"
               >
                 env: prod
@@ -942,7 +1046,7 @@ exports[`render Kubes 1`] = `
             align="right"
           >
             <button
-              class="c7"
+              class="c6"
               kind="border"
               width="134px"
             >
@@ -957,7 +1061,7 @@ exports[`render Kubes 1`] = `
 `;
 
 exports[`render Nodes 1`] = `
-.c7 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -985,28 +1089,28 @@ exports[`render Nodes 1`] = `
   width: 134px;
 }
 
-.c7:hover,
-.c7:focus {
+.c6:hover,
+.c6:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c7:active {
+.c6:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c7:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c4 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
@@ -1067,10 +1171,8 @@ exports[`render Nodes 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th .c3 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c1 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c1 > tbody > tr > td {
@@ -1086,7 +1188,7 @@ exports[`render Nodes 1`] = `
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1102,7 +1204,7 @@ exports[`render Nodes 1`] = `
   cursor: pointer;
 }
 
-.c6:hover {
+.c5:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -1129,12 +1231,28 @@ exports[`render Nodes 1`] = `
       <thead>
         <tr>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Hostname
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -1162,10 +1280,10 @@ exports[`render Nodes 1`] = `
           </td>
           <td>
             <div
-              class="c5"
+              class="c4"
             >
               <div
-                class="c6"
+                class="c5"
                 kind="secondary"
               >
                 cluster: one
@@ -1176,7 +1294,7 @@ exports[`render Nodes 1`] = `
             align="right"
           >
             <button
-              class="c7"
+              class="c6"
               kind="border"
               width="134px"
             >
@@ -1191,7 +1309,7 @@ exports[`render Nodes 1`] = `
 `;
 
 exports[`render Roles 1`] = `
-.c5 {
+.c4 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1219,25 +1337,25 @@ exports[`render Roles 1`] = `
   width: 134px;
 }
 
-.c5:hover,
-.c5:focus {
+.c4:hover,
+.c4:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c5:active {
+.c4:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c5:disabled {
+.c4:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c4 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c1 {
@@ -1295,10 +1413,8 @@ exports[`render Roles 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th .c3 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c1 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c1 > tbody > tr > td {
@@ -1337,12 +1453,27 @@ exports[`render Roles 1`] = `
       <thead>
         <tr>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Role Name
               <span
-                class="c3 c4 icon icon-chevron-up "
+                class="c3 icon icon-chevronup"
                 title="sort items asc"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M11.4697 6.96967C11.7626 6.67678 12.2374 6.67678 12.5303 6.96967L20.0303 14.4697C20.3232 14.7626 20.3232 15.2374 20.0303 15.5303C19.7374 15.8232 19.2626 15.8232 18.9697 15.5303L12 8.56066L5.03033 15.5303C4.73744 15.8232 4.26256 15.8232 3.96967 15.5303C3.67678 15.2374 3.67678 14.7626 3.96967 14.4697L11.4697 6.96967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -1359,7 +1490,7 @@ exports[`render Roles 1`] = `
             align="right"
           >
             <button
-              class="c5"
+              class="c4"
               kind="border"
               width="134px"
             >
@@ -1375,7 +1506,7 @@ exports[`render Roles 1`] = `
             align="right"
           >
             <button
-              class="c5"
+              class="c4"
               kind="border"
               width="134px"
             >
@@ -1390,7 +1521,7 @@ exports[`render Roles 1`] = `
 `;
 
 exports[`render UserGroups 1`] = `
-.c7 {
+.c6 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1418,28 +1549,28 @@ exports[`render UserGroups 1`] = `
   width: 134px;
 }
 
-.c7:hover,
-.c7:focus {
+.c6:hover,
+.c6:focus {
   background: rgba(255,255,255,0.07);
 }
 
-.c7:active {
+.c6:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c7:disabled {
+.c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c4 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
+.c3 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.c5 {
+.c4 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
@@ -1500,10 +1631,8 @@ exports[`render UserGroups 1`] = `
   white-space: nowrap;
 }
 
-.c1 > thead > tr > th .c3 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c1 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c1 > tbody > tr > td {
@@ -1519,7 +1648,7 @@ exports[`render UserGroups 1`] = `
   background-color: rgba(255,255,255,0.07);
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1535,7 +1664,7 @@ exports[`render UserGroups 1`] = `
   cursor: pointer;
 }
 
-.c6:hover {
+.c5:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
@@ -1562,21 +1691,53 @@ exports[`render UserGroups 1`] = `
       <thead>
         <tr>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Name
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Description
               <span
-                class="c3 c4 icon icon-chevrons-expand-vertical "
+                class="c3 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -1599,10 +1760,10 @@ exports[`render UserGroups 1`] = `
           </td>
           <td>
             <div
-              class="c5"
+              class="c4"
             >
               <div
-                class="c6"
+                class="c5"
                 kind="secondary"
               >
                 env: prod
@@ -1613,7 +1774,7 @@ exports[`render UserGroups 1`] = `
             align="right"
           >
             <button
-              class="c7"
+              class="c6"
               kind="border"
               width="134px"
             >
@@ -1630,10 +1791,10 @@ exports[`render UserGroups 1`] = `
           </td>
           <td>
             <div
-              class="c5"
+              class="c4"
             >
               <div
-                class="c6"
+                class="c5"
                 kind="secondary"
               >
                 env: dev
@@ -1644,7 +1805,7 @@ exports[`render UserGroups 1`] = `
             align="right"
           >
             <button
-              class="c7"
+              class="c6"
               kind="border"
               width="134px"
             >

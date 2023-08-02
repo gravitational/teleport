@@ -70,10 +70,10 @@ export function SelectReviewers({
         <components.Option {...props} className="react-select__selected">
           <Flex alignItems="center" justifyContent="space-between">
             <Flex alignItems="center" width="210px">
-              <Icon.CircleCheck />
+              <Icon.CircleCheck size="medium" color="success" mr={2} />
               <Text title={props.data.value}>{props.data.value}</Text>
             </Flex>
-            <Icon.Cross />
+            <Icon.Cross size="small" />
           </Flex>
         </components.Option>
       );
@@ -296,7 +296,7 @@ const SelectWrapper = styled(Box)`
       }
     }
 
-    .icon-checkmark-circle {
+    .icon-circlecheck {
       color: transparent;
       margin-right: 10px;
     }
@@ -312,7 +312,7 @@ const SelectWrapper = styled(Box)`
   }
 
   .react-select__selected {
-    .icon-checkmark-circle {
+    .icon-circlecheck {
       color: ${props => props.theme.colors.success};
     }
 

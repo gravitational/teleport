@@ -2,7 +2,7 @@ import React from 'react';
 import { Transition } from 'react-transition-group';
 
 import { Box, Flex, ButtonPrimary, ButtonText, Text, ButtonIcon } from 'design';
-import { ArrowDown } from 'design/Icon';
+import { ChevronDown } from 'design/Icon';
 
 import { pluralize } from 'teleport/lib/util';
 
@@ -86,7 +86,7 @@ export function AccessRequestCheckout() {
                 Proceed to Request
               </ButtonPrimary>
               <ButtonIcon onClick={collapseBar}>
-                <ArrowDown fontSize={3} />
+                <ChevronDown size="medium" />
               </ButtonIcon>
             </Flex>
           </Flex>

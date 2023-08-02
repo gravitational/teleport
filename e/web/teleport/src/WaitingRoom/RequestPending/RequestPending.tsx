@@ -16,7 +16,7 @@ export default function RequestPending() {
       open={true}
     >
       <DialogContent alignItems="center">
-        <ShieldCheck fontSize={40} mb={3} />
+        <ShieldCheck size={48} mb={3} />
         <Text mb={1} bold caps>
           Your access is being authorized
         </Text>

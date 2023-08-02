@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
+import { Flex } from 'design';
 import { Edit } from 'design/Icon';
 import Text from 'design/Text';
 import Support from 'teleport/Support';
@@ -43,10 +44,10 @@ export const SupportE = ({
           <DataItem
             title="Window Start Time"
             data={
-              <span>
+              <Flex alignItems="center">
                 {makeLabel(selectedUpgradeWindowStart)}
-                <EditLink onClick={showScheduleUpgrade} ml="2" />
-              </span>
+                <EditLink onClick={showScheduleUpgrade} ml="2" size="medium" />
+              </Flex>
             }
           />
           <Text>
@@ -70,8 +71,8 @@ export const SupportE = ({
 
 const EditLink = styled(Edit)`
   color: ${props => props.theme.colors.text.slightlyMuted};
-  ${props => props.theme.typography.body2}
-  &:hover, &:focus {
+  &:hover,
+  &:focus {
     color: ${props => props.theme.colors.text.main};
     cursor: pointer;
   }

@@ -131,7 +131,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
             placeholder="access-requests"
             toolTipContent="The default channel will receive all notifications about access requests. Request notifications will also be sent directly to assigned reviewers (if any)."
           />
-          <StyledHashtagIcon color="text.primaryInverse" />
+          <StyledHashtagIcon color="text.primary" size="medium" />
         </InputIconContainer>
       );
     },
@@ -673,10 +673,9 @@ const InputIconContainer = styled.div`
 
 const StyledHashtagIcon = styled(Icons.Hashtag)`
   display: inline;
-  font-size: 14px;
   padding: 0 6px;
   position: absolute;
-  top: 43px;
+  top: 40px;
 `;
 
 const StyledFieldInput = styled(FieldInput)`

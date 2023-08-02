@@ -1,17 +1,21 @@
 import React, { lazy } from 'react';
-import * as Icons from 'design/Icon';
-import { Chart, Profile } from 'design/Icon';
 import * as OSS from 'teleport/features';
 import {
   ManagementSection,
   NavigationCategory,
 } from 'teleport/Navigation/categories';
+
 import {
-  AccessRequestsIcon,
-  DevicesIcon,
-  DownloadsIcon,
-  SupportIcon,
-} from 'design/SVGIcon';
+  EqualizersVertical,
+  Download,
+  Headset,
+  Laptop,
+  Add,
+  ListAddCheck,
+  Chart,
+  Profile,
+  Invoices,
+} from 'design/Icon';
 
 import cfg from 'e-teleport/config';
 import {
@@ -62,7 +66,7 @@ class FeatureAccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
   navigationItem: TeleportFeatureNavigationItem = {
     title: 'Access Requests',
-    icon: <AccessRequestsIcon />,
+    icon: <EqualizersVertical />,
   };
 
   hasAccess() {
@@ -82,7 +86,7 @@ class FeatureAccessRequests implements TeleportFeature {
 
   lockedNavigationItem = {
     title: 'Access Requests',
-    icon: <AccessRequestsIcon />,
+    icon: <EqualizersVertical />,
     getLink(clusterId: string) {
       return cfg.getNewAccessRequestRoute(clusterId);
     },
@@ -105,7 +109,7 @@ class FeatureNewAccessRequest implements TeleportFeature {
 
   navigationItem = {
     title: 'New Request',
-    icon: <Icons.Add />,
+    icon: <Add />,
     getLink(clusterId: string) {
       return cfg.getNewAccessRequestRoute(clusterId);
     },
@@ -129,7 +133,7 @@ class FeatureReviewAccessRequests implements TeleportFeature {
 
   navigationItem = {
     title: 'Review Requests',
-    icon: <Icons.ListAddCheck />,
+    icon: <ListAddCheck />,
     getLink() {
       return cfg.getAccessRequestRoute();
     },
@@ -194,7 +198,7 @@ export class FeaturePaymentsAndInvoices implements TeleportFeature {
 
   navigationItem = {
     title: 'Payments and Invoices',
-    icon: <Profile />,
+    icon: <Invoices />,
     getLink(clusterId: string) {
       return cfg.getPaymentsInvoicesRoute(clusterId);
     },
@@ -244,7 +248,7 @@ class FeatureDownloadCenter implements TeleportFeature {
 
   navigationItem = {
     title: 'Downloads',
-    icon: <DownloadsIcon size={22} />,
+    icon: <Download />,
     getLink() {
       return cfg.routes.downloadCenter;
     },
@@ -260,7 +264,7 @@ class FeatureSupport implements TeleportFeature {
 
   navigationItem = {
     title: 'Support',
-    icon: <SupportIcon size={22} />,
+    icon: <Headset />,
     getLink() {
       return 'https://support.goteleport.com/';
     },
@@ -297,7 +301,7 @@ class FeatureDeviceTrust implements TeleportFeature {
 
   navigationItem = {
     title: 'Trusted Devices',
-    icon: <DevicesIcon />,
+    icon: <Laptop />,
     exact: true,
     getLink() {
       return cfg.routes.deviceTrust;

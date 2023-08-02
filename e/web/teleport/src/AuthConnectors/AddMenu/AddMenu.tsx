@@ -58,7 +58,7 @@ class AddMenu extends React.Component<Props> {
           onClick={this.onOpen}
         >
           NEW AUTH CONNECTOR
-          <Icons.CarrotDown ml="2" fontSize="23" color="buttons.primary.text" />
+          <Icons.ChevronDown ml={2} size="small" color="buttons.primary.text" />
         </ButtonPrimary>
         <Menu
           anchorEl={this.anchorEl}
