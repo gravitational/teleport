@@ -75,11 +75,8 @@ where
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
-    let tokio_rt = tokio::runtime::Runtime::new().unwrap();
-
     match Client::connect(
         go_ref,
-        tokio_rt,
         ConnectParams {
             addr,
             username,

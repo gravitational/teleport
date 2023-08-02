@@ -16,6 +16,7 @@ use crate::errors::invalid_data_error;
 use rdp::model::error::RdpResult;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString, NulError};
+use std::io;
 use std::os::raw::c_char;
 use std::slice;
 use utf16string::{WString, LE};
@@ -132,6 +133,64 @@ pub fn encode_png(
     writer.write_image_data(&data)?;
     writer.finish()?;
     Ok(())
+}
+
+// Taken from ironrdp_tls
+pub fn extract_tls_server_public_key(cert: &[u8]) -> std::io::Result<Vec<u8>> {
+    use x509_cert::der::Decode as _;
+
+    let cert = x509_cert::Certificate::from_der(cert)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    let server_public_key = cert
+        .tbs_certificate
+        .subject_public_key_info
+        .subject_public_key
+        .as_bytes()
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "subject public key BIT STRING is not aligned",
+            )
+        })?
+        .to_owned();
+
+    Ok(server_public_key)
+}
+
+/// Takes an fd and hangs until it's to be ready to read from.
+#[cfg(unix)]
+pub fn hang_until_read_ready(fd: i32) -> io::Result<()> {
+    let fds = &mut libc::pollfd {
+        fd,
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    loop {
+        let res = unsafe { libc::poll(fds, 1, -1) };
+
+        // We only use a single fd and can't timeout, so
+        // res will either be 1 for success or -1 for failure.
+        if res != 1 {
+            let os_err = std::io::Error::last_os_error();
+            match os_err.raw_os_error() {
+                Some(libc::EINTR) | Some(libc::EAGAIN) => continue,
+                _ => return Err(os_err),
+            }
+        }
+
+        // res == 1
+        // POLLIN means that the fd is ready to be read from,
+        // POLLHUP means that the other side of the pipe was closed,
+        // but we still may have data to read.
+        if fds.revents & (libc::POLLIN | libc::POLLHUP) != 0 {
+            return Ok(()); // ready for a read
+        } else if fds.revents & libc::POLLNVAL != 0 {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid fd"));
+        } else {
+            return Err(io::Error::new(io::ErrorKind::Other, "error on fd"));
+        }
+    }
 }
 
 #[cfg(test)]
