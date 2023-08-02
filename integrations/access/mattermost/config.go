@@ -35,7 +35,7 @@ type Config struct {
 
 type MattermostConfig struct {
 	URL        string   `toml:"url"`
-	Recipients []string `toml:"recipients"`
+	Recipients []string `toml:"recipients"` // optional
 	Token      string   `toml:"token"`
 }
 
@@ -70,11 +70,12 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Mattermost.URL == "" {
 		return trace.BadParameter("missing required value mattermost.url")
 	}
-	if len(c.Mattermost.Recipients) == 0 {
-		return trace.BadParameter("missing required value mattermost.recipients")
-	}
-	c.Recipients = common.RawRecipientsMap{
-		"*": c.Mattermost.Recipients,
+
+	// Optional field.
+	if len(c.Mattermost.Recipients) > 0 {
+		c.Recipients = common.RawRecipientsMap{
+			"*": c.Mattermost.Recipients,
+		}
 	}
 
 	if c.Log.Output == "" {
