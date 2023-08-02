@@ -434,11 +434,12 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if maxAge := o.Spec.MaxAge; maxAge != nil {
-		if *maxAge < 0 {
+	if o.Spec.MaxAge != nil {
+		maxAge := time.Duration(o.Spec.MaxAge.Value)
+		if maxAge < 0 {
 			return trace.BadParameter("max_age cannot be negative")
 		}
-		if maxAge.Round(time.Second) != *maxAge {
+		if maxAge.Round(time.Second) != maxAge {
 			return trace.BadParameter("max_age must be a multiple of seconds")
 		}
 	}
@@ -459,7 +460,7 @@ func (o *OIDCConnectorV3) GetMaxAge() (time.Duration, bool) {
 	if o.Spec.MaxAge == nil {
 		return 0, false
 	}
-	return *o.Spec.MaxAge, true
+	return time.Duration(o.Spec.MaxAge.Value), true
 }
 
 // Check returns nil if all parameters are great, err otherwise
