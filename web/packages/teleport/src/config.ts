@@ -95,7 +95,7 @@ const cfg = {
     clusters: '/web/clusters',
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
-    resources: '/web/cluster/:clusterId/resources',
+    unifiedResources: '/web/cluster/:clusterId/resources',
     nodes: '/web/cluster/:clusterId/nodes',
     sessions: '/web/cluster/:clusterId/sessions',
     recordings: '/web/cluster/:clusterId/recordings',
@@ -152,7 +152,7 @@ const cfg = {
     userStatusPath: '/v1/webapi/user/status',
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
-    resourcesPath:
+    unifiedResourcesPath:
       '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -338,7 +338,7 @@ const cfg = {
   },
 
   getUnifiedResourcesRoute(clusterId: string) {
-    return generatePath(cfg.routes.resources, { clusterId });
+    return generatePath(cfg.routes.unifiedResources, { clusterId });
   },
 
   getDatabasesRoute(clusterId: string) {
@@ -530,7 +530,7 @@ const cfg = {
   },
 
   getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.resourcesPath, {
+    return generateResourcePath(cfg.api.unifiedResourcesPath, {
       clusterId,
       ...params,
     });

@@ -103,7 +103,7 @@ export class FeatureNodes implements TeleportFeature {
 export class FeatureUnifiedResources implements TeleportFeature {
   route = {
     title: 'Resources',
-    path: cfg.routes.resources,
+    path: cfg.routes.unifiedResources,
     exact: true,
     component: UnifiedResources,
   };
@@ -120,7 +120,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
   category = NavigationCategory.Resources;
 
   hasAccess() {
-    return localStorage.areUnifiedResourcesEnabled();
+    return true;
   }
 }
 
@@ -604,9 +604,13 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 }
 
 export function getOSSFeatures(): TeleportFeature[] {
+  const unifiedResources = localStorage.areUnifiedResourcesEnabled()
+    ? [new FeatureUnifiedResources()]
+    : [];
+
   return [
     // Resources
-    new FeatureUnifiedResources(),
+    ...unifiedResources,
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),

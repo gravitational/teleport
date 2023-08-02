@@ -45,7 +45,7 @@ export function useInfiniteScroll<T extends UnifiedResource>({
     totalCount: 0,
   });
 
-  const fetch = async () => {
+  const fetchInitial = async () => {
     setAttempt({ status: 'processing' });
     try {
       const res = await fetchFunc(clusterId, {
@@ -90,7 +90,7 @@ export function useInfiniteScroll<T extends UnifiedResource>({
   };
 
   return {
-    fetch,
+    fetchInitial,
     fetchMore,
     attempt,
     fetchedData,
@@ -109,7 +109,7 @@ type Props<T extends UnifiedResource> = {
 };
 
 type State<T extends UnifiedResource> = {
-  fetch: (() => void) | null;
+  fetchInitial: (() => void) | null;
   fetchMore: (() => void) | null;
   attempt: Attempt;
   fetchedData: AgentResponse<T>;
