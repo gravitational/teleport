@@ -225,22 +225,22 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 	// Attempt registration.
 	const origin = "localhost"
 	cc := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: protocol.RelyingPartyEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
 				ID: "localhost",
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "test RP",
 				},
 			},
-			User: protocol.UserEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			User: wanlib.UserEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "test",
 				},
 				ID:          []byte("test"),
 				DisplayName: "test",
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
@@ -261,10 +261,10 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 
 	// Attempt login.
 	assertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: cc.Response.RelyingParty.ID,
-			AllowedCredentials: []protocol.CredentialDescriptor{
+			AllowedCredentials: []wanlib.CredentialDescriptor{
 				{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: ccr.GetWebauthn().GetRawId(),
