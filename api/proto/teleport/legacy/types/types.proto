@@ -17,6 +17,7 @@ syntax = "proto3";
 package types;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -3963,17 +3964,9 @@ message OIDCConnectorSpecV3 {
   // MaxAge is the amount of time that user logins are
   // valid for. If a user logs in, but then does not login again
   // within this time period, they will be forced to re-authenticate.
-  MaxAge MaxAge = 17 [
-    (gogoproto.jsontag) = "",
-    (gogoproto.embed) = true
-  ];
-}
-
-// MaxAge allows the max_age parameter to be unset to preserve backwards compatibility.
-message MaxAge {
-  int64 Value = 1 [
+  google.protobuf.Duration MaxAge = 17 [
     (gogoproto.jsontag) = "max_age",
-    (gogoproto.casttype) = "Duration"
+    (gogoproto.stdduration) = true
   ];
 }
 
