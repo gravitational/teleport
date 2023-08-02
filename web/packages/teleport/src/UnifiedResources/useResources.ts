@@ -16,6 +16,8 @@ limitations under the License.
 
 import { useEffect } from 'react';
 
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
 import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { useUrlFiltering } from 'teleport/components/hooks';
@@ -25,7 +27,6 @@ import {
   AgentResponse,
   UnifiedResource,
 } from 'teleport/services/agents';
-import { Attempt } from 'shared/hooks/useAttemptNext';
 
 export interface ResourcesState {
   fetchedData: AgentResponse<UnifiedResource>;
