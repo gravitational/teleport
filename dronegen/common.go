@@ -154,6 +154,8 @@ type buildType struct {
 	centos7         bool
 	windowsUnsigned bool
 	buildConnect    bool
+	buildDeb        bool
+	buildRPM        bool
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
@@ -260,8 +262,9 @@ func dockerRegistryService() service {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	// All x86_64 binaries are built on CentOS 7 now for better glibc compatibility.
-	if b.centos7 || b.arch == "amd64" {
+	// x86_64 binaries are built on CentOS 7 now for better glibc compatibility,
+	// unless we're building a debian package.
+	if (b.centos7 || b.arch == "amd64") && !b.buildDeb {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
