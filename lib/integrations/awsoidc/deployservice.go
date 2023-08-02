@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -185,7 +184,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
 
 	if r.TeleportVersionTag == "" {
-		r.TeleportVersionTag = teleport.Version
+		r.TeleportVersionTag = "13.2.3"
 	}
 
 	if r.TeleportIAMTokenName == nil || *r.TeleportIAMTokenName == "" {
@@ -433,7 +432,7 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceR
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
 		teleportFlavor = teleportEnt
 	}
-	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, req.TeleportVersionTag)
+	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, "13.2.3")
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,

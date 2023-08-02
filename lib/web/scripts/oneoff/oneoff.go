@@ -22,8 +22,6 @@ import (
 	"text/template"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport"
 )
 
 const (
@@ -86,7 +84,7 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 	}
 
 	if p.TeleportVersion == "" {
-		p.TeleportVersion = "v" + teleport.Version
+		p.TeleportVersion = "v" + "13.2.3"
 	}
 
 	return nil
