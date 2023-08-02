@@ -30,7 +30,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import type {
   AgentProcessState,
-  SubscribeToAgentUpdate,
+  MainProcessClient,
 } from 'teleterm/mainProcess/types';
 
 export interface ConnectMyComputerContext {
@@ -61,16 +61,9 @@ export const ConnectMyComputerContextProvider: FC<{
 
     await Promise.race([
       waitForNodeToJoin,
-      waitForAgentProcessErrors(
-        mainProcessClient.subscribeToAgentUpdate,
-        props.rootClusterUri
-      ),
+      waitForAgentProcessErrors(mainProcessClient, props.rootClusterUri),
     ]);
-  }, [
-    connectMyComputerService,
-    mainProcessClient.subscribeToAgentUpdate,
-    props.rootClusterUri,
-  ]);
+  }, [connectMyComputerService, mainProcessClient, props.rootClusterUri]);
 
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
@@ -108,48 +101,65 @@ export const useConnectMyComputerContext = () => {
  * If none of them happen within 20 seconds, the promise resolves.
  */
 async function waitForAgentProcessErrors(
-  subscribeToAgentUpdate: SubscribeToAgentUpdate,
+  mainProcessClient: MainProcessClient,
   rootClusterUri: RootClusterUri
 ) {
   let cleanupFn: () => void;
 
   try {
     const errorPromise = new Promise((_, reject) => {
-      const { cleanup } = subscribeToAgentUpdate(rootClusterUri, agentState => {
-        if (agentState.status === 'exited') {
-          const { code, signal } = agentState;
-          const codeOrSignal = [
-            // code can be 0, so we cannot just check it the same way as the signal.
-            code != null && `code ${code}`,
-            signal && `signal ${signal}`,
-          ]
-            .filter(Boolean)
-            .join(' ');
+      const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
+        rootClusterUri,
+        agentProcessState => {
+          const error = isProcessInErrorOrExitState(agentProcessState);
+          if (error) {
+            reject(error);
+          }
+        }
+      );
 
-          reject(
-            new Error(
-              [
-                `Agent process exited with ${codeOrSignal}.`,
-                agentState.stackTrace,
-              ]
-                .filter(Boolean)
-                .join('\n')
-            )
-          );
-        }
-        if (agentState.status === 'error') {
-          reject(
-            new Error(
-              ['Agent process failed to start.', agentState.message].join('\n')
-            )
-          );
-        }
+      // the state may have changed before we started listening, we have to check the current state
+      const agentProcessState = mainProcessClient.getAgentState({
+        rootClusterUri,
       });
+      const error = isProcessInErrorOrExitState(agentProcessState);
+      if (error) {
+        reject(error);
+      }
 
       cleanupFn = cleanup;
     });
     await Promise.race([errorPromise, wait(20_000)]);
   } finally {
     cleanupFn();
+  }
+}
+
+function isProcessInErrorOrExitState(
+  agentProcessState: AgentProcessState
+): Error | undefined {
+  if (agentProcessState.status === 'exited') {
+    const { code, signal } = agentProcessState;
+    const codeOrSignal = [
+      // code can be 0, so we cannot just check it the same way as the signal.
+      code != null && `code ${code}`,
+      signal && `signal ${signal}`,
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return new Error(
+      [
+        `Agent process exited with ${codeOrSignal}.`,
+        agentProcessState.stackTrace,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+  if (agentProcessState.status === 'error') {
+    return new Error(
+      ['Agent process failed to start.', agentProcessState.message].join('\n')
+    );
   }
 }
