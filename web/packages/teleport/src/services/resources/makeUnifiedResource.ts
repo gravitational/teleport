@@ -18,6 +18,7 @@ import { UnifiedResource, UnifiedResourceKind } from '../agents';
 import makeApp from '../apps/makeApps';
 import { makeDatabase } from '../databases/makeDatabase';
 import { makeDesktop } from '../desktops/makeDesktop';
+import makeKube from '../kube/makeKube';
 import makeNode from '../nodes/makeNode';
 
 export function makeUnifiedResource(json: any): UnifiedResource {
@@ -28,6 +29,8 @@ export function makeUnifiedResource(json: any): UnifiedResource {
       return makeApp(json);
     case 'db':
       return makeDatabase(json);
+    case 'kube_cluster':
+      return makeKube(json);
     case 'node':
       return makeNode(json);
     case 'windows_desktop':

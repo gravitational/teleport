@@ -30,7 +30,7 @@ class ResourceService {
       .then(res => makeResourceList<'trusted_cluster'>(res));
   }
 
-  fetchResources(
+  fetchUnifiedResources(
     clusterId?: string,
     params?: UrlResourcesParams,
     signal?: AbortSignal

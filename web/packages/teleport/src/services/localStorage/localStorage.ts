@@ -162,6 +162,12 @@ const storage = {
     window.localStorage.removeItem(KeysEnum.THEME);
   },
 
+  /**
+   * Returns `true` if the unified resources feature should be visible in the
+   * navigation.
+   *
+   * TODO(bl-nero): remove this setting once unified resources are released.
+   */
   areUnifiedResourcesEnabled(): boolean {
     return (
       window.localStorage.getItem(KeysEnum.UNIFIED_RESOURCES_ENABLED) === 'true'

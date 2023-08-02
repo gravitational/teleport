@@ -20,13 +20,26 @@ import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
+import {
+  AgentFilter,
+  AgentResponse,
+  UnifiedResource,
+} from 'teleport/services/agents';
+import { Attempt } from 'shared/hooks/useAttemptNext';
+
+export interface ResourcesState {
+  fetchedData: AgentResponse<UnifiedResource>;
+  params: AgentFilter;
+  fetchMore: () => void;
+  attempt: Attempt;
+}
 
 /**
  * Retrieves a batch of unified resources from the server, taking into
- * consideration URL filter. Use the returned `fetch` function to fetch the
- * initial batch, and `fetchMore` to support infinite scrolling.
+ * consideration URL filter. Use the returned `fetchInitial` function to fetch
+ * the initial batch, and `fetchMore` to support infinite scrolling.
  */
-export function useResources(ctx: Ctx) {
+export function useResources(ctx: Ctx): ResourcesState {
   const { clusterId } = useStickyClusterId();
 
   const { params, search, ...filteringProps } = useUrlFiltering({
@@ -34,24 +47,21 @@ export function useResources(ctx: Ctx) {
     dir: 'ASC',
   });
 
-  const { fetch, fetchedData, attempt, fetchMore } = useInfiniteScroll({
-    fetchFunc: ctx.resourceService.fetchResources,
+  const { fetchInitial, fetchedData, attempt, fetchMore } = useInfiniteScroll({
+    fetchFunc: ctx.resourceService.fetchUnifiedResources,
     clusterId,
     params,
   });
 
   useEffect(() => {
-    fetch();
+    fetchInitial();
   }, [clusterId, search]);
 
   return {
     ...filteringProps,
     fetchedData,
-    clusterId,
     params,
     fetchMore,
     attempt,
   };
 }
-
-export type State = ReturnType<typeof useResources>;
