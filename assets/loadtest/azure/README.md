@@ -33,4 +33,6 @@ The size of the node pool can be scaled up and down by tweaking it in `aks.tf` a
 
 ## Clean up
 
-To clean things up, either `terraform destroy` (which is quite slow) or you can delete the resource group, then clean up the DNS entries and the role assignment in the DNS zone (`az.teleportdemo.net` in the `teleportdemo-dns` resource group) which is the only thing that's not inside the resource group, unfortunately.
+To clean things up, `az group delete --resource-group "$(terraform output -raw rg_name)"` (doublechecking the name first, ideally), then `terraform state list | grep -e ^kubernetes_ -e ^helm_ -e ^kubectl_ | xargs terraform state rm` - as otherwise there would be no way to know if they exist or not, since the cluster is gone - then `terraform destroy` to delete whatever was left outside of the resource group (it should be at most two DNS records and a DNS role assignment).
+
+Using `terraform destroy` is slow and would require manually deleting databases from the PostgreSQL cluster, since deleting the `teleport` user will fail halfway through.
