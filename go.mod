@@ -66,7 +66,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.9.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
-	github.com/fsouza/fake-gcs-server v1.45.2
+	github.com/fsouza/fake-gcs-server v1.47.2
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
@@ -209,7 +209,7 @@ require (
 require (
 	cloud.google.com/go v0.110.4 // indirect
 	cloud.google.com/go/longrunning v0.5.1 // indirect
-	cloud.google.com/go/pubsub v1.32.0 // indirect
+	cloud.google.com/go/pubsub v1.33.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
@@ -319,7 +319,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/klauspost/asmfmt v1.3.2 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
