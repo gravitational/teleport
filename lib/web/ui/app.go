@@ -18,6 +18,9 @@ package ui
 
 import (
 	"fmt"
+	"sort"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -77,6 +80,69 @@ type MakeAppsConfig struct {
 	AppServersAndSAMLIdPServiceProviders types.AppServersOrSAMLIdPServiceProviders
 	// Identity is identity of the logged in user.
 	Identity *tlsca.Identity
+
+	UserGroupLookup map[string]types.UserGroup
+	Logger          logrus.FieldLogger
+}
+
+func MakeApp(app types.Application, c MakeAppsConfig) App {
+	labels := makeLabels(app.GetAllLabels())
+	fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
+	userGroups := c.AppsToUserGroups[app.GetName()]
+	appsToUserGroups := map[string]types.UserGroups{}
+	ugs := types.UserGroups{}
+	for _, userGroupName := range app.GetUserGroups() {
+		userGroup := c.UserGroupLookup[userGroupName]
+		if userGroup == nil {
+			c.Logger.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+			continue
+		}
+
+		ugs = append(ugs, userGroup)
+	}
+	sort.Sort(ugs)
+	appsToUserGroups[app.GetName()] = ugs
+
+	userGroupAndDescriptions := make([]UserGroupAndDescription, len(userGroups))
+	for i, userGroup := range userGroups {
+		userGroupAndDescriptions[i] = UserGroupAndDescription{
+			Name:        userGroup.GetName(),
+			Description: userGroup.GetMetadata().Description,
+		}
+	}
+
+	resultApp := App{
+		Kind:         app.GetKind(),
+		Name:         app.GetName(),
+		Description:  app.GetDescription(),
+		URI:          app.GetURI(),
+		PublicAddr:   app.GetPublicAddr(),
+		Labels:       labels,
+		ClusterID:    c.AppClusterName,
+		FQDN:         fqdn,
+		AWSConsole:   app.IsAWSConsole(),
+		FriendlyName: services.FriendlyName(app),
+		UserGroups:   userGroupAndDescriptions,
+		SAMLApp:      false,
+	}
+
+	return resultApp
+}
+
+func MakeSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
+	labels := makeLabels(app.GetAllLabels())
+	resultApp := App{
+		Kind:         app.GetKind(),
+		Name:         app.GetName(),
+		Description:  app.GetMetadata().Description,
+		PublicAddr:   "",
+		Labels:       labels,
+		ClusterID:    c.AppClusterName,
+		FriendlyName: services.FriendlyName(app),
+		SAMLApp:      true,
+	}
+
+	return resultApp
 }
 
 // MakeApps creates application objects (either Application Servers or SAML IdP Service Provider) for the WebUI.

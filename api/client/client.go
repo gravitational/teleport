@@ -3149,7 +3149,7 @@ func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.Resource
 		out = r
 		return out, nil
 	} else {
-		return nil, trace.BadParameter("received unsupported resource %T", resource)
+		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
 }
 
