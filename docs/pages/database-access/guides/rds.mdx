@@ -38,11 +38,9 @@ which supports IAM authentication.
 - AWS account with RDS and Aurora databases and permissions to create and attach
   IAM policies. Your RDS and Aurora databases must have password and IAM
   authentication enabled.
-
 - A Linux host or Amazon Elastic Kubernetes Service cluster where you will run
   the Teleport Database Service, which proxies connections to your RDS
   databases. 
-
 - (!docs/pages/includes/tctl.mdx!)
 
 If you plan to run the Teleport Database Service on Kubernetes, you will need
@@ -50,6 +48,7 @@ the following:
 
  - The `aws` CLI in your PATH. Install it by following the [AWS
    documentation](https://aws.amazon.com/cli/).
+
  - An IAM OIDC provider running in your Kubernetes cluster. See the [AWS
    documentation](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html)
    for how to create an IAM OIDC provider.
