@@ -2,7 +2,7 @@
 
 If your `tsh db connect` error includes the following text, you likely have an RDS database created before July 28, 2020, which presents an X.509 certificate that is incompatible with Teleport:
 
-```code
+```text
 x509: certificate relies on legacy Common Name field, use SANs instead
 ```
 
@@ -21,6 +21,6 @@ enabling inbound traffic on the database from the Database Service on the same V
 program you can verify connections to databases:
 
 ```code
-nc -zv postgres-instance-1.sadas.us-east-1.rds.amazonaws.com 5432
+$ nc -zv postgres-instance-1.sadas.us-east-1.rds.amazonaws.com 5432
 # Connection to postgres-instance-1.sadas.us-east-1.rds.amazonaws.com (172.31.24.172) 5432 port [tcp/postgresql] succeeded!
 ```
