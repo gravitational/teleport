@@ -129,7 +129,7 @@ func TestAccessRequestLimit(t *testing.T) {
 	req, err := types.NewAccessRequest(uuid.New().String(), "alice", "access")
 	require.NoError(t, err)
 	err = p.a.CreateAccessRequest(ctx, req, tlsca.Identity{})
-	require.NoError(t, err)
+	require.Error(t, err, "expected access request creation to fail due to the monthly limit")
 
 	// Check August
 	clock.Advance(31 * 24 * time.Hour)
