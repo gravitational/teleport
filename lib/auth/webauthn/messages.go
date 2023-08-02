@@ -28,6 +28,9 @@ type CredentialAssertion struct {
 	Response PublicKeyCredentialRequestOptions `json:"publicKey"`
 }
 
+// PublicKeyCredentialRequestOptions is a clone of
+// [protocol.PublicKeyCredentialRequestOptions], materialized here to keep a
+// stable JSON marshal/unmarshal representation.
 type PublicKeyCredentialRequestOptions struct {
 	Challenge          Challenge                            `json:"challenge"`
 	Timeout            int                                  `json:"timeout,omitempty"`
@@ -111,6 +114,9 @@ type CredentialAssertionResponse struct {
 	AssertionResponse AuthenticatorAssertionResponse `json:"response"`
 }
 
+// AuthenticatorAssertionResponse is a clone of
+// [protocol.AuthenticatorAssertionResponse], materialized here to keep a
+// stable JSON marshal/unmarshal representation.
 type AuthenticatorAssertionResponse struct {
 	AuthenticatorResponse
 	AuthenticatorData protocol.URLEncodedBase64 `json:"authenticatorData"`
@@ -118,6 +124,8 @@ type AuthenticatorAssertionResponse struct {
 	UserHandle        protocol.URLEncodedBase64 `json:"userHandle,omitempty"`
 }
 
+// AuthenticatorResponse is a clone of [protocol.AuthenticatorResponse],
+// materialized here to keep a stable JSON marshal/unmarshal representation.
 type AuthenticatorResponse protocol.AuthenticatorResponse
 
 // CredentialCreation is the payload sent to authenticators to initiate
@@ -126,6 +134,9 @@ type CredentialCreation struct {
 	Response PublicKeyCredentialCreationOptions `json:"publicKey"`
 }
 
+// PublicKeyCredentialCreationOptions is a clone of
+// [protocol.PublicKeyCredentialCreationOptions], materialized here to keep a
+// stable JSON marshal/unmarshal representation.
 type PublicKeyCredentialCreationOptions struct {
 	Challenge              Challenge                     `json:"challenge"`
 	RelyingParty           RelyingPartyEntity            `json:"rp"`
@@ -138,24 +149,36 @@ type PublicKeyCredentialCreationOptions struct {
 	Attestation            protocol.ConveyancePreference `json:"attestation,omitempty"`
 }
 
+// RelyingPartyEntity is a clone of [protocol.RelyingPartyEntity], materialized
+// here to keep a stable JSON marshal/unmarshal representation.
 type RelyingPartyEntity struct {
 	CredentialEntity
 	ID string `json:"id"`
 }
 
+// UserEntity is a clone of [protocol.UserEntity], materialized here to keep a
+// stable JSON marshal/unmarshal representation.
 type UserEntity struct {
 	CredentialEntity
 	DisplayName string `json:"displayName,omitempty"`
 	ID          []byte `json:"id"`
 }
 
+// CredentialEntity is a clone of [protocol.CredentialEntity], materialized here
+// to keep a stable JSON marshal/unmarshal representation.
 type CredentialEntity = protocol.CredentialEntity
 
+// CredentialParameter is a clone of
+// [protocol.CredentialParameter], materialized here to keep a stable JSON
+// marshal/unmarshal representation.
 type CredentialParameter struct {
 	Type      protocol.CredentialType              `json:"type"`
 	Algorithm webauthncose.COSEAlgorithmIdentifier `json:"alg"`
 }
 
+// AuthenticatorSelection is a clone of
+// [protocol.AuthenticatorSelection], materialized here to keep a stable JSON
+// marshal/unmarshal representation.
 type AuthenticatorSelection struct {
 	AuthenticatorAttachment protocol.AuthenticatorAttachment     `json:"authenticatorAttachment,omitempty"`
 	RequireResidentKey      *bool                                `json:"requireResidentKey,omitempty"`
@@ -163,6 +186,8 @@ type AuthenticatorSelection struct {
 	UserVerification        protocol.UserVerificationRequirement `json:"userVerification,omitempty"`
 }
 
+// AuthenticationExtensions is a clone of [protocol.AuthenticationExtensions],
+// materialized here to keep a stable JSON marshal/unmarshal representation.
 type AuthenticationExtensions = protocol.AuthenticationExtensions
 
 // RequireResidentKey returns information whether resident key is required or
@@ -288,6 +313,9 @@ type CredentialCreationResponse struct {
 	AttestationResponse AuthenticatorAttestationResponse `json:"response"`
 }
 
+// AuthenticatorAttestationResponse is a clone of
+// [protocol.AuthenticatorAttestationResponse], materialized here to keep a
+// stable JSON marshal/unmarshal representation.
 type AuthenticatorAttestationResponse struct {
 	AuthenticatorResponse
 	AttestationObject protocol.URLEncodedBase64 `json:"attestationObject"`
@@ -296,6 +324,10 @@ type AuthenticatorAttestationResponse struct {
 	// Transports []string `json:"transports,omitempty"`
 }
 
+// Challenge represents a WebAuthn challenge.
+// It is used instead of [protocol.URLEncodedBase64] so its JSON
+// marshal/unmarshal representation won't change in relation to older Teleport
+// versions.
 type Challenge []byte
 
 func CreateChallenge() (Challenge, error) {
@@ -310,6 +342,8 @@ func (c Challenge) String() string {
 	return base64.RawURLEncoding.EncodeToString(c)
 }
 
+// CredentialDescriptor is a clone of [protocol.CredentialDescriptor],
+// materialized here to keep a stable JSON marshal/unmarshal representation.
 type CredentialDescriptor struct {
 	Type            protocol.CredentialType           `json:"type"`
 	CredentialID    []byte                            `json:"id"`
@@ -317,6 +351,8 @@ type CredentialDescriptor struct {
 	AttestationType string                            `json:"-"`
 }
 
+// PublicKeyCredential is a clone of [protocol.PublicKeyCredential],
+// materialized here to keep a stable JSON marshal/unmarshal representation.
 type PublicKeyCredential struct {
 	Credential
 	RawID      protocol.URLEncodedBase64              `json:"rawId"`
@@ -326,8 +362,13 @@ type PublicKeyCredential struct {
 	// AuthenticatorAttachment string `json:"authenticatorAttachment,omitempty"`
 }
 
+// Credential is a clone of [protocol.Credential], materialized here to keep a
+// stable JSON marshal/unmarshal representation.
 type Credential protocol.Credential
 
+// AuthenticationExtensionsClientOutputs is a clone of
+// [protocol.AuthenticationExtensionsClientOutputs], materialized here to keep a
+// stable JSON marshal/unmarshal representation.
 type AuthenticationExtensionsClientOutputs struct {
 	AppID bool `json:"appid,omitempty"`
 }
