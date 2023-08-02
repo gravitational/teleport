@@ -2470,10 +2470,10 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	// identity, err := sctx.GetIdentity()
-	// if err != nil {
-	// 	return nil, trace.Wrap(err)
-	// }
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	req, err := makeUnifiedResourceRequest(r)
 	if err != nil {
@@ -2495,6 +2495,20 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
+	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
+		ResourceType:     types.KindUserGroup,
+		Namespace:        apidefaults.Namespace,
+		UseSearchAsRoles: true,
+	})
+	if err != nil {
+		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+	}
+
+	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
+	for _, userGroup := range userGroups {
+		userGroupLookup[userGroup.GetName()] = userGroup
+	}
+
 	unifiedResources := make([]any, 0, len(page.Resources))
 	for _, resource := range page.Resources {
 		switch r := resource.(type) {
@@ -2508,8 +2522,35 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			// TODO
-			// unifiedResources = append(unifiedResources, app)
+			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
+				LocalClusterName:  h.auth.clusterName,
+				LocalProxyDNSName: h.proxyDNSName(),
+				AppClusterName:    site.GetName(),
+				Identity:          identity,
+				UserGroupLookup:   userGroupLookup,
+				Logger:            h.log,
+			})
+			unifiedResources = append(unifiedResources, app)
+		case types.AppServerOrSAMLIdPServiceProvider:
+			if r.IsAppServer() {
+				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
+					LocalClusterName:  h.auth.clusterName,
+					LocalProxyDNSName: h.proxyDNSName(),
+					AppClusterName:    site.GetName(),
+					Identity:          identity,
+					UserGroupLookup:   userGroupLookup,
+					Logger:            h.log,
+				})
+				unifiedResources = append(unifiedResources, app)
+			} else {
+				app := ui.MakeSAMLApp(r.GetSAMLIdPServiceProvider(), ui.MakeAppsConfig{
+					LocalClusterName:  h.auth.clusterName,
+					LocalProxyDNSName: h.proxyDNSName(),
+					AppClusterName:    site.GetName(),
+					Identity:          identity,
+				})
+				unifiedResources = append(unifiedResources, app)
+			}
 		case types.WindowsDesktop:
 			desktop, err := ui.MakeDesktop(r, accessChecker)
 			if err != nil {

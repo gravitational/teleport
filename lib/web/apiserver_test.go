@@ -1129,7 +1129,9 @@ func TestClusterNodesGet(t *testing.T) {
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
@@ -1141,6 +1143,71 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		_, err = env.server.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
+
+	// add a user group
+	ug, err := types.NewUserGroup(types.Metadata{
+		Name: "ug1", Description: "ug1-description",
+	},
+		types.UserGroupSpecV1{Applications: []string{"app1"}})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateUserGroup(context.Background(), ug)
+	require.NoError(t, err)
+
+	// add app
+	app1 := &types.AppServerV3{
+		Metadata: types.Metadata{Name: "test-app"},
+		Kind:     types.KindAppServer,
+		Version:  types.V2,
+		Spec: types.AppServerSpecV3{
+			HostID: "hostid",
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:        "app1",
+					Description: "description",
+					Labels:      map[string]string{"test-field": "test-value"},
+				},
+				Spec: types.AppSpecV3{
+					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
+					PublicAddr: "publicaddrs",
+					UserGroups: []string{"ug1", "ug2"}, // ug2 doesn't exist in the backend, so its lookup will fail.
+				},
+			},
+		},
+	}
+
+	// add another app
+	app2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
+		},
+	})
+	require.NoError(t, err)
+
+	// add SAML app
+	samlapp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "test-saml-app",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		EntityDescriptor: `<?xml version="1.0" encoding="UTF-8"?>
+		<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="test-saml-app" validUntil="2025-12-09T09:13:31.006Z">
+			 <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+					<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+					<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+					<md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+			 </md:SPSSODescriptor>
+		</md:EntityDescriptor>`,
+		EntityID: "test-saml-app",
+	})
+	require.NoError(t, err)
+
+	// Register apps and service providers.
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), app1)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), app2)
+	require.NoError(t, err)
+	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), samlapp)
+	require.NoError(t, err)
 
 	// add db
 	db, err := types.NewDatabaseServerV3(
@@ -1176,7 +1243,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
-	require.Equal(t, 23, res.TotalCount)
+	require.Equal(t, 26, res.TotalCount)
 	require.NotEqual(t, "", res.StartKey)
 
 	// should return second page and have no third page
@@ -1186,8 +1253,8 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 8)
-	require.Equal(t, 23, res.TotalCount)
+	require.Len(t, res.Items, 11)
+	require.Equal(t, 26, res.TotalCount)
 	require.Equal(t, "", res.StartKey)
 
 	// // should return first page with desc sorted names (last of asc shouldbe first of desc)
@@ -1205,8 +1272,8 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 8)
-	require.Equal(t, 23, res.TotalCount)
+	require.Len(t, res.Items, 11)
+	require.Equal(t, 26, res.TotalCount)
 	require.Equal(t, "", res.StartKey)
 
 	// should return muiltiple filtered types
@@ -1221,13 +1288,25 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Equal(t, "", res.StartKey)
 	require.Equal(t, 2, res.TotalCount)
 
+	// should return apps
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	query.Add("kinds", types.KindApp)
+	query.Add("kinds", types.KindSAMLIdPServiceProvider)
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 3)
+	require.Equal(t, "", res.StartKey)
+	require.Equal(t, 3, res.TotalCount)
+
 	// should return ascending sorted types
 	query = url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
+	require.Equal(t, types.KindApp, res.Items[0].Kind)
 
 	// should return descending sorted types
 	query = url.Values{"sort": []string{"type:desc"}, "limit": []string{"15"}}
@@ -3926,6 +4005,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Kind:     types.KindDatabase,
 		Name:     "db1",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
@@ -3934,6 +4014,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Hostname: "test-uri",
 		URI:      "test-uri:1234",
 	}, {
+		Kind:     types.KindDatabase,
 		Name:     "db2",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{},
@@ -3966,6 +4047,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Kind:          types.KindDatabase,
 		Name:          "db1",
 		Desc:          "test-description",
 		Protocol:      "test-protocol",
@@ -3976,6 +4058,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		DatabaseNames: []string{"name1"},
 		URI:           "test-uri:1234",
 	}, {
+		Kind:          types.KindDatabase,
 		Name:          "db2",
 		Type:          types.DatabaseTypeSelfHosted,
 		Labels:        []ui.Label{},
@@ -5889,12 +5972,14 @@ func TestClusterDesktopsGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop1",
 		Addr:   "addr",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
 		HostID: "host",
 	}, {
+		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop2",
 		Addr:   "addr",
@@ -7007,6 +7092,7 @@ func TestCreateDatabase(t *testing.T) {
 			result := ui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
 			require.Equal(t, result, ui.Database{
+				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
 				Type:          types.DatabaseTypeSelfHosted,
