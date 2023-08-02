@@ -22,7 +22,7 @@ const (
 	maxDeviceAssetTagLength     = 40 // macOS serial is 12 chars, UUID is 36 chars.
 	maxDeviceSerialNumberLength = maxDeviceAssetTagLength
 
-	maxDataModelIdentifierLength         = 40  // arbitrary, "large" number.
+	maxDataModelIdentifierLength         = 200 // arbitrary, "large" number.
 	maxDataOSVersionLength               = 40  // arbitrary, "large" number.
 	maxDataOSBuildLength                 = 40  // arbitrary, "large" number.
 	maxDataOSUsernameLength              = 40  // arbitrary, "large" number.
