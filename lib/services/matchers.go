@@ -380,3 +380,14 @@ var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
 	GCPMatcherCompute,
 }
+
+const (
+	// KubernetesMatchersApp is app matcher type for Kubernetes services
+	KubernetesMatchersApp = "app"
+)
+
+// SupportedKubernetesMatchers is a list of Kubernetes matchers supported by
+// Teleport discovery service
+var SupportedKubernetesMatchers = []string{
+	KubernetesMatchersApp,
+}

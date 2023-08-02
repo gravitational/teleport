@@ -20,7 +20,7 @@ import { SVGIcon } from './SVGIcon';
 
 import type { SVGIconProps } from './common';
 
-export function ShieldAlert({ size = 16, fill }: SVGIconProps) {
+export function ShieldAlertIcon({ size = 16, fill }: SVGIconProps) {
   return (
     <SVGIcon viewBox="0 0 24 24" size={size} fill={fill}>
       <path d="M12 8.25C12.4142 8.25 12.75 8.58579 12.75 9V12.75C12.75 13.1642 12.4142 13.5 12 13.5C11.5858 13.5 11.25 13.1642 11.25 12.75V9C11.25 8.58579 11.5858 8.25 12 8.25Z" />

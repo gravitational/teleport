@@ -95,7 +95,7 @@ func (m *mockServer) NewClient(ctx context.Context, opts ...ConfigOpt) (*Client,
 
 // startMockServer starts a new mock server. Parallel tests cannot use the same addr.
 func startMockServer(t *testing.T) *mockServer {
-	l, err := net.Listen("tcp", "")
+	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	return startMockServerWithListener(t, l)
 }
@@ -493,7 +493,7 @@ func TestNewDialBackground(t *testing.T) {
 	ctx := context.Background()
 
 	// get listener but don't serve it yet.
-	l, err := net.Listen("tcp", "")
+	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	addr := l.Addr().String()
 
@@ -530,7 +530,7 @@ func TestWaitForConnectionReady(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	l, err := net.Listen("tcp", "")
+	l, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 	addr := l.Addr().String()
 
