@@ -197,3 +197,14 @@ func NewAsynchronousTokenCounter(completionStart string) (*AsynchronousTokenCoun
 		finished: false,
 	}, nil
 }
+
+// CountTokens is a helper that calls tc.CountAll() on a TokenCount pointer,
+// but also return 0, 0 when receiving a nil pointer. This makes token counting
+// less awkward in cases where we don't know whether a completion happened or
+// not.
+func CountTokens(tc *TokenCount) (int, int) {
+	if tc != nil {
+		return tc.CountAll()
+	}
+	return 0, 0
+}

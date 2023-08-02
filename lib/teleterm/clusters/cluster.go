@@ -67,6 +67,8 @@ type ClusterWithDetails struct {
 	RequestableRoles []string
 	// ACL contains user access control list.
 	ACL *api.ACL
+	// UserType identifies whether the user is a local user or comes from an SSO provider.
+	UserType types.UserType
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -83,6 +85,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		caps          *types.AccessCapabilities
 		authClusterID string
 		acl           *api.ACL
+		user          types.User
 	)
 
 	err := AddMetadataToRetryableError(ctx, func() error {
@@ -117,7 +120,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		}
 		authClusterID = clusterName.GetClusterID()
 
-		user, err := authClient.GetCurrentUser(ctx)
+		user, err = authClient.GetCurrentUser(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -158,6 +161,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		Features:           pingResponse.ServerFeatures,
 		AuthClusterID:      authClusterID,
 		ACL:                acl,
+		UserType:           user.GetUserType(),
 	}
 
 	return withDetails, nil
@@ -292,4 +296,20 @@ func AddMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// UserTypeFromString converts a string representation of UserType used internally by Teleport to
+// a proto representation used by TerminalService.
+func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, error) {
+	switch userType {
+	case "local":
+		return api.LoggedInUser_USER_TYPE_LOCAL, nil
+	case "sso":
+		return api.LoggedInUser_USER_TYPE_SSO, nil
+	case "":
+		return api.LoggedInUser_USER_TYPE_UNSPECIFIED, nil
+	default:
+		return api.LoggedInUser_USER_TYPE_UNSPECIFIED,
+			trace.BadParameter("unknown user type %q", userType)
+	}
 }

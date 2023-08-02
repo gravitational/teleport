@@ -586,6 +586,18 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportNamespace + "/vm-id"
+	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// id found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	ProjectIDLabel = TeleportNamespace + "/project-id"
+	// ZoneLabek is used to identify virtual machines by GCP zone
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	ZoneLabel = TeleportNamespace + "/zone"
+	// NameLabel is used to identify virtual machines by GCP VM name
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -619,6 +631,20 @@ const (
 	// GCPKubeClusterNameOverrideLabel is the label key containing the
 	// kubernetes cluster name override for discovered GCP kube clusters.
 	GCPKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
+
+	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
+	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
+
+	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
+	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
+	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
+	DiscoveryPortLabel = TeleportNamespace + "/port"
+	// DiscoveryProtocolLabel specifies protocol for a discovered app created from Kubernetes service.
+	DiscoveryProtocolLabel = TeleportNamespace + "/protocol"
+	// DiscoveryAppRewriteLabel specifies rewrite rules for a discovered app created from Kubernetes service.
+	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
+	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
+	DiscoveryAppNameLabel = TeleportNamespace + "/name"
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"

@@ -332,7 +332,10 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 			kubeGateway, err := gateway.AsKube(gw)
 			require.NoError(t, err)
 
-			client = kubeClientForLocalProxy(t, kubeGateway.KubeconfigPath(), teleportCluster, kubeCluster)
+			kubeconfigPath := kubeGateway.KubeconfigPath()
+			checkKubeconfigPathInCommandEnv(t, gw, kubeconfigPath)
+
+			client = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
 		})
 
 		mustGetKubePod(t, client, kubePodName)
@@ -349,4 +352,12 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 		testKubeConnection,
 	)
 
+}
+
+func checkKubeconfigPathInCommandEnv(t *testing.T, gw gateway.Gateway, wantKubeconfigPath string) {
+	t.Helper()
+
+	cmd, err := gw.CLICommand()
+	require.NoError(t, err)
+	require.Equal(t, cmd.Env, []string{"KUBECONFIG=" + wantKubeconfigPath})
 }

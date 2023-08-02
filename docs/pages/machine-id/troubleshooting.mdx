@@ -68,7 +68,7 @@ directories (usually `/opt/machine-id`) rather than the internal data directory
 Once you have addressed the underlying cause, follow these steps to reset a
 locked bot:
  1. Remove the lock on the bot's user
- 2. Reset the bot's generation counter by deleting and re-creating the bot
+ 1. Reset the bot's generation counter by deleting and re-creating the bot
 
 To remove the lock, first find and remove the lock targeting the bot user:
 
@@ -185,9 +185,9 @@ However, the SSH command attempted to log in as `bob`.
 Ensure the bot identity is allowed to log in as the requested user by taking any
 of the following actions:
 
- 1. Changing the SSH command to log in as an allowed user
- 2. Modifying the `access` role to allow the `alice` principal
- 3. Adding a role granting login via the `bob` principal
+ - Changing the SSH command to log in as an allowed user
+ - Modifying the `access` role to allow the `alice` principal
+ - Adding a role granting login via the `bob` principal
 
 Note that if roles are added or modified, the certificates will need to be
 renewed for the changes to take effect. The bot will renew certificates on its
