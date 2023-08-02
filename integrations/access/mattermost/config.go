@@ -29,7 +29,7 @@ import (
 
 type Config struct {
 	common.BaseConfig
-	Mattermost MattermostConfig
+	Mattermost MattermostConfig `toml:"mattermost"`
 	StatusSink common.StatusSink
 }
 
@@ -70,15 +70,18 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Mattermost.URL == "" {
 		return trace.BadParameter("missing required value mattermost.url")
 	}
+	if len(c.Mattermost.Recipients) == 0 {
+		return trace.BadParameter("missing required value mattermost.recipients")
+	}
+	c.Recipients = common.RawRecipientsMap{
+		"*": c.Mattermost.Recipients,
+	}
+
 	if c.Log.Output == "" {
 		c.Log.Output = "stderr"
 	}
 	if c.Log.Severity == "" {
 		c.Log.Severity = "info"
-	}
-
-	if len(c.Recipients) == 0 {
-		return trace.BadParameter("missing required value mattermost.recipients")
 	}
 
 	c.PluginType = types.PluginTypeMattermost
