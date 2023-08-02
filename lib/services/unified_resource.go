@@ -246,7 +246,7 @@ type ResourceGetter interface {
 	DatabaseServersGetter
 	AppServersGetter
 	WindowsDesktopGetter
-	KubernetesClusterGetter
+	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 }
 
@@ -336,7 +336,7 @@ func (u *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) error 
 
 // getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
 func (u *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) error {
-	newKubes, err := u.GetKubernetesClusters(ctx)
+	newKubes, err := u.GetKubernetesServers(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting kubes for unified resource watcher")
 	}
@@ -459,7 +459,7 @@ func (u *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindWindowsDesktop},
-		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubeServer},
 	}
 }
 
