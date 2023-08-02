@@ -35,11 +35,11 @@ require (
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.44.314
-	github.com/aws/aws-sdk-go-v2 v1.19.1
+	github.com/aws/aws-sdk-go-v2 v1.20.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.28
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.27
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.30
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.5
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.7
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.72
 	github.com/aws/aws-sdk-go-v2/service/athena v1.30.4
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.20.1
@@ -53,7 +53,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.23.4
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.3
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
-	github.com/aws/smithy-go v1.13.5
+	github.com/aws/smithy-go v1.14.0
 	github.com/beevik/etree v1.2.0
 	github.com/bufbuild/connect-go v1.9.0
 	github.com/buildkite/bintest/v3 v3.1.1
