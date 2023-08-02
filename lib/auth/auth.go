@@ -3183,7 +3183,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	if req.ReloadUser {
 		// We don't call from the cache layer because we want to
-		// retrieve the recently updated user. Otherwise the cache
+		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
 		user, err := a.Identity.GetUser(req.User, false)
 		if err != nil {
@@ -3211,9 +3211,19 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
 
-		// Let session expire with the shortest expiry time.
-		if expiresAt.After(accessRequest.GetAccessExpiry()) {
-			expiresAt = accessRequest.GetAccessExpiry()
+		webSessionTTL := accessRequest.GetAccessExpiry()
+		sessionTTL := accessRequest.GetSessionTLL()
+		if !sessionTTL.IsZero() {
+			sessionDuration := sessionTTL.Sub(accessRequest.GetCreationTime())
+			adjustedSessionTTL := a.clock.Now().UTC().Add(sessionDuration)
+			if webSessionTTL.After(adjustedSessionTTL) {
+				webSessionTTL = adjustedSessionTTL
+			}
+		}
+
+		// Let the session expire with the shortest expiry time.
+		if expiresAt.After(webSessionTTL) {
+			expiresAt = webSessionTTL
 		}
 	} else if req.Switchback {
 		if prevSession.GetLoginTime().IsZero() {
