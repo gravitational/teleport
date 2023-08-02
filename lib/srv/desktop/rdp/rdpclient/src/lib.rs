@@ -237,7 +237,11 @@ impl Client {
         ptr::null()
     }
 
-    unsafe fn from_raw<'a>(client_ptr: *const Self) -> Result<&'a Client, CGOErrCode> {
+    /// # Safety
+    ///
+    /// client_ptr MUST be a valid pointer.
+    /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+    pub unsafe fn from_raw<'a>(client_ptr: *const Self) -> Result<&'a Client, CGOErrCode> {
         client_ptr.as_ref().ok_or_else(|| {
             error!("Client pointer is null");
             CGOErrCode::ErrCodeClientPtr
