@@ -1094,12 +1094,12 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
 }
 
-// MarshalJSON supports marshalling enum value into it's string value.
+// MarshalJSON supports marshaling enum value into it's string value.
 func (s *IAMPolicyStatus) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.String())
 }
 
-// UnmarshalJSON supports unmarshalling enum string value back to number.
+// UnmarshalJSON supports unmarshaling enum string value back to number.
 func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 {
 		return nil

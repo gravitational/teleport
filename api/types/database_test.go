@@ -933,12 +933,11 @@ func TestValidateDatabaseName(t *testing.T) {
 func TestIAMPolicyStatusJSON(t *testing.T) {
 	t.Parallel()
 
-	var status IAMPolicyStatus
-	status = IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS
+	status := IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS
 
-	marshalled, err := status.MarshalJSON()
+	marshaled, err := status.MarshalJSON()
 	require.NoError(t, err)
-	require.Equal(t, `"IAM_POLICY_STATUS_SUCCESS"`, string(marshalled))
+	require.Equal(t, `"IAM_POLICY_STATUS_SUCCESS"`, string(marshaled))
 
 	data, err := json.Marshal("IAM_POLICY_STATUS_FAILED")
 	require.NoError(t, err)
