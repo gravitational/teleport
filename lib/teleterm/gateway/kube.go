@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -208,4 +209,16 @@ func (k *kube) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certific
 		return trace.Wrap(utils.RemoveFileIfExist(k.KubeconfigPath()))
 	})
 	return nil
+}
+
+func (k *kube) CLICommand() (*api.GatewayCLICommand, error) {
+	// TODO(greedy52) currently kube must implement CLICommand in order to pass
+	// Kube to CLICommandProvider. We should revisit gateway design/flows like
+	// this. For example, one alternative is to move gateway.CLICommand to
+	// daemon.GatewayCLICommand as daemon owns all CLICommandProvider.
+	cmd, err := k.cfg.CLICommandProvider.GetCommand(k)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return makeCLICommand(cmd), nil
 }

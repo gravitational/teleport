@@ -83,9 +83,8 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
     FuzzMSSQLLogin fuzz_mssql_login
 
-# Disabled until we can update the mongoDB driver
-#  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
-#   FuzzMongoRead fuzz_mongo_read
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
+    FuzzMongoRead fuzz_mongo_read
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/opensearch \
     FuzzPathToMatcher fuzz_opensearch_path_to_matcher

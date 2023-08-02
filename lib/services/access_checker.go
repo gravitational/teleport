@@ -838,6 +838,10 @@ type HostUsersInfo struct {
 	// Mode determines if a host user should be deleted after a session
 	// ends or not.
 	Mode types.CreateHostUserMode
+	// UID is the UID that the host user will be created with
+	UID string
+	// GID is the GID that the host user will be created with
+	GID string
 }
 
 // HostUsers returns host user information matching a server or nil if
@@ -927,10 +931,24 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		sudoers = finalSudoers
 	}
 
+	traits := a.Traits()
+	var gid string
+	gidL := traits[constants.TraitHostUserGID]
+	if len(gidL) >= 1 {
+		gid = gidL[0]
+	}
+	var uid string
+	uidL := traits[constants.TraitHostUserUID]
+	if len(uidL) >= 1 {
+		uid = uidL[0]
+	}
+
 	return &HostUsersInfo{
 		Groups:  utils.StringsSliceFromSet(groups),
 		Sudoers: sudoers,
 		Mode:    mode,
+		UID:     uid,
+		GID:     gid,
 	}, nil
 }
 
