@@ -169,25 +169,24 @@ done && ls -l`)
 // tagPipelines builds all applicable tag pipeline combinations
 func tagPipelines() []pipeline {
 	var ps []pipeline
-	// regular tarball builds
-	for _, arch := range []string{"amd64", "386", "arm"} {
-		for _, fips := range []bool{false, true} {
-			if arch != "amd64" && fips {
-				// FIPS mode only supported on linux/amd64
-				continue
-			}
-			ps = append(ps, tagPipeline(buildType{os: "linux", arch: arch, fips: fips}))
 
-			// RPM/DEB package builds
-			for _, packageType := range []string{rpmPackage, debPackage} {
-				bt := buildType{os: "linux", arch: arch, fips: fips}
-				if packageType == "rpm" && arch == "amd64" {
-					bt.centos7 = true
-				}
-				ps = append(ps, tagPackagePipeline(packageType, bt))
-			}
-		}
-	}
+	// amd64 builds
+	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", fips: false}))
+	ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: "amd64", fips: false, centos7: true}))
+	ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: "amd64", fips: false}))
+	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", fips: true}))
+	ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: "amd64", fips: true, centos7: true}))
+	ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: "amd64", fips: true}))
+
+	// 386 builds
+	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "386", fips: false}))
+	ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: "386", fips: false}))
+	ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: "386", fips: false}))
+
+	// arm builds
+	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "arm", fips: false}))
+	ps = append(ps, tagPackagePipeline(rpmPackage, buildType{os: "linux", arch: "arm", fips: false}))
+	ps = append(ps, tagPackagePipeline(debPackage, buildType{os: "linux", arch: "arm", fips: false}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
 		buildType:    buildType{os: "linux", arch: "arm64", fips: false},
