@@ -1,4 +1,4 @@
-version: v2
+version: v3
 teleport:
   nodename: teleport-e2e
   auth_token: foo
@@ -8,9 +8,7 @@ teleport:
     severity: TRACE
     format:
       output: text
-
-  auth_servers:
-    - teleport:3025
+  auth_server: teleport:3025
 
 auth_service:
   enabled: "yes"

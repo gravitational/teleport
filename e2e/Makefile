@@ -1,11 +1,10 @@
 ARCH=$(shell go env GOARCH)
 OS=$(shell go env GOOS)
 
-.PHONY: test clean stop build
+.PHONY: test clean stop build all
 test:
-	mkdir -p build
 # Build binaries if they don't exist
-ifneq ("$(wildcard $(../build/teleport))","")
+ifneq ($(wildcard $(../build/teleport)),)
 	make build-binaries
 endif
 	docker compose up --abort-on-container-exit --exit-code-from e2e
@@ -22,11 +21,18 @@ build:
 
 build-binaries:
 # Use Docker to build binaries on MacOS as the testsuite runs in a Linux container
-ifeq ($(OS),"darwin")
+	echo $(OS)
+ifeq ($(OS),darwin)
  	ARCH=$(ARCH) make -C ../build.assets/ build-binaries
-else ifeq ($(OS),"linux")
-	make -C ../build.assets/ full
+else ifeq ($(OS),linux)
+	make -C ../ full
 else
 	@echo "Unsupported OS: $(OS)"
 	@exit 1
 endif
+
+all:
+	make stop
+	make clean || true # ignore if no volumes exist
+	make build
+	make test
