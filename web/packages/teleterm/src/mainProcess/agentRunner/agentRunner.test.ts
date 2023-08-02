@@ -108,6 +108,7 @@ test('status updates are sent on a successful start', async () => {
       status: 'exited',
       code: null,
       stackTrace: undefined,
+      exitedSuccessfully: true,
       signal: 'SIGTERM',
     };
     expect(agentRunner.getState(rootClusterUri)).toStrictEqual(exitedState);

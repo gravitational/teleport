@@ -133,7 +133,8 @@ export type AgentProcessState =
       status: 'exited';
       code: number | null;
       signal: NodeJS.Signals | null;
-      /** Fragment of a stack trace when code is other than 0. */
+      exitedSuccessfully: boolean;
+      /** Fragment of a stack trace when the process did not exit successfully. */
       stackTrace?: string;
     }
   | {

@@ -144,11 +144,14 @@ export class AgentRunner {
       process.off('error', errorHandler);
       process.off('spawn', spawnHandler);
 
+      const exitedSuccessfully = code === 0 || signal === 'SIGTERM';
+
       this.updateProcessState(rootClusterUri, {
         status: 'exited',
         code,
         signal,
-        stackTrace: signal !== 'SIGTERM' ? stderrOutput : undefined,
+        exitedSuccessfully,
+        stackTrace: exitedSuccessfully ? undefined : stderrOutput,
       });
     };
 
