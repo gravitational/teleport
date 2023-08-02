@@ -1142,6 +1142,9 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil)
+	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
+	require.NoError(t, err)
+	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
 
 	// Add nodes
 	for i := 0; i < 20; i++ {
@@ -1256,15 +1259,25 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
 	require.NoError(t, err)
 
+	// TODO (avatus) : refactor into test cases
 	// Get nodes from endpoint.
 	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
 
-	// should return first page and have a second page
+	// shouldnt get any results with no access
 	query := url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	re, err := noAccessPack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 0)
+	require.Equal(t, 0, res.TotalCount)
+
+	// should return first page and have a second page
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
 	require.Equal(t, 27, res.TotalCount)
