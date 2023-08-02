@@ -35,15 +35,32 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+)
+
+const (
+	testCommand = "echo txlxport | sed 's/x/e/g'"
+	testUser    = "foo"
 )
 
 func TestExecuteCommand(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
 
-	ws, _, err := s.makeCommand(t, s.authPack(t, "foo"))
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	ws, _, err := s.makeCommand(t, s.authPack(t, testUser), uuid.New())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -52,13 +69,13 @@ func TestExecuteCommand(t *testing.T) {
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 }
 
-func (s *WebSuite) makeCommand(t *testing.T, pack *authPack) (*websocket.Conn, *session.Session, error) {
+func (s *WebSuite) makeCommand(t *testing.T, pack *authPack, conversationID uuid.UUID) (*websocket.Conn, *session.Session, error) {
 	req := CommandRequest{
 		Query:          fmt.Sprintf("name == \"%s\"", s.srvID),
 		Login:          pack.login,
-		ConversationID: uuid.New().String(),
+		ConversationID: conversationID.String(),
 		ExecutionID:    uuid.New().String(),
-		Command:        "echo txlxport | sed 's/x/e/g'",
+		Command:        testCommand,
 	}
 
 	u := url.URL{
