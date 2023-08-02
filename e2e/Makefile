@@ -1,12 +1,10 @@
-ARCH=$(shell go env GOARCH)
+SYSTEM_ARCH=$(shell go env GOARCH)
 OS=$(shell go env GOOS)
 
-.PHONY: test clean stop build all
+.PHONY: test clean stop build all build-binaries
 test:
-# Build binaries if they don't exist
-ifneq ($(wildcard $(../build/teleport)),)
-	make build-binaries
-endif
+	# Build binaries if they don't exist
+	test -f "../build/teleport" || make build-binaries
 	docker compose up --abort-on-container-exit --exit-code-from e2e
 
 clean:
@@ -16,14 +14,13 @@ stop:
 	docker compose down
 
 build:
-	docker compose build --build-arg BUILDARCH=$(ARCH)
+	docker compose build --build-arg BUILDARCH=$(SYSTEM_ARCH)
 	docker compose create
 
 build-binaries:
 # Use Docker to build binaries on MacOS as the testsuite runs in a Linux container
-	echo $(OS)
 ifeq ($(OS),darwin)
- 	ARCH=$(ARCH) make -C ../build.assets/ build-binaries
+	ARCH=$(SYSTEM_ARCH) make -C ../build.assets/ build-binaries
 else ifeq ($(OS),linux)
 	make -C ../ full
 else
