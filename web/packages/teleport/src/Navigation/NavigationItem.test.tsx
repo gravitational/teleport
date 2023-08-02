@@ -25,7 +25,7 @@ import { createMemoryHistory } from 'history';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import TeleportContext from 'teleport/teleportContext';
 
-import { TeleportFeature, NavTitles } from 'teleport/types';
+import { TeleportFeature, NavTitle } from 'teleport/types';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationItemSize } from 'teleport/Navigation/common';
@@ -46,7 +46,7 @@ class MockFeature implements TeleportFeature {
   }
 
   navigationItem = {
-    title: NavTitles.Users,
+    title: NavTitle.Users,
     icon: <div />,
     exact: true,
     getLink(clusterId: string) {

@@ -35,7 +35,7 @@ import localStorage from 'teleport/services/localStorage';
 
 import { useTeleport } from 'teleport';
 
-import { NavTitles } from 'teleport/types';
+import { NavTitle, RecommendationStatus } from 'teleport/types';
 
 import type {
   TeleportFeature,
@@ -159,7 +159,7 @@ export function NavigationItem(props: NavigationItemProps) {
   );
 
   // showRedDot returns red dot component if the feature recommendation state is 'NOTIFY'
-  function showRedDot(featureName: any): JSX.Element {
+  function showRedDot(featureName: NavTitle): JSX.Element {
     // Get onboarding status. We'll only recommend features once user completes
     // initial onboarding (i.e. connect resources to Teleport cluster).
     const onboard = localStorage.getOnboardDiscover();
@@ -170,8 +170,8 @@ export function NavigationItem(props: NavigationItemProps) {
     const recommendFeatureStatus =
       localStorage.getFeatureRecommendationStatus();
     if (
-      featureName === NavTitles.TrustedDevices &&
-      recommendFeatureStatus?.TrustedDevices === 'NOTIFY'
+      featureName === NavTitle.TrustedDevices &&
+      recommendFeatureStatus?.TrustedDevices === RecommendationStatus.Notify
     ) {
       return <RedDot />;
     }

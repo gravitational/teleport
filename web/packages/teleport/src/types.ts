@@ -29,16 +29,14 @@ export interface Context {
 }
 
 export interface TeleportFeatureNavigationItem {
-  title: NavTitles;
+  title: NavTitle;
   icon: React.ReactNode;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
 }
 
-export type NavTitle = `${NavTitles}`;
-
-export enum NavTitles {
+export enum NavTitle {
   // Resources
   Servers = 'Servers',
   Applications = 'Applications',
@@ -170,4 +168,7 @@ export type RecommendFeature = {
   TrustedDevices: RecommendationStatus;
 };
 
-export type RecommendationStatus = 'NOTIFY' | 'DONE';
+export enum RecommendationStatus {
+  Notify = 'NOTIFY',
+  Done = 'DONE',
+}
