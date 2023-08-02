@@ -431,6 +431,57 @@ whether or not the client has prior knowledge of the request requiring MFA. This
 means that additional endpoints can be changed into admin actions without any
 consequences.
 
+### Audit Events
+
+#### Admin Action Events
+
+Audit events will be added to each admin action. Many admin actions already
+have their own audit events, such as `role.created` event. Other admin actions
+are missing audit events, like `node.created`. Any admin action missing an
+audit event will have one added.
+
+These events will only be emitted when the action is taken by a user. This
+prevents audit spam from built in services performing their normal duties.
+For example, a node upserting itself with a heartbeat will not be recorded,
+but if a user edits a node directly, it will be.
+
+#### Admin Action MFA Event
+
+In addition to the individual audit events emitted, we will emit an admin
+action mfa authentication event. This event will also hold the metadata of its
+corresponding admin action event to tie the two events together.
+
+```proto
+// UserCreate is emitted when the user is created or updated (upsert).
+message AdminActionMFAAuthentication {
+  Metadata metadata = 1;
+  UserMetadata user = 2;
+  // request_metadata of the corresponding admin action event
+  Metadata request_metadata = 3;
+  Status status = 4;
+  MFADeviceMetadata mfa_device = 4;
+}
+```
+
+If MFA verification fails for an admin action, then this event will be emitted
+with an error in its status, while the corresponding admin action event, in most
+cases, will not be emitted.
+
+### Product Usage
+
+We will add a new admin action mfa PostHog event. This event will be derived
+from the audit event above.
+
+```proto
+message AdminActionMFAAuthenticationEvent {
+  // The name of the admin action, derived from the audit event's request_metadata.type field.
+  string admin_action_request_name = 1;
+  // anonymized
+  string user_name = 2;
+  bool success = 3;
+}
+```
+
 ### Test Plan
 
 The implementation of this feature will include automated unit tests to ensure
