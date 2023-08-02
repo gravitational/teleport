@@ -212,6 +212,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AccessList{
 			AccessList: accesslistv1conv.ToProto(r),
 		}
+	case *types.HeadlessAuthentication:
+		out.Resource = &proto.Event_HeadlessAuthentication{
+			HeadlessAuthentication: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -369,6 +373,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return &out, nil
+	} else if r := in.GetHeadlessAuthentication(); r != nil {
+		out.Resource = r
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
