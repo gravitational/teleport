@@ -17,6 +17,8 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import os from 'node:os';
 
+import stripAnsiStream from 'strip-ansi-stream';
+
 import Logger from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
@@ -114,7 +116,7 @@ export class AgentRunner {
     // Teleport logs output to stderr.
     let stderrOutput = '';
     process.stderr.setEncoding('utf-8');
-    process.stderr.on('data', error => {
+    process.stderr.pipe(stripAnsiStream()).on('data', (error: string) => {
       stderrOutput += error;
       stderrOutput = limitProcessOutputLines(stderrOutput);
     });
