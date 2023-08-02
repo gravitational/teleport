@@ -6,6 +6,6 @@ set -eu
 
 # reload systemd configuration and start/restart units
 systemctl daemon-reload
-systemctl try-restart teleport.service
+systemctl reload teleport.service
 systemctl enable teleport-upgrade.timer
 systemctl start teleport-upgrade.timer
