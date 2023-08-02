@@ -98,11 +98,9 @@ export function NewCredentials(props: NewCredentialsProps) {
     setDisplayOnboardingQuestionnaire &&
     Questionnaire
   ) {
-    // todo (michellescripts) check cluster config to determine if all or partial questions are asked
     return (
       <Card mx="auto" maxWidth="600px" p="4">
         <Questionnaire
-          full={true}
           username={resetToken.user}
           onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
           onboard={true}
