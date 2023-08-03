@@ -4,6 +4,10 @@ import localStorage from 'teleport/services/localStorage';
 
 import * as service from 'teleport/services/userPreferences';
 
+import { RecommendationStatus } from 'teleport/types';
+
+import cfg from 'teleport/config';
+
 import WorkflowService from 'e-teleport/services/workflow';
 import ResourceService from 'e-teleport/services/resource';
 import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
@@ -53,6 +57,32 @@ class TeleportEContext extends TeleportContext {
         });
       }
       localStorage.clearOnboardSurvey();
+    }
+
+    if (cfg.isUsageBasedBilling) {
+      // retrieve feature recommendation state from local storage.
+      // if grv_recommend_feature is undefined, or a given feature recommendation state is
+      // not 'DONE', we check with backend for usage summary and set state to 'NOTIFY'
+      // if usage counts zero.
+      // if usage counts more than zero, we set state to 'DONE'.
+      const recommendFeature = localStorage.getFeatureRecommendationStatus();
+
+      if (
+        !recommendFeature ||
+        recommendFeature?.TrustedDevices !== RecommendationStatus.Done
+      ) {
+        // TODO(sshah): update to status 'DONE' once user completes desired CTA.
+        const nonBillableUsage =
+          await this.cloudService.fetchNonBillableSummaryInformation();
+
+        const trustedDevicesNotificationStatus = nonBillableUsage
+          .trustedDeviceUsage.devicesInUse
+          ? RecommendationStatus.Done
+          : RecommendationStatus.Notify;
+        localStorage.setRecommendFeature({
+          TrustedDevices: trustedDevicesNotificationStatus,
+        });
+      }
     }
   }
 }

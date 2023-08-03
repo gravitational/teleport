@@ -17,6 +17,8 @@ import {
   Invoices,
 } from 'design/Icon';
 
+import { NavTitle } from 'teleport/types';
+
 import cfg from 'e-teleport/config';
 import {
   ReviewRequests,
@@ -65,7 +67,7 @@ class FeatureAccessRequests implements TeleportFeature {
   route: TeleportFeatureRoute; // intentionally undefined
   category = NavigationCategory.Resources;
   navigationItem: TeleportFeatureNavigationItem = {
-    title: 'Access Requests',
+    title: NavTitle.AccessRequests,
     icon: <EqualizersVertical />,
   };
 
@@ -85,7 +87,7 @@ class FeatureAccessRequests implements TeleportFeature {
   };
 
   lockedNavigationItem = {
-    title: 'Access Requests',
+    title: NavTitle.AccessRequests,
     icon: <EqualizersVertical />,
     getLink(clusterId: string) {
       return cfg.getNewAccessRequestRoute(clusterId);
@@ -108,7 +110,7 @@ class FeatureNewAccessRequest implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'New Request',
+    title: NavTitle.NewRequest,
     icon: <Add />,
     getLink(clusterId: string) {
       return cfg.getNewAccessRequestRoute(clusterId);
@@ -132,7 +134,7 @@ class FeatureReviewAccessRequests implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Review Requests',
+    title: NavTitle.ReviewRequests,
     icon: <ListAddCheck />,
     getLink() {
       return cfg.getAccessRequestRoute();
@@ -174,7 +176,7 @@ export class FeatureSummary implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Summary',
+    title: NavTitle.BillingSummary,
     icon: <Chart />,
     getLink(clusterId: string) {
       return cfg.getBillingSummaryRoute(clusterId);
@@ -197,7 +199,7 @@ export class FeaturePaymentsAndInvoices implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Payments and Invoices',
+    title: NavTitle.PaymentsAndInvoices,
     icon: <Invoices />,
     getLink(clusterId: string) {
       return cfg.getPaymentsInvoicesRoute(clusterId);
@@ -220,7 +222,7 @@ export class FeatureInvoiceSettings implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Invoice Settings',
+    title: NavTitle.InvoiceSettings,
     icon: <Profile />,
     getLink(clusterId: string) {
       return cfg.getInvoiceSettingsRoute(clusterId);
@@ -247,7 +249,7 @@ class FeatureDownloadCenter implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Downloads',
+    title: NavTitle.Downloads,
     icon: <Download />,
     getLink() {
       return cfg.routes.downloadCenter;
@@ -263,7 +265,7 @@ class FeatureSupport implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Support',
+    title: NavTitle.Support,
     icon: <Headset />,
     getLink() {
       return 'https://support.goteleport.com/';
@@ -300,7 +302,7 @@ class FeatureDeviceTrust implements TeleportFeature {
   }
 
   navigationItem = {
-    title: 'Trusted Devices',
+    title: NavTitle.TrustedDevices,
     icon: <Laptop />,
     exact: true,
     getLink() {
