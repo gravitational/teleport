@@ -5457,7 +5457,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.Acces
 					reviewed[id] = struct{}{}
 				}
 			default:
-				log.Errorf("Expected event type %q or %q, got %q", events.AccessRequestCreateEvent, events.AccessRequestReviewEvent, ev.GetType())
+				log.Warnf("Expected event type %q or %q, got %q", events.AccessRequestCreateEvent, events.AccessRequestReviewEvent, ev.GetType())
 			}
 		}
 		if startKey == "" {
