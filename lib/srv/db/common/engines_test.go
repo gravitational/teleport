@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 )
@@ -48,9 +49,19 @@ func TestRegisterEngine(t *testing.T) {
 		AuthClient:   &auth.Client{},
 		CloudClients: cloudClients,
 	}
+	require.NoError(t, ec.CheckAndSetDefaults())
 
 	// No engine is registered initially.
-	engine, err := GetEngine("test", ec)
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "prod",
+		Labels: map[string]string{"env": "prod"},
+	}, types.DatabaseSpecV3{
+		Protocol: "test",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+
+	engine, err := GetEngine(db, ec)
 	require.Nil(t, engine)
 	require.IsType(t, trace.NotFound(""), err)
 	require.IsType(t, trace.NotFound(""), CheckEngines("test"))
@@ -61,12 +72,16 @@ func TestRegisterEngine(t *testing.T) {
 	}, "test")
 
 	// Create the registered engine instance.
-	engine, err = GetEngine("test", ec)
+	engine, err = GetEngine(db, ec)
 	require.NoError(t, err)
 	require.NotNil(t, engine)
 
+	// Expect reporting engine wrapped around test engine
+	repEngine, ok := engine.(*reportingEngine)
+	require.True(t, ok)
+
 	// Verify it's the one we registered.
-	engineInst, ok := engine.(*testEngine)
+	engineInst, ok := repEngine.engine.(*testEngine)
 	require.True(t, ok)
 	require.Equal(t, ec, engineInst.ec)
 }

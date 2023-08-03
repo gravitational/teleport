@@ -2310,12 +2310,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		NewAudit: func(common.AuditConfig) (common.Audit, error) {
+		NewAudit: func(cfg common.AuditConfig) (common.Audit, error) {
 			// Use the same audit logger implementation but substitute the
 			// underlying emitter so events can be tracked in tests.
 			return common.NewAudit(common.AuditConfig{
 				Emitter:  c.emitter,
 				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
+				Database: cfg.Database,
 			})
 		},
 		CADownloader:             p.CADownloader,
