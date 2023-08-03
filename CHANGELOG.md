@@ -1,6 +1,6 @@
 # Changelog
 
-## 12.4.13 (08/03/23)
+## 12.4.14 (08/03/23)
 
 * Updated Go to 1.20.7 [#29906](https://github.com/gravitational/teleport/pull/29906)
 * Reduced logging level for individual Postgres messages. [#29846](https://github.com/gravitational/teleport/pull/29846)
@@ -8,7 +8,7 @@
 * Fix Kubernetes Legacy Proxy heartbeats [#29737](https://github.com/gravitational/teleport/pull/29737)
 * Fixed auth locking issue [#29709](https://github.com/gravitational/teleport/pull/29709)
 * Fixed issue where `proxy_service.public_addr` was not included in self-signed certs [#29598](https://github.com/gravitational/teleport/pull/29598)
-* Speed up Auth initialization [#29572](https://github.com/gravitational/teleport/pull/29572)s
+* Speed up Auth initialization [#29572](https://github.com/gravitational/teleport/pull/29572)
 
 ## 12.4.12 (07/26/23)
 
