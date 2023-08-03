@@ -4,7 +4,7 @@ description: How to set up Teleport's Opsgenie plugin for privilege elevation ap
 ---
 
 With Teleport's Opsgenie integration, engineers can access the infrastructure
-they need to resolve alerts quickly—without longstanding admin permissions
+they need to resolve alerts quickly, without longstanding admin permissions
 that can become a vector for attacks.
 
 Teleport's Opsgenie integration allows you to treat Teleport Role Access
@@ -25,17 +25,13 @@ Opsgenie.
 - An Opsgenie account with the ability to create API keys with the 'read' and,
   'create and update' access rights.
 
-  You can create API keys by going to the Opsgenie settings page. Navigating to
-  the 'APP settings' section and selecting API key management.
-
-- This feature is currently only available for Cloud isntances.
+- Opsgenie integration is currently only available in Teleport Cloud.
 
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Create services
 
-To demonstrate the Opsgenie plugin, create an Opsgenie team named
-`teleport-access-request-notifications`.
+Create an Opsgenie team named `teleport-access-request-notifications`.
 
 We will configure the Opsgenie plugin to create an alert for the
 `teleport-access-request-notifications` team when certain users
@@ -49,12 +45,12 @@ API.
 
 ### Create a user who will request access
 
-Create a user called `myuser` who has the `editor-requester` role. Later in this
+Create a user called `myuser` who has the `requester` role. Later in this
 guide, you will create an Access Request as this user to test the Opsgenie
 plugin:
 
 ```code
-$ tctl users add myuser --roles=editor-requester
+$ tctl users add myuser --roles=requester
 ```
 
 `tctl` will print an invitation URL to your terminal. Visit the URL and log in
@@ -107,8 +103,3 @@ Request Reviewed` in the Teleport Web UI <ScopedBlock scope={[
 Auth Service host</ScopedBlock>.
 
 </Admonition>
-
-## Feedback
-
-If you have any issues with this plugin please create a [GitHub
-issue](https://github.com/gravitational/teleport-plugins/issues/new).
