@@ -413,51 +413,51 @@ func (s *OpsgenieSuite) TestDenial() {
 	assert.Equal(t, "resolved", alertUpdate.Status)
 }
 
-// func (s *OpsgenieSuite) TestReviewNotes() {
-// 	t := s.T()
+func (s *OpsgenieSuite) TestReviewNotes() {
+	t := s.T()
 
-// 	if !s.teleportFeatures.AdvancedAccessWorkflows {
-// 		t.Skip("Doesn't work in OSS version")
-// 	}
+	if !s.teleportFeatures.AdvancedAccessWorkflows {
+		t.Skip("Doesn't work in OSS version")
+	}
 
-// 	s.startApp()
+	s.startApp()
 
-// 	req := s.createAccessRequest()
+	req := s.createAccessRequest()
 
-// 	err := s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
-// 		Author:        s.userNames.reviewer1,
-// 		ProposedState: types.RequestState_APPROVED,
-// 		Created:       time.Now(),
-// 		Reason:        "okay",
-// 	})
-// 	require.NoError(t, err)
+	err := s.reviewer1().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
+		Author:        s.userNames.reviewer1,
+		ProposedState: types.RequestState_APPROVED,
+		Created:       time.Now(),
+		Reason:        "okay",
+	})
+	require.NoError(t, err)
 
-// 	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
-// 		Author:        s.userNames.reviewer2,
-// 		ProposedState: types.RequestState_DENIED,
-// 		Created:       time.Now(),
-// 		Reason:        "not okay",
-// 	})
-// 	require.NoError(t, err)
+	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
+		Author:        s.userNames.reviewer2,
+		ProposedState: types.RequestState_APPROVED,
+		Created:       time.Now(),
+		Reason:        "not okay",
+	})
+	require.NoError(t, err)
 
-// 	pluginData := s.checkPluginData(req.GetName(), func(data PluginData) bool {
-// 		return data.AlertID != "" && data.ReviewsCount == 2
-// 	})
+	pluginData := s.checkPluginData(req.GetName(), func(data PluginData) bool {
+		return data.AlertID != "" && data.ReviewsCount == 2
+	})
 
-// 	note, err := s.fakeOpsgenie.CheckNewAlertNote(s.Context())
-// 	require.NoError(t, err)
-// 	assert.Equal(t, pluginData.AlertID, note.AlertID)
-// 	assert.Contains(t, note.Note, s.userNames.reviewer1+" reviewed the request", "note must contain a review author")
-// 	assert.Contains(t, note.Note, "Resolution: APPROVED", "note must contain an approval resolution")
-// 	assert.Contains(t, note.Note, "Reason: okay", "note must contain an approval reason")
+	note, err := s.fakeOpsgenie.CheckNewAlertNote(s.Context())
+	require.NoError(t, err)
+	assert.Equal(t, pluginData.AlertID, note.AlertID)
+	assert.Contains(t, note.Note, s.userNames.reviewer1+" reviewed the request", "note must contain a review author")
+	assert.Contains(t, note.Note, "Resolution: APPROVED", "note must contain an approval resolution")
+	assert.Contains(t, note.Note, "Reason: okay", "note must contain an approval reason")
 
-// 	note, err = s.fakeOpsgenie.CheckNewAlertNote(s.Context())
-// 	require.NoError(t, err)
-// 	assert.Equal(t, pluginData.AlertID, note.AlertID)
-// 	assert.Contains(t, note.Note, s.userNames.reviewer2+" reviewed the request", "note must contain a review author")
-// 	assert.Contains(t, note.Note, "Resolution: DENIED", "note must contain a denial resolution")
-// 	assert.Contains(t, note.Note, "Reason: not okay", "note must contain a denial reason")
-// }
+	note, err = s.fakeOpsgenie.CheckNewAlertNote(s.Context())
+	require.NoError(t, err)
+	assert.Equal(t, pluginData.AlertID, note.AlertID)
+	assert.Contains(t, note.Note, s.userNames.reviewer2+" reviewed the request", "note must contain a review author")
+	assert.Contains(t, note.Note, "Resolution: APPROVED", "note must contain a approval resolution")
+	assert.Contains(t, note.Note, "Reason: not okay", "note must contain a denial reason")
+}
 
 func (s *OpsgenieSuite) TestApprovalByReview() {
 	t := s.T()
@@ -481,11 +481,6 @@ func (s *OpsgenieSuite) TestApprovalByReview() {
 	})
 	require.NoError(t, err)
 
-	note, err := s.fakeOpsgenie.CheckNewAlertNote(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, alert.ID, note.AlertID)
-	assert.Contains(t, note.Note, s.userNames.reviewer1+" reviewed the request", "note must contain a review author")
-
 	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer2,
 		ProposedState: types.RequestState_APPROVED,
@@ -493,6 +488,11 @@ func (s *OpsgenieSuite) TestApprovalByReview() {
 		Reason:        "finally okay",
 	})
 	require.NoError(t, err)
+
+	note, err := s.fakeOpsgenie.CheckNewAlertNote(s.Context())
+	require.NoError(t, err)
+	assert.Equal(t, alert.ID, note.AlertID)
+	assert.Contains(t, note.Note, s.userNames.reviewer1+" reviewed the request", "note must contain a review author")
 
 	note, err = s.fakeOpsgenie.CheckNewAlertNote(s.Context())
 	require.NoError(t, err)
@@ -537,11 +537,6 @@ func (s *OpsgenieSuite) TestDenialByReview() {
 	})
 	require.NoError(t, err)
 
-	note, err := s.fakeOpsgenie.CheckNewAlertNote(s.Context())
-	require.NoError(t, err)
-	assert.Equal(t, alert.ID, note.AlertID)
-	assert.Contains(t, note.Note, s.userNames.reviewer1+" reviewed the request", "note must contain a review author")
-
 	err = s.reviewer2().SubmitAccessRequestReview(s.Context(), req.GetName(), types.AccessReview{
 		Author:        s.userNames.reviewer2,
 		ProposedState: types.RequestState_DENIED,
@@ -549,6 +544,11 @@ func (s *OpsgenieSuite) TestDenialByReview() {
 		Reason:        "finally not okay",
 	})
 	require.NoError(t, err)
+
+	note, err := s.fakeOpsgenie.CheckNewAlertNote(s.Context())
+	require.NoError(t, err)
+	assert.Equal(t, alert.ID, note.AlertID)
+	assert.Contains(t, note.Note, s.userNames.reviewer1+" reviewed the request", "note must contain a review author")
 
 	note, err = s.fakeOpsgenie.CheckNewAlertNote(s.Context())
 	require.NoError(t, err)
