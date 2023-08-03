@@ -1227,13 +1227,14 @@ func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClie
 func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
 	switch {
 	case c.kubeCluster != "":
-		fmt.Fprintln(cf.Stdout(), fmt.Sprintf(`Logged into Kubernetes cluster %q.`, c.kubeCluster))
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
 
 	default:
-		fmt.Fprintln(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
 	}
 
 	fmt.Fprintf(cf.Stdout(), `
+
 Your Teleport cluster runs behind a layer 7 load balancer or reverse proxy.
 
 To access the cluster, use "tsh kubectl" which is a fully featured "kubectl"
