@@ -3029,7 +3029,10 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 
 // accessRequestForSSH attempts to create a resource access request for the case
 // where "tsh ssh" was attempted and access was denied
-func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
+func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
+	if tc.Host == "" {
+		return nil, trace.BadParameter("no host specified")
+	}
 	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3091,19 +3094,25 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	return req, nil
 }
 
-func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
+func retryWithAccessRequest(
+	cf *CLIConf,
+	tc *client.TeleportClient,
+	fn func() error,
+	onAccessRequestCreator func(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error),
+	resource string,
+) error {
 	origErr := fn()
-	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
+	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) {
 		// Return if --disable-access-request was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
 	}
 
-	// Try to construct an access request for this node.
-	req, err := accessRequestForSSH(cf.Context, tc)
+	// Try to construct an access request for this resource.
+	req, err := onAccessRequestCreator(cf.Context, cf, tc)
 	if err != nil {
-		// We can't request access to the node or we couldn't query the ID. Log
+		// We can't request access to the resource or we couldn't query the ID. Log
 		// a short debug message in case this is unexpected, but return the
 		// original AccessDenied error from the ssh attempt which is likely to
 		// be far more relevant to the user.
@@ -3114,7 +3123,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 
 	// Print and log the original AccessDenied error.
 	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
-	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
+	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 
 	requestReason := cf.RequestReason
 	if requestReason == "" {
@@ -3205,7 +3214,10 @@ func onSSH(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		return nil
-	})
+	},
+		accessRequestForSSH,
+		fmt.Sprintf("%s@%s", tc.HostLogin, tc.Host),
+	)
 	// Exit with the same exit status as the failed command.
 	if tc.ExitStatus != 0 {
 		var exitErr *common.ExitCodeError

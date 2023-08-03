@@ -53,15 +53,19 @@ import (
 	"k8s.io/kubectl/pkg/util/term"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -1132,13 +1136,15 @@ func selectedKubeCluster(currentTeleportCluster string) string {
 
 type kubeLoginCommand struct {
 	*kingpin.CmdClause
-	kubeCluster         string
-	siteName            string
-	impersonateUser     string
-	impersonateGroups   []string
-	namespace           string
-	all                 bool
-	overrideContextName string
+	kubeCluster          string
+	siteName             string
+	impersonateUser      string
+	impersonateGroups    []string
+	namespace            string
+	all                  bool
+	overrideContextName  string
+	disableAccessRequest bool
+	requestReason        string
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
@@ -1157,6 +1163,8 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 		// This works as an hint to the user that the context name can be customized.
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
+	c.Flag("request-reason", "Reason for requesting access").StringVar(&c.requestReason)
+	c.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&c.disableAccessRequest)
 	return c
 }
 
@@ -1178,40 +1186,60 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		kubernetesGroups: c.impersonateGroups,
 	}
 	cf.kubeNamespace = c.namespace
+	cf.disableAccessRequest = c.disableAccessRequest
+	cf.RequestReason = c.requestReason
 	cf.ListAll = c.all
-
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Check that this kube cluster exists.
-	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clusterNames := kubeClustersToStrings(kubeClusters)
-	// If the user is trying to login to a specific cluster, check that it exists.
-	if c.kubeCluster != "" && !slices.Contains(clusterNames, c.kubeCluster) {
-		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
-	}
 
-	// Update default kubeconfig file located at ~/.kube/config or the value of
-	// KUBECONFIG env var even if the context exists.
-	if err := updateKubeConfig(cf, tc, "", c.overrideContextName); err != nil {
-		return trace.Wrap(err)
-	}
+	err = retryWithAccessRequest(cf, tc, func() error {
+		// Check that this kube cluster exists.
+		currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		clusterNames := kubeClustersToStrings(kubeClusters)
+		// If the user is trying to login to a specific cluster, check that it exists.
+		switch {
+		case c.kubeCluster != "" && !slices.Contains(clusterNames, c.kubeCluster):
+			return trace.AccessDenied("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
+		case cf.ListAll && len(clusterNames) == 0:
+			return trace.AccessDenied("no kubernetes clusters found, check 'tsh kube ls' for a list of known clusters")
+		}
 
-	// Generate a profile specific kubeconfig which can be used
-	// by setting the kubeconfig environment variable (with `tsh env`)
-	profileKubeconfigPath := keypaths.KubeConfigPath(
-		profile.FullProfilePath(cf.HomePath), tc.WebProxyHost(), tc.Username, currentTeleportCluster, c.kubeCluster,
+		// Update default kubeconfig file located at ~/.kube/config or the value of
+		// KUBECONFIG env var even if the context exists.
+		if err := updateKubeConfig(cf, tc, "", c.overrideContextName); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Generate a profile specific kubeconfig which can be used
+		// by setting the kubeconfig environment variable (with `tsh env`)
+		profileKubeconfigPath := keypaths.KubeConfigPath(
+			profile.FullProfilePath(cf.HomePath), tc.WebProxyHost(), tc.Username, currentTeleportCluster, c.kubeCluster,
+		)
+		if err := updateKubeConfig(cf, tc, profileKubeconfigPath, c.overrideContextName); err != nil {
+			return trace.Wrap(err)
+		}
+
+		c.printUserMessage(cf, tc)
+		return nil
+	},
+		accessRequestForKubeCluster,
+		resourceNameOrWildcard(c.kubeCluster, c.all),
 	)
-	if err := updateKubeConfig(cf, tc, profileKubeconfigPath, c.overrideContextName); err != nil {
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(err)
+}
 
-	c.printUserMessage(cf, tc)
-	return nil
+func resourceNameOrWildcard(clusterName string, listAll bool) string {
+	if clusterName != "" {
+		return clusterName
+	} else if listAll {
+		return "*"
+	}
+	return ""
 }
 
 func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient) {
@@ -1457,4 +1485,67 @@ func init() {
 	metav1.AddToGroupVersion(kubeScheme, schema.GroupVersion{Version: "v1"})
 	clientauthv1beta1.AddToScheme(kubeScheme)
 	clientauthentication.AddToScheme(kubeScheme)
+}
+
+// accessRequestForKubeCluster attempts to create a resource access request for the case
+// where "tsh kube login" was attempted and access was denied
+func accessRequestForKubeCluster(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
+	if tc.KubernetesCluster == "" && !cf.ListAll {
+		return nil, trace.BadParameter("no KubernetesCluster specified")
+	}
+	clt, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	// Match on cluster name
+	expr := ""
+	if !cf.ListAll {
+		expr = fmt.Sprintf(`resource.metadata.name == "%s"`, tc.KubernetesCluster)
+	}
+	kubes, err := apiclient.GetAllResources[types.KubeCluster](ctx, clt.AuthClient, &proto.ListResourcesRequest{
+		Namespace:           apidefaults.Namespace,
+		ResourceType:        types.KindKubernetesCluster,
+		UseSearchAsRoles:    true,
+		PredicateExpression: expr,
+	})
+	switch {
+	case err != nil:
+		return nil, trace.Wrap(err)
+	case len(kubes) == 0:
+		return nil, trace.NotFound("kubernetes cluster %q not found, unable to request access", tc.KubernetesCluster)
+	case len(kubes) > 1 && !cf.ListAll:
+		return nil, trace.BadParameter("more than one kubernetes cluster matched %q", tc.KubernetesCluster)
+	}
+
+	requestResourceIDs := make([]types.ResourceID, len(kubes))
+	for i, kube := range kubes {
+		requestResourceIDs[i] = types.ResourceID{
+			ClusterName: tc.SiteName,
+			Kind:        types.KindKubernetesCluster,
+			Name:        kube.GetName(),
+		}
+	}
+
+	// Roles to request will be automatically determined on the backend.
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Set the DryRun flag and send the request to auth for full validation. If
+	// the user has no search_as_roles or is not allowed to connect to the Kube cluster
+	// we will get an error here.
+	req.SetDryRun(true)
+	req.SetRequestReason("Dry run, this request will not be created. If you see this, there is a bug.")
+	if err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
+		return trace.Wrap(clt.CreateAccessRequest(ctx, req))
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.SetDryRun(false)
+	req.SetRequestReason("")
+
+	return req, nil
 }

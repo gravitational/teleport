@@ -21,11 +21,15 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -33,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -188,6 +193,116 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			require.Contains(t, captureStdout.String(), tc.wantTable())
 		})
 	}
+}
+
+func TestKubeLoginAccessRequest(t *testing.T) {
+	modules.SetTestModules(t,
+		&modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Kubernetes: true,
+			},
+		},
+	)
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	const (
+		roleName    = "requester"
+		kubeCluster = "root-cluster"
+	)
+	// Create a role that allows the user to request access to the cluster but
+	// not to access it directly.
+	role, err := types.NewRole(
+		roleName,
+		types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"access"},
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			// reconfig the user to use the new role instead of the default ones
+			// User is the second bootstrap resource.
+			user, ok := cfg.Auth.BootstrapResources[1].(types.User)
+			require.True(t, ok)
+			user.SetRoles([]string{roleName})
+			// Add the role to the list of bootstrap resources.
+			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, role)
+
+			// Enable kube and set the kubeconfig path.
+			cfg.Kube.Enabled = true
+			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, kubeCluster)
+		}),
+		withValidationFunc(func(s *suite) bool {
+			// Check if the kube cluster was added.
+			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(context.Background())
+			require.NoError(t, err)
+			return len(rootClusters) == 1
+		}),
+	)
+	// login as the user.
+	mustLoginSetEnv(t, s)
+
+	// Run the login command in a goroutine so we can check if the access
+	// request was created and approved.
+	// The goroutine will exit when the access request is approved.
+	wg := &errgroup.Group{}
+	wg.Go(func() error {
+		err := Run(
+			context.Background(),
+			[]string{
+				"--insecure",
+				"kube",
+				"login",
+				kubeCluster,
+				"--request-reason",
+				"test",
+			},
+		)
+		return trace.Wrap(err)
+	})
+	// Wait for the access request to be created and finally approve it.
+	var accessRequestID string
+	require.Eventually(t, func() bool {
+		accessRequests, err := s.root.GetAuthServer().
+			GetAccessRequests(
+				context.Background(),
+				types.AccessRequestFilter{State: types.RequestState_PENDING},
+			)
+		if err != nil || len(accessRequests) != 1 {
+			return false
+		}
+
+		equal := reflect.DeepEqual(
+			accessRequests[0].GetRequestedResourceIDs(),
+			[]types.ResourceID{
+				{
+					ClusterName: s.root.Config.Auth.ClusterName.GetClusterName(),
+					Kind:        types.KindKubernetesCluster,
+					Name:        kubeCluster,
+				},
+			},
+		)
+		accessRequestID = accessRequests[0].GetName()
+
+		return equal
+	}, 10*time.Second, 1*time.Second)
+	// Approve the access request to release the login command lock.
+	err = s.root.GetAuthServer().SetAccessRequestState(context.Background(), types.AccessRequestUpdate{
+		RequestID: accessRequestID,
+		State:     types.RequestState_APPROVED,
+	})
+	require.NoError(t, err)
+	// Wait for the login command to exit after the request is approved
+	require.NoError(t, wg.Wait())
 }
 
 func newKubeConfigFile(t *testing.T, clusterNames ...string) string {
