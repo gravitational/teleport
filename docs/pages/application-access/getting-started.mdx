@@ -20,15 +20,9 @@ At a high level, configuring access for applications involves the following step
 - Install and configure Teleport on the application host.
 - Add a user to verify access to the application.
 
-The following diagram illustrates the basic steps for connecting to Grafana 
-using Teleport:
+The following diagram illustrates protecting access to Grafana using Teleport:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Application Access Grafana Self-Hosted](../../img/application-access/grafana_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-![Teleport Application Access Grafana Cloud](../../img/application-access/grafana_cloud.png)
-</ScopedBlock>
+![Teleport Application Access Grafana Self-Hosted](../../img/application-access/grafana_tutorial.png)
 
 ## Prerequisites
 
@@ -39,18 +33,22 @@ For this tutorial, verify your environment meets the following requirements:
 - (!docs/pages/includes/tctl.mdx!)
 - A host where you will run the Teleport Application Service.
 - A Docker container or Kubernetes cluster to launch Grafana.
-- A DNS subdomain for each application.
-   
-   (!docs/pages/includes/dns-app-access.mdx!)
 
-- Administrative rights to deploy within a cluster.
-- Check that you are using appropriate permissions.
-   
-   The permissions used in this tutorial are intended for demonstration purposes.
-   Before running Teleport in a production environment, you should verify that you're 
-   following best practices to avoid security incidents.
+### Subdomains and applications
 
-   (!docs/pages/includes/permission-warning.mdx!)
+(!docs/pages/includes/dns-app-access.mdx!)
+
+### Rights and permissions
+
+This tutorial assumes that you have administrative rights for the Teleport cluster
+and for the local computer, Docker container, or Kubernetes configuration where the
+application runs.
+   
+The permissions used in this tutorial are intended for demonstration purposes.
+Before running Teleport in a production environment, you should verify that you're 
+following best practices to avoid security incidents.
+
+(!docs/pages/includes/permission-warning.mdx!)
 
 ## Step 1/5. Generate a token
 
