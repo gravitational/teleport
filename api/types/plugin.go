@@ -396,11 +396,15 @@ func (s *PluginMattermostSettings) CheckAndSetDefaults() error {
 	if s.ServerUrl == "" {
 		return trace.BadParameter("server url is required")
 	}
-	if s.Team == "" {
-		return trace.BadParameter("team is required")
-	}
-	if s.Channel == "" {
-		return trace.BadParameter("channel is required")
+
+	// If one field is defined, both should be required.
+	if len(s.Channel) > 0 || len(s.Team) > 0 {
+		if len(s.Team) == 0 {
+			return trace.BadParameter("team is required")
+		}
+		if len(s.Channel) == 0 {
+			return trace.BadParameter("channel is required")
+		}
 	}
 	return nil
 }
