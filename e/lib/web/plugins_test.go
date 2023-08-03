@@ -20,6 +20,7 @@ func TestCreatePluginHandle(t *testing.T) {
 		request      url.Values
 		expectedResp string
 		isOAuth      bool
+		delete       bool
 	}{
 		{
 			name:     "Slack want redirect",
@@ -79,7 +80,7 @@ func TestCreatePluginHandle(t *testing.T) {
 			expectedResp: "root@example.com",
 		},
 		{
-			name:     "Mattermost plugin",
+			name:     "Mattermost plugin with only team/channel defined",
 			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
 			request: url.Values{
 				"type":       {"mattermost"},
@@ -89,7 +90,35 @@ func TestCreatePluginHandle(t *testing.T) {
 				"team":       {"some-team"},
 				"csrf_token": {webPack.csrfToken},
 			},
-			expectedResp: `to the \"some-channel\" channel from team \"some-team\"`,
+			expectedResp: `and to the \"some-channel\" channel from team \"some-team\"`,
+			delete:       true,
+		},
+		{
+			name:     "Mattermost plugin with only email defined",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":       {"mattermost"},
+				"url":        {"https://www.some-apiendoint.com"},
+				"token":      {"some-token"},
+				"email":      {"some-email"},
+				"csrf_token": {webPack.csrfToken},
+			},
+			expectedResp: `and to Mattermost user \"some-email\"`,
+			delete:       true,
+		},
+		{
+			name:     "Mattermost plugin with both team/channel and email defined",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":       {"mattermost"},
+				"url":        {"https://www.some-apiendoint.com"},
+				"token":      {"some-token"},
+				"email":      {"some-email"},
+				"channel":    {"some-channel"},
+				"team":       {"some-team"},
+				"csrf_token": {webPack.csrfToken},
+			},
+			expectedResp: `, to Mattermost user \"some-email\", and to the \"some-channel\" channel from team \"some-team\"`,
 		},
 	}
 
@@ -103,6 +132,11 @@ func TestCreatePluginHandle(t *testing.T) {
 
 			if tc.expectedResp != "" {
 				require.Contains(t, string(resp.Bytes()), tc.expectedResp)
+			}
+			if tc.delete {
+				endpoint := webPack.clt.Endpoint("enterprise", "plugin", tc.request["type"][0])
+				_, err := webPack.clt.Delete(s.ctx, endpoint)
+				require.NoError(t, err)
 			}
 		})
 	}

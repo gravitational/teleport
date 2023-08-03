@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Link as ReactRouterLink } from 'react-router-dom';
 
-import { Text, Link } from 'design';
+import { Text, Link, Flex, Box } from 'design';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import oktaIcon from 'design/assets/images/icons/okta.svg';
@@ -552,11 +552,11 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     Description: () => (
       <Text>
         <p>
-          Your Mattermost integration will post notifications to the
-          team/channel you specify whenever a teammate makes an access request.
-          In addition, the integration will match Mattermost and Teleport emails
-          for the suggested reviewers defined in the request and alert them as
-          well.
+          Your Mattermost integration will match Mattermost and Teleport emails
+          for the suggested reviewers defined in the access request and send
+          notifications. In addition, the integration can post notifications to
+          the team/channel you specify whenever a teammate makes an access
+          request.
         </p>
         <p>
           You will first need to register a Mattermost bot as depicted{' '}
@@ -566,8 +566,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
           >
             in this step
           </Link>
-          . And then invite the bot to the channel that you want the integration
-          to post access requests to.
+          .
         </p>
       </Text>
     ),
@@ -577,6 +576,8 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
       const [team, setTeam] = useState('');
       const [channel, setChannel] = useState('');
       const [email, setEmail] = useState('');
+
+      const teamChannelRequired = `${team}${channel}`.length > 0;
       return (
         <>
           <FieldInput
@@ -605,28 +606,6 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
           />
           <FieldInput
             width="500px"
-            label="Mattermost Team Name"
-            name="team" // must be the same name as expected by the backend as form value
-            rule={requiredField('Team Name Required')}
-            value={team}
-            onChange={e => setTeam(e.target.value)}
-            placeholder="team-name"
-            toolTipContent="The name of your Mattermost workspace"
-            mb={3}
-          />
-          <FieldInput
-            width="500px"
-            label="Mattermost Channel Name"
-            name="channel" // must be the same name as expected by the backend as form value
-            rule={requiredField('Channel Name Required')}
-            value={channel}
-            onChange={e => setChannel(e.target.value)}
-            placeholder="channel-name"
-            toolTipContent="Name of the channel to post Access Requests to"
-            mb={3}
-          />
-          <FieldInput
-            width="500px"
             label="Mattermost User Email (Optional)"
             name="email" // must be the same name as expected by the backend as form value
             value={email}
@@ -636,6 +615,40 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
              a direct message when the plugin receives an Access Request event`}
             mb={3}
           />
+          <Box width="500px">
+            <Text mb={1}>Mattermost Team and Channel (Optional):</Text>
+            <Flex justifyContent="space-between">
+              <FieldInput
+                width="240px"
+                label="Team Name"
+                name="team" // must be the same name as expected by the backend as form value
+                rule={
+                  teamChannelRequired
+                    ? requiredField('Team Name Required')
+                    : undefined
+                }
+                value={team}
+                onChange={e => setTeam(e.target.value)}
+                placeholder="team-name"
+                toolTipContent="The name of your Mattermost workspace"
+                mr={2}
+              />
+              <FieldInput
+                width="240px"
+                label="Channel Name"
+                name="channel" // must be the same name as expected by the backend as form value
+                rule={
+                  teamChannelRequired
+                    ? requiredField('Channel Name Required')
+                    : undefined
+                }
+                value={channel}
+                onChange={e => setChannel(e.target.value)}
+                placeholder="channel-name"
+                toolTipContent="Name of the channel to post Access Requests to"
+              />
+            </Flex>
+          </Box>
         </>
       );
     },

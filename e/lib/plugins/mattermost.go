@@ -21,7 +21,12 @@ func mattermostInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps
 		return nil, trace.BadParameter("missing Mattermost plugin static credentials")
 	}
 
-	recipients := []string{fmt.Sprintf("%s/%s", mattermostSpec.Team, mattermostSpec.Channel)}
+	var recipients []string
+
+	if len(mattermostSpec.Team) > 0 && len(mattermostSpec.Channel) > 0 {
+		recipients = []string{fmt.Sprintf("%s/%s", mattermostSpec.Team, mattermostSpec.Channel)}
+	}
+
 	if mattermostSpec.ReportToEmail != "" {
 		recipients = append(recipients, mattermostSpec.ReportToEmail)
 	}

@@ -304,17 +304,20 @@ func installMattermostPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 		return nil, trace.BadParameter("missing Mattermost bot access token")
 	}
 
+	// Optional fields.
+	email := r.FormValue("email")
 	channel := r.FormValue("channel")
-	if len(channel) == 0 {
-		return nil, trace.BadParameter("missing Mattermost channel name")
-	}
-
 	team := r.FormValue("team")
-	if len(team) == 0 {
-		return nil, trace.BadParameter("missing Mattermost team name")
-	}
 
-	email := r.FormValue("email") // optional field.
+	// If one field is defined, both should be required.
+	if len(channel) > 0 || len(team) > 0 {
+		if len(channel) == 0 {
+			return nil, trace.BadParameter("missing Mattermost channel name")
+		}
+		if len(team) == 0 {
+			return nil, trace.BadParameter("missing Mattermost team name")
+		}
+	}
 
 	labels := map[string]string{
 		"mattermost/channel":    channel,

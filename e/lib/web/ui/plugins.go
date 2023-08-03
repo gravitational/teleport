@@ -51,10 +51,18 @@ func pluginDetails(p types.Plugin) string {
 	case *types.PluginSpecV1_SlackAccessPlugin:
 		return fmt.Sprintf(`Messages will be sent to assigned reviewers and the "%s" channel`, settings.SlackAccessPlugin.FallbackChannel)
 	case *types.PluginSpecV1_Mattermost:
-		if len(settings.Mattermost.ReportToEmail) == 0 {
+		hasTeamChannelDefined := len(settings.Mattermost.Channel) > 0 && len(settings.Mattermost.Team) > 0
+		hasEmailDefined := len(settings.Mattermost.ReportToEmail) > 0
+		if hasTeamChannelDefined && hasEmailDefined {
+			return fmt.Sprintf(`Messages will be sent to assigned reviewers, to Mattermost user "%s", and to the "%s" channel from team "%s"`, settings.Mattermost.ReportToEmail, settings.Mattermost.Channel, settings.Mattermost.Team)
+		}
+		if hasTeamChannelDefined && !hasEmailDefined {
 			return fmt.Sprintf(`Messages will be sent to assigned reviewers and to the "%s" channel from team "%s"`, settings.Mattermost.Channel, settings.Mattermost.Team)
 		}
-		return fmt.Sprintf(`Messages will be sent to assigned reviewers, to Mattermost user "%s", and to the "%s" channel from team "%s"`, settings.Mattermost.ReportToEmail, settings.Mattermost.Channel, settings.Mattermost.Team)
+		if hasEmailDefined {
+			return fmt.Sprintf(`Messages will be sent to assigned reviewers and to Mattermost user "%s"`, settings.Mattermost.ReportToEmail)
+		}
+		return "Messages will be sent to assigned reviewers defined in access requests"
 	case *types.PluginSpecV1_Jamf:
 		return "Devices will be synced from Jamf to Teleport device inventory"
 	case *types.PluginSpecV1_Okta:
