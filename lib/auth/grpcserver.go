@@ -5318,10 +5318,7 @@ func (g *GRPCServer) GetResourceUsage(ctx context.Context, req *authpb.GetResour
 	}
 
 	resp, err := auth.GetResourceUsage(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
+	return resp, trace.Wrap(err)
 }
 
 // GetBackend returns the backend from the underlying auth server.
