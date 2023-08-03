@@ -3210,15 +3210,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
 
-		webSessionTTL := accessRequest.GetAccessExpiry()
-		sessionTTL := accessRequest.GetSessionTLL()
-		if !sessionTTL.IsZero() {
-			sessionDuration := sessionTTL.Sub(accessRequest.GetCreationTime())
-			adjustedSessionTTL := a.clock.Now().UTC().Add(sessionDuration)
-			if webSessionTTL.After(adjustedSessionTTL) {
-				webSessionTTL = adjustedSessionTTL
-			}
-		}
+		webSessionTTL := a.getWebSessionTTL(accessRequest)
 
 		// Let the session expire with the shortest expiry time.
 		if expiresAt.After(webSessionTTL) {
@@ -3276,6 +3268,27 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	return sess, nil
+}
+
+// getWebSessionTTL returns the earliest expiration time of allowed in the access request.
+func (a *Server) getWebSessionTTL(accessRequest types.AccessRequest) time.Time {
+	webSessionTTL := accessRequest.GetAccessExpiry()
+	sessionTTL := accessRequest.GetSessionTLL()
+
+	// If the sessionTTL is not set, use the session duration.
+	if !sessionTTL.IsZero() {
+		// Session TTL contains the time when the session should end.
+		// We need to subtract it from the creation time to get the
+		// session duration.
+		sessionDuration := sessionTTL.Sub(accessRequest.GetCreationTime())
+		// Calculate the adjusted session TTL.
+		adjustedSessionTTL := a.clock.Now().UTC().Add(sessionDuration)
+		if webSessionTTL.After(adjustedSessionTTL) {
+			webSessionTTL = adjustedSessionTTL
+		}
+	}
+
+	return webSessionTTL
 }
 
 func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.Identity, user string, accessRequestID string) (types.AccessRequest, error) {
