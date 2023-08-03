@@ -33,6 +33,4 @@ The size of the node pool can be scaled up and down by tweaking it in `aks.tf` a
 
 ## Clean up
 
-To clean things up, `az group delete --resource-group "$(terraform output -raw rg_name)"` (doublechecking the name first, ideally), then `terraform state list | grep -e ^kubernetes_ -e ^helm_ -e ^kubectl_ | xargs terraform state rm` - as otherwise there would be no way to know if they exist or not, since the cluster is gone - then `terraform destroy` to delete whatever was left outside of the resource group (it should be at most two DNS records and a DNS role assignment).
-
-Using `terraform destroy` is slow and would require manually deleting databases from the PostgreSQL cluster, since deleting the `teleport` user will fail halfway through.
+To clean everything up, run `make destroy`. It's possible to delete just the teleport deployment (to create it again manually, say) by disabling it in `terraform.tfvars` and then running `terraform apply` again. Selectively destroying other resources is not recommended, as Terraform might get confused.

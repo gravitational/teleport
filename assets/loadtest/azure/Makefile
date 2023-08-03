@@ -33,3 +33,10 @@ teleport_release = $(shell terraform output -raw teleport_release)
 .PHONY: create-joe
 create-joe: aks
 	kubectl --context "$(aks_name)" --namespace "$(teleport_ns)" exec "deploy/$(teleport_release)-auth" -- tctl users add --roles=access,auditor,editor --logins root --kubernetes-groups system:masters joe
+
+.PHONY: destroy
+destroy:
+	@echo Double-check the following command line!
+	if az group show --resource-group "$(rg_name)" -o none; then az group delete --resource-group "$(rg_name)"; fi
+	terraform state list | grep -e ^kubernetes_ -e ^helm_ -e ^kubectl_ | xargs terraform state rm
+	terraform destroy
