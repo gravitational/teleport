@@ -15,4 +15,5 @@ limitations under the License.
 */
 
 export * from './DocumentConnectMyComputerSetup/DocumentConnectMyComputerSetup';
+export * from './connectMyComputerContext';
 export { NavigationMenu as ConnectMyComputerNavigationMenu } from './NavigationMenu';

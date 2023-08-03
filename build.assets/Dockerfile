@@ -40,9 +40,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 # Install openssl.
 # install_sw install only binaries, skips docs.
 # Keep the version below synced with devbox.json
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.10 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
+    [ "$(git rev-parse HEAD)" = '245cb0291e0db99d9ccf3692fa76f440b2b054c2' ] && \
     ./config --release --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -174,10 +174,10 @@ RUN apt-get -y update && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install osslsigncode for Windows Code Signing. The format of our 
+# Install osslsigncode for Windows Code Signing. The format of our
 # Code Signing Certificate needs us to use osslsigncode >= 2.6, which
 # allows the use of legacy OpenSSL algorithms. This is not yet provided
-# by Ubuntu, so we will have to fetch it ourselves.   
+# by Ubuntu, so we will have to fetch it ourselves.
 RUN --mount=type=bind,target=/context \
     curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
     && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
@@ -185,7 +185,7 @@ RUN --mount=type=bind,target=/context \
     && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
     && rm -rf /tmp/osslsigncode \
     && rm osslsigncode.zip
-    
+
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \

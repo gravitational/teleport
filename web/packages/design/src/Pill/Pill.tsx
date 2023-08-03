@@ -32,7 +32,7 @@ function Pill({ label, onDismiss }: Props) {
           onDismiss(label);
         }}
       >
-        <Cross />
+        <Cross size="small" />
       </Dismiss>
     </Wrapper>
   );

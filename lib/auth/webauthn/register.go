@@ -192,7 +192,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		return nil, trace.Wrap(err)
 	}
 
-	return (*CredentialCreation)(cc), nil
+	return CredentialCreationFromProtocol(cc), nil
 }
 
 func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIdentity) ([]byte, error) {
