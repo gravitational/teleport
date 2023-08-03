@@ -874,9 +874,9 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindServerInfo, services.RW()),
 					},
-					// wildcard any cluster available.
-					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+					// Discovery service should only access kubes/dbs with "cloud" origin.
+					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					DatabaseLabels:   types.Labels{types.OriginLabel: []string{types.OriginCloud}},
 				},
 			})
 	case types.RoleOkta:
