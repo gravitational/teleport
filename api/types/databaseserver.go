@@ -47,6 +47,10 @@ type DatabaseServer interface {
 	String() string
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
+
+	// CloneAny is used to return a clone of the DatabaseServer and match the CloneAny interface
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneAny() any
 	// GetDatabase returns the database this database server proxies.
 	GetDatabase() Database
 	// SetDatabase sets the database this database server proxies.
@@ -310,6 +314,11 @@ func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return utils.CloneProtoMsg(s)
+}
+
+// CloneAny returns a copy of this database server object.
+func (s *DatabaseServerV3) CloneAny() any {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

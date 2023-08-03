@@ -27,12 +27,16 @@ export const KeysEnum = {
   UNIFIED_RESOURCES_ENABLED: 'grv_teleport_unified_resources_enabled',
 };
 
-// LocalStorageSurvey is the SurveyRequest type defined in Enterprise
-export type LocalStorageSurvey = {
+// SurveyRequest is the request for sending data to the back end
+export type SurveyRequest = {
   companyName: string;
   employeeCount: string;
   resources: Array<string>;
-  clusterResources: Array<number>;
   role: string;
   team: string;
+};
+
+// LocalStorageSurvey is the SurveyRequest type defined in Enterprise
+export type LocalStorageSurvey = SurveyRequest & {
+  clusterResources: Array<number>;
 };

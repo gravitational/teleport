@@ -107,6 +107,10 @@ type User interface {
 	SetAzureIdentities(azureIdentities []string)
 	// SetGCPServiceAccounts sets a list of GCP service accounts for the user
 	SetGCPServiceAccounts(accounts []string)
+	// SetHostUserUID sets the UID for host users
+	SetHostUserUID(uid string)
+	// SetHostUserGID sets the GID for host users
+	SetHostUserGID(gid string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -338,6 +342,16 @@ func (u *UserV2) SetAzureIdentities(identities []string) {
 // SetGCPServiceAccounts sets a list of GCP service accounts for the user
 func (u *UserV2) SetGCPServiceAccounts(accounts []string) {
 	u.setTrait(constants.TraitGCPServiceAccounts, accounts)
+}
+
+// SetHostUserUID sets the host user UID
+func (u *UserV2) SetHostUserUID(uid string) {
+	u.setTrait(constants.TraitHostUserUID, []string{uid})
+}
+
+// SetHostUserGID sets the host user GID
+func (u *UserV2) SetHostUserGID(uid string) {
+	u.setTrait(constants.TraitHostUserGID, []string{uid})
 }
 
 // GetStatus returns login status of the user

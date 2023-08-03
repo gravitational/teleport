@@ -36,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -530,11 +531,21 @@ var (
 		[]string{teleport.TagUpgrader},
 	)
 
+	accessRequestsCreatedMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricAccessRequestsCreated,
+			Help:      "Tracks the number of created access requests",
+		},
+		[]string{teleport.TagRoles, teleport.TagResources},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
+		accessRequestsCreatedMetric,
 	}
 )
 
@@ -617,9 +628,9 @@ type Server struct {
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
 
-	// unifiedResourceWatcher is used to watch and collect multiple resource kinds to be presented
+	// UnifiedResourceCache is a cache of multiple resource kinds to be presented
 	// in a unified manner in the web UI.
-	unifiedResourceWatcher *services.UnifiedResourceWatcher
+	UnifiedResourceCache *services.UnifiedResourceCache
 
 	inventory *inventory.Controller
 
@@ -775,14 +786,13 @@ func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
 }
 
-// SetUnifiedResourceWatcher sets the unified resource watcher.
-func (a *Server) SetUnifiedResourceWatcher(unifiedResourceWatcher *services.UnifiedResourceWatcher) {
+// SetUnifiedResourcesCache sets the unified resource cache.
+func (a *Server) SetUnifiedResourcesCache(unifiedResourcesCache *services.UnifiedResourceCache) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	a.unifiedResourceWatcher = unifiedResourceWatcher
+	a.UnifiedResourceCache = unifiedResourcesCache
 }
 
-// SetLockWatcher sets the lock watcher.
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -1332,11 +1342,6 @@ func (a *Server) Close() error {
 		}
 	}
 
-	if a.unifiedResourceWatcher != nil {
-		if err := a.unifiedResourceWatcher.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
 	return trace.NewAggregate(errs...)
 }
 
@@ -3940,17 +3945,21 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	}
 	return a.Services.DeleteNamespace(namespace)
 }
-
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
+	_, err := a.CreateAccessRequestV2(ctx, req, identity)
+	return trace.Wrap(err)
+}
+
+func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only, this ensures the
+	// Always perform variable expansion on creation only; this ensures the
 	// access request that is reviewed is the same that is approved.
 	expandOpts := services.ExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Look for user groups and associated applications to the request.
@@ -3975,7 +3984,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 
 		userGroup, err := a.GetUserGroup(ctx, resource.Name)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		for _, app := range userGroup.GetApplications() {
@@ -3999,13 +4008,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if req.GetDryRun() {
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
-		return nil
+		return req, nil
 	}
 
 	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
 
-	if err := a.Services.CreateAccessRequest(ctx, req); err != nil {
-		return trace.Wrap(err)
+	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
@@ -4026,7 +4035,11 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
-	return nil
+
+	accessRequestsCreatedMetric.WithLabelValues(
+		strconv.Itoa(len(req.GetRoles())),
+		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
+	return req, nil
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {

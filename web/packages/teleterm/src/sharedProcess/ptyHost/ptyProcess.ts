@@ -76,6 +76,13 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     this._setStatus('open');
     this.emit(TermEventEnum.Open);
 
+    // Emit the init/help message before registering data handler. This ensures
+    // the message is printed first and will not conflict with data coming from
+    // the PTY.
+    if (this.options.initMessage) {
+      this.emit(TermEventEnum.Data, this.options.initMessage);
+    }
+
     this._process.onData(data => this._handleData(data));
     this._process.onExit(ev => this._handleExit(ev));
   }

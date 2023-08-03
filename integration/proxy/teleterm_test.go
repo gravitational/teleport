@@ -196,12 +196,23 @@ func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, 
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
-	t.Cleanup(grpcServer.GracefulStop)
 
+	serveErr := make(chan error)
 	go func() {
-		err := grpcServer.Serve(ls)
-		assert.NoError(t, err)
+		serveErr <- grpcServer.Serve(ls)
 	}()
+
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+
+		// For test cases that did not send any grpc calls, test may finish
+		// before grpcServer.Serve is called and grpcServer.Serve will return
+		// grpc.ErrServerStopped.
+		err := <-serveErr
+		if err != grpc.ErrServerStopped {
+			assert.NoError(t, err)
+		}
+	})
 
 	return tshdEventsService, ls.Addr().String()
 }
@@ -332,7 +343,10 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 			kubeGateway, err := gateway.AsKube(gw)
 			require.NoError(t, err)
 
-			client = kubeClientForLocalProxy(t, kubeGateway.KubeconfigPath(), teleportCluster, kubeCluster)
+			kubeconfigPath := kubeGateway.KubeconfigPath()
+			checkKubeconfigPathInCommandEnv(t, gw, kubeconfigPath)
+
+			client = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
 		})
 
 		mustGetKubePod(t, client, kubePodName)
@@ -349,4 +363,12 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 		testKubeConnection,
 	)
 
+}
+
+func checkKubeconfigPathInCommandEnv(t *testing.T, gw gateway.Gateway, wantKubeconfigPath string) {
+	t.Helper()
+
+	cmd, err := gw.CLICommand()
+	require.NoError(t, err)
+	require.Equal(t, cmd.Env, []string{"KUBECONFIG=" + wantKubeconfigPath})
 }
