@@ -5388,17 +5388,6 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 	return headlessAuthn, trace.Wrap(err)
 }
 
-// GetUserPreferences returns the user preferences for a given user.
-func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
-	resp, err := a.Services.GetUserPreferences(ctx, request)
-	return resp, trace.Wrap(err)
-}
-
-// UpsertUserPreferences creates or updates user preferences for a given username.
-func (a *Server) UpsertUserPreferences(ctx context.Context, request *userpreferencesv1.UpsertUserPreferencesRequest) error {
-	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, request))
-}
-
 // GetResourceUsage returns the usage data for resources which are limited on usage-based billing plans.
 func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error) {
 	features := modules.GetModules().Features()
