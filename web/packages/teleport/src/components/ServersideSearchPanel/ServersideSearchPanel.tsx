@@ -32,7 +32,6 @@ import useServersideSearchPanel, {
   HookProps,
 } from './useServerSideSearchPanel';
 
-
 interface ComponentProps {
   pageIndicators: PageIndicators;
   disabled?: boolean;
