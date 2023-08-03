@@ -529,13 +529,19 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 		{Type: types.OpInit, Item: backend.Item{}},
 	})
 
+	// Make sure that nothing breaks even if the value we are KeepAlive-ing is
+	// somewhat big; PostgreSQL starts optimizing values if their compressed
+	// form doesn't fit within 8KiB, so we use 16KiB of uncompressible data
+	var bigValue [16384]byte
+	rand.Read(bigValue[:])
+
 	// When I create an item that expires in 10 seconds and add it to the DB
 	expiresAt := addSeconds(clock.Now(), 10)
-	item, lease := AddItem(ctx, t, uut, prefix("key"), "val1", expiresAt)
+	item, lease := AddItem(ctx, t, uut, prefix("key"), string(bigValue[:]), expiresAt)
 
 	events := collectEvents(ctx, t, watcher, 1)
 	requireEvents(t, events, []backend.Event{
-		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
+		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: bigValue[:], Expires: expiresAt}},
 	})
 
 	// move the current slightly forward, but still *before* the item's
@@ -552,7 +558,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	// on the collected events might have a slight skew
 	events = collectEvents(ctx, t, watcher, 1)
 	requireEvents(t, events, []backend.Event{
-		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
+		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: bigValue[:], Expires: updatedAt}},
 	})
 
 	err = uut.Delete(context.TODO(), item.Key)
