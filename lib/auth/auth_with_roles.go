@@ -236,7 +236,7 @@ func (a *ServerWithRoles) isLocalOrRemoteServerAction() bool {
 // whether any of the given roles match the role set.
 func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	for _, role := range roles {
-		if HasBuiltinRole(a.context, string(role)) {
+		if authz.HasBuiltinRole(a.context, string(role)) {
 			return true
 		}
 	}
@@ -245,15 +245,11 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 
 // HasBuiltinRole checks if the identity is a builtin role with the matching
 // name.
+// Deprecated: use authz.HasBuiltinRole instead.
 func HasBuiltinRole(authContext authz.Context, name string) bool {
-	if _, ok := authContext.Identity.(authz.BuiltinRole); !ok {
-		return false
-	}
-	if !authContext.Checker.HasRole(name) {
-		return false
-	}
-
-	return true
+	// TODO(jakule): This function can be removed once teleport.e is updated
+	// to use authz.HasBuiltinRole.
+	return authz.HasBuiltinRole(authContext, name)
 }
 
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
@@ -1333,8 +1329,9 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		} else if serverName != handle.HostID {
 			return trace.AccessDenied("access denied")
 		}
-
-		if !a.hasBuiltinRole(types.RoleKube) {
+		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
+		// we need to check if the host has the Kube or Proxy role.
+		if !a.hasBuiltinRole(types.RoleKube, types.RoleProxy) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
@@ -2359,13 +2356,19 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 }
 
 func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	_, err := a.CreateAccessRequestV2(ctx, req)
+	return trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	// An exception is made to allow users to create access *pending* requests for themselves.
 	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
 		if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.CreateAccessRequest(ctx, req, a.context.Identity.GetIdentity())
+	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
+	return resp, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
@@ -5501,8 +5504,8 @@ func (a *ServerWithRoles) checkAccessToNode(node types.Server) error {
 	// In addition, allow proxy (and remote proxy) to access all nodes for its
 	// smart resolution address resolution. Once the smart resolution logic is
 	// moved to the auth server, this logic can be removed.
-	builtinRole := HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
-		HasBuiltinRole(a.context, string(types.RoleProxy)) ||
+	builtinRole := authz.HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
+		authz.HasBuiltinRole(a.context, string(types.RoleProxy)) ||
 		HasRemoteBuiltinRole(a.context, string(types.RoleRemoteProxy))
 
 	if builtinRole {
@@ -6431,88 +6434,47 @@ func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Contex
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.CreateAssistantConversation(ctx, req)
+	return nil, trace.NotImplemented("CreateAssistantConversation must not be called on auth.ServerWithRoles")
 }
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.GetAssistantConversations(ctx, request)
+	return nil, trace.NotImplemented("GetAssistantConversations must not be called on auth.ServerWithRoles")
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.GetAssistantMessages(ctx, req)
+	return nil, trace.NotImplemented("GetAssistantMessages must not be called on auth.ServerWithRoles")
 }
 
 // DeleteAssistantConversation deletes a conversation by ID.
 func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.authServer.DeleteAssistantConversation(ctx, req))
+	return trace.NotImplemented("DeleteAssistantConversation must not be called on auth.ServerWithRoles")
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.IsAssistEnabled(ctx)
+	return nil, trace.NotImplemented("IsAssistEnabled must not be called on auth.ServerWithRoles")
 }
 
 // CreateAssistantMessage adds the message to the backend.
 func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.CreateAssistantMessage(ctx, msg)
+	return trace.NotImplemented("CreateAssistantMessage must not be called on auth.ServerWithRoles")
 }
 
 // UpdateAssistantConversationInfo updates the conversation info.
 func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+	return trace.NotImplemented("UpdateAssistantConversationInfo must not be called on auth.ServerWithRoles")
 }
 
 // GetUserPreferences returns the user preferences for a given user.
 func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
-	if err := a.currentUserAction(req.Username); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	preferences, err := a.authServer.GetUserPreferences(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return preferences, nil
+	return nil, trace.NotImplemented("GetUserPreferences must not be called on auth.ServerWithRoles")
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
 func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpreferencespb.UpsertUserPreferencesRequest) error {
-	if err := a.currentUserAction(req.Username); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.authServer.UpsertUserPreferences(ctx, req))
+	return trace.NotImplemented("UpsertUserPreferences must not be called on auth.ServerWithRoles")
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.

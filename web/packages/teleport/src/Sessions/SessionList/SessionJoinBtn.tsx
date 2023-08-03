@@ -16,8 +16,8 @@ limitations under the License.
 
 import React, { useState } from 'react';
 
-import { ButtonBorder, Text, Box, Menu, MenuItem } from 'design';
-import { CarrotDown, Warning } from 'design/Icon';
+import { ButtonBorder, Text, Box, Menu, MenuItem, Flex } from 'design';
+import { ChevronDown, Warning } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
@@ -109,7 +109,7 @@ function JoinMenu({
     <Box textAlign="center" width="80px">
       <ButtonBorder size="small" onClick={handleClickListItem}>
         Join
-        <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
+        <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
       </ButtonBorder>
       <Menu
         anchorOrigin={{
@@ -191,10 +191,12 @@ function JoinMenuItem({
         <Text>{description}</Text>
         {!showCTA && (
           <Box color="text.main" px={1} mt={1}>
-            <Text fontSize="10px" color="text.slightlyMuted">
-              <Warning color="error.main" mr={2} />
-              {modeWarningText[participantMode]}
-            </Text>
+            <Flex>
+              <Warning color="error.main" mr={2} size="small" />
+              <Text fontSize="10px" color="text.slightlyMuted">
+                {modeWarningText[participantMode]}
+              </Text>
+            </Flex>
           </Box>
         )}
       </Box>

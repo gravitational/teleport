@@ -384,6 +384,14 @@ const (
 	// TraitGCPServiceAccounts is the name of the role variable used to store
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
+
+	// TraitHostUserUID is the name of the variable used to specify
+	// the UID to create host user account with.
+	TraitHostUserUID = "host_user_uid"
+
+	// TraitHostUserGID is the name of the variable used to specify
+	// the GID to create host user account with.
+	TraitHostUserGID = "host_user_gid"
 )
 
 const (
@@ -398,6 +406,11 @@ const (
 	// WebAPIConnUpgradeHeader is the header used to indicate the requested
 	// connection upgrade types in the connection upgrade API.
 	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
+	// indicate the requested connection upgrade types in the connection
+	// upgrade API. This header is sent in addition to "Upgrade" header in case
+	// a load balancer/reverse proxy removes "Upgrade".
+	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
 	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
 	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"

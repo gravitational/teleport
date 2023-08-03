@@ -32,7 +32,10 @@ import {
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import { DocumentConnectMyComputerSetup } from 'teleterm/ui/ConnectMyComputer';
+import {
+  ConnectMyComputerContextProvider,
+  DocumentConnectMyComputerSetup,
+} from 'teleterm/ui/ConnectMyComputer';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 
 import Document from 'teleterm/ui/Document';
@@ -76,11 +79,15 @@ export function DocumentsRenderer() {
           key={workspace.rootClusterUri}
         >
           <WorkspaceContextProvider value={workspace}>
-            {workspace.documentsService.getDocuments().length ? (
-              renderDocuments(workspace.documentsService)
-            ) : (
-              <KeyboardShortcutsPanel />
-            )}
+            <ConnectMyComputerContextProvider
+              rootClusterUri={workspace.rootClusterUri}
+            >
+              {workspace.documentsService.getDocuments().length ? (
+                renderDocuments(workspace.documentsService)
+              ) : (
+                <KeyboardShortcutsPanel />
+              )}
+            </ConnectMyComputerContextProvider>
           </WorkspaceContextProvider>
         </DocumentsContainer>
       ))}

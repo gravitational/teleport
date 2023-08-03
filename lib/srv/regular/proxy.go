@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -216,16 +215,6 @@ func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.C
 
 	clientAddr := sconn.RemoteAddr()
 
-	// did the client pass us a true client IP ahead of time via an environment variable?
-	// (usually the web client would do that)
-	trueClientIP, ok := serverContext.GetEnv(sshutils.TrueClientAddrVar)
-	if ok {
-		a, err := utils.ParseAddr(trueClientIP)
-		if err == nil {
-			clientAddr = a
-		}
-	}
-
 	// connect to a site's auth server
 	if t.host == "" {
 		return t.proxyToSite(ctx, ch, t.clusterName, clientAddr, sconn.LocalAddr())
@@ -265,7 +254,7 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 
 	signer := agentless.SignerFromSSHCertificate(identity.Certificate, authClient, t.clusterName, identity.TeleportUser)
 	aGetter := t.ctx.StartAgentChannel
-	conn, _, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
+	conn, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}

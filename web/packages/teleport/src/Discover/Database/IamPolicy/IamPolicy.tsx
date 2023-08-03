@@ -55,10 +55,10 @@ export function IamPolicyView({
       </HeaderSubtitle>
       {attempt.status === 'failed' ? (
         <>
-          <Text my={3}>
-            <Icons.Warning ml={1} mr={2} color="error.main" />
-            Encountered Error: {attempt.statusText}
-          </Text>
+          <Flex my={3}>
+            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
+            <Text>Encountered Error: {attempt.statusText}</Text>
+          </Flex>
           <ButtonBlueText ml={1} onClick={fetchIamPolicy}>
             Retry
           </ButtonBlueText>

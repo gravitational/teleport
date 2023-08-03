@@ -28,7 +28,7 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { Close } from 'design/Icon';
+import { Cross } from 'design/Icon';
 import { RadioGroup } from 'design/RadioGroup';
 
 interface UserJobRoleProps {
@@ -97,7 +97,7 @@ export function UserJobRole(props: UserJobRoleProps) {
             onClick={props.onCancel}
             color="text.slightlyMuted"
           >
-            <Close fontSize={5} />
+            <Cross size="medium" />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={3}>
