@@ -5695,14 +5695,6 @@ func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.W
 	return filtered, nil
 }
 
-// CheckOSSDesktopsLimit checks if number of non-AD is in limit for OSS distribution. Returns always true for Enterprise
-func (a *ServerWithRoles) CheckOSSDesktopsLimit(ctx context.Context) (bool, error) {
-	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList); err != nil {
-		return false, trace.Wrap(err)
-	}
-	return a.authServer.CheckOSSDesktopsLimit(ctx)
-}
-
 // CreateWindowsDesktop creates a new windows desktop host.
 func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbCreate); err != nil {

@@ -35,7 +35,6 @@ type WindowsDesktops interface {
 	DeleteAllWindowsDesktops(context.Context) error
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
-	CheckOSSDesktopsLimit(ctx context.Context) (bool, error)
 }
 
 // MarshalWindowsDesktop marshals the WindowsDesktop resource to JSON.

@@ -73,7 +73,7 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
 
-	underLimit, err := s.CheckOSSDesktopsLimit(ctx)
+	underLimit, err := s.checkWindowsDesktopsLimit(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

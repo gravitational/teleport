@@ -125,6 +125,7 @@ const (
 	OSSDesktopsAlertMessage = "Teleport Community Edition only allows 3 Non-AD desktops configured. " +
 		"You won't be able to connect to any of them if there are more. " +
 		"Please contact Sales to upgrade your license"
+	OSSDesktopsLimit = 3
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -1001,7 +1002,7 @@ func (a *Server) runPeriodicOperations() {
 			// clusters, so launch them in the background.
 			go a.doInstancePeriodics(ctx)
 		case <-ossDesktopsCheck.Next():
-			if _, err := a.CheckOSSDesktopsLimit(ctx); err != nil {
+			if _, err := a.checkWindowsDesktopsLimit(ctx); err != nil {
 				log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
 			}
 		}
@@ -4298,7 +4299,7 @@ func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) 
 	if err := a.Services.DeleteWindowsDesktop(ctx, hostID, name); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := a.CheckOSSDesktopsLimit(ctx); err != nil {
+	if _, err := a.checkWindowsDesktopsLimit(ctx); err != nil {
 		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
 	}
 	return nil
@@ -4352,22 +4353,43 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	return nil
 }
 
-// CheckOSSDesktopsLimit checks if number of non-AD is in limit for OSS distribution. Returns always true for Enterprise.
+// checkWindowsDesktopsLimit checks if number of non-AD is in limit for OSS distribution. Returns always true for Enterprise.
 // If there are more non-AD desktops than allowed it also adds cluster alert to notify user.
-func (a *Server) CheckOSSDesktopsLimit(ctx context.Context) (bool, error) {
-	underLimit, err := a.Services.CheckOSSDesktopsLimit(ctx)
-	if underLimit || err != nil {
-		return true, trace.Wrap(err)
+func (a *Server) checkWindowsDesktopsLimit(ctx context.Context) (bool, error) {
+	if modules.GetModules().BuildType() != modules.BuildOSS {
+		return true, nil
 	}
-	alert, err := types.NewClusterAlert(OSSDesktopsAlertID, OSSDesktopsAlertMessage,
-		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
-		types.WithAlertLabel(types.AlertOnLogin, "yes"),
-		types.WithAlertLabel(types.AlertPermitAll, "yes"),
-		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
-	if err != nil {
+	startKey := backend.ExactKey(local.WindowsDesktopsPrefix)
+	stream := backend.StreamRange(ctx, a.bk, startKey, backend.RangeEnd(startKey), apidefaults.DefaultChunkSize)
+	var count uint64
+	for stream.Next() {
+		item := stream.Item()
+		desktop, err := services.UnmarshalWindowsDesktop(item.Value,
+			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		if err != nil {
+			stream.Done()
+			return false, trace.Wrap(err)
+		}
+		if desktop.NonAD() {
+			count++
+			if count > OSSDesktopsLimit {
+				stream.Done()
+				alert, err := types.NewClusterAlert(OSSDesktopsAlertID, OSSDesktopsAlertMessage,
+					types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+					types.WithAlertLabel(types.AlertOnLogin, "yes"),
+					types.WithAlertLabel(types.AlertPermitAll, "yes"),
+					types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+				return false, trace.Wrap(a.UpsertClusterAlert(ctx, alert))
+			}
+		}
+	}
+	if err := stream.Done(); err != nil {
 		return false, trace.Wrap(err)
 	}
-	return false, trace.Wrap(a.UpsertClusterAlert(ctx, alert))
+	return true, nil
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.

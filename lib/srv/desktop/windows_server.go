@@ -738,8 +738,6 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
-	buildType := modules.GetModules().BuildType()
-
 	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
 		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
 	if err != nil {
@@ -754,20 +752,6 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	desktop := desktops[0]
-
-	if desktop.NonAD() && buildType == modules.BuildOSS {
-		underLimit, err := s.cfg.AccessPoint.CheckOSSDesktopsLimit(ctx)
-		if err != nil {
-			log.WithError(err).Warning("Failed to check desktops limit")
-			sendTDPError("Teleport failed to check desktops limit")
-			return
-		}
-		if !underLimit {
-			log.Warning("More than 3 Non-AD desktops configured")
-			sendTDPError(auth.OSSDesktopsAlertMessage)
-			return
-		}
-	}
 
 	log = log.WithField("desktop-addr", desktop.GetAddr())
 	log.Debug("Connecting to Windows desktop")
