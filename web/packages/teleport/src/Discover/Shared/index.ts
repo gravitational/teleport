@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-export { ActionButtons } from './ActionButtons';
+export { ActionButtons, AlternateInstructionButton } from './ActionButtons';
 export { ButtonBlueText } from './ButtonBlueText';
 export { Header, HeaderSubtitle, HeaderWithBackBtn } from './Header';
 export { Finished } from './Finished';
