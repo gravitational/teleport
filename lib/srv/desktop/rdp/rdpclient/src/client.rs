@@ -11,11 +11,16 @@ use ironrdp_session::utils::swap_hashmap_kv;
 use ironrdp_session::{x224, ActiveStageOutput, SessionError, SessionErrorKind, SessionResult};
 use rdp::model::error::*;
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
+use static_init::dynamic;
 use std::io::{self, Error as IoError};
 use std::net::ToSocketAddrs;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::Mutex;
+
+/// Creates a single, static tokio runtime for use by all clients.
+#[dynamic]
+static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
 
 /// Client has an unusual lifecycle:
 /// - The function client_connect calls Client::connect(), which creates it on the heap (Box::new), grabs a raw pointer(Box::into_raw),
@@ -33,7 +38,6 @@ use tokio::sync::Mutex;
 /// need to be implemented as features are added to the Client going forward.
 pub struct Client {
     iron_rdp_client: IronRDPClient,
-    tokio_rt: tokio::runtime::Runtime,
     go_ref: usize,
 }
 
@@ -45,12 +49,8 @@ const _: () = {
 };
 
 impl Client {
-    pub fn connect(
-        go_ref: usize,
-        tokio_rt: tokio::runtime::Runtime,
-        params: ConnectParams,
-    ) -> Result<*const Self, ConnectError> {
-        match tokio_rt.block_on(async {
+    pub fn connect(go_ref: usize, params: ConnectParams) -> Result<*const Self, ConnectError> {
+        match TOKIO_RT.block_on(async {
             let server_addr = params.addr;
             let server_socket_addr = server_addr.to_socket_addrs()?.next().unwrap();
 
@@ -161,7 +161,6 @@ impl Client {
                         framed_writer,
                         x224_processor,
                     ),
-                    tokio_rt,
                     go_ref,
                 })))
             }
@@ -198,7 +197,7 @@ impl Client {
     }
 
     pub fn read_rdp_output(&self) -> CGOReadRdpOutputReturns {
-        self.tokio_rt.block_on(async {
+        TOKIO_RT.block_on(async {
             loop {
                 trace!("awaiting frame from rdp server");
                 let (action, mut frame) = match self.read_pdu().await {
@@ -248,7 +247,7 @@ impl Client {
     }
 
     pub fn write_rdp_pointer(&self, pointer: CGOMousePointerEvent) -> CGOErrCode {
-        self.tokio_rt.block_on(async {
+        TOKIO_RT.block_on(async {
             let mut fastpath_events = Vec::new();
             // TODO(isaiah): impl From for this
             let mut flags = match pointer.button {
@@ -294,7 +293,7 @@ impl Client {
     }
 
     pub fn handle_tdp_rdp_response_pdu(&self, res: Vec<u8>) -> CGOErrCode {
-        self.tokio_rt.block_on(async {
+        TOKIO_RT.block_on(async {
             match self
                 .process_active_stage_result(Ok(vec![ActiveStageOutput::ResponseFrame(res)]))
                 .await
