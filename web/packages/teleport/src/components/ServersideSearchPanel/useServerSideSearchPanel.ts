@@ -20,8 +20,6 @@ import { AgentFilter } from 'teleport/services/agents';
 
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
-import type { PageIndicators } from '../hooks/useServersidePagination';
-
 export default function useServersideSearchPanel({
   pathname,
   params,

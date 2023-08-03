@@ -24,13 +24,14 @@ import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
 
 import Toggle from 'teleport/components/Toggle';
 
+import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
+
 import Tooltip from './Tooltip';
 import useServersideSearchPanel, {
   SearchPanelState,
   HookProps,
 } from './useServerSideSearchPanel';
 
-import { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
 interface ComponentProps {
   pageIndicators: PageIndicators;

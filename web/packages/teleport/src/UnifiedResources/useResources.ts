@@ -22,11 +22,7 @@ import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
-import {
-  AgentFilter,
-  AgentResponse,
-  UnifiedResource,
-} from 'teleport/services/agents';
+import { AgentResponse, UnifiedResource } from 'teleport/services/agents';
 import { UrlFilteringState } from 'teleport/components/hooks/useUrlFiltering/useUrlFiltering';
 
 export interface ResourcesState {
