@@ -100,10 +100,9 @@ func Test_kubeClusterCollection_writeText(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &kubeClusterCollection{
 				clusters: kubeClusters,
-				verbose:  tt.fields.verbose,
 			}
 			w := &bytes.Buffer{}
-			err := c.writeText(w)
+			err := c.writeText(w, tt.fields.verbose)
 			require.NoError(t, err)
 			require.Contains(t, w.String(), tt.wantTable())
 		})

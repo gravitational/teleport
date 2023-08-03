@@ -53,7 +53,7 @@ export default class MenuActionIcon extends React.Component<Props> {
           onClick={this.onOpen}
           data-testid="button"
         >
-          <Ellipsis />
+          <Ellipsis size="medium" />
         </ButtonIcon>
         <Menu
           menuListCss={menuListCss}

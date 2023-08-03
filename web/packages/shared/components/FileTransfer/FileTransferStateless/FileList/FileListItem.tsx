@@ -48,7 +48,7 @@ export function FileListItem(props: FileListItemProps) {
           {transferState.type === 'completed' && (
             <CircleCheck
               ml={2}
-              fontSize="14px"
+              size="medium"
               color="progressBarColor"
               title="Transfer completed"
             />
@@ -63,7 +63,7 @@ export function FileListItem(props: FileListItemProps) {
             mb="-4px"
             onClick={() => props.onCancel(id)}
           >
-            <Cross />
+            <Cross size="small" />
           </ButtonIcon>
         )}
       </Flex>
@@ -90,10 +90,12 @@ export function FileListItem(props: FileListItemProps) {
 
 const Error: FC = props => {
   return (
-    <Text color="error.hover" typography="body2" mt={1}>
-      <Warning mr={1} color="inherit" />
-      {props.children}
-    </Text>
+    <Flex alignItems="center" mt={1}>
+      <Warning size="small" mr={1} color="inherit" />
+      <Text color="error.hover" typography="body2">
+        {props.children}
+      </Text>
+    </Flex>
   );
 };
 

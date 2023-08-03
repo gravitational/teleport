@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
-import { useAsync } from 'shared/hooks/useAsync';
-import { wait } from 'shared/utils/wait';
+import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import * as Alerts from 'design/Alert';
 import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
@@ -26,11 +25,15 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
+import Logger from 'teleterm/logger';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
   doc: types.DocumentConnectMyComputerSetup;
 }
+
+const logger = new Logger('DocumentConnectMyComputerSetup');
 
 export function DocumentConnectMyComputerSetup(
   props: DocumentConnectMyComputerSetupProps
@@ -96,59 +99,90 @@ function Information(props: { onSetUpAgentClick(): void }) {
 function AgentSetup() {
   const ctx = useAppContext();
   const { rootClusterUri } = useWorkspaceContext();
+  const { runAgentAndWaitForNodeToJoin } = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
+  const nodeToken = useRef<string>();
 
-  const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
-    useCallback(async () => {
-      retryWithRelogin(ctx, rootClusterUri, async () => {
-        let certsReloaded = false;
+  const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
+    useAsync(
+      useCallback(async () => {
+        retryWithRelogin(ctx, rootClusterUri, async () => {
+          let certsReloaded = false;
 
-        try {
-          const response = await ctx.connectMyComputerService.createRole(
-            rootClusterUri
-          );
-          certsReloaded = response.certsReloaded;
-        } catch (error) {
-          if ((error.message as string)?.includes('access denied')) {
-            throw new Error(
-              'Access denied. Contact your administrator for permissions to manage users and roles.'
+          try {
+            const response = await ctx.connectMyComputerService.createRole(
+              rootClusterUri
             );
+            certsReloaded = response.certsReloaded;
+          } catch (error) {
+            if (isAccessDeniedError(error)) {
+              throw new Error(
+                'Access denied. Contact your administrator for permissions to manage users and roles.'
+              );
+            }
+            throw error;
           }
-          throw error;
-        }
 
-        // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
-        // of the cluster to also update the role list in the UI.
-        if (certsReloaded) {
-          await ctx.clustersService.syncRootCluster(rootClusterUri);
-        }
-      });
-    }, [ctx, rootClusterUri])
-  );
-  const [downloadAgentAttempt, runDownloadAgentAttempt] = useAsync(
+          // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
+          // of the cluster to also update the role list in the UI.
+          if (certsReloaded) {
+            await ctx.clustersService.syncRootCluster(rootClusterUri);
+          }
+        });
+      }, [ctx, rootClusterUri])
+    );
+  const [
+    downloadAgentAttempt,
+    runDownloadAgentAttempt,
+    setDownloadAgentAttempt,
+  ] = useAsync(
     useCallback(
       () => ctx.connectMyComputerService.downloadAgent(),
       [ctx.connectMyComputerService]
     )
   );
-  const [generateConfigFileAttempt, runGenerateConfigFileAttempt] = useAsync(
-    useCallback(
-      () =>
-        retryWithRelogin(ctx, rootClusterUri, () =>
-          ctx.connectMyComputerService.createAgentConfigFile(cluster)
-        ),
-      [cluster, ctx, rootClusterUri]
-    )
+  const [
+    generateConfigFileAttempt,
+    runGenerateConfigFileAttempt,
+    setGenerateConfigFileAttempt,
+  ] = useAsync(
+    useCallback(async () => {
+      const { token } = await retryWithRelogin(ctx, rootClusterUri, () =>
+        ctx.connectMyComputerService.createAgentConfigFile(cluster)
+      );
+      nodeToken.current = token;
+    }, [cluster, ctx, rootClusterUri])
   );
-  const [joinClusterAttempt, runJoinClusterAttempt] = useAsync(
-    // TODO(gzdunek): delete node token after joining the cluster
-    useCallback(() => wait(1_000), [])
-  );
+  const [joinClusterAttempt, runJoinClusterAttempt, setJoinClusterAttempt] =
+    useAsync(
+      useCallback(async () => {
+        if (!nodeToken.current) {
+          throw new Error('Node token is empty');
+        }
+        await runAgentAndWaitForNodeToJoin();
+        try {
+          await ctx.connectMyComputerService.deleteToken(
+            cluster.uri,
+            nodeToken.current
+          );
+        } catch (error) {
+          // the user may not have permissions to remove the token, but it will expire in a few minutes anyway
+          if (isAccessDeniedError(error)) {
+            logger.error('Access denied when deleting a token.', error);
+          }
+          throw error;
+        }
+      }, [
+        runAgentAndWaitForNodeToJoin,
+        ctx.connectMyComputerService,
+        cluster.uri,
+      ])
+    );
 
   const steps = [
     {
       name: 'Setting up the role',
-      attempt: setUpRolesAttempt,
+      attempt: createRoleAttempt,
     },
     {
       name: 'Downloading the agent',
@@ -165,12 +199,16 @@ function AgentSetup() {
   ];
 
   const runSteps = useCallback(async () => {
-    // uncomment when implemented
+    setCreateRoleAttempt(makeEmptyAttempt());
+    setDownloadAgentAttempt(makeEmptyAttempt());
+    setGenerateConfigFileAttempt(makeEmptyAttempt());
+    setJoinClusterAttempt(makeEmptyAttempt());
+
     const actions = [
-      runSetUpRolesAttempt,
+      runCreateRoleAttempt,
       runDownloadAgentAttempt,
       runGenerateConfigFileAttempt,
-      // runJoinClusterAttempt,
+      runJoinClusterAttempt,
     ];
     for (const action of actions) {
       const [, error] = await action();
@@ -179,7 +217,11 @@ function AgentSetup() {
       }
     }
   }, [
-    runSetUpRolesAttempt,
+    setCreateRoleAttempt,
+    setDownloadAgentAttempt,
+    setGenerateConfigFileAttempt,
+    setJoinClusterAttempt,
+    runCreateRoleAttempt,
     runDownloadAgentAttempt,
     runGenerateConfigFileAttempt,
     runJoinClusterAttempt,
@@ -188,7 +230,7 @@ function AgentSetup() {
   useEffect(() => {
     if (
       [
-        setUpRolesAttempt,
+        createRoleAttempt,
         downloadAgentAttempt,
         generateConfigFileAttempt,
         joinClusterAttempt,
@@ -200,7 +242,7 @@ function AgentSetup() {
     downloadAgentAttempt,
     generateConfigFileAttempt,
     joinClusterAttempt,
-    setUpRolesAttempt,
+    createRoleAttempt,
     runSteps,
   ]);
 
@@ -241,7 +283,14 @@ function AgentSetup() {
             <li>
               {step.name}
               {step.attempt.status === 'error' && (
-                <Alerts.Danger mb={0}>{step.attempt.statusText}</Alerts.Danger>
+                <Alerts.Danger
+                  mb={0}
+                  css={`
+                    white-space: pre-wrap;
+                  `}
+                >
+                  {step.attempt.statusText}
+                </Alerts.Danger>
               )}
             </li>
           </Flex>
@@ -253,4 +302,8 @@ function AgentSetup() {
       )}
     </>
   );
+}
+
+function isAccessDeniedError(error: Error): boolean {
+  return (error.message as string)?.includes('access denied');
 }
