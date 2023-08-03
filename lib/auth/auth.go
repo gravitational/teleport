@@ -5412,16 +5412,16 @@ func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsa
 	}
 
 	return &proto.GetResourceUsageResponse{
-		AccessRequests: &proto.AccessRequestUsage{
-			MonthlyLimit: int32(features.AccessRequests.MonthlyRequestLimit),
-			MonthlyUsed:  int32(accessRequestUsage),
-		},
+		AccessRequests: accessRequestUsage,
 	}, nil
 }
 
 // getAccessRequestMonthlyUsage returns the number of access requests that have been used this month.
 // Only requests that were both created and since the start of the current month are included in this number.
-func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
+func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.AccessRequestUsage, error) {
+	features := modules.GetModules().Features()
+	monthlyLimit := features.AccessRequests.MonthlyRequestLimit
+
 	now := a.clock.Now().UTC()
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
@@ -5441,12 +5441,12 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 			StartKey:   startKey,
 		})
 		if err != nil {
-			return 0, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		for _, ev := range results {
 			ev, ok := ev.(*apievents.AccessRequestCreate)
 			if !ok {
-				return 0, trace.BadParameter("expected *AccessRequestCreate, but got %T", ev)
+				return nil, trace.BadParameter("expected *AccessRequestCreate, but got %T", ev)
 			}
 			id := ev.RequestID
 			switch ev.GetType() {
@@ -5465,7 +5465,10 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 		}
 	}
 
-	return len(reviewed), nil
+	return &proto.AccessRequestUsage{
+		MonthlyLimit: int32(monthlyLimit),
+		MonthlyUsed:  int32(len(reviewed)),
+	}, nil
 }
 
 // verifyAccessRequestMonthlyLimit checks whether the cluster has exceeded the monthly access request limit.
@@ -5478,12 +5481,11 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 
 	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
 
-	limit := f.AccessRequests.MonthlyRequestLimit
-	used, err := a.getAccessRequestMonthlyUsage(ctx)
+	usage, err := a.getAccessRequestMonthlyUsage(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if used >= limit {
+	if usage.MonthlyUsed >= usage.MonthlyLimit {
 		return trace.AccessDenied(limitReachedMessage)
 	}
 
