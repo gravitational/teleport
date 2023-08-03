@@ -2459,9 +2459,10 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	sortBy := types.GetSortByFromString(values.Get("sort"))
 
 	var kinds []string
-	reqKinds := values["kinds"]
-	if len(reqKinds) > 0 && reqKinds[0] != "" {
-		kinds = reqKinds
+	for _, kind := range values["kinds"] {
+		if kind != "" {
+			kinds = append(kinds, kind)
+		}
 	}
 
 	startKey := values.Get("startKey")
@@ -2494,7 +2495,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := apiclient.GetUnifiedResourcePage(r.Context(), clt, req)
+	page, err := apiclient.ListUnifiedResourcePage(r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

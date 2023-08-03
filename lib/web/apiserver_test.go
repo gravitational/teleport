@@ -1290,7 +1290,6 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 0)
-	require.Equal(t, 0, res.TotalCount)
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -1299,7 +1298,6 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
-	require.Equal(t, 27, res.TotalCount)
 	require.NotEqual(t, "", res.StartKey)
 
 	// // should return second page and have no third page
@@ -1310,20 +1308,19 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 12)
-	require.Equal(t, 27, res.TotalCount)
 	require.Equal(t, "", res.StartKey)
 
 	// should return muiltiple filtered types
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
 	query.Add("kinds", "db")
 	query.Add("kinds", "windows_desktop")
+	query.Add("kinds", "app")
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 2)
+	require.Len(t, res.Items, 4)
 	require.Equal(t, "", res.StartKey)
-	require.Equal(t, 2, res.TotalCount)
 
 	// should return apps
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
@@ -1335,7 +1332,6 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 3)
 	require.Equal(t, "", res.StartKey)
-	require.Equal(t, 3, res.TotalCount)
 
 	// should return ascending sorted types
 	query = url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
