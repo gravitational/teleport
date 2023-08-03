@@ -1,0 +1,50 @@
+name: Bloat Check
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "rfd/**"
+      - "**/*.md*"
+  merge_group:
+    paths-ignore:
+      - "docs/**"
+      - "rfd/**"
+      - "**/*.md*"
+
+jobs:
+  lint:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    name: Bloat Check
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Build artifacts on master
+        run: |
+          mkdir base_build
+          make BUILDDIR=base_build binaries
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          clean: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build artifacts on the current branch
+        run: make binaries
+
+      - name: Run bloat check
+        run: go run build.assets/tooling/cmd/bloat/main.go --base=base_build --current=build --format=markdown > $GITHUB_STEP_SUMMARY
