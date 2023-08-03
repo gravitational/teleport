@@ -469,6 +469,7 @@ func TestPluginMattermostValidation(t *testing.T) {
 			settings: &PluginSpecV1_Mattermost{
 				Mattermost: &PluginMattermostSettings{
 					ServerUrl: "https://test.mattermost.com",
+					Channel:   "some-channel",
 				},
 			},
 			creds: nil,
@@ -527,8 +528,28 @@ func TestPluginMattermostValidation(t *testing.T) {
 			},
 		},
 		{
-			name:     "valid settings",
+			name:     "valid settings with team/channel",
 			settings: defaultSettings,
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "valid settings with no team/channel",
+			settings: &PluginSpecV1_Mattermost{
+				Mattermost: &PluginMattermostSettings{
+					ServerUrl: "https://test.mattermost.com",
+				},
+			},
 			creds: &PluginCredentialsV1{
 				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
 					&PluginStaticCredentialsRef{
