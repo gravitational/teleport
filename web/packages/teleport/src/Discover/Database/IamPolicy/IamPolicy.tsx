@@ -52,6 +52,8 @@ export function IamPolicyView({
       <HeaderSubtitle>
         Teleport needs AWS IAM permissions to be able to discover and register
         RDS instances and configure IAM authentications.
+        <br />
+        Optional if you already have an IAM policy configured.
       </HeaderSubtitle>
       {attempt.status === 'failed' ? (
         <>
@@ -115,10 +117,13 @@ export function IamPolicyView({
           )}
         </Flex>
       )}
-      <ActionButtons
-        onProceed={nextStep}
-        disableProceed={attempt.status !== 'success'}
-      />
+      <Flex>
+        <ActionButtons
+          onProceed={nextStep}
+          disableProceed={attempt.status !== 'success'}
+        />
+        <ActionButtons onSkip={() => nextStep(0)} />
+      </Flex>
     </Box>
   );
 }
