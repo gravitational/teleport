@@ -38,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func setupConfig(t *testing.T, ctx context.Context) (auth.InitConfig, *memory.Memory) {
+func setupConfig(t *testing.T, ctx context.Context) auth.InitConfig {
 	tempDir := t.TempDir()
 
 	clock := clockwork.NewFakeClock()
@@ -70,13 +70,13 @@ func setupConfig(t *testing.T, ctx context.Context) (auth.InitConfig, *memory.Me
 			},
 		},
 		Tracer: tracing.NoopTracer(teleport.ComponentAuth),
-	}, bk
+	}
 }
 func TestUnifiedResourceWatcher(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	conf, _ := setupConfig(t, ctx)
+	conf := setupConfig(t, ctx)
 	authServer, err := auth.Init(ctx, conf)
 	require.NoError(t, err)
 
