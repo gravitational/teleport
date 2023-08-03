@@ -37,10 +37,7 @@ export function Resources() {
     attempt,
     fetchedData,
     fetchMore,
-    pathname,
-    params,
-    setParams,
-    replaceHistory,
+    filtering: { pathname, params, setParams, replaceHistory },
   } = useResources(teleCtx);
   const observed = React.useRef(null);
 

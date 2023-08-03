@@ -22,14 +22,14 @@ import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
 import Toggle from 'teleport/components/Toggle';
 
 import useServersideSearchPanel, {
-  State,
-  Props,
+  SearchPanelState,
+  HookProps,
 } from 'teleport/components/ServersideSearchPanel/useServerSideSearchPanel';
 import Tooltip from 'teleport/components/ServersideSearchPanel/Tooltip';
 
 import { SearchInput } from './SearchInput';
 
-export default function Container(props: Props) {
+export default function Container(props: HookProps) {
   const state = useServersideSearchPanel(props);
   return <SearchPanel {...state} />;
 }
@@ -41,7 +41,7 @@ export function SearchPanel({
   isAdvancedSearch,
   setIsAdvancedSearch,
   onSubmitSearch,
-}: State) {
+}: SearchPanelState) {
   function onToggle() {
     setIsAdvancedSearch(wasAdvancedSearch => !wasAdvancedSearch);
   }
