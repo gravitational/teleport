@@ -31,7 +31,11 @@ import {
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import localStorage from 'teleport/services/localStorage';
+
 import { useTeleport } from 'teleport';
+
+import { NavTitle, RecommendationStatus } from 'teleport/types';
 
 import type {
   TeleportFeatureNavigationItem,
@@ -154,6 +158,26 @@ export function NavigationItem(props: NavigationItemProps) {
     []
   );
 
+  // renderHighlightFeature returns red dot component if the feature recommendation state is 'NOTIFY'
+  function renderHighlightFeature(featureName: NavTitle): JSX.Element {
+    // Get onboarding status. We'll only recommend features once user completes
+    // initial onboarding (i.e. connect resources to Teleport cluster).
+    const onboard = localStorage.getOnboardDiscover();
+    if (!onboard?.hasResource) {
+      return null;
+    }
+
+    const recommendFeatureStatus =
+      localStorage.getFeatureRecommendationStatus();
+    if (
+      featureName === NavTitle.TrustedDevices &&
+      recommendFeatureStatus?.TrustedDevices === RecommendationStatus.Notify
+    ) {
+      return <RedDot />;
+    }
+    return null;
+  }
+
   if (navigationItem) {
     const linkProps = {
       style: {
@@ -213,6 +237,7 @@ export function NavigationItem(props: NavigationItemProps) {
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
             {navigationItemVersion.title}
+            {renderHighlightFeature(props.feature.navigationItem.title)}
           </LinkContent>
         </Link>
       );
@@ -228,3 +253,12 @@ export function NavigationItem(props: NavigationItemProps) {
     />
   );
 }
+
+const RedDot = styled.div`
+  margin-left: 15px;
+  margin-top: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: ${props => props.theme.colors.error.main};
+`;
