@@ -17,7 +17,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, Text, Flex, Link } from 'design';
-import { InfoFilled } from 'design/Icon';
+import { Info as InfoIcon } from 'design/Icon';
 
 import {
   SelectCreatable,
@@ -166,7 +166,7 @@ const Info = (props: {
 }) => (
   <StyledBox mt={5}>
     <Flex mb={2}>
-      <InfoFilled fontSize={18} mr={1} mt="2px" />
+      <InfoIcon size="medium" mr={1} />
       <Text bold>To allow access using your Database Users</Text>
     </Flex>
     <DbEngineInstructions {...props} />

@@ -126,11 +126,11 @@ func TestMFA(t *testing.T) {
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
 			WebauthnChallenge: &wanlib.CredentialAssertion{
-				Response: protocol.PublicKeyCredentialRequestOptions{
+				Response: wanlib.PublicKeyCredentialRequestOptions{
 					Challenge:      []byte("challenge"),
 					Timeout:        10,
 					RelyingPartyID: "teleport",
-					AllowedCredentials: []protocol.CredentialDescriptor{
+					AllowedCredentials: []wanlib.CredentialDescriptor{
 						{
 							Type:         "public-key",
 							CredentialID: []byte("credential id"),
@@ -138,7 +138,7 @@ func TestMFA(t *testing.T) {
 						},
 					},
 					UserVerification: "discouraged",
-					Extensions: protocol.AuthenticationExtensions{
+					Extensions: wanlib.AuthenticationExtensions{
 						"ext1": "value1",
 					},
 				},

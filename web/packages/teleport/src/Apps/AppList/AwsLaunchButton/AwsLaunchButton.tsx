@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, Text } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
-import { CarrotDown } from 'design/Icon';
+import { ChevronDown } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { AwsRole } from 'teleport/services/apps';
@@ -51,7 +51,7 @@ export default class AwsLaunchButton extends React.Component<Props> {
           onClick={this.onOpen}
         >
           LAUNCH
-          <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
+          <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           menuListCss={() => ({

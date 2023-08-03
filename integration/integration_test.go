@@ -7994,15 +7994,19 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		nConn, err := lis.Accept()
 		assert.NoError(t, err)
 		t.Cleanup(func() {
-			// the error is ignored here to avoid failing on net.ErrClosed
-			_ = nConn.Close()
+			if nConn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = nConn.Close()
+			}
 		})
 
 		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
 		assert.NoError(t, err)
 		t.Cleanup(func() {
-			// the error is ignored here to avoid failing on net.ErrClosed
-			_ = conn.Close()
+			if conn != nil {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = conn.Close()
+			}
 		})
 		go ssh.DiscardRequests(reqs)
 

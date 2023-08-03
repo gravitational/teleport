@@ -34,26 +34,26 @@ require (
 	github.com/andybalholm/brotli v1.0.5
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.44.306
-	github.com/aws/aws-sdk-go-v2 v1.19.1
-	github.com/aws/aws-sdk-go-v2/config v1.18.28
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.27
+	github.com/aws/aws-sdk-go v1.44.314
+	github.com/aws/aws-sdk-go-v2 v1.20.0
+	github.com/aws/aws-sdk-go-v2/config v1.18.32
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.31
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.30
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.5
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.72
-	github.com/aws/aws-sdk-go-v2/service/athena v1.30.4
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.20.1
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.7
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.76
+	github.com/aws/aws-sdk-go-v2/service/athena v1.31.1
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.21.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.105.1
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.28.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.54.0
-	github.com/aws/aws-sdk-go-v2/service/iam v1.21.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.22.1
 	github.com/aws/aws-sdk-go-v2/service/rds v1.48.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.37.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.1
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.14
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.23.4
-	github.com/aws/aws-sdk-go-v2/service/sts v1.19.3
+	github.com/aws/aws-sdk-go-v2/service/sts v1.21.1
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
-	github.com/aws/smithy-go v1.13.5
+	github.com/aws/smithy-go v1.14.0
 	github.com/beevik/etree v1.2.0
 	github.com/bufbuild/connect-go v1.9.0
 	github.com/buildkite/bintest/v3 v3.1.1
@@ -76,16 +76,16 @@ require (
 	github.com/go-piv/piv-go v1.11.0
 	github.com/go-redis/redis/v9 v9.0.0-rc.1 // replaced
 	github.com/go-resty/resty/v2 v2.7.0
-	github.com/go-webauthn/webauthn v0.5.0
+	github.com/go-webauthn/webauthn v0.8.6
 	github.com/gocql/gocql v1.5.2
 	github.com/gofrs/flock v0.8.1
 	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/btree v1.1.2
-	github.com/google/go-attestation v0.4.4-0.20220404204839-8820d49b18d9
+	github.com/google/go-attestation v0.4.4-0.20230613144338-a9b6eb1eb888
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-querystring v1.1.0
-	github.com/google/go-tpm-tools v0.3.12
+	github.com/google/go-tpm-tools v0.3.13-0.20230620182252-4639ecce2aba
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
 	github.com/googleapis/gax-go/v2 v2.12.0
@@ -222,19 +222,19 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/apache/arrow/go/v12 v12.0.1 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.36 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.30 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.36 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.27 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.11 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.37 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.31 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.38 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.1.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.14.14 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.11 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.30 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.29 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.30 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.12.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.12 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.32 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.31 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.31 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.15.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.13.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
@@ -273,10 +273,11 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.1 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
-	github.com/go-webauthn/revoke v0.1.6 // indirect
+	github.com/go-webauthn/x v0.1.4 // indirect
 	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/goccy/go-json v0.10.0 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -285,8 +286,8 @@ require (
 	github.com/google/certificate-transparency-go v1.1.2 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/google/gnostic v0.6.9 // indirect
-	github.com/google/go-tpm v0.3.3 // indirect
-	github.com/google/go-tspi v0.2.1-0.20190423175329-115dea689aad // indirect
+	github.com/google/go-tpm v0.9.0 // indirect
+	github.com/google/go-tspi v0.3.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect

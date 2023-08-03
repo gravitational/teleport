@@ -197,9 +197,9 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 				return bytes.Compare(got[i].CredentialID, got[j].CredentialID) == -1
 			})
 
-			want := make([]protocol.CredentialDescriptor, len(test.wantExcludeList))
+			want := make([]wanlib.CredentialDescriptor, len(test.wantExcludeList))
 			for i, id := range test.wantExcludeList {
-				want[i] = protocol.CredentialDescriptor{
+				want[i] = wanlib.CredentialDescriptor{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: id,
 				}

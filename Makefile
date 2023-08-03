@@ -97,11 +97,6 @@ CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
 RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
-# Have cargo use sparse crates.io protocol:
-# https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html
-# TODO: Delete when it becomes default in Rust 1.70.0
-export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
