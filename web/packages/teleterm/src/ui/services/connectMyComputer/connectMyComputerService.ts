@@ -61,6 +61,16 @@ export class ConnectMyComputerService {
     });
   }
 
+  killAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.killAgent({ rootClusterUri });
+  }
+
+  isAgentConfigFileCreated(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<boolean> {
+    return this.mainProcessClient.isAgentConfigFileCreated({ rootClusterUri });
+  }
+
   deleteToken(
     rootClusterUri: uri.RootClusterUri,
     token: string
