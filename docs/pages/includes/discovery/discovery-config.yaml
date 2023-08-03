@@ -59,7 +59,7 @@ discovery_service:
     # Matchers for discovering GCP-hosted resources.
     gcp:
       # GCP resource types. Valid options are:
-      # 'gke' - discovers and registers GCP kubernetes clusters.
+      # 'gke' - discovers and registers GKE Kubernetes clusters.
       # 'gce' - discovers and registers GCP compute instances.
       - types: ["gce"]
         # IDs of GCP projects to search for resources from.

@@ -1,10 +1,10 @@
 ---
-title: Automatically Discover GCP Compute Instances (Preview)
+title: Automatically Discover GCP Compute Instances
 description: How to configure Teleport to automatically enroll GCP compute instances.
 ---
 
 The Teleport Discovery Service can connect to GCP and automatically
-discover and enroll compute instances matching configured labels. It will then
+discover and enroll GCP Compute Engine instances matching configured labels. It will then
 execute a script on these discovered instances that will install Teleport,
 start it and join the cluster.
 
@@ -12,6 +12,7 @@ start it and join the cluster.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
+- A GCP compute instance to run the Discovery Service on.
 - GCP compute instances to join the Teleport cluster, running
 Ubuntu/Debian/RHEL if making use of the default Teleport install script. (For
 other Linux distributions, you can install Teleport manually.)
@@ -107,52 +108,81 @@ discover instances.
   Then run the following command to create the role:
   ```code
   $ gcloud iam roles create teleport_discovery \
-  > --project=<Var name="project_id" description="GCP project ID" /> \
-  > --file=teleport-discovery-role.yaml
+  --project=<Var name="project_id" description="GCP project ID" /> \
+  --file=teleport-discovery-role.yaml
   ```
 
   Run the following command to create the service account:
   ```code
   $ gcloud iam service-accounts create teleport-discovery \
-  > --description="A service account to enable Teleport to discover GCP compute instances" \
-  > --display-name="teleport-discovery"
+  --description="A service account to enable Teleport to discover GCP compute instances" \
+  --display-name="teleport-discovery"
   ```
 
-  Run the following command to add the new role to the new service account.
+  Run the following command to add the new role to the new service account:
   ```code
   $ gcloud projects add-iam-policy-binding <Var name="project_id" description="GCP project ID" /> \
-  > --member="serviceAccount:teleport-discovery@<Var name="project_id" />.iam.gserviceaccount.com" \
-  > --role="projects/<Var name="project_id" />/role/teleport_discovery"
+  --member="serviceAccount:teleport-discovery@<Var name="project_id" />.iam.gserviceaccount.com" \
+  --role="projects/<Var name="project_id" />/role/teleport_discovery"
   ```
 </TabItem>
 </Tabs>
 
-## Step 3/6. Configure instances to be discovered.
+## Step 3/6. Configure instances to be discovered
 
 Ensure that each instance to be discovered has a service account assigned to
-it. No permissions are required on the service account.
+it. No permissions are required on the service account. To check if an instance
+has a service account, run the following command and confirm that there is
+at least one entry under `serviceAccounts`:
+
+```code
+$ gcloud compute instances describe --format="yaml(name,serviceAccounts)" <Var name="instance_name" description="Instance name" />
+```
 
 ### Enable guest attributes on instances
 
-[Guest attributes](https://cloud.google.com/compute/docs/metadata/manage-guest-attributes#enable_attributes)
+Guest attributes (a subset of custom metadata used for infrequently updated data)
 must be enabled on instances to be discovered so Teleport can access their SSH
 host keys. Enable guest attributes by setting `enable-guest-attributes` to
 `TRUE` in the instance's metadata.
 
+```code
+$ gcloud compute instances add-metadata <Var name="instance_name" description="Instance name" /> \
+--metadata=enable-guest-attributes=True
+```
+
 If guest attributes are enabled during instance creation, the guest attributes
 will automatically be populated with the instance's host keys. If guest
 attributes were enabled after the instance was created, you can manually add
-the host keys to the guest attributes by running the following script on the instance:
+the host keys to the guest attributes below:
 
-```sh
-#!/usr/bin/env bash
-for file in /etc/ssh/ssh_host_*_key.pub
-  do
-  KEY_TYPE=$(awk '{print $1}' $file)
-  KEY=$(awk '{print $2}'  $file)
-  curl -X PUT --data "$KEY" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/hostkeys/$KEY_TYPE" -H "Metadata-Flavor: Google"
-done
-```
+<Tabs>
+<TabItem label="Startup script">
+  Create a file named `add-host-keys.sh` and copy the following into it:
+  ```sh
+  #!/usr/bin/env bash
+  for file in /etc/ssh/ssh_host_*_key.pub
+    do
+    KEY_TYPE=$(awk '\''{print $1}'\'' $file)
+    KEY=$(awk '\''{print $2}'\''  $file)
+    curl -X PUT --data "$KEY" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/hostkeys/$KEY_TYPE" -H "Metadata-Flavor: Google"
+  done
+  ```
+
+  Run the following command to add the host keys as part of a startup script:
+  ```code
+  $ gcloud compute instances add-metadata <Var name="instance_name" description="Instance name" /> \
+  --metadata-from-file=startup-script="add-host-keys.sh"
+  ```
+</TabItem>
+<TabItem label="SSH">
+  Run the following command to add the host keys over SSH:
+  ```code
+  $ gcloud compute ssh <Var name="instance_name" description="Instance name" /> \
+  --command='for file in /etc/ssh/ssh_host_*_key.pub; do KEY_TYPE=$(awk '\''{print $1}'\'' $file); KEY=$(awk '\''{print $2}'\''  $file); curl -X PUT --data "$KEY" "http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/hostkeys/$KEY_TYPE" -H "Metadata-Flavor: Google"; done'
+  ```
+</TabItem>
+</Tabs>
 
 ## Step 4/6. Install the Teleport Discovery Service
 
@@ -163,7 +193,7 @@ another Teleport service (Auth or Proxy, for example), you can skip this step.
 
 </Admonition>
 
-Install Teleport on the virtual machine that will run the Discovery Service:
+Install Teleport on the virtual machine that will run the Discovery Service.
 
 (!docs/pages/includes/install-linux.mdx!)
 
@@ -200,14 +230,19 @@ discovery_service:
   enabled: "yes"
   gcp:
     - types: ["gce"]
+      # The IDs of GCP projects that VMs can join from.
       project_ids: []
+      # (Optional) The locations that VMs can join from. Note: both regions and
+      # zones are accepted.
       locations: []
+      # (Optional) The email addresses of service accounts that VMs can join
+      # with.
       service_accounts: []
       tags:
         "env": "prod" # Match virtual machines where tag:env=prod
 ```
 
-- Edit the `teleport.auth_server` or `teleport.proxy_server` key to match your Auth Service or Proxy Service's URI
+- Edit the `teleport.auth_server` or `teleport.proxy_server` key to match your Auth Service or Proxy Service's domain name
   and port, respectively.
 - Adjust the keys under `discovery_service.gcp` to match your GCP environment,
   specifically the projects, locations, service accounts, and tags you want to associate with the Discovery
@@ -230,7 +265,7 @@ for details on alternate methods.
 
 ## Next steps
 
-- Read [Joining Nodes via GCP](../../agents/join-services-to-your-cluster/gcp.mdx)
+- Read [Joining Services via GCP](../../agents/join-services-to-your-cluster/gcp.mdx)
   for more information on GCP tokens.
 - Full documentation on GCP discovery configuration can be found through the [
   config file reference documentation](../../reference/config.mdx).
