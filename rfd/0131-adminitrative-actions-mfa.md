@@ -354,8 +354,8 @@ In this case, the client will make the request without the MFA challenge respons
 in case we are handling a special case (e.g. Built-in role, `Bot` or `Admin`
 impersonation).
 
-Additionally, if the client doesn't whether a request requires MFA or not, it
-will first attempt the request without it. If the server responds with
+Additionally, if the client doesn't know whether a request requires MFA or not,
+it will first attempt the request without it. If the server responds with
 `ErrAdminActionMFARequired`, the client will attempt to retry the request with
 MFA.
 
