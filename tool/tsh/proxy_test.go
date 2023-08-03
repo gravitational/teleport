@@ -441,7 +441,7 @@ func TestTSHProxyTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newTestSuite(t)
-	tshHome := mustLoginSetEnv(t, s)
+	tshHome, _ := mustLoginSetEnv(t, s)
 
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, tshConfigPath)
@@ -742,9 +742,9 @@ func setMockSSOLogin(t *testing.T, s *suite) cliOption {
 	}
 }
 
-func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
-	tshHome := t.TempDir()
-	kubeConfig := filepath.Join(t.TempDir(), teleport.KubeConfigFile)
+func mustLogin(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
+	tshHome = t.TempDir()
+	kubeConfig = filepath.Join(t.TempDir(), teleport.KubeConfigFile)
 	args = append([]string{
 		"login",
 		"--insecure",
@@ -757,24 +757,15 @@ func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
 		setKubeConfigPath(kubeConfig),
 	)
 	require.NoError(t, err)
-	return tshHome, kubeConfig
+	return
 }
 
 // login with new temp tshHome and set it in Env. This is useful
 // when running "ssh" commands with a tsh "ProxyCommand".
-func mustLoginSetEnv(t *testing.T, s *suite, args ...string) string {
-	tshHome := t.TempDir()
+func mustLoginSetEnv(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
+	tshHome, kubeConfig = mustLogin(t, s, args...)
 	t.Setenv(types.HomeEnvVar, tshHome)
-
-	args = append([]string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-	}, args...)
-	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
-	require.NoError(t, err)
-	return tshHome
+	return
 }
 
 func mustLoginIdentity(t *testing.T, s *suite, opts ...cliOption) string {
