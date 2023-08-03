@@ -25,19 +25,38 @@ import React, {
 
 import { wait } from 'shared/utils/wait';
 
-import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  makeEmptyAttempt,
+  makeSuccessAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+
+import { Server } from 'teleterm/services/tshd/types';
 
 import type {
   AgentProcessState,
   MainProcessClient,
 } from 'teleterm/mainProcess/types';
 
+export type AgentState =
+  | AgentProcessState
+  | {
+      status: 'starting';
+    }
+  | {
+      status: 'stopping';
+    };
+
 export interface ConnectMyComputerContext {
-  state: AgentProcessState;
+  state: AgentState;
+  agentNode: Server;
   runAgentAndWaitForNodeToJoin(): Promise<void>;
+  runWithPreparation(): Promise<[void, Error]>;
+  kill(): Promise<[void, Error]>;
   isSetupDoneAttempt: Attempt<boolean>;
   markSetupAsDone(): void;
 }
@@ -59,7 +78,7 @@ export const ConnectMyComputerContextProvider: FC<{
       )
     );
 
-  const [agentState, setAgentState] = useState<AgentProcessState>(
+  const [agentProcessState, setAgentProcessState] = useState<AgentProcessState>(
     () =>
       mainProcessClient.getAgentState({
         rootClusterUri: props.rootClusterUri,
@@ -68,17 +87,46 @@ export const ConnectMyComputerContextProvider: FC<{
       }
   );
 
+  const [agentNode, setAgentNode] = useState<Server>();
+
   const runAgentAndWaitForNodeToJoin = useCallback(async () => {
     await connectMyComputerService.runAgent(props.rootClusterUri);
 
-    // TODO(gzdunek): Replace with waiting for the node to join.
-    const waitForNodeToJoin = wait(1_000);
+    const waitForNodeToJoin = async () => {
+      const node = await connectMyComputerService.waitForNodeToJoin(
+        props.rootClusterUri
+      );
+      setAgentNode(node);
+    };
 
-    await Promise.race([
-      waitForNodeToJoin,
-      waitForAgentProcessErrors(mainProcessClient, props.rootClusterUri),
-    ]);
+    try {
+      await Promise.race([
+        waitForNodeToJoin(),
+        waitForAgentProcessErrors(mainProcessClient, props.rootClusterUri),
+      ]);
+    } catch (error) {
+      // in case of any error kill the agent
+      await connectMyComputerService.killAgent(props.rootClusterUri);
+      throw error;
+    }
   }, [connectMyComputerService, mainProcessClient, props.rootClusterUri]);
+
+  const [
+    runWithPreparationAttempt,
+    runWithPreparation,
+    setRunWithPreparationAttempt,
+  ] = useAsync(
+    useCallback(async () => {
+      await connectMyComputerService.downloadAgent();
+      await runAgentAndWaitForNodeToJoin();
+    }, [connectMyComputerService, runAgentAndWaitForNodeToJoin])
+  );
+
+  const [killAttempt, kill, setKillAttempt] = useAsync(
+    useCallback(async () => {
+      await connectMyComputerService.killAgent(props.rootClusterUri);
+    }, [connectMyComputerService, props.rootClusterUri])
+  );
 
   const markSetupAsDone = useCallback(() => {
     setSetupDoneAttempt(makeSuccessAttempt(true));
@@ -87,7 +135,7 @@ export const ConnectMyComputerContextProvider: FC<{
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
       props.rootClusterUri,
-      state => setAgentState(state)
+      state => setAgentProcessState(state)
     );
     return cleanup;
   }, [mainProcessClient, props.rootClusterUri]);
@@ -96,11 +144,28 @@ export const ConnectMyComputerContextProvider: FC<{
     checkIfSetupIsDone();
   }, [checkIfSetupIsDone]);
 
+  const computedState = computeAgentState(
+    agentProcessState,
+    runWithPreparationAttempt,
+    killAttempt
+  );
+
   return (
     <ConnectMyComputerContext.Provider
       value={{
-        state: agentState,
+        state: computedState,
         runAgentAndWaitForNodeToJoin,
+        agentNode,
+        kill: () => {
+          setRunWithPreparationAttempt(makeEmptyAttempt());
+          setKillAttempt(makeEmptyAttempt());
+          return kill();
+        },
+        runWithPreparation: () => {
+          setRunWithPreparationAttempt(makeEmptyAttempt());
+          setKillAttempt(makeEmptyAttempt());
+          return runWithPreparation();
+        },
         markSetupAsDone,
         isSetupDoneAttempt,
       }}
@@ -175,7 +240,7 @@ function isProcessInErrorOrExitState(
 
     return new Error(
       [
-        `Agent process exited with ${codeOrSignal}.`,
+        `Agent process failed to start - the process exited with ${codeOrSignal}.`,
         agentProcessState.stackTrace,
       ]
         .filter(Boolean)
@@ -187,4 +252,34 @@ function isProcessInErrorOrExitState(
       ['Agent process failed to start.', agentProcessState.message].join('\n')
     );
   }
+}
+
+function computeAgentState(
+  agentState: AgentProcessState,
+  runWithPreparationAttempt: Attempt<void>,
+  killAttempt: Attempt<void>
+): AgentState {
+  if (runWithPreparationAttempt.status === 'processing') {
+    return { status: 'starting' };
+  }
+
+  if (runWithPreparationAttempt.status === 'error') {
+    return {
+      status: 'error',
+      message: runWithPreparationAttempt.statusText,
+    };
+  }
+
+  if (killAttempt.status === 'processing') {
+    return { status: 'stopping' };
+  }
+
+  if (killAttempt.status === 'error') {
+    return {
+      status: 'error',
+      message: runWithPreparationAttempt.statusText,
+    };
+  }
+
+  return agentState;
 }
