@@ -4074,6 +4074,7 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 	return nil
 }
 
+// GetResourceUsage returns the usage data for resources which are limited on usage-based billing plans.
 func (c *Client) GetResourceUsage(ctx context.Context, in *proto.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error) {
 	resp, err := c.grpc.GetResourceUsage(ctx, in)
 	if err != nil {
