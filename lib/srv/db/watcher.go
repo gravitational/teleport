@@ -88,8 +88,6 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 		for {
 			select {
 			case databases := <-watcher.DatabasesC:
-				// Overwrite database specs like AssumeRoleARN before reconcile.
-				applyResourceMatchersToDatabases(databases, s.cfg.ResourceMatchers)
 				s.monitoredDatabases.setResources(databases)
 				select {
 				case s.reconcileCh <- struct{}{}:
@@ -169,7 +167,13 @@ func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels
 			return trace.Wrap(err)
 		}
 	}
-	return s.registerDatabase(ctx, database)
+
+	// OnCreate receives a "new" resource from s.monitoredDatabases. Make a
+	// copy here so that any attribute changes to the proxied database will not
+	// affect database objects tracked in s.monitoredDatabases.
+	databaseCopy := database.Copy()
+	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+	return s.registerDatabase(ctx, databaseCopy)
 }
 
 // onUpdate is called by reconciler when an already proxied database is updated.
@@ -178,7 +182,13 @@ func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels
 	if !ok {
 		return trace.BadParameter("expected types.Database, got %T", resource)
 	}
-	return s.updateDatabase(ctx, database)
+
+	// OnUpdate receives a "new" resource from s.monitoredDatabases. Make a
+	// copy here so that any attribute changes to the proxied database will not
+	// affect database objects tracked in s.monitoredDatabases.
+	databaseCopy := database.Copy()
+	applyResourceMatchersToDatabase(databaseCopy, s.cfg.ResourceMatchers)
+	return s.updateDatabase(ctx, databaseCopy)
 }
 
 // onDelete is called by reconciler when a proxied database is deleted.
@@ -208,13 +218,7 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 	return services.MatchResourceLabels(s.cfg.ResourceMatchers, database)
 }
 
-func applyResourceMatchersToDatabases(databases types.Databases, resourceMatchers []services.ResourceMatcher) {
-	for _, database := range databases {
-		applyResourceMatcherToDatabase(database, resourceMatchers)
-	}
-}
-
-func applyResourceMatcherToDatabase(database types.Database, resourceMatchers []services.ResourceMatcher) {
+func applyResourceMatchersToDatabase(database types.Database, resourceMatchers []services.ResourceMatcher) {
 	for _, matcher := range resourceMatchers {
 		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
 			continue
@@ -223,7 +227,15 @@ func applyResourceMatcherToDatabase(database types.Database, resourceMatchers []
 			continue
 		}
 
-		database.SetAWSAssumeRole(matcher.AWS.AssumeRoleARN)
-		database.SetAWSExternalID(matcher.AWS.ExternalID)
+		// Set status AWS instead of spec. Reconciler ignores status fields
+		// when comparing database resources.
+		setStatusAWSAssumeRole(database, matcher.AWS.AssumeRoleARN, matcher.AWS.ExternalID)
 	}
+}
+
+func setStatusAWSAssumeRole(database types.Database, assumeRoleARN, externalID string) {
+	meta := database.GetAWS()
+	meta.AssumeRoleARN = assumeRoleARN
+	meta.ExternalID = externalID
+	database.SetStatusAWS(meta)
 }

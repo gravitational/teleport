@@ -241,8 +241,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		// Validate that AssumeRoleARN is overwritten by the one configured in
 		// the resource matcher.
 		db5 = discoveredDB5.Copy()
-		db5.SetAWSAssumeRole("arn:aws:iam::123456789012:role/DBAccess")
-		db5.SetAWSExternalID("external-id")
+		setStatusAWSAssumeRole(db5, "arn:aws:iam::123456789012:role/DBAccess", "external-id")
 
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
 	})
