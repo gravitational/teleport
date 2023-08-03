@@ -1145,16 +1145,38 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
 	require.NoError(t, err)
 	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
-
 	// Add nodes
 	for i := 0; i < 20; i++ {
-		node, err := types.NewServer(fmt.Sprintf("server-%d", i), types.KindNode, types.ServerSpecV2{
-			Hostname: fmt.Sprintf("server-%d", i),
+		name := fmt.Sprintf("server-%d", i)
+		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+			Hostname: name,
 		})
 		require.NoError(t, err)
 		_, err = env.server.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
+
+	// TODO (avatus) : refactor into test cases
+
+	// Get nodes from endpoint.
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	// // should return second page and have no third page
+	query := url.Values{"sort": []string{"name:asc"}, "limit": []string{"100"}}
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, "node", res.Items[0].Name)
+
+	// // should return first page with desc sorted names
+	query = url.Values{"sort": []string{"name:desc"}, "limit": []string{"100"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	descRes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &descRes))
+	require.Equal(t, "server-9", descRes.Items[0].Name)
 
 	// add kubes
 	cluster2, err := types.NewKubernetesClusterV3(
@@ -1261,16 +1283,11 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
 	require.NoError(t, err)
 
-	// TODO (avatus) : refactor into test cases
-	// Get nodes from endpoint.
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
-
 	// shouldnt get any results with no access
-	query := url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
-	re, err := noAccessPack.clt.Get(context.Background(), endpoint, query)
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
-	res := clusterNodesGetResponse{}
+	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 0)
 	require.Equal(t, 0, res.TotalCount)
@@ -1296,64 +1313,45 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Equal(t, 27, res.TotalCount)
 	require.Equal(t, "", res.StartKey)
 
-	// // should return first page with desc sorted names (last of asc shouldbe first of desc)
-	query = url.Values{"sort": []string{"name:desc"}, "limit": []string{"15"}}
+	// should return muiltiple filtered types
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	query.Add("kinds", "db")
+	query.Add("kinds", "windows_desktop")
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
-	descRes := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &descRes))
-	require.Equal(t, res.Items[len(res.Items)-1], descRes.Items[0])
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 2)
+	require.Equal(t, "", res.StartKey)
+	require.Equal(t, 2, res.TotalCount)
 
-	// should return second page and have no third page
-	// query = url.Values{"sort": []string{"name:desc"}, "limit": []string{"15"}}
-	// query.Add("startKey", descRes.StartKey)
-	// re, err = pack.clt.Get(context.Background(), endpoint, query)
-	// require.NoError(t, err)
-	// res = clusterNodesGetResponse{}
-	// require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	// require.Len(t, res.Items, 12)
-	// require.Equal(t, 27, res.TotalCount)
-	// require.Equal(t, "", res.StartKey)
+	// should return apps
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	query.Add("kinds", types.KindApp)
+	query.Add("kinds", types.KindSAMLIdPServiceProvider)
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 3)
+	require.Equal(t, "", res.StartKey)
+	require.Equal(t, 3, res.TotalCount)
 
-	// should return muiltiple filtered types
-	// query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
-	// query.Add("kinds", "db")
-	// query.Add("kinds", "windows_desktop")
-	// re, err = pack.clt.Get(context.Background(), endpoint, query)
-	// require.NoError(t, err)
-	// res = clusterNodesGetResponse{}
-	// require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	// require.Len(t, res.Items, 2)
-	// require.Equal(t, "", res.StartKey)
-	// require.Equal(t, 2, res.TotalCount)
+	// should return ascending sorted types
+	query = url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindApp, res.Items[0].Kind)
 
-	// // should return apps
-	// query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
-	// query.Add("kinds", types.KindApp)
-	// query.Add("kinds", types.KindSAMLIdPServiceProvider)
-	// re, err = pack.clt.Get(context.Background(), endpoint, query)
-	// require.NoError(t, err)
-	// res = clusterNodesGetResponse{}
-	// require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	// require.Len(t, res.Items, 3)
-	// require.Equal(t, "", res.StartKey)
-	// require.Equal(t, 3, res.TotalCount)
-
-	// // should return ascending sorted types
-	// query = url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
-	// re, err = pack.clt.Get(context.Background(), endpoint, query)
-	// require.NoError(t, err)
-	// res = clusterNodesGetResponse{}
-	// require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	// require.Equal(t, types.KindApp, res.Items[0].Kind)
-
-	// // should return descending sorted types
-	// query = url.Values{"sort": []string{"type:desc"}, "limit": []string{"15"}}
-	// re, err = pack.clt.Get(context.Background(), endpoint, query)
-	// require.NoError(t, err)
-	// res = clusterNodesGetResponse{}
-	// require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	// require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
+	// should return descending sorted types
+	query = url.Values{"sort": []string{"type:desc"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
 }
 
 type clusterAlertsGetResponse struct {
