@@ -52,6 +52,8 @@ export function getResourceUri(
       });
     case 'doc.connect_my_computer_setup':
       return document.rootClusterUri;
+    case 'doc.connect_my_computer_status':
+      return document.rootClusterUri;
     case 'doc.blank':
       return undefined;
     default:

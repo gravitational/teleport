@@ -33,6 +33,7 @@ import {
   DocumentAccessRequests,
   DocumentCluster,
   DocumentConnectMyComputerSetup,
+  DocumentConnectMyComputerStatus,
   DocumentGateway,
   DocumentGatewayKube,
   DocumentGatewayCliClient,
@@ -221,9 +222,7 @@ export class DocumentsService {
     // However, we decided not to do so because other documents are based only on the provided parameters.
     rootClusterUri: RootClusterUri;
   }): DocumentConnectMyComputerSetup {
-    const existingDoc = this.getDocuments().find(
-      doc => doc.kind === 'doc.connect_my_computer_setup'
-    );
+    const existingDoc = this.findFirstOfKind('doc.connect_my_computer_setup');
     if (existingDoc) {
       this.open(existingDoc.uri);
       return;
@@ -238,6 +237,36 @@ export class DocumentsService {
     };
 
     this.add(doc);
+    this.open(doc.uri);
+  }
+
+  openConnectMyComputerStatusDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+    replaceSetupDocument?: boolean;
+  }): void {
+    const existingDoc = this.findFirstOfKind('doc.connect_my_computer_status');
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
+    const uri = routing.getDocUri({ docId: unique() });
+    const doc: DocumentConnectMyComputerStatus = {
+      uri,
+      kind: 'doc.connect_my_computer_status',
+      title: 'Connect My Computer',
+      rootClusterUri: opts.rootClusterUri,
+    };
+    const existingSetupDocIndex = this.getDocuments().findIndex(
+      doc => doc.kind === 'doc.connect_my_computer_setup'
+    );
+    if (existingSetupDocIndex) {
+      this.close(this.getDocuments().at(existingSetupDocIndex).uri);
+    }
+    this.add(doc, existingSetupDocIndex);
     this.open(doc.uri);
   }
 
@@ -272,6 +301,10 @@ export class DocumentsService {
 
   getDocument(uri: string) {
     return this.getState().documents.find(i => i.uri === uri);
+  }
+
+  findFirstOfKind(documentKind: Document['kind']): Document | undefined {
+    return this.getState().documents.find(d => d.kind === documentKind);
   }
 
   getActive() {
