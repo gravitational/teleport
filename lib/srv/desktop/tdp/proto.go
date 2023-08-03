@@ -349,7 +349,7 @@ func (r RDPResponsePDU) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// RDPChannelIDs are the io and user channel ids negotiated during the RDP connection.
+// RDPChannelIDs are the IO and user channel IDs negotiated during the RDP connection.
 //
 // See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
 //
