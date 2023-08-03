@@ -1838,6 +1838,79 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
 }
 
+func TestExtendWebSessionWithMaxDuration(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testSrv := newTestTLSServer(t)
+	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+
+	clt, err := testSrv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	const user = "user2"
+	const testRequestRole = "test-request-role"
+	pass := []byte("abc123")
+
+	newUser, err := CreateUserRoleAndRequestable(clt, user, testRequestRole)
+	require.NoError(t, err)
+	require.Len(t, newUser.GetRoles(), 1)
+
+	requestableRole, err := clt.GetRole(ctx, newUser.GetRoles()[0])
+	require.NoError(t, err)
+
+	requestableRole.SetAccessRequestConditions(types.Allow, types.AccessRequestConditions{
+		Roles:       []string{testRequestRole},
+		MaxDuration: types.Duration(5 * time.Hour),
+	})
+	err = clt.UpsertRole(ctx, requestableRole)
+	require.NoError(t, err)
+
+	require.Len(t, newUser.GetRoles(), 1)
+	require.Empty(t, cmp.Diff(newUser.GetRoles(), []string{"user:user2"}))
+
+	proxy, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	// Create a user to create a web session for.
+	req := AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	}
+
+	err = testSrv.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
+	require.NoError(t, err)
+
+	web, err := testSrv.NewClientFromWebSession(ws)
+	require.NoError(t, err)
+
+	// Create an approved access request.
+	accessReq, err := services.NewAccessRequest(user, []string{"test-request-role"}...)
+	require.NoError(t, err)
+
+	// Set a lesser expiry date, to test switching back to default expiration later.
+	//accessReq.SetAccessExpiry(clock.Now().Add(time.Minute * 10))
+	accessReq.SetMaxDuration(clock.Now().Add(5 * time.Hour))
+	accessReq.SetState(types.RequestState_APPROVED)
+
+	err = clt.CreateAccessRequest(ctx, accessReq)
+	require.NoError(t, err)
+
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
+		User:            user,
+		PrevSessionID:   ws.GetName(),
+		AccessRequestID: accessReq.GetMetadata().Name,
+	})
+	require.NoError(t, err)
+
+	require.WithinDuration(t, clock.Now().Add(5*time.Hour), sess1.Expiry(), time.Second)
+}
+
 // TestGetCertAuthority tests certificate authority permissions
 func TestGetCertAuthority(t *testing.T) {
 	t.Parallel()
