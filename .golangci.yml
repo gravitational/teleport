@@ -10,6 +10,10 @@ issues:
     - linters:
       - unused
       path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
+    - linters:
+      - gosec
+      path: (.+)_test.go
+
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -30,6 +34,7 @@ linters:
     - staticcheck
     - unconvert
     - unused
+    - gosec
 
 linters-settings:
   depguard:
