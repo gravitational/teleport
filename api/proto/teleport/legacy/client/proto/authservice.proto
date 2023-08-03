@@ -2248,13 +2248,16 @@ message GetResourceUsageRequest {}
 // which may be total (e.g. X resources), or time-based (e.g. X new resources created this calendar month).
 // When usage-based billing is not used, the response will be empty.
 message GetResourceUsageResponse {
-  ResourceUsage AccessRequestsMonthly = 1;
+  AccessRequestUsage AccessRequests = 1;
 }
 
-// ResourceUsage contains the limit and current usage of a single resource category.
-message ResourceUsage {
-  int32 Limit = 1;
-  int32 Used = 2;
+// AccessRequestUsage defines the usage limits for access requests.
+// Currently this is limited on the basis of access requests used per calendar month.
+message AccessRequestUsage {
+  // MonthlyLimit is the amount of requests that are allowed per month
+  int32 monthly_limit = 1;
+  // MonthlyUsed is the amount of requests that have been used this month
+  int32 monthly_used = 2;
 }
 
 // AuthService is authentication/authorization service implementation

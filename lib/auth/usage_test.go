@@ -138,8 +138,11 @@ func TestAccessRequestLimit(t *testing.T) {
 	// Check July
 	usage, err := p.a.GetResourceUsage(ctx, &proto.GetResourceUsageRequest{})
 	require.NoError(t, err)
-	require.Equal(t, int32(monthlyLimit), usage.GetAccessRequestsMonthly().Limit)
-	require.Equal(t, int32(3), usage.GetAccessRequestsMonthly().Used)
+	want := &proto.AccessRequestUsage{
+		MonthlyLimit: monthlyLimit,
+		MonthlyUsed:  3,
+	}
+	require.Equal(t, want, usage.AccessRequests)
 
 	req, err := types.NewAccessRequest(uuid.New().String(), "alice", "access")
 	require.NoError(t, err)
@@ -150,8 +153,11 @@ func TestAccessRequestLimit(t *testing.T) {
 	clock.Advance(31 * 24 * time.Hour)
 	usage, err = p.a.GetResourceUsage(ctx, &proto.GetResourceUsageRequest{})
 	require.NoError(t, err)
-	require.Equal(t, int32(monthlyLimit), usage.GetAccessRequestsMonthly().Limit)
-	require.Equal(t, int32(2), usage.GetAccessRequestsMonthly().Used)
+	want = &proto.AccessRequestUsage{
+		MonthlyLimit: monthlyLimit,
+		MonthlyUsed:  2,
+	}
+	require.Equal(t, want, usage.AccessRequests)
 
 	req, err = types.NewAccessRequest(uuid.New().String(), "alice", "access")
 	require.NoError(t, err)

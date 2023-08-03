@@ -5412,9 +5412,9 @@ func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsa
 	}
 
 	return &proto.GetResourceUsageResponse{
-		AccessRequestsMonthly: &proto.ResourceUsage{
-			Limit: int32(features.AccessRequests.MonthlyRequestLimit),
-			Used:  int32(accessRequestUsage),
+		AccessRequests: &proto.AccessRequestUsage{
+			MonthlyLimit: int32(features.AccessRequests.MonthlyRequestLimit),
+			MonthlyUsed:  int32(accessRequestUsage),
 		},
 	}, nil
 }
