@@ -103,7 +103,16 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
+
+	a.rewriteKubeClusters(kubeClusters)
 	return kubeClusters.AsResources(), nil
+}
+
+// rewriteKubeClusters rewrites the discovered kube clusters.
+func (a *aksFetcher) rewriteKubeClusters(clusters types.KubeClusters) {
+	for _, c := range clusters {
+		common.ApplyAKSNameSuffix(c)
+	}
 }
 
 func (a *aksFetcher) getAKSClusters(ctx context.Context) ([]*azure.AKSCluster, error) {

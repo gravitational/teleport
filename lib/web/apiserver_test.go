@@ -1129,22 +1129,134 @@ func TestClusterNodesGet(t *testing.T) {
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {
-	t.Parallel()
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{SAML: true, Kubernetes: true},
+	})
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
-
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
+	require.NoError(t, err)
+	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
 	// Add nodes
 	for i := 0; i < 20; i++ {
-		node, err := types.NewServer(fmt.Sprintf("server-%d", i), types.KindNode, types.ServerSpecV2{})
+		name := fmt.Sprintf("server-%d", i)
+		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+			Hostname: name,
+		})
 		require.NoError(t, err)
 		_, err = env.server.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
 
+	// TODO (avatus) : refactor into test cases
+
+	// Get nodes from endpoint.
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	// // should return second page and have no third page
+	query := url.Values{"sort": []string{"name:asc"}, "limit": []string{"100"}}
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, "node", res.Items[0].Name)
+
+	// // should return first page with desc sorted names
+	query = url.Values{"sort": []string{"name:desc"}, "limit": []string{"100"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	descRes := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &descRes))
+	require.Equal(t, "server-9", descRes.Items[0].Name)
+
+	// add kubes
+	cluster2, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "test-kube2",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	server2, err := types.NewKubernetesServerV3FromCluster(
+		cluster2,
+		"test-kube2-hostname",
+		"test-kube2-hostid",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
+	require.NoError(t, err)
+
+	// add a user group
+	ug, err := types.NewUserGroup(types.Metadata{
+		Name: "ug1", Description: "ug1-description",
+	},
+		types.UserGroupSpecV1{Applications: []string{"app1"}})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateUserGroup(context.Background(), ug)
+	require.NoError(t, err)
+
+	// add app
+	app1 := &types.AppServerV3{
+		Metadata: types.Metadata{Name: "test-app"},
+		Kind:     types.KindAppServer,
+		Version:  types.V2,
+		Spec: types.AppServerSpecV3{
+			HostID: "hostid",
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:        "app1",
+					Description: "description",
+					Labels:      map[string]string{"test-field": "test-value"},
+				},
+				Spec: types.AppSpecV3{
+					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
+					PublicAddr: "publicaddrs",
+					UserGroups: []string{"ug1", "ug2"}, // ug2 doesn't exist in the backend, so its lookup will fail.
+				},
+			},
+		},
+	}
+
+	// add another app
+	app2, err := types.NewAppServerV3(types.Metadata{Name: "server2"}, types.AppServerSpecV3{
+		HostID: "hostid",
+		App: &types.AppV3{
+			Metadata: types.Metadata{Name: "app2"},
+			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
+		},
+	})
+	require.NoError(t, err)
+
+	// add SAML app
+	samlapp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "test-saml-app",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		EntityDescriptor: `<?xml version="1.0" encoding="UTF-8"?>
+		<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="test-saml-app" validUntil="2025-12-09T09:13:31.006Z">
+			 <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+					<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+					<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+					<md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+			 </md:SPSSODescriptor>
+		</md:EntityDescriptor>`,
+		EntityID: "test-saml-app",
+	})
+	require.NoError(t, err)
+
+	// Register apps and service providers.
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), app1)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), app2)
+	require.NoError(t, err)
+	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), samlapp)
+	require.NoError(t, err)
+
 	// add db
 	db, err := types.NewDatabaseServerV3(
-		types.Metadata{Name: "db1"},
+		types.Metadata{Name: "aaaa1"},
 		types.DatabaseServerSpecV3{
 			Protocol: "postgres",
 			Hostname: "localhost",
@@ -1157,7 +1269,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// add windows desktop
 	win, err := types.NewWindowsDesktopV3(
-		"win1",
+		"zzzz9",
 		nil,
 		types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
 	)
@@ -1165,29 +1277,34 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
 	require.NoError(t, err)
 
-	// Get nodes from endpoint.
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+	// shouldnt get any results with no access
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 0)
+	require.Equal(t, 0, res.TotalCount)
 
 	// should return first page and have a second page
-	query := url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
-	res := clusterNodesGetResponse{}
+	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
-	require.Equal(t, 23, res.TotalCount)
+	require.Equal(t, 27, res.TotalCount)
 	require.NotEqual(t, "", res.StartKey)
 
-	// should return second page and have no third page
+	// // should return second page and have no third page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
 	query.Add("startKey", res.StartKey)
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 8)
-	require.Equal(t, 23, res.TotalCount)
+	require.Len(t, res.Items, 12)
+	require.Equal(t, 27, res.TotalCount)
 	require.Equal(t, "", res.StartKey)
 
 	// should return muiltiple filtered types
@@ -1201,6 +1318,34 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Len(t, res.Items, 2)
 	require.Equal(t, "", res.StartKey)
 	require.Equal(t, 2, res.TotalCount)
+
+	// should return apps
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	query.Add("kinds", types.KindApp)
+	query.Add("kinds", types.KindSAMLIdPServiceProvider)
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 3)
+	require.Equal(t, "", res.StartKey)
+	require.Equal(t, 3, res.TotalCount)
+
+	// should return ascending sorted types
+	query = url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindApp, res.Items[0].Kind)
+
+	// should return descending sorted types
+	query = url.Values{"sort": []string{"type:desc"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
 }
 
 type clusterAlertsGetResponse struct {

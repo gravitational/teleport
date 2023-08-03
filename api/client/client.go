@@ -1008,6 +1008,16 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	return trail.FromGRPC(err)
 }
 
+// CreateAccessRequestV2 registers a new access request with the auth server.
+func (c *Client) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	r, ok := req.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected access request type %T", req)
+	}
+	resp, err := c.grpc.CreateAccessRequestV2(ctx, r)
+	return resp, trail.FromGRPC(err)
+}
+
 // DeleteAccessRequest deletes an access request.
 func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	_, err := c.grpc.DeleteAccessRequest(ctx, &proto.RequestID{ID: reqID})
@@ -3146,9 +3156,9 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
-// getTypeFromUnifiedResource is used to extract the resource kind from the PaginatedResource returned
+// getResourceFromProtoPage extracts the resource from the PaginatedResource returned
 // from the rpc ListUnifiedResources
-func getTypeFromUnifiedResource(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
+func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
 	var out types.ResourceWithLabels
 	if r := resource.GetNode(); r != nil {
 		out = r
@@ -3185,7 +3195,7 @@ func getTypeFromUnifiedResource(resource *proto.PaginatedResource) (types.Resour
 	}
 }
 
-// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provide request.
+// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
 func GetUnifiedResourcePage(ctx context.Context, clt GetUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
 	var out ResourcePage[types.ResourceWithLabels]
 
@@ -3213,7 +3223,7 @@ func GetUnifiedResourcePage(ctx context.Context, clt GetUnifiedResourcesClient, 
 		}
 
 		for _, respResource := range resp.Resources {
-			resource, err := getTypeFromUnifiedResource(respResource)
+			resource, err := getResourceFromProtoPage(respResource)
 			if err != nil {
 				return out, trace.Wrap(err)
 			}

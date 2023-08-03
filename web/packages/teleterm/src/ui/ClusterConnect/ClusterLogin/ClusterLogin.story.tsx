@@ -20,7 +20,10 @@ import { Box } from 'design';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
-import { makeGateway } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeDatabaseGateway,
+  makeKubeGateway,
+} from 'teleterm/services/tshd/testHelpers';
 
 import {
   ClusterLoginPresentation,
@@ -115,14 +118,31 @@ export const LocalOnly = () => {
   );
 };
 
-export const LocalOnlyWithReasonGatewayCertExpiredWithGateway = () => {
+export const LocalOnlyWithReasonGatewayCertExpiredWithDbGateway = () => {
   const props = makeProps();
   props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
-    targetUri: gateway.targetUri,
-    gateway: gateway,
+    targetUri: dbGateway.targetUri,
+    gateway: dbGateway,
+  };
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const LocalOnlyWithReasonGatewayCertExpiredWithKubeGateway = () => {
+  const props = makeProps();
+  props.initAttempt.data.secondFactor = 'off';
+  props.initAttempt.data.allowPasswordless = false;
+  props.reason = {
+    kind: 'reason.gateway-cert-expired',
+    targetUri: kubeGateway.targetUri,
+    gateway: kubeGateway,
   };
 
   return (
@@ -138,7 +158,7 @@ export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
-    targetUri: gateway.targetUri,
+    targetUri: dbGateway.targetUri,
     gateway: undefined,
   };
 
@@ -323,7 +343,7 @@ const TestContainer: React.FC = ({ children }) => (
   </>
 );
 
-const gateway = makeGateway({
+const dbGateway = makeDatabaseGateway({
   uri: '/gateways/gateway1',
   targetName: 'postgres',
   targetUri: '/clusters/teleport-local/dbs/postgres',
@@ -332,4 +352,13 @@ const gateway = makeGateway({
   localAddress: 'localhost',
   localPort: '59116',
   protocol: 'postgres',
+});
+
+const kubeGateway = makeKubeGateway({
+  uri: '/gateways/gateway2',
+  targetName: 'minikube',
+  targetUri: '/clusters/teleport-local/kubes/minikube',
+  targetSubresourceName: '',
+  localAddress: 'localhost',
+  localPort: '59117',
 });

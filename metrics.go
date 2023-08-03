@@ -105,6 +105,13 @@ const (
 
 	// TagUpgrader is a metric tag for upgraders.
 	TagUpgrader = "upgrader"
+
+	// MetricsAccessRequestsCreated provides total number of created access requests.
+	MetricAccessRequestsCreated = "access_requests_created"
+	// TagRoles is a number of roles requested as a part of access request.
+	TagRoles = "roles"
+	// TagResources is a number of resources requested as a part of access request.
+	TagResources = "resources"
 )
 
 const (
