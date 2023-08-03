@@ -158,8 +158,8 @@ export function NavigationItem(props: NavigationItemProps) {
     []
   );
 
-  // showRedDot returns red dot component if the feature recommendation state is 'NOTIFY'
-  function showRedDot(featureName: NavTitle): JSX.Element {
+  // renderHighlightFeature returns red dot component if the feature recommendation state is 'NOTIFY'
+  function renderHighlightFeature(featureName: NavTitle): JSX.Element {
     // Get onboarding status. We'll only recommend features once user completes
     // initial onboarding (i.e. connect resources to Teleport cluster).
     const onboard = localStorage.getOnboardDiscover();
@@ -237,7 +237,7 @@ export function NavigationItem(props: NavigationItemProps) {
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
             {navigationItemVersion.title}
-            {showRedDot(props.feature.navigationItem.title)}
+            {renderHighlightFeature(props.feature.navigationItem.title)}
           </LinkContent>
         </Link>
       );
