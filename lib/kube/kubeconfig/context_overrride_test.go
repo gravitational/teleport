@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestContextOverrideTemplateTest(t *testing.T) {
+func TestCheckContextOverrideTemplate(t *testing.T) {
 	type args struct {
 		temp string
 	}
@@ -64,7 +64,7 @@ func TestContextOverrideTemplateTest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ContextOverrideTemplateTest(tt.args.temp)
+			err := CheckContextOverrideTemplate(tt.args.temp)
 			tt.assertErr(t, err)
 			if err != nil {
 				require.ErrorContains(t, err, tt.errContains)

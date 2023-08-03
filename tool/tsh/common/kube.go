@@ -1178,7 +1178,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	}
 	// If --all and --set-context-name are set, ensure that the template is valid
 	// and can produce distinct context names for each cluster before proceeding.
-	if err := kubeconfig.ContextOverrideTemplateTest(c.overrideContextName); err != nil && c.all {
+	if err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName); err != nil && c.all {
 		return trace.Wrap(err)
 	}
 

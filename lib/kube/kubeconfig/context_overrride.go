@@ -30,9 +30,9 @@ const (
 		"  - `{{ .ClusterName }}` - the name of the Teleport cluster\n"
 )
 
-// ContextOverrideTemplateTest tests if the given template is valid and can
+// CheckContextOverrideTemplate tests if the given template is valid and can
 // be used to generate different context names for different clusters.
-func ContextOverrideTemplateTest(temp string) error {
+func CheckContextOverrideTemplate(temp string) error {
 	if temp == "" {
 		return nil
 	}
