@@ -150,16 +150,13 @@ export default class MainProcess {
       },
     });
 
-    const tshdPassThroughLogger = createFileLoggerService({
+    createFileLoggerService({
       dev: this.settings.dev,
       dir: this.settings.userDataDir,
       name: 'tshd',
       loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
-    });
-
-    tshdPassThroughLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stdout);
-    tshdPassThroughLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stderr);
+    }).pipeProcessOutputIntoLogger(this.tshdProcess);
 
     this.tshdProcess.on('error', error => {
       this.logger.error('tshd failed to start', error);
@@ -178,20 +175,13 @@ export default class MainProcess {
         stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
       }
     );
-    const sharedProcessPassThroughLogger = createFileLoggerService({
+    createFileLoggerService({
       dev: this.settings.dev,
       dir: this.settings.userDataDir,
       name: 'shared',
       loggerNameColor: LoggerColor.Yellow,
       passThroughMode: true,
-    });
-
-    sharedProcessPassThroughLogger.pipeProcessOutputIntoLogger(
-      this.sharedProcess.stdout
-    );
-    sharedProcessPassThroughLogger.pipeProcessOutputIntoLogger(
-      this.sharedProcess.stderr
-    );
+    }).pipeProcessOutputIntoLogger(this.sharedProcess);
 
     this.sharedProcess.on('error', error => {
       this.logger.error('shared process failed to start', error);
