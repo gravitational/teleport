@@ -85,6 +85,7 @@ type MakeAppsConfig struct {
 	Logger          logrus.FieldLogger
 }
 
+// MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
