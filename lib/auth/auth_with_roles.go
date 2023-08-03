@@ -1498,6 +1498,31 @@ func stringCompare(a string, b string, isDesc bool) bool {
 	return a < b
 }
 
+func unifiedNameCompare(a types.ResourceWithLabels, b types.ResourceWithLabels, isDesc bool) bool {
+	var nameA, nameB string
+	resourceA, ok := a.(types.Server)
+	if ok {
+		nameA = resourceA.GetHostname()
+	} else {
+		nameA = a.GetName()
+	}
+
+	resourceB, ok := a.(types.Server)
+	if ok {
+		nameB = resourceB.GetHostname()
+	} else {
+		nameB = a.GetName()
+	}
+
+	fmt.Println("---------")
+	fmt.Printf("%+v %+v\n", nameA, nameB)
+	fmt.Println("---------")
+	if isDesc {
+		return nameA > nameB
+	}
+	return nameA < nameB
+}
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*types.ListResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
@@ -1505,22 +1530,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if req.SortBy.Field != "" {
-		isDesc := req.SortBy.IsDesc
-		switch req.SortBy.Field {
-		case types.ResourceMetadataName:
-			sort.SliceStable(unifiedResources, func(i, j int) bool {
-				return stringCompare(unifiedResources[i].GetMetadata().Name, unifiedResources[j].GetMetadata().Name, isDesc)
-			})
-		case types.ResourceSpecType:
-			sort.SliceStable(unifiedResources, func(i, j int) bool {
-				return stringCompare(unifiedResources[i].GetKind(), unifiedResources[j].GetKind(), isDesc)
-			})
-		default:
-			return nil, trace.NotImplemented("sorting by field %q for unified resource %q is not supported", req.SortBy.Field, types.KindUnifiedResource)
-		}
 	}
 
 	elapsedFetch := time.Since(startFetch)
@@ -1607,6 +1616,22 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}).Debugf(
 		"GetUnifiedResources(%v->%v) in %v.",
 		len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
+
+	if req.SortBy.Field != "" {
+		isDesc := req.SortBy.IsDesc
+		switch req.SortBy.Field {
+		case types.ResourceMetadataName:
+			sort.SliceStable(unifiedResources, func(i, j int) bool {
+				return unifiedNameCompare(unifiedResources[i], unifiedResources[j], isDesc)
+			})
+		case types.ResourceSpecType:
+			sort.SliceStable(unifiedResources, func(i, j int) bool {
+				return stringCompare(unifiedResources[i].GetKind(), unifiedResources[j].GetKind(), isDesc)
+			})
+		default:
+			return nil, trace.NotImplemented("sorting by field %q for unified resource %q is not supported", req.SortBy.Field, types.KindUnifiedResource)
+		}
+	}
 
 	// Apply request filters and get pagination info.
 	resp, err := local.FakePaginate(filteredResources, local.FakePaginateParams{
