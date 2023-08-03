@@ -13,6 +13,7 @@ use rdp::model::error::*;
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use std::io::{self, Error as IoError};
 use std::net::ToSocketAddrs;
+use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::Mutex;
 
@@ -31,7 +32,7 @@ use tokio::sync::Mutex;
 /// be being used by multiple goroutines concurrently, it is up to the programmer to consider any synchronization mechanisms that might
 /// need to be implemented as features are added to the Client going forward.
 pub struct Client {
-    iron_rdp_client: Mutex<IronRDPClient>,
+    iron_rdp_client: IronRDPClient,
     tokio_rt: tokio::runtime::Runtime,
     go_ref: usize,
 }
@@ -64,6 +65,7 @@ impl Client {
                 }
             };
 
+            // Create a framed stream for use by connect_begin
             let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
             let connector_config = ironrdp_connector::Config {
@@ -110,7 +112,7 @@ impl Client {
 
             debug!("TLS upgrade");
 
-            // Ensure there is no leftover
+            // Take the stream back out of the framed object for upgrading
             let initial_stream = framed.into_inner_no_leftover();
             let (upgraded_stream, server_public_key) =
                 ironrdp_tls::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
@@ -136,6 +138,12 @@ impl Client {
 
             debug!("connection_result: {:?}", connection_result);
 
+            // Take the stream back out of the framed object for splitting
+            let upgraded_stream = upgraded_framed.into_inner_no_leftover();
+            let (read_stream, write_stream) = split(upgraded_stream);
+            let framed_reader = ironrdp_tokio::TokioFramed::new(read_stream);
+            let framed_writer = ironrdp_tokio::TokioFramed::new(write_stream);
+
             let x224_processor = x224::Processor::new(
                 swap_hashmap_kv(connection_result.static_channels),
                 connection_result.user_channel_id,
@@ -144,13 +152,19 @@ impl Client {
                 None,
             );
 
-            Ok((upgraded_framed, x224_processor))
+            Ok((framed_reader, framed_writer, x224_processor))
         }) {
-            Ok((upgraded_framed, x224_processor)) => Ok(Box::into_raw(Box::new(Self {
-                iron_rdp_client: Mutex::new(IronRDPClient::new(upgraded_framed, x224_processor)),
-                tokio_rt,
-                go_ref,
-            }))),
+            Ok((framed_reader, framed_writer, x224_processor)) => {
+                Ok(Box::into_raw(Box::new(Self {
+                    iron_rdp_client: IronRDPClient::new(
+                        framed_reader,
+                        framed_writer,
+                        x224_processor,
+                    ),
+                    tokio_rt,
+                    go_ref,
+                })))
+            }
             Err(err) => Err(err),
         }
     }
@@ -355,14 +369,19 @@ impl Client {
     }
 
     async fn read_pdu(&self) -> io::Result<(ironrdp_pdu::Action, BytesMut)> {
-        self.iron_rdp_client.lock().await.framed.read_pdu().await
+        self.iron_rdp_client
+            .framed_reader
+            .lock()
+            .await
+            .read_pdu()
+            .await
     }
 
     async fn write_all(&self, buf: &[u8]) -> io::Result<()> {
         self.iron_rdp_client
+            .framed_writer
             .lock()
             .await
-            .framed
             .write_all(buf)
             .await
     }
@@ -370,9 +389,9 @@ impl Client {
     async fn process_x224_frame(&self, frame: &[u8]) -> SessionResult<Vec<ActiveStageOutput>> {
         let output = self
             .iron_rdp_client
+            .x224_processor
             .lock()
             .await
-            .x224_processor
             .process(frame)?;
         let mut stage_outputs = Vec::new();
         if !output.is_empty() {
@@ -415,17 +434,24 @@ impl From<RdpError> for ConnectError {
 }
 
 pub struct IronRDPClient {
-    framed: UpgradedFramed,
-    x224_processor: x224::Processor,
+    framed_reader: Mutex<FramedReader>,
+    framed_writer: Mutex<FramedWriter>,
+    x224_processor: Mutex<x224::Processor>,
 }
 
 impl IronRDPClient {
-    pub fn new(upgraded_framed: UpgradedFramed, x224_processor: x224::Processor) -> Self {
+    pub fn new(
+        framed_reader: FramedReader,
+        framed_writer: FramedWriter,
+        x224_processor: x224::Processor,
+    ) -> Self {
         Self {
-            framed: upgraded_framed,
-            x224_processor,
+            framed_reader: Mutex::new(framed_reader),
+            framed_writer: Mutex::new(framed_writer),
+            x224_processor: Mutex::new(x224_processor),
         }
     }
 }
 
-type UpgradedFramed = ironrdp_tokio::TokioFramed<ironrdp_tls::TlsStream<TokioTcpStream>>;
+type FramedReader = ironrdp_tokio::TokioFramed<ReadHalf<ironrdp_tls::TlsStream<TokioTcpStream>>>;
+type FramedWriter = ironrdp_tokio::TokioFramed<WriteHalf<ironrdp_tls::TlsStream<TokioTcpStream>>>;
