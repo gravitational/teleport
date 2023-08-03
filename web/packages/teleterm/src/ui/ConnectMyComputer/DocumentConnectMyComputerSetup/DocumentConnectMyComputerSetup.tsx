@@ -17,6 +17,7 @@ limitations under the License.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import { wait } from 'shared/utils/wait';
 import * as Alerts from 'design/Alert';
 import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
@@ -98,8 +99,9 @@ function Information(props: { onSetUpAgentClick(): void }) {
 
 function AgentSetup() {
   const ctx = useAppContext();
-  const { rootClusterUri } = useWorkspaceContext();
-  const { runAgentAndWaitForNodeToJoin } = useConnectMyComputerContext();
+  const { rootClusterUri, documentsService } = useWorkspaceContext();
+  const { runAgentAndWaitForNodeToJoin, markSetupAsDone } =
+    useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
 
@@ -213,9 +215,15 @@ function AgentSetup() {
     for (const action of actions) {
       const [, error] = await action();
       if (error) {
-        break;
+        return;
       }
     }
+    await wait(500);
+    markSetupAsDone();
+    documentsService.openConnectMyComputerStatusDocument({
+      rootClusterUri,
+      replaceSetupDocument: true,
+    });
   }, [
     setCreateRoleAttempt,
     setDownloadAgentAttempt,
@@ -225,6 +233,9 @@ function AgentSetup() {
     runDownloadAgentAttempt,
     runGenerateConfigFileAttempt,
     runJoinClusterAttempt,
+    markSetupAsDone,
+    documentsService,
+    rootClusterUri,
   ]);
 
   useEffect(() => {

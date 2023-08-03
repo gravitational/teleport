@@ -15,17 +15,15 @@
  */
 
 import React, { useRef, useState } from 'react';
-import Popover from 'design/Popover';
-import styled from 'styled-components';
-import { Box } from 'design';
+import { Menu, MenuItem } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ClusterUri } from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { NavigationMenuIcon } from './NavigationMenuIcon';
 import { canUseConnectMyComputer } from './permissions';
+import { useConnectMyComputerContext } from './connectMyComputerContext';
 
 interface NavigationMenuProps {
   clusterUri: ClusterUri;
@@ -33,9 +31,10 @@ interface NavigationMenuProps {
 
 export function NavigationMenu(props: NavigationMenuProps) {
   const iconRef = useRef();
-  const [isPopoverOpened, setIsPopoverOpened] = useState(false);
+  const [isMenuOpened, setIsMenuOpened] = useState(false);
   const appCtx = useAppContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
+  const { isSetupDoneAttempt } = useConnectMyComputerContext();
   // DocumentCluster renders this component only if the cluster exists.
   const cluster = appCtx.clustersService.findCluster(props.clusterUri);
 
@@ -46,15 +45,22 @@ export function NavigationMenu(props: NavigationMenuProps) {
 
   const rootCluster = cluster;
 
-  function togglePopover() {
-    setIsPopoverOpened(wasOpened => !wasOpened);
+  function toggleMenu() {
+    setIsMenuOpened(wasOpened => !wasOpened);
   }
 
   function openSetupDocument(): void {
     documentsService.openConnectMyComputerSetupDocument({
       rootClusterUri,
     });
-    setIsPopoverOpened(false);
+    setIsMenuOpened(false);
+  }
+
+  function openStatusDocument(): void {
+    documentsService.openConnectMyComputerStatusDocument({
+      rootClusterUri,
+    });
+    setIsMenuOpened(false);
   }
 
   if (
@@ -69,22 +75,25 @@ export function NavigationMenu(props: NavigationMenuProps) {
 
   return (
     <>
-      <NavigationMenuIcon onClick={togglePopover} ref={iconRef} />
-      <Popover
-        open={isPopoverOpened}
+      <NavigationMenuIcon onClick={toggleMenu} ref={iconRef} />
+      <Menu
+        getContentAnchorEl={null}
+        open={isMenuOpened}
         anchorEl={iconRef.current}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        onClose={() => setIsPopoverOpened(false)}
+        onClose={() => setIsMenuOpened(false)}
       >
-        <Container width="200px">
-          <ListItem onClick={openSetupDocument}>Connect computer</ListItem>
-        </Container>
-      </Popover>
+        {isSetupDoneAttempt.status === 'success' && (
+          <>
+            {!isSetupDoneAttempt.data ? (
+              <MenuItem onClick={openSetupDocument}>Connect computer</MenuItem>
+            ) : (
+              <MenuItem onClick={openStatusDocument}>Manage agent</MenuItem>
+            )}
+          </>
+        )}
+      </Menu>
     </>
   );
 }
-
-const Container = styled(Box)`
-  background: ${props => props.theme.colors.levels.elevated};
-`;

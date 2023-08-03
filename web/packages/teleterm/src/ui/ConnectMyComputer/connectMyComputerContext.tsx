@@ -25,6 +25,8 @@ import React, {
 
 import { wait } from 'shared/utils/wait';
 
+import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
+
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -36,6 +38,8 @@ import type {
 export interface ConnectMyComputerContext {
   state: AgentProcessState;
   runAgentAndWaitForNodeToJoin(): Promise<void>;
+  isSetupDoneAttempt: Attempt<boolean>;
+  markSetupAsDone(): void;
 }
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
@@ -44,6 +48,17 @@ export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
 }> = props => {
   const { mainProcessClient, connectMyComputerService } = useAppContext();
+  const [isSetupDoneAttempt, checkIfSetupIsDone, setSetupDoneAttempt] =
+    useAsync(
+      useCallback(
+        () =>
+          connectMyComputerService.isAgentConfigFileCreated(
+            props.rootClusterUri
+          ),
+        [connectMyComputerService, props.rootClusterUri]
+      )
+    );
+
   const [agentState, setAgentState] = useState<AgentProcessState>(
     () =>
       mainProcessClient.getAgentState({
@@ -65,6 +80,10 @@ export const ConnectMyComputerContextProvider: FC<{
     ]);
   }, [connectMyComputerService, mainProcessClient, props.rootClusterUri]);
 
+  const markSetupAsDone = useCallback(() => {
+    setSetupDoneAttempt(makeSuccessAttempt(true));
+  }, [setSetupDoneAttempt]);
+
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
       props.rootClusterUri,
@@ -73,11 +92,17 @@ export const ConnectMyComputerContextProvider: FC<{
     return cleanup;
   }, [mainProcessClient, props.rootClusterUri]);
 
+  useEffect(() => {
+    checkIfSetupIsDone();
+  }, [checkIfSetupIsDone]);
+
   return (
     <ConnectMyComputerContext.Provider
       value={{
         state: agentState,
         runAgentAndWaitForNodeToJoin,
+        markSetupAsDone,
+        isSetupDoneAttempt,
       }}
       children={props.children}
     />
