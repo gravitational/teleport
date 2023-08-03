@@ -29,6 +29,8 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 import Logger from 'teleterm/logger';
 
+import { useAgentProperties } from '../useAgentProperties';
+
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
   doc: types.DocumentConnectMyComputerSetup;
@@ -59,23 +61,19 @@ export function DocumentConnectMyComputerSetup(
 }
 
 function Information(props: { onSetUpAgentClick(): void }) {
-  const { rootClusterUri } = useWorkspaceContext();
-  const { clustersService, mainProcessClient } = useAppContext();
-  const cluster = clustersService.findCluster(rootClusterUri);
-  const { username: systemUsername, hostname } =
-    mainProcessClient.getRuntimeSettings();
+  const { systemUsername, hostname, roleName, clusterName } =
+    useAgentProperties();
 
   return (
     <>
       <Text>
         The setup process will download and launch the Teleport agent, making
-        your computer available in the <strong>{cluster.name}</strong> cluster
-        as <strong>{hostname}</strong>.
+        your computer available in the <strong>{clusterName}</strong> cluster as{' '}
+        <strong>{hostname}</strong>.
         <br />
         <br />
-        Cluster users with the role{' '}
-        <strong>connect-my-computer-{cluster.loggedInUser.name}</strong> will be
-        able to access your computer as <strong>{systemUsername}</strong>.
+        Cluster users with the role <strong>{roleName}</strong> will be able to
+        access your computer as <strong>{systemUsername}</strong>.
         <br />
         <br />
         Your computer will be shared while Teleport Connect is open. To stop
