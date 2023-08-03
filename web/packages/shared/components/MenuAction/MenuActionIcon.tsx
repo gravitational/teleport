@@ -56,6 +56,7 @@ export default class MenuActionIcon extends React.Component<Props> {
           <MoreHoriz size="medium" />
         </ButtonIcon>
         <Menu
+          getContentAnchorEl={null}
           menuListCss={menuListCss}
           anchorEl={this.anchorEl}
           open={open}
