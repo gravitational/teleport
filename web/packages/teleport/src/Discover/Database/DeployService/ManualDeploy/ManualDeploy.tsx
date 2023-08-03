@@ -40,7 +40,11 @@ import {
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import { DatabaseLocation } from 'teleport/Discover/SelectResource';
-import { DiscoverEventStatus } from 'teleport/services/userEvent';
+import {
+  DiscoverEventStatus,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
+} from 'teleport/services/userEvent';
 
 import {
   ActionButtons,
@@ -153,9 +157,13 @@ export function ManualDeploy(props: {
     nextStep();
 
     emitEvent(
-      { stepStatus: DiscoverEventStatus.Success }
-      // TODO(lisa) uncomment after backend handles this field
-      // { deployMethod: 'manual' }
+      { stepStatus: DiscoverEventStatus.Success },
+      {
+        serviceDeploy: {
+          method: DiscoverServiceDeployMethod.Manual,
+          type: DiscoverServiceDeployType.InstallScript,
+        },
+      }
     );
   }
 
