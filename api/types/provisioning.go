@@ -62,6 +62,10 @@ const (
 	// JoinMethodGCP indicates that the node will join with the GCP join method.
 	// Documentation regarding implementation of this can be found in lib/gcp.
 	JoinMethodGCP JoinMethod = "gcp"
+	// JoinMethodKubernetesRemote indicates that the node will join with the
+	// remote Kubernetes join method. Documentation regarding implementation
+	// can be found in lib/kubernetestoken
+	JoinMethodKubernetesRemote JoinMethod = "kubernetes_remote"
 )
 
 var JoinMethods = []JoinMethod{
@@ -74,6 +78,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodAzure,
 	JoinMethodGitLab,
 	JoinMethodGCP,
+	JoinMethodKubernetesRemote,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {

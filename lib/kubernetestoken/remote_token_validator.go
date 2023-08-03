@@ -43,6 +43,7 @@ type KubernetesSubClaim struct {
 }
 
 type ServiceAccountTokenClaims struct {
+	josejwt.Claims
 	Sub        string              `json:"sub"`
 	Issuer     string              `json:"issuer"`
 	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
@@ -65,20 +66,20 @@ func (c *ServiceAccountTokenClaims) JoinAuditAttributes() (map[string]interface{
 	return res, nil
 }
 
-func ValidateRemoteToken(_ context.Context, jwksData []byte, expectAudience string, token string) (*ServiceAccountTokenClaims, error) {
+func ValidateRemoteToken(_ context.Context, now time.Time, jwksData []byte, expectAudience string, token string) (*ServiceAccountTokenClaims, error) {
 	jwt, err := josejwt.ParseSigned(token)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "parsing jwt")
 	}
 
 	jwks := jose.JSONWebKeySet{}
 	if err := json.Unmarshal(jwksData, &jwks); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
 	var errs []error
 	for _, jwk := range jwks.Keys {
-		claims := josejwt.Claims{}
+		claims := ServiceAccountTokenClaims{}
 		err := jwt.Claims(jwk.Public(), &claims)
 		if err != nil {
 			// If the jwt fails to verify, we can try the next one.
@@ -86,16 +87,19 @@ func ValidateRemoteToken(_ context.Context, jwksData []byte, expectAudience stri
 			continue
 		}
 
-		// TODO: Double check leeway
+		// TODO: Determine "safe" leeway
 		err = claims.ValidateWithLeeway(josejwt.Expected{
+			// We don't need to check the subject or other claims here.
+			// Anything related to matching the token against ProvisionToken
+			// allow rules is left to the discretion of `lib/auth`.
 			Audience: []string{
 				expectAudience,
 			},
-			Time: time.Now(),
+			Time: now,
 		}, time.Minute)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return nil, trace.Wrap(trace.NewAggregate(errs...))
+	return nil, trace.Wrap(trace.NewAggregate(errs...), "jwt did not pass validation with any of the keys in the supplied jwks")
 }

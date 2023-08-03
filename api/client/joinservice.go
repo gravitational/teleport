@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 
@@ -124,4 +125,64 @@ func (c *JoinServiceClient) RegisterUsingAzureMethod(ctx context.Context, challe
 		return nil, trace.Wrap(err)
 	}
 	return certsResp.Certs, nil
+}
+
+// KubernetesRemoteChallengeSolver
+type KubernetesRemoteChallengeSolver func(audience string) (jwt string, err error)
+
+// RegisterUsingKubernetesRemoteMethod
+func (c *JoinServiceClient) RegisterUsingKubernetesRemoteMethod(ctx context.Context, tokenReq *types.RegisterUsingTokenRequest, solve KubernetesRemoteChallengeSolver) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	joinClient, err := c.grpcClient.RegisterUsingKubernetesRemoteMethod(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// 1. Send initial request to server describing which token we wish to use.
+	if err := joinClient.Send(&proto.RegisterUsingKubernetesRemoteMethodRequest{
+		Payload: &proto.RegisterUsingKubernetesRemoteMethodRequest_RegisterUsingTokenRequest{
+			RegisterUsingTokenRequest: tokenReq,
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// 2. Receive the challenge audience from the server.
+	resp, err := joinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	challenge := resp.GetChallengeAudience()
+	if challenge == "" {
+		return nil, trace.BadParameter("received empty challenge audience from server")
+	}
+
+	// 3. Solve the challenge using the provided callback func
+	jwt, err := solve(challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// 4. Send the solution to the server.
+	if err := joinClient.Send(&proto.RegisterUsingKubernetesRemoteMethodRequest{
+		Payload: &proto.RegisterUsingKubernetesRemoteMethodRequest_ChallengeSolutionJwt{
+			ChallengeSolutionJwt: jwt,
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// 5/
+	resp, err = joinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs := resp.GetCerts()
+	if certs == nil {
+		return nil, trace.BadParameter("did not receive expected certs from server")
+	}
+
+	return certs, nil
 }

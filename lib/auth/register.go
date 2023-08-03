@@ -181,7 +181,7 @@ func (r *RegisterParams) verifyAuthOrProxyAddress() error {
 	return nil
 }
 
-// CredGetter is an interface for a client that can be used to get host
+// HostCredentials is an interface for a client that can be used to get host
 // credentials. This interface is needed because lib/client can not be imported
 // in lib/auth due to circular imports.
 type HostCredentials func(context.Context, string, bool, types.RegisterUsingTokenRequest) (*proto.Certs, error)
@@ -308,7 +308,9 @@ func proxyServerIsAuth(server utils.NetAddr) bool {
 func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
 	var certs *proto.Certs
 	switch params.JoinMethod {
-	case types.JoinMethodIAM, types.JoinMethodAzure:
+	case types.JoinMethodIAM,
+		types.JoinMethodAzure,
+		types.JoinMethodKubernetesRemote:
 		// IAM and Azure join methods require gRPC client
 		conn, err := proxyJoinServiceConn(params, lib.IsInsecureDevMode())
 		if err != nil {
@@ -317,10 +319,15 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		defer conn.Close()
 
 		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
-		if params.JoinMethod == types.JoinMethodIAM {
+		switch params.JoinMethod {
+		case types.JoinMethodIAM:
 			certs, err = registerUsingIAMMethod(joinServiceClient, token, params)
-		} else {
+		case types.JoinMethodAzure:
 			certs, err = registerUsingAzureMethod(joinServiceClient, token, params)
+		case types.JoinMethodKubernetesRemote:
+			certs, err = registerUsingKubernetesRemoteMethod(joinServiceClient, token, params)
+		default:
+			err = trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
 
 		if err != nil {
@@ -387,6 +394,8 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 		certs, err = registerUsingIAMMethod(client, token, params)
 	case types.JoinMethodAzure:
 		certs, err = registerUsingAzureMethod(client, token, params)
+	case types.JoinMethodKubernetesRemote:
+		certs, err = registerUsingKubernetesRemoteMethod(client, token, params)
 	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
@@ -613,6 +622,21 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 type joinServiceClient interface {
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error)
 	RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingKubernetesRemoteMethod(ctx context.Context, req *types.RegisterUsingTokenRequest, solver client.KubernetesRemoteChallengeSolver) (*proto.Certs, error)
+}
+
+func tokenReqFromParams(token string, params RegisterParams) *types.RegisterUsingTokenRequest {
+	return &types.RegisterUsingTokenRequest{
+		Token:                token,
+		HostID:               params.ID.HostUUID,
+		NodeName:             params.ID.NodeName,
+		Role:                 params.ID.Role,
+		AdditionalPrincipals: params.AdditionalPrincipals,
+		DNSNames:             params.DNSNames,
+		PublicTLSKey:         params.PublicTLSKey,
+		PublicSSHKey:         params.PublicSSHKey,
+		Expires:              params.Expires,
+	}
 }
 
 // registerUsingIAMMethod is used to register using the IAM join method. It is
@@ -634,17 +658,10 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 
 		// send the register request including the challenge response
 		return &proto.RegisterUsingIAMMethodRequest{
-			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
-				Expires:              params.Expires,
-			},
+			RegisterUsingTokenRequest: tokenReqFromParams(
+				token,
+				params,
+			),
 			StsIdentityRequest: signedRequest,
 		}, nil
 	})
@@ -676,19 +693,33 @@ func registerUsingAzureMethod(client joinServiceClient, token string, params Reg
 		}
 
 		return &proto.RegisterUsingAzureMethodRequest{
-			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
-			},
+			RegisterUsingTokenRequest: tokenReqFromParams(
+				token,
+				params,
+			),
 			AttestedData: ad,
 			AccessToken:  accessToken,
 		}, nil
+	})
+	return certs, trace.Wrap(err)
+}
+
+// registerUsingKubernetesRemoteMethod
+func registerUsingKubernetesRemoteMethod(client joinServiceClient, token string, params RegisterParams) (*proto.Certs, error) {
+	ctx := context.Background()
+
+	req := tokenReqFromParams(
+		token,
+		params,
+	)
+	certs, err := client.RegisterUsingKubernetesRemoteMethod(ctx, req, func(audience string) (string, error) {
+		jwt, err := kubernetestoken.RequestToken(ctx, kubernetestoken.RequestTokenOpts{
+			Audience: audience,
+		})
+		if err != nil {
+			return "", trace.Wrap(err, "requesting token")
+		}
+		return jwt, nil
 	})
 	return certs, trace.Wrap(err)
 }
