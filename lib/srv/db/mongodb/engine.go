@@ -88,8 +88,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	observe()
 
-	msgFromClient := common.MessagesFromClient(sessionCtx.Database)
-	msgFromServer := common.MessagesFromServer(sessionCtx.Database)
+	msgFromClient := common.GetMessagesFromClientMetric(sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(sessionCtx.Database)
 
 	// Start reading client messages and sending them to server.
 	for {

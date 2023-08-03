@@ -137,7 +137,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 		close(clientErrCh)
 	}()
 
-	msgFromClient := common.MessagesFromClient(sessionCtx.Database)
+	msgFromClient := common.GetMessagesFromClientMetric(sessionCtx.Database)
 
 	for {
 		p, err := protocol.ReadPacket(clientConn)
@@ -174,7 +174,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 // receiveFromServer relays protocol messages received from MySQL database
 // to MySQL client.
 func (e *Engine) receiveFromServer(serverConn, clientConn io.ReadWriteCloser, serverErrCh chan<- error) {
-	// Note: we don't increment common.MessagesFromServer here because messages are not parsed, so we cannot count them.
+	// Note: we don't increment common.GetMessagesFromServerMetric here because messages are not parsed, so we cannot count them.
 	// The total bytes written is still available as a metric.
 	defer clientConn.Close()
 	_, err := io.Copy(clientConn, serverConn)

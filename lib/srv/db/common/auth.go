@@ -1040,6 +1040,7 @@ type reportingAuth struct {
 	db        types.Database
 }
 
+// GetReportingAuth returns a reporting version of Auth, wrapping the original Auth instance.
 func GetReportingAuth(db types.Database, auth Auth) Auth {
 	return &reportingAuth{
 		Auth:      auth,

@@ -371,8 +371,8 @@ func (e *Engine) reconnect(username, password string) (redis.UniversalClient, er
 // process is the main processing function for Redis. It reads commands from connected client and passes them to
 // a Redis instance. This function returns when a server closes a connection or in case of connection error.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error {
-	msgFromClient := common.MessagesFromClient(e.sessionCtx.Database)
-	msgFromServer := common.MessagesFromServer(e.sessionCtx.Database)
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
 
 	for {
 		// Read commands from connected client.

@@ -67,7 +67,6 @@ func GetEngine(db types.Database, conf EngineConfig) (Engine, error) {
 	}
 	engine, err := NewReportingEngine(reporterConfig{
 		engine:    engineFn(conf),
-		clock:     conf.Clock,
 		component: teleport.ComponentDatabase,
 		database:  db,
 	})

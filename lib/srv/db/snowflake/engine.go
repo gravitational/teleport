@@ -155,8 +155,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	observe()
 
-	msgFromClient := common.MessagesFromClient(e.sessionCtx.Database)
-	msgFromServer := common.MessagesFromServer(e.sessionCtx.Database)
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(e.sessionCtx.Database)
 
 	for {
 		req, err := http.ReadRequest(clientConnReader)

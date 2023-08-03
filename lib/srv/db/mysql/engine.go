@@ -296,7 +296,7 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		close(clientErrCh)
 	}()
 
-	msgFromClient := common.MessagesFromClient(sessionCtx.Database)
+	msgFromClient := common.GetMessagesFromClientMetric(sessionCtx.Database)
 
 	for {
 		packet, err := protocol.ParsePacket(clientConn)
@@ -388,7 +388,7 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 		close(serverErrCh)
 	}()
 
-	msgFromServer := common.MessagesFromServer(sessionCtx.Database)
+	msgFromServer := common.GetMessagesFromServerMetric(sessionCtx.Database)
 
 	for {
 		packet, _, err := protocol.ReadPacket(serverConn)

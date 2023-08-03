@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
@@ -30,9 +29,9 @@ import (
 
 type reporterConfig struct {
 	engine    Engine
-	clock     clockwork.Clock
 	component string
 	database  types.Database
+	labels    prometheus.Labels
 }
 
 func (r *reporterConfig) CheckAndSetDefaults() error {
@@ -42,12 +41,10 @@ func (r *reporterConfig) CheckAndSetDefaults() error {
 	if r.database == nil {
 		return trace.BadParameter("missing parameter database")
 	}
-	if r.clock == nil {
-		r.clock = clockwork.NewRealClock()
-	}
 	if r.component == "" {
 		r.component = teleport.ComponentDatabase
 	}
+	r.labels = getLabels(r.component, r.database)
 	return nil
 }
 
@@ -69,28 +66,28 @@ func NewReportingEngine(cfg reporterConfig) (Engine, error) {
 }
 
 func (r *reportingEngine) InitializeConnection(clientConn net.Conn, sessionCtx *Session) error {
-	initializedConnections.With(r.getLabels()).Inc()
+	initializedConnections.With(r.labels).Inc()
 	return r.engine.InitializeConnection(clientConn, sessionCtx)
 }
 
 func (r *reportingEngine) SendError(err error) {
-	engineErrors.With(r.getLabels()).Inc()
+	engineErrors.With(r.labels).Inc()
 	r.engine.SendError(err)
 }
 
 func (r *reportingEngine) HandleConnection(ctx context.Context, sessionCtx *Session) error {
-	activeConnections.With(r.getLabels()).Inc()
-	defer activeConnections.With(r.getLabels()).Dec()
+	activeConnections.With(r.labels).Inc()
+	defer activeConnections.With(r.labels).Dec()
 
-	start := r.clock.Now()
+	start := time.Now()
 	defer func() {
-		connectionDurations.With(r.getLabels()).Observe(r.clock.Since(start).Seconds())
+		connectionDurations.With(r.labels).Observe(time.Since(start).Seconds())
 	}()
 
 	return trace.Wrap(r.engine.HandleConnection(ctx, sessionCtx))
 }
 
-var _ Engine = &reportingEngine{}
+var _ Engine = (*reportingEngine)(nil)
 
 var commonLabels = []string{teleport.ComponentLabel, "db_protocol", "db_type"}
 
@@ -100,10 +97,6 @@ func getLabels(component string, db types.Database) prometheus.Labels {
 		"db_protocol":           db.GetProtocol(),
 		"db_type":               db.GetType(),
 	}
-}
-
-func (r *reportingEngine) getLabels() prometheus.Labels {
-	return getLabels(r.component, r.database)
 }
 
 var (
@@ -232,12 +225,12 @@ func GetConnectionSetupTimeObserver(db types.Database) func() {
 	}
 }
 
-// MessagesFromClient increments the messages from client metric.
-func MessagesFromClient(db types.Database) prometheus.Counter {
+// GetMessagesFromClientMetric increments the messages from client metric.
+func GetMessagesFromClientMetric(db types.Database) prometheus.Counter {
 	return messagesFromClient.WithLabelValues(teleport.ComponentDatabase, db.GetProtocol(), db.GetType())
 }
 
-// MessagesFromServer increments the messages from server metric.
-func MessagesFromServer(db types.Database) prometheus.Counter {
+// GetMessagesFromServerMetric increments the messages from server metric.
+func GetMessagesFromServerMetric(db types.Database) prometheus.Counter {
 	return messagesFromServer.WithLabelValues(teleport.ComponentDatabase, db.GetProtocol(), db.GetType())
 }

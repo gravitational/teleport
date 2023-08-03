@@ -139,7 +139,7 @@ func (e *Engine) handleClientServerConn(ctx context.Context, clientConn *protoco
 
 func (e *Engine) handleClientConnectionWithAudit(clientConn *protocol.Conn, serverConn net.Conn) error {
 	defer serverConn.Close()
-	msgFromClient := common.MessagesFromClient(e.sessionCtx.Database)
+	msgFromClient := common.GetMessagesFromClientMetric(e.sessionCtx.Database)
 
 	for {
 		packet, err := clientConn.ReadPacket()

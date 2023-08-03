@@ -311,7 +311,7 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 	log := e.Log.WithField("from", "client")
 	defer log.Debug("Stop receiving from client.")
 
-	ctr := common.MessagesFromClient(sessionCtx.Database)
+	ctr := common.GetMessagesFromClientMetric(sessionCtx.Database)
 
 	for {
 		message, err := client.Receive()
@@ -405,7 +405,7 @@ func (e *Engine) auditFuncCallMessage(session *common.Session, msg *pgproto3.Fun
 func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.Backend, serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.WithField("from", "server")
 
-	ctr := common.MessagesFromServer(sessionCtx.Database)
+	ctr := common.GetMessagesFromServerMetric(sessionCtx.Database)
 
 	defer log.Debug("Stop receiving from server.")
 	for {
