@@ -103,6 +103,11 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	kube := params.TargetURI.GetKubeName()
 
+	// Check if this kube exists and the user has access to it.
+	if _, err := c.getKube(ctx, kube); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := c.reissueKubeCert(ctx, kube); err != nil {
 		return nil, trace.Wrap(err)
 	}
