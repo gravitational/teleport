@@ -90,6 +90,10 @@ func TestSanitize(t *testing.T) {
 
 type nopBackend struct{}
 
+func (n *nopBackend) GetName() string {
+	return "nop"
+}
+
 func (n *nopBackend) Get(_ context.Context, _ []byte) (*Item, error) {
 	return &Item{}, nil
 }

@@ -142,7 +142,7 @@ Create a SAML connector resource using `tctl`:
 $ tctl sso configure saml --acs https://teleport.example.com/v1/webapi/saml/acs \
   --preset adfs \
   --entity-descriptor https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml \
-  --attributes-to-roles http://schemas.xmlsoap.org/claims/Group,Administrators,editor \
+  --attributes-to-roles http://schemas.xmlsoap.org/claims/Group,teleadmins,editor \
   --attributes-to-roles http://schemas.xmlsoap.org/claims/Group,Users,access \
   > adfs.yaml
 ```
@@ -152,8 +152,8 @@ obtain the `entity_descriptor_url` from ADFS under *"ADFS -> Service -> Endpoint
 
 The `attributes_to_roles` is used to map attributes to the Teleport roles you
 just created. In our situation, we are mapping the *"Group"* attribute whose full
-name is `http://schemas.xmlsoap.org/claims/Group` with a value of *"admins"*
-to the *"admin"* role. Groups with the value *"users"* is being mapped to the
+name is `http://schemas.xmlsoap.org/claims/Group` with a value of *"teleadmins"*
+to the *"editor"* role. Groups with the value *"users"* is being mapped to the
 *"users"* role.
 
 You can test this connector before applying it (`cat adfs.yaml | tctl sso test`),

@@ -123,6 +123,18 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.MemoryDBDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("OpenSearchAutoDiscovery", func(t *testing.T) {
+		t.Parallel()
+		flags := DatabaseSampleFlags{
+			OpenSearchDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"opensearch"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.OpenSearchDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
 	t.Run("AWS discovery tags", func(t *testing.T) {
 		t.Parallel()
 		flags := DatabaseSampleFlags{

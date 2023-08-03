@@ -51,6 +51,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -1525,6 +1526,223 @@ func TestAzureVMDiscovery(t *testing.T) {
 	}
 }
 
+type mockGCPClient struct {
+	vms []*gcp.Instance
+}
+
+func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcp.Instance, error) {
+	return m.vms, nil
+}
+
+func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcp.Instance] {
+	return stream.Slice(m.vms)
+}
+
+func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcp.InstanceRequest) (*gcp.Instance, error) {
+	return nil, trace.NotFound("disabled for test")
+}
+
+func (m *mockGCPClient) AddSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) error {
+	return nil
+}
+
+func (m *mockGCPClient) RemoveSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) error {
+	return nil
+}
+
+func TestGCPVMDiscovery(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		presentVMs  []types.Server
+		foundGCPVMs []*gcp.Instance
+		logHandler  func(*testing.T, io.Reader, chan struct{})
+	}{
+		{
+			name:       "no nodes present, 1 found",
+			presentVMs: []types.Server{},
+			foundGCPVMs: []*gcp.Instance{
+				{
+					ProjectID: "myproject",
+					Zone:      "myzone",
+					Name:      "myinstance",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"Running Teleport installation on these virtual machines") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+		{
+			name: "nodes present, instance filtered",
+			presentVMs: []types.Server{
+				&types.ServerV2{
+					Kind: types.KindNode,
+					Metadata: types.Metadata{
+						Name: "name",
+						Labels: map[string]string{
+							types.ProjectIDLabel: "myproject",
+							types.ZoneLabel:      "myzone",
+							types.NameLabel:      "myinstance",
+						},
+						Namespace: defaults.Namespace,
+					},
+				},
+			},
+			foundGCPVMs: []*gcp.Instance{
+				{
+					ProjectID: "myproject",
+					Zone:      "myzone",
+					Name:      "myinstance",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"All discovered GCP VMs are already part of the cluster") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+		{
+			name: "nodes present, instance not filtered",
+			presentVMs: []types.Server{
+				&types.ServerV2{
+					Kind: types.KindNode,
+					Metadata: types.Metadata{
+						Name: "name",
+						Labels: map[string]string{
+							types.ProjectIDLabel: "myproject",
+							types.ZoneLabel:      "myzone",
+							types.NameLabel:      "myotherinstance",
+						},
+						Namespace: defaults.Namespace,
+					},
+				},
+			},
+			foundGCPVMs: []*gcp.Instance{
+				{
+					ProjectID: "myproject",
+					Zone:      "myzone",
+					Name:      "myinstance",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"Running Teleport installation on these virtual machines") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			testClients := cloud.TestCloudClients{
+				GCPInstances: &mockGCPClient{
+					vms: tc.foundGCPVMs,
+				},
+			}
+
+			ctx := context.Background()
+			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+				Dir: t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+			// Auth client for discovery service.
+			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+			for _, instance := range tc.presentVMs {
+				_, err := tlsServer.Auth().UpsertNode(ctx, instance)
+				require.NoError(t, err)
+			}
+
+			logger := logrus.New()
+			emitter := &mockEmitter{}
+
+			server, err := New(context.Background(), &Config{
+				Clients:     &testClients,
+				AccessPoint: tlsServer.Auth(),
+				GCPMatchers: []types.GCPMatcher{{
+					Types:      []string{"gce"},
+					ProjectIDs: []string{"myproject"},
+					Locations:  []string{"myzone"},
+					Tags:       types.Labels{"teleport": {"yes"}},
+				}},
+				Emitter: emitter,
+				Log:     logger,
+			})
+
+			require.NoError(t, err)
+
+			emitter.server = server
+			emitter.t = t
+
+			r, w := io.Pipe()
+			t.Cleanup(func() {
+				require.NoError(t, r.Close())
+				require.NoError(t, w.Close())
+			})
+			if tc.logHandler != nil {
+				logger.SetOutput(w)
+				logger.SetLevel(logrus.DebugLevel)
+			}
+
+			go server.Start()
+
+			if tc.logHandler != nil {
+				done := make(chan struct{})
+				go tc.logHandler(t, r, done)
+				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
+				defer cancelfn()
+				select {
+				case <-timeoutCtx.Done():
+					t.Fatal("Timeout waiting for log entries")
+					return
+				case <-done:
+					server.Stop()
+					return
+				}
+			}
+
+			server.Wait()
+		})
+	}
+}
+
 // TestServer_onCreate tests the update of the discovery_group of a resource
 // when it differs from the one in the database.
 // TODO(tigrato): DELETE in 14.0.0
@@ -1580,6 +1798,14 @@ type fakeAccessPoint struct {
 	auth.DiscoveryAccessPoint
 	updateKube     bool
 	updateDatabase bool
+
+	upsertedServerInfos chan types.ServerInfo
+}
+
+func newFakeAccessPoint() *fakeAccessPoint {
+	return &fakeAccessPoint{
+		upsertedServerInfos: make(chan types.ServerInfo),
+	}
 }
 
 func (f *fakeAccessPoint) CreateDatabase(ctx context.Context, database types.Database) error {
@@ -1598,5 +1824,10 @@ func (f *fakeAccessPoint) CreateKubernetesCluster(ctx context.Context, cluster t
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	f.updateKube = true
+	return nil
+}
+
+func (f *fakeAccessPoint) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	f.upsertedServerInfos <- si
 	return nil
 }

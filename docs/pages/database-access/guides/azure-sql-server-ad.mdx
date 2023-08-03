@@ -1,5 +1,5 @@
 ---
-title: Database Access with SQL Server on Azure (Preview)
+title: Database Access with SQL Server on Azure
 description: How to configure Teleport database access with Azure SQL Server using Azure Active Directory authentication.
 ---
 
@@ -13,11 +13,6 @@ description: How to configure Teleport database access with Azure SQL Server usi
   Database access for Azure SQL Server with Azure Active Directory authentication
   is available starting from Teleport `11.0`.
 </Details>
-
-<Admonition type="warning" title="Preview">
-  Database access for Azure SQL Server with Azure Active Directory authentication is
-  currently in Preview mode.
-</Admonition>
 
 This guide will help you to:
 
@@ -267,10 +262,7 @@ $ tsh db connect --db-user=sqlserver-identity --db-name=master sqlserver
 
 Where `--db-user` is the managed identity name.
 
-<Admonition type="note">
-  The `mssql-cli` command-line client should be available in `PATH` of the machine
-  you're running `tsh db connect` from.
-</Admonition>
+(!docs/pages/includes/database-access/sql-server-connect-note.mdx!)
 
 ## Troubleshooting
 

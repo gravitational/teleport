@@ -279,6 +279,11 @@ func (c *Client) DeleteAuthServer(name string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpdateAndSwapUser not implemented: can only be called locally.
+func (c *Client) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (bool, error)) (types.User, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // CompareAndSwapUser not implemented: can only be called locally
 func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -463,6 +468,10 @@ func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) err
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+func (c *Client) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
+}
+
 func (c *Client) GetLicense(ctx context.Context) (string, error) {
 	return c.APIClient.GetLicense(ctx)
 }
@@ -473,6 +482,10 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
+}
+
+func (c *Client) AccessListClient() services.AccessLists {
+	return c.APIClient.AccessListClient()
 }
 
 // WebService implements features used by Web UI clients
@@ -557,6 +570,12 @@ type IdentityService interface {
 
 	// UpdateUser updates an existing user in a backend.
 	UpdateUser(ctx context.Context, user types.User) error
+
+	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
+	// the result to storage. Return `false` from `fn` to avoid storage changes.
+	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+	// Returns the storage user.
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
@@ -660,6 +679,8 @@ type IdentityService interface {
 	UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error
 	// GetHeadlessAuthentication retrieves a headless authentication by id.
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
+	// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
+	WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error)
 }
 
 // ProvisioningService is a service in control
@@ -855,6 +876,12 @@ type ClientI interface {
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() services.Okta
+
+	// AccessListClient returns an access list client.
+	// Clients connecting to  older Teleport versions, still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	AccessListClient() services.AccessLists
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

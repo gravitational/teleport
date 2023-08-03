@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/backend"
@@ -33,13 +34,17 @@ type UserPreferencesService struct {
 	backend.Backend
 }
 
-// DefaultUserPreferences is the default user preferences.
-var DefaultUserPreferences = &userpreferencesv1.UserPreferences{
-	Assist: &userpreferencesv1.AssistUserPreferences{
-		PreferredLogins: []string{},
-		ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
-	},
-	Theme: userpreferencesv1.Theme_THEME_LIGHT,
+func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
+	return &userpreferencesv1.UserPreferences{
+		Assist: &userpreferencesv1.AssistUserPreferences{
+			PreferredLogins: []string{},
+			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
+		},
+		Theme: userpreferencesv1.Theme_THEME_LIGHT,
+		Onboard: &userpreferencesv1.OnboardUserPreferences{
+			PreferredResources: []userpreferencesv1.Resource{},
+		},
+	}
 }
 
 // NewUserPreferencesService returns a new instance of the UserPreferencesService.
@@ -54,7 +59,7 @@ func (u *UserPreferencesService) GetUserPreferences(ctx context.Context, req *us
 	preferences, err := u.getUserPreferences(ctx, req.Username)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return &userpreferencesv1.GetUserPreferencesResponse{Preferences: DefaultUserPreferences}, nil
+			return &userpreferencesv1.GetUserPreferencesResponse{Preferences: DefaultUserPreferences()}, nil
 		}
 
 		return nil, trace.Wrap(err)
@@ -77,11 +82,12 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req 
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-
-		preferences = DefaultUserPreferences
+		preferences = DefaultUserPreferences()
 	}
 
-	preferences = mergePreferences(preferences, req.Preferences)
+	if err := overwriteValues(preferences, req.Preferences); err != nil {
+		return trace.Wrap(err)
+	}
 
 	item, err := createBackendItem(req.Username, preferences)
 	if err != nil {
@@ -105,7 +111,15 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 		return nil, trace.Wrap(err)
 	}
 
-	return &p, nil
+	// Appy the default values to the existing preferences.
+	// This allows updating the preferences schema without returning empty values
+	// for new fields in the existing preferences.
+	df := DefaultUserPreferences()
+	if err := overwriteValues(df, &p); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return df, nil
 }
 
 // backendKey returns the backend key for the user preferences for the given username.
@@ -139,28 +153,36 @@ func createBackendItem(username string, preferences *userpreferencesv1.UserPrefe
 	return item, nil
 }
 
-// mergePreferences merges the given preferences.
-func mergePreferences(a, b *userpreferencesv1.UserPreferences) *userpreferencesv1.UserPreferences {
-	if b.Theme != userpreferencesv1.Theme_THEME_UNSPECIFIED {
-		a.Theme = b.Theme
+// overwriteValues overwrites the values in dst with the values in src.
+// This function uses proto.Ranges internally to iterate over the fields in src.
+// Because of this, only non-nil/empty fields in src will overwrite the values in dst.
+func overwriteValues(dst, src protoreflect.ProtoMessage) error {
+	d := dst.ProtoReflect()
+	s := src.ProtoReflect()
+
+	dName := d.Descriptor().FullName().Name()
+	sName := s.Descriptor().FullName().Name()
+	// If the names don't match, then the types don't match, so we can't overwrite.
+	if dName != sName {
+		return trace.BadParameter("dst and src must be the same type")
 	}
 
-	if b.Assist != nil {
-		a.Assist = mergeAssistUserPreferences(a.Assist, b.Assist)
-	}
+	overwriteValuesRecursive(d, s)
 
-	return a
+	return nil
 }
 
-// mergeAssistUserPreferences merges the given assist user preferences.
-func mergeAssistUserPreferences(a, b *userpreferencesv1.AssistUserPreferences) *userpreferencesv1.AssistUserPreferences {
-	if b.PreferredLogins != nil {
-		a.PreferredLogins = b.PreferredLogins
-	}
+// overwriteValuesRecursive recursively overwrites the values in dst with the values in src.
+// It's a helper function for overwriteValues.
+func overwriteValuesRecursive(dst, src protoreflect.Message) {
+	src.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.Message() != nil:
+			overwriteValuesRecursive(dst.Mutable(fd).Message(), src.Get(fd).Message())
+		default:
+			dst.Set(fd, src.Get(fd))
+		}
 
-	if b.ViewMode != userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_UNSPECIFIED {
-		a.ViewMode = b.ViewMode
-	}
-
-	return a
+		return true
+	})
 }

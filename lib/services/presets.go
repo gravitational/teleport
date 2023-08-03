@@ -29,6 +29,73 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+// NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
+// approve any Access Request. This is restricted to Teleport Enterprise, and
+// returns nil in non-Enterproise builds.
+func NewSystemAutomaticAccessApproverRole() types.Role {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	if !enterprise {
+		return nil
+	}
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemAutomaticAccessApprovalRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Approves any access request",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+				types.TeleportResourceRevision:     "1",
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					Roles: []string{"*"},
+				},
+			},
+		},
+	}
+	role.CheckAndSetDefaults()
+	return role
+}
+
+// NewSystemAutomaticAccessBotUser returns a new User that has (via the
+// the `PresetAutomaticAccessApprovalRoleName` role) the right to automatically
+// approve any access requests.
+//
+// This user must not:
+//   - Be allowed to log into the cluster
+//   - Show up in user lists in WebUI
+//
+// TODO(tcsc): Implement/enforce above restrictions on this user
+func NewSystemAutomaticAccessBotUser() types.User {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	if !enterprise {
+		return nil
+	}
+
+	user := &types.UserV2{
+		Kind:    types.KindUser,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemAccessApproverUserName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Used internally by Teleport to automatically approve access requests",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: string(types.SystemResource),
+				types.TeleportResourceRevision:     "1",
+			},
+		},
+		Spec: types.UserSpecV2{
+			Roles: []string{teleport.SystemAutomaticAccessApprovalRoleName},
+		},
+	}
+	user.CheckAndSetDefaults()
+	return user
+}
+
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
@@ -93,6 +160,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
 					types.NewRule(types.KindClusterAlert, RW()),
+					types.NewRule(types.KindAccessList, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -196,6 +264,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindEvent, RO()),
 					types.NewRule(types.KindSessionTracker, RO()),
 					types.NewRule(types.KindClusterAlert, RO()),
+					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -320,6 +389,7 @@ func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
 		teleport.PresetAuditorRoleName: {
 			types.NewRule(types.KindSessionTracker, RO()),
+			types.NewRule(types.KindInstance, RO()),
 		},
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
@@ -334,9 +404,11 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindLock, RW()),
 			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 			types.NewRule(types.KindBilling, RW()),
+			types.NewRule(types.KindInstance, RO()),
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 		},
 		teleport.PresetAccessRoleName: {
+			types.NewRule(types.KindInstance, RO()),
 			// Allow assist access to access role. This role only allow access
 			// to the assist console, not any other cluster resources.
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),

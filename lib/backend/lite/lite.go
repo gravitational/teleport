@@ -178,7 +178,8 @@ func (cfg *Config) ConnectionURI() string {
 
 	u := url.URL{
 		Scheme:   "file",
-		Opaque:   url.QueryEscape(filepath.Join(cfg.Path, defaultDBFile)),
+		OmitHost: true,
+		Path:     filepath.Join(cfg.Path, defaultDBFile),
 		RawQuery: params.Encode(),
 	}
 	return u.String()
@@ -220,7 +221,10 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 
 	if setPermissions {
 		// Ensure the database has restrictive access permissions.
-		db.PingContext(ctx)
+		err = db.PingContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		err = os.Chmod(path, dbMode)
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
@@ -269,6 +273,10 @@ type Backend struct {
 
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
+}
+
+func (l *Backend) GetName() string {
+	return GetName()
 }
 
 // showPragmas is used to debug SQLite database connection

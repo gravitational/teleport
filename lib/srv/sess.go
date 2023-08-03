@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os/user"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -185,38 +184,37 @@ func (s *SessionRegistry) Close() {
 	s.log.Debug("Closing Session Registry.")
 }
 
-func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) (*user.User, error) {
+func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
 	if !ctx.srv.GetCreateHostUser() || s.users == nil {
-		return nil, nil // not an error to not be able to create a host user
+		return nil // not an error to not be able to create a host user
 	}
 
 	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			return nil, nil
+			return nil
 		}
 		log.Debug("Error while checking host users creation permission: ", err)
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	tempUser, existsErr := s.users.UserExists(ctx.Identity.Login)
+	existsErr := s.users.UserExists(ctx.Identity.Login)
 	if trace.IsAccessDenied(err) && existsErr != nil {
-		return tempUser,
-			trace.WrapWithMessage(err, "Insufficient permission for host user creation")
+		return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
 	}
-	tempUser, userCloser, err := s.users.CreateUser(ctx.Identity.Login, ui)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
-		return nil, trace.Wrap(err)
-	}
+	userCloser, err := s.users.CreateUser(ctx.Identity.Login, ui)
 	if userCloser != nil {
 		ctx.AddCloser(userCloser)
+	}
+	if err != nil && !trace.IsAlreadyExists(err) {
+		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
+		return trace.Wrap(err)
 	}
 
 	// Indicate that the user was created by Teleport.
 	ctx.UserCreatedByTeleport = true
 
-	return tempUser, nil
+	return nil
 }
 
 // OpenSession either joins an existing active session or starts a new session.
@@ -282,10 +280,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	if !found {
 		// Create a new session ID. These sessions can not be joined
 		sessionID = rsession.NewID()
+		scx.Tracef("Session not found, creating a new session %s", sessionID)
 	} else {
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
 		sessionID = rsession.ID(sid)
+		scx.Tracef("Session found, reusing it %s", sessionID)
 	}
 
 	_, found = scx.GetEnv(teleport.EnableNonInteractiveSessionRecording)
@@ -873,7 +873,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,
 		},
-		SessionRecording: ctx.SessionRecordingConfig.GetMode(),
+		SessionRecording: s.sessionRecordingMode(),
 		InitialCommand:   initialCommand,
 	}
 
@@ -1010,7 +1010,7 @@ func (s *session) emitSessionEndEvent() {
 		Interactive:       s.term != nil,
 		StartTime:         start,
 		EndTime:           end,
-		SessionRecording:  ctx.SessionRecordingConfig.GetMode(),
+		SessionRecording:  s.sessionRecordingMode(),
 	}
 
 	for _, p := range s.participants {
@@ -1026,6 +1026,23 @@ func (s *session) emitSessionEndEvent() {
 	if err := s.emitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to emit session end event.")
 	}
+}
+
+func (s *session) sessionRecordingMode() string {
+	sessionRecMode := s.scx.SessionRecordingConfig.GetMode()
+	subKind := s.serverMeta.ServerSubKind
+
+	// agentless connections always record the session at the proxy
+	if !services.IsRecordAtProxy(sessionRecMode) && (subKind == types.SubKindOpenSSHNode ||
+		subKind == types.SubKindOpenSSHEC2InstanceConnectEndpointNode) {
+		if services.IsRecordSync(sessionRecMode) {
+			sessionRecMode = types.RecordAtProxySync
+		} else {
+			sessionRecMode = types.RecordAtProxy
+		}
+	}
+
+	return sessionRecMode
 }
 
 func (s *session) setEndingContext(ctx *ServerContext) {
@@ -1142,6 +1159,11 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		Login:          scx.Identity.Login,
 		User:           scx.Identity.TeleportUser,
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
+	}
+
+	if err := s.term.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
+		return trace.Wrap(err)
 	}
 
 	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
@@ -1341,6 +1363,12 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		User:           scx.Identity.TeleportUser,
 		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
+
+	if err := execRequest.WaitForChild(); err != nil {
+		s.log.WithError(err).Error("Child process never became ready")
+		return trace.Wrap(err)
+	}
+
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
 		s.log.WithError(err).Errorf("Failed to open enhanced recording (exec) session: %v", execRequest.GetCommand())

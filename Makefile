@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=13.1.5
+VERSION=13.3.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -1203,6 +1203,15 @@ must-start-clean/host:
 		exit 1; \
 	fi
 
+# crds-up-to-date checks if the generated CRDs from the protobuf stubs are up to date.
+.PHONY: crds-up-to-date
+crds-up-to-date: must-start-clean/host
+	$(MAKE) -C integrations/operator manifests
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make -C integrations/operator manifests.'; \
+		exit 1; \
+	fi
+
 print/env:
 	env
 
@@ -1368,3 +1377,11 @@ rustup-install-target-toolchain: RUST_VERSION := $(shell $(MAKE) --no-print-dire
 rustup-install-target-toolchain:
 	rustup override set $(RUST_VERSION)
 	rustup target add $(RUST_TARGET_ARCH)
+
+# changelog generates PR changelog between the provided base tag and the tip of
+# the specified branch.
+#
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+.PHONY: changelog
+changelog:
+	@./build.assets/changelog.sh BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)

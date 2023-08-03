@@ -135,12 +135,16 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 			extraRoles = append(extraRoles, userContext.Checker.GetAllowedPreviewAsRoles()...)
 		}
 
-		if err := userContext.UseExtraRoles(s.cfg.AccessPoint, s.cfg.ClusterName, extraRoles); err != nil {
+		extendedContext, err := userContext.WithExtraRoles(s.cfg.AccessPoint, s.cfg.ClusterName, extraRoles)
+		if err != nil {
 			return nil, trail.ToGRPC(err)
 		}
-		if err := s.emitAuditEvent(ctx, userContext, req); err != nil {
-			return nil, trail.ToGRPC(err)
+		if len(extendedContext.Checker.RoleNames()) != len(userContext.Checker.RoleNames()) {
+			if err := s.emitAuditEvent(ctx, userContext, req); err != nil {
+				return nil, trail.ToGRPC(err)
+			}
 		}
+		userContext = extendedContext
 	}
 	// We use the unmapped identity here because Kube Proxy will handle
 	// the forwarding of the request to the correct leaf cluster if that's the case

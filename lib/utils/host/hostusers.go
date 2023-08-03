@@ -40,7 +40,7 @@ func GroupAdd(groupname string) (exitCode int, err error) {
 		return -1, trace.Wrap(err, "cant find groupadd binary")
 	}
 	cmd := exec.Command(groupaddBin, groupname)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
 	if cmd.ProcessState.ExitCode() == GroupExistExit {
 		return cmd.ProcessState.ExitCode(), trace.AlreadyExists("group already exists")
@@ -60,7 +60,7 @@ func UserAdd(username string, groups []string) (exitCode int, err error) {
 		args = append(args, "--groups", strings.Join(groups, ","))
 	}
 	cmd := exec.Command(useraddBin, args...)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
 	if cmd.ProcessState.ExitCode() == UserExistExit {
 		return cmd.ProcessState.ExitCode(), trace.AlreadyExists("user already exists")
@@ -79,7 +79,7 @@ func AddUserToGroups(username string, groups []string) (exitCode int, err error)
 	args = append(args, username)
 	// usermod -aG (append groups) (username)
 	cmd := exec.Command(usermodBin, args...)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
@@ -92,7 +92,7 @@ func UserDel(username string) (exitCode int, err error) {
 	}
 	// userdel --remove (remove home) username
 	cmd := exec.Command(userdelBin, "--remove", username)
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
@@ -104,7 +104,7 @@ func GetAllUsers() ([]string, int, error) {
 	}
 	// getent passwd
 	cmd := exec.Command(getentBin, "passwd")
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, -1, trace.Wrap(err)
 	}

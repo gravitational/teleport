@@ -132,7 +132,9 @@ spec:
     #....
   options:
     # Controls whether this role supports auto provisioning of users.
-    create_host_user: true
+    # Options: drop (remove user on session end), keep (keep users at session end)
+    #          and off (disable host user creation)
+    create_host_user_mode: drop
     # forward_agent controls whether SSH agent forwarding is allowed
     forward_agent: true
     # port_forwarding controls whether TCP port forwarding is allowed for SSH
@@ -176,6 +178,9 @@ spec:
       # Optional: Session recording mode for SSH sessions.
       # If not set, the value set on default will be used.
       ssh: best_effort|strict
+    # Require an additional MFA tap to start new sessions.
+    # Optional: the default is false.
+    require_session_mfa: true
     # Enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
     # certificates, preventing a compromised certificate from being used on another
     # network. The default is false.

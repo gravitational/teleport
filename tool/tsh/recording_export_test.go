@@ -45,6 +45,8 @@ func init() {
 }
 
 func TestWriteMovieCanBeCanceled(t *testing.T) {
+	t.Parallel()
+
 	events := []apievents.AuditEvent{
 		&apievents.WindowsDesktopSessionStart{},
 	}
@@ -53,18 +55,20 @@ func TestWriteMovieCanBeCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	frames, err := writeMovie(ctx, fs, session.ID("test"), "test.avi")
+	frames, err := writeMovie(ctx, fs, "test", "test.avi")
 	require.Equal(t, context.Canceled, err)
 	require.Equal(t, 0, frames)
 }
 
 func TestWriteMovieDoesNotSupportSSH(t *testing.T) {
+	t.Parallel()
+
 	events := []apievents.AuditEvent{
 		&apievents.SessionStart{},
 	}
 	fs := eventstest.NewFakeStreamer(events, 0)
 
-	frames, err := writeMovie(context.Background(), fs, session.ID("test"), "test.avi")
+	frames, err := writeMovie(context.Background(), fs, "test", "test.avi")
 	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
 	require.Equal(t, 0, frames)
 }
@@ -75,6 +79,8 @@ func TestWriteMovieDoesNotSupportSSH(t *testing.T) {
 // At the time of this implementation, desktop access does not support resizing during the
 // screen during a session. This test exists to prevent regressions should that behavior change.
 func TestWriteMovieMultipleScreenSpecs(t *testing.T) {
+	t.Parallel()
+
 	events := []apievents.AuditEvent{
 		tdpEvent(t, tdp.ClientScreenSpec{Width: 1920, Height: 1080}),
 		tdpEvent(t, tdp.ClientScreenSpec{Width: 1920, Height: 1080}),
@@ -88,6 +94,8 @@ func TestWriteMovieMultipleScreenSpecs(t *testing.T) {
 }
 
 func TestWriteMovieWritesOneFrame(t *testing.T) {
+	t.Parallel()
+
 	oneFrame := frameDelayMillis
 	// need a PNG that will actually decode
 	events := []apievents.AuditEvent{
@@ -103,6 +111,8 @@ func TestWriteMovieWritesOneFrame(t *testing.T) {
 }
 
 func TestWriteMovieWritesManyFrames(t *testing.T) {
+	t.Parallel()
+
 	events := []apievents.AuditEvent{
 		tdpEventMillis(t, tdp.ClientScreenSpec{Width: 128, Height: 128}, 0),
 		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), 0),

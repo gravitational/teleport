@@ -320,7 +320,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c17"
           >
-            Amazon Linux 2
+            Amazon Linux 2/2023
           </div>
         </div>
       </div>
@@ -932,7 +932,7 @@ exports[`render with all access 1`] = `
           <div
             class="c14"
           >
-            Amazon Linux 2
+            Amazon Linux 2/2023
           </div>
         </div>
       </div>
@@ -2796,7 +2796,7 @@ exports[`render with no access 1`] = `
           <div
             class="c14"
           >
-            Amazon Linux 2
+            Amazon Linux 2/2023
           </div>
         </div>
       </div>
@@ -4815,7 +4815,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c14"
           >
-            Amazon Linux 2
+            Amazon Linux 2/2023
           </div>
         </div>
       </div>

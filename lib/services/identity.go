@@ -45,6 +45,11 @@ type UsersService interface {
 	UserGetter
 	// UpdateUser updates an existing user.
 	UpdateUser(ctx context.Context, user types.User) error
+	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
+	// the result to storage. Return `false` from `fn` to avoid storage changes.
+	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+	// Returns the storage user.
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 	// UpsertUser updates parameters about user
 	UpsertUser(user types.User) error
 	// CompareAndSwapUser updates an existing user, but fails if the user does
@@ -323,6 +328,9 @@ type HeadlessAuthenticationService interface {
 	// GetHeadlessAuthentication gets a headless authentication.
 	GetHeadlessAuthentication(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error)
 
+	// GetHeadlessAuthentications gets all headless authentications.
+	GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error)
+
 	// UpsertHeadlessAuthentication upserts a headless authentication.
 	UpsertHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication) error
 
@@ -332,6 +340,9 @@ type HeadlessAuthenticationService interface {
 
 	// DeleteHeadlessAuthentication deletes a headless authentication from the backend.
 	DeleteHeadlessAuthentication(ctx context.Context, username, name string) error
+
+	// DeleteAllHeadlessAuthentications deletes all headless authentications from the backend.
+	DeleteAllHeadlessAuthentications(ctx context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

@@ -32,6 +32,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -721,8 +722,11 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		key, err := os.ReadFile(keyPath)
 		if err != nil {
 			return trace.Errorf("failed to read OpenAI API key file: %w", err)
-		} else {
-			cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+		}
+		cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+
+		if fc.Auth.Assist.CommandExecutionWorkers < 0 {
+			return trace.BadParameter("command_execution_workers must not be negative")
 		}
 	}
 
@@ -740,17 +744,22 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Only override networking configuration if some of its fields are
 	// specified in file configuration.
 	if fc.Auth.hasCustomNetworkingConfig() {
+		var assistCommandExecutionWorkers int32
+		if fc.Auth.Assist != nil {
+			assistCommandExecutionWorkers = fc.Auth.Assist.CommandExecutionWorkers
+		}
 		cfg.Auth.NetworkingConfig, err = types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-			ClientIdleTimeout:        fc.Auth.ClientIdleTimeout,
-			ClientIdleTimeoutMessage: fc.Auth.ClientIdleTimeoutMessage,
-			WebIdleTimeout:           fc.Auth.WebIdleTimeout,
-			KeepAliveInterval:        fc.Auth.KeepAliveInterval,
-			KeepAliveCountMax:        fc.Auth.KeepAliveCountMax,
-			SessionControlTimeout:    fc.Auth.SessionControlTimeout,
-			ProxyListenerMode:        fc.Auth.ProxyListenerMode,
-			RoutingStrategy:          fc.Auth.RoutingStrategy,
-			TunnelStrategy:           fc.Auth.TunnelStrategy,
-			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
+			ClientIdleTimeout:             fc.Auth.ClientIdleTimeout,
+			ClientIdleTimeoutMessage:      fc.Auth.ClientIdleTimeoutMessage,
+			WebIdleTimeout:                fc.Auth.WebIdleTimeout,
+			KeepAliveInterval:             fc.Auth.KeepAliveInterval,
+			KeepAliveCountMax:             fc.Auth.KeepAliveCountMax,
+			SessionControlTimeout:         fc.Auth.SessionControlTimeout,
+			ProxyListenerMode:             fc.Auth.ProxyListenerMode,
+			RoutingStrategy:               fc.Auth.RoutingStrategy,
+			TunnelStrategy:                fc.Auth.TunnelStrategy,
+			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
+			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1119,7 +1128,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Proxy.ACME = *acme
-
+	cfg.Proxy.TrustXForwardedFor = fc.Proxy.TrustXForwardedFor.Value()
 	return nil
 }
 
@@ -1253,9 +1262,9 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
-func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
-	if matcher.InstallParams != nil && matcher.InstallParams.PublicProxyAddr != "" {
-		return matcher.InstallParams.PublicProxyAddr
+func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
+	if installParams != nil && installParams.PublicProxyAddr != "" {
+		return installParams.PublicProxyAddr
 	}
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
@@ -1303,22 +1312,29 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
-				PublicProxyAddr: getInstallerProxyAddr(matcher, fc),
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
 		}
 		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
-		cfg.Discovery.GCPMatchers = append(
-			cfg.Discovery.GCPMatchers,
-			types.GCPMatcher{
-				Types:      matcher.Types,
-				Locations:  matcher.Locations,
-				Tags:       matcher.Tags,
-				ProjectIDs: matcher.ProjectIDs,
-			},
-		)
+		m := types.GCPMatcher{
+			Types:           matcher.Types,
+			Locations:       matcher.Locations,
+			Tags:            matcher.Tags,
+			ProjectIDs:      matcher.ProjectIDs,
+			ServiceAccounts: matcher.ServiceAccounts,
+		}
+		if matcher.InstallParams != nil {
+			m.Params = &types.InstallerParams{
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
+				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+				ScriptName:      matcher.InstallParams.ScriptName,
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+		}
+		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)
 	}
 
 	return nil
@@ -1342,12 +1358,13 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Kube.ResourceMatchers {
-		if matcher.AWS.AssumeRoleARN != "" {
-			return trace.NotImplemented("assume_role_arn is not supported for kube resource matchers")
-		}
 		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 
@@ -2192,6 +2209,17 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	// set the default proxy listener addresses for config v1, if not already set
 	applyDefaultProxyListenerAddresses(cfg)
+
+	// not publicly documented or supported for now (thus the
+	// "TELEPORT_UNSTABLE_" prefix); the group with an empty ID is a valid
+	// group, and generation zero is a valid generation for any group
+	cfg.Proxy.ProxyGroupID = os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID")
+	if proxyGroupGeneration := os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_GEN"); proxyGroupGeneration != "" {
+		cfg.Proxy.ProxyGroupGeneration, err = strconv.ParseUint(proxyGroupGeneration, 10, 64)
+		if err != nil {
+			return trace.Wrap(err, "invalid proxygroup generation %q: %v", proxyGroupGeneration, err)
+		}
+	}
 
 	return nil
 }

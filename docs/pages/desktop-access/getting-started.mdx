@@ -20,8 +20,6 @@ with the static host definitions described below.
 <Details
   title="Version warning"
   opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
   min="12.0"
 >
 Passwordless access for local users is available starting from Teleport `v12`.
@@ -91,7 +89,7 @@ for detailed information on configuring Teleport Desktop Access with this token.
 
 Copy the token to the Linux host where you will run the Desktop service as `/tmp/token`.
 
-(!docs/pages/includes/install-linux.mdx!)
+(!docs/pages/includes/install-linux-enterprise.mdx!)
 
 Create `/etc/teleport.yaml` and configure it for desktop access. Update the `proxy_server`
 value to your Teleport proxy service or cloud tenant, and put the Windows machine address

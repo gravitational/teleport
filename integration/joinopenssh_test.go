@@ -28,8 +28,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
@@ -56,6 +54,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	rcConf.DataDir = filepath.Join(testDir, "cluster")
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
+	rcConf.SSH.Enabled = false
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Version = "v3"
 	rcConf.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -112,7 +111,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	require.Contains(t, string(sshdConf), fmt.Sprintf("Include %s", filepath.Join(teleportDataDir, "sshd.conf")))
 
 	// check a node with the flags specified exists
-	require.Eventually(t, findNodeWithLabel(t, ctx, client, "hello"), time.Second*2, time.Millisecond*50)
+	require.Eventually(t, helpers.FindNodeWithLabel(t, ctx, client, "hello", "true"), time.Second*2, time.Millisecond*50)
 	// check the mock sshd RestartCommand command was in fact called
 	require.FileExists(t, restartPath)
 
@@ -139,18 +138,4 @@ func getOpenSSHCAs(t *testing.T, ctx context.Context, cl auth.ClientI) [][]byte 
 		}
 	}
 	return caBytes
-}
-
-func findNodeWithLabel(t *testing.T, ctx context.Context, cl auth.ClientI, key string) func() bool {
-	t.Helper()
-	return func() bool {
-		servers, err := cl.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindNode,
-			Namespace:    defaults.Namespace,
-			Labels:       map[string]string{key: ""},
-			Limit:        1,
-		})
-		require.NoError(t, err)
-		return len(servers.Resources) >= 1
-	}
 }

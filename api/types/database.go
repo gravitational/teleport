@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -565,6 +566,24 @@ func (d *DatabaseV3) setStaticFields() {
 	d.Version = V3
 }
 
+// validDatabaseNameRegexp filters the allowed characters in database names.
+// This is the (almost) the same regexp used to check for valid DNS 1035 labels,
+// except we allow uppercase chars.
+var validDatabaseNameRegexp = regexp.MustCompile(`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`)
+
+// ValidateDatabaseName returns an error if a given string is not a valid
+// Database name.
+// Unlike application access proxy, database name doesn't necessarily
+// need to be a valid subdomain but use the same validation logic for the
+// simplicity and consistency, except two differences: don't restrict names to
+// 63 chars in length and allow upper case chars.
+// This was added in v14 and backported, except that it's intentionally called
+// in lib/services:ValidateDatabase instead of within CheckAndSetDefaults below
+// for backwards compatibility.
+func ValidateDatabaseName(name string) error {
+	return ValidateResourceName(validDatabaseNameRegexp, name)
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (d *DatabaseV3) CheckAndSetDefaults() error {
 	d.setStaticFields()
@@ -1047,4 +1066,24 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 		return nil
 	}
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
+}
+
+// MarshalJSON supports marshaling enum value into it's string value.
+func (s *IAMPolicyStatus) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
+// UnmarshalJSON supports unmarshaling enum string value back to number.
+func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	var stringVal string
+	if err := json.Unmarshal(data, &stringVal); err != nil {
+		return err
+	}
+
+	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
+	return nil
 }

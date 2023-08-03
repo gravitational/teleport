@@ -5,16 +5,18 @@ description: Frequently asked questions about Teleport Machine ID
 
 ## Can Machine ID be used within CI/CD jobs?
 
-Yes, however it depends on your CI/CD provider. It's currently a good fit in the
-following situations:
+On CI/CD platforms where your workflow runs in an ephemeral environment (e.g
+no persistent state exists between individual workflow runs), Machine ID works
+best where a supported join method exists. These are:
+- GitHub Actions (Teleport 11)
+- CircleCI (Teleport 11.1)
+- GitLab (Teleport 12.2)
+- AWS
 
- - Either short-lived or long-lived tasks run on AWS instances using AWS IAM
-   joining.
- - Long-lived worker nodes, like self-hosted Jenkins workers, using token-based
-   joining.
- - You use a supported SaaS CI/CD Provider:
-   - GitHub Actions (Teleport 11)
-   - CircleCI (coming in Teleport 11.1)
+On CI/CD platforms where you control the runner environment (e.g self-hosted
+Jenkins runner), Machine ID can run as a daemon on the runner and the generated
+credentials can be mounted into the environment of your individual workflow
+runs.
 
 ## Can Machine ID be used with Trusted Clusters ?
 

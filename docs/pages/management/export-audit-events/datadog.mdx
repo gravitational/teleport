@@ -48,7 +48,7 @@ d-->h(Datadog)
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A [Datadog](https://www.datadoghq.com/) account.
 - A server, virtual machine, Kubernetes cluster, or Docker environment to run the
@@ -125,12 +125,12 @@ read events. We export an identity file for the user with the `tctl auth sign`
 command.
 
 <Tabs>
-<TabItem label="Executable" scope={["oss","enterprise"]}>
+<TabItem label="Executable">
 
 (!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler"!)
 
 </TabItem>
-<TabItem label="Helm Chart" scope={["cloud"]}>
+<TabItem label="Helm Chart">
 
 (!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler"!)
 
@@ -217,7 +217,7 @@ Earlier, we generated a file called `teleport-event-handler.toml` to configure
 the Fluentd event handler. This file includes setting similar to the following:
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
 ```toml
 storage = "./storage"

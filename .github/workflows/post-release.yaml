@@ -22,23 +22,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          ref: ${{ vars.GITHUB_REF }}
+          ref: ${{ github.ref }}
 
       # Release event metadata doesn't include "is latest" flag so we have
       # to determine it another way.
       - name: Determine release latest flag and version
         id: artifacts
         run: |
-          LATEST_RELEASE_ID=$(gh release view --json id | jq '.id' | tr -d \")
+          LATEST_RELEASE_ID=$(gh release view --json id -q .id)
           CURRENT_RELEASE_ID=${{ github.event.release.node_id }}
 
-          if [ $LATEST_RELEASE_ID == $CURRENT_RELEASE_ID ]; then
-            echo "type=latest" >> $GITHUB_OUTPUT
+          if [ "$LATEST_RELEASE_ID" == "$CURRENT_RELEASE_ID" ]; then
+            echo "type=latest" >> "$GITHUB_OUTPUT"
           else
-            echo "type=other" >> $GITHUB_OUTPUT
+            echo "type=other" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "version=$(make --no-print-directory print-version)" >> $GITHUB_OUTPUT
+          echo "version=$(make --no-print-directory print-version)" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -46,6 +46,6 @@ jobs:
     name: Update AMI IDs
     needs: release
     if: needs.release.outputs.type == 'latest'
-    uses: ./.github/workflows/update-ami-ids.yml
+    uses: gravitational/teleport/.github/workflows/update-ami-ids.yaml@master
     with:
       version: ${{ needs.release.outputs.version }}

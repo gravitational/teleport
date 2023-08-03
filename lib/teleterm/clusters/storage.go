@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -160,11 +159,6 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, trace.Wrap(err)
 	}
 
-	// Do the ALPN handshake test to decide if connection upgrades are required
-	// for TLS Routing. Only do the test once Ping verifies the cluster is
-	// reachable.
-	clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(ctx, webProxyAddress, s.InsecureSkipVerify)
-
 	if err := clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -217,9 +211,12 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	// load profile status if key exists
 	_, err = clusterClient.LocalAgent().GetKey(clusterNameForKey)
 	if err != nil {
-		s.Log.WithError(err).Infof("Unable to load the keys for cluster %v.", clusterNameForKey)
+		if trace.IsNotFound(err) {
+			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
-
 	if err == nil && cfg.Username != "" {
 		status, err = clusterClient.ProfileStatus()
 		if err != nil {
@@ -229,9 +226,6 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
 	}
 
 	return &Cluster{

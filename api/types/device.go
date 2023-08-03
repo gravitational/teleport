@@ -177,13 +177,14 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 	var profile *devicepb.DeviceProfile
 	if p := res.Spec.Profile; p != nil {
 		profile = &devicepb.DeviceProfile{
-			UpdateTime:        toTimePB(p.UpdateTime),
-			ModelIdentifier:   p.ModelIdentifier,
-			OsVersion:         p.OsVersion,
-			OsBuild:           p.OsBuild,
-			OsUsernames:       p.OsUsernames,
-			JamfBinaryVersion: p.JamfBinaryVersion,
-			ExternalId:        p.ExternalId,
+			UpdateTime:          toTimePB(p.UpdateTime),
+			ModelIdentifier:     p.ModelIdentifier,
+			OsVersion:           p.OsVersion,
+			OsBuild:             p.OsBuild,
+			OsBuildSupplemental: p.OsBuildSupplemental,
+			OsUsernames:         p.OsUsernames,
+			JamfBinaryVersion:   p.JamfBinaryVersion,
+			ExternalId:          p.ExternalId,
 		}
 	}
 
@@ -199,6 +200,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 		CollectedData: collectedData,
 		Source:        source,
 		Profile:       profile,
+		Owner:         res.Spec.Owner,
 	}, nil
 }
 
@@ -263,13 +265,14 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 	var profile *DeviceProfile
 	if p := dev.Profile; p != nil {
 		profile = &DeviceProfile{
-			UpdateTime:        toTimePtr(p.UpdateTime),
-			ModelIdentifier:   p.ModelIdentifier,
-			OsVersion:         p.OsVersion,
-			OsBuild:           p.OsBuild,
-			OsUsernames:       p.OsUsernames,
-			JamfBinaryVersion: p.JamfBinaryVersion,
-			ExternalId:        p.ExternalId,
+			UpdateTime:          toTimePtr(p.UpdateTime),
+			ModelIdentifier:     p.ModelIdentifier,
+			OsVersion:           p.OsVersion,
+			OsBuild:             p.OsBuild,
+			OsBuildSupplemental: p.OsBuildSupplemental,
+			OsUsernames:         p.OsUsernames,
+			JamfBinaryVersion:   p.JamfBinaryVersion,
+			ExternalId:          p.ExternalId,
 		}
 	}
 
@@ -291,6 +294,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			CollectedData: collectedData,
 			Source:        source,
 			Profile:       profile,
+			Owner:         dev.Owner,
 		},
 	}
 	_ = res.CheckAndSetDefaults() // assign default fields

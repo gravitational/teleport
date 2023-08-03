@@ -54,15 +54,7 @@ layer of protection.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- To enroll a macOS device, you need:
-  - A signed and notarized `tsh` binary for enrollment.
-    [Download the macOS tsh installer](../../installation.mdx#macos).
-  - A Teleport version newer than v12.0.0.
-- To enroll a Windows device, you need:
-  - A device that includes a TPM with 2.0 support.
-  - `tsh` installed on the device. [Download the Windows tsh installer](../../installation.mdx#windows-tsh-client-only).
-  - Credentials for a user with administrator privileges for the device. This is only required during enrollment.
-  - A Teleport version newer than v13.1.2.
+(!docs/pages/includes/device-trust/prereqs.mdx!)
 
 ## Step 1/2. Register a trusted device
 
@@ -117,7 +109,7 @@ Make sure your user has the `device-admin` role:
 Relogin to fetch updated certificates:
 
 ```code
-$ tsh logout; tsh login --proxy=example.com --user=alice
+$ tsh logout; tsh login --proxy=teleport.example.com --user=alice
 ```
 
 Before you can enroll the device, you need to register it. To register
@@ -209,7 +201,8 @@ command printed by `tctl devices enroll`:
 $ tsh device enroll --token=(=devicetrust.enroll_token=)
 Device "(=devicetrust.asset_tag=)"/macOS enrolled
 
-$ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificates
+$ tsh logout
+$ tsh login --proxy=teleport.example.com --user=alice # fetch new certificates
 ```
 
 <Admonition type="warning" title="Windows">
@@ -305,8 +298,8 @@ by the `device_trust.mode` authentication setting:
 
 - `off` - disables device trust. Device authentication is not performed and
   device-aware audit logs are absent.
-- `optional` - enables device authentication and device-aware audit, but does not
-  require a trusted device to access resources.
+- `optional` - enables device authentication and device-aware audit, but does
+  not require a trusted device to access resources.
 - `required` - enables device authentication and device-aware audit.
   Additionally, it requires a trusted device for all SSH, Database and
   Kubernetes connections.
@@ -337,7 +330,7 @@ spec:
   type: local
   second_factor: "on"
   webauthn:
-    rp_id: example.com
+    rp_id: teleport.example.com
   device_trust:
 +   mode: "required" # add this line
 ```
@@ -365,7 +358,7 @@ auth_service:
     type: local
     second_factor: "on"
     webauthn:
-      rp_id: example.com
+      rp_id: teleport.example.com
     device_trust:
 +     mode: "required" # add this line
 ```
@@ -397,7 +390,8 @@ can be configured with the `spec.options.device_trust_mode` (`required`,
 `optional`, `off`) option and applies to the resources in its `allow` rules. It
 works similar to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
-To enforce authenticated device checks for a specific role, update the role with the following:
+To enforce authenticated device checks for a specific role, update the role with
+the following:
 
 ```diff
 kind: role
@@ -451,28 +445,18 @@ $ tctl lock --device (=devicetrust.device_id=) --ttl=12h
 Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
 ```
 
-Now, if a user on that device tries to access an SSH server for example, Teleport will deny access:
+Now, if a user on that device tries to access an SSH server for example,
+Teleport will deny access:
 
 ```code
 $ tsh ssh server1
 ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"(=devicetrust.device_id=)" is in force)
 ```
 
+## Optional: Enable auto-enrollment
+
+Refer to the [auto-enrollment guide](./auto-enrollment.mdx).
+
 ## Troubleshooting
 
-### "binary missing signature or entitlements" on `tsh device enroll`
-
-A signed and notarized `tsh` binary is necessary to enroll and use a a trusted
-device. [Download the macOS tsh installer](../../installation.mdx#macos) to fix
-the problem.
-
-### "unauthorized device" errors using a trusted device
-
-A signed and notarized `tsh` binary is necessary to use a trusted device. Make
-sure to download and use the
-[macOS tsh installer](../../installation.mdx#macos).
-
-A trusted device needs to be registered and enrolled before it is recognized by
-Teleport as such. Follow the [registration](#step-12-register-a-trusted-device)
-and [enrollment steps](#step-22-enroll-a-trusted-device) and make sure to `tsh
-logout` and `tsh login` after enrollment is done.
+(!docs/pages/includes/device-trust/auto-enroll-troubleshooting.mdx!)

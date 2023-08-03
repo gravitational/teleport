@@ -35,13 +35,17 @@ import (
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/ai/model"
 	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -85,6 +89,12 @@ type commandExecResult struct {
 	ExecutionID string `json:"execution_id"`
 	// SessionID is the ID of the session where the command was executed.
 	SessionID string `json:"session_id"`
+}
+
+// sessionEndEvent is an event that is sent when a session ends.
+type sessionEndEvent struct {
+	// NodeID is the ID of the server where the session was created.
+	NodeID string `json:"node_id"`
 }
 
 // Check checks if the request is valid.
@@ -284,8 +294,9 @@ func (h *Handler) executeCommand(
 		return trace.Wrap(err)
 	}
 
-	runCommands(hosts, runCmd, h.log)
+	runCommands(hosts, runCmd, int(netConfig.GetAssistCommandExecutionWorkers()), h.log)
 
+	var tokenCount *model.TokenCount
 	// Optionally, try to compute the command summary.
 	if output, valid := buffer.Export(); valid {
 		summaryReq := summaryRequest{
@@ -297,10 +308,29 @@ func (h *Handler) executeCommand(
 			conversationID: req.ConversationID,
 			command:        req.Command,
 		}
-		err := h.computeAndSendSummary(ctx, &summaryReq, ws)
+		tokenCount, err = h.computeAndSendSummary(ctx, &summaryReq, ws)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	prompt, completion := model.CountTokens(tokenCount)
+
+	usageEventReq := &clientproto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AssistExecution{
+				AssistExecution: &usageeventsv1.AssistExecutionEvent{
+					ConversationId:   req.ConversationID,
+					NodeCount:        int64(len(hosts)),
+					TotalTokens:      int64(completion + prompt),
+					PromptTokens:     int64(prompt),
+					CompletionTokens: int64(completion),
+				},
+			},
+		},
+	}
+	if err := clt.SubmitUsageEvent(ctx, usageEventReq); err != nil {
+		h.log.WithError(err).Warn("Failed to emit usage event")
 	}
 
 	return nil, nil
@@ -320,7 +350,7 @@ func (h *Handler) computeAndSendSummary(
 	ctx context.Context,
 	req *summaryRequest,
 	ws WSConn,
-) error {
+) (*model.TokenCount, error) {
 	// Convert the map nodeId->output into a map nodeName->output
 	namedOutput := outputByName(req.hosts, req.output)
 
@@ -329,20 +359,20 @@ func (h *Handler) computeAndSendSummary(
 		Username:       req.identity.TeleportUser,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	assistClient, err := assistlib.NewClient(ctx, req.authClient, h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	summary, err := assistClient.GenerateCommandSummary(ctx, history.GetMessages(), namedOutput)
+	summary, tokenCount, err := assistClient.GenerateCommandSummary(ctx, history.GetMessages(), namedOutput)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// Add the summary message to the backend so it is persisted on chat
+	// Add the summary message to the backend, so it is persisted on chat
 	// reload.
 	messagePayload, err := json.Marshal(&assistlib.CommandExecSummary{
 		ExecutionID: req.executionID,
@@ -350,7 +380,7 @@ func (h *Handler) computeAndSendSummary(
 		Summary:     summary,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	summaryMessage := &assist.CreateAssistantMessageRequest{
 		ConversationId: req.conversationID,
@@ -364,7 +394,7 @@ func (h *Handler) computeAndSendSummary(
 
 	err = req.authClient.CreateAssistantMessage(ctx, summaryMessage)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Send the summary over the execution websocket to provide instant
@@ -375,11 +405,11 @@ func (h *Handler) computeAndSendSummary(
 	}
 	data, err := json.Marshal(out)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	stream := NewWStream(ctx, ws, log, nil)
 	_, err = stream.Write(data)
-	return trace.Wrap(err)
+	return tokenCount, trace.Wrap(err)
 }
 
 func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte {
@@ -395,35 +425,21 @@ func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte 
 }
 
 // runCommands runs the given command on the given hosts.
-func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, log logrus.FieldLogger) {
-	// Create a synchronization channel to limit the number of concurrent commands.
-	// The maximum number of concurrent commands is 30 - it is arbitrary.
-	syncChan := make(chan struct{}, 30)
-	// WaiteGroup to wait for all commands to finish.
-	wg := sync.WaitGroup{}
+func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, numParallel int, log logrus.FieldLogger) {
+	var group errgroup.Group
+	group.SetLimit(numParallel)
 
 	for _, host := range hosts {
 		host := host
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			// Limit the number of concurrent commands.
-			syncChan <- struct{}{}
-			defer func() {
-				// Release the command slot.
-				<-syncChan
-			}()
-
-			if err := runCmd(&host); err != nil {
-				log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
-			}
-		}()
+		group.Go(func() error {
+			return trace.Wrap(runCmd(&host), "failed to start session on %v", host.hostName)
+		})
 	}
 
 	// Wait for all commands to finish.
-	wg.Wait()
+	if err := group.Wait(); err != nil {
+		log.WithError(err).Debug("Assist command execution failed")
+	}
 }
 
 // getMFACacheFn returns a function that caches the result of the given
@@ -674,7 +690,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return
 	}
 
-	if err := t.stream.SendCloseMessage(); err != nil {
+	if err := t.stream.SendCloseMessage(sessionEndEvent{NodeID: t.sessionData.ServerID}); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}
@@ -721,7 +737,7 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 	clientConfig.HostLogin = t.sessionData.Login
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
-	clientConfig.Stdout = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, envelopeTypeStdout, t.stream), t.buffer)
+	clientConfig.Stdout = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, EnvelopeTypeStdout, t.stream), t.buffer)
 	clientConfig.Stderr = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, envelopeTypeStderr, t.stream), t.buffer)
 	clientConfig.Stdin = &bytes.Buffer{} // set stdin to a dummy buffer
 	clientConfig.SiteName = t.sessionData.ClusterName

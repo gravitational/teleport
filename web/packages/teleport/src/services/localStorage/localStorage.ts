@@ -20,11 +20,12 @@ import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
 import {
+  OnboardUserPreferences,
   ThemePreference,
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
 
-import { KeysEnum } from './types';
+import { KeysEnum, LocalStorageSurvey } from './types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
@@ -119,20 +120,55 @@ const storage = {
     );
   },
 
+  getOnboardSurvey(): LocalStorageSurvey {
+    const survey = window.localStorage.getItem(KeysEnum.ONBOARD_SURVEY);
+    if (survey) {
+      return JSON.parse(survey);
+    }
+    return null;
+  },
+
+  setOnboardSurvey(survey: LocalStorageSurvey) {
+    const json = JSON.stringify(survey);
+
+    window.localStorage.setItem(KeysEnum.ONBOARD_SURVEY, json);
+  },
+
+  clearOnboardSurvey() {
+    window.localStorage.removeItem(KeysEnum.ONBOARD_SURVEY);
+  },
+
   getThemePreference(): ThemePreference {
     const userPreferences = storage.getUserPreferences();
     if (userPreferences) {
       return userPreferences.theme;
     }
 
-    const theme = window.localStorage.getItem(
-      KeysEnum.THEME
-    ) as DeprecatedThemeOption;
+    const theme = this.getDeprecatedThemePreference();
     if (theme) {
       return theme === 'light' ? ThemePreference.Light : ThemePreference.Dark;
     }
 
     return ThemePreference.Light;
+  },
+
+  getOnboardUserPreference(): OnboardUserPreferences {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.onboard;
+    }
+
+    return { preferredResources: [] };
+  },
+
+  // DELETE IN 15 (ryan)
+  getDeprecatedThemePreference(): DeprecatedThemeOption {
+    return window.localStorage.getItem(KeysEnum.THEME) as DeprecatedThemeOption;
+  },
+
+  // TODO(ryan): remove in v15
+  clearDeprecatedThemePreference() {
+    window.localStorage.removeItem(KeysEnum.THEME);
   },
 
   broadcast(messageType, messageBody) {

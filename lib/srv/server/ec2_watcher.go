@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -62,12 +63,20 @@ type EC2Instances struct {
 // discovered.
 type EC2Instance struct {
 	InstanceID string
+	Tags       map[string]string
 }
 
-func toEC2Instance(inst *ec2.Instance) EC2Instance {
-	return EC2Instance{
-		InstanceID: aws.StringValue(inst.InstanceId),
+func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
+	inst := EC2Instance{
+		InstanceID: aws.StringValue(originalInst.InstanceId),
+		Tags:       make(map[string]string, len(originalInst.Tags)),
 	}
+	for _, tag := range originalInst.Tags {
+		if key := aws.StringValue(tag.Key); key != "" {
+			inst.Tags[key] = aws.StringValue(tag.Value)
+		}
+	}
+	return inst
 }
 
 // ToEC2Instances converts aws []*ec2.Instance to []EC2Instance
@@ -79,6 +88,30 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 	}
 	return ec2Insts
 
+}
+
+// ServerInfos creates a ServerInfo resource for each discovered instance.
+func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
+	serverInfos := make([]types.ServerInfo, 0, len(i.Instances))
+	for _, instance := range i.Instances {
+		name := i.AccountID + "-" + instance.InstanceID
+		tags := make(map[string]string, len(instance.Tags))
+		for k, v := range instance.Tags {
+			tags[labels.FormatCloudLabelKey(labels.AWSLabelNamespace, k)] = v
+		}
+
+		si, err := types.NewServerInfo(types.Metadata{
+			Name: name,
+		}, types.ServerInfoSpecV1{
+			NewLabels: tags,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serverInfos = append(serverInfos, si)
+	}
+
+	return serverInfos, nil
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
@@ -284,7 +317,7 @@ func chunkInstances(insts EC2Instances) []Instances {
 			Instances:    insts.Instances[i:end],
 			Rotation:     insts.Rotation,
 		}
-		instColl = append(instColl, Instances{EC2Instances: &inst})
+		instColl = append(instColl, Instances{EC2: &inst})
 	}
 	return instColl
 }
@@ -315,7 +348,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					for _, ec2inst := range res.Instances[i:end] {
 						f.cachedInstances.add(ownerID, aws.StringValue(ec2inst.InstanceId))
 					}
-					instances = append(instances, Instances{EC2Instances: &inst})
+					instances = append(instances, Instances{EC2: &inst})
 				}
 			}
 			return true

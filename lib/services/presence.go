@@ -71,6 +71,9 @@ type Presence interface {
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
+	// StreamNodes streams a list of registered servers.
+	StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server]
+
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]types.Server, error)
 
@@ -126,6 +129,21 @@ type Presence interface {
 
 	// DeleteNamespace deletes namespace by name
 	DeleteNamespace(name string) error
+
+	// GetServerInfos returns a stream of ServerInfos.
+	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
+
+	// GetServerInfo returns a ServerInfo by name.
+	GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error)
+
+	// UpsertServerInfo upserts a ServerInfo.
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+
+	// DeleteServerInfo deletes a ServerInfo by name.
+	DeleteServerInfo(ctx context.Context, name string) error
+
+	// DeleteAllServerInfos deletes all ServerInfos.
+	DeleteAllServerInfos(ctx context.Context) error
 
 	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
 	UpsertTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)

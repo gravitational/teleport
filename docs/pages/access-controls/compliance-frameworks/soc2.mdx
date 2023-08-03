@@ -7,13 +7,12 @@ h1: SOC 2 Compliance for SSH, Kubernetes, Databases, Desktops, and Web Apps
 Teleport is designed to meet SOC 2 requirements for the purposes of accessing infrastructure, change management, and system operations. This document outlines a high
 level overview of how Teleport can be used to help your company to become SOC 2 compliant.
 
-<ScopedBlock
-  scope={["oss"]}
->
+<Notice type="warning">
 
-  This guide requires Teleport Cloud or Teleport Enterprise.
+  SOC 2 compliance features are only available for Teleport Enterprise and
+  Teleport Enterprise Cloud.
 
-</ScopedBlock>
+</Notice>
 
 ## Achieving SOC 2 Compliance with Teleport
 SOC 2 or Service Organization Controls were developed by the American Institute of CPAs (AICPA). They are based on five trust services criteria: security, availability, processing integrity, confidentiality, and privacy.
@@ -36,7 +35,7 @@ Teleport helps audit and monitor access.
 - Monitor, share and join interactive sessions in real-time from the CLI or browser.
 
 ### CC8 Change Management
-Teleport helps users elevate their permissions during incidents, RBAC helps limit the need for approvals. The Teleport slack integration allows for managers to quickly approve temporary SSH Access Requests.
+Teleport helps users elevate their permissions during incidents, RBAC helps limit the need for approvals. The Teleport Slack integration allows for managers to quickly approve temporary SSH Access Requests.
 
 - Let engineers request elevated permissions on the fly without ever leaving the terminal
 - Approve or deny permission requests with ChatOps workflow via Slack or other supported platforms.
@@ -44,9 +43,9 @@ Teleport helps users elevate their permissions during incidents, RBAC helps limi
 
 ## What Specific Criteria does Teleport Help Satisfy? 
 
-Below is a table of principles and common points of focus listed by [AICPA’s official “trust Service Criteria” Document](https://www.aicpa.org/content/dam/aicpa/interestareas/frc/assuranceadvisoryservices/downloadabledocuments/trust-services-criteria.pdf) and how Teleport helps satisfy them.
+Below is a table of principles and common points of focus listed by [AICPA's official "Trust Services Criteria" reference document](https://us.aicpa.org/content/dam/aicpa/interestareas/frc/assuranceadvisoryservices/downloadabledocuments/trust-services-criteria-2020.pdf) and how Teleport helps satisfy them.
 
-Each principle has many “Points of Focus” which will apply differently to different products and organizations, talk to an auditor to understand exactly which points of focus apply to your organization.
+Each principle has many "Points of Focus" which will apply differently to different products and organizations, talk to an auditor to understand exactly which points of focus apply to your organization.
 
 | Principle Criteria | Point of Focus | Teleport Features |
 | --- | --- | --- |

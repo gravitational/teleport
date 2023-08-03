@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Flex, Text, Box } from 'design';
+import { Box, Flex, Text } from 'design';
 import styled from 'styled-components';
 
 export const IntegrationTile = styled(Flex)`

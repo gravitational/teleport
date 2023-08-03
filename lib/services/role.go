@@ -169,6 +169,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindKubernetesCluster, RW()),
 				types.NewRule(types.KindSessionTracker, RO()),
 				types.NewRule(types.KindUserGroup, RW()),
+				types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -791,15 +792,6 @@ func (set RuleSet) Slice() []types.Rule {
 		out = append(out, rules...)
 	}
 	return out
-}
-
-// HostUsersInfo keeps information about groups and sudoers entries
-// for a particular host user
-type HostUsersInfo struct {
-	// Groups is the list of groups to include host users in
-	Groups []string
-	// Sudoers is a list of entries for a users sudoers file
-	Sudoers []string
 }
 
 // RoleFromSpec returns new Role created from spec

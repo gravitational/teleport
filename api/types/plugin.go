@@ -40,6 +40,10 @@ const (
 	PluginTypeJamf = "jamf"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
 	PluginTypeOpsgenie = "opsgenie"
+	// PluginTypePagerDuty is the PagerDuty access plugin
+	PluginTypePagerDuty = "pagerduty"
+	// PluginTypeMattermost is the PagerDuty access plugin
+	PluginTypeMattermost = "mattermost"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -146,6 +150,21 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+	case *PluginSpecV1_Mattermost:
+		if settings.Mattermost == nil {
+			return trace.BadParameter("missing Mattermost settings")
+		}
+		if err := settings.Mattermost.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Mattermost plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
 	case *PluginSpecV1_Jamf:
 		// Check Jamf settings.
 		if settings.Jamf == nil {
@@ -182,6 +201,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_PagerDuty:
+		if settings.PagerDuty == nil {
+			return trace.BadParameter("missing PagerDuty settings")
+		}
+		if err := settings.PagerDuty.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
@@ -321,6 +347,10 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeJamf
 	case *PluginSpecV1_Opsgenie:
 		return PluginTypeOpsgenie
+	case *PluginSpecV1_PagerDuty:
+		return PluginTypePagerDuty
+	case *PluginSpecV1_Mattermost:
+		return PluginTypeMattermost
 	default:
 		return PluginTypeUnknown
 	}
@@ -362,6 +392,20 @@ func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
 }
 
 // CheckAndSetDefaults validates and set the default values
+func (s *PluginMattermostSettings) CheckAndSetDefaults() error {
+	if s.ServerUrl == "" {
+		return trace.BadParameter("server url is required")
+	}
+	if s.Team == "" {
+		return trace.BadParameter("team is required")
+	}
+	if s.Channel == "" {
+		return trace.BadParameter("channel is required")
+	}
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
 func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 	if c.AuthorizationCode == "" {
 		return trace.BadParameter("authorization_code must be set")
@@ -370,6 +414,18 @@ func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 		return trace.BadParameter("redirect_uri must be set")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default PagerDuty values
+func (c *PluginPagerDutySettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+
+	if c.UserEmail == "" {
+		return trace.BadParameter("user_email must be set")
+	}
 	return nil
 }
 
