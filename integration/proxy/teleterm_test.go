@@ -119,8 +119,7 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 		InsecureSkipVerify: tc.InsecureSkipVerify,
 		// Inject a fake clock into clusters.Storage so we can control when the middleware thinks the
 		// db cert has expired.
-		Clock:   fakeClock,
-		TempDir: t.TempDir(),
+		Clock: fakeClock,
 	})
 	require.NoError(t, err)
 
@@ -129,6 +128,7 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
+		KubeconfigsDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

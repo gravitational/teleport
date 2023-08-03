@@ -73,6 +73,7 @@ function getRuntimeSettings(): RuntimeSettings {
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
       `--prehog-addr=${staticConfig.prehogAddress}`,
+      `--kubeconfigs-dir=${getKubeConfigsDir()}`,
     ],
   };
   const sharedProcess = {

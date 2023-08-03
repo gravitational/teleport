@@ -46,8 +46,6 @@ type Cluster struct {
 	Log *logrus.Entry
 	// dir is the directory where cluster certificates are stored
 	dir string
-	// tempDir is the temporary directory to store temporary config files.
-	tempDir string
 	// Status is the cluster status
 	status client.ProfileStatus
 	// client is the cluster Teleport client

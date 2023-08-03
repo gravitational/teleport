@@ -284,6 +284,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
 		OnExpiredCert:         s.reissueGatewayCerts,
+		KubeconfigsDir:        s.cfg.KubeconfigsDir,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -648,10 +649,6 @@ func (s *Service) Stop() {
 	}
 
 	s.StopHeadlessWatchers()
-
-	if err := s.cfg.Storage.Close(); err != nil {
-		s.cfg.Log.WithError(err).Warn("Failed to close storage")
-	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()

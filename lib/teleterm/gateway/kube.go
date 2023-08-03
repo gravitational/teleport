@@ -40,10 +40,8 @@ type kube struct {
 // KubeconfigPath returns the kubeconfig path that can be used for clients to
 // connect to the local proxy.
 func (k *kube) KubeconfigPath() string {
-	// Use a temporary dir instead of tsh profile dir to avoid getting deleted when
-	// reissuing user certs.
 	return keypaths.KubeConfigPath(
-		k.cfg.gatewayTempDir(),
+		k.cfg.KubeconfigsDir,
 		k.cfg.TargetURI.GetProfileName(),
 		k.cfg.Username,
 		k.cfg.ClusterName,

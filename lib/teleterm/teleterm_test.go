@@ -108,11 +108,12 @@ func TestStart(t *testing.T) {
 			listeningC := make(chan utils.NetAddr)
 
 			cfg := Config{
-				Addr:       test.addr,
-				HomeDir:    homeDir,
-				CertsDir:   certsDir,
-				PrehogAddr: "https://prehog:9999",
-				ListeningC: listeningC,
+				Addr:           test.addr,
+				HomeDir:        homeDir,
+				CertsDir:       certsDir,
+				PrehogAddr:     "https://prehog:9999",
+				ListeningC:     listeningC,
+				KubeconfigsDir: t.TempDir(),
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())

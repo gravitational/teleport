@@ -39,6 +39,7 @@ type CreateGatewayParams struct {
 	CLICommandProvider gateway.CLICommandProvider
 	TCPPortAllocator   gateway.TCPPortAllocator
 	OnExpiredCert      gateway.OnExpiredCertFunc
+	KubeconfigsDir     string
 }
 
 // CreateGateway creates a gateway
@@ -124,7 +125,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		RootClusterCACertPoolFunc:     c.clusterClient.RootClusterCACertPool,
 		ClusterName:                   c.Name,
 		Username:                      c.status.Username,
-		TempDir:                       c.tempDir,
+		KubeconfigsDir:                params.KubeconfigsDir,
 	})
 	return gw, trace.Wrap(err)
 }

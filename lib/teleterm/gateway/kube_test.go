@@ -76,7 +76,7 @@ func TestKubeGateway(t *testing.T) {
 			ClusterName:        teleportClusterName,
 			CLICommandProvider: mockCLICommandProvider{},
 			Username:           identity.Username,
-			TempDir:            t.TempDir(),
+			KubeconfigsDir:     t.TempDir(),
 			RootClusterCACertPoolFunc: func(_ context.Context) (*x509.CertPool, error) {
 				return proxy.certPool(), nil
 			},
