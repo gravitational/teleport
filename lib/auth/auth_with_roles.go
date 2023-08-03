@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -1333,8 +1334,9 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		} else if serverName != handle.HostID {
 			return trace.AccessDenied("access denied")
 		}
-
-		if !a.hasBuiltinRole(types.RoleKube) {
+		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
+		// we need to check if the host has the Kube or Proxy role.
+		if !a.hasBuiltinRole(types.RoleKube, types.RoleProxy) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
@@ -1483,14 +1485,41 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
+func stringCompare(a string, b string, isDesc bool) bool {
+	if isDesc {
+		return a > b
+	}
+	return a < b
+}
+
+func unifiedNameCompare(a types.ResourceWithLabels, b types.ResourceWithLabels, isDesc bool) bool {
+	var nameA, nameB string
+	resourceA, ok := a.(types.Server)
+	if ok {
+		nameA = resourceA.GetHostname()
+	} else {
+		nameA = a.GetName()
+	}
+
+	resourceB, ok := b.(types.Server)
+	if ok {
+		nameB = resourceB.GetHostname()
+	} else {
+		nameB = b.GetName()
+	}
+
+	return stringCompare(nameA, nameB, isDesc)
+}
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*types.ListResourcesResponse, error) {
-	// Fetch full list of nodes in the backend.
+	// Fetch full list of resources in the backend.
 	startFetch := time.Now()
-	unifiedResources, err := a.authServer.unifiedResourceWatcher.GetUnifiedResources(ctx)
+	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	elapsedFetch := time.Since(startFetch)
 
 	// Filter resources to return the ones for the connected identity.
@@ -1535,8 +1564,15 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 				filteredResources = append(filteredResources, resource)
 			}
-		case types.KubeCluster:
-			if err := a.checkAccessToKubeCluster(r); err != nil {
+		case types.SAMLIdPServiceProvider:
+			{
+				if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+					filteredResources = append(filteredResources, resource)
+				}
+			}
+		case types.KubeServer:
+			kube := r.GetCluster()
+			if err := a.checkAccessToKubeCluster(kube); err != nil {
 				if trace.IsAccessDenied(err) {
 					continue
 				}
@@ -1544,7 +1580,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				return nil, trace.Wrap(err)
 			}
 
-			filteredResources = append(filteredResources, resource)
+			filteredResources = append(filteredResources, kube)
 		case types.WindowsDesktop:
 			{
 				if err := a.checkAccessToWindowsDesktop(r); err != nil {
@@ -1569,6 +1605,22 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		"GetUnifiedResources(%v->%v) in %v.",
 		len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
 
+	if req.SortBy.Field != "" {
+		isDesc := req.SortBy.IsDesc
+		switch req.SortBy.Field {
+		case types.ResourceMetadataName:
+			sort.SliceStable(filteredResources, func(i, j int) bool {
+				return unifiedNameCompare(filteredResources[i], filteredResources[j], isDesc)
+			})
+		case types.ResourceSpecType:
+			sort.SliceStable(filteredResources, func(i, j int) bool {
+				return stringCompare(filteredResources[i].GetKind(), filteredResources[j].GetKind(), isDesc)
+			})
+		default:
+			return nil, trace.NotImplemented("sorting by field %q for unified resource %q is not supported", req.SortBy.Field, types.KindUnifiedResource)
+		}
+	}
+
 	// Apply request filters and get pagination info.
 	resp, err := local.FakePaginate(filteredResources, local.FakePaginateParams{
 		Limit:               req.Limit,
@@ -1586,6 +1638,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 }
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+
 	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2468,13 +2521,19 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 }
 
 func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	_, err := a.CreateAccessRequestV2(ctx, req)
+	return trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	// An exception is made to allow users to create access *pending* requests for themselves.
 	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
 		if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.CreateAccessRequest(ctx, req, a.context.Identity.GetIdentity())
+	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
+	return resp, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {

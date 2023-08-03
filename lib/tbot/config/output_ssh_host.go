@@ -60,13 +60,13 @@ func (o *SSHHostOutput) Render(ctx context.Context, p provider, ident *identity.
 	return nil
 }
 
-func (o *SSHHostOutput) Init() error {
+func (o *SSHHostOutput) Init(ctx context.Context) error {
 	subDirs, err := listSubdirectories(o.templates())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Destination.Init(subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
 func (o *SSHHostOutput) GetDestination() bot.Destination {

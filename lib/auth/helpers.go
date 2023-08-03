@@ -373,24 +373,20 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	unifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(ctx, services.UnifiedResourceWatcherConfig{
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
 			Component:    teleport.ComponentUnifiedResource,
 			Client:       srv.AuthServer,
 			MaxStaleness: time.Minute,
 		},
-		NodesGetter:                  srv.AuthServer,
-		DatabaseServersGetter:        srv.AuthServer,
-		AppServersGetter:             srv.AuthServer,
-		WindowsDesktopGetter:         srv.AuthServer,
-		KubernetesClusterGetter:      srv.AuthServer,
-		SAMLIdpServiceProviderGetter: srv.AuthServer,
+		ResourceGetter: srv.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.AuthServer.SetUnifiedResourceWatcher(unifiedResourceWatcher)
+	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(ctx, local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,

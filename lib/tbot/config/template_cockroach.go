@@ -66,6 +66,7 @@ func (t *templateCockroach) render(
 	cfg := identityfile.WriteConfig{
 		OutputPath: defaultCockroachDirName,
 		Writer: &BotConfigWriter{
+			ctx:     ctx,
 			dest:    destination,
 			subpath: defaultCockroachDirName,
 		},

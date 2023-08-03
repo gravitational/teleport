@@ -112,6 +112,11 @@ type ResourceWithLabels interface {
 	MatchSearch(searchValues []string) bool
 }
 
+// CloneAny is an interface used for resources that can clone themselves
+type CloneAny interface {
+	CloneAny() any
+}
+
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 

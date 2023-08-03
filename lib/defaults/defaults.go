@@ -321,6 +321,9 @@ const (
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
 
+	// UnifiedResourcesQueueSize is the unified resource watcher queue size
+	UnifiedResourcesQueueSize = 8192
+
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
 
