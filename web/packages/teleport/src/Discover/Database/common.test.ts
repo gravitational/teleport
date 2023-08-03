@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { matchLabels } from './util';
+import { matchLabels } from './common';
 
 const newDbLabels = [
   { name: 'env', value: 'prod' },
