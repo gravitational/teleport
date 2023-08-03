@@ -907,6 +907,30 @@ export namespace GetInvoiceSettingsInformationResponse {
   }
 }
 
+export class SurveyCompanyResponse extends jspb.Message {
+  getCompanyName(): string;
+  setCompanyName(value: string): void;
+
+  getEmployeeCount(): string;
+  setEmployeeCount(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): SurveyCompanyResponse.AsObject;
+  static toObject(includeInstance: boolean, msg: SurveyCompanyResponse): SurveyCompanyResponse.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: SurveyCompanyResponse, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): SurveyCompanyResponse;
+  static deserializeBinaryFromReader(message: SurveyCompanyResponse, reader: jspb.BinaryReader): SurveyCompanyResponse;
+}
+
+export namespace SurveyCompanyResponse {
+  export type AsObject = {
+    companyName: string,
+    employeeCount: string,
+  }
+}
+
 export class SetSurveyResultsRequest extends jspb.Message {
   getCompanyName(): string;
   setCompanyName(value: string): void;

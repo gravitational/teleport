@@ -8,9 +8,5 @@ export default {
 };
 
 export const Full = () => {
-  return <Questionnaire full={true} username={''} onboard={false} />;
-};
-
-export const Partial = () => {
-  return <Questionnaire full={false} username={''} onboard={false} />;
+  return <Questionnaire onboard={false} />;
 };

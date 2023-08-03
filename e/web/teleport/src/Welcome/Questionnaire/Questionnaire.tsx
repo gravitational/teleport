@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ButtonPrimary, Text } from 'design';
+import React, { useEffect, useState } from 'react';
+import { ButtonPrimary, Indicator, Text } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
@@ -11,7 +11,9 @@ import localStorage, {
   SurveyRequest,
 } from 'teleport/services/localStorage';
 
-import { surveyService } from 'e-teleport/services/survey';
+import useAttempt from 'shared/hooks/useAttemptNext';
+
+import { CompanySurveyDTO, surveyService } from 'e-teleport/services/survey';
 
 import {
   QuestionnaireFormFields,
@@ -24,11 +26,12 @@ import { Resources } from './Resources';
 import { resourceMapping } from './constants';
 
 export const Questionnaire = ({
-  full,
   onboard,
   username = '',
   onSubmit,
 }: QuestionnaireProps): React.ReactElement => {
+  const { attempt, run } = useAttempt('processing');
+
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
     companyName: '',
     employeeCount: undefined,
@@ -37,6 +40,22 @@ export const Questionnaire = ({
     role: undefined,
     resources: [],
   });
+
+  // we query Sales Center for Company questions to determine if any user on this cluster has answered them.
+  // If true, we only show a partial survey.
+  // If false, we show the entire survey.
+  const [fullSurvey, setFullSurvey] = useState<boolean>(true);
+  useEffect(() => {
+    async function getSurveyResults() {
+      const resp: CompanySurveyDTO =
+        await surveyService.getSurveyCompanyResults();
+      setFullSurvey(resp.companyName == '' && resp.employeeCount == '');
+    }
+
+    // We're not leveraging any errors returned from getSurveyResults,
+    // if the call fails we display the whole survey
+    run(() => getSurveyResults());
+  }, [run]);
 
   const updateForm = (fields: Partial<QuestionnaireFormFields>) => {
     setFormFields({
@@ -106,44 +125,48 @@ export const Questionnaire = ({
     }
   };
 
-  // todo (michellescripts) only display <Company .../> if the survey is unanswered for the account
   return (
     <>
-      <Text typography="h2" mb={4}>
-        Tell us about yourself
-      </Text>
-      <Validation>
-        {({ validator }) => (
-          <>
-            {full && (
-              <Company
-                companyName={formFields.companyName}
-                numberOfEmployees={formFields.employeeCount}
-                updateFields={updateForm}
-              />
-            )}
-            <Role
-              role={formFields.role}
-              team={formFields.team}
-              teamName={formFields.teamName}
-              updateFields={updateForm}
-            />
-            <Resources
-              checked={formFields.resources}
-              updateFields={updateForm}
-            />
+      {attempt.status === 'processing' ? (
+        <Indicator />
+      ) : (
+        <>
+          <Text typography="h2" mb={4}></Text>
+          Tell us about yourself
+          <Validation>
+            {({ validator }) => (
+              <>
+                {fullSurvey && (
+                  <Company
+                    companyName={formFields.companyName}
+                    numberOfEmployees={formFields.employeeCount}
+                    updateFields={updateForm}
+                  />
+                )}
+                <Role
+                  role={formFields.role}
+                  team={formFields.team}
+                  teamName={formFields.teamName}
+                  updateFields={updateForm}
+                />
+                <Resources
+                  checked={formFields.resources}
+                  updateFields={updateForm}
+                />
 
-            <ButtonPrimary
-              mt={3}
-              width="100%"
-              size="large"
-              onClick={() => submitForm(validator)}
-            >
-              Submit
-            </ButtonPrimary>
-          </>
-        )}
-      </Validation>
+                <ButtonPrimary
+                  mt={3}
+                  width="100%"
+                  size="large"
+                  onClick={() => submitForm(validator)}
+                >
+                  Submit
+                </ButtonPrimary>
+              </>
+            )}
+          </Validation>
+        </>
+      )}
     </>
   );
 };

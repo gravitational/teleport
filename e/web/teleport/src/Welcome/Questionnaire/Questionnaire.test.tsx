@@ -8,15 +8,26 @@ import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserConte
 
 import { surveyService } from 'e-teleport/services/survey';
 
+import { EmployeeSelectOptions } from 'e-teleport/Welcome/Questionnaire/constants';
+
 import { Questionnaire } from './Questionnaire';
 import { QuestionnaireProps } from './types';
+
+jest.mock('shared/hooks', () => ({
+  useAttempt: () => {
+    return {
+      attempt: { status: 'success', statusText: 'Success Text' },
+      setAttempt: jest.fn(),
+      run: (fn?: any) => Promise.resolve(fn()),
+    };
+  },
+}));
 
 describe('questionnaire', () => {
   let props: QuestionnaireProps;
 
   beforeEach(() => {
     props = {
-      full: false,
       username: '',
       onboard: true,
     };
@@ -24,6 +35,11 @@ describe('questionnaire', () => {
     // general mocks:
     jest.spyOn(userEventService, 'capturePreUserEvent');
     jest.spyOn(userEventService, 'captureUserEvent');
+    jest
+      .spyOn(surveyService, 'getSurveyCompanyResults')
+      .mockImplementation(() =>
+        Promise.resolve({ companyName: '', employeeCount: '' })
+      );
 
     // non-onboard mocks:
     jest.spyOn(api, 'put').mockImplementation(() => Promise.resolve());
@@ -33,11 +49,11 @@ describe('questionnaire', () => {
 
   afterEach(() => jest.resetAllMocks());
 
-  test('loads each question', () => {
-    props.full = true;
+  test('loads each question', async () => {
     render(<Questionnaire {...props} />);
 
-    expect(screen.getByText('Tell us about yourself')).toBeVisible();
+    await screen.findByText('Tell us about yourself');
+
     expect(screen.getByLabelText('Company Name')).toBeInTheDocument();
     expect(screen.getByLabelText('Number of Employees')).toBeInTheDocument();
     expect(screen.getByLabelText('Which Team are you on?')).toBeInTheDocument();
@@ -49,11 +65,19 @@ describe('questionnaire', () => {
     ).toBeInTheDocument();
   });
 
-  test('skips questions if not full', () => {
-    props.full = false;
+  test('hides company questions if already answered', async () => {
+    jest
+      .spyOn(surveyService, 'getSurveyCompanyResults')
+      .mockImplementation(() =>
+        Promise.resolve({
+          companyName: 'Answered Company',
+          employeeCount: EmployeeSelectOptions[0].value,
+        })
+      );
+
     render(<Questionnaire {...props} />);
 
-    expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
+    await screen.findByText('Tell us about yourself');
 
     expect(screen.queryByLabelText('Company Name')).not.toBeInTheDocument();
     expect(
@@ -69,10 +93,9 @@ describe('questionnaire', () => {
   });
 
   test('shows validation errors', async () => {
-    props.full = true;
     render(<Questionnaire {...props} />);
 
-    expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
+    await screen.findByText('Tell us about yourself');
     await userEvent.click(screen.getByRole('button', { name: /Submit/i }));
 
     expect(
@@ -100,11 +123,10 @@ describe('questionnaire', () => {
 
   test('submits responses in onboard mode', async () => {
     props.onboard = true;
-    props.full = true;
     props.username = 'user-000';
     render(<Questionnaire {...props} />);
 
-    expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
+    await screen.findByText('Tell us about yourself');
 
     const companyNameInput: HTMLInputElement =
       screen.getByLabelText('Company Name');
@@ -158,11 +180,10 @@ describe('questionnaire', () => {
 
   test('submits responses in non-onboard mode', async () => {
     props.onboard = false;
-    props.full = true;
     props.username = 'user-000';
     render(<Questionnaire {...props} />);
 
-    expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
+    await screen.findByText('Tell us about yourself');
 
     const companyNameInput: HTMLInputElement =
       screen.getByLabelText('Company Name');

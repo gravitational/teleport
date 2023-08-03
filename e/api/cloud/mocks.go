@@ -49,6 +49,9 @@ type MockedClient struct {
 	MockUpdatePurchaseOrderPrefix func(ctx context.Context, in *v1.UpdatePurchaseOrderPrefixRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
 	// MockCancelSubscription cancels the customers subscription
 	MockCancelSubscription func(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
+	// GetSurveyCompany returns the company survey responses for the account associated with the current user.
+	// These are answered by only the first user who completes the survey
+	MockGetSurveyCompany func(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.SurveyCompanyResponse, error)
 	// MockSetSurveyResults updates the account object with onboarding survey results
 	MockSetSurveyResults func(ctx context.Context, in *v1.SetSurveyResultsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
 }
@@ -205,7 +208,15 @@ func (m *MockedClient) CancelSubscription(ctx context.Context, in *v1.EmptyReque
 	return nil, trace.NotImplemented("CancelSubscription is not implemented")
 }
 
-func (m *MockedClient) SetSurveyResults(ctx context.Context, in *v1.SetSurveyResultsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
+func (m *MockedClient) GetSurveyCompany(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.SurveyCompanyResponse, error) {
+	if m.MockGetSurveyCompany != nil {
+		return m.MockGetSurveyCompany(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("GetSurveyCompany is not implemented")
+}
+
+func (m *MockedClient) SetSurveyResults(ctx context.Context, in *v1.SetSurveyResultsRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
 	if m.MockSetSurveyResults != nil {
 		return m.MockSetSurveyResults(ctx, in)
 	}

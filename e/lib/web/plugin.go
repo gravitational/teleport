@@ -209,6 +209,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.getUpgradeWindowStartHourHandle))
 		h.POST("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.updateUpgradeWindowStartHourHandle))
 
+		// surveyCompanyResponsesHandler gets survey company name responses for the account, no specific to the current user
+		h.GET("/enterprise/cloud/survey/company", p.withCloud(p.surveyCompanyResponsesHandler))
 		// surveyResultsHandler sends survey responses to sales center for persistence
 		h.POST("/enterprise/cloud/survey", p.withCloudAuth(p.surveyResultsHandler))
 	}

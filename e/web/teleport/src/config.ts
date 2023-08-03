@@ -81,6 +81,7 @@ const cfg = {
     devices: '/v1/enterprise/devices?limit=:limit?&startKey=:startKey?',
 
     surveyPath: '/v1/enterprise/cloud/survey',
+    surveyCompanyPath: '/v1/enterprise/cloud/survey/company',
   },
 
   getTrustedDevicesUrl(params: UrlResourcesParams) {

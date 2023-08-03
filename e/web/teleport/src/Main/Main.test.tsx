@@ -32,6 +32,8 @@ import TeleportContextE from 'e-teleport/teleportContextE';
 
 import cfg from 'e-teleport/config';
 
+import { surveyService } from 'e-teleport/services/survey';
+
 import { MainE } from './Main';
 
 const setupContext = (): TeleportContext => {
@@ -55,8 +57,25 @@ const setupContext = (): TeleportContext => {
   return ctx;
 };
 
-test('displays questionnaire if unanswered in both survey and preferences', () => {
+jest.mock('shared/hooks', () => ({
+  useAttempt: () => {
+    return {
+      attempt: { status: 'success', statusText: 'Success Text' },
+      setAttempt: jest.fn(),
+      run: (fn?: any) => Promise.resolve(fn()),
+    };
+  },
+}));
+
+test('displays questionnaire if unanswered in both survey and preferences', async () => {
   mockUserContextProviderWith(makeTestUserContext());
+
+  jest
+    .spyOn(surveyService, 'getSurveyCompanyResults')
+    .mockImplementation(() =>
+      Promise.resolve({ companyName: '', employeeCount: '' })
+    );
+
   const ctx = setupContext();
   cfg.oss.isUsageBasedBilling = true;
   localStorage.clear();
@@ -76,7 +95,8 @@ test('displays questionnaire if unanswered in both survey and preferences', () =
     </MemoryRouter>
   );
 
-  expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
+  await screen.findByText('Tell us about yourself');
+  expect(screen.getByText('Company Name')).toBeInTheDocument();
 });
 
 test('does not display questionnaire if answered via survey', () => {

@@ -1,8 +1,5 @@
 // Note: QuestionnaireProps is duplicated in OSS (teleport/Welcome/NewCredentials)
 export type QuestionnaireProps = {
-  // Full indicates if a full survey should be presented,
-  // false indicates that a partial survey is shown (some questions are skipped).
-  full: boolean;
   // Onboard indicates if the questionnaire is being shown during onboarding (true) or
   // after login (false). This impacts the submission of the form.
   onboard: boolean;

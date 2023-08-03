@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
@@ -18,6 +19,15 @@ type setSurveyResultsReq struct {
 	Resources     []string `json:"resources"`
 	Role          string   `json:"role"`
 	Team          string   `json:"team"`
+}
+
+func (p *Plugin) surveyCompanyResponsesHandler(w http.ResponseWriter, r *http.Request, params httprouter.Params, client cloud.Client) (interface{}, error) {
+	res, err := client.GetSurveyCompany(r.Context(), &cloudapi.EmptyRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
 }
 
 func (p *Plugin) surveyResultsHandler(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {

@@ -230,6 +230,16 @@ func (ac *cloudWithRoles) GetFeatures(ctx context.Context, req *v1.EmptyRequest)
 	return ac.plugin.cloudClient.GetFeatures(ctx, req)
 }
 
+// GetSurveyCompany returns the company survey responses for the account associated with the current user.
+func (ac *cloudWithRoles) GetSurveyCompany(ctx context.Context, req *v1.EmptyRequest) (*v1.SurveyCompanyResponse, error) {
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.GetSurveyCompany(ctx, req)
+}
+
 // SetSurveyResults updates the account object with onboarding survey results
 func (ac *cloudWithRoles) SetSurveyResults(ctx context.Context, req *v1.SetSurveyResultsRequest) (*v1.EmptyResponse, error) {
 	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
