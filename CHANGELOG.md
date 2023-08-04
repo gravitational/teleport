@@ -1,5 +1,13 @@
 # Changelog
 
+## 11.3.20 (08/04/23)
+
+* Updated Go to 1.20.7. [#29907](https://github.com/gravitational/teleport/pull/29907)
+* Reduced logging level in PostgreSQL backend for improved performance. [#29845](https://github.com/gravitational/teleport/pull/29845)
+* Fixed Kubernetes Legacy Proxy heartbeats. [#29736](https://github.com/gravitational/teleport/pull/29736)
+* Fixed auth locking issue. [#29710](https://github.com/gravitational/teleport/pull/29710)
+* Fixed issue where proxy_service.public_addr was not included in self-signed certs. [#29599](https://github.com/gravitational/teleport/pull/29599)
+
 ## 11.3.19 (07/27/23)
 
 * Fixed enhanced recording of missing `session.command` events when PAM enabled. [#29030](https://github.com/gravitational/teleport/issues/29030) [#29582](https://github.com/gravitational/teleport/pull/29582)
