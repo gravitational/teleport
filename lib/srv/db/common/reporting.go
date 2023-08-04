@@ -56,8 +56,8 @@ func init() {
 	_ = metrics.RegisterPrometheusCollectors(prometheusCollectorsEngine...)
 }
 
-// NewReportingEngine returns new reporting engine, which wraps a regular Engine but reports various usage metrics.
-func NewReportingEngine(cfg reporterConfig) (Engine, error) {
+// newReportingEngine returns new reporting engine, which wraps a regular Engine but reports various usage metrics.
+func newReportingEngine(cfg reporterConfig) (*reportingEngine, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

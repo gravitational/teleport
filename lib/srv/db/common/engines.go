@@ -58,6 +58,7 @@ func GetEngine(db types.Database, conf EngineConfig) (Engine, error) {
 	if err := conf.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	conf.Auth = newReportingAuth(db, conf.Auth)
 	enginesMu.RLock()
 	name := db.GetProtocol()
 	engineFn := engines[name]
@@ -65,7 +66,7 @@ func GetEngine(db types.Database, conf EngineConfig) (Engine, error) {
 	if engineFn == nil {
 		return nil, trace.NotFound("database engine %q is not registered", name)
 	}
-	engine, err := NewReportingEngine(reporterConfig{
+	engine, err := newReportingEngine(reporterConfig{
 		engine:    engineFn(conf),
 		component: teleport.ComponentDatabase,
 		database:  db,

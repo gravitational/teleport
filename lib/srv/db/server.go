@@ -1063,7 +1063,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionPreparer
 // An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
 	return common.GetEngine(sessionCtx.Database, common.EngineConfig{
-		Auth:         common.GetReportingAuth(sessionCtx.Database, s.cfg.Auth),
+		Auth:         s.cfg.Auth,
 		Audit:        audit,
 		AuthClient:   s.cfg.AuthClient,
 		CloudClients: s.cfg.CloudClients,

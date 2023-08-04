@@ -81,8 +81,13 @@ func TestRegisterEngine(t *testing.T) {
 	require.True(t, ok)
 
 	// Verify it's the one we registered.
+	// The auth will be replaced with reporting auth internally, but we can unwrap the original auth.
 	engineInst, ok := repEngine.engine.(*testEngine)
 	require.True(t, ok)
+	repAuth, ok := engineInst.ec.Auth.(*reportingAuth)
+	require.True(t, ok)
+	require.Equal(t, ec.Auth, repAuth.Auth)
+	engineInst.ec.Auth = ec.Auth
 	require.Equal(t, ec, engineInst.ec)
 }
 
