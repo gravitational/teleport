@@ -16,7 +16,7 @@ use std::io::{self, Error as IoError};
 use std::net::ToSocketAddrs;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 /// Creates a single, static tokio runtime for use by all clients.
 #[dynamic]
@@ -198,9 +198,18 @@ impl Client {
 
     pub fn read_rdp_output(&self) -> CGOReadRdpOutputReturns {
         TOKIO_RT.block_on(async {
+            // self.iron_rdp_client.framed_reader and self.iron_rdp_client.x224_processor require locks in order
+            // that we can can `&mut self` methods on them despite being constrained to an `&self` method here (see
+            // README for why Client can only have `&self` methods). That said, this is just to make the compiler happy,
+            // and we know that we're the only thread that can access these fields, so we can safely hold on to these
+            // locks for the duration of the session for efficiency's sake (rather than dropping and re-acquiring them
+            // for every turn of the loop below).
+            let mut locked_framed_reader = self.lock_framed_reader().await;
+            let mut locked_x224_processor = self.lock_x224_processor().await;
+
             loop {
                 trace!("awaiting frame from rdp server");
-                let (action, mut frame) = match self.read_pdu().await {
+                let (action, mut frame) = match Client::read_pdu(&mut locked_framed_reader).await {
                     Ok(it) => it,
                     Err(e) => {
                         error!("error reading PDU: {:?}", e);
@@ -219,7 +228,8 @@ impl Client {
 
                 match action {
                     ironrdp_pdu::Action::X224 => {
-                        let result = self.process_x224_frame(&frame).await;
+                        let result =
+                            Client::process_x224_frame(&mut locked_x224_processor, &frame).await;
                         if let Some(return_value) = self.process_active_stage_result(result).await {
                             return return_value;
                         }
@@ -367,13 +377,30 @@ impl Client {
         None
     }
 
-    async fn read_pdu(&self) -> io::Result<(ironrdp_pdu::Action, BytesMut)> {
-        self.iron_rdp_client
-            .framed_reader
-            .lock()
-            .await
-            .read_pdu()
-            .await
+    async fn lock_framed_reader(&self) -> MutexGuard<'_, FramedReader> {
+        self.iron_rdp_client.framed_reader.lock().await
+    }
+
+    async fn lock_x224_processor(&self) -> MutexGuard<'_, x224::Processor> {
+        self.iron_rdp_client.x224_processor.lock().await
+    }
+
+    async fn process_x224_frame(
+        this: &mut MutexGuard<'_, x224::Processor>,
+        frame: &[u8],
+    ) -> SessionResult<Vec<ActiveStageOutput>> {
+        let output = this.process(frame)?;
+        let mut stage_outputs = Vec::new();
+        if !output.is_empty() {
+            stage_outputs.push(ActiveStageOutput::ResponseFrame(output));
+        }
+        Ok(stage_outputs)
+    }
+
+    async fn read_pdu(
+        this: &mut MutexGuard<'_, FramedReader>,
+    ) -> io::Result<(ironrdp_pdu::Action, BytesMut)> {
+        this.read_pdu().await
     }
 
     async fn write_all(&self, buf: &[u8]) -> io::Result<()> {
@@ -383,20 +410,6 @@ impl Client {
             .await
             .write_all(buf)
             .await
-    }
-
-    async fn process_x224_frame(&self, frame: &[u8]) -> SessionResult<Vec<ActiveStageOutput>> {
-        let output = self
-            .iron_rdp_client
-            .x224_processor
-            .lock()
-            .await
-            .process(frame)?;
-        let mut stage_outputs = Vec::new();
-        if !output.is_empty() {
-            stage_outputs.push(ActiveStageOutput::ResponseFrame(output));
-        }
-        Ok(stage_outputs)
     }
 }
 
