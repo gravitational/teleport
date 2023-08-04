@@ -18,6 +18,7 @@ package utils
 
 import (
 	"errors"
+	"io"
 	"net"
 	"strings"
 	"syscall"
@@ -60,7 +61,7 @@ func IsOKNetworkError(err error) bool {
 		}
 		return true
 	}
-	return trace.IsEOF(err) || IsUseOfClosedNetworkError(err) || IsFailedToSendCloseNotifyError(err)
+	return errors.Is(err, io.EOF) || IsUseOfClosedNetworkError(err) || IsFailedToSendCloseNotifyError(err)
 }
 
 // IsConnectionRefused returns true if the given err is "connection refused" error.

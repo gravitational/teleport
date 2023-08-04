@@ -18,6 +18,8 @@ package inventory
 
 import (
 	"context"
+	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -201,7 +203,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	defer stream.Close()
 	// send upstream hello
 	if err := stream.Send(h.closeContext, upstreamHello); err != nil {
-		if trace.IsEOF(err) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		return trace.Errorf("failed to send upstream hello: %v", err)
@@ -218,7 +220,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 			return trace.BadParameter("expected downstream hello, got %T", msg)
 		}
 	case <-stream.Done():
-		if trace.IsEOF(stream.Error()) {
+		if errors.Is(stream.Error(), io.EOF) {
 			return nil
 		}
 		return trace.Wrap(stream.Error())
@@ -244,7 +246,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 				return trace.BadParameter("unexpected downstream message type: %T", m)
 			}
 		case <-stream.Done():
-			if trace.IsEOF(stream.Error()) {
+			if errors.Is(stream.Error(), io.EOF) {
 				return nil
 			}
 			return trace.Wrap(stream.Error())
