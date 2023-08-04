@@ -337,10 +337,11 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	}
 
 	if s.cfg.IngressReporter != nil {
-		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, conn)
-		defer s.cfg.IngressReporter.AuthenticatedConnectionClosed(ingress.DatabaseTLS, conn)
+		metadata := common.ReporterMetadataFromProxyCtx(proxyCtx)
+		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, metadata, conn)
+		defer s.cfg.IngressReporter.AuthenticatedConnectionClosed(ingress.DatabaseTLS, metadata, conn)
 	}
-	if enterprise.ProtocolValidation(proxyCtx.Identity.RouteToDatabase.Protocol); err != nil {
+	if err = enterprise.ProtocolValidation(proxyCtx.Identity.RouteToDatabase.Protocol); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -95,11 +95,6 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		return trace.Wrap(err)
 	}
 
-	if p.IngressReporter != nil {
-		p.IngressReporter.ConnectionAuthenticated(ingress.MySQL, clientConn)
-		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.MySQL, clientConn)
-	}
-
 	clientIP, err := utils.ClientIPFromConn(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -118,6 +113,12 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if p.IngressReporter != nil {
+		metadata := common.ReporterMetadataFromProxyCtx(proxyCtx)
+		p.IngressReporter.ConnectionAuthenticated(ingress.MySQL, metadata, clientConn)
+		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.MySQL, metadata, clientConn)
 	}
 
 	serviceConn, err := p.Service.Connect(ctx, proxyCtx, clientConn.RemoteAddr(), clientConn.LocalAddr())

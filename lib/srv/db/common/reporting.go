@@ -16,6 +16,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
@@ -233,4 +234,15 @@ func GetMessagesFromClientMetric(db types.Database) prometheus.Counter {
 // GetMessagesFromServerMetric increments the messages from server metric.
 func GetMessagesFromServerMetric(db types.Database) prometheus.Counter {
 	return messagesFromServer.WithLabelValues(teleport.ComponentDatabase, db.GetProtocol(), db.GetType())
+}
+
+// ReporterMetadataFromProxyCtx returns string suitable for passing as a value for "service_metadata" label in
+// metrics "authenticated_active_connections" and "authenticated_accepted_connections_total"
+// declared by ingress.Reporter.
+func ReporterMetadataFromProxyCtx(proxyCtx *ProxyContext) string {
+	if len(proxyCtx.Servers) > 0 {
+		db := proxyCtx.Servers[0].GetDatabase()
+		return fmt.Sprintf("%v;%v", db.GetProtocol(), db.GetType())
+	}
+	return fmt.Sprintf("%v;%v", proxyCtx.Identity.RouteToDatabase.Protocol, "unknown")
 }

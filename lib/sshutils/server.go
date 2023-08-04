@@ -497,10 +497,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 
-	if s.ingressReporter != nil {
-		s.ingressReporter.ConnectionAuthenticated(s.ingressService, conn)
-		defer s.ingressReporter.AuthenticatedConnectionClosed(s.ingressService, conn)
-	}
 	ctx := tracing.WithPropagationContext(context.Background(), wrappedConn.traceContext)
 
 	certType := "unknown"
@@ -511,6 +507,13 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	if certType == utils.ExtIntCertTypeUser {
 		s.trackUserConnections(1)
 		defer s.trackUserConnections(-1)
+	}
+
+	if s.ingressReporter != nil {
+		metadata := fmt.Sprintf("%v;%v;%v", certType, string(sconn.ClientVersion()), string(sconn.ServerVersion()))
+
+		s.ingressReporter.ConnectionAuthenticated(s.ingressService, metadata, conn)
+		defer s.ingressReporter.AuthenticatedConnectionClosed(s.ingressService, metadata, conn)
 	}
 
 	user := sconn.User()

@@ -18,6 +18,8 @@ package ingress
 
 import (
 	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -26,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // Constants for each ingress service.
@@ -76,15 +79,33 @@ var (
 	authenticatedConnectionsAccepted = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "teleport",
 		Name:      "authenticated_accepted_connections_total",
-	}, commonLabels)
+	}, []string{"ingress_path", "ingress_service", "service_metadata"})
 
 	// authenticatedConnectionsActive measures the current number of active connections that
 	// successfully authenticated.
 	authenticatedConnectionsActive = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "teleport",
 		Name:      "authenticated_active_connections",
-	}, commonLabels)
+	}, []string{"ingress_path", "ingress_service", "service_metadata"})
 )
+
+func metadataFromClientCert(clientCert *x509.Certificate) string {
+	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
+	if err != nil {
+		return "unknown"
+	}
+
+	return fmt.Sprintf("%v;%v;%v;%v;%v", identity.TeleportCluster, identity.RouteToCluster, identity.KubernetesCluster, identity.RouteToApp.Name, identity.RouteToDatabase.ServiceName)
+}
+
+func metadataFromTLSConnection(conn *tls.Conn) string {
+	peers := conn.ConnectionState().PeerCertificates
+	if len(peers) == 0 {
+		return "unknown"
+	}
+
+	return metadataFromClientCert(peers[0])
+}
 
 // HTTPConnStateReporter returns a http connection event handler function to track
 // connection metrics for an http server. This only tracks tls connections.
@@ -116,7 +137,8 @@ func HTTPConnStateReporter(service string, r *Reporter) func(net.Conn, http.Conn
 			if len(tlsConn.ConnectionState().PeerCertificates) == 0 {
 				return
 			}
-			r.ConnectionAuthenticated(service, conn)
+
+			r.ConnectionAuthenticated(service, metadataFromTLSConnection(tlsConn), conn)
 		case http.StateClosed, http.StateHijacked:
 			tlsConn, ok := getTLSConn(conn)
 			if !ok {
@@ -135,7 +157,8 @@ func HTTPConnStateReporter(service string, r *Reporter) func(net.Conn, http.Conn
 			if len(tlsConn.ConnectionState().PeerCertificates) == 0 {
 				return
 			}
-			r.AuthenticatedConnectionClosed(service, conn)
+
+			r.AuthenticatedConnectionClosed(service, metadataFromTLSConnection(tlsConn), conn)
 		}
 	}
 }
@@ -193,17 +216,17 @@ func (r *Reporter) ConnectionClosed(service string, conn net.Conn) {
 
 // ConnectionAuthenticated reports a new authenticated connection, AuthenticatedConnectionClosed must
 // be called when the connection is closed.
-func (r *Reporter) ConnectionAuthenticated(service string, conn net.Conn) {
+func (r *Reporter) ConnectionAuthenticated(service string, metadata string, conn net.Conn) {
 	path := r.getIngressPath(conn)
-	authenticatedConnectionsAccepted.WithLabelValues(path, service).Inc()
-	authenticatedConnectionsActive.WithLabelValues(path, service).Inc()
+	authenticatedConnectionsAccepted.WithLabelValues(path, service, metadata).Inc()
+	authenticatedConnectionsActive.WithLabelValues(path, service, metadata).Inc()
 }
 
 // AuthenticatedConnectionClosed reports a closed authenticated connection, this should only be called
 // after ConnectionAuthenticated.
-func (r *Reporter) AuthenticatedConnectionClosed(service string, conn net.Conn) {
+func (r *Reporter) AuthenticatedConnectionClosed(service string, metadata string, conn net.Conn) {
 	path := r.getIngressPath(conn)
-	authenticatedConnectionsActive.WithLabelValues(path, service).Dec()
+	authenticatedConnectionsActive.WithLabelValues(path, service, metadata).Dec()
 }
 
 // getIngressPath determines the ingress path of a given connection.

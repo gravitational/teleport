@@ -41,29 +41,31 @@ func TestIngressReporter(t *testing.T) {
 		authenticatedConnectionsActive.Reset()
 	})
 
+	const metadata = "foo;bar;baz"
+
 	reporter.ConnectionAccepted(SSH, conn)
 	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 1, getActiveConnections(PathALPN, SSH))
-	require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathALPN, SSH))
-	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH))
+	require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathALPN, SSH, metadata))
+	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH, metadata))
 
 	reporter.ConnectionClosed(SSH, conn)
 	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 0, getActiveConnections(PathALPN, SSH))
-	require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathALPN, SSH))
-	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH))
+	require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathALPN, SSH, metadata))
+	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH, metadata))
 
-	reporter.ConnectionAuthenticated(SSH, conn)
+	reporter.ConnectionAuthenticated(SSH, metadata, conn)
 	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 0, getActiveConnections(PathALPN, SSH))
-	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathALPN, SSH))
-	require.Equal(t, 1, getAuthenticatedActiveConnections(PathALPN, SSH))
+	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathALPN, SSH, metadata))
+	require.Equal(t, 1, getAuthenticatedActiveConnections(PathALPN, SSH, metadata))
 
-	reporter.AuthenticatedConnectionClosed(SSH, conn)
+	reporter.AuthenticatedConnectionClosed(SSH, metadata, conn)
 	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
 	require.Equal(t, 0, getActiveConnections(PathALPN, SSH))
-	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathALPN, SSH))
-	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH))
+	require.Equal(t, 1, getAuthenticatedAcceptedConnections(PathALPN, SSH, metadata))
+	require.Equal(t, 0, getAuthenticatedActiveConnections(PathALPN, SSH, metadata))
 }
 
 func TestPath(t *testing.T) {
@@ -104,25 +106,25 @@ func getActiveConnections(path, service string) int {
 	return getGaugeValue(activeConnections, path, service)
 }
 
-func getAuthenticatedAcceptedConnections(path, service string) int {
-	return getCounterValue(authenticatedConnectionsAccepted, path, service)
+func getAuthenticatedAcceptedConnections(path, service, metadata string) int {
+	return getCounterValue(authenticatedConnectionsAccepted, path, service, metadata)
 }
 
-func getAuthenticatedActiveConnections(path, service string) int {
-	return getGaugeValue(authenticatedConnectionsActive, path, service)
+func getAuthenticatedActiveConnections(path, service, metadata string) int {
+	return getGaugeValue(authenticatedConnectionsActive, path, service, metadata)
 }
 
-func getCounterValue(metric *prometheus.CounterVec, path, service string) int {
+func getCounterValue(metric *prometheus.CounterVec, values ...string) int {
 	var m = &prommodel.Metric{}
-	if err := metric.WithLabelValues(path, service).Write(m); err != nil {
+	if err := metric.WithLabelValues(values...).Write(m); err != nil {
 		return 0
 	}
 	return int(m.Counter.GetValue())
 }
 
-func getGaugeValue(metric *prometheus.GaugeVec, path, service string) int {
+func getGaugeValue(metric *prometheus.GaugeVec, values ...string) int {
 	var m = &prommodel.Metric{}
-	if err := metric.WithLabelValues(path, service).Write(m); err != nil {
+	if err := metric.WithLabelValues(values...).Write(m); err != nil {
 		return 0
 	}
 	return int(m.Gauge.GetValue())
@@ -183,12 +185,15 @@ func TestHTTPConnStateReporter(t *testing.T) {
 				authenticatedConnectionsActive.Reset()
 			}()
 
+			metadata := "unknown"
+
 			require.Equal(t, 0, getAcceptedConnections(PathDirect, Web))
 			require.Equal(t, 0, getActiveConnections(PathDirect, Web))
-			require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathDirect, Web))
-			require.Equal(t, 0, getAuthenticatedActiveConnections(PathDirect, Web))
+			require.Equal(t, 0, getAuthenticatedAcceptedConnections(PathDirect, Web, metadata))
+			require.Equal(t, 0, getAuthenticatedActiveConnections(PathDirect, Web, metadata))
 
 			client := localTLS.NewClient()
+
 			if tc.clientCert {
 				client.Transport = &http.Transport{
 					TLSClientConfig: &tls.Config{
@@ -197,6 +202,7 @@ func TestHTTPConnStateReporter(t *testing.T) {
 					},
 				}
 			}
+
 			resp, err := client.Get("https://" + l.Addr().String())
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -206,8 +212,8 @@ func TestHTTPConnStateReporter(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, 1, getAcceptedConnections(PathDirect, Web))
 			require.Equal(t, 1, getActiveConnections(PathDirect, Web))
-			require.Equal(t, tc.authConns, getAuthenticatedAcceptedConnections(PathDirect, Web))
-			require.Equal(t, tc.authConns, getAuthenticatedActiveConnections(PathDirect, Web))
+			require.Equal(t, tc.authConns, getAuthenticatedAcceptedConnections(PathDirect, Web, metadata))
+			require.Equal(t, tc.authConns, getAuthenticatedActiveConnections(PathDirect, Web, metadata))
 			require.NoError(t, resp.Body.Close())
 
 			client.CloseIdleConnections()
@@ -215,8 +221,8 @@ func TestHTTPConnStateReporter(t *testing.T) {
 			require.Equal(t, http.StateClosed, state)
 			require.Equal(t, 1, getAcceptedConnections(PathDirect, Web))
 			require.Equal(t, 0, getActiveConnections(PathDirect, Web))
-			require.Equal(t, tc.authConns, getAuthenticatedAcceptedConnections(PathDirect, Web))
-			require.Equal(t, 0, getAuthenticatedActiveConnections(PathDirect, Web))
+			require.Equal(t, tc.authConns, getAuthenticatedAcceptedConnections(PathDirect, Web, metadata))
+			require.Equal(t, 0, getAuthenticatedActiveConnections(PathDirect, Web, metadata))
 
 		})
 	}

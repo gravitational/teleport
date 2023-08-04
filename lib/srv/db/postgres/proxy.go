@@ -95,8 +95,9 @@ func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, 
 	}
 
 	if p.IngressReporter != nil {
-		p.IngressReporter.ConnectionAuthenticated(ingress.Postgres, clientConn)
-		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.Postgres, clientConn)
+		metadata := common.ReporterMetadataFromProxyCtx(proxyCtx)
+		p.IngressReporter.ConnectionAuthenticated(ingress.Postgres, metadata, clientConn)
+		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.Postgres, metadata, clientConn)
 	}
 
 	serviceConn, err := p.Service.Connect(ctx, proxyCtx, clientConn.RemoteAddr(), clientConn.LocalAddr())
