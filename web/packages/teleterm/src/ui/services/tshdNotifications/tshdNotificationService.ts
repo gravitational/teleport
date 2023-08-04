@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2023 Gravitational, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,27 +31,31 @@ export class TshdNotificationsService {
         request.cannotProxyGatewayConnection;
       const gateway = this.clustersService.findGateway(gatewayUri);
       const clusterName = routing.parseClusterName(targetUri);
-      let shortTargetDesc: string;
-      let longTargetDesc: string;
+      let targetName: string;
+      let targetUser: string;
+      let targetDesc: string;
 
+      // Try to get target name and user from gateway object.
       if (gateway) {
-        shortTargetDesc = `${gateway.targetName} as ${gateway.targetUser}`;
-        longTargetDesc = shortTargetDesc;
+        targetName = gateway.targetName;
+        targetUser = gateway.targetUser;
       } else {
-        const targetName = routing.parseDbUri(targetUri)?.params['dbId'];
+        // Try to get target name from target URI.
+        targetName =
+          routing.parseDbUri(targetUri)?.params['dbId'] ||
+          routing.parseKubeUri(targetUri)?.params['kubeId'] ||
+          targetUri;
+      }
 
-        if (targetName) {
-          shortTargetDesc = targetName;
-          longTargetDesc = shortTargetDesc;
-        } else {
-          shortTargetDesc = 'a database server';
-          longTargetDesc = `a database server under ${targetUri}`;
-        }
+      if (targetUser) {
+        targetDesc = `${targetName} as ${targetUser}`;
+      } else {
+        targetDesc = targetName;
       }
 
       const notificationContent = {
-        title: `Cannot connect to ${shortTargetDesc} (${clusterName})`,
-        description: `You tried to connect to ${longTargetDesc} but we encountered an unexpected error: ${error}`,
+        title: `Cannot connect to ${targetDesc} (${clusterName})`,
+        description: `You tried to connect to ${targetDesc} but we encountered an unexpected error: ${error}`,
       };
 
       this.notificationsService.notifyError(notificationContent);

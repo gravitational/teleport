@@ -47,6 +47,10 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
+
+	// CloneAny is used to return a clone of the AppServer and match the CloneAny interface
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneAny() any
 	// GetApp returns the app this app server proxies.
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
@@ -290,6 +294,10 @@ func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
 	return utils.CloneProtoMsg(s)
+}
+
+func (s *AppServerV3) CloneAny() any {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

@@ -20,6 +20,7 @@ import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
 import {
+  OnboardUserPreferences,
   ThemePreference,
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
@@ -150,6 +151,15 @@ const storage = {
     }
 
     return ThemePreference.Light;
+  },
+
+  getOnboardUserPreference(): OnboardUserPreferences {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.onboard;
+    }
+
+    return { preferredResources: [] };
   },
 
   // DELETE IN 15 (ryan)
