@@ -1,6 +1,6 @@
 use crate::{
-    handle_remote_fx_frame, util::to_c_string, CGODisconnectCode, CGOErrCode, CGOMousePointerEvent,
-    CGOPointerButton, CGOPointerWheel, CGOReadRdpOutputReturns,
+    handle_remote_fx_frame, CGODisconnectCode, CGOErrCode, CGOMousePointerEvent, CGOPointerButton,
+    CGOPointerWheel,
 };
 use bytes::BytesMut;
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
@@ -14,6 +14,7 @@ use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use static_init::dynamic;
 use std::io::{self, Error as IoError};
 use std::net::ToSocketAddrs;
+use std::sync::mpsc::channel;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::Mutex;
@@ -195,19 +196,23 @@ impl Client {
         }
     }
 
-    pub fn read_rdp_output(&self) -> CGOReadRdpOutputReturns {
-        TOKIO_RT.block_on(async {
+    pub fn read_rdp_output(&'static self) -> ReadRdpOutputReturns {
+        let (tx, rx) = channel::<ReadRdpOutputReturns>();
+
+        TOKIO_RT.spawn(async move {
             loop {
                 trace!("awaiting frame from rdp server");
                 let (action, mut frame) = match self.read_pdu().await {
                     Ok(it) => it,
                     Err(e) => {
                         error!("error reading PDU: {:?}", e);
-                        return CGOReadRdpOutputReturns {
-                            user_message: to_c_string("error reading PDU").unwrap(),
+                        tx.send(ReadRdpOutputReturns {
+                            user_message: "error reading PDU".to_string(),
                             disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                             err_code: CGOErrCode::ErrCodeFailure,
-                        };
+                        })
+                        .unwrap();
+                        return;
                     }
                 };
                 trace!(
@@ -220,7 +225,8 @@ impl Client {
                     ironrdp_pdu::Action::X224 => {
                         let result = self.process_x224_frame(&frame).await;
                         if let Some(return_value) = self.process_active_stage_result(result).await {
-                            return return_value;
+                            tx.send(return_value).unwrap();
+                            return;
                         }
                     }
                     ironrdp_pdu::Action::FastPath => {
@@ -231,22 +237,34 @@ impl Client {
                             CGOErrCode::ErrCodeSuccess => continue,
                             err => {
                                 error!("failed to process fastpath frame: {:?}", err);
-                                return CGOReadRdpOutputReturns {
-                                    user_message: to_c_string("Failed to process fastpath frame")
-                                        .unwrap(),
+                                tx.send(ReadRdpOutputReturns {
+                                    user_message: "Failed to process fastpath frame".to_string(),
                                     disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                                     err_code: err,
-                                };
+                                })
+                                .unwrap();
+                                return;
                             }
                         }
                     }
                 };
             }
-        })
+        });
+
+        match rx.recv() {
+            Ok(ret) => ret,
+            Err(err) => ReadRdpOutputReturns {
+                user_message: format!("Error receiving from read thread: {:?}", err),
+                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                err_code: CGOErrCode::ErrCodeFailure,
+            },
+        }
     }
 
-    pub fn write_rdp_pointer(&self, pointer: CGOMousePointerEvent) -> CGOErrCode {
-        TOKIO_RT.block_on(async {
+    pub fn write_rdp_pointer(&'static self, pointer: CGOMousePointerEvent) -> CGOErrCode {
+        let (tx, rx) = channel::<CGOErrCode>();
+
+        TOKIO_RT.spawn(async move {
             let mut fastpath_events = Vec::new();
             // TODO(isaiah): impl From for this
             let mut flags = match pointer.button {
@@ -287,20 +305,38 @@ impl Client {
 
             self.write_all(&data).await.unwrap(); // todo(isaiah): handle error
 
-            CGOErrCode::ErrCodeSuccess
-        })
+            tx.send(CGOErrCode::ErrCodeSuccess).unwrap();
+        });
+
+        match rx.recv() {
+            Ok(ret) => ret,
+            Err(err) => {
+                error!("Error receiving from write thread: {:?}", err);
+                CGOErrCode::ErrCodeFailure
+            }
+        }
     }
 
-    pub fn handle_tdp_rdp_response_pdu(&self, res: Vec<u8>) -> CGOErrCode {
-        TOKIO_RT.block_on(async {
+    pub fn handle_tdp_rdp_response_pdu(&'static self, res: Vec<u8>) -> CGOErrCode {
+        let (tx, rx) = channel::<CGOErrCode>();
+
+        TOKIO_RT.spawn(async move {
             match self
                 .process_active_stage_result(Ok(vec![ActiveStageOutput::ResponseFrame(res)]))
                 .await
             {
-                Some(ret) => ret.err_code,
-                None => CGOErrCode::ErrCodeSuccess,
+                Some(ret) => tx.send(ret.err_code).unwrap(),
+                None => tx.send(CGOErrCode::ErrCodeSuccess).unwrap(),
             }
-        })
+        });
+
+        match rx.recv() {
+            Ok(ret) => ret,
+            Err(err) => {
+                error!("Error receiving while handling TDP RDP response: {:?}", err);
+                CGOErrCode::ErrCodeFailure
+            }
+        }
     }
 
     /// Iterates through any response frames in result, sending them to the RDP server.
@@ -309,7 +345,7 @@ impl Client {
     pub async fn process_active_stage_result(
         &self,
         result: SessionResult<Vec<ActiveStageOutput>>,
-    ) -> Option<CGOReadRdpOutputReturns> {
+    ) -> Option<ReadRdpOutputReturns> {
         match result {
             Ok(outputs) => {
                 for output in outputs {
@@ -321,12 +357,8 @@ impl Client {
                                     continue;
                                 }
                                 Err(e) => {
-                                    return Some(CGOReadRdpOutputReturns {
-                                        user_message: to_c_string(&format!(
-                                            "Failed to write frame: {}",
-                                            e
-                                        ))
-                                        .unwrap(),
+                                    return Some(ReadRdpOutputReturns {
+                                        user_message: format!("Failed to write frame: {}", e),
                                         disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                                         err_code: CGOErrCode::ErrCodeFailure,
                                     });
@@ -334,16 +366,16 @@ impl Client {
                             }
                         }
                         ActiveStageOutput::Terminate => {
-                            return Some(CGOReadRdpOutputReturns {
-                                user_message: to_c_string("RDP session terminated").unwrap(),
+                            return Some(ReadRdpOutputReturns {
+                                user_message: "RDP session terminated".to_string(),
                                 disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                                 err_code: CGOErrCode::ErrCodeSuccess,
                             });
                         }
                         ActiveStageOutput::GraphicsUpdate(_) => {
                             error!("unexpected GraphicsUpdate, this should be handled on the client side");
-                            return Some(CGOReadRdpOutputReturns {
-                                user_message: to_c_string("Server error").unwrap(),
+                            return Some(ReadRdpOutputReturns {
+                                user_message: "Server error".to_string(),
                                 disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                                 err_code: CGOErrCode::ErrCodeFailure,
                             });
@@ -353,8 +385,8 @@ impl Client {
             }
             Err(err) => {
                 error!("failed to process frame: {}", err);
-                return Some(CGOReadRdpOutputReturns {
-                    user_message: to_c_string("Failed to process frame").unwrap(),
+                return Some(ReadRdpOutputReturns {
+                    user_message: "Failed to process frame".to_string(),
                     disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                     err_code: CGOErrCode::ErrCodeFailure,
                 });
@@ -429,6 +461,12 @@ impl From<RdpError> for ConnectError {
     fn from(e: RdpError) -> ConnectError {
         ConnectError::Rdp(e)
     }
+}
+
+pub struct ReadRdpOutputReturns {
+    pub user_message: String,
+    pub disconnect_code: CGODisconnectCode,
+    pub err_code: CGOErrCode,
 }
 
 pub struct IronRDPClient {

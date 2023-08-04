@@ -35,7 +35,7 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
-use client::{Client, ConnectParams};
+use client::{Client, ConnectParams, ReadRdpOutputReturns};
 use ironrdp_session::image::DecodedImage;
 use rdp::core::event::*;
 use rdp::model::error::{Error as RdpError, RdpResult};
@@ -340,7 +340,7 @@ where
         }
     };
 
-    client.read_rdp_output()
+    client.read_rdp_output().into()
 }
 
 /// # Safety
@@ -553,6 +553,16 @@ pub struct CGOReadRdpOutputReturns {
     user_message: *const c_char,
     disconnect_code: CGODisconnectCode,
     err_code: CGOErrCode,
+}
+
+impl From<ReadRdpOutputReturns> for CGOReadRdpOutputReturns {
+    fn from(r: ReadRdpOutputReturns) -> CGOReadRdpOutputReturns {
+        CGOReadRdpOutputReturns {
+            user_message: to_c_string(&r.user_message).unwrap(),
+            disconnect_code: r.disconnect_code,
+            err_code: r.err_code,
+        }
+    }
 }
 
 #[repr(C)]
