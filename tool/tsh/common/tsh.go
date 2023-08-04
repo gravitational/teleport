@@ -2594,10 +2594,11 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 		row = append(row, proxy, cluster)
 	}
 
+	labels := common.FormatLabels(node.GetAllLabels(), verbose)
 	if verbose {
-		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), node.LabelsString())
+		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), labels)
 	} else {
-		row = append(row, node.GetHostname(), getAddr(node), sortedLabels(node.GetAllLabels()))
+		row = append(row, node.GetHostname(), getAddr(node), labels)
 	}
 	return row
 }
@@ -2623,28 +2624,6 @@ func printNodesAsText(output io.Writer, nodes []types.Server, verbose bool) erro
 	}
 
 	return nil
-}
-
-func sortedLabels(labels map[string]string) string {
-	var teleportNamespaced []string
-	var namespaced []string
-	var result []string
-	for key, val := range labels {
-		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
-			teleportNamespaced = append(teleportNamespaced, key)
-			continue
-		}
-		if strings.Contains(key, "/") {
-			namespaced = append(namespaced, fmt.Sprintf("%s=%s", key, val))
-			continue
-		}
-		result = append(result, fmt.Sprintf("%s=%s", key, val))
-	}
-	sort.Strings(result)
-	sort.Strings(namespaced)
-	sort.Strings(teleportNamespaced)
-	namespaced = append(namespaced, teleportNamespaced...)
-	return strings.Join(append(result, namespaced...), ",")
 }
 
 func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
@@ -2692,10 +2671,11 @@ func getAppRow(proxy, cluster string, app types.Application, active []tlsca.Rout
 		}
 	}
 
+	labels := common.FormatLabels(app.GetAllLabels(), verbose)
 	if verbose {
-		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels)
 	} else {
-		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), labels)
 	}
 
 	return row
@@ -2886,6 +2866,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		row = append(row, proxy, cluster)
 	}
 
+	labels := common.FormatLabels(database.GetAllLabels(), verbose)
 	if verbose {
 		row = append(row,
 			printName,
@@ -2894,7 +2875,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			database.GetType(),
 			database.GetURI(),
 			formatUsersForDB(database, accessChecker),
-			database.LabelsString(),
+			labels,
 			connect,
 		)
 	} else {
@@ -2902,7 +2883,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			printName,
 			database.GetDescription(),
 			formatUsersForDB(database, accessChecker),
-			formatDatabaseLabels(database),
+			labels,
 			connect,
 		)
 	}
@@ -2952,14 +2933,6 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 		)
 	}
 	fmt.Println(t.AsBuffer().String())
-}
-
-func formatDatabaseLabels(database types.Database) string {
-	labels := database.GetAllLabels()
-	// Hide the origin and discovered-name labels unless printing verbose table.
-	delete(labels, types.OriginLabel)
-	delete(labels, types.DiscoveredNameLabel)
-	return sortedLabels(labels)
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
