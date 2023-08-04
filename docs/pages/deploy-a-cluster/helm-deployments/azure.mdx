@@ -196,7 +196,7 @@ $ helm install <Var name="teleport-release" /> teleport/teleport-cluster \
 Once the chart is installed, you can use `kubectl` commands to view the deployment:
 
 ```code
-$ kubectl --namespace teleport get all
+$ kubectl --namespace <Var name="teleport-ns" /> get all
 
 NAME                                 READY   STATUS    RESTARTS   AGE
 pod/teleport-auth-57989d4cb-4q2ds    1/1     Running   0          22h
@@ -225,8 +225,8 @@ We'll now set up DNS `A` records for `teleport.example.com` and `*.teleport.exam
 
 ```code
 # Change these parameters if you altered them above
-$ NAMESPACE=teleport
-$ RELEASE_NAME=teleport
+$ NAMESPACE=<Var name="teleport-ns" /> 
+$ RELEASE_NAME=<Var name="teleport-release" />
 $ PREFIX=teleport
 $ ZONE=example.com
 $ ZONE_RG=dns-rg
@@ -242,7 +242,7 @@ so we can run the command using `kubectl`:
 
 <ScopedBlock scope={["oss"]}>
 ```code
-$ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor
+$ kubectl --namespace <Var name="teleport-ns" /> exec deploy/<Var name="teleport-release" />-auth -- tctl users add test --roles=access,editor
 
 User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
@@ -252,7 +252,7 @@ NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users c
 </ScopedBlock>
 <ScopedBlock scope={["enterprise", "cloud"]}>
 ```code
-$ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor,reviewer
+$ kubectl --namespace <Var name="teleport-ns" /> exec deploy/<Var name="teleport-release" />-auth -- tctl users add test --roles=access,editor,reviewer
 
 User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
@@ -286,8 +286,8 @@ Here's an example where we set the chart to use 3 replicas:
   Upgrade the deployment with the values from your `azure-values.yaml` file using this command:
 
   ```code
-  $ helm upgrade teleport teleport/teleport-cluster \
-    --namespace teleport \
+  $ helm upgrade <Var name="teleport-release" /> teleport/teleport-cluster \
+    --namespace <Var name="teleport-ns" /> \
     -f azure-values.yaml
   ```
 
@@ -296,8 +296,8 @@ Here's an example where we set the chart to use 3 replicas:
   Run this command, editing your command line parameters as appropriate:
 
   ```code
-  $ helm upgrade teleport teleport/teleport-cluster \
-    --namespace teleport \
+  $ helm upgrade <Var name="teleport-release" /> teleport/teleport-cluster \
+    --namespace <Var name="teleport-ns" /> \
     --set highAvailability.replicaCount=3
   ```
   </TabItem>
@@ -313,7 +313,7 @@ Here's an example where we set the chart to use 3 replicas:
 To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
 
 ```code
-$ helm --namespace teleport uninstall teleport
+$ helm --namespace <Var name="teleport-ns" /> uninstall <Var name="teleport-release" />
 ```
 
 ## Next steps
