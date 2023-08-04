@@ -57,6 +57,35 @@ $ tctl users add myuser --roles=requester
 as `myuser` for the first time, registering credentials as configured for your
 Teleport cluster.
 
+Here is an example file which defines a role called `reviewer` that can
+review requests for the `editor` role, plus a `requester` role that can
+request this role.
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: reviewer
+spec:
+  allow:
+    review_requests:
+      roles: ['editor']
+---
+kind: role
+version: v5
+metadata:
+  name: requester
+spec:
+  allow:
+    request:
+      roles: ['editor']
+      thresholds:
+        - approve: 1
+          deny: 1
+      annotations:
+        schedules: ["Teleport Access Request Notifications"]
+```
+
 ## Step 3/5. Set up a Opsgenie API key
 
 Generate an API key that the Opsgenie plugin will use to create and modify
