@@ -3275,20 +3275,20 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 func (a *Server) getWebSessionTTL(accessRequest types.AccessRequest) time.Time {
 	webSessionTTL := accessRequest.GetAccessExpiry()
 	sessionTTL := accessRequest.GetSessionTLL()
-
-	// If the sessionTTL is not set, use the session duration.
-	if !sessionTTL.IsZero() {
-		// Session TTL contains the time when the session should end.
-		// We need to subtract it from the creation time to get the
-		// session duration.
-		sessionDuration := sessionTTL.Sub(accessRequest.GetCreationTime())
-		// Calculate the adjusted session TTL.
-		adjustedSessionTTL := a.clock.Now().UTC().Add(sessionDuration)
-		if webSessionTTL.After(adjustedSessionTTL) {
-			webSessionTTL = adjustedSessionTTL
-		}
+	if sessionTTL.IsZero() {
+		return webSessionTTL
 	}
 
+	// Session TTL contains the time when the session should end.
+	// We need to subtract it from the creation time to get the
+	// session duration.
+	sessionDuration := sessionTTL.Sub(accessRequest.GetCreationTime())
+	// Calculate the adjusted session TTL.
+	adjustedSessionTTL := a.clock.Now().UTC().Add(sessionDuration)
+	// Adjusted TTL can't exceed webSessionTTL.
+	if adjustedSessionTTL.Before(webSessionTTL) {
+		return adjustedSessionTTL
+	}
 	return webSessionTTL
 }
 
