@@ -98,7 +98,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 		require.NoError(t, err)
 		r.Header.Add("Upgrade", "alpn")
-		r.Header.Add("X-Forwarded-For", xForwardedFor)
+		r.Header.Add("X-Forwarded-For", expectedIP)
 
 		go func() {
 			// serverConn will be hijacked.
