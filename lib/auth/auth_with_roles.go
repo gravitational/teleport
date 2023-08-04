@@ -1612,7 +1612,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			sort.SliceStable(filteredResources, func(i, j int) bool {
 				return unifiedNameCompare(filteredResources[i], filteredResources[j], isDesc)
 			})
-		case types.ResourceSpecType:
+		case types.ResourceSpecKind:
 			sort.SliceStable(filteredResources, func(i, j int) bool {
 				return stringCompare(filteredResources[i].GetKind(), filteredResources[j].GetKind(), isDesc)
 			})

@@ -38,7 +38,7 @@ export function Resources() {
     attempt,
     fetchedData,
     fetchMore,
-    filtering: { pathname, params, setParams, replaceHistory },
+    filtering: { pathname, params, setParams, setSort, replaceHistory },
   } = useResources(teleCtx);
   const observed = React.useRef(null);
 
@@ -65,7 +65,7 @@ export function Resources() {
         pathname={pathname}
         replaceHistory={replaceHistory}
       />
-      <FilterPanel />
+      <FilterPanel sort={params.sort} setSort={setSort} />
       {attempt.status === 'failed' && (
         <ErrorMessage message={attempt.statusText} />
       )}
