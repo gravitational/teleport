@@ -48,7 +48,7 @@ export function FilterPanel({
   );
 
   const onKindsChanged = (filter: any) => {
-    setParams({ ...params, kinds: filter.map(f => f.value) });
+    setParams({ ...params, kinds: (filter ?? []).map(f => f.value) });
     // TODO(bl-nero): We really shouldn't have to do it, that's what setParams
     // should be for.
     const isAdvancedSearch = !!params.query;
