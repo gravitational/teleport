@@ -45,14 +45,9 @@ type FakeOpsgenie struct {
 	newAlerts      chan Alert
 	alertUpdates   chan Alert
 	// Alert notes
-	newAlertNotes      chan FakeAlertNote
-	alertNoteIDCounter uint64
+	newAlertNotes chan FakeAlertNote
 	// Responders
 	responderIDCounter uint64
-	// Users
-	userIDCounter uint64
-	// OnCalls
-	onCallIDCounter uint64
 }
 
 type QueryValues url.Values
@@ -72,7 +67,6 @@ func (q QueryValues) GetAsSet(name string) stringset.StringSet {
 }
 
 type fakeResponderByNameKey string
-type fakeUserByEmailKey string
 
 type FakeAlertNote struct {
 	AlertID string
