@@ -30,6 +30,7 @@ import useTeleport from 'teleport/useTeleport';
 import { useResources } from './useResources';
 import { ResourceCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
+import { FilterPanel } from './FilterPanel';
 
 export function Resources() {
   const teleCtx = useTeleport();
@@ -64,6 +65,7 @@ export function Resources() {
         pathname={pathname}
         replaceHistory={replaceHistory}
       />
+      <FilterPanel />
       {attempt.status === 'failed' && (
         <ErrorMessage message={attempt.statusText} />
       )}
