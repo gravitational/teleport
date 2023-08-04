@@ -298,7 +298,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	swapped, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
-				" WHERE key = $4 AND value = $5 AND (expires IS NULL OR expires > now())",
+				" WHERE kv.key = $4 AND kv.value = $5 AND (kv.expires IS NULL OR kv.expires > now())",
 			replaceWith.Value, zeronull.Timestamptz(replaceWith.Expires.UTC()), revision,
 			replaceWith.Key, expected.Value)
 		if err != nil {
@@ -322,7 +322,7 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
 		tag, err := b.pool.Exec(ctx,
 			"UPDATE kv SET value = $1, expires = $2, revision = $3"+
-				" WHERE key = $4 AND (expires IS NULL OR expires > now())",
+				" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
 			i.Value, zeronull.Timestamptz(i.Expires.UTC()), revision, i.Key)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -347,8 +347,8 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		batch.Queue("SET transaction_read_only TO on")
 
 		var item *backend.Item
-		batch.Queue("SELECT value, expires, revision FROM kv"+
-			" WHERE key = $1 AND (expires IS NULL OR expires > now())", key,
+		batch.Queue("SELECT kv.value, kv.expires, kv.revision FROM kv"+
+			" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", key,
 		).QueryRow(func(row pgx.Row) error {
 			var value []byte
 			var expires zeronull.Timestamptz
@@ -400,9 +400,9 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 
 		var items []backend.Item
 		batch.Queue(
-			"SELECT key, value, expires, revision FROM kv"+
-				" WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > now())"+
-				" ORDER BY key LIMIT $3",
+			"SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv"+
+				" WHERE kv.key BETWEEN $1 AND $2 AND (kv.expires IS NULL OR kv.expires > now())"+
+				" ORDER BY kv.key LIMIT $3",
 			startKey, endKey, limit,
 		).Query(func(rows pgx.Rows) error {
 			var err error
@@ -440,7 +440,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	deleted, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
 		tag, err := b.pool.Exec(ctx,
-			"DELETE FROM kv WHERE key = $1 AND (expires IS NULL OR expires > now())", key)
+			"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", key)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -465,7 +465,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 	// of rows at once, so we're good here (but see [Backend.backgroundExpiry])
 	if _, err := pgcommon.Retry(ctx, b.log, func() (struct{}, error) {
 		_, err := b.pool.Exec(ctx,
-			"DELETE FROM kv WHERE key BETWEEN $1 AND $2",
+			"DELETE FROM kv WHERE kv.key BETWEEN $1 AND $2",
 			startKey, endKey,
 		)
 		return struct{}{}, trace.Wrap(err)
@@ -491,7 +491,8 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		// events include the previous state for the item (i.e. it might become
 		// a good reason)
 		tag, err := b.pool.Exec(ctx,
-			"UPDATE kv SET value = value || $1, expires = $2, revision = $3 WHERE key = $4 AND (expires IS NULL OR expires > now())",
+			"UPDATE kv SET value = value || $1, expires = $2, revision = $3"+
+				" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
 			[]byte(""), zeronull.Timestamptz(expires.UTC()), revision, lease.Key)
 		if err != nil {
 			return false, trace.Wrap(err)
