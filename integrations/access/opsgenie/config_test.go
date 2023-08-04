@@ -18,8 +18,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/integrations/access/common"
 )
 
 func newMinimalValidConfig() Config {
