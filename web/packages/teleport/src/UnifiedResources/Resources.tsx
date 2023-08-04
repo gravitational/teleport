@@ -65,7 +65,13 @@ export function Resources() {
         pathname={pathname}
         replaceHistory={replaceHistory}
       />
-      <FilterPanel sort={params.sort} setSort={setSort} />
+      <FilterPanel
+        params={params}
+        setParams={setParams}
+        setSort={setSort}
+        pathname={pathname}
+        replaceHistory={replaceHistory}
+      />
       {attempt.status === 'failed' && (
         <ErrorMessage message={attempt.statusText} />
       )}

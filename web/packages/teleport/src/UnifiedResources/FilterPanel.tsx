@@ -5,9 +5,10 @@ import * as icons from 'design/Icon';
 import React from 'react';
 import Select from 'shared/components/Select';
 import styled from 'styled-components';
-import { SortType } from 'teleport/services/agents';
+import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
+import { AgentFilter, SortType } from 'teleport/services/agents';
 
-const filterOptions = [
+const kindOptions = [
   { label: 'Application', value: 'app' },
   { label: 'Database', value: 'db' },
   { label: 'Desktop', value: 'windows_desktop' },
@@ -15,24 +16,51 @@ const filterOptions = [
   { label: 'Server', value: 'node' },
 ];
 
-const sortOptions = [
+const sortFieldOptions = [
   { label: 'Name', value: 'name' },
   { label: 'Type', value: 'kind' },
 ];
 
 export interface FilterPanelProps {
-  sort: SortType;
+  pathname: string;
+  replaceHistory: (path: string) => void;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
   setSort: (sort: SortType) => void;
 }
 
-export function FilterPanel({ sort, setSort }: FilterPanelProps) {
-  const [filter, setFilter] = React.useState(null);
+export function FilterPanel({
+  pathname,
+  replaceHistory,
+  params,
+  setParams,
+  setSort,
+}: FilterPanelProps) {
+  const { sort, kinds } = params;
   const [sortMenuAnchor, setSortMenuAnchor] = React.useState(null);
 
-  const sortFieldOption = sortOptions.find(opt => opt.value === sort.fieldName);
+  const activeSortFieldOption = sortFieldOptions.find(
+    opt => opt.value === sort.fieldName
+  );
 
-  const onFilterChanged = (filter: any) => {
-    setFilter(filter);
+  const activeKindOptions = kindOptions.filter(
+    opt => kinds && kinds.includes(opt.value)
+  );
+
+  const onKindsChanged = (filter: any) => {
+    setParams({ ...params, kinds: filter.map(f => f.value) });
+    // TODO(bl-nero): We really shouldn't have to do it, that's what setParams
+    // should be for.
+    const isAdvancedSearch = !!params.query;
+    replaceHistory(
+      encodeUrlQueryParams(
+        pathname,
+        params.search ?? params.query,
+        params.sort,
+        params.kinds,
+        isAdvancedSearch
+      )
+    );
   };
 
   const onSortFieldChange = (option: any) => {
@@ -57,16 +85,16 @@ export function FilterPanel({ sort, setSort }: FilterPanelProps) {
         <Select
           isMulti={true}
           placeholder="Type"
-          options={filterOptions}
-          value={filter}
-          onChange={onFilterChanged}
+          options={kindOptions}
+          value={activeKindOptions}
+          onChange={onKindsChanged}
         />
       </Box>
       <Flex>
         <Box width="100px">
           <SortSelect
-            options={sortOptions}
-            value={sortFieldOption}
+            options={sortFieldOptions}
+            value={activeSortFieldOption}
             onChange={onSortFieldChange}
           />
         </Box>

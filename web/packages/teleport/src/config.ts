@@ -858,6 +858,8 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+  // TODO(bl-nero): Remove this once filters are expressed as advanced search.
+  kinds?: string[];
 }
 
 export interface UrlIntegrationExecuteRequestParams {
