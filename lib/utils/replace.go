@@ -127,6 +127,14 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 	return matchedAny, maps.Keys(verbs), nil
 }
 
+const (
+	// KubeCustomResource is the type that represents a Kubernetes
+	// CustomResource object. These objects are special in that they do not exist
+	// in the user's resources list, but their access is determined by the
+	// access level of their namespace resource.
+	KubeCustomResource = "CustomResource"
+)
+
 // KubeResourceMatchesRegex checks whether the input matches any of the given
 // expressions.
 // This function returns as soon as it finds the first match or when matchString
@@ -141,6 +149,10 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 	if len(input.Verbs) != 1 {
 		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
 	}
+	// isClusterWideResource is true if the resource is cluster-wide, e.g. a
+	// namespace resource or a clusterrole.
+	isClusterWideResource := slices.Contains(types.KubernetesClusterWideResourceKinds, input.Kind)
+
 	verb := input.Verbs[0]
 	// If the user is list/read/watch a namespace, they should be able to see the
 	// namespace they have resources defined for.
@@ -165,6 +177,13 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 		// If the user has access to a specific namespace, they should be able to
 		// access all resources in that namespace.
 		case resource.Kind == types.KindKubeNamespace && input.Namespace != "":
+			// Access to custom resources is determined by the access level of the
+			// namespace resource where the custom resource is defined.
+			// This is a special case because custom resources are not defined in the
+			// user's resources list.
+			// Access to namspaced resources is determined by the access level of the
+			// namespace resource where the resource is defined or by the access level
+			// of the resource if supported.
 			if ok, err := MatchString(input.Namespace, resource.Name); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
@@ -181,12 +200,13 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 			if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 				continue
 			}
-
 			switch ok, err := MatchString(input.Name, resource.Name); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case !ok:
 				continue
+			case ok && input.Namespace == "" && isClusterWideResource:
+				return true, nil
 			}
 			if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil || ok {
 				return ok, trace.Wrap(err)

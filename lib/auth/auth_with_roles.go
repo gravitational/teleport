@@ -236,7 +236,7 @@ func (a *ServerWithRoles) isLocalOrRemoteServerAction() bool {
 // whether any of the given roles match the role set.
 func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	for _, role := range roles {
-		if HasBuiltinRole(a.context, string(role)) {
+		if authz.HasBuiltinRole(a.context, string(role)) {
 			return true
 		}
 	}
@@ -245,15 +245,11 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 
 // HasBuiltinRole checks if the identity is a builtin role with the matching
 // name.
+// Deprecated: use authz.HasBuiltinRole instead.
 func HasBuiltinRole(authContext authz.Context, name string) bool {
-	if _, ok := authContext.Identity.(authz.BuiltinRole); !ok {
-		return false
-	}
-	if !authContext.Checker.HasRole(name) {
-		return false
-	}
-
-	return true
+	// TODO(jakule): This function can be removed once teleport.e is updated
+	// to use authz.HasBuiltinRole.
+	return authz.HasBuiltinRole(authContext, name)
 }
 
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
@@ -924,23 +920,6 @@ func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, 
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GenerateToken generates multi-purpose authentication token.
-// Deprecated: Use CreateToken or UpdateToken.
-// DELETE IN 14.0.0, replaced by methods above (strideynet).
-func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	token, err := a.authServer.GenerateToken(ctx, req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	emitTokenEvent(ctx, a.authServer.emitter, req.Roles, types.JoinMethodToken)
-	return token, nil
-}
-
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
@@ -1023,59 +1002,17 @@ func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *p
 		}
 	}
 
-	// load system role assertions if relevant
-	var assertions proto.UnstableSystemRoleAssertionSet
-	var err error
-	if req.UnstableSystemRoleAssertionID != "" {
-		assertions, err = a.authServer.UnstableGetSystemRoleAssertions(ctx, req.HostID, req.UnstableSystemRoleAssertionID)
-		if err != nil {
-			// include this error in the logs, since it might be indicative of a bug if it occurs outside of the context
-			// of a general backend outage.
-			log.Warnf("Failed to load system role assertion set %q for instance %q: %v", req.UnstableSystemRoleAssertionID, req.HostID, err)
-			return trace.AccessDenied("failed to load system role assertion set with ID %q", req.UnstableSystemRoleAssertionID)
-		}
-	}
-
 	// check if additional system roles are permissible
-Outer:
 	for _, requestedRole := range req.SystemRoles {
 		if a.hasBuiltinRole(requestedRole) {
 			// instance is already known to hold this role
-			continue Outer
-		}
-
-		for _, assertedRole := range assertions.SystemRoles {
-			if requestedRole == assertedRole {
-				// instance recently demonstrated that it holds this role
-				continue Outer
-			}
+			continue
 		}
 
 		return trace.AccessDenied("additional system role %q cannot be applied (not authorized)", requestedRole)
 	}
 
 	return nil
-}
-
-func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
-		return trace.AccessDenied("system role assertions can only be executed by a teleport built-in server")
-	}
-
-	if req.ServerID != role.GetServerID() {
-		return trace.AccessDenied("system role assertions do not support impersonation (%q -> %q)", role.GetServerID(), req.ServerID)
-	}
-
-	if !a.hasBuiltinRole(req.SystemRole) {
-		return trace.AccessDenied("cannot assert unheld system role %q", req.SystemRole)
-	}
-
-	if !req.SystemRole.IsLocalService() {
-		return trace.AccessDenied("cannot assert non-service system role %q", req.SystemRole)
-	}
-
-	return a.authServer.UnstableAssertSystemRole(ctx, req)
 }
 
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
@@ -1392,8 +1329,9 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		} else if serverName != handle.HostID {
 			return trace.AccessDenied("access denied")
 		}
-
-		if !a.hasBuiltinRole(types.RoleKube) {
+		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
+		// we need to check if the host has the Kube or Proxy role.
+		if !a.hasBuiltinRole(types.RoleKube, types.RoleProxy) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
@@ -1868,6 +1806,20 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = servers.AsResources()
+
+	case types.KindAppOrSAMLIdPServiceProvider:
+		appsAndServiceProviders, err := a.GetAppServersAndSAMLIdPServiceProviders(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		appsOrSPs := types.AppServersOrSAMLIdPServiceProviders(appsAndServiceProviders)
+
+		if err := appsOrSPs.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = appsOrSPs.AsResources()
 
 	case types.KindDatabaseServer:
 		dbservers, err := a.GetDatabaseServers(ctx, req.Namespace)
@@ -2404,13 +2356,19 @@ func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter types.Ac
 }
 
 func (a *ServerWithRoles) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	_, err := a.CreateAccessRequestV2(ctx, req)
+	return trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	// An exception is made to allow users to create access *pending* requests for themselves.
 	if !req.GetState().IsPending() || a.currentUserAction(req.GetUser()) != nil {
 		if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.CreateAccessRequest(ctx, req, a.context.Identity.GetIdentity())
+	resp, err := a.authServer.CreateAccessRequestV2(ctx, req, a.context.Identity.GetIdentity())
+	return resp, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error {
@@ -3218,6 +3176,14 @@ func (a *ServerWithRoles) UpsertUser(u types.User) error {
 		})
 	}
 	return a.authServer.UpsertUser(u)
+}
+
+// UpdateAndSwapUser exists on [ServerWithRoles] only for compatibility with
+// [ClientI], it is not implemented here.
+// See [local.IdentityService.UpdateAndSwapUser].
+func (a *ServerWithRoles) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error) {
+	// To the reader: consider writing this function if it's useful to you.
+	return nil, trace.NotImplemented("func UpdateAndSwapUser is not implemented by ServerWithRoles")
 }
 
 // CompareAndSwapUser updates an existing user in a backend, but fails if the
@@ -4681,6 +4647,48 @@ func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace s
 	return filtered, nil
 }
 
+// GetAppServersAndSAMLIdPServiceProviders returns a list containing all registered AppServers and SAMLIdPServiceProviders.
+func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Context, namespace string) ([]types.AppServerOrSAMLIdPServiceProvider, error) {
+	appservers, err := a.GetApplicationServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var appsAndSPs []types.AppServerOrSAMLIdPServiceProvider
+	// Convert the AppServers to AppServerOrSAMLIdPServiceProviders.
+	for _, appserver := range appservers {
+		appServerV3 := appserver.(*types.AppServerV3)
+		appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+			Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+				AppServer: appServerV3,
+			},
+		}
+		appsAndSPs = append(appsAndSPs, appAndSP)
+	}
+
+	// Only add SAMLIdPServiceProviders to the list if the caller has an enterprise license since this is an enteprise-only feature.
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		// Only attempt to list SAMLIdPServiceProviders if the caller has the permission to.
+		if err := a.action(namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err == nil {
+			serviceProviders, _, err := a.authServer.ListSAMLIdPServiceProviders(ctx, 0, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for _, sp := range serviceProviders {
+				spV1 := sp.(*types.SAMLIdPServiceProviderV1)
+				appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+					Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+						SAMLIdPServiceProvider: spV1,
+					},
+				}
+				appsAndSPs = append(appsAndSPs, appAndSP)
+			}
+		}
+	}
+
+	return appsAndSPs, nil
+}
+
 // UpsertApplicationServer registers an application server.
 func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
 	if err := a.action(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
@@ -5397,6 +5405,10 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 	if err := a.checkAccessToKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
+	// Don't allow discovery service to create clusters with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
+	}
 	return trace.Wrap(a.authServer.CreateKubernetesCluster(ctx, cluster))
 }
 
@@ -5416,6 +5428,10 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 	}
 	if err := a.checkAccessToKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
+	}
+	// Don't allow discovery service to create clusters with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
 	return trace.Wrap(a.authServer.UpdateKubernetesCluster(ctx, cluster))
 }
@@ -5496,8 +5512,8 @@ func (a *ServerWithRoles) checkAccessToNode(node types.Server) error {
 	// In addition, allow proxy (and remote proxy) to access all nodes for its
 	// smart resolution address resolution. Once the smart resolution logic is
 	// moved to the auth server, this logic can be removed.
-	builtinRole := HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
-		HasBuiltinRole(a.context, string(types.RoleProxy)) ||
+	builtinRole := authz.HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
+		authz.HasBuiltinRole(a.context, string(types.RoleProxy)) ||
 		HasRemoteBuiltinRole(a.context, string(types.RoleRemoteProxy))
 
 	if builtinRole {
@@ -5527,6 +5543,10 @@ func (a *ServerWithRoles) CreateDatabase(ctx context.Context, database types.Dat
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
 	}
+	// Don't allow discovery service to create databases with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(database.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered database must not have dynamic labels")
+	}
 	return trace.Wrap(a.authServer.CreateDatabase(ctx, database))
 }
 
@@ -5546,6 +5566,10 @@ func (a *ServerWithRoles) UpdateDatabase(ctx context.Context, database types.Dat
 	}
 	if err := a.checkAccessToDatabase(database); err != nil {
 		return trace.Wrap(err)
+	}
+	// Don't allow discovery service to create databases with dynamic labels.
+	if a.hasBuiltinRole(types.RoleDiscovery) && len(database.GetDynamicLabels()) > 0 {
+		return trace.AccessDenied("discovered database must not have dynamic labels")
 	}
 	return trace.Wrap(a.authServer.UpdateDatabase(ctx, database))
 }
@@ -6426,88 +6450,47 @@ func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Contex
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.CreateAssistantConversation(ctx, req)
+	return nil, trace.NotImplemented("CreateAssistantConversation must not be called on auth.ServerWithRoles")
 }
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.GetAssistantConversations(ctx, request)
+	return nil, trace.NotImplemented("GetAssistantConversations must not be called on auth.ServerWithRoles")
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.GetAssistantMessages(ctx, req)
+	return nil, trace.NotImplemented("GetAssistantMessages must not be called on auth.ServerWithRoles")
 }
 
 // DeleteAssistantConversation deletes a conversation by ID.
 func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.authServer.DeleteAssistantConversation(ctx, req))
+	return trace.NotImplemented("DeleteAssistantConversation must not be called on auth.ServerWithRoles")
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.IsAssistEnabled(ctx)
+	return nil, trace.NotImplemented("IsAssistEnabled must not be called on auth.ServerWithRoles")
 }
 
 // CreateAssistantMessage adds the message to the backend.
 func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.CreateAssistantMessage(ctx, msg)
+	return trace.NotImplemented("CreateAssistantMessage must not be called on auth.ServerWithRoles")
 }
 
 // UpdateAssistantConversationInfo updates the conversation info.
 func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+	return trace.NotImplemented("UpdateAssistantConversationInfo must not be called on auth.ServerWithRoles")
 }
 
 // GetUserPreferences returns the user preferences for a given user.
 func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
-	if err := a.currentUserAction(req.Username); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	preferences, err := a.authServer.GetUserPreferences(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return preferences, nil
+	return nil, trace.NotImplemented("GetUserPreferences must not be called on auth.ServerWithRoles")
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
 func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpreferencespb.UpsertUserPreferencesRequest) error {
-	if err := a.currentUserAction(req.Username); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.authServer.UpsertUserPreferences(ctx, req))
+	return trace.NotImplemented("UpsertUserPreferences must not be called on auth.ServerWithRoles")
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.

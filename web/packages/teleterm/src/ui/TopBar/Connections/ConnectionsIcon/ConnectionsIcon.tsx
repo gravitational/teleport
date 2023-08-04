@@ -44,7 +44,7 @@ export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
           m="auto"
           title={getLabelWithAccelerator('Open Connections', 'openConnections')}
         >
-          <Cluster fontSize={16} />
+          <Cluster size="medium" />
         </StyledButton>
       </Container>
     );

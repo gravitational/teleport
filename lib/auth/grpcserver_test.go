@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/pem"
@@ -472,7 +471,7 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
-	devs := mfaDevices{
+	mfaDevs := mfaDevices{
 		clock:     clock,
 		webOrigin: origin,
 		TOTPName:  totpName,
@@ -480,13 +479,13 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 	}
 
 	var err error
-	devs.WebKey, err = mocku2f.Create()
+	mfaDevs.WebKey, err = mocku2f.Create()
 	require.NoError(t, err)
-	devs.WebKey.PreferRPID = true
+	mfaDevs.WebKey.PreferRPID = true
 
-	// Add MFA devices of all kinds.
 	ctx := context.Background()
-	for _, test := range []struct {
+
+	devs := []struct {
 		name string
 		opts mfaAddTestOpts
 	}{
@@ -506,8 +505,8 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 					require.NotEmpty(t, challenge.GetTOTP())
 					require.Equal(t, challenge.GetTOTP().Algorithm, otp.AlgorithmSHA1.String())
 
-					devs.TOTPSecret = challenge.GetTOTP().Secret
-					code, err := totp.GenerateCodeCustom(devs.TOTPSecret, clock.Now(), totp.ValidateOpts{
+					mfaDevs.TOTPSecret = challenge.GetTOTP().Secret
+					code, err := totp.GenerateCodeCustom(mfaDevs.TOTPSecret, clock.Now(), totp.ValidateOpts{
 						Period:    uint(challenge.GetTOTP().PeriodSeconds),
 						Digits:    otp.Digits(challenge.GetTOTP().Digits),
 						Algorithm: otp.AlgorithmSHA1,
@@ -524,7 +523,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				},
 				checkRegisterErr: require.NoError,
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					want, err := services.NewTOTPDevice(totpName, devs.TOTPSecret, clock.Now())
+					want, err := services.NewTOTPDevice(totpName, mfaDevs.TOTPSecret, clock.Now())
 					want.Id = got.Id
 					require.NoError(t, err)
 					require.Empty(t, cmp.Diff(want, got))
@@ -538,12 +537,12 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 					DeviceName: webName,
 					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
-				authHandler:  devs.totpAuthHandler,
+				authHandler:  mfaDevs.totpAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					require.NotNil(t, challenge.GetWebauthn())
 
-					ccr, err := devs.WebKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := mfaDevs.WebKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
@@ -555,16 +554,17 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
 					// MFADevice device asserted in its entirety by lib/auth/webauthn
 					// tests, a simple check suffices here.
-					require.Equal(t, devs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
+					require.Equal(t, mfaDevs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
 				},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			testAddMFADevice(ctx, t, cl, test.opts)
-		})
 	}
-	return devs
+
+	for _, dev := range devs {
+		testAddMFADevice(ctx, t, cl, dev.opts)
+	}
+
+	return mfaDevs
 }
 
 type mfaAddTestOpts struct {
@@ -2264,10 +2264,9 @@ func TestGenerateHostCerts(t *testing.T) {
 	require.NotNil(t, certs)
 }
 
-// TestInstanceCertAndControlStream attempts to generate an instance cert via the
-// assertion API and use it to handle an inventory ping via the control stream.
+// TestInstanceCertAndControlStream uses an instance cert to send an
+// inventory ping via the control stream.
 func TestInstanceCertAndControlStream(t *testing.T) {
-	const assertionID = "test-assertion"
 	const serverID = "test-server"
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -2275,68 +2274,17 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 
-	roles := []types.SystemRole{
-		types.RoleNode,
-		types.RoleAuth,
-		types.RoleProxy,
-	}
-
-	clt, err := srv.NewClient(TestServerID(types.RoleNode, serverID))
+	instanceClt, err := srv.NewClient(TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleInstance,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: serverID,
+		},
+	})
 	require.NoError(t, err)
-	defer clt.Close()
-
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
-	require.NoError(t, err)
-
-	req := proto.HostCertsRequest{
-		HostID:       serverID,
-		Role:         types.RoleInstance,
-		PublicSSHKey: pub,
-		PublicTLSKey: pubTLS,
-		SystemRoles:  roles,
-		// assertion ID is omitted initially to test
-		// the failure case
-	}
-
-	// request should fail since clt only holds RoleNode
-	_, err = clt.GenerateHostCerts(ctx, &req)
-	require.True(t, trace.IsAccessDenied(err))
-
-	// perform assertions
-	for _, role := range roles {
-		func() {
-			clt, err := srv.NewClient(TestServerID(role, serverID))
-			require.NoError(t, err)
-			defer clt.Close()
-
-			err = clt.UnstableAssertSystemRole(ctx, proto.UnstableSystemRoleAssertion{
-				ServerID:    serverID,
-				AssertionID: assertionID,
-				SystemRole:  role,
-			})
-			require.NoError(t, err)
-		}()
-	}
-
-	// set assertion ID
-	req.UnstableSystemRoleAssertionID = assertionID
-
-	// assertion should allow us to generate certs
-	certs, err := clt.GenerateHostCerts(ctx, &req)
-	require.NoError(t, err)
-
-	// make an instance client
-	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
-	require.NoError(t, err)
-	instanceClt := srv.NewClientWithCert(instanceCert)
-
-	// instance cert can self-renew without assertions
-	req.UnstableSystemRoleAssertionID = ""
-	_, err = instanceClt.GenerateHostCerts(ctx, &req)
-	require.NoError(t, err)
+	defer instanceClt.Close()
 
 	stream, err := instanceClt.InventoryControlStream(ctx)
 	require.NoError(t, err)
@@ -2345,7 +2293,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	err = stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: roles,
+		Services: types.SystemRoles{types.RoleInstance},
 	})
 	require.NoError(t, err)
 

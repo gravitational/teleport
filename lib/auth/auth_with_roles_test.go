@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -53,6 +55,7 @@ import (
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1826,18 +1829,148 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 	// Dev should only be able to delete dev database.
 	err = devClt.DeleteAllDatabases(ctx)
 	require.NoError(t, err)
-	dbs, err = adminClt.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{adminDatabase}, dbs,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-	))
+	mustGetDatabases(t, adminClt, []types.Database{adminDatabase})
 
 	// Admin should be able to delete all.
 	err = adminClt.DeleteAllDatabases(ctx)
 	require.NoError(t, err)
-	dbs, err = adminClt.GetDatabases(ctx)
+	mustGetDatabases(t, adminClt, nil)
+
+	t.Run("discovery service", func(t *testing.T) {
+		t.Cleanup(func() {
+			require.NoError(t, adminClt.DeleteAllDatabases(ctx))
+		})
+
+		// Prepare discovery service client.
+		discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
+		require.NoError(t, err)
+
+		cloudDatabase, err := types.NewDatabaseV3(types.Metadata{
+			Name:   "cloud1",
+			Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginCloud},
+		}, types.DatabaseSpecV3{
+			Protocol: libdefaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+		})
+		require.NoError(t, err)
+
+		// Create a non-cloud database.
+		require.NoError(t, adminClt.CreateDatabase(ctx, adminDatabase))
+		mustGetDatabases(t, adminClt, []types.Database{adminDatabase})
+
+		t.Run("cannot create non-cloud database", func(t *testing.T) {
+			require.True(t, trace.IsAccessDenied(discoveryClt.CreateDatabase(ctx, devDatabase)))
+			require.True(t, trace.IsAccessDenied(discoveryClt.UpdateDatabase(ctx, adminDatabase)))
+		})
+		t.Run("cannot create database with dynamic labels", func(t *testing.T) {
+			cloudDatabaseWithDynamicLabels, err := types.NewDatabaseV3(types.Metadata{
+				Name:   "cloud2",
+				Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginCloud},
+			}, types.DatabaseSpecV3{
+				Protocol: libdefaults.ProtocolMySQL,
+				URI:      "localhost:3306",
+				DynamicLabels: map[string]types.CommandLabelV2{
+					"hostname": types.CommandLabelV2{
+						Period:  types.Duration(time.Hour),
+						Command: []string{"hostname"},
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.True(t, trace.IsAccessDenied(discoveryClt.CreateDatabase(ctx, cloudDatabaseWithDynamicLabels)))
+		})
+		t.Run("can create cloud database", func(t *testing.T) {
+			require.NoError(t, discoveryClt.CreateDatabase(ctx, cloudDatabase))
+			require.NoError(t, discoveryClt.UpdateDatabase(ctx, cloudDatabase))
+		})
+		t.Run("can get only cloud database", func(t *testing.T) {
+			mustGetDatabases(t, discoveryClt, []types.Database{cloudDatabase})
+		})
+		t.Run("can delete only cloud database", func(t *testing.T) {
+			require.NoError(t, discoveryClt.DeleteAllDatabases(ctx))
+			mustGetDatabases(t, discoveryClt, nil)
+			mustGetDatabases(t, adminClt, []types.Database{adminDatabase})
+		})
+	})
+}
+
+func mustGetDatabases(t *testing.T, client *Client, wantDatabases []types.Database) {
+	t.Helper()
+
+	actualDatabases, err := client.GetDatabases(context.Background())
 	require.NoError(t, err)
-	require.Len(t, dbs, 0)
+
+	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		cmpopts.EquateEmpty(),
+	))
+}
+
+func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	discoveryClt, err := srv.NewClient(TestBuiltin(types.RoleDiscovery))
+	require.NoError(t, err)
+
+	eksCluster, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
+		Name:   aws.String("eks-cluster1"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
+		Status: aws.String(eks.ClusterStatusActive),
+	})
+	require.NoError(t, err)
+
+	// Discovery service must not have access to non-cloud cluster (cluster
+	// without "cloud" origin label).
+	nonCloudCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "non-cloud",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
+
+	// Discovery service cannot create cluster with dynamic labels.
+	clusterWithDynamicLabels, err := services.NewKubeClusterFromAWSEKS(&eks.Cluster{
+		Name:   aws.String("eks-cluster2"),
+		Arn:    aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
+		Status: aws.String(eks.ClusterStatusActive),
+	})
+	require.NoError(t, err)
+	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
+		"hostname": &types.CommandLabelV2{
+			Period:  types.Duration(time.Hour),
+			Command: []string{"hostname"},
+		},
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, nonCloudCluster)))
+		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
+	})
+	t.Run("Read", func(t *testing.T) {
+		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Equal(t, clusters, []types.KubeCluster{eksCluster})
+	})
+	t.Run("Update", func(t *testing.T) {
+		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
+		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
+	})
+	t.Run("Delete", func(t *testing.T) {
+		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
+		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+
+		// Discovery service cannot delete non-cloud clusters.
+		clusters, err = srv.Auth().GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+	})
 }
 
 func TestGetAndList_DatabaseServers(t *testing.T) {
@@ -2078,6 +2211,180 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 
 	// deny user to get all apps
 	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, len(servers))
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Empty(t, resp.Resources)
+}
+
+// TestGetAndList_AppServersAndSAMLIdPServiceProviders verifies RBAC and filtering is applied when fetching App Servers and SAML IdP Service Providers.
+func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	// Create test app servers and SAML IdP Service Providers.
+	for i := 0; i < 6; i++ {
+		// Alternate between creating AppServers and SAMLIdPServiceProviders
+		if i%2 == 0 {
+			name := fmt.Sprintf("app-server-%v", i)
+			app, err := types.NewAppV3(types.Metadata{
+				Name:   name,
+				Labels: map[string]string{"name": name},
+			},
+				types.AppSpecV3{URI: "localhost"})
+			require.NoError(t, err)
+			server, err := types.NewAppServerV3FromApp(app, "host", "hostid")
+			server.Spec.Version = types.V3
+			require.NoError(t, err)
+
+			_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+			require.NoError(t, err)
+		} else {
+			name := fmt.Sprintf("saml-app-%v", i)
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+				<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="entity-id-%v" validUntil="2025-12-09T09:13:31.006Z">
+					 <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+							<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+							<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+							<md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+					 </md:SPSSODescriptor>
+				</md:EntityDescriptor>
+				`, i),
+				EntityID: fmt.Sprintf("entity-id-%v", i),
+			})
+			require.NoError(t, err)
+			err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
+			require.NoError(t, err)
+		}
+	}
+
+	testAppServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	testServiceProviders, _, err := srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
+	require.NoError(t, err)
+
+	numResources := len(testAppServers) + len(testServiceProviders)
+
+	testResources := make([]types.ResourceWithLabels, numResources)
+	for i, server := range testAppServers {
+		testResources[i] = createAppServerOrSPFromAppServer(server)
+	}
+
+	for i, sp := range testServiceProviders {
+		testResources[i+len(testAppServers)] = createAppServerOrSPFromSP(sp)
+	}
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will have all the app servers and IdP service providers.
+		Limit:        int32(numResources + 1),
+		ResourceType: types.KindAppOrSAMLIdPServiceProvider,
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first app
+	listRequestAppsOnly := listRequest
+	listRequestAppsOnly.SearchKeywords = []string{"app-server"}
+	role.SetAppLabels(types.Allow, types.Labels{"name": {testAppServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, len(servers))
+	require.Empty(t, cmp.Diff(testAppServers[0:1], servers))
+	resp, err := clt.ListResources(ctx, listRequestAppsOnly)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Permit user to get all apps and saml idp service providers.
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+	// Test getting all apps and SAML IdP service providers.
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(numResources + 1),
+		ResourceType: types.KindAppOrSAMLIdPServiceProvider,
+	}
+
+	// list only application with label
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testAppServers[0].GetName()}
+	resp, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test search keywords match for app servers.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"app-server", testAppServers[0].GetName()}
+	resp, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test search keywords match for saml idp service providers servers.
+	withSearchKeywords.SearchKeywords = []string{"saml-app", testServiceProviders[0].GetName()}
+	resp, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[len(testAppServers):len(testAppServers)+1], resp.Resources))
+
+	// Test expression match for app servers.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`search("%s")`, testResources[0].GetName())
+	resp, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// deny user to get the first app
+	role.SetAppLabels(types.Deny, types.Labels{"name": {testAppServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.EqualValues(t, len(testAppServers[1:]), len(servers))
+	require.Empty(t, cmp.Diff(testAppServers[1:], servers))
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources[1:]))
+	require.Empty(t, cmp.Diff(testResources[1:], resp.Resources))
+
+	// deny user to get all apps and service providers
+	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{types.KindSAMLIdPServiceProvider},
+			Verbs:     []string{types.VerbList},
+		},
+	})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
 	require.NoError(t, err)
@@ -5699,6 +6006,7 @@ func mustAccessRequest(t *testing.T, user string, state types.RequestState, crea
 	accessRequest.SetCreationTime(created)
 	accessRequest.SetExpiry(expires)
 	accessRequest.SetAccessExpiry(expires)
+	accessRequest.SetSessionTLL(expires)
 	accessRequest.SetThresholds([]types.AccessReviewThreshold{{Name: "default", Approve: 1, Deny: 1}})
 	accessRequest.SetRoleThresholdMapping(map[string]types.ThresholdIndexSets{
 		"requestRole": {
@@ -5867,5 +6175,117 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 
 			require.Equal(t, expectEvents, events)
 		})
+	}
+}
+
+// createAppServerOrSPFromAppServer returns a AppServerOrSAMLIdPServiceProvider given an AppServer.
+func createAppServerOrSPFromAppServer(appServer types.AppServer) types.AppServerOrSAMLIdPServiceProvider {
+	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+			AppServer: appServer.(*types.AppServerV3),
+		},
+	}
+
+	return appServerOrSP
+}
+
+// createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given a SAMLIdPServiceProvider.
+func createAppServerOrSPFromSP(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
+	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+			SAMLIdPServiceProvider: sp.(*types.SAMLIdPServiceProviderV1),
+		},
+	}
+
+	return appServerOrSP
+}
+
+func TestKubeKeepAliveServer(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	domainName, err := srv.Auth().GetDomainName()
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		builtInRole types.SystemRole
+		assertErr   require.ErrorAssertionFunc
+	}{
+		"as kube service": {
+			builtInRole: types.RoleKube,
+			assertErr:   require.NoError,
+		},
+		"as legacy proxy service": {
+			builtInRole: types.RoleProxy,
+			assertErr:   require.NoError,
+		},
+		"as database service": {
+			builtInRole: types.RoleDatabase,
+			assertErr:   require.Error,
+		},
+	}
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			hostID := uuid.New().String()
+			// Create a kubernetes cluster.
+			kube, err := types.NewKubernetesClusterV3(
+				types.Metadata{
+					Name:      "kube",
+					Namespace: defaults.Namespace,
+				},
+				types.KubernetesClusterSpecV3{},
+			)
+			require.NoError(t, err)
+			// Create a kubernetes server.
+			// If the built-in role is proxy, the server name should be
+			// kube-proxy_service
+			serverName := "kube"
+			if test.builtInRole == types.RoleProxy {
+				serverName += teleport.KubeLegacyProxySuffix
+			}
+			kubeServer, err := types.NewKubernetesServerV3(
+				types.Metadata{
+					Name:      serverName,
+					Namespace: defaults.Namespace,
+				},
+				types.KubernetesServerSpecV3{
+					Cluster: kube,
+					HostID:  hostID,
+				},
+			)
+			require.NoError(t, err)
+			// Upsert the kubernetes server into the backend.
+			_, err = srv.Auth().UpsertKubernetesServer(context.Background(), kubeServer)
+			require.NoError(t, err)
+
+			// Create a built-in role.
+			authContext, err := authz.ContextForBuiltinRole(
+				authz.BuiltinRole{
+					Role:     test.builtInRole,
+					Username: fmt.Sprintf("%s.%s", hostID, domainName),
+				},
+				types.DefaultSessionRecordingConfig(),
+			)
+			require.NoError(t, err)
+
+			// Create a server with the built-in role.
+			srv := ServerWithRoles{
+				authServer: srv.Auth(),
+				context:    *authContext,
+			}
+			// Keep alive the server.
+			err = srv.KeepAliveServer(context.Background(),
+				types.KeepAlive{
+					Type:      types.KeepAlive_KUBERNETES,
+					Expires:   time.Now().Add(5 * time.Minute),
+					Name:      serverName,
+					Namespace: defaults.Namespace,
+					HostID:    hostID,
+				},
+			)
+			test.assertErr(t, err)
+		},
+		)
 	}
 }

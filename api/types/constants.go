@@ -138,11 +138,26 @@ const (
 	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
 	SubKindOpenSSHNode = "openssh"
 
+	// SubKindOpenSSHEC2InstanceConnectEndpointNode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
+	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
+	//
+	// For Amazon EC2 Instances, it uploads the key using:
+	// https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
+	// This Key is valid for 60 seconds.
+	//
+	// It uses the private key created above to SSH into the host.
+	SubKindOpenSSHEC2InstanceConnectEndpointNode = "openssh-ec2-ice"
+
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
 	// KindApp is a web app resource.
 	KindApp = "app"
+
+	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
+	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
+	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
+	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -435,6 +450,9 @@ const (
 	// KindAccessList is an AccessList resource
 	KindAccessList = "access_list"
 
+	// KindUserLoginState is a UserLoginState resource
+	KindUserLoginState = "user_login_state"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -568,6 +586,18 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportNamespace + "/vm-id"
+	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// id found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	ProjectIDLabel = TeleportNamespace + "/project-id"
+	// ZoneLabek is used to identify virtual machines by GCP zone
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	ZoneLabel = TeleportNamespace + "/zone"
+	// NameLabel is used to identify virtual machines by GCP VM name
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -602,8 +632,24 @@ const (
 	// kubernetes cluster name override for discovered GCP kube clusters.
 	GCPKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
 
+	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
+	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
+
+	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
+	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
+	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
+	DiscoveryPortLabel = TeleportNamespace + "/port"
+	// DiscoveryProtocolLabel specifies protocol for a discovered app created from Kubernetes service.
+	DiscoveryProtocolLabel = TeleportNamespace + "/protocol"
+	// DiscoveryAppRewriteLabel specifies rewrite rules for a discovered app created from Kubernetes service.
+	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
+	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
+	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
+	// ReqAnnotationNotifyServicesLabel is the request annotation key at which notify services are stored for access plugins.
+	ReqAnnotationNotifyServicesLabel = "/notify-services"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -614,6 +660,10 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+
+	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
+	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].
+	ConnectMyComputerNodeOwnerLabel = TeleportNamespace + "/connect-my-computer/owner"
 )
 
 var (

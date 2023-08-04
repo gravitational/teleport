@@ -42,6 +42,8 @@ func Commands() []CLICommand {
 		&ProxyCommand{},
 		&ResourceCommand{},
 		&EditCommand{},
+		&LoadtestCommand{},
+		&DevicesCommand{},
 	}
 }
 

@@ -30,7 +30,7 @@ export default function ActionBar(props: Props) {
         menuProps={menuProps}
       >
         <MenuItem as={NavLink} to={cfg.routes.root}>
-          <MenuItemIcon as={Icons.Home} mr="2" />
+          <MenuItemIcon as={Icons.Home} mr="2" size="medium" />
           Home
         </MenuItem>
         <MenuItem>

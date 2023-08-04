@@ -358,6 +358,59 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			assert: require.NoError,
 		},
 		{
+			name: "list clusterrole with resource",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeClusterRole,
+				Name:  "clusterrole",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeClusterRole,
+					Name:  "clusterrole",
+					Verbs: []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "list clusterrole with wildcard",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeClusterRole,
+				Name:  "clusterrole",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "list clusterrole with wildcard deny verb",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeClusterRole,
+				Name:  "clusterrole",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.KubeVerbPatch},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+		},
+		{
 			name: "list namespace with resource giving read access to namespace",
 			input: types.KubernetesResource{
 				Kind:  types.KindKubeNamespace,
@@ -425,6 +478,67 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				{
 					Kind:  types.KindKubeNamespace,
 					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+		},
+
+		{
+			name: "namespace granting read access to custom resource",
+			input: types.KubernetesResource{
+				Kind:      KubeCustomResource,
+				Namespace: "default",
+				Name:      "name",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "namespace denying update to custom resource",
+			input: types.KubernetesResource{
+				Kind:      KubeCustomResource,
+				Namespace: "default",
+				Name:      "name",
+				Verbs:     []string{types.KubeVerbUpdate},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+		},
+		{
+			name: "missing namespace granting read access to custom resource",
+			input: types.KubernetesResource{
+				Kind:      KubeCustomResource,
+				Namespace: "default",
+				Name:      "name",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "name",
+					Verbs:     []string{types.KubeVerbGet},
+				},
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "diffnamespace",
 					Verbs: []string{types.KubeVerbGet},
 				},
 			},

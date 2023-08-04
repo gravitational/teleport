@@ -365,7 +365,7 @@
               ]
             },
             {
-              "title": "Jamf Integration",
+              "title": "Jamf Pro Integration",
               "slug": "/access-controls/device-trust/jamf-integration/",
               "forScopes": [
                 "enterprise",
@@ -671,6 +671,10 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
+          "title": "Using PuTTY",
+          "slug": "/connect-your-client/putty/"
+        },
+        {
           "title": "Database GUI Clients",
           "slug": "/connect-your-client/gui-clients/"
         }
@@ -969,6 +973,14 @@
         {
           "title": "Access Controls Reference",
           "slug": "/kubernetes-access/controls/"
+        },
+        {
+          "title": "FAQ",
+          "slug": "/kubernetes-access/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/kubernetes-access/troubleshooting/"
         }
       ]
     },
@@ -1526,7 +1538,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.2.0",
+      "version": "13.2.3",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1567,9 +1579,6 @@
         "third": "ijkl789-insecure-do-not-use-this"
       },
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
-    },
-    "soc2": {
-      "last_report": "August 9th, 2022"
     },
     "teleport": {
       "major_version": "14",
