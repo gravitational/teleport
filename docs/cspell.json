@@ -58,6 +58,7 @@
     "FLUSHALL",
     "FLUSHDB",
     "FMPFM",
+    "Fargate",
     "Fatalf",
     "Fintech",
     "Firestore",
