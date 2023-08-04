@@ -511,7 +511,7 @@ type ConnectConnectMyComputerSetup struct {
 	// anonymized
 	UserName string `protobuf:"bytes,2,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	Success  bool   `protobuf:"varint,3,opt,name=success,proto3" json:"success,omitempty"`
-	// non-empty when success is false
+	// empty when success is true
 	FailedStep string `protobuf:"bytes,4,opt,name=failed_step,json=failedStep,proto3" json:"failed_step,omitempty"`
 }
 

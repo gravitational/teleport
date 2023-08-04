@@ -84,7 +84,7 @@ message ConnectConnectMyComputerSetup {
   // anonymized
   string user_name = 2;
   bool success = 3;
-  // non-empty when success is false
+  // empty when success is true
   string failed_step = 4;
 }
 
