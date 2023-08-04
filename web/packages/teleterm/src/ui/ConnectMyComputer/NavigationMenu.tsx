@@ -34,7 +34,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
   const [isMenuOpened, setIsMenuOpened] = useState(false);
   const appCtx = useAppContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
-  const { isSetupDoneAttempt } = useConnectMyComputerContext();
+  const { isSetupDoneAttempt, state } = useConnectMyComputerContext();
   // DocumentCluster renders this component only if the cluster exists.
   const cluster = appCtx.clustersService.findCluster(props.clusterUri);
 
@@ -75,7 +75,11 @@ export function NavigationMenu(props: NavigationMenuProps) {
 
   return (
     <>
-      <NavigationMenuIcon onClick={toggleMenu} ref={iconRef} />
+      <NavigationMenuIcon
+        agentState={state}
+        onClick={toggleMenu}
+        ref={iconRef}
+      />
       <Menu
         getContentAnchorEl={null}
         open={isMenuOpened}

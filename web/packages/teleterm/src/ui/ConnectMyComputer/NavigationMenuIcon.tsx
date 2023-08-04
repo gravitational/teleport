@@ -16,11 +16,14 @@
 
 import React, { forwardRef } from 'react';
 import styled from 'styled-components';
-import { Wand } from 'design/Icon';
-import { Button } from 'design';
+import { Laptop } from 'design/Icon';
+import { Box, Button } from 'design';
+
+import { AgentState } from './connectMyComputerContext';
 
 interface NavigationMenuIconProps {
   onClick(): void;
+  agentState: AgentState;
 }
 
 export const NavigationMenuIcon = forwardRef<
@@ -35,14 +38,66 @@ export const NavigationMenuIcon = forwardRef<
       size="small"
       title="Open Connect My Computer"
     >
-      <Wand size={16} />
+      <Laptop size="medium" />
+      {getStateIndicator(props.agentState)}
     </StyledButton>
   );
 });
 
 const StyledButton = styled(Button)`
+  position: relative;
   background: ${props => props.theme.colors.spotBackground[0]};
   padding: 0;
   width: ${props => props.theme.space[5]}px;
   height: ${props => props.theme.space[5]}px;
+`;
+
+function getStateIndicator(agentState: AgentState): JSX.Element {
+  switch (agentState.status) {
+    case 'starting':
+    case 'stopping': {
+      return (
+        <StyledStatus
+          bg="success"
+          css={`
+            @keyframes blink {
+              0% {
+                opacity: 0;
+              }
+              50% {
+                opacity: 100%;
+              }
+              100% {
+                opacity: 0;
+              }
+            }
+
+            animation: blink 1.4s ease-in-out infinite;
+          `}
+        />
+      );
+    }
+    case 'running': {
+      return <StyledStatus bg="success" />;
+    }
+    case 'error': {
+      return <StyledStatus bg="error.main" />;
+    }
+    case 'exited': {
+      if (!agentState.exitedSuccessfully) {
+        return <StyledStatus bg="error.main" />;
+      }
+    }
+  }
+}
+
+const StyledStatus = styled(Box)`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 `;
