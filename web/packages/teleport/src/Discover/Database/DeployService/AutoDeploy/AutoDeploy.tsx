@@ -202,6 +202,12 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                     />
                     Encountered Error: {attempt.statusText}
                   </TextIcon>
+                  <Text mt={2}>
+                    <b>Note:</b> If this is your first attempt, it might be that
+                    AWS has not finished propagating changes from{' '}
+                    <Mark>Step 1</Mark>. Try waiting a minute before attempting
+                    again.
+                  </Text>
                 </Box>
               )}
             </StyledBox>

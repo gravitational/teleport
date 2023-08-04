@@ -188,6 +188,11 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					tc.args...,
 				),
 				setCopyStdout(captureStdout),
+
+				// set a custom empty kube config for each test, as we do
+				// not want parallel (or even shuffled sequential) tests
+				// potentially racing on the same config
+				setKubeConfigPath(filepath.Join(t.TempDir(), "kubeconfig")),
 			)
 			require.NoError(t, err)
 			require.Contains(t, captureStdout.String(), tc.wantTable())
@@ -249,7 +254,7 @@ func TestKubeLoginAccessRequest(t *testing.T) {
 		}),
 	)
 	// login as the user.
-	mustLoginSetEnv(t, s)
+	tshHome, kubeConfig := mustLoginSetEnv(t, s)
 
 	// Run the login command in a goroutine so we can check if the access
 	// request was created and approved.
@@ -266,6 +271,8 @@ func TestKubeLoginAccessRequest(t *testing.T) {
 				"--request-reason",
 				"test",
 			},
+			setHomePath(tshHome),
+			setKubeConfigPath(kubeConfig),
 		)
 		return trace.Wrap(err)
 	})
