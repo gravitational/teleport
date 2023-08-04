@@ -57,9 +57,9 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 				// or skipped, and it's not necessary but it's a nice touch that
 				// we'll be deleting expired items in expiration order
 				tag, err := b.pool.Exec(ctx,
-					"DELETE FROM kv WHERE key IN (SELECT key FROM kv"+
-						" WHERE expires IS NOT NULL AND expires <= now()"+
-						" ORDER BY expires LIMIT $1 FOR UPDATE)",
+					"DELETE FROM kv WHERE kv.key IN (SELECT kv_inner.key FROM kv AS kv_inner"+
+						" WHERE kv_inner.expires IS NOT NULL AND kv_inner.expires <= now()"+
+						" ORDER BY kv_inner.expires LIMIT $1 FOR UPDATE)",
 					b.cfg.ExpiryBatchSize,
 				)
 				if err != nil {
