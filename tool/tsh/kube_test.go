@@ -183,6 +183,11 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					tc.args...,
 				),
 				setCopyStdout(captureStdout),
+
+				// set a custom empty kube config for each test, as we do
+				// not want parallel (or even shuffled sequential) tests
+				// potentially racing on the same config
+				setKubeConfigPath(filepath.Join(t.TempDir(), "kubeconfig")),
 			)
 			require.NoError(t, err)
 			require.Contains(t, captureStdout.String(), tc.wantTable())
