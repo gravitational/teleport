@@ -818,7 +818,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(buff)
 	if err != nil {
 		// EOF happens quite often, don't pollute the logs with it
-		if !trace.IsEOF(err) {
+		if !errors.Is(err, io.EOF) {
 			c.logger.Error(err)
 		}
 		return n, err
