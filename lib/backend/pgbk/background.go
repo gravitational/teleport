@@ -202,28 +202,63 @@ func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName s
 	// TODO(espadolini): it might be better to do the JSON deserialization
 	// (potentially with additional checks for the schema) on the auth side
 	rows, _ := conn.Query(ctx,
-		`WITH jdata AS (
+		`WITH d AS (
   SELECT
     data::jsonb AS data
   FROM pg_logical_slot_get_changes($1, NULL, $2,
     'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
 )
 SELECT
-  data->>'action',
-  decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
-  decode(data->'columns'->1->>'value', 'hex'),
-  (data->'columns'->2->>'value')::timestamptz,
-  (data->'columns'->3->>'value')::uuid
-FROM jdata`, slotName, b.cfg.ChangeFeedBatchSize)
+  d.data->>'action' AS action,
+  decode(jsonb_path_query_first(d.data, '$.columns[*]?(@.name == "key")')->>'value', 'hex') AS key,
+  NULLIF(
+    decode(jsonb_path_query_first(d.data, '$.identity[*]?(@.name == "key")')->>'value', 'hex'),
+    decode(jsonb_path_query_first(d.data, '$.columns[*]?(@.name == "key")')->>'value', 'hex')
+  ) AS old_key,
+  decode(COALESCE(
+    jsonb_path_query_first(d.data, '$.columns[*]?(@.name == "value")'),
+    jsonb_path_query_first(d.data, '$.identity[*]?(@.name == "value")')
+  )->>'value', 'hex') AS value,
+  (COALESCE(
+    jsonb_path_query_first(d.data, '$.columns[*]?(@.name == "expires")'),
+    jsonb_path_query_first(d.data, '$.identity[*]?(@.name == "expires")')
+  )->>'value')::timestamptz AS expires,
+  (COALESCE(
+    jsonb_path_query_first(d.data, '$.columns[*]?(@.name == "revision")'),
+    jsonb_path_query_first(d.data, '$.identity[*]?(@.name == "revision")')
+  )->>'value')::uuid AS revision
+FROM d`,
+		slotName, b.cfg.ChangeFeedBatchSize)
 
 	var action string
 	var key []byte
+	var oldKey []byte
 	var value []byte
 	var expires zeronull.Timestamptz
 	var revision zeronull.UUID
-	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires, &revision}, func() error {
+	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &oldKey, &value, &expires, &revision}, func() error {
+		// TODO(espadolini): check for NULL values depending on the action
 		switch action {
-		case "I", "U":
+		case "I":
+			b.buf.Emit(backend.Event{
+				Type: types.OpPut,
+				Item: backend.Item{
+					Key:     key,
+					Value:   value,
+					Expires: time.Time(expires),
+				},
+			})
+			return nil
+		case "U":
+			// maybe one day we'll have item renaming
+			if oldKey != nil {
+				b.buf.Emit(backend.Event{
+					Type: types.OpDelete,
+					Item: backend.Item{
+						Key: oldKey,
+					},
+				})
+			}
 			b.buf.Emit(backend.Event{
 				Type: types.OpPut,
 				Item: backend.Item{
@@ -237,7 +272,7 @@ FROM jdata`, slotName, b.cfg.ChangeFeedBatchSize)
 			b.buf.Emit(backend.Event{
 				Type: types.OpDelete,
 				Item: backend.Item{
-					Key: key,
+					Key: oldKey,
 				},
 			})
 			return nil

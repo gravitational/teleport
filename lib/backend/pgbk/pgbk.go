@@ -237,6 +237,8 @@ var schemas = []string{
 		CONSTRAINT kv_pkey PRIMARY KEY (key)
 	);
 	CREATE INDEX kv_expires_idx ON kv (expires) WHERE expires IS NOT NULL;`,
+	`ALTER TABLE kv REPLICA IDENTITY FULL;
+	CREATE PUBLICATION kv_pub FOR TABLE kv;`,
 }
 
 var _ backend.Backend = (*Backend)(nil)
@@ -480,20 +482,10 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
 	revision := newRevision()
 	updated, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
-		// value = value || '' forces a value update; if the value is TOASTed
-		// and doesn't change, it won't appear in the change feed
-		//
-		// TODO(espadolini): figure out if it's better to switch to REPLICA
-		// IDENTITY FULL and fill unchanged columns from the identity data; it's
-		// unclear if the benefits of having a more standard solution outweigh
-		// the penalty of essentially doubling the WAL writes for no good
-		// reason, but it might also become useful in the future to have backend
-		// events include the previous state for the item (i.e. it might become
-		// a good reason)
 		tag, err := b.pool.Exec(ctx,
-			"UPDATE kv SET value = value || $1, expires = $2, revision = $3"+
-				" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
-			[]byte(""), zeronull.Timestamptz(expires.UTC()), revision, lease.Key)
+			"UPDATE kv SET expires = $1, revision = $2"+
+				" WHERE kv.key = $3 AND (kv.expires IS NULL OR kv.expires > now())",
+			zeronull.Timestamptz(expires.UTC()), revision, lease.Key)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
