@@ -34,6 +34,8 @@ function getMessageTypeAuthor(type: string) {
     case ServerMessageType.CommandResultStream:
     case ServerMessageType.CommandResultSummary:
     case ServerMessageType.Error:
+    case ServerMessageType.AccessRequests:
+    case ServerMessageType.AccessRequest:
       return Author.Teleport;
   }
 }

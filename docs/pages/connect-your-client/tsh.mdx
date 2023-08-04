@@ -529,9 +529,9 @@ $ tsh ssh -L 5000:google.com:80 --local node curl http://localhost:5000
 
 This command:
 
-1. Connects to `node`.
-2. Binds the local port `5000` to port `80` on `google.com`.
-3. Executes `curl` command locally, which results in `curl` hitting `google.com:80` via `node`.
+- Connects to `node`.
+- Binds the local port `5000` to port `80` on `google.com`.
+- Executes `curl` command locally, which results in `curl` hitting `google.com:80` via `node`.
 
 ### SSH jump host
 
@@ -561,9 +561,9 @@ Known limitations:
 
 `tsh` supports multiple methods to resolve remote Node names.
 
-1. **Traditional**: by IP address or via DNS.
-2. **Nodename setting**: the `teleport` daemon supports the` nodename` flag, which allows Teleport administrators to assign alternative Node names.
-3. **Labels**: you can address a Node by `name=value` pair.
+- **Traditional**: by IP address or via DNS.
+- **Nodename setting**: the `teleport` daemon supports the` nodename` flag, which allows Teleport administrators to assign alternative Node names.
+- **Labels**: you can address a Node by `name=value` pair.
 
 If we have two Node, one with `os:linux` label and one Node with `os:osx`, we
 can log in to the OSX Node with:

@@ -199,7 +199,7 @@ type Config struct {
 	AccessPoint auth.ProxyAccessPoint
 
 	// Emitter is event emitter
-	Emitter events.StreamEmitter
+	Emitter apievents.Emitter
 
 	// HostUUID is the UUID of this process.
 	HostUUID string
@@ -358,7 +358,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if err != nil {
 			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
 				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
-
 		} else {
 			sshPortValue = sshPort
 		}

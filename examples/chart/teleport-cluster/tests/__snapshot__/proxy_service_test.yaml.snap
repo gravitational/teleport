@@ -1,4 +1,22 @@
+does not expose separate listener ports by default when ingress.enabled=true:
+  1: |
+    - name: tls
+      port: 443
+      protocol: TCP
+      targetPort: 3080
+does not expose separate listener ports when running in separate mode and ingress.enabled=true:
+  1: |
+    - name: tls
+      port: 443
+      protocol: TCP
+      targetPort: 3080
 exposes a single port when running in multiplex mode:
+  1: |
+    - name: tls
+      port: 443
+      protocol: TCP
+      targetPort: 3080
+exposes a single port when running in multiplex mode and ingress.enabled=true:
   1: |
     - name: tls
       port: 443

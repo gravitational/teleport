@@ -52,12 +52,17 @@ type Audit interface {
 type AuditConfig struct {
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
+	// Recorder is used to record session events.
+	Recorder events.SessionPreparerRecorder
 }
 
 // Check validates the config.
 func (c *AuditConfig) Check() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing Emitter")
+	}
+	if c.Recorder == nil {
+		return trace.BadParameter("missing Recorder")
 	}
 	return nil
 }
@@ -214,8 +219,21 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 }
 
 // EmitEvent emits the provided audit event.
-func (a *audit) EmitEvent(ctx context.Context, event apievents.AuditEvent) error {
-	return trace.Wrap(a.cfg.Emitter.EmitAuditEvent(ctx, event))
+func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
+	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(e)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	recErr := a.cfg.Recorder.RecordEvent(ctx, preparedEvent)
+	event := preparedEvent.GetAuditEvent()
+	var emitErr error
+	// AppSessionRequest events should only go to session recording
+	if event.GetType() != events.AppSessionRequestEvent {
+		emitErr = a.cfg.Emitter.EmitAuditEvent(ctx, event)
+	}
+
+	return trace.NewAggregate(recErr, emitErr)
 }
 
 // MakeAppMetadata returns common server metadata for database session.

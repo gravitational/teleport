@@ -243,7 +243,7 @@ else
             # it needs to contain the "Gravitational, Inc" private key and signing key.
             # we also use the rpm-sign/rpmmacros file instead which contains extra directives used for signing.
             EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v ${GNUPG_DIR}:/root/.gnupg"
-            RPM_SIGN_STANZA="--rpm-sign"
+            RPM_SIGN_STANZA="--rpm-sign --rpm-digest sha256"
         fi
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         PACKAGE_ARCH="${DEB_PACKAGE_ARCH}"

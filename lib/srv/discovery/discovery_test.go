@@ -51,6 +51,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
 
@@ -505,7 +507,7 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
 				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
-			clustersNotUpdated: []string{"eks-cluster1"},
+			clustersNotUpdated: []string{mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup).GetName()},
 		},
 		{
 			name: "1 cluster in auth that belongs the same discovery group but has unmatched labels + import 2 prod clusters from EKS",
@@ -592,7 +594,7 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
 				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], mainDiscoveryGroup),
 			},
-			clustersNotUpdated: []string{"aks-cluster1"},
+			clustersNotUpdated: []string{mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup).GetName()},
 		},
 		{
 			name:                 "no clusters in auth server, import 2 prod clusters from GKE",
@@ -894,6 +896,7 @@ func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discover
 	cluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyEKSNameSuffix(cluster)
 	return cluster
 }
 
@@ -901,6 +904,7 @@ func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, d
 	cluster, err := services.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyAKSNameSuffix(cluster)
 	return cluster
 }
 
@@ -974,6 +978,7 @@ func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discov
 	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyGKENameSuffix(cluster)
 	return cluster
 }
 
@@ -1060,7 +1065,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "update existing database",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should be updated",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
 				}, types.DatabaseSpecV3{
@@ -1084,7 +1089,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "update existing database with assumed role",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-rds",
+					Name:        awsRDSDBWithRole.GetName(),
 					Description: "should be updated",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
 				}, types.DatabaseSpecV3{
@@ -1104,7 +1109,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "delete existing database",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should not be deleted",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
 				}, types.DatabaseSpecV3{
@@ -1119,7 +1124,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}},
 			expectDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should not be deleted",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
 				}, types.DatabaseSpecV3{
@@ -1209,7 +1214,11 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 			select {
 			case <-waitForReconcile:
-				actualDatabases, err := authClient.GetDatabases(ctx)
+				// Use tlsServer.Auth() instead of authClient to compare
+				// databases stored in auth. authClient was created with
+				// types.RoleDiscovery and it does not have permissions to
+				// access non-cloud databases.
+				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
 					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
@@ -1240,6 +1249,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
+	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRDS)
 	return instance, database
 }
 
@@ -1261,6 +1271,7 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
+	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshift)
 	return cluster, database
 }
 
@@ -1283,6 +1294,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
+	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherRedis)
 	return resourceInfo, database
 }
 
@@ -1525,6 +1537,223 @@ func TestAzureVMDiscovery(t *testing.T) {
 	}
 }
 
+type mockGCPClient struct {
+	vms []*gcp.Instance
+}
+
+func (m *mockGCPClient) ListInstances(_ context.Context, _, _ string) ([]*gcp.Instance, error) {
+	return m.vms, nil
+}
+
+func (m *mockGCPClient) StreamInstances(_ context.Context, _, _ string) stream.Stream[*gcp.Instance] {
+	return stream.Slice(m.vms)
+}
+
+func (m *mockGCPClient) GetInstance(_ context.Context, _ *gcp.InstanceRequest) (*gcp.Instance, error) {
+	return nil, trace.NotFound("disabled for test")
+}
+
+func (m *mockGCPClient) AddSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) error {
+	return nil
+}
+
+func (m *mockGCPClient) RemoveSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) error {
+	return nil
+}
+
+func TestGCPVMDiscovery(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		presentVMs  []types.Server
+		foundGCPVMs []*gcp.Instance
+		logHandler  func(*testing.T, io.Reader, chan struct{})
+	}{
+		{
+			name:       "no nodes present, 1 found",
+			presentVMs: []types.Server{},
+			foundGCPVMs: []*gcp.Instance{
+				{
+					ProjectID: "myproject",
+					Zone:      "myzone",
+					Name:      "myinstance",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"Running Teleport installation on these virtual machines") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+		{
+			name: "nodes present, instance filtered",
+			presentVMs: []types.Server{
+				&types.ServerV2{
+					Kind: types.KindNode,
+					Metadata: types.Metadata{
+						Name: "name",
+						Labels: map[string]string{
+							types.ProjectIDLabel: "myproject",
+							types.ZoneLabel:      "myzone",
+							types.NameLabel:      "myinstance",
+						},
+						Namespace: defaults.Namespace,
+					},
+				},
+			},
+			foundGCPVMs: []*gcp.Instance{
+				{
+					ProjectID: "myproject",
+					Zone:      "myzone",
+					Name:      "myinstance",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"All discovered GCP VMs are already part of the cluster") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+		{
+			name: "nodes present, instance not filtered",
+			presentVMs: []types.Server{
+				&types.ServerV2{
+					Kind: types.KindNode,
+					Metadata: types.Metadata{
+						Name: "name",
+						Labels: map[string]string{
+							types.ProjectIDLabel: "myproject",
+							types.ZoneLabel:      "myzone",
+							types.NameLabel:      "myotherinstance",
+						},
+						Namespace: defaults.Namespace,
+					},
+				},
+			},
+			foundGCPVMs: []*gcp.Instance{
+				{
+					ProjectID: "myproject",
+					Zone:      "myzone",
+					Name:      "myinstance",
+					Labels: map[string]string{
+						"teleport": "yes",
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"Running Teleport installation on these virtual machines") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			testClients := cloud.TestCloudClients{
+				GCPInstances: &mockGCPClient{
+					vms: tc.foundGCPVMs,
+				},
+			}
+
+			ctx := context.Background()
+			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+				Dir: t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+			// Auth client for discovery service.
+			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+			for _, instance := range tc.presentVMs {
+				_, err := tlsServer.Auth().UpsertNode(ctx, instance)
+				require.NoError(t, err)
+			}
+
+			logger := logrus.New()
+			emitter := &mockEmitter{}
+
+			server, err := New(context.Background(), &Config{
+				Clients:     &testClients,
+				AccessPoint: tlsServer.Auth(),
+				GCPMatchers: []types.GCPMatcher{{
+					Types:      []string{"gce"},
+					ProjectIDs: []string{"myproject"},
+					Locations:  []string{"myzone"},
+					Tags:       types.Labels{"teleport": {"yes"}},
+				}},
+				Emitter: emitter,
+				Log:     logger,
+			})
+
+			require.NoError(t, err)
+
+			emitter.server = server
+			emitter.t = t
+
+			r, w := io.Pipe()
+			t.Cleanup(func() {
+				require.NoError(t, r.Close())
+				require.NoError(t, w.Close())
+			})
+			if tc.logHandler != nil {
+				logger.SetOutput(w)
+				logger.SetLevel(logrus.DebugLevel)
+			}
+
+			go server.Start()
+
+			if tc.logHandler != nil {
+				done := make(chan struct{})
+				go tc.logHandler(t, r, done)
+				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
+				defer cancelfn()
+				select {
+				case <-timeoutCtx.Done():
+					t.Fatal("Timeout waiting for log entries")
+					return
+				case <-done:
+					server.Stop()
+					return
+				}
+			}
+
+			server.Wait()
+		})
+	}
+}
+
 // TestServer_onCreate tests the update of the discovery_group of a resource
 // when it differs from the one in the database.
 // TODO(tigrato): DELETE in 14.0.0
@@ -1580,6 +1809,14 @@ type fakeAccessPoint struct {
 	auth.DiscoveryAccessPoint
 	updateKube     bool
 	updateDatabase bool
+
+	upsertedServerInfos chan types.ServerInfo
+}
+
+func newFakeAccessPoint() *fakeAccessPoint {
+	return &fakeAccessPoint{
+		upsertedServerInfos: make(chan types.ServerInfo),
+	}
 }
 
 func (f *fakeAccessPoint) CreateDatabase(ctx context.Context, database types.Database) error {
@@ -1598,5 +1835,10 @@ func (f *fakeAccessPoint) CreateKubernetesCluster(ctx context.Context, cluster t
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	f.updateKube = true
+	return nil
+}
+
+func (f *fakeAccessPoint) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	f.upsertedServerInfos <- si
 	return nil
 }

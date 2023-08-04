@@ -242,6 +242,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
+					Verbs:     []string{Wildcard},
 				},
 			},
 				appendV7KubeResources()...),
@@ -265,6 +266,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      Wildcard,
 					Namespace: Wildcard,
 					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
 				},
 			},
 		},
@@ -287,6 +289,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
+					Verbs:     []string{Wildcard},
 				},
 			},
 				appendV7KubeResources()...),
@@ -304,6 +307,7 @@ func TestRole_GetKubeResources(t *testing.T) {
 					Kind:      Wildcard,
 					Namespace: Wildcard,
 					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
 				},
 			},
 		},
@@ -347,13 +351,14 @@ func appendV7KubeResources() []KubernetesResource {
 	resources := []KubernetesResource{}
 	// append other kubernetes resources
 	for _, resource := range KubernetesResourcesKinds {
-		if resource == KindKubePod {
+		if resource == KindKubePod || resource == KindKubeNamespace {
 			continue
 		}
 		resources = append(resources, KubernetesResource{
 			Kind:      resource,
 			Namespace: Wildcard,
 			Name:      Wildcard,
+			Verbs:     []string{Wildcard},
 		},
 		)
 	}

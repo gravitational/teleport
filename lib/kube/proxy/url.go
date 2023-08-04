@@ -17,11 +17,17 @@ limitations under the License.
 package proxy
 
 import (
+	"bytes"
+	"io"
+	"net/http"
 	"path"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
 type apiResource struct {
@@ -31,6 +37,7 @@ type apiResource struct {
 	resourceKind    string
 	resourceName    string
 	skipEvent       bool
+	isWatch         bool
 }
 
 // parseResourcePath does best-effort parsing of a Kubernetes API request path.
@@ -92,6 +99,7 @@ func parseResourcePath(p string) apiResource {
 	// Watch API endpoints have an extra /watch/ prefix. For now, silently
 	// strip it from our result.
 	if len(parts) > 0 && parts[0] == "watch" {
+		r.isWatch = true
 		parts = parts[1:]
 	}
 
@@ -206,19 +214,67 @@ func getResourceWithKey(k allowedResourcesKey) string {
 
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
-func getResourceFromRequest(requestURI string) (*types.KubernetesResource, apiResource) {
-	apiResource := parseResourcePath(requestURI)
+func getResourceFromRequest(req *http.Request) (*types.KubernetesResource, apiResource, error) {
+	apiResource := parseResourcePath(req.URL.Path)
+	verb := apiResource.getVerb(req)
 	resourceType, ok := getTeleportResourceKindFromAPIResource(apiResource)
-	// if the resource is not supported, return nil.
-	// if the resource is supported but the resource name is not present, return nil because it's a list request.
-	if !ok || apiResource.resourceName == "" {
-		return nil, apiResource
+	switch {
+	case !ok:
+		// if the resource is not supported, return nil.
+		return nil, apiResource, nil
+	case apiResource.resourceName == "" && verb != types.KubeVerbCreate:
+		// if the resource is supported but the resource name is not present and not a create request,
+		// return nil because it's a list request.
+		return nil, apiResource, nil
+
+	case apiResource.resourceName == "" && verb == types.KubeVerbCreate:
+		// If the request is a create request, extract the resource name from the request body.
+		var err error
+		if apiResource.resourceName, err = extractResourceNameFromPostRequest(req); err != nil {
+			return nil, apiResource, trace.Wrap(err)
+		}
 	}
+
 	return &types.KubernetesResource{
 		Kind:      resourceType,
 		Namespace: apiResource.namespace,
 		Name:      apiResource.resourceName,
-	}, apiResource
+		Verbs:     []string{verb},
+	}, apiResource, nil
+}
+
+// extractResourceNameFromPostRequest extracts the resource name from a POST body.
+// It reads the full body - required because data can be proto encoded -
+// and decodes it into a Kubernetes object. It then extracts the resource name
+// from the object.
+// The body is then reset to the original request body using a new buffer.
+func extractResourceNameFromPostRequest(req *http.Request) (string, error) {
+	if req.Body == nil {
+		return "", trace.BadParameter("request body is empty")
+	}
+	negotiator := newClientNegotiator()
+	_, decoder, err := newEncoderAndDecoderForContentType(responsewriters.GetContentTypeHeader(req.Header), negotiator)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	newBody := bytes.NewBuffer(make([]byte, 0, 2048))
+	if io.Copy(newBody, req.Body); err != nil {
+		return "", trace.Wrap(err)
+	}
+	if req.Body.Close(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	req.Body = io.NopCloser(newBody)
+	// decode memory rw body.
+	obj, err := decodeAndSetGVK(decoder, newBody.Bytes())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	namer, ok := obj.(kubeObjectInterface)
+	if !ok {
+		return "", trace.BadParameter("object %T does not implement kubeObjectInterface", obj)
+	}
+	return namer.GetName(), nil
 }
 
 func getTeleportResourceKindFromAPIResource(r apiResource) (string, bool) {
@@ -235,4 +291,49 @@ func getResourceFromAPIResource(resourceKind string) string {
 		return resourceKind[:idx]
 	}
 	return resourceKind
+}
+
+// isKubeWatchRequest returns true if the request is a watch request.
+func isKubeWatchRequest(req *http.Request, r apiResource) bool {
+	if values := req.URL.Query()["watch"]; len(values) > 0 {
+		switch strings.ToLower(values[0]) {
+		case "false", "0":
+		default:
+			return true
+		}
+	}
+	return r.isWatch
+}
+
+func (r apiResource) getVerb(req *http.Request) string {
+	verb := ""
+	isWatch := isKubeWatchRequest(req, r)
+	switch req.Method {
+	case http.MethodPost:
+		verb = types.KubeVerbCreate
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		switch {
+		case isWatch:
+			return types.KubeVerbWatch
+		case r.resourceName == "":
+			return types.KubeVerbList
+		default:
+			return types.KubeVerbGet
+		}
+	case http.MethodPut:
+		verb = types.KubeVerbUpdate
+	case http.MethodPatch:
+		verb = types.KubeVerbPatch
+	case http.MethodDelete:
+		switch {
+		case r.resourceName != "":
+			verb = types.KubeVerbDelete
+		default:
+			verb = types.KubeVerbDeleteCollection
+		}
+	default:
+		verb = ""
+	}
+
+	return verb
 }

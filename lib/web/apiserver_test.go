@@ -101,6 +101,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
@@ -2926,7 +2927,7 @@ func TestSearchClusterEvents(t *testing.T) {
 
 	s := newWebSuite(t)
 	clock := s.clock
-	sessionEvents := events.GenerateTestSession(events.SessionParams{
+	sessionEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
 		PrintEvents: 3,
 		Clock:       clock,
 		ServerID:    s.proxy.ID(),
@@ -3778,6 +3779,10 @@ func TestClusterDatabasesGet(t *testing.T) {
 			Spec: types.DatabaseSpecV3{
 				Protocol: "test-protocol",
 				URI:      "test-uri:1234",
+				AWS: types.AWS{
+					IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
+					Region:          "us-west-2",
+				},
 			},
 		},
 	})
@@ -3816,10 +3821,16 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Name:     "db1",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
-		Type:     types.DatabaseTypeSelfHosted,
+		Type:     types.DatabaseTypeRDS,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
 		Hostname: "test-uri",
 		URI:      "test-uri:1234",
+		AWS: &ui.AWS{
+			AWS: types.AWS{
+				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
+				Region:          "us-west-2",
+			},
+		},
 	}, {
 		Name:     "db2",
 		Type:     types.DatabaseTypeSelfHosted,
@@ -3856,12 +3867,18 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Name:          "db1",
 		Desc:          "test-description",
 		Protocol:      "test-protocol",
-		Type:          types.DatabaseTypeSelfHosted,
+		Type:          types.DatabaseTypeRDS,
 		Labels:        []ui.Label{{Name: "test-field", Value: "test-value"}},
 		Hostname:      "test-uri",
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
 		URI:           "test-uri:1234",
+		AWS: &ui.AWS{
+			AWS: types.AWS{
+				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
+				Region:          "us-west-2",
+			},
+		},
 	}, {
 		Name:          "db2",
 		Type:          types.DatabaseTypeSelfHosted,
@@ -3872,6 +3889,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		DatabaseNames: []string{"name1"},
 		URI:           "test-uri:1234",
 	}})
+
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -4263,6 +4281,11 @@ func TestClusterKubePodsGet(t *testing.T) {
 func TestClusterAppsGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
+	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
@@ -4273,7 +4296,8 @@ func TestClusterAppsGet(t *testing.T) {
 
 	// add a user group
 	ug, err := types.NewUserGroup(types.Metadata{
-		Name: "ug1", Description: "ug1-description"},
+		Name: "ug1", Description: "ug1-description",
+	},
 		types.UserGroupSpecV1{Applications: []string{"app1"}})
 	require.NoError(t, err)
 	err = env.server.Auth().CreateUserGroup(context.Background(), ug)
@@ -4294,7 +4318,7 @@ func TestClusterAppsGet(t *testing.T) {
 				Spec: types.AppSpecV3{
 					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
 					PublicAddr: "publicaddrs",
-					UserGroups: []string{"ug1"},
+					UserGroups: []string{"ug1", "ug2"}, // ug2 doesn't exist in the backend, so its lookup will fail.
 				},
 			},
 		},
@@ -4309,10 +4333,27 @@ func TestClusterAppsGet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Register apps.
+	resource3, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "test-saml-app",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		EntityDescriptor: `<?xml version="1.0" encoding="UTF-8"?>
+		<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="test-saml-app" validUntil="2025-12-09T09:13:31.006Z">
+			 <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+					<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+					<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+					<md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+			 </md:SPSSODescriptor>
+		</md:EntityDescriptor>`,
+		EntityID: "test-saml-app",
+	})
+	require.NoError(t, err)
+
+	// Register apps and service providers.
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
+	require.NoError(t, err)
+	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -4323,8 +4364,8 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
+	require.Len(t, resp.Items, 3)
+	require.Equal(t, 3, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
@@ -4343,6 +4384,16 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:       "publicaddrs",
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
+	}, {
+		Name:        "test-saml-app",
+		Description: "SAML Application",
+		URI:         "",
+		Labels:      []ui.Label{},
+		ClusterID:   env.server.ClusterName(),
+		FQDN:        "",
+		PublicAddr:  "",
+		AWSConsole:  false,
+		SAMLApp:     true,
 	}})
 }
 
@@ -8445,7 +8496,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			ClusterName:       cfg.authServer.ClusterName(),
 			Authz:             proxyAuthorizer,
 			AuthClient:        client,
-			StreamEmitter:     client,
+			Emitter:           client,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            hostID,
@@ -9313,5 +9364,4 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	require.NoError(t, err)
 
 	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
-
 }

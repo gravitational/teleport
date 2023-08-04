@@ -375,6 +375,16 @@ type Config struct {
 	// MockHeadlessLogin is used in tests for mocking the Headless login response.
 	MockHeadlessLogin SSHLoginFunc
 
+	// OverrideMySQLOptionFilePath overrides the MySQL option file path to use.
+	// Useful in parallel tests so they don't all use the default path in the
+	// user home dir.
+	OverrideMySQLOptionFilePath string
+
+	// OverridePostgresServiceFilePath overrides the Postgres service file path.
+	// Useful in parallel tests so they don't all use the default path in the
+	// user home dir.
+	OverridePostgresServiceFilePath string
+
 	// HomePath is where tsh stores profiles
 	HomePath string
 
@@ -542,7 +552,7 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
-func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
+func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
 	fnErr := fn()
 	switch {
 	case fnErr == nil:
@@ -554,20 +564,28 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	case !IsErrorResolvableWithRelogin(fnErr):
 		return trace.Wrap(fnErr)
 	}
-
+	opt := retryWithReloginOptions{}
+	for _, o := range opts {
+		o(&opt)
+	}
 	log.Debugf("Activating relogin on %v.", fnErr)
 
 	// check if the error is a private key policy error.
 	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr); err == nil {
 		// The current private key was rejected due to an unmet key policy requirement.
 		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
-		fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
+		fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 
 		// The current private key was rejected due to an unmet key policy requirement.
 		// Set the private key policy to the expected value and re-login.
 		tc.PrivateKeyPolicy = privateKeyPolicy
 	}
 
+	if opt.beforeLoginHook != nil {
+		if err := opt.beforeLoginHook(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	key, err := tc.Login(ctx)
 	if err != nil {
 		if errors.Is(err, prompt.ErrNotTerminal) {
@@ -601,6 +619,24 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 
 	return fn()
+}
+
+// RetryWithReloginOption is a functional option for configuring the
+// RetryWithRelogin helper.
+type RetryWithReloginOption func(*retryWithReloginOptions)
+
+// retryWithReloginOptions is a struct for configuring the RetryWithRelogin
+type retryWithReloginOptions struct {
+	// beforeLoginHook is a function that will be called before the login attempt.
+	beforeLoginHook func() error
+}
+
+// WithBeforeLogin is a functional option for configuring a function that will
+// be called before the login attempt.
+func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
+	return func(o *retryWithReloginOptions) {
+		o.beforeLoginHook = fn
+	}
 }
 
 func IsErrorResolvableWithRelogin(err error) bool {
@@ -1962,15 +1998,25 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		return trace.Wrap(err)
 	}
 
-	// Return an error if it is a desktop session
+	// Return an error if it is a desktop session and check to see if this is not a Kube or SSH session
 	if len(sessionEvents) > 0 {
-		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
+		switch typ := sessionEvents[0].GetType(); typ {
+		case events.WindowsDesktopSessionStartEvent:
 			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
 			message := "Desktop sessions cannot be viewed with tsh." +
 				" Please use the browser to play this session." +
 				" Click on the URL to view the session in the browser:"
 			return trace.BadParameter("%s\n%s", message, url)
+		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
+			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
+				" To play entries for Application and Database you must use the json or yaml format."+
+				" \nEx: tsh play -f json %s", sid)
+		case events.SessionStartEvent:
+			// proceed without error
+		default:
+			return trace.BadParameter("unknown session type %q", typ)
 		}
+
 	}
 
 	// read the stream into a buffer:
@@ -2039,6 +2085,23 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	sessionEvents, err = w.SessionEvents()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// Return errors if this is desktop, app, db or unknown session.
+	if len(sessionEvents) > 0 {
+		switch typ := sessionEvents[0].GetType(); typ {
+		case events.WindowsDesktopSessionStartEvent:
+			message := "Desktop sessions cannot be viewed with tsh." +
+				" Please use the browser to play this session or use tsh recordings export to get a video download."
+			return trace.BadParameter("%s", message)
+		case events.AppSessionStartEvent, events.DatabaseSessionStartEvent, events.AppSessionChunkEvent:
+			return trace.BadParameter("Interactive session replay with tsh is supported for SSH and Kubernetes sessions."+
+				" To play entries for Application and Database you must use the json or yaml format."+
+				"\nEx: tsh play -f json %s", sid)
+		case events.SessionStartEvent:
+			// proceed without error
+		default:
+			return trace.BadParameter("unknown session type %q", typ)
+		}
 	}
 	stream, err = w.SessionChunks()
 	if err != nil {
@@ -3271,9 +3334,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
-
 	if tc.KeyTTL == 0 {
 		tc.KeyTTL = time.Duration(pr.Auth.DefaultSessionTTL)
 	}
@@ -3319,9 +3379,6 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	webLoginFunc, err := tc.getWebLoginFunc(pr)
@@ -3392,6 +3449,10 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, root
 		Type:  "CERTIFICATE",
 		Bytes: newCerts.X509Der,
 	})
+
+	if err := tc.localAgent.AddKey(&cp); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Get the list of host certificates that this cluster knows about.
 	hostCerts, err := rootAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
@@ -3715,7 +3776,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-initiating login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}
@@ -3779,7 +3840,7 @@ func (tc *TeleportClient) webLogin(ctx context.Context, webLoginFunc WebLoginFun
 				return nil, nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-initiating login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 			clt, session, err = webLoginFunc(ctx, priv)
 		}
 	}
@@ -4126,6 +4187,12 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if err := tc.applyProxySettings(pr.Proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Perform the ALPN handshake test during Ping as it's part of the Proxy
+	// settings. Only do this when Ping is successful. If tc.lastPing is
+	// cached, there is no need to do this test again.
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+
 	tc.applyAuthSettings(pr.Auth)
 
 	tc.lastPing = pr

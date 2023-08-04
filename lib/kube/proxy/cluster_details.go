@@ -60,6 +60,10 @@ type clusterDetailsConfig struct {
 	// resourceMatchers is the list of resource matchers to match the cluster against
 	// to determine if we should assume the role or not for AWS.
 	resourceMatchers []services.ResourceMatcher
+	// clock is the clock to use.
+	clock clockwork.Clock
+	// component is the Kubernetes component that serves this cluster.
+	component KubeServiceType
 }
 
 // newClusterDetails creates a proxied kubeDetails structure given a dynamic cluster.
@@ -102,10 +106,10 @@ func (k *kubeDetails) Close() {
 
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
 func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (kubeCreds, error) {
-	dynCredsCfg := dynamicCredsConfig{kubeCluster: cfg.cluster, log: cfg.log, checker: cfg.checker, resourceMatchers: cfg.resourceMatchers}
+	dynCredsCfg := dynamicCredsConfig{kubeCluster: cfg.cluster, log: cfg.log, checker: cfg.checker, resourceMatchers: cfg.resourceMatchers, clock: cfg.clock, component: cfg.component}
 	switch {
 	case cfg.cluster.IsKubeconfig():
-		return getStaticCredentialsFromKubeconfig(ctx, cfg.cluster, cfg.log, cfg.checker)
+		return getStaticCredentialsFromKubeconfig(ctx, cfg.component, cfg.cluster, cfg.log, cfg.checker)
 	case cfg.cluster.IsAzure():
 		return getAzureCredentials(ctx, cfg.cloudClients, dynCredsCfg)
 	case cfg.cluster.IsAWS():
@@ -258,7 +262,7 @@ func genAWSToken(stsClient stsiface.STSAPI, clusterID string, clock clockwork.Cl
 
 // getStaticCredentialsFromKubeconfig loads a kubeconfig from the cluster and returns the access credentials for the cluster.
 // If the config defines multiple contexts, it will pick one (the order is not guaranteed).
-func getStaticCredentialsFromKubeconfig(ctx context.Context, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
+func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServiceType, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	config, err := clientcmd.Load(cluster.GetKubeconfig())
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "unable to parse kubeconfig for cluster %q", cluster.GetName())
@@ -275,7 +279,7 @@ func getStaticCredentialsFromKubeconfig(ctx context.Context, cluster types.KubeC
 		return nil, trace.WrapWithMessage(err, "unable to create client from kubeconfig for cluster %q", cluster.GetName())
 	}
 
-	creds, err := extractKubeCreds(ctx, cluster.GetName(), restConfig, log, checker)
+	creds, err := extractKubeCreds(ctx, component, cluster.GetName(), restConfig, log, checker)
 	return creds, trace.Wrap(err)
 }
 

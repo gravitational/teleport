@@ -40,7 +40,11 @@ import {
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import { DatabaseLocation } from 'teleport/Discover/SelectResource';
-import { DiscoverEventStatus } from 'teleport/services/userEvent';
+import {
+  DiscoverEventStatus,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
+} from 'teleport/services/userEvent';
 
 import {
   ActionButtons,
@@ -85,7 +89,12 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
               <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
-                  <Icons.Warning ml={1} color="error.main" />
+                  <Icons.Warning
+                    size="medium"
+                    ml={1}
+                    mr={2}
+                    color="error.main"
+                  />
                   Encountered Error: {fbProps.error.message}
                 </TextIcon>
               </Box>
@@ -153,9 +162,13 @@ export function ManualDeploy(props: {
     nextStep();
 
     emitEvent(
-      { stepStatus: DiscoverEventStatus.Success }
-      // TODO(lisa) uncomment after backend handles this field
-      // { deployMethod: 'manual' }
+      { stepStatus: DiscoverEventStatus.Success },
+      {
+        serviceDeploy: {
+          method: DiscoverServiceDeployMethod.Manual,
+          type: DiscoverServiceDeployType.InstallScript,
+        },
+      }
     );
   }
 
@@ -198,7 +211,7 @@ export function ManualDeploy(props: {
             white-space: pre;
           `}
         >
-          <Icons.Restore fontSize={4} />
+          <Icons.Restore size="medium" mr={2} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Teleport database service.

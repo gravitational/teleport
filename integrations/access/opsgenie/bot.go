@@ -62,7 +62,7 @@ func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqI
 			Tag:    ResolutionTag(reqData.ResolutionTag),
 			Reason: reqData.ResolutionReason,
 		},
-		ResolveAnnotations: types.Labels{
+		SystemAnnotations: types.Labels{
 			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel: schedules,
 		},
 	}

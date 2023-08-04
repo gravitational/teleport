@@ -27,13 +27,14 @@ import {
 } from 'design';
 import FieldSelect from 'shared/components/FieldSelect';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Option } from 'shared/components/Select';
+import { Option as BaseOption } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
 
 import cfg from 'teleport/config';
 import {
+  Integration,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
@@ -47,6 +48,8 @@ import {
   DiscoverUrlLocationState,
   useDiscover,
 } from '../../useDiscover';
+
+type Option = BaseOption<Integration>;
 
 export function ConnectAwsAccount() {
   const { storeUser } = useTeleport();
@@ -86,7 +89,7 @@ export function ConnectAwsAccount() {
         const options = res.items.map(i => {
           if (i.kind === 'aws-oidc') {
             return {
-              value: i.name,
+              value: i,
               label: i.name,
             };
           }
@@ -149,7 +152,7 @@ export function ConnectAwsAccount() {
 
     updateAgentMeta({
       ...(agentMeta as DbMeta),
-      integrationName: selectedAwsIntegration.value,
+      integration: selectedAwsIntegration.value,
     });
 
     nextStep();

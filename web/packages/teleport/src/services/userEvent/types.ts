@@ -29,15 +29,15 @@ export enum CaptureEvent {
   // PreUserEvent types
   //   these events are unauthenticated,
   //   and require username in the request
-
   PreUserOnboardSetCredentialSubmitEvent = 'tp.ui.onboard.setCredential.submit',
   PreUserOnboardRegisterChallengeSubmitEvent = 'tp.ui.onboard.registerChallenge.submit',
-  PreUserOnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
   PreUserCompleteGoToDashboardClickEvent = 'tp.ui.onboard.completeGoToDashboard.click',
-
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',
   PreUserRecoveryCodesCopyClickEvent = 'tp.ui.recoveryCodesCopy.click',
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
+
+  // Shared types; used in both pre-user and authenticated user settings
+  OnboardQuestionnaireSubmitEvent = 'tp.ui.onboard.questionnaire.submit',
 }
 
 export enum IntegrationEnrollEvent {
@@ -59,6 +59,12 @@ export enum IntegrationEnrollKind {
   OpsGenie = 'INTEGRATION_ENROLL_KIND_OPSGENIE',
   Okta = 'INTEGRATION_ENROLL_KIND_OKTA',
   Jamf = 'INTEGRATION_ENROLL_KIND_JAMF',
+  MachineID = 'INTEGRATION_ENROLL_KIND_MACHINE_ID',
+  MachineIDGitHubActions = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS',
+  MachineIDCircleCI = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI',
+  MachineIDGitLab = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB',
+  MachineIDJenkins = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS',
+  MachineIDAnsible = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE',
 }
 
 export enum DiscoverEvent {

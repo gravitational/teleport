@@ -54,12 +54,18 @@ type PagerdutyConfig struct {
 	}
 }
 
-const NotifyServiceDefaultAnnotation = "pagerduty_notify_service"
-const ServicesDefaultAnnotation = "pagerduty_services"
+const (
+	APIEndpointDefaultURL          = "https://api.pagerduty.com"
+	NotifyServiceDefaultAnnotation = "pagerduty_notify_service"
+	ServicesDefaultAnnotation      = "pagerduty_services"
+)
 
 func (c *Config) CheckAndSetDefaults() error {
 	if err := c.Teleport.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+	if c.Pagerduty.APIEndpoint == "" {
+		c.Pagerduty.APIEndpoint = APIEndpointDefaultURL
 	}
 	if c.Pagerduty.APIKey == "" {
 		return trace.BadParameter("missing required value pagerduty.api_key")

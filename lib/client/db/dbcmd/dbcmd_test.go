@@ -417,6 +417,23 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:         "sqlserver sqlcmd",
+			dbProtocol:   defaults.ProtocolSQLServer,
+			databaseName: "mydb",
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"sqlcmd": {},
+				},
+			},
+			cmd: []string{sqlcmdBin,
+				"-S", "localhost,12345",
+				"-U", "myUser",
+				"-P", fixtures.UUID,
+				"-d", "mydb",
+			},
+			wantErr: false,
+		},
+		{
 			name:       "redis-cli",
 			dbProtocol: defaults.ProtocolRedis,
 			execer:     &fakeExec{},
