@@ -553,3 +553,111 @@ func TestPluginMattermostValidation(t *testing.T) {
 		})
 	}
 }
+
+func requireBadParameterError(t require.TestingT, err error, args ...any) {
+	if tt, ok := t.(*testing.T); ok {
+		tt.Helper()
+	}
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), args...)
+}
+
+func reqireNamedBadParameterError(name string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, args ...any) {
+		if tt, ok := t.(*testing.T); ok {
+			tt.Helper()
+		}
+		require.ErrorContains(t, err, name)
+		require.True(t, trace.IsBadParameter(err))
+	}
+}
+
+func TestPluginJiraValidation(t *testing.T) {
+	validSettings := func() *PluginSpecV1_Jira {
+		return &PluginSpecV1_Jira{
+			&PluginJiraSettings{
+				ServerUrl:  "https://example.com",
+				ProjectKey: "PRJ",
+				IssueType:  "Task",
+			},
+		}
+	}
+	validCreds := func() *PluginCredentialsV1 {
+		return &PluginCredentialsV1{
+			Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+				&PluginStaticCredentialsRef{
+					Labels: map[string]string{
+						"jira/address":   "https://jira.example.com",
+						"jira/project":   "PRJ",
+						"jira/issueType": "Task",
+					},
+				},
+			},
+		}
+	}
+
+	testCases := []struct {
+		name           string
+		mutateSettings func(*PluginSpecV1_Jira)
+		mutateCreds    func(*PluginCredentialsV1)
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			name:      "Valid",
+			assertErr: require.NoError,
+		}, {
+			name:           "Missing Settings",
+			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira = nil },
+			assertErr:      requireBadParameterError,
+		}, {
+			name:           "Missing Server URL",
+			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.ServerUrl = "" },
+			assertErr:      reqireNamedBadParameterError("server URL"),
+		}, {
+			name:           "Missing Project Key",
+			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.ProjectKey = "" },
+			assertErr:      reqireNamedBadParameterError("project key"),
+		}, {
+			name:           "Missing Issue Type",
+			mutateSettings: func(s *PluginSpecV1_Jira) { s.Jira.IssueType = "" },
+			assertErr:      reqireNamedBadParameterError("issue type"),
+		}, {
+			name:        "Missing Credentials",
+			mutateCreds: func(c *PluginCredentialsV1) { c.Credentials = nil },
+			assertErr:   requireBadParameterError,
+		}, {
+			name: "Missing Credential Labels",
+			mutateCreds: func(c *PluginCredentialsV1) {
+				c.Credentials.(*PluginCredentialsV1_StaticCredentialsRef).
+					StaticCredentialsRef.
+					Labels = map[string]string{}
+			},
+			assertErr: reqireNamedBadParameterError("labels"),
+		}, {
+			name: "Invalid Credential Type",
+			mutateCreds: func(c *PluginCredentialsV1) {
+				c.Credentials = &PluginCredentialsV1_Oauth2AccessToken{}
+			},
+			assertErr: reqireNamedBadParameterError("static credentials"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := validSettings()
+			if tc.mutateSettings != nil {
+				tc.mutateSettings(settings)
+			}
+
+			creds := validCreds()
+			if tc.mutateCreds != nil {
+				tc.mutateCreds(creds)
+			}
+
+			plugin := NewPluginV1(Metadata{Name: "uut"}, PluginSpecV1{
+				Settings: settings,
+			}, creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}

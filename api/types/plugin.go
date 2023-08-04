@@ -195,6 +195,19 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("jira plugin must be used with the static credentials ref type")
+		}
+
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+
 	case *PluginSpecV1_Okta:
 		// Check settings.
 		if settings.Okta == nil {
