@@ -1210,7 +1210,11 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 			select {
 			case <-waitForReconcile:
-				actualDatabases, err := authClient.GetDatabases(ctx)
+				// Use tlsServer.Auth() instead of authClient to compare
+				// databases stored in auth. authClient was created with
+				// types.RoleDiscovery and it does not have permissions to
+				// access non-cloud databases.
+				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
 					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
