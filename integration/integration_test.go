@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -1975,7 +1976,7 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 				if badErrorErr := tc.verifyError(err); badErrorErr != nil {
 					asyncErrors <- badErrorErr
 				}
-			} else if err != nil && !trace.IsEOF(err) && !isSSHError(err) {
+			} else if err != nil && !errors.Is(err, io.EOF) && !isSSHError(err) {
 				asyncErrors <- fmt.Errorf("expected EOF, ExitError, or nil, got %v instead", err)
 				return
 			}
