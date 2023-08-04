@@ -19,14 +19,8 @@ import (
 )
 
 func main() {
-
 	// aggregate common and oss-specific command variants
 	commands := common.Commands()
 	commands = append(commands, common.OSSCommands()...)
-
-	// TODO(zmb3): add devices command to common commands
-	// after the command has been removed from enterprise
-	commands = append(commands, &common.DevicesCommand{})
-
 	common.Run(commands)
 }
