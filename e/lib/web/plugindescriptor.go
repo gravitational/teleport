@@ -14,6 +14,7 @@ import (
 	jamf "github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 )
@@ -73,6 +74,7 @@ func (fn pluginInstallerFn) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 // and making it dynamic data in the future.
 var pluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginType]pluginDescriptor{
 	types.PluginTypeJamf:       pluginInstallerFn(installJamfPlugin),
+	types.PluginTypeJira:       pluginInstallerFn(installJiraPlugin),
 	types.PluginTypeOkta:       pluginInstallerFn(installOktaPlugin),
 	types.PluginTypeOpsgenie:   pluginInstallerFn(installOpsgeniePlugin),
 	types.PluginTypePagerDuty:  pluginInstallerFn(installPagerdutyPlugin),
@@ -228,6 +230,92 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, pluginReq, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ui, nil
+}
+
+func installJiraPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	p.Log.Info("Entering installJiraPlugin()")
+	defer p.Log.Info("Exiting installJiraPlugin()")
+
+	addr := r.FormValue("addr")
+	if addr == "" {
+		return nil, trace.BadParameter("missing Jira server url")
+	}
+
+	jiraURL, err := lib.AddrToURL(addr)
+	if err != nil {
+		return nil, trace.Wrap(err, "malformed Jira server url")
+	}
+
+	username := r.FormValue("username")
+	if username == "" {
+		return nil, trace.BadParameter("missing Jira user name")
+	}
+
+	apiKey := r.FormValue("apiKey")
+	if apiKey == "" {
+		return nil, trace.BadParameter("missing Jira API key")
+	}
+
+	projectID := r.FormValue("project")
+	if projectID == "" {
+		return nil, trace.BadParameter("missing Jira project key")
+	}
+
+	issueType := r.FormValue("issueType")
+	if issueType == "" {
+		return nil, trace.BadParameter("missing Jira issue type")
+	}
+
+	pluginReq := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeJira,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Jira{
+					Jira: &types.PluginJiraSettings{
+						ServerUrl:  jiraURL.String(),
+						ProjectKey: projectID,
+						IssueType:  issueType,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"jira/address":   jiraURL.String(),
+						"jira/project":   projectID,
+						"jira/issueType": issueType,
+					},
+					Name: types.PluginTypeJira,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
+					// JIRA does issue API keys, but they are for all intents and
+					// purposes an alternative password for a given user. Even with
+					// an API key you still require a username to log in, so we may
+					// as well just treat it like a basic auth scenario
+					BasicAuth: &types.PluginStaticCredentialsBasicAuth{
+						Username: username,
+						Password: apiKey,
+					},
+				},
+			},
+		},
 	}
 
 	ui, err := installPlugin(ctx, sessCtx, pluginReq, p)

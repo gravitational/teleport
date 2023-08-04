@@ -14,7 +14,7 @@ import (
 func pagerDutyInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
 	pagerDutySpec := plugin.Spec.GetPagerDuty()
 	if pagerDutySpec == nil {
-		return nil, trace.BadParameter("field Spec.PagerDutyAccessPlugin must be present")
+		return nil, trace.BadParameter("field Spec.PagerDuty must be present")
 	}
 
 	if len(deps.staticCredentials) == 0 {

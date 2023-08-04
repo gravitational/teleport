@@ -68,6 +68,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeOpsgenie:   opsgenieInstanceFactory,
 			types.PluginTypePagerDuty:  pagerDutyInstanceFactory,
 			types.PluginTypeJamf:       jamfInstanceFactory,
+			types.PluginTypeJira:       jiraInstanceFactory,
 			types.PluginTypeMattermost: mattermostInstanceFactory,
 		}
 	}

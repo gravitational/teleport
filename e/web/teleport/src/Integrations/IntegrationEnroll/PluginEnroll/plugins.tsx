@@ -419,6 +419,128 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     },
   },
   {
+    type: 'jira',
+    name: 'Jira',
+    fullName: 'Jira',
+    icon: jiraIcon,
+    url: 'https://https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira',
+    hosted: true,
+    permissions: [
+      {
+        category: 'Read/Write on Jira Issues',
+        permissions: [
+          {
+            title: 'Read',
+            description: 'Monitor Teleport-created Issues',
+          },
+          {
+            title: 'Write',
+            description: 'Create, Comment on, and Resolve Issues',
+          },
+        ],
+      },
+    ],
+    Description: () => (
+      <Text>
+        <p>
+          A Teleport integration with Jira allows your team to treat Teleport
+          access requests as Jira incidents.
+        </p>
+      </Text>
+    ),
+    FormMixin: () => {
+      const [username, setUsername] = useState('');
+      const [token, setToken] = useState('');
+      const [addr, setAddr] = useState('');
+      const [project, setProject] = useState('');
+      const [issueType, setIssueType] = useState('');
+
+      return (
+        <>
+          <FieldInput
+            width="500px"
+            label="Jira Server Address"
+            name="addr" // must be the same name as expected by the backend as form value
+            rule={requiredField('Jira server address required')}
+            value={addr}
+            onChange={e => setAddr(e.target.value)}
+            placeholder="https://myserver.jira.com"
+            toolTipContent="Address of the Jira server to enroll"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Jira Username"
+            name="username" // must be the same name as expected by the backend as form value
+            rule={requiredField('Jira Username Required')}
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder="Jira Username"
+            toolTipContent="The Jira username that Teleport will use when logging in to Jira."
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Jira API Key"
+            name="apiKey" // must be the same name as expected by the backend as form value
+            rule={requiredField('Jira API Key Required')}
+            value={token}
+            type="password"
+            onChange={e => setToken(e.target.value)}
+            placeholder="AAA...-123"
+            toolTipContent="API Key generated for the user specified in Jira Username"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Jira Project Key"
+            name="project" // must be the same name as expected by the backend as form value
+            rule={requiredField('Jira Project Key Required')}
+            value={project}
+            onChange={e => setProject(e.target.value)}
+            placeholder="Jira Project Key"
+            toolTipContent="This is a small (usually 3 or 4 character) identifier that Jira adds to the start of issue numbers that identifies the project they belong to."
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Jira Issue Type"
+            name="issueType" // must be the same name as expected by the backend as form value
+            rule={requiredField('Jira Issue Type Required')}
+            value={issueType}
+            onChange={e => setIssueType(e.target.value)}
+            placeholder="Task"
+            toolTipContent="The Jira issue type to create."
+            mb={3}
+          />
+        </>
+      );
+    },
+    NextSteps: () => {
+      return (
+        <Text>
+          <p>
+            Teleport will create issues in your Jira project in response to
+            access requests.
+          </p>
+          <p>
+            Adding the <em>Pending</em>, <em>Approved</em> and <em>Denied</em>{' '}
+            columns to your Jira project board will also allow Teleport to
+            automatically update the status of these Jira issues as access
+            requests are approved or denied. For more information, consult the{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira/#step-36-set-up-your-jira-project"
+            >
+              Set up your Jira project
+            </Link>{' '}
+            section of Teleport's Jira guide.
+          </p>
+        </Text>
+      );
+    },
+  },
+  {
     type: 'pagerduty',
     name: 'PagerDuty',
     icon: pagerdutyIcon,
@@ -526,13 +648,6 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'Email',
     icon: emailIcon,
     url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/email',
-    hosted: false,
-  },
-  {
-    type: 'jira',
-    name: 'Jira',
-    icon: jiraIcon,
-    url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/jira',
     hosted: false,
   },
   {

@@ -65,6 +65,8 @@ func pluginDetails(p types.Plugin) string {
 		return "Messages will be sent to assigned reviewers defined in access requests"
 	case *types.PluginSpecV1_Jamf:
 		return "Devices will be synced from Jamf to Teleport device inventory"
+	case *types.PluginSpecV1_Jira:
+		return fmt.Sprintf(`Teleport access requests will be created on %s project %s`, settings.Jira.ServerUrl, settings.Jira.ProjectKey)
 	case *types.PluginSpecV1_Okta:
 		return "Okta applications and groups will be synced to Teleport"
 	case *types.PluginSpecV1_Opsgenie:
