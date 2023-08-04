@@ -908,6 +908,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	clusters := app.Command("clusters", "List available Teleport clusters.")
 	clusters.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
+	clusters.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
@@ -1027,6 +1028,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
 	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
+	reqSearch.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
@@ -3025,7 +3027,7 @@ func onListClusters(cf *CLIConf) error {
 			rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName),
 		})
 		for _, cluster := range leafClusters {
-			labels := sortedLabels(cluster.GetMetadata().Labels)
+			labels := common.FormatLabels(cluster.GetAllLabels(), cf.Verbose)
 			t.AddRow([]string{
 				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", labels, showSelected(cluster.GetName()),
 			})
@@ -3044,7 +3046,7 @@ func onListClusters(cf *CLIConf) error {
 				ClusterName: leaf.GetName(),
 				Status:      leaf.GetConnectionStatus(),
 				ClusterType: "leaf",
-				Labels:      leaf.GetMetadata().Labels,
+				Labels:      leaf.GetAllLabels(),
 				Selected:    isSelected(leaf.GetName()),
 			})
 		}
