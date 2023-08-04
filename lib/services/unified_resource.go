@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"sync"
+	"time"
 
 	"github.com/google/btree"
 	"github.com/gravitational/trace"
@@ -28,6 +29,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type UnifiedResourceCacheConfig struct {
@@ -52,6 +54,7 @@ type UnifiedResourceCache struct {
 	initializationC chan struct{}
 	stale           bool
 	once            sync.Once
+	cache           *utils.FnCache
 	ResourceGetter
 }
 
@@ -59,6 +62,15 @@ type UnifiedResourceCache struct {
 func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig) (*UnifiedResourceCache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "setting defaults for unified resource cache")
+	}
+
+	lazyCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		Context: ctx,
+		TTL:     15 * time.Second,
+		Clock:   cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	m := &UnifiedResourceCache{
@@ -71,6 +83,8 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 		}),
 		initializationC: make(chan struct{}),
 		ResourceGetter:  cfg.ResourceGetter,
+		cache:           lazyCache,
+		stale:           true,
 	}
 
 	if err := newWatcher(ctx, m, cfg.ResourceWatcherConfig); err != nil {
@@ -182,18 +196,7 @@ func (c *UnifiedResourceCache) processEvent(event Event) {
 func (u *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	var resources []types.ResourceWithLabels
 
-	// if the cache is not initialized or stale, instead of returning nothing, return upstream nodes
-	if !u.isInitialized() || u.stale {
-		nodes, err := u.ResourceGetter.GetNodes(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err, "getting nodes while unified resource cache is uninitialized or stale")
-		}
-
-		for _, node := range nodes {
-			resources = append(resources, node)
-		}
-		return resources, nil
-	}
+	u.refreshStaleResources(ctx)
 
 	result, err := u.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
@@ -222,12 +225,12 @@ type ResourceGetter interface {
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
-func newWatcher(ctx context.Context, cache *UnifiedResourceCache, cfg ResourceWatcherConfig) error {
+func newWatcher(ctx context.Context, resourceCache *UnifiedResourceCache, cfg ResourceWatcherConfig) error {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "setting defaults for unified resource watcher config")
 	}
 
-	if _, err := newResourceWatcher(ctx, cache, cfg); err != nil {
+	if _, err := newResourceWatcher(ctx, resourceCache, cfg); err != nil {
 		return trace.Wrap(err, "creating a new unified resource watcher")
 	}
 	return nil
@@ -323,6 +326,45 @@ func (u *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) error 
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return trace.Wrap(putResources[types.DatabaseServer](ctx, u, newDbs))
+}
+
+func (u *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error {
+	u.mu.Lock()
+	if !u.stale && u.isInitialized() {
+		u.mu.Unlock()
+		return nil
+	}
+	u.mu.Unlock()
+
+	_, err := utils.FnCacheGet(ctx, u.cache, "resources", func(ctx context.Context) (any, error) {
+
+		currentResourceCache := &UnifiedResourceCache{
+			cfg: u.cfg,
+			tree: btree.NewG(u.cfg.BTreeDegree, func(a, b *Item) bool {
+				return a.Less(b)
+			}),
+			ResourceGetter: u.ResourceGetter,
+		}
+		err := u.getResourcesAndUpdateCurrent(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		u.mu.Lock()
+		defer u.mu.Unlock()
+
+		// There is a chance that the watcher reinitialized while
+		// getting resources happened above. Check if we are still stale
+		// now that the lock is held to ensure that the refresh is
+		// still necessary.
+		if !u.stale {
+			return nil, nil
+		}
+
+		u.tree = currentResourceCache.tree
+		return nil, trace.Wrap(err)
+	})
+	return trace.Wrap(err)
 }
 
 // getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
