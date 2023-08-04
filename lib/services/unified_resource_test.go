@@ -66,6 +66,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		},
 		ResourceGetter: clt,
 	})
+	require.NoError(t, err)
 
 	// No resources expected initially.
 	res, err := w.GetUnifiedResources(ctx)

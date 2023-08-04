@@ -142,7 +142,7 @@ func (c *UnifiedResourceCache) delete(key []byte) error {
 	return nil
 }
 
-func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey, endKey []byte, limit int) ([]resource, error) {
+func (c *UnifiedResourceCache) getRange(startKey, endKey []byte, limit int) ([]resource, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -176,7 +176,7 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 		return nil, trace.Wrap(err)
 	}
 
-	result, err := c.getRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
+	result, err := c.getRange(backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting unified resource range")
 	}
@@ -283,15 +283,16 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 	}
 	c.mu.Unlock()
 
-	_, err := utils.FnCacheGet(ctx, c.cache, "resources", func(ctx context.Context) (any, error) {
+	_, err := utils.FnCacheGet(ctx, c.cache, "unified_resources", func(ctx context.Context) (any, error) {
 		currentResourceCache := &UnifiedResourceCache{
 			cfg: c.cfg,
 			tree: btree.NewG(c.cfg.BTreeDegree, func(a, b *Item) bool {
 				return a.Less(b)
 			}),
-			ResourceGetter: c.ResourceGetter,
+			ResourceGetter:  c.ResourceGetter,
+			initializationC: make(chan struct{}),
 		}
-		err := c.getResourcesAndUpdateCurrent(ctx)
+		err := currentResourceCache.getResourcesAndUpdateCurrent(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -308,7 +309,7 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 		}
 
 		c.tree = currentResourceCache.tree
-		return nil, trace.Wrap(err)
+		return currentResourceCache.tree, trace.Wrap(err)
 	})
 	return trace.Wrap(err)
 }
