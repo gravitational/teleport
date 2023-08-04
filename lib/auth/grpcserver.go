@@ -524,7 +524,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// hold open the stream until it completes
 	<-ics.Done()
 
-	if trace.IsEOF(ics.Error()) {
+	if errors.Is(ics.Error(), io.EOF) {
 		return nil
 	}
 
@@ -590,7 +590,7 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 		}
 		if err := stream.Send(instance); err != nil {
 			instances.Done()
-			if trace.IsEOF(err) {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err)
