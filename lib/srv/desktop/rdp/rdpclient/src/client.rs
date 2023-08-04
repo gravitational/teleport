@@ -14,10 +14,10 @@ use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use static_init::dynamic;
 use std::io::{self, Error as IoError};
 use std::net::ToSocketAddrs;
-use std::sync::mpsc::channel;
 use tokio::io::{split, ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::Mutex;
+use tokio_scoped::scoped;
 
 #[dynamic]
 static TOKIO_RT: tokio::runtime::Runtime = tokio::runtime::Runtime::new().unwrap();
@@ -196,147 +196,139 @@ impl Client {
         }
     }
 
-    pub fn read_rdp_output(&'static self) -> ReadRdpOutputReturns {
-        let (tx, rx) = channel::<ReadRdpOutputReturns>();
+    pub fn read_rdp_output(&self) -> ReadRdpOutputReturns {
+        let mut ret_val = ReadRdpOutputReturns::default();
 
-        TOKIO_RT.spawn(async move {
-            loop {
-                trace!("awaiting frame from rdp server");
-                let (action, mut frame) = match self.read_pdu().await {
-                    Ok(it) => it,
-                    Err(e) => {
-                        error!("error reading PDU: {:?}", e);
-                        tx.send(ReadRdpOutputReturns {
-                            user_message: "error reading PDU".to_string(),
-                            disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                            err_code: CGOErrCode::ErrCodeFailure,
-                        })
-                        .unwrap();
-                        return;
-                    }
-                };
-                trace!(
-                    "Frame received, action = {:?}, frame_len = {:?}",
-                    action,
-                    frame.len()
-                );
-
-                match action {
-                    ironrdp_pdu::Action::X224 => {
-                        let result = self.process_x224_frame(&frame).await;
-                        if let Some(return_value) = self.process_active_stage_result(result).await {
-                            tx.send(return_value).unwrap();
+        scoped(TOKIO_RT.handle()).scope(|scope| {
+            scope.spawn(async {
+                loop {
+                    trace!("awaiting frame from rdp server");
+                    let (action, mut frame) = match self.read_pdu().await {
+                        Ok(it) => it,
+                        Err(e) => {
+                            error!("error reading PDU: {:?}", e);
+                            ret_val = ReadRdpOutputReturns {
+                                user_message: "error reading PDU".to_string(),
+                                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                                err_code: CGOErrCode::ErrCodeFailure,
+                            };
                             return;
                         }
-                    }
-                    ironrdp_pdu::Action::FastPath => {
-                        let go_ref = self.go_ref;
-                        match unsafe {
-                            handle_remote_fx_frame(go_ref, frame.as_mut_ptr(), frame.len() as u32)
-                        } {
-                            CGOErrCode::ErrCodeSuccess => continue,
-                            err => {
-                                error!("failed to process fastpath frame: {:?}", err);
-                                tx.send(ReadRdpOutputReturns {
-                                    user_message: "Failed to process fastpath frame".to_string(),
-                                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                                    err_code: err,
-                                })
-                                .unwrap();
+                    };
+                    trace!(
+                        "Frame received, action = {:?}, frame_len = {:?}",
+                        action,
+                        frame.len()
+                    );
+
+                    match action {
+                        ironrdp_pdu::Action::X224 => {
+                            let result = self.process_x224_frame(&frame).await;
+                            if let Some(return_value) =
+                                self.process_active_stage_result(result).await
+                            {
+                                ret_val = return_value;
                                 return;
                             }
                         }
-                    }
-                };
-            }
-        });
-
-        match rx.recv() {
-            Ok(ret) => ret,
-            Err(err) => ReadRdpOutputReturns {
-                user_message: format!("Error receiving from read thread: {:?}", err),
-                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                err_code: CGOErrCode::ErrCodeFailure,
-            },
-        }
-    }
-
-    pub fn write_rdp_pointer(&'static self, pointer: CGOMousePointerEvent) -> CGOErrCode {
-        let (tx, rx) = channel::<CGOErrCode>();
-
-        TOKIO_RT.spawn(async move {
-            let mut fastpath_events = Vec::new();
-            // TODO(isaiah): impl From for this
-            let mut flags = match pointer.button {
-                CGOPointerButton::PointerButtonLeft => PointerFlags::LEFT_BUTTON,
-                CGOPointerButton::PointerButtonRight => PointerFlags::RIGHT_BUTTON,
-                CGOPointerButton::PointerButtonMiddle => PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
-                _ => PointerFlags::empty(),
-            };
-
-            flags |= match pointer.wheel {
-                CGOPointerWheel::PointerWheelVertical => PointerFlags::VERTICAL_WHEEL,
-                CGOPointerWheel::PointerWheelHorizontal => PointerFlags::HORIZONTAL_WHEEL,
-                _ => PointerFlags::empty(),
-            };
-
-            if pointer.button == CGOPointerButton::PointerButtonNone
-                && pointer.wheel == CGOPointerWheel::PointerWheelNone
-            {
-                flags |= PointerFlags::MOVE;
-            }
-
-            if pointer.down {
-                flags |= PointerFlags::DOWN;
-            }
-
-            // MousePdu.to_buffer takes care of the rest of the flags.
-            let event = FastPathInputEvent::MouseEvent(MousePdu {
-                flags,
-                number_of_wheel_rotation_units: pointer.wheel_delta,
-                x_position: pointer.x,
-                y_position: pointer.y,
+                        ironrdp_pdu::Action::FastPath => {
+                            let go_ref = self.go_ref;
+                            match unsafe {
+                                handle_remote_fx_frame(
+                                    go_ref,
+                                    frame.as_mut_ptr(),
+                                    frame.len() as u32,
+                                )
+                            } {
+                                CGOErrCode::ErrCodeSuccess => continue,
+                                err => {
+                                    error!("failed to process fastpath frame: {:?}", err);
+                                    ret_val = ReadRdpOutputReturns {
+                                        user_message: "Failed to process fastpath frame"
+                                            .to_string(),
+                                        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                                        err_code: err,
+                                    };
+                                    return;
+                                }
+                            }
+                        }
+                    };
+                }
             });
-            fastpath_events.push(event);
-
-            let mut data: Vec<u8> = Vec::new();
-            let input_pdu = FastPathInput(fastpath_events);
-            input_pdu.to_buffer(&mut data).unwrap();
-
-            self.write_all(&data).await.unwrap(); // todo(isaiah): handle error
-
-            tx.send(CGOErrCode::ErrCodeSuccess).unwrap();
         });
 
-        match rx.recv() {
-            Ok(ret) => ret,
-            Err(err) => {
-                error!("Error receiving from write thread: {:?}", err);
-                CGOErrCode::ErrCodeFailure
-            }
-        }
+        ret_val
     }
 
-    pub fn handle_tdp_rdp_response_pdu(&'static self, res: Vec<u8>) -> CGOErrCode {
-        let (tx, rx) = channel::<CGOErrCode>();
+    pub fn write_rdp_pointer(&self, pointer: CGOMousePointerEvent) -> CGOErrCode {
+        let mut ret_val = CGOErrCode::default();
 
-        TOKIO_RT.spawn(async move {
-            match self
-                .process_active_stage_result(Ok(vec![ActiveStageOutput::ResponseFrame(res)]))
-                .await
-            {
-                Some(ret) => tx.send(ret.err_code).unwrap(),
-                None => tx.send(CGOErrCode::ErrCodeSuccess).unwrap(),
-            }
+        scoped(TOKIO_RT.handle()).scope(|scope| {
+            scope.spawn(async {
+                let mut fastpath_events = Vec::new();
+                // TODO(isaiah): impl From for this
+                let mut flags = match pointer.button {
+                    CGOPointerButton::PointerButtonLeft => PointerFlags::LEFT_BUTTON,
+                    CGOPointerButton::PointerButtonRight => PointerFlags::RIGHT_BUTTON,
+                    CGOPointerButton::PointerButtonMiddle => PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
+                    _ => PointerFlags::empty(),
+                };
+
+                flags |= match pointer.wheel {
+                    CGOPointerWheel::PointerWheelVertical => PointerFlags::VERTICAL_WHEEL,
+                    CGOPointerWheel::PointerWheelHorizontal => PointerFlags::HORIZONTAL_WHEEL,
+                    _ => PointerFlags::empty(),
+                };
+
+                if pointer.button == CGOPointerButton::PointerButtonNone
+                    && pointer.wheel == CGOPointerWheel::PointerWheelNone
+                {
+                    flags |= PointerFlags::MOVE;
+                }
+
+                if pointer.down {
+                    flags |= PointerFlags::DOWN;
+                }
+
+                // MousePdu.to_buffer takes care of the rest of the flags.
+                let event = FastPathInputEvent::MouseEvent(MousePdu {
+                    flags,
+                    number_of_wheel_rotation_units: pointer.wheel_delta,
+                    x_position: pointer.x,
+                    y_position: pointer.y,
+                });
+                fastpath_events.push(event);
+
+                let mut data: Vec<u8> = Vec::new();
+                let input_pdu = FastPathInput(fastpath_events);
+                input_pdu.to_buffer(&mut data).unwrap();
+
+                self.write_all(&data).await.unwrap(); // todo(isaiah): handle error
+
+                ret_val = CGOErrCode::ErrCodeSuccess;
+            });
         });
 
-        match rx.recv() {
-            Ok(ret) => ret,
-            Err(err) => {
-                error!("Error receiving while handling TDP RDP response: {:?}", err);
-                CGOErrCode::ErrCodeFailure
-            }
-        }
+        ret_val
+    }
+
+    pub fn handle_tdp_rdp_response_pdu(&self, res: Vec<u8>) -> CGOErrCode {
+        let mut ret_val = CGOErrCode::default();
+
+        scoped(TOKIO_RT.handle()).scope(|scope| {
+            scope.spawn(async {
+                match self
+                    .process_active_stage_result(Ok(vec![ActiveStageOutput::ResponseFrame(res)]))
+                    .await
+                {
+                    Some(ret) => ret_val = ret.err_code,
+                    None => ret_val = CGOErrCode::ErrCodeSuccess,
+                }
+            });
+        });
+
+        ret_val
     }
 
     /// Iterates through any response frames in result, sending them to the RDP server.
@@ -463,6 +455,7 @@ impl From<RdpError> for ConnectError {
     }
 }
 
+#[derive(Default)]
 pub struct ReadRdpOutputReturns {
     pub user_message: String,
     pub disconnect_code: CGODisconnectCode,

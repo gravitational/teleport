@@ -538,9 +538,11 @@ impl From<CGOKeyboardEvent> for KeyboardEvent {
 }
 
 #[repr(C)]
+#[derive(Default)]
 pub enum CGODisconnectCode {
     /// DisconnectCodeUnknown is for when we can't determine whether
     /// a disconnect was caused by the RDP client or server.
+    #[default]
     DisconnectCodeUnknown = 0,
     /// DisconnectCodeClient is for when the RDP client initiated a disconnect.
     DisconnectCodeClient = 1,
@@ -629,9 +631,10 @@ impl From<CGOMousePointerEvent> for PointerEvent {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
 pub enum CGOErrCode {
     ErrCodeSuccess = 0,
+    #[default]
     ErrCodeFailure = 1,
     ErrCodeClientPtr = 2,
 }
