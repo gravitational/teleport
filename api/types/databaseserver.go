@@ -48,9 +48,8 @@ type DatabaseServer interface {
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
 
-	// CloneAny is used to return a clone of the DatabaseServer and match the CloneAny interface
-	// This is helpful when interfacing with multiple types at the same time in unified resources
-	CloneAny() any
+	// CloneResource returns a copy of the DatabaseServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 	// GetDatabase returns the database this database server proxies.
 	GetDatabase() Database
 	// SetDatabase sets the database this database server proxies.
@@ -316,8 +315,8 @@ func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return utils.CloneProtoMsg(s)
 }
 
-// CloneAny returns a copy of this database server object.
-func (s *DatabaseServerV3) CloneAny() any {
+// CloneResource returns a copy of this database server object.
+func (s *DatabaseServerV3) CloneResource() ResourceWithLabels {
 	return s.Copy()
 }
 

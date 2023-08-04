@@ -109,43 +109,40 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 
 // Put puts value into backend (creates if it does not
 // exist, updates it otherwise)
-func (c *UnifiedResourceCache) put(ctx context.Context, i Item) error {
+func (c *UnifiedResourceCache) put(i Item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	event := Event{
-		Type: types.OpPut,
-		Item: i,
+	c.tree.ReplaceOrInsert(&i)
+	return nil
+}
+
+func putResources[T resource](c *UnifiedResourceCache, resources []T) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, resource := range resources {
+		c.tree.ReplaceOrInsert(&Item{Key: keyOf(resource), Value: resource})
 	}
-	c.processEvent(event)
 	return nil
 }
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (c *UnifiedResourceCache) delete(ctx context.Context, key []byte) error {
+func (c *UnifiedResourceCache) delete(key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.tree.Has(&Item{Key: key}) {
+	if _, ok := c.tree.Delete(&Item{Key: key}); !ok {
 		return trace.NotFound("key %q is not found", string(key))
 	}
-	event := Event{
-		Type: types.OpDelete,
-		Item: Item{
-			Key: key,
-		},
-	}
-	c.processEvent(event)
 	return nil
 }
 
-// GetRange returns query range
-func (c *UnifiedResourceCache) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
+func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey, endKey []byte, limit int) ([]resource, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -157,59 +154,36 @@ func (c *UnifiedResourceCache) GetRange(ctx context.Context, startKey []byte, en
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	re := c.getRange(ctx, startKey, endKey, limit)
-	if len(re.Items) == backend.DefaultRangeLimit {
-		c.log.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
-	}
-	return &re, nil
-}
 
-type getResult struct {
-	Items []Item
-}
-
-func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey, endKey []byte, limit int) getResult {
-	var res getResult
+	var res []resource
 	c.tree.AscendRange(&Item{Key: startKey}, &Item{Key: endKey}, func(item *Item) bool {
-		res.Items = append(res.Items, *item)
-		if limit > 0 && len(res.Items) >= limit {
+		res = append(res, item.Value)
+		if limit > 0 && len(res) >= limit {
 			return false
 		}
 		return true
 	})
-	return res
-}
 
-func (c *UnifiedResourceCache) processEvent(event Event) {
-	switch event.Type {
-	case types.OpPut:
-		item := &event.Item
-		c.tree.ReplaceOrInsert(item)
-	case types.OpDelete:
-		c.tree.Delete(&event.Item)
-	default:
-		c.log.Warnf("unsupported event type %s.", event.Type)
+	if len(res) == backend.DefaultRangeLimit {
+		c.log.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
+	return res, nil
 }
 
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
-func (u *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
-	var resources []types.ResourceWithLabels
+func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
+	if err := c.refreshStaleResources(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	u.refreshStaleResources(ctx)
-
-	result, err := u.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
+	result, err := c.getRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting unified resource range")
 	}
-	for _, item := range result.Items {
-		cloned := item.Value.CloneAny()
-		clonedResource, ok := cloned.(types.ResourceWithLabels)
-		if !ok {
-			return nil, trace.BadParameter("clone returned unexpected type %T", clonedResource)
-		}
 
-		resources = append(resources, clonedResource)
+	resources := make([]types.ResourceWithLabels, 0, len(result))
+	for _, item := range result {
+		resources = append(resources, item.CloneResource())
 	}
 
 	return resources, nil
@@ -245,159 +219,127 @@ func keyOf(resource types.Resource) []byte {
 	}
 }
 
-func (u *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	err := u.getAndUpdateNodes(ctx)
+func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	err := c.getAndUpdateNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = u.getAndUpdateDatabases(ctx)
+	err = c.getAndUpdateDatabases(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = u.getAndUpdateKubes(ctx)
+	err = c.getAndUpdateKubes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = u.getAndUpdateApps(ctx)
+	err = c.getAndUpdateApps(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = u.getAndUpdateSAMLApps(ctx)
+	err = c.getAndUpdateSAMLApps(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = u.getAndUpdateDesktops(ctx)
+	err = c.getAndUpdateDesktops(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	u.stale = false
-	u.defineCollectorAsInitialized()
+	c.stale = false
+	c.defineCollectorAsInitialized()
 	return nil
 }
 
 // getAndUpdateNodes will get nodes and update the current tree with each Node
-func (u *UnifiedResourceCache) getAndUpdateNodes(ctx context.Context) error {
-	newNodes, err := u.ResourceGetter.GetNodes(ctx, apidefaults.Namespace)
+func (c *UnifiedResourceCache) getAndUpdateNodes(ctx context.Context) error {
+	newNodes, err := c.ResourceGetter.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting nodes for unified resource watcher")
 	}
 
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	return trace.Wrap(putResources[types.Server](ctx, u, newNodes))
-}
-
-func getCloneAny(resource types.ResourceWithLabels) (types.CloneAny, error) {
-	cloner, ok := resource.(types.CloneAny)
-	if !ok {
-		return nil, trace.NotImplemented("unsupported type %t for unified resources received", resource)
-	}
-	return cloner, nil
-}
-
-func putResources[T types.ResourceWithLabels](ctx context.Context, c *UnifiedResourceCache, resources []T) error {
-	for _, resource := range resources {
-		r, err := getCloneAny(resource)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		event := Event{
-			Type: types.OpPut,
-			Item: Item{Key: keyOf(resource), Value: r},
-		}
-		c.processEvent(event)
-	}
-	return nil
+	return trace.Wrap(putResources[types.Server](c, newNodes))
 }
 
 // getAndUpdateDatabases will get database servers and update the current tree with each DatabaseServer
-func (u *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) error {
-	newDbs, err := u.GetDatabaseServers(ctx, apidefaults.Namespace)
+func (c *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) error {
+	newDbs, err := c.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting databases for unified resource watcher")
 	}
 
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	return trace.Wrap(putResources[types.DatabaseServer](ctx, u, newDbs))
+	return trace.Wrap(putResources[types.DatabaseServer](c, newDbs))
 }
 
-func (u *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error {
-	u.mu.Lock()
-	if !u.stale && u.isInitialized() {
-		u.mu.Unlock()
+func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error {
+	c.mu.Lock()
+	if !c.stale && c.isInitialized() {
+		c.mu.Unlock()
 		return nil
 	}
-	u.mu.Unlock()
+	c.mu.Unlock()
 
-	_, err := utils.FnCacheGet(ctx, u.cache, "resources", func(ctx context.Context) (any, error) {
-
+	_, err := utils.FnCacheGet(ctx, c.cache, "resources", func(ctx context.Context) (any, error) {
 		currentResourceCache := &UnifiedResourceCache{
-			cfg: u.cfg,
-			tree: btree.NewG(u.cfg.BTreeDegree, func(a, b *Item) bool {
+			cfg: c.cfg,
+			tree: btree.NewG(c.cfg.BTreeDegree, func(a, b *Item) bool {
 				return a.Less(b)
 			}),
-			ResourceGetter: u.ResourceGetter,
+			ResourceGetter: c.ResourceGetter,
 		}
-		err := u.getResourcesAndUpdateCurrent(ctx)
+		err := c.getResourcesAndUpdateCurrent(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		u.mu.Lock()
-		defer u.mu.Unlock()
+		c.mu.Lock()
+		defer c.mu.Unlock()
 
 		// There is a chance that the watcher reinitialized while
 		// getting resources happened above. Check if we are still stale
 		// now that the lock is held to ensure that the refresh is
 		// still necessary.
-		if !u.stale {
+		if !c.stale {
 			return nil, nil
 		}
 
-		u.tree = currentResourceCache.tree
+		c.tree = currentResourceCache.tree
 		return nil, trace.Wrap(err)
 	})
 	return trace.Wrap(err)
 }
 
 // getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
-func (u *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) error {
-	newKubes, err := u.GetKubernetesServers(ctx)
+func (c *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) error {
+	newKubes, err := c.GetKubernetesServers(ctx)
 	if err != nil {
 		return trace.Wrap(err, "getting kubes for unified resource watcher")
 	}
 
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	return trace.Wrap(putResources[types.KubeServer](ctx, u, newKubes))
+	return trace.Wrap(putResources[types.KubeServer](c, newKubes))
 }
 
 // getAndUpdateApps will get application servers and update the current tree with each AppServer
-func (u *UnifiedResourceCache) getAndUpdateApps(ctx context.Context) error {
-	newApps, err := u.GetApplicationServers(ctx, apidefaults.Namespace)
+func (c *UnifiedResourceCache) getAndUpdateApps(ctx context.Context) error {
+	newApps, err := c.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err, "getting apps for unified resource watcher")
 	}
 
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	return trace.Wrap(putResources[types.AppServer](ctx, u, newApps))
+	return trace.Wrap(putResources[types.AppServer](c, newApps))
 }
 
 // getAndUpdateSAMLApps will get SAML Idp Service Providers servers and update the current tree with each SAMLIdpServiceProvider
-func (u *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
+func (c *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
 	var newSAMLApps []types.SAMLIdPServiceProvider
 	startKey := ""
 
 	for {
-		resp, nextKey, err := u.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
+		resp, nextKey, err := c.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
 
 		if err != nil {
 			return trace.Wrap(err, "getting SAML apps for unified resource watcher")
@@ -411,64 +353,60 @@ func (u *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
 		startKey = nextKey
 	}
 
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	return trace.Wrap(putResources[types.SAMLIdPServiceProvider](ctx, u, newSAMLApps))
+	return trace.Wrap(putResources[types.SAMLIdPServiceProvider](c, newSAMLApps))
 }
 
 // getAndUpdateDesktops will get windows desktops and update the current tree with each Desktop
-func (u *UnifiedResourceCache) getAndUpdateDesktops(ctx context.Context) error {
-	newDesktops, err := u.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+func (c *UnifiedResourceCache) getAndUpdateDesktops(ctx context.Context) error {
+	newDesktops, err := c.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err, "getting desktops for unified resource watcher")
 	}
 
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	return trace.Wrap(putResources[types.WindowsDesktop](ctx, u, newDesktops))
+	return trace.Wrap(putResources[types.WindowsDesktop](c, newDesktops))
 }
 
-func (u *UnifiedResourceCache) notifyStale() {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	u.stale = true
+func (c *UnifiedResourceCache) notifyStale() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stale = true
 }
 
-func (u *UnifiedResourceCache) initializationChan() <-chan struct{} {
-	return u.initializationC
+func (c *UnifiedResourceCache) initializationChan() <-chan struct{} {
+	return c.initializationC
 }
 
-func (u *UnifiedResourceCache) isInitialized() bool {
+func (c *UnifiedResourceCache) isInitialized() bool {
 	select {
-	case <-u.initializationC:
+	case <-c.initializationC:
 		return true
 	default:
 		return false
 	}
 }
 
-func (u *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+func (c *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
 	if event.Resource == nil {
-		u.log.Warnf("Unexpected event: %v.", event)
+		c.log.Warnf("Unexpected event: %v.", event)
 		return
 	}
 
 	switch event.Type {
 	case types.OpDelete:
-		u.delete(ctx, keyOf(event.Resource))
+		c.delete(keyOf(event.Resource))
 	case types.OpPut:
-		u.put(ctx, Item{
+		c.put(Item{
 			Key:   keyOf(event.Resource),
-			Value: event.Resource.(types.CloneAny),
+			Value: event.Resource.(resource),
 		})
 	default:
-		u.log.Warnf("unsupported event type %s.", event.Type)
+		c.log.Warnf("unsupported event type %s.", event.Type)
 		return
 	}
 }
 
 // resourceKinds returns a list of resources to be watched.
-func (u *UnifiedResourceCache) resourceKinds() []types.WatchKind {
+func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{
 		{Kind: types.KindNode},
 		{Kind: types.KindDatabaseServer},
@@ -479,14 +417,14 @@ func (u *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 	}
 }
 
-func (u *UnifiedResourceCache) defineCollectorAsInitialized() {
-	u.once.Do(func() {
+func (c *UnifiedResourceCache) defineCollectorAsInitialized() {
+	c.once.Do(func() {
 		// mark watcher as initialized.
-		close(u.initializationC)
+		close(c.initializationC)
 	})
 }
 
-// less is used for Btree operations,
+// Less is used for Btree operations,
 // returns true if item is less than the other one
 func (i *Item) Less(iother btree.Item) bool {
 	switch other := iother.(type) {
@@ -511,11 +449,16 @@ func (p *prefixItem) Less(iother btree.Item) bool {
 	return !bytes.HasPrefix(other.Key, p.prefix)
 }
 
+type resource interface {
+	types.ResourceWithLabels
+	CloneResource() types.ResourceWithLabels
+}
+
 type Item struct {
 	// Key is a key of the key value item
 	Key []byte
 	// Value represents a resource such as types.Server or types.DatabaseServer
-	Value types.CloneAny
+	Value resource
 }
 
 // Event represents an event that happened in the backend
