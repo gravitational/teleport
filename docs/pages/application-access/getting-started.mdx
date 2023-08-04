@@ -160,8 +160,8 @@ access to a different web application.
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-Install the `teleport` pod running Grafana into your Kubernetes cluster
-with a configuration similar to the following:
+Install the `teleport-kube-agent` Helm chart into your Kubernetes cluster to proxy Grafana
+with a command similar to the following:
 
 ```code
 $ JOIN_TOKEN=$(cat /tmp/token)
