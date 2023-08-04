@@ -249,7 +249,7 @@ func TestKubeLoginAccessRequest(t *testing.T) {
 		}),
 	)
 	// login as the user.
-	mustLoginSetEnv(t, s)
+	tshHome, kubeConfig := mustLoginSetEnv(t, s)
 
 	// Run the login command in a goroutine so we can check if the access
 	// request was created and approved.
@@ -266,6 +266,8 @@ func TestKubeLoginAccessRequest(t *testing.T) {
 				"--request-reason",
 				"test",
 			},
+			setHomePath(tshHome),
+			setKubeConfigPath(kubeConfig),
 		)
 		return trace.Wrap(err)
 	})
