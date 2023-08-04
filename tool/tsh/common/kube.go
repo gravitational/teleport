@@ -1128,7 +1128,7 @@ func serializeKubeListings(kubeListings []kubeListing, format string) (string, e
 	return string(out), trace.Wrap(err)
 }
 
-// selectedKubeCluster determines which kube cluster, is any, is selected.
+// selectedKubeCluster determines which kube cluster, if any, is selected.
 func selectedKubeCluster(currentTeleportCluster string, kubeconfgPath string) string {
 	kc, err := kubeconfig.Load(kubeconfgPath)
 	if err != nil {
