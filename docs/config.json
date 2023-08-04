@@ -431,6 +431,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Opsgenie",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-opsgenie/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Jira",
               "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
@@ -449,6 +454,11 @@
               "title": "Discord",
               "slug": "/access-controls/access-request-plugins/ssh-approval-discord/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Opsgenie",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-opsgenie/",
+              "forScopes": ["cloud"]
             }
           ]
         },
