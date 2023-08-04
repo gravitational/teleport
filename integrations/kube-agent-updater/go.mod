@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/docker/distribution v2.8.2+incompatible
 	github.com/google/go-containerregistry v0.15.2
-	github.com/gravitational/trace v1.2.1
+	github.com/gravitational/trace v1.3.0
 	github.com/jonboulle/clockwork v0.4.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/sigstore/cosign/v2 v2.1.1
