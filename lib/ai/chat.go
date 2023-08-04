@@ -65,6 +65,10 @@ func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdate
 		}, model.NewTokenCount(), nil
 	}
 
+	return chat.Reply(ctx, userInput, progressUpdates)
+}
+
+func (chat *Chat) Reply(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {
 	userMessage := openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: userInput,
