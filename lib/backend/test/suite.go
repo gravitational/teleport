@@ -540,7 +540,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 
 	event := requireEvent(t, watcher, types.OpPut, prefix("key"), eventTimeout)
 	require.Equal(t, bigValue[:], event.Item.Value)
-	require.WithinRange(t, event.Item.Expires, expiresAt, expiresAt.Add(2*time.Second))
+	require.WithinDuration(t, expiresAt, event.Item.Expires, 2*time.Second)
 
 	// move the current slightly forward, but still *before* the item's
 	// expiry time
@@ -556,7 +556,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	// on the collected events might have a slight skew
 	event = requireEvent(t, watcher, types.OpPut, prefix("key"), eventTimeout)
 	require.Equal(t, bigValue[:], event.Item.Value)
-	require.WithinRange(t, event.Item.Expires, updatedAt, updatedAt.Add(2*time.Second))
+	require.WithinDuration(t, updatedAt, event.Item.Expires, 2*time.Second)
 
 	err = uut.Delete(context.TODO(), item.Key)
 	require.NoError(t, err)
