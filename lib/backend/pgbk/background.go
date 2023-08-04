@@ -150,7 +150,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	// REPLICATION attribute yet
 	// HACK(espadolini): ALTER ROLE CURRENT_USER REPLICATION just crashes postgres on Azure
 	if _, err := conn.Exec(ctx,
-		fmt.Sprintf("ALTER ROLE \"%v\" REPLICATION", poolConfig.ConnConfig.User),
+		fmt.Sprintf("ALTER ROLE %v REPLICATION", pgx.Identifier{poolConfig.ConnConfig.User}.Sanitize()),
 		pgx.QueryExecModeExec,
 	); err != nil {
 		b.log.WithError(err).Debug("Failed to enable replication for the current user.")
