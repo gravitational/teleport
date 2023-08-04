@@ -1625,16 +1625,30 @@ func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources [
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
+	var elapsedFetch time.Duration
+	var elapsedFilter time.Duration
+	var unifiedResources []types.ResourceWithLabels
+	var filteredResources []types.ResourceWithLabels
+
+	defer func() {
+		log.WithFields(logrus.Fields{
+			"user":           a.context.User.GetName(),
+			"elapsed_fetch":  elapsedFetch,
+			"elapsed_filter": elapsedFilter,
+		}).Debugf(
+			"ListUnifiedResources(%v->%v) in %v.",
+			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
+	}()
+
 	startFetch := time.Now()
 	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	elapsedFetch := time.Since(startFetch)
+	elapsedFetch = time.Since(startFetch)
 
-	// Filter resources to return the ones for the connected identity.
-	filteredResources := make([]types.ResourceWithLabels, 0)
+	filteredResources = make([]types.ResourceWithLabels, 0)
 	startFilter := time.Now()
 	for _, resource := range unifiedResources {
 		switch r := resource.(type) {
@@ -1706,15 +1720,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 		}
 	}
-	elapsedFilter := time.Since(startFilter)
-
-	log.WithFields(logrus.Fields{
-		"user":           a.context.User.GetName(),
-		"elapsed_fetch":  elapsedFetch,
-		"elapsed_filter": elapsedFilter,
-	}).Debugf(
-		"ListUnifiedResources(%v->%v) in %v.",
-		len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
+	elapsedFilter = time.Since(startFilter)
 
 	if req.SortBy.Field != "" {
 		isDesc := req.SortBy.IsDesc
