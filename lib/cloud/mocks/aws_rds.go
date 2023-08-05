@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // RDSMock mocks AWS RDS API.
@@ -406,8 +405,8 @@ func RDSCluster(name, region string, labels map[string]string, opts ...func(*rds
 		DBClusterArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:cluster:%v", region, name)),
 		DBClusterIdentifier: aws.String(name),
 		DbClusterResourceId: aws.String(uuid.New().String()),
-		Engine:              aws.String(services.RDSEngineAuroraMySQL),
-		EngineMode:          aws.String(services.RDSEngineModeProvisioned),
+		Engine:              aws.String("aurora-mysql"),
+		EngineMode:          aws.String("provisioned"),
 		Status:              aws.String("available"),
 		Endpoint:            aws.String(fmt.Sprintf("%v.cluster-aabbccdd.%v.rds.amazonaws.com", name, region)),
 		ReaderEndpoint:      aws.String(fmt.Sprintf("%v-co.cluster-aabbccdd.%v.rds.amazonaws.com", name, region)),
