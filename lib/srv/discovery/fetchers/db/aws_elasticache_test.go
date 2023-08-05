@@ -17,7 +17,6 @@ limitations under the License.
 package db
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -35,7 +34,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 	t.Parallel()
 
 	elasticacheProd, elasticacheDatabaseProd, elasticacheProdTags := makeElastiCacheCluster(t, "ec1", "us-east-1", "prod")
-	elasticacheQA, elasticacheDatabaseQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", withElastiCacheConfigurationEndpoint())
+	elasticacheQA, elasticacheDatabaseQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", mocks.WithElastiCacheConfigurationEndpoint())
 	elasticacheUnavailable, _, elasticacheUnavailableTags := makeElastiCacheCluster(t, "ec4", "us-east-1", "prod", func(cluster *elasticache.ReplicationGroup) {
 		cluster.Status = aws.String("deleting")
 	})
@@ -99,24 +98,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 }
 
 func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Database, []*elasticache.Tag) {
-	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String(fmt.Sprintf("arn:aws:elasticache:%s:123456789012:replicationgroup:%s", region, name)),
-		ReplicationGroupId:       aws.String(name),
-		Status:                   aws.String("available"),
-		TransitEncryptionEnabled: aws.Bool(true),
-
-		// Default has one primary endpoint in the only node group.
-		NodeGroups: []*elasticache.NodeGroup{{
-			PrimaryEndpoint: &elasticache.Endpoint{
-				Address: aws.String("primary.localhost"),
-				Port:    aws.Int64(6379),
-			},
-		}},
-	}
-
-	for _, opt := range opts {
-		opt(cluster)
-	}
+	cluster := mocks.ElastiCacheCluster(name, region, opts...)
 
 	tags := []*elasticache.Tag{{
 		Key:   aws.String("env"),
@@ -136,16 +118,4 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 	require.Len(t, databases, 1)
 	common.ApplyAWSDatabaseNameSuffix(databases[0], services.AWSMatcherElastiCache)
 	return cluster, databases[0], tags
-}
-
-// withElastiCacheConfigurationEndpoint returns an option function for
-// makeElastiCacheCluster to set a configuration endpoint.
-func withElastiCacheConfigurationEndpoint() func(*elasticache.ReplicationGroup) {
-	return func(cluster *elasticache.ReplicationGroup) {
-		cluster.ClusterEnabled = aws.Bool(true)
-		cluster.ConfigurationEndpoint = &elasticache.Endpoint{
-			Address: aws.String("configuration.localhost"),
-			Port:    aws.Int64(6379),
-		}
-	}
 }
