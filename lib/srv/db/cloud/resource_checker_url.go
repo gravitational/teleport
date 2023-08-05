@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -28,14 +29,16 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
 )
 
 // urlChecker validates the database has the correct URL.
 type urlChecker struct {
-	clients cloud.Clients
-	log     logrus.FieldLogger
+	clients     cloud.Clients
+	log         logrus.FieldLogger
+	warnOnError bool
 
 	warnAWSOnce sync.Once
 
@@ -47,9 +50,30 @@ type urlChecker struct {
 
 func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 	return &urlChecker{
-		clients: cfg.Clients,
-		log:     cfg.Log,
+		clients:     cfg.Clients,
+		log:         cfg.Log,
+		warnOnError: getWarnOnError(),
 	}
+}
+
+// getWarnOnError returns true if urlChecker should only log a warning instead
+// of returning errors when check fails.
+//
+// DELETE IN 16.0.0 The environement variable is a temporary toggle to disable
+// returning errors by urlChecker, in case Database Service doesn't have proper
+// permissions and basic endpoint checks fail for unknown reasons. Remove after
+// one or two releases when implementation is stable.
+func getWarnOnError() bool {
+	value := os.Getenv("TELEPORT_DATABASE_URL_CHECK_WARN_ON_ERROR")
+	if value == "" {
+		return false
+	}
+
+	boolValue, err := utils.ParseBool(value)
+	if err != nil {
+		logrus.Warnf("Invalid bool value for TELEPORT_DATABASE_URL_CHECK_WARN_ON_ERROR: %q.", value)
+	}
+	return boolValue
 }
 
 type checkDatabaseFunc func(context.Context, types.Database) error
@@ -78,7 +102,12 @@ func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 	}
 
 	if check := checkersByDatabaseType[database.GetType()]; check != nil {
-		return trace.Wrap(check(ctx, database))
+		err := check(ctx, database)
+		if c.warnOnError {
+			c.log.Warnf("URL check failed for %q: %v.", database.GetName(), err)
+			return nil
+		}
+		return trace.Wrap(err)
 	}
 
 	c.log.Debugf("URL checker does not support database type %q.", database.GetType())

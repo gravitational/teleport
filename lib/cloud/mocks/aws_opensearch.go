@@ -24,16 +24,21 @@ import (
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 type OpenSearchMock struct {
 	opensearchserviceiface.OpenSearchServiceAPI
 
+	Unauth    bool
 	Domains   []*opensearchservice.DomainStatus
 	TagsByARN map[string][]*opensearchservice.Tag
 }
 
 func (o *OpenSearchMock) ListDomainNamesWithContext(aws.Context, *opensearchservice.ListDomainNamesInput, ...request.Option) (*opensearchservice.ListDomainNamesOutput, error) {
+	if o.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	out := &opensearchservice.ListDomainNamesOutput{}
 	for _, domain := range o.Domains {
 		out.DomainNames = append(out.DomainNames, &opensearchservice.DomainInfo{
@@ -45,12 +50,25 @@ func (o *OpenSearchMock) ListDomainNamesWithContext(aws.Context, *opensearchserv
 	return out, nil
 }
 
-func (o *OpenSearchMock) DescribeDomainsWithContext(aws.Context, *opensearchservice.DescribeDomainsInput, ...request.Option) (*opensearchservice.DescribeDomainsOutput, error) {
-	out := &opensearchservice.DescribeDomainsOutput{DomainStatusList: o.Domains}
+func (o *OpenSearchMock) DescribeDomainsWithContext(_ aws.Context, input *opensearchservice.DescribeDomainsInput, _ ...request.Option) (*opensearchservice.DescribeDomainsOutput, error) {
+	if o.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
+	out := &opensearchservice.DescribeDomainsOutput{}
+	for _, domain := range o.Domains {
+		if slices.ContainsFunc(input.DomainNames, func(other *string) bool {
+			return aws.StringValue(other) == aws.StringValue(domain.DomainName)
+		}) {
+			out.DomainStatusList = append(out.DomainStatusList, domain)
+		}
+	}
 	return out, nil
 }
 
 func (o *OpenSearchMock) ListTagsWithContext(_ aws.Context, request *opensearchservice.ListTagsInput, _ ...request.Option) (*opensearchservice.ListTagsOutput, error) {
+	if o.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	tags, found := o.TagsByARN[aws.StringValue(request.ARN)]
 	if !found {
 		return nil, trace.NotFound("tags not found")

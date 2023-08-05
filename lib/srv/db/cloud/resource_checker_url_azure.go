@@ -30,10 +30,7 @@ func (c *urlChecker) checkAzure(ctx context.Context, database types.Database) er
 	// TODO check by fetching the resources from Azure and compare the URLs.
 	switch database.GetProtocol() {
 	case defaults.ProtocolRedis:
-		if database.GetAzure().Redis.ClusteringPolicy != "" {
-			return trace.Wrap(requireDatabaseIsEndpoint(ctx, database, azure.IsRedisEnterpriseEndpoint))
-		}
-		return trace.Wrap(requireDatabaseIsEndpoint(ctx, database, azure.IsRedisEndpoint))
+		return trace.Wrap(requireDatabaseIsEndpoint(ctx, database, azure.IsCacheForRedisEndpoint))
 
 	case defaults.ProtocolMySQL, defaults.ProtocolPostgres:
 		return trace.Wrap(requireDatabaseIsEndpoint(ctx, database, azure.IsDatabaseEndpoint))

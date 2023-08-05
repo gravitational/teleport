@@ -40,18 +40,28 @@ func (c *urlChecker) checkAWS(describeCheck, basicEndpointCheck checkDatabaseFun
 		// instead.
 		if trace.IsAccessDenied(err) {
 			c.logAWSAccessDeniedError(database, err)
-			return trace.Wrap(basicEndpointCheck(ctx, database))
+
+			if err := basicEndpointCheck(ctx, database); err != nil {
+				return trace.Wrap(err)
+			}
+			c.log.Debugf("Database %v URL validated by basic endpoint check.", database.GetName())
+			return nil
 		}
 
-		return trace.Wrap(err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.log.Debugf("Database %v URL validated by describe check.", database.GetName())
+		return nil
 	}
 }
 
 func (c *urlChecker) logAWSAccessDeniedError(database types.Database, accessDeinedError error) {
 	c.warnAWSOnce.Do(func() {
 		// TODO(greedy52) add links to doc.
-		c.log.Warn("No permissions to describe AWS resource metadata that is needed for validating databases created by Discovery Service. Basic AWS endpoint validation will be performed instead. For best security, please provide the Database Service with the proper IAM permissions. See Database Access documentation for more details.")
+		c.log.Warn("No permissions to describe AWS resource metadata that is needed for validating databases created by Discovery Service. Basic AWS endpoint validation will be performed instead. For best security, please provide the Database Service with the proper IAM permissions. Enable --debug mode to see details on which databases require more IAM permissions. See Database Access documentation for more details.")
 	})
+
 	c.log.Debugf("No permissions to describe %q: %v.", database, accessDeinedError)
 }
 
@@ -223,6 +233,6 @@ func (c *urlChecker) checkOpenSearchEndpoint(ctx context.Context, database types
 		// Custom endpoint can be anything. For best security, don't allow it.
 		// Primary endpoint should also be discovered and users can still use
 		// that.
-		return trace.BadParameter(`cannot validate OpenSearch custom domain %v. Please provide Database Service "es:DescribeDomains" permission to validate the URL.`)
+		return trace.BadParameter(`cannot validate OpenSearch custom domain %v. Please provide Database Service "es:DescribeDomains" permission to validate the URL.`, database.GetURI())
 	}
 }
