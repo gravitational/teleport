@@ -1032,9 +1032,13 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
+		labels := cl.GetAllLabels()
+		if len(labels) == 0 {
+			labels = nil
+		}
 		clusterInfo = append(clusterInfo, cluster{
 			KubeClusterName: cl.GetName(),
-			Labels:          cl.GetAllLabels(),
+			Labels:          labels,
 			Selected:        cl.GetName() == selectedCluster,
 		})
 	}
