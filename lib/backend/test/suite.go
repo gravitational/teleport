@@ -130,71 +130,57 @@ type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork
 // backend under test.
 func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 	t.Run("CRUD", func(t *testing.T) {
-		t.Parallel()
 		testCRUD(t, newBackend)
 	})
 
 	t.Run("QueryRange", func(t *testing.T) {
-		t.Parallel()
 		testQueryRange(t, newBackend)
 	})
 
 	t.Run("DeleteRange", func(t *testing.T) {
-		t.Parallel()
 		testDeleteRange(t, newBackend)
 	})
 
 	t.Run("PutRange", func(t *testing.T) {
-		t.Parallel()
 		testPutRange(t, newBackend)
 	})
 
 	t.Run("CompareAndSwap", func(t *testing.T) {
-		t.Parallel()
 		testCompareAndSwap(t, newBackend)
 	})
 
 	t.Run("Expiration", func(t *testing.T) {
-		t.Parallel()
 		testExpiration(t, newBackend)
 	})
 
 	t.Run("KeepAlive", func(t *testing.T) {
-		t.Parallel()
 		testKeepAlive(t, newBackend)
 	})
 
 	t.Run("Events", func(t *testing.T) {
-		t.Parallel()
 		testEvents(t, newBackend)
 	})
 	t.Run("WatchersClose", func(t *testing.T) {
-		t.Parallel()
 		testWatchersClose(t, newBackend)
 	})
 
 	t.Run("Locking", func(t *testing.T) {
-		t.Parallel()
 		testLocking(t, newBackend)
 	})
 
 	t.Run("ConcurrentOperations", func(t *testing.T) {
-		t.Parallel()
 		testConcurrentOperations(t, newBackend)
 	})
 
 	t.Run("Mirror", func(t *testing.T) {
-		t.Parallel()
 		testMirror(t, newBackend)
 	})
 
 	t.Run("FetchLimit", func(t *testing.T) {
-		t.Parallel()
 		testFetchLimit(t, newBackend)
 	})
 
 	t.Run("Limit", func(t *testing.T) {
-		t.Parallel()
 		testLimit(t, newBackend)
 	})
 }
