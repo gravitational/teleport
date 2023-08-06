@@ -173,14 +173,23 @@ func ElastiCacheCluster(name, region string, opts ...func(*elasticache.Replicati
 	return cluster
 }
 
-// WithElastiCacheConfigurationEndpoint returns an option function for
-// MakeElastiCacheCluster to set a configuration endpoint.
-func WithElastiCacheConfigurationEndpoint() func(*elasticache.ReplicationGroup) {
-	return func(cluster *elasticache.ReplicationGroup) {
-		cluster.ClusterEnabled = aws.Bool(true)
-		cluster.ConfigurationEndpoint = &elasticache.Endpoint{
-			Address: aws.String(fmt.Sprintf("clustercfg.%v-shards.xxxxxx.use1.cache.amazonaws.com", aws.StringValue(cluster.ReplicationGroupId))),
+// WithElastiCacheReaderEndpoint is an option function for
+// MakeElastiCacheCluster to set a reader endpoint.
+func WithElastiCacheReaderEndpoint(cluster *elasticache.ReplicationGroup) {
+	cluster.NodeGroups = append(cluster.NodeGroups, &elasticache.NodeGroup{
+		ReaderEndpoint: &elasticache.Endpoint{
+			Address: aws.String(fmt.Sprintf("replica.%v-cluster.xxxxxx.use1.cache.amazonaws.com", aws.StringValue(cluster.ReplicationGroupId))),
 			Port:    aws.Int64(6379),
-		}
+		},
+	})
+}
+
+// WithElastiCacheConfigurationEndpoint in an option function for
+// MakeElastiCacheCluster to set a configuration endpoint.
+func WithElastiCacheConfigurationEndpoint(cluster *elasticache.ReplicationGroup) {
+	cluster.ClusterEnabled = aws.Bool(true)
+	cluster.ConfigurationEndpoint = &elasticache.Endpoint{
+		Address: aws.String(fmt.Sprintf("clustercfg.%v-shards.xxxxxx.use1.cache.amazonaws.com", aws.StringValue(cluster.ReplicationGroupId))),
+		Port:    aws.Int64(6379),
 	}
 }

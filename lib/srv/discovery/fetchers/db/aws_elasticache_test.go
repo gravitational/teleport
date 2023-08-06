@@ -33,8 +33,8 @@ import (
 func TestElastiCacheFetcher(t *testing.T) {
 	t.Parallel()
 
-	elasticacheProd, elasticacheDatabaseProd, elasticacheProdTags := makeElastiCacheCluster(t, "ec1", "us-east-1", "prod")
-	elasticacheQA, elasticacheDatabaseQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", mocks.WithElastiCacheConfigurationEndpoint())
+	elasticacheProd, elasticacheDatabasesProd, elasticacheProdTags := makeElastiCacheCluster(t, "ec1", "us-east-1", "prod", mocks.WithElastiCacheReaderEndpoint)
+	elasticacheQA, elasticacheDatabasesQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", mocks.WithElastiCacheConfigurationEndpoint)
 	elasticacheUnavailable, _, elasticacheUnavailableTags := makeElastiCacheCluster(t, "ec4", "us-east-1", "prod", func(cluster *elasticache.ReplicationGroup) {
 		cluster.Status = aws.String("deleting")
 	})
@@ -58,7 +58,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
-			wantDatabases: types.Databases{elasticacheDatabaseProd, elasticacheDatabaseQA},
+			wantDatabases: append(elasticacheDatabasesProd, elasticacheDatabasesQA...),
 		},
 		{
 			name: "fetch prod",
@@ -69,7 +69,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", envProdLabels),
-			wantDatabases: types.Databases{elasticacheDatabaseProd},
+			wantDatabases: elasticacheDatabasesProd,
 		},
 		{
 			name: "skip unavailable",
@@ -80,7 +80,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
-			wantDatabases: types.Databases{elasticacheDatabaseProd},
+			wantDatabases: elasticacheDatabasesProd,
 		},
 		{
 			name: "skip unsupported",
@@ -91,13 +91,13 @@ func TestElastiCacheFetcher(t *testing.T) {
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
-			wantDatabases: types.Databases{elasticacheDatabaseProd},
+			wantDatabases: elasticacheDatabasesProd,
 		},
 	}
 	testAWSFetchers(t, tests...)
 }
 
-func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Database, []*elasticache.Tag) {
+func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Databases, []*elasticache.Tag) {
 	cluster := mocks.ElastiCacheCluster(name, region, opts...)
 
 	tags := []*elasticache.Tag{{
@@ -110,12 +110,13 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 		database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 		require.NoError(t, err)
 		common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherElastiCache)
-		return cluster, database, tags
+		return cluster, types.Databases{database}, tags
 	}
 
 	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
 	require.NoError(t, err)
-	require.Len(t, databases, 1)
-	common.ApplyAWSDatabaseNameSuffix(databases[0], services.AWSMatcherElastiCache)
-	return cluster, databases[0], tags
+	for _, database := range databases {
+		common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherElastiCache)
+	}
+	return cluster, databases, tags
 }

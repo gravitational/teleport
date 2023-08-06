@@ -388,7 +388,7 @@ func RDSInstance(name, region string, labels map[string]string, opts ...func(*rd
 		Engine:               aws.String("postgres"),
 		DBInstanceStatus:     aws.String("available"),
 		Endpoint: &rds.Endpoint{
-			Address: aws.String("localhost"),
+			Address: aws.String(fmt.Sprintf("%v.aabbccdd.%v.rds.amazonaws.com", name, region)),
 			Port:    aws.Int64(5432),
 		},
 		TagList: libcloudaws.LabelsToTags[rds.Tag](labels),
