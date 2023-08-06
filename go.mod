@@ -3,7 +3,7 @@ module github.com/gravitational/teleport
 go 1.20
 
 require (
-	cloud.google.com/go/compute v1.22.0
+	cloud.google.com/go/compute v1.23.0
 	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/container v1.24.0
 	cloud.google.com/go/firestore v1.11.0
