@@ -211,12 +211,7 @@ func newWatcher(ctx context.Context, resourceCache *UnifiedResourceCache, cfg Re
 }
 
 func keyOf(resource types.Resource) []byte {
-	switch r := resource.(type) {
-	case types.Server:
-		return backend.Key(prefix, r.GetHostname(), r.GetName(), r.GetKind())
-	default:
-		return backend.Key(prefix, r.GetName(), r.GetKind())
-	}
+	return backend.Key(prefix, resource.GetName(), resource.GetKind())
 }
 
 func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
