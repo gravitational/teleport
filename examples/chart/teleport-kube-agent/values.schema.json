@@ -499,6 +499,7 @@
                 "config",
                 "deployment",
                 "pod",
+                "secret",
                 "serviceAccount"
             ],
             "properties": {
@@ -514,6 +515,11 @@
                 },
                 "pod": {
                     "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "secret": {
+                    "$id": "#/properties/annotations/properties/secret",
                     "type": "object",
                     "default": {}
                 },
