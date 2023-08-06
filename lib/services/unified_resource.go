@@ -279,7 +279,7 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 	c.mu.Unlock()
 
 	_, err := utils.FnCacheGet(ctx, c.cache, "unified_resources", func(ctx context.Context) (any, error) {
-		currentResourceCache := &UnifiedResourceCache{
+		fallbackCache := &UnifiedResourceCache{
 			cfg: c.cfg,
 			tree: btree.NewG(c.cfg.BTreeDegree, func(a, b *Item) bool {
 				return a.Less(b)
@@ -287,7 +287,7 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 			ResourceGetter:  c.ResourceGetter,
 			initializationC: make(chan struct{}),
 		}
-		err := currentResourceCache.getResourcesAndUpdateCurrent(ctx)
+		err := fallbackCache.getResourcesAndUpdateCurrent(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -303,8 +303,8 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 			return nil, nil
 		}
 
-		c.tree = currentResourceCache.tree
-		return currentResourceCache.tree, trace.Wrap(err)
+		c.tree = fallbackCache.tree
+		return fallbackCache.tree, trace.Wrap(err)
 	})
 	return trace.Wrap(err)
 }
