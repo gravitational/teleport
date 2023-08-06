@@ -18,6 +18,7 @@ package clusters
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -143,7 +144,9 @@ func (c *Cluster) getKube(ctx context.Context, kubeCluster string) (types.KubeCl
 		}
 		defer authClient.Close()
 
-		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, authClient, proto.ListResourcesRequest{})
+		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, authClient, proto.ListResourcesRequest{
+			PredicateExpression: fmt.Sprintf("name == %q", kubeCluster),
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -159,5 +162,5 @@ func (c *Cluster) getKube(ctx context.Context, kubeCluster string) (types.KubeCl
 			return cluster, nil
 		}
 	}
-	return nil, trace.BadParameter("kubernetes cluster %q not found", kubeCluster)
+	return nil, trace.NotFound("kubernetes cluster %q not found", kubeCluster)
 }

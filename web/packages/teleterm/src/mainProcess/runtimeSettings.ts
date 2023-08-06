@@ -59,6 +59,7 @@ function getRuntimeSettings(): RuntimeSettings {
   const { binDir, tshBinPath } = getBinaryPaths();
   const { username } = os.userInfo();
   const hostname = os.hostname();
+  const kubeConfigsDir = getKubeConfigsDir();
 
   const tshd = {
     insecure: isInsecure,
@@ -73,7 +74,7 @@ function getRuntimeSettings(): RuntimeSettings {
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
       `--prehog-addr=${staticConfig.prehogAddress}`,
-      `--kubeconfigs-dir=${getKubeConfigsDir()}`,
+      `--kubeconfigs-dir=${kubeConfigsDir}`,
     ],
   };
   const sharedProcess = {
@@ -100,7 +101,7 @@ function getRuntimeSettings(): RuntimeSettings {
     agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
-    kubeConfigsDir: getKubeConfigsDir(),
+    kubeConfigsDir,
     platform: process.platform,
     installationId: loadInstallationId(
       path.resolve(app.getPath('userData'), 'installation_id')

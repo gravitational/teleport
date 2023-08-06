@@ -190,7 +190,7 @@ type CLIConf struct {
 	// DaemonPrehogAddr is the URL where prehog events should be submitted.
 	DaemonPrehogAddr string
 	// DaemonKubeconfigsDir is the directory "Directory containing kubeconfig
-	// for Kubernetes Acces.
+	// for Kubernetes Access.
 	DaemonKubeconfigsDir string
 	// DaemonPid is the PID to be stopped
 	DaemonPid int
