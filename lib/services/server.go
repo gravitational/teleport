@@ -407,8 +407,8 @@ func UnmarshalServers(bytes []byte) ([]types.Server, error) {
 	}
 
 	out := make([]types.Server, len(servers))
-	for i, v := range servers {
-		out[i] = types.Server(&v)
+	for i := range servers {
+		out[i] = types.Server(&servers[i])
 	}
 	return out, nil
 }

@@ -87,8 +87,8 @@ type namespaceCollection struct {
 }
 
 func (n *namespaceCollection) resources() (r []types.Resource) {
-	for _, resource := range n.namespaces {
-		r = append(r, &resource)
+	for i := range n.namespaces {
+		r = append(r, &n.namespaces[i])
 	}
 	return r
 }
