@@ -52,7 +52,7 @@ export type AgentState =
     };
 
 export interface ConnectMyComputerContext {
-  state: AgentState;
+  agentState: AgentState;
   agentNode: Server;
   runAgentAndWaitForNodeToJoin(): Promise<void>;
   runWithPreparation(): Promise<[void, Error]>;
@@ -154,7 +154,7 @@ export const ConnectMyComputerContextProvider: FC<{
   return (
     <ConnectMyComputerContext.Provider
       value={{
-        state: computedState,
+        agentState: computedState,
         runAgentAndWaitForNodeToJoin,
         agentNode,
         kill: () => {

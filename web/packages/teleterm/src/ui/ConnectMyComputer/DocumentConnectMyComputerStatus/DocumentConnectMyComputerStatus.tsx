@@ -53,7 +53,7 @@ export function DocumentConnectMyComputerStatus(
   props: DocumentConnectMyComputerStatusProps
 ) {
   const {
-    state,
+    agentState,
     agentNode,
     runWithPreparation,
     kill,
@@ -62,7 +62,7 @@ export function DocumentConnectMyComputerStatus(
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
 
-  const prettyAgentState = prettifyAgentState(state);
+  const prettyAgentState = prettifyAgentState(agentState);
 
   function replaceWithSetupDocument(): void {
     documentsService.replace(
@@ -155,10 +155,10 @@ export function DocumentConnectMyComputerStatus(
           <strong>{roleName}</strong> to access it as an SSH resource with the
           user <strong>{systemUsername}</strong>.
         </Text>
-        {state.status === 'running' || state.status === 'stopping' ? (
+        {agentState.status === 'running' || agentState.status === 'stopping' ? (
           <ButtonPrimary
             block
-            disabled={state.status === 'stopping'}
+            disabled={agentState.status === 'stopping'}
             onClick={kill}
           >
             Disconnect
@@ -166,7 +166,7 @@ export function DocumentConnectMyComputerStatus(
         ) : (
           <ButtonPrimary
             block
-            disabled={state.status === 'starting'}
+            disabled={agentState.status === 'starting'}
             onClick={runWithPreparation}
           >
             Connect
