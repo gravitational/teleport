@@ -574,7 +574,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr); err == nil {
 		// The current private key was rejected due to an unmet key policy requirement.
 		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
-		fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
+		fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 
 		// The current private key was rejected due to an unmet key policy requirement.
 		// Set the private key policy to the expected value and re-login.
@@ -3334,9 +3334,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
-
 	if tc.KeyTTL == 0 {
 		tc.KeyTTL = time.Duration(pr.Auth.DefaultSessionTTL)
 	}
@@ -3382,9 +3379,6 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	webLoginFunc, err := tc.getWebLoginFunc(pr)
@@ -3782,7 +3776,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-initiating login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}
@@ -3846,7 +3840,7 @@ func (tc *TeleportClient) webLogin(ctx context.Context, webLoginFunc WebLoginFun
 				return nil, nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-initiating login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 			clt, session, err = webLoginFunc(ctx, priv)
 		}
 	}
@@ -4193,6 +4187,12 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	if err := tc.applyProxySettings(pr.Proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Perform the ALPN handshake test during Ping as it's part of the Proxy
+	// settings. Only do this when Ping is successful. If tc.lastPing is
+	// cached, there is no need to do this test again.
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+
 	tc.applyAuthSettings(pr.Auth)
 
 	tc.lastPing = pr

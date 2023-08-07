@@ -366,10 +366,24 @@ var SupportedAzureMatchers = []string{
 const (
 	// GCPMatcherKubernetes is the GCP matcher type for GCP kubernetes.
 	GCPMatcherKubernetes = "gke"
+	// GCPMatcherCompute is the GCP matcher for GCP VMs.
+	GCPMatcherCompute = "gce"
 )
 
 // SupportedGCPMatchers is list of GCP services currently supported by the
 // Teleport discovery service.
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
+	GCPMatcherCompute,
+}
+
+const (
+	// KubernetesMatchersApp is app matcher type for Kubernetes services
+	KubernetesMatchersApp = "app"
+)
+
+// SupportedKubernetesMatchers is a list of Kubernetes matchers supported by
+// Teleport discovery service
+var SupportedKubernetesMatchers = []string{
+	KubernetesMatchersApp,
 }

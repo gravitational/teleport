@@ -35,6 +35,8 @@ import {
   TshClient,
   GetRequestableRolesResponse,
   CreateConnectMyComputerRoleResponse,
+  CreateConnectMyComputerNodeTokenResponse,
+  UpdateHeadlessAuthenticationStateParams,
 } from '../types';
 
 export class MockTshClient implements TshClient {
@@ -100,4 +102,10 @@ export class MockTshClient implements TshClient {
   reportUsageEvent: () => undefined;
 
   createConnectMyComputerRole: () => Promise<CreateConnectMyComputerRoleResponse>;
+  createConnectMyComputerNodeToken: () => Promise<CreateConnectMyComputerNodeTokenResponse>;
+  deleteConnectMyComputerToken: () => Promise<void>;
+
+  updateHeadlessAuthenticationState: (
+    params: UpdateHeadlessAuthenticationStateParams
+  ) => Promise<void>;
 }

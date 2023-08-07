@@ -225,6 +225,9 @@ func TestAWSIAM(t *testing.T) {
 				database.SetStatusAWS(meta)
 			}
 			t.Run(testName, func(t *testing.T) {
+				// Initially unspecified since no tasks has ran yet.
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus)
+
 				// Configure database and make sure IAM is enabled and policy was attached.
 				err = configurator.Setup(ctx, database)
 				require.NoError(t, err)
@@ -236,7 +239,7 @@ func TestAWSIAM(t *testing.T) {
 
 				err = configurator.UpdateIAMStatus(database)
 				require.NoError(t, err)
-				require.True(t, database.GetAWS().IAMPolicyExists, "must be true because iam policy was set up")
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS, database.GetAWS().IAMPolicyStatus, "must be success because iam policy was set up")
 
 				// Deconfigure database, policy should get detached.
 				err = configurator.Teardown(ctx, database)
@@ -253,7 +256,7 @@ func TestAWSIAM(t *testing.T) {
 
 				err = configurator.UpdateIAMStatus(database)
 				require.NoError(t, err)
-				require.False(t, database.GetAWS().IAMPolicyExists, "must be false because iam policy was removed")
+				require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus, "must be unspecified because task is tearing down")
 			})
 		}
 	}
@@ -375,7 +378,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 			err = configurator.UpdateIAMStatus(database)
 			require.NoError(t, err)
-			require.False(t, database.GetAWS().IAMPolicyExists, "iam policy was not created, should return false")
+			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED, database.GetAWS().IAMPolicyStatus, "must be invalid because of perm issues")
 
 			err = configurator.processTask(ctx, iamTask{
 				isSetup:  false,
@@ -385,7 +388,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 
 			err = configurator.UpdateIAMStatus(database)
 			require.NoError(t, err)
-			require.False(t, database.GetAWS().IAMPolicyExists, "iam policy was not created, should return false")
+			require.Equal(t, types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED, database.GetAWS().IAMPolicyStatus, "must be unspecified, task is tearing down")
 		})
 	}
 }

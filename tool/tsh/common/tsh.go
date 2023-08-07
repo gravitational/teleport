@@ -613,7 +613,12 @@ func initLogger(cf *CLIConf) {
 	}
 }
 
-// Run executes TSH client. same as main() but easier to test
+// Run executes TSH client. same as main() but easier to test. Note that this
+// function modifies global state in `tsh` (e.g. the system logger), and WILL
+// ALSO MODIFY EXTERNAL SHARED STATE in its default configuration (e.g. the
+// $HOME/.tsh dir, $KUBECONFIG, etc).
+//
+// DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf := CLIConf{
 		Context:         ctx,
@@ -1833,8 +1838,23 @@ func onLogin(cf *CLIConf) error {
 
 	// If the cluster is using single-sign on, providing the user name
 	// with --user is likely a mistake, so display a warning.
-	if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.Username != "" {
-		fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
+	if cf.Username != "" {
+		displayIgnoreUserWarning := false
+		if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.AuthConnector != constants.PasswordlessConnector {
+			displayIgnoreUserWarning = true
+		} else if cf.AuthConnector == "" {
+			// Get the Ping so we check if the default Auth type is SSO
+			pr, err := tc.Ping(cf.Context)
+			if err != nil {
+				return trace.Wrap(err, "Teleport proxy not available at %s.", tc.WebProxyAddr)
+			}
+			if pr.Auth.Type != constants.LocalConnector && pr.Auth.Type != constants.PasswordlessConnector {
+				displayIgnoreUserWarning = true
+			}
+		}
+		if displayIgnoreUserWarning {
+			fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
+		}
 	}
 
 	if cf.Username == "" {
@@ -1927,7 +1947,6 @@ func onLogin(cf *CLIConf) error {
 		capabilities, err := rootAuthClient.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
 			User: cf.Username,
 		})
-
 		if err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
@@ -2397,13 +2416,9 @@ func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID,
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	roles := utils.SplitIdentifiers(cf.DesiredRoles)
 	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-	var requestedResourceIDs []types.ResourceID
-	for _, resourceIDString := range cf.RequestedResourceIDs {
-		resourceID, err := types.ResourceIDFromString(resourceIDString)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		requestedResourceIDs = append(requestedResourceIDs, resourceID)
+	requestedResourceIDs, err := types.ResourceIDsFromStrings(cf.RequestedResourceIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 	if err != nil {
@@ -3067,7 +3082,10 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 
 // accessRequestForSSH attempts to create a resource access request for the case
 // where "tsh ssh" was attempted and access was denied
-func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
+func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
+	if tc.Host == "" {
+		return nil, trace.BadParameter("no host specified")
+	}
 	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3129,19 +3147,25 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	return req, nil
 }
 
-func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
+func retryWithAccessRequest(
+	cf *CLIConf,
+	tc *client.TeleportClient,
+	fn func() error,
+	onAccessRequestCreator func(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error),
+	resource string,
+) error {
 	origErr := fn()
-	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
+	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) {
 		// Return if --disable-access-request was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
 	}
 
-	// Try to construct an access request for this node.
-	req, err := accessRequestForSSH(cf.Context, tc)
+	// Try to construct an access request for this resource.
+	req, err := onAccessRequestCreator(cf.Context, cf, tc)
 	if err != nil {
-		// We can't request access to the node or we couldn't query the ID. Log
+		// We can't request access to the resource or we couldn't query the ID. Log
 		// a short debug message in case this is unexpected, but return the
 		// original AccessDenied error from the ssh attempt which is likely to
 		// be far more relevant to the user.
@@ -3152,7 +3176,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 
 	// Print and log the original AccessDenied error.
 	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
-	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
+	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 
 	requestReason := cf.RequestReason
 	if requestReason == "" {
@@ -3243,7 +3267,10 @@ func onSSH(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		return nil
-	})
+	},
+		accessRequestForSSH,
+		fmt.Sprintf("%s@%s", tc.HostLogin, tc.Host),
+	)
 	// Exit with the same exit status as the failed command.
 	if tc.ExitStatus != 0 {
 		var exitErr *common.ExitCodeError
@@ -4221,7 +4248,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Traits:             p.Traits,
 		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster(p.Cluster),
+		KubernetesCluster:  selectedKubeCluster(p.Cluster, ""),
 		KubernetesUsers:    p.KubeUsers,
 		KubernetesGroups:   p.KubeGroups,
 		Databases:          p.DatabaseServices(),
@@ -4688,7 +4715,7 @@ func onEnvironment(cf *CLIConf) error {
 			fmt.Printf("unset %v\n", kubeClusterEnvVar)
 			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 		case !cf.unsetEnvironment:
-			kubeName := selectedKubeCluster(profile.Cluster)
+			kubeName := selectedKubeCluster(profile.Cluster, "")
 			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
 			if kubeName != "" {
@@ -4713,7 +4740,7 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		proxyEnvVar:   profile.ProxyURL.Host,
 		clusterEnvVar: profile.Cluster,
 	}
-	kubeName := selectedKubeCluster(profile.Cluster)
+	kubeName := selectedKubeCluster(profile.Cluster, "")
 	if kubeName != "" {
 		env[kubeClusterEnvVar] = kubeName
 		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)

@@ -9,7 +9,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
-	github.com/gravitational/trace v1.2.1
+	github.com/gravitational/trace v1.3.0
 	github.com/jonboulle/clockwork v0.4.0
 	github.com/russellhaering/gosaml2 v0.9.1
 	github.com/sirupsen/logrus v1.9.3
@@ -24,9 +24,9 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0
 	golang.org/x/crypto v0.11.0
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
-	golang.org/x/net v0.12.0
+	golang.org/x/net v0.13.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230629202037-9506855d4529
-	google.golang.org/grpc v1.56.2
+	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v2 v2.4.0
 )

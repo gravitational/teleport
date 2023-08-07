@@ -390,7 +390,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+	require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
 
 	// Simulate how tsh uses a kube local proxy to send kube requests to
 	// Teleport Proxy with a L7 LB in front.
@@ -434,7 +434,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		mustGetKubePod(t, k8Client, kubePodName)
+		mustGetKubePod(t, k8Client)
 	})
 }
 
@@ -505,7 +505,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mustGetKubePod(t, k8Client, kubePodName)
+	mustGetKubePod(t, k8Client)
 }
 
 func TestKubeIPPinning(t *testing.T) {
@@ -628,7 +628,7 @@ func TestKubeIPPinning(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
 		})
 	}
 }
