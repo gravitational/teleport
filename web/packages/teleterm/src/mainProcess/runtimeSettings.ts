@@ -47,7 +47,7 @@ const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 // Allows running tsh in insecure mode (development)
 const isInsecure = dev || argv.includes('--insecure');
 
-function getRuntimeSettings(): RuntimeSettings {
+export function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
   const sessionDataDir = app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
@@ -109,6 +109,7 @@ function getRuntimeSettings(): RuntimeSettings {
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
     kubeConfigsDir: getKubeConfigsDir(),
+    agentCleanupDaemonPath: getAgentCleanupDaemonPath(),
     platform: process.platform,
     installationId: loadInstallationId(
       path.resolve(app.getPath('userData'), 'installation_id')
@@ -195,7 +196,7 @@ function getBinaryPaths(): { binDir?: string; tshBinPath: string } {
   return { tshBinPath };
 }
 
-function getAssetPath(...paths: string[]): string {
+export function getAssetPath(...paths: string[]): string {
   return path.join(RESOURCES_PATH, 'assets', ...paths);
 }
 
@@ -255,4 +256,19 @@ function getUnixSocketNetworkAddress(socketName: string) {
   return `unix://${path.resolve(app.getPath('userData'), socketName)}`;
 }
 
-export { getRuntimeSettings, getAssetPath };
+function getAgentCleanupDaemonPath() {
+  if (app.isPackaged) {
+    // Escape from build/app/dist/main to build/app/dist/agentCleanupDaemon.
+    // electron-builder copies agentCleanupDaemon.mjs to build/app/dist/agentCleanupDaemon when
+    // packaging the app.
+    // prettier-ignore
+    return path.join(__dirname, '..',
+      'agentCleanupDaemon', 'agentCleanupDaemon.js'
+    );
+  }
+
+  // Escape build/app/dist/main first.
+  // prettier-ignore
+  return path.join(__dirname, '..', '..', '..', '..',
+    'src', 'agentCleanupDaemon', 'agentCleanupDaemon.js');
+}

@@ -68,6 +68,13 @@ module.exports = {
   },
   files: [
     'build/app/dist',
+    // main and renderer are put in their own folders in build/app/dist in the packaged app, so
+    // let's put agentCleanupDaemon in its own folder as well.
+    {
+      from: 'src/agentCleanupDaemon',
+      to: 'build/app/dist/agentCleanupDaemon',
+      filter: ['agentCleanupDaemon.js'],
+    },
     // node-pty creates some files that differ across architecture builds causing
     // the error "can't reconcile the non-macho files" as they cant be combined
     // with lipo for a universal build. They aren't needed so skip them.
