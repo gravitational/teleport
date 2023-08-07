@@ -3118,12 +3118,12 @@ func (c *Client) GetResources(ctx context.Context, req *proto.ListResourcesReque
 	return resp, trail.FromGRPC(err)
 }
 
-// GetUnifiedResources returns a paginated list of unified resources that the user has access to.
-// `nextKey` is used as `startKey` in another call to GetUnifiedResources to retrieve
+// ListUnifiedResources returns a paginated list of unified resources that the user has access to.
+// `nextKey` is used as `startKey` in another call to ListUnifiedResources to retrieve
 // the next page.
 // It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
 // message size.
-func (c *Client) GetUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+func (c *Client) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3138,10 +3138,10 @@ type GetResourcesClient interface {
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
 }
 
-// GetUnifiedResourcesClient is an interface used by GetUnifiedResources to abstract over implementations of
+// ListUnifiedResourcesClient is an interface used by ListUnifiedResources to abstract over implementations of
 // the ListUnifiedResources method.
-type GetUnifiedResourcesClient interface {
-	GetUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
+type ListUnifiedResourcesClient interface {
+	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 }
 
 // ResourcePage holds a page of results from [GetResourcePage].
@@ -3195,8 +3195,8 @@ func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.Resource
 	}
 }
 
-// GetUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
-func GetUnifiedResourcePage(ctx context.Context, clt GetUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
+// ListUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
+func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
 	var out ResourcePage[types.ResourceWithLabels]
 
 	// Set the limit to the default size if one was not provided within
@@ -3206,7 +3206,7 @@ func GetUnifiedResourcePage(ctx context.Context, clt GetUnifiedResourcesClient, 
 	}
 
 	for {
-		resp, err := clt.GetUnifiedResources(ctx, req)
+		resp, err := clt.ListUnifiedResources(ctx, req)
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
 				// Cut chunkSize in half if gRPC max message size is exceeded.
@@ -3231,7 +3231,6 @@ func GetUnifiedResourcePage(ctx context.Context, clt GetUnifiedResourcesClient, 
 		}
 
 		out.NextKey = resp.NextKey
-		out.Total = int(resp.TotalCount)
 
 		return out, nil
 	}

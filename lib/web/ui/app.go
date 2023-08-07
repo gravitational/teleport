@@ -80,17 +80,19 @@ type MakeAppsConfig struct {
 	AppServersAndSAMLIdPServiceProviders types.AppServersOrSAMLIdPServiceProviders
 	// Identity is identity of the logged in user.
 	Identity *tlsca.Identity
-
+	// UserGroupLookup is a map of user groups to provide to each App
 	UserGroupLookup map[string]types.UserGroup
-	Logger          logrus.FieldLogger
+	// Logger is a logger used for debugging while making an app
+	Logger logrus.FieldLogger
 }
 
+// MakeApp creates an application object for the WebUI.
 func MakeApp(app types.Application, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	fqdn := AssembleAppFQDN(c.LocalClusterName, c.LocalProxyDNSName, c.AppClusterName, app)
 	userGroups := c.AppsToUserGroups[app.GetName()]
 	appsToUserGroups := map[string]types.UserGroups{}
-	ugs := types.UserGroups{}
+	var ugs types.UserGroups
 	for _, userGroupName := range app.GetUserGroups() {
 		userGroup := c.UserGroupLookup[userGroupName]
 		if userGroup == nil {
@@ -129,6 +131,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	return resultApp
 }
 
+// MakeSAMLApp creates a SAMLIdPServiceProvider object for the WebUI.
 func MakeSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	resultApp := App{

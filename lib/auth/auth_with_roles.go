@@ -1511,19 +1511,138 @@ func unifiedNameCompare(a types.ResourceWithLabels, b types.ResourceWithLabels, 
 	return stringCompare(nameA, nameB, isDesc)
 }
 
+func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
+	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
+	for _, resource := range resources {
+		var protoResource *proto.PaginatedResource
+		resourceKind := requestType
+		if requestType == types.KindUnifiedResource {
+			resourceKind = resource.GetKind()
+		}
+		switch resourceKind {
+		case types.KindDatabaseServer:
+			database, ok := resource.(*types.DatabaseServerV3)
+			if !ok {
+				return nil, trace.BadParameter("database server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
+		case types.KindDatabaseService:
+			databaseService, ok := resource.(*types.DatabaseServiceV1)
+			if !ok {
+				return nil, trace.BadParameter("database service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
+		case types.KindAppServer:
+			app, ok := resource.(*types.AppServerV3)
+			if !ok {
+				return nil, trace.BadParameter("application server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
+		case types.KindNode:
+			srv, ok := resource.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("node has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
+		case types.KindKubeServer:
+			srv, ok := resource.(*types.KubernetesServerV3)
+			if !ok {
+				return nil, trace.BadParameter("kubernetes server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
+		case types.KindWindowsDesktop:
+			desktop, ok := resource.(*types.WindowsDesktopV3)
+			if !ok {
+				return nil, trace.BadParameter("windows desktop has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
+		case types.KindWindowsDesktopService:
+			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
+			if !ok {
+				return nil, trace.BadParameter("windows desktop service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
+		case types.KindKubernetesCluster:
+			cluster, ok := resource.(*types.KubernetesClusterV3)
+			if !ok {
+				return nil, trace.BadParameter("kubernetes cluster has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
+		case types.KindUserGroup:
+			userGroup, ok := resource.(*types.UserGroupV1)
+			if !ok {
+				return nil, trace.BadParameter("user group has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
+		case types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+			switch appOrSP := resource.(type) {
+			case *types.AppServerV3:
+				protoResource = &proto.PaginatedResource{
+					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+								AppServer: appOrSP,
+							},
+						},
+					}}
+			case *types.SAMLIdPServiceProviderV1:
+				protoResource = &proto.PaginatedResource{
+					Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+								SAMLIdPServiceProvider: appOrSP,
+							},
+						},
+					}}
+			default:
+				return nil, trace.BadParameter("expected types.SAMLIdPServiceProviderV1 or types.AppServerV3, got %T", resource)
+			}
+
+		default:
+			return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
+		}
+
+		paginatedResources = append(paginatedResources, protoResource)
+	}
+	return paginatedResources, nil
+}
+
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
-func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*types.ListResourcesResponse, error) {
+func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
+	var elapsedFetch time.Duration
+	var elapsedFilter time.Duration
+	var unifiedResources []types.ResourceWithLabels
+	var filteredResources []types.ResourceWithLabels
+
+	defer func() {
+		log.WithFields(logrus.Fields{
+			"user":           a.context.User.GetName(),
+			"elapsed_fetch":  elapsedFetch,
+			"elapsed_filter": elapsedFilter,
+		}).Debugf(
+			"ListUnifiedResources(%v->%v) in %v.",
+			len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
+	}()
+
 	startFetch := time.Now()
 	unifiedResources, err := a.authServer.UnifiedResourceCache.GetUnifiedResources(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	elapsedFetch := time.Since(startFetch)
+	elapsedFetch = time.Since(startFetch)
 
-	// Filter resources to return the ones for the connected identity.
-	filteredResources := make([]types.ResourceWithLabels, 0)
+	filteredResources = make([]types.ResourceWithLabels, 0)
 	startFilter := time.Now()
 	for _, resource := range unifiedResources {
 		switch r := resource.(type) {
@@ -1595,15 +1714,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 		}
 	}
-	elapsedFilter := time.Since(startFilter)
-
-	log.WithFields(logrus.Fields{
-		"user":           a.context.User.GetName(),
-		"elapsed_fetch":  elapsedFetch,
-		"elapsed_filter": elapsedFilter,
-	}).Debugf(
-		"GetUnifiedResources(%v->%v) in %v.",
-		len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
+	elapsedFilter = time.Since(startFilter)
 
 	if req.SortBy.Field != "" {
 		isDesc := req.SortBy.IsDesc
@@ -1634,7 +1745,15 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err)
 	}
 
-	return resp, nil
+	paginatedResources, err := a.MakePaginatedResources(types.KindUnifiedResource, resp.Resources)
+	if err != nil {
+		return nil, trace.Wrap(err, "making paginated unified resources")
+	}
+
+	return &proto.ListUnifiedResourcesResponse{
+		NextKey:   resp.NextKey,
+		Resources: paginatedResources,
+	}, nil
 }
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
@@ -5308,13 +5427,6 @@ func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.De
 // client.Client.GenerateUserSingleUseCerts instead.
 func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
 	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
-}
-
-// GetUnifiedResources exists to satisfy auth.ClientI but is not
-// implemented here. It is a client only interface to make
-// interacting with ListUnifiedResources friendlier.
-func (a *ServerWithRoles) GetUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
-	return nil, trace.NotImplemented("bug: GetUnifiedResources must not be called on auth.ServerWithRoles")
 }
 
 // GetResources exists to satisfy auth.ClientI but is not
