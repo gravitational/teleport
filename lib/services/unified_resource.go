@@ -31,9 +31,6 @@ import (
 )
 
 type UnifiedResourceCacheConfig struct {
-	// Context is a context for opening the
-	// database
-	Context context.Context
 	// BTreeDegree is a degree of B-Tree, 2 for example, will create a
 	// 2-3-4 tree (each node contains 1-3 items and 2-4 children).
 	BTreeDegree int
@@ -65,7 +62,6 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 	}
 
 	m := &UnifiedResourceCache{
-		mu: sync.Mutex{},
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentMemory,
 		}),
@@ -77,9 +73,7 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 		ResourceGetter:  cfg.ResourceGetter,
 	}
 
-	err := newWatcher(ctx, m, cfg.ResourceWatcherConfig)
-
-	if err != nil {
+	if err := newWatcher(ctx, m, cfg.ResourceWatcherConfig); err != nil {
 		return nil, trace.Wrap(err, "creating unified resource watcher")
 	}
 	return m, nil
@@ -87,9 +81,6 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 
 // CheckAndSetDefaults checks and sets default values
 func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
-	if cfg.Context == nil {
-		cfg.Context = context.Background()
-	}
 	if cfg.BTreeDegree <= 0 {
 		cfg.BTreeDegree = 8
 	}
@@ -115,26 +106,6 @@ func (c *UnifiedResourceCache) put(ctx context.Context, i Item) error {
 		Item: i,
 	}
 	c.processEvent(event)
-	return nil
-}
-
-// PutRange puts range of items into backend (creates if items do not
-// exist, updates it otherwise)
-func (c *UnifiedResourceCache) PutRange(ctx context.Context, items []Item) error {
-	for i := range items {
-		if items[i].Key == nil {
-			return trace.BadParameter("missing parameter key in item %v", i)
-		}
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, item := range items {
-		event := Event{
-			Type: types.OpPut,
-			Item: item,
-		}
-		c.processEvent(event)
-	}
 	return nil
 }
 
@@ -255,15 +226,20 @@ func newWatcher(ctx context.Context, cache *UnifiedResourceCache, cfg ResourceWa
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "setting defaults for unified resource watcher config")
 	}
-	_, err := newResourceWatcher(ctx, cache, cfg)
-	if err != nil {
+
+	if _, err := newResourceWatcher(ctx, cache, cfg); err != nil {
 		return trace.Wrap(err, "creating a new unified resource watcher")
 	}
 	return nil
 }
 
-func keyOf(r types.Resource) []byte {
-	return backend.Key(prefix, r.GetName(), r.GetKind())
+func keyOf(resource types.Resource) []byte {
+	switch r := resource.(type) {
+	case types.Server:
+		return backend.Key(prefix, r.GetHostname(), r.GetName(), r.GetKind())
+	default:
+		return backend.Key(prefix, r.GetName(), r.GetKind())
+	}
 }
 
 func (u *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
@@ -308,14 +284,33 @@ func (u *UnifiedResourceCache) getAndUpdateNodes(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "getting nodes for unified resource watcher")
 	}
-	nodes := make([]Item, 0, len(newNodes))
-	for _, node := range newNodes {
-		nodes = append(nodes, Item{
-			Key:   keyOf(node),
-			Value: node,
-		})
+
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return trace.Wrap(putResources[types.Server](ctx, u, newNodes))
+}
+
+func getCloneAny(resource types.ResourceWithLabels) (types.CloneAny, error) {
+	cloner, ok := resource.(types.CloneAny)
+	if !ok {
+		return nil, trace.NotImplemented("unsupported type %t for unified resources received", resource)
 	}
-	return u.PutRange(ctx, nodes)
+	return cloner, nil
+}
+
+func putResources[T types.ResourceWithLabels](ctx context.Context, c *UnifiedResourceCache, resources []T) error {
+	for _, resource := range resources {
+		r, err := getCloneAny(resource)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		event := Event{
+			Type: types.OpPut,
+			Item: Item{Key: keyOf(resource), Value: r},
+		}
+		c.processEvent(event)
+	}
+	return nil
 }
 
 // getAndUpdateDatabases will get database servers and update the current tree with each DatabaseServer
@@ -324,14 +319,10 @@ func (u *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) error 
 	if err != nil {
 		return trace.Wrap(err, "getting databases for unified resource watcher")
 	}
-	dbs := make([]Item, 0, len(newDbs))
-	for _, db := range newDbs {
-		dbs = append(dbs, Item{
-			Key:   keyOf(db),
-			Value: db,
-		})
-	}
-	return u.PutRange(ctx, dbs)
+
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return trace.Wrap(putResources[types.DatabaseServer](ctx, u, newDbs))
 }
 
 // getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
@@ -340,14 +331,10 @@ func (u *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "getting kubes for unified resource watcher")
 	}
-	kubes := make([]Item, 0, len(newKubes))
-	for _, kube := range newKubes {
-		kubes = append(kubes, Item{
-			Key:   keyOf(kube),
-			Value: kube,
-		})
-	}
-	return u.PutRange(ctx, kubes)
+
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return trace.Wrap(putResources[types.KubeServer](ctx, u, newKubes))
 }
 
 // getAndUpdateApps will get application servers and update the current tree with each AppServer
@@ -357,19 +344,14 @@ func (u *UnifiedResourceCache) getAndUpdateApps(ctx context.Context) error {
 		return trace.Wrap(err, "getting apps for unified resource watcher")
 	}
 
-	apps := make([]Item, 0, len(newApps))
-	for _, app := range newApps {
-		apps = append(apps, Item{
-			Key:   keyOf(app),
-			Value: app,
-		})
-	}
-	return u.PutRange(ctx, apps)
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return trace.Wrap(putResources[types.AppServer](ctx, u, newApps))
 }
 
 // getAndUpdateSAMLApps will get SAML Idp Service Providers servers and update the current tree with each SAMLIdpServiceProvider
 func (u *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
-	var newSAMLApps []Item
+	var newSAMLApps []types.SAMLIdPServiceProvider
 	startKey := ""
 
 	for {
@@ -378,12 +360,8 @@ func (u *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
 		if err != nil {
 			return trace.Wrap(err, "getting SAML apps for unified resource watcher")
 		}
-		for _, app := range resp {
-			newSAMLApps = append(newSAMLApps, Item{
-				Key:   keyOf(app),
-				Value: app,
-			})
-		}
+		newSAMLApps = append(newSAMLApps, resp...)
+
 		if nextKey == "" {
 			break
 		}
@@ -391,7 +369,9 @@ func (u *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
 		startKey = nextKey
 	}
 
-	return u.PutRange(ctx, newSAMLApps)
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return trace.Wrap(putResources[types.SAMLIdPServiceProvider](ctx, u, newSAMLApps))
 }
 
 // getAndUpdateDesktops will get windows desktops and update the current tree with each Desktop
@@ -401,15 +381,9 @@ func (u *UnifiedResourceCache) getAndUpdateDesktops(ctx context.Context) error {
 		return trace.Wrap(err, "getting desktops for unified resource watcher")
 	}
 
-	desktops := make([]Item, 0, len(newDesktops))
-	for _, desktop := range newDesktops {
-		desktops = append(desktops, Item{
-			Key:   keyOf(desktop),
-			Value: desktop,
-		})
-	}
-
-	return u.PutRange(ctx, desktops)
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return trace.Wrap(putResources[types.WindowsDesktop](ctx, u, newDesktops))
 }
 
 func (u *UnifiedResourceCache) notifyStale() {
