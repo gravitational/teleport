@@ -349,7 +349,7 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 			client = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
 		})
 
-		mustGetKubePod(t, client, kubePodName)
+		mustGetKubePod(t, client)
 	}
 
 	testGatewayCertRenewal(
@@ -362,7 +362,6 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 		},
 		testKubeConnection,
 	)
-
 }
 
 func checkKubeconfigPathInCommandEnv(t *testing.T, gw gateway.Gateway, wantKubeconfigPath string) {
