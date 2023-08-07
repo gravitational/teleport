@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -137,7 +138,8 @@ func TestService_authz(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if err := stream.Send(&devicepb.EnrollDeviceRequest{}); err != nil {
+				err = stream.Send(&devicepb.EnrollDeviceRequest{})
+				if err != nil && !errors.Is(err, io.EOF) {
 					return err
 				}
 				// Validation errors from Send typically arrive at Recv.
@@ -235,7 +237,7 @@ func TestService_authz(t *testing.T) {
 				}
 				if err := stream.Send(&devicepb.SyncInventoryRequest{
 					Payload: nil, // missing start payload
-				}); err != nil {
+				}); err != nil && !errors.Is(err, io.EOF) {
 					return err
 				}
 				// Validation errors from Send typically arrive at Recv.

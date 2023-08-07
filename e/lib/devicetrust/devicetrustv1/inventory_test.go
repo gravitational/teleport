@@ -1129,7 +1129,7 @@ func syncInventoryPages(
 		Payload: &devicepb.SyncInventoryRequest_Start{
 			Start: startReq,
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("start: Send: %w", err)
 	}
 	resp, err := stream.Recv()
@@ -1149,7 +1149,7 @@ func syncInventoryPages(
 					Devices: page,
 				},
 			},
-		}); err != nil {
+		}); err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("devices: Send: %w", err)
 		}
 		resp, err = stream.Recv()
@@ -1168,7 +1168,7 @@ func syncInventoryPages(
 		Payload: &devicepb.SyncInventoryRequest_End{
 			End: &devicepb.SyncInventoryEnd{},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("end: Send: %w", err)
 	}
 
@@ -1207,7 +1207,7 @@ func syncInventoryPages(
 					Devices: missingDevs,
 				},
 			},
-		}); err != nil {
+		}); err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("end: Send devices_to_remove: %w", err)
 		}
 
@@ -1249,7 +1249,7 @@ func syncInventoryDelete(
 		Payload: &devicepb.SyncInventoryRequest_Start{
 			Start: &devicepb.SyncInventoryStart{Source: source},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("start Send: %w", err)
 	}
 	if _, err = stream.Recv(); err != nil {
@@ -1263,7 +1263,7 @@ func syncInventoryDelete(
 			Payload: &devicepb.SyncInventoryRequest_DevicesToUpsert{
 				DevicesToUpsert: &devicepb.SyncInventoryDevices{Devices: devsToUpsert},
 			},
-		}); err != nil {
+		}); err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("devicesToUpsert Send: %w", err)
 		}
 		resp, err := stream.Recv()
@@ -1278,7 +1278,7 @@ func syncInventoryDelete(
 		Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
 			DevicesToRemove: &devicepb.SyncInventoryDevices{Devices: devsToRemove},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("devicesToRemove Send: %w", err)
 	}
 	resp, err := stream.Recv()
@@ -1292,7 +1292,7 @@ func syncInventoryDelete(
 		Payload: &devicepb.SyncInventoryRequest_End{
 			End: &devicepb.SyncInventoryEnd{},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("end Send: %w", err)
 	}
 	for {
@@ -1333,7 +1333,7 @@ func syncInventoryMissing(
 				TrackMissingDevices: true,
 			},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("start Send: %w", err)
 	}
 
@@ -1350,7 +1350,7 @@ func syncInventoryMissing(
 					Devices: devsToUpsert,
 				},
 			},
-		}); err != nil {
+		}); err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("devices Send: %w", err)
 		}
 
@@ -1365,7 +1365,7 @@ func syncInventoryMissing(
 		Payload: &devicepb.SyncInventoryRequest_End{
 			End: &devicepb.SyncInventoryEnd{},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("end Send: %w", err)
 	}
 
@@ -1387,7 +1387,7 @@ func syncInventoryMissing(
 					Devices: missingFn(resp.GetMissingDevices().GetDevices()),
 				},
 			},
-		}); err != nil {
+		}); err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("missing remove Send: %w", err)
 		}
 

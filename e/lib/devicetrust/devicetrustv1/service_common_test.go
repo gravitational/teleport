@@ -7,7 +7,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -76,7 +78,7 @@ func enrollSimulator(
 	}
 
 	req := sim.enrollRequest(dev, dev.EnrollToken.Token)
-	if err := stream.Send(req); err != nil {
+	if err := stream.Send(req); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("init Send: %w", err)
 	}
 	resp, err := stream.Recv()

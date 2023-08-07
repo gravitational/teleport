@@ -7,7 +7,9 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -584,7 +586,7 @@ func TestService_EnrollDevice(t *testing.T) {
 				t.Fatalf("EnrollDevice failed: %v", err)
 			}
 			req := test.simulator.enrollRequest(created, enrollToken)
-			if err := stream.Send(req); err != nil {
+			if err := stream.Send(req); err != nil && !errors.Is(err, io.EOF) {
 				t.Fatalf("init: Send failed: %v", err)
 			}
 			// If we got this far we should have audit logs in the end.

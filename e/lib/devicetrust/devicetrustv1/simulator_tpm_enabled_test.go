@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 
@@ -295,7 +296,7 @@ func (e *tpmSimulator) handleEnrollStream(
 				Solution:           solution,
 			},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("challenge: send: %w", err)
 	}
 	resp, err = stream.Recv()
@@ -394,7 +395,7 @@ func (e *tpmSimulator) authenticate(
 				},
 			},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("sending AuthenticateDeviceRequest_Init: %w", err)
 	}
 	resp, err := stream.Recv()
@@ -418,7 +419,7 @@ func (e *tpmSimulator) authenticate(
 				PlatformParameters: dtoss.PlatformParametersToProto(platParams),
 			},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("sending AuthenticateDeviceRequest_ChallengeResponse: %w", err)
 	}
 	resp, err = stream.Recv()

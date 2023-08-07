@@ -2,7 +2,9 @@ package devicetrustv1_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
@@ -75,7 +77,7 @@ func (e *macOSSimulator) handleEnrollStream(
 				Signature: sig,
 			},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("challenge Send: %w", err)
 	}
 	resp, err = stream.Recv()
@@ -135,7 +137,7 @@ func (e *macOSSimulator) authenticate(
 		Payload: &devicepb.AuthenticateDeviceRequest_Init{
 			Init: init,
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("init Send: %w", err)
 	}
 	resp, err := stream.Recv()
@@ -157,7 +159,7 @@ func (e *macOSSimulator) authenticate(
 				Signature: sig,
 			},
 		},
-	}); err != nil {
+	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("challend Send: %w", err)
 	}
 	resp, err = stream.Recv()
