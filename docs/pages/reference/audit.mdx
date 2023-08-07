@@ -9,18 +9,18 @@ There are two components of the audit log:
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
-1. **Cluster Events:** Teleport logs events like successful user logins along
+- **Cluster Events:** Teleport logs events like successful user logins along
    with metadata like remote IP address, time, and the session ID.
-2. **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
+- **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
    can be replayed later. By default, the recording is done by Teleport Nodes,
    but can be configured to be done by the proxy.
 
 </TabItem>
 <TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
-1. **Cluster Events:** Teleport logs events like successful user logins along
+- **Cluster Events:** Teleport logs events like successful user logins along
    with metadata like remote IP address, time, and the session ID.
-2. **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
+- **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
    can be replayed later. Teleport Cloud manages the storage of session
    recording data.
 

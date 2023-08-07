@@ -174,6 +174,7 @@ func TestAuthenticate(t *testing.T) {
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
 			ClusterFeatures:   fakeClusterFeatures,
+			KubeServiceType:   ProxyService,
 		},
 		getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
 			servers, err := ap.GetKubernetesServers(ctx)
@@ -782,6 +783,7 @@ func TestAuthenticate(t *testing.T) {
 				require.Equal(t, trace.IsAccessDenied(err), tt.wantAuthErr)
 				return
 			}
+			require.NoError(t, err)
 			err = f.authorize(context.Background(), gotCtx)
 			require.NoError(t, err)
 
@@ -1067,9 +1069,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 				transportConfig: &transport.Config{
 					WrapTransport: checkTransportProxy,
 				},
-				transport: httpTransport{
-					transport: h2Transport,
-				},
+				transport: h2Transport,
 			},
 		},
 	}

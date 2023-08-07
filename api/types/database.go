@@ -811,6 +811,27 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.GetName(), d.GetProtocol(), d.GetType())
 	}
 
+	switch protocol := d.GetProtocol(); protocol {
+	case DatabaseProtocolClickHouseHTTP, DatabaseProtocolClickHouse:
+		const (
+			clickhouseNativeSchema = "clickhouse"
+			clickhouseHTTPSchema   = "https"
+		)
+		parts := strings.Split(d.GetURI(), ":")
+		if len(parts) == 3 {
+			break
+		} else if len(parts) != 2 {
+			return trace.BadParameter("invalid ClickHouse URL %s", d.GetURI())
+		}
+
+		if !strings.HasPrefix(d.Spec.URI, clickhouseHTTPSchema) && protocol == DatabaseProtocolClickHouseHTTP {
+			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseHTTPSchema, d.Spec.URI)
+		}
+		if protocol == DatabaseProtocolClickHouse {
+			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseNativeSchema, d.Spec.URI)
+		}
+	}
+
 	return nil
 }
 
@@ -936,6 +957,10 @@ func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
 const (
 	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
 	DatabaseProtocolPostgreSQL = "postgres"
+	// DatabaseProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
+	DatabaseProtocolClickHouseHTTP = "clickhouse-http"
+	// DatabaseProtocolClickHouse is the ClickHouse database native write protocol.
+	DatabaseProtocolClickHouse = "clickhouse"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
@@ -1067,4 +1092,24 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 		return nil
 	}
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
+}
+
+// MarshalJSON supports marshaling enum value into it's string value.
+func (s *IAMPolicyStatus) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
+// UnmarshalJSON supports unmarshaling enum string value back to number.
+func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	var stringVal string
+	if err := json.Unmarshal(data, &stringVal); err != nil {
+		return err
+	}
+
+	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
+	return nil
 }

@@ -149,6 +149,14 @@ This command will open a new browser window with storybook in it. There
 you will see components from all packages so it makes it faster to work
 and iterate on shared functionality.
 
+### Browser compatibility
+
+We are targeting last 2 versions of all major browsers. To quickly find out which ones exactly, use the following command:
+
+```
+$ yarn browserslist 'last 2 chrome version, last 2 edge version, last 2 firefox version, last 2 safari version'
+```
+
 ### Setup Prettier on VSCode
 
 1. Install plugin: https://github.com/prettier/prettier-vscode

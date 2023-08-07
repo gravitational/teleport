@@ -25,6 +25,8 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 service AccessListService {
   // GetAccessLists returns a list of all access lists.
   rpc GetAccessLists(GetAccessListsRequest) returns (GetAccessListsResponse);
+  // ListAccessLists returns a paginated list of all access lists.
+  rpc ListAccessLists(ListAccessListsRequest) returns (ListAccessListsResponse);
   // GetAccessList returns the specified access list resource.
   rpc GetAccessList(GetAccessListRequest) returns (AccessList);
   // UpsertAccessList creates or updates an access list resource.
@@ -42,6 +44,23 @@ message GetAccessListsRequest {}
 message GetAccessListsResponse {
   // access_lists is the list of access lists.
   repeated AccessList access_lists = 1;
+}
+
+// ListAccessListsRequest is the request for getting paginated access lists.
+message ListAccessListsRequest {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+
+  // next_token is the page token.
+  string next_token = 2;
+}
+
+// ListAccessListsResponse is the response for getting paginated access lists.
+message ListAccessListsResponse {
+  // access_lists is the list of access lists.
+  repeated AccessList access_lists = 1;
+  // next_token is the next page token.
+  string next_token = 2;
 }
 
 // GetAccessListRequest is the request for retrieving an access list.

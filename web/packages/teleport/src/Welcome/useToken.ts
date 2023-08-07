@@ -26,8 +26,9 @@ import auth, {
   ResetPasswordWithWebauthnReqWithEvent,
   ResetToken,
 } from 'teleport/services/auth';
+import { UseTokenState } from 'teleport/Welcome/NewCredentials/types';
 
-export default function useToken(tokenId: string) {
+export default function useToken(tokenId: string): UseTokenState {
   const [resetToken, setResetToken] = useState<ResetToken>();
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const [success, setSuccess] = useState(false); // TODO rename
@@ -111,5 +112,3 @@ export default function useToken(tokenId: string) {
     privateKeyPolicyEnabled,
   };
 }
-
-export type State = ReturnType<typeof useToken>;

@@ -212,6 +212,10 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Reason:", reason})
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
+	if !req.GetAccessExpiry().IsZero() {
+		// Display the expiry time in the local timezone. UTC is confusing.
+		table.AddRow([]string{"Access Expires:", req.GetAccessExpiry().Local().Format(time.DateTime)})
+	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
 	_, err := table.AsBuffer().WriteTo(cf.Stdout())
@@ -381,7 +385,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	// If KubeCluster not provided try to read it from kubeconfig.
 	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
+		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName, getKubeConfigPath(cf, ""))
 	}
 	if slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind) && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")

@@ -29,11 +29,55 @@ export interface Context {
 }
 
 export interface TeleportFeatureNavigationItem {
-  title: string;
+  title: NavTitle;
   icon: React.ReactNode;
   exact?: boolean;
   getLink?(clusterId: string): string;
   isExternalLink?: boolean;
+}
+
+export enum NavTitle {
+  // Resources
+  Servers = 'Servers',
+  Applications = 'Applications',
+  Kubernetes = 'Kubernetes',
+  Databases = 'Databases',
+  Desktops = 'Desktops',
+  AccessRequests = 'Access Requests',
+  ActiveSessions = 'Active Sessions',
+
+  // Management
+  //  Access
+  Users = 'Users',
+  Roles = 'Roles',
+  TrustedDevices = 'Trusted Devices',
+  AuthConnectors = 'Auth Connectors',
+  SessionAndIdentityLocks = 'Session & Identity Locks',
+  Integrations = 'Integrations',
+  EnrollNewResource = 'Enroll New Resource',
+  EnrollNewIntegration = 'Enroll New Integration',
+  NewRequest = 'New Request',
+  ReviewRequests = 'Review Requests',
+
+  // Activity
+  SessionRecordings = 'Session Recordings',
+  AuditLog = 'Audit Log',
+
+  // Billing
+  BillingSummary = 'Summary',
+  PaymentsAndInvoices = 'Payments and Invoices',
+  InvoiceSettings = 'Invoice Settings',
+
+  // Clusters
+  ManageClusters = 'Manage Clusters',
+  TrustedClusters = 'Trusted Clusters',
+
+  // Account
+  AccountSettings = 'Account Settings',
+  HelpAndSupport = 'Help & Support',
+
+  Support = 'Support',
+  Downloads = 'Downloads',
 }
 
 export interface TeleportFeatureRoute {
@@ -118,3 +162,13 @@ export type LockedFeatures = {
   premiumSupport: boolean;
   trustedDevices: boolean;
 };
+
+// RecommendFeature is used for recommending features if its usage status is zero.
+export type RecommendFeature = {
+  TrustedDevices: RecommendationStatus;
+};
+
+export enum RecommendationStatus {
+  Notify = 'NOTIFY',
+  Done = 'DONE',
+}

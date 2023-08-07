@@ -170,6 +170,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindKubernetesCluster, RW()),
 				types.NewRule(types.KindSessionTracker, RO()),
 				types.NewRule(types.KindUserGroup, RW()),
+				types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{

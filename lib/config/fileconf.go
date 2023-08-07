@@ -185,6 +185,8 @@ type SampleFlags struct {
 	JoinMethod string
 	// NodeName is the name of the teleport node
 	NodeName string
+	// Silent suppresses user hint printed after config has been generated.
+	Silent bool
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -686,6 +688,12 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			}
 		}
 
+		if slices.Contains(matcher.Types, services.GCPMatcherCompute) {
+			if err := checkAndSetDefaultsForGCPInstaller(matcher); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if slices.Contains(matcher.Locations, types.Wildcard) || len(matcher.Locations) == 0 {
 			matcher.Locations = []string{types.Wildcard}
 		}
@@ -703,6 +711,35 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			}
 		}
 
+	}
+	return nil
+}
+
+func checkAndSetDefaultsForGCPInstaller(matcher *GCPMatcher) error {
+	if matcher.InstallParams == nil {
+		matcher.InstallParams = &InstallParams{
+			JoinParams: JoinParams{
+				TokenName: defaults.GCPInviteTokenName,
+				Method:    types.JoinMethodGCP,
+			},
+			ScriptName: installers.InstallerScriptName,
+		}
+		return nil
+	}
+
+	switch matcher.InstallParams.JoinParams.Method {
+	case types.JoinMethodGCP, "":
+		matcher.InstallParams.JoinParams.Method = types.JoinMethodGCP
+	default:
+		return trace.BadParameter("only GCP joining is supported for GCP auto-discovery")
+	}
+
+	if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+		matcher.InstallParams.JoinParams.TokenName = defaults.GCPInviteTokenName
+	}
+
+	if installer := matcher.InstallParams.ScriptName; installer == "" {
+		matcher.InstallParams.ScriptName = installers.InstallerScriptName
 	}
 	return nil
 }
@@ -1589,11 +1626,14 @@ type Discovery struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
+	// PollInterval is the cadence at which the discovery server will run each of its
+	// discovery cycles.
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke".
+	// Types are GKE resource types to match: "gke", "gce".
 	Types []string `yaml:"types,omitempty"`
 	// Locations are GKE locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
@@ -1601,6 +1641,11 @@ type GCPMatcher struct {
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project ID where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
+	// ServiceAccounts are the emails of service accounts attached to VMs.
+	ServiceAccounts []string `yaml:"service_accounts,omitempty"`
+	// InstallParams sets the join method when installing on
+	// discovered GCP VMs.
+	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

@@ -155,29 +155,29 @@ func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWith
 func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
 	// apply common LDAP labels by default
 	labels[types.OriginLabel] = types.OriginDynamic
-	labels[types.TeleportNamespace+"/dns_host_name"] = entry.GetAttributeValue(windows.AttrDNSHostName)
-	labels[types.TeleportNamespace+"/computer_name"] = entry.GetAttributeValue(windows.AttrName)
-	labels[types.TeleportNamespace+"/os"] = entry.GetAttributeValue(windows.AttrOS)
-	labels[types.TeleportNamespace+"/os_version"] = entry.GetAttributeValue(windows.AttrOSVersion)
+	labels[types.DiscoveryLabelWindowsDNSHostName] = entry.GetAttributeValue(windows.AttrDNSHostName)
+	labels[types.DiscoveryLabelWindowsComputerName] = entry.GetAttributeValue(windows.AttrName)
+	labels[types.DiscoveryLabelWindowsOS] = entry.GetAttributeValue(windows.AttrOS)
+	labels[types.DiscoveryLabelWindowsOSVersion] = entry.GetAttributeValue(windows.AttrOSVersion)
 
 	// attempt to compute the desktop's OU from its DN
 	dn := entry.GetAttributeValue(windows.AttrDistinguishedName)
 	cn := entry.GetAttributeValue(windows.AttrCommonName)
 	if len(dn) > 0 && len(cn) > 0 {
 		ou := strings.TrimPrefix(dn, "CN="+cn+",")
-		labels[types.TeleportNamespace+"/ou"] = ou
+		labels[types.DiscoveryLabelWindowsOU] = ou
 	}
 
 	// label domain controllers
 	switch entry.GetAttributeValue(windows.AttrPrimaryGroupID) {
 	case windows.WritableDomainControllerGroupID, windows.ReadOnlyDomainControllerGroupID:
-		labels[types.TeleportNamespace+"/is_domain_controller"] = "true"
+		labels[types.DiscoveryLabelWindowsIsDomainController] = "true"
 	}
 
 	// apply any custom labels per the discovery configuration
 	for _, attr := range s.cfg.DiscoveryLDAPAttributeLabels {
 		if v := entry.GetAttributeValue(attr); v != "" {
-			labels["ldap/"+attr] = v
+			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
 		}
 	}
 }
@@ -222,7 +222,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		return nil, trace.BadParameter("LDAP entry missing hostname, has attributes: %v", entry.Attributes)
 	}
 	labels := getHostLabels(hostname)
-	labels[types.TeleportNamespace+"/windows_domain"] = s.cfg.Domain
+	labels[types.DiscoveryLabelWindowsDomain] = s.cfg.Domain
 	s.applyLabelsFromLDAP(entry, labels)
 
 	addrs, err := s.lookupDesktop(ctx, hostname)

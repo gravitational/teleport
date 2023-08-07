@@ -78,10 +78,10 @@ func U2FLogin(ctx context.Context, origin string, assertion *wanlib.CredentialAs
 	}
 
 	// Variables below are filled by the callback on success.
-	var authCred protocol.CredentialDescriptor
+	var authCred wanlib.CredentialDescriptor
 	var authResp *u2ftoken.AuthenticateResponse
 	var usedAppID bool
-	makeAuthU2F := func(cred protocol.CredentialDescriptor, req u2ftoken.AuthenticateRequest, appID bool) func(Token) error {
+	makeAuthU2F := func(cred wanlib.CredentialDescriptor, req u2ftoken.AuthenticateRequest, appID bool) func(Token) error {
 		return func(token Token) error {
 			if err := token.CheckAuthenticate(req); err != nil {
 				return err // don't wrap, inspected by RunOnU2FDevices

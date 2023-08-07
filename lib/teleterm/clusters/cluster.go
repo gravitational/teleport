@@ -38,7 +38,7 @@ import (
 type Cluster struct {
 	// URI is the cluster URI
 	URI uri.ResourceURI
-	// Name is the cluster name
+	// Name is the cluster name, AKA SiteName.
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
@@ -67,6 +67,8 @@ type ClusterWithDetails struct {
 	RequestableRoles []string
 	// ACL contains user access control list.
 	ACL *api.ACL
+	// UserType identifies whether the user is a local user or comes from an SSO provider.
+	UserType types.UserType
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -83,9 +85,10 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		caps          *types.AccessCapabilities
 		authClusterID string
 		acl           *api.ACL
+		user          types.User
 	)
 
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -117,7 +120,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		}
 		authClusterID = clusterName.GetClusterID()
 
-		user, err := authClient.GetCurrentUser(ctx)
+		user, err = authClient.GetCurrentUser(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -158,6 +161,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		Features:           pingResponse.ServerFeatures,
 		AuthClusterID:      authClusterID,
 		ACL:                acl,
+		UserType:           user.GetUserType(),
 	}
 
 	return withDetails, nil
@@ -177,7 +181,7 @@ func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAcc
 // GetRoles returns currently logged-in user roles
 func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	var roles []*types.Role
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -220,7 +224,7 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		})
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -277,10 +281,10 @@ type LoggedInUser struct {
 	ActiveRequests []string
 }
 
-// addMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
+// AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
 // metadata to the error, we're letting the Electron app know that the given error was caused by
 // expired certs and letting the user log in again should resolve the error upon another attempt.
-func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
+func AddMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
@@ -292,4 +296,20 @@ func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// UserTypeFromString converts a string representation of UserType used internally by Teleport to
+// a proto representation used by TerminalService.
+func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, error) {
+	switch userType {
+	case "local":
+		return api.LoggedInUser_USER_TYPE_LOCAL, nil
+	case "sso":
+		return api.LoggedInUser_USER_TYPE_SSO, nil
+	case "":
+		return api.LoggedInUser_USER_TYPE_UNSPECIFIED, nil
+	default:
+		return api.LoggedInUser_USER_TYPE_UNSPECIFIED,
+			trace.BadParameter("unknown user type %q", userType)
+	}
 }

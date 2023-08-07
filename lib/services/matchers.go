@@ -177,6 +177,19 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		specResource = server.GetDatabase()
 		resourceKey.name = specResource.GetName()
 
+	case types.KindAppOrSAMLIdPServiceProvider:
+		switch appOrSP := resource.(type) {
+		case types.AppServer:
+			app := appOrSP.GetApp()
+			specResource = app
+			resourceKey.name = app.GetName()
+			resourceKey.addr = app.GetPublicAddr()
+		case types.SAMLIdPServiceProvider:
+			specResource = appOrSP
+			resourceKey.name = appOrSP.GetName()
+		default:
+			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
+		}
 	default:
 		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
 		// of cases we need to handle. If the resource type didn't match any arm before
@@ -353,10 +366,24 @@ var SupportedAzureMatchers = []string{
 const (
 	// GCPMatcherKubernetes is the GCP matcher type for GCP kubernetes.
 	GCPMatcherKubernetes = "gke"
+	// GCPMatcherCompute is the GCP matcher for GCP VMs.
+	GCPMatcherCompute = "gce"
 )
 
 // SupportedGCPMatchers is list of GCP services currently supported by the
 // Teleport discovery service.
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
+	GCPMatcherCompute,
+}
+
+const (
+	// KubernetesMatchersApp is app matcher type for Kubernetes services
+	KubernetesMatchersApp = "app"
+)
+
+// SupportedKubernetesMatchers is a list of Kubernetes matchers supported by
+// Teleport discovery service
+var SupportedKubernetesMatchers = []string{
+	KubernetesMatchersApp,
 }
