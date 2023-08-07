@@ -122,12 +122,12 @@ test('extracting params from URL with resource kinds', () => {
 
   const history = createMemoryHistory({ initialEntries: [url] });
 
-  const result = renderHook(() => useUrlFiltering(initialSort), {
+  const { current } = renderHook(() => useUrlFiltering(initialSort), {
     wrapper: Wrapper,
     wrapperProps: { history },
   });
 
-  expect(result.current.params).toEqual(expected);
+  expect(current.params).toEqual(expected);
 });
 
 const initialSort: SortType = {

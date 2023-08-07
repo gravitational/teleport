@@ -5,6 +5,7 @@ import * as icons from 'design/Icon';
 import React from 'react';
 import Select from 'shared/components/Select';
 import styled from 'styled-components';
+
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import { AgentFilter, SortType } from 'teleport/services/agents';
 
@@ -37,7 +38,6 @@ export function FilterPanel({
   setSort,
 }: FilterPanelProps) {
   const { sort, kinds } = params;
-  const [sortMenuAnchor, setSortMenuAnchor] = React.useState(null);
 
   const activeSortFieldOption = sortFieldOptions.find(
     opt => opt.value === sort.fieldName
@@ -66,14 +66,6 @@ export function FilterPanel({
 
   const onSortFieldChange = (option: any) => {
     setSort({ ...sort, fieldName: option.value });
-  };
-
-  const onSortMenuButtonClicked = event => {
-    setSortMenuAnchor(event.currentTarget);
-  };
-
-  const onSortMenuClosed = () => {
-    setSortMenuAnchor(null);
   };
 
   const onSortOrderButtonClicked = () => {

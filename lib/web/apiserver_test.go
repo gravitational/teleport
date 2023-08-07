@@ -1328,7 +1328,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Equal(t, "", res.StartKey)
 
 	// should return ascending sorted types
-	query = url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
+	query = url.Values{"sort": []string{"kind"}, "limit": []string{"15"}}
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
@@ -1336,12 +1336,12 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Equal(t, types.KindApp, res.Items[0].Kind)
 
 	// should return descending sorted types
-	query = url.Values{"sort": []string{"type:desc"}, "limit": []string{"15"}}
+	query = url.Values{"sort": []string{"kind:desc"}, "limit": []string{"15"}}
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
+	require.Equal(t, types.KindNode, res.Items[0].Kind)
 }
 
 type clusterAlertsGetResponse struct {
