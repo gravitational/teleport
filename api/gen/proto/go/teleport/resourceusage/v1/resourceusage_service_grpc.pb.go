@@ -16,7 +16,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             (unknown)
-// source: teleport/resourceusage/v1/usage.proto
+// source: teleport/resourceusage/v1/resourceusage_service.proto
 
 package resourceusagev1
 
@@ -121,5 +121,5 @@ var ResourceUsageService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleport/resourceusage/v1/usage.proto",
+	Metadata: "teleport/resourceusage/v1/resourceusage_service.proto",
 }
