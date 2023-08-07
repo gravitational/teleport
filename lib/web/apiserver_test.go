@@ -3889,7 +3889,6 @@ func TestClusterDatabasesGet(t *testing.T) {
 		DatabaseNames: []string{"name1"},
 		URI:           "test-uri:1234",
 	}})
-
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -8462,7 +8461,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		HostUUID: hostID,
 		NodeName: "kube_server",
 	}
-	dns := []string{"localhost", "127.0.0.1", "kube." + constants.APIDomain, "*" + constants.APIDomain}
+	dns := []string{"localhost", "127.0.0.1", constants.KubeTeleportProxyALPNPrefix + constants.APIDomain, "*" + constants.APIDomain}
 	identity, err := auth.LocalRegister(authID, cfg.authServer.Auth(), nil, dns, "", nil)
 	require.NoError(t, err)
 

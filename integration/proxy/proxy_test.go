@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -338,7 +339,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 // SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
@@ -445,7 +446,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
@@ -513,7 +514,7 @@ func TestKubeIPPinning(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		kubeCluster = "kube.teleport.cluster.local"
+		kubeCluster = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User      = "alice@example.com"
 		k8RoleName  = "kubemaster"
 	)
@@ -1553,7 +1554,7 @@ func TestALPNSNIProxyGRPCSecure(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
