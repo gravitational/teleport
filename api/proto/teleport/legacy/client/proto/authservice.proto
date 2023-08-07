@@ -1738,7 +1738,7 @@ message PaginatedResource {
   reserved "KubeService";
 }
 
-// ListUnifiedResourcesRequest
+// ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources
 message ListUnifiedResourcesRequest {
   // Kinds is a list of kinds to match against a resource's kind. This can be used in a
   // unified resource request that can include multiple types.
@@ -1781,8 +1781,6 @@ message ListUnifiedResourcesResponse {
   // continue retrieving pages of resource. If NextKey is empty, there are no
   // more pages.
   string NextKey = 2 [(gogoproto.jsontag) = "next_key,omitempty"];
-  // TotalCount is the total number of resources available after filter, if any.
-  int32 TotalCount = 3 [(gogoproto.jsontag) = "total_count,omitempty"];
 }
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
