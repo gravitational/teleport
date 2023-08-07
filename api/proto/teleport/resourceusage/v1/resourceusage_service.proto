@@ -30,8 +30,8 @@ message AccessRequestUsage {
 // GetAccessRequestUsageRequest is the request for GetResourceUsage.
 message GetAccessRequestUsageRequest {}
 
-// ResourceUsageService is TODO
+// ResourceUsageService is a service to fetch information about usage of limited resource on usage-billed plans.
 service ResourceUsageService {
-  // GetAccessRequestUsage is TODO
+  // GetAccessRequestUsage returns the usage of access requests
   rpc GetAccessRequestUsage(GetAccessRequestUsageRequest) returns (AccessRequestUsage);
 }
