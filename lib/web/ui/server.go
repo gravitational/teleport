@@ -73,6 +73,7 @@ func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+// MakeServer creates a server object for the web ui
 func MakeServer(clusterName string, server types.Server, accessChecker services.AccessChecker) (Server, error) {
 	serverLabels := server.GetStaticLabels()
 	serverCmdLabels := server.GetCmdLabels()
@@ -123,6 +124,7 @@ type KubeCluster struct {
 	KubeGroups []string `json:"kubernetes_groups"`
 }
 
+// MakeKubeCluster creates a kube cluster object for the web ui
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker) KubeCluster {
 	staticLabels := cluster.GetStaticLabels()
 	dynamicLabels := cluster.GetDynamicLabels()
