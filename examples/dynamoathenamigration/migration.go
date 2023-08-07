@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"container/heap"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"sort"
 	"sync"
 	"time"
 
@@ -65,6 +67,10 @@ type Config struct {
 	// If empty os.TempDir() will be used.
 	ExportLocalDir string
 
+	// MaxMemoryUsedForSortingExportInMB (MB) is used to define how large amount of events
+	// will be loaded into memory when doing sorting of events before publishing it.
+	MaxMemoryUsedForSortingExportInMB int
+
 	// Bucket used to store export.
 	Bucket string
 	// Prefix is s3 prefix where to store export inside bucket.
@@ -94,7 +100,10 @@ type Config struct {
 	Logger log.FieldLogger
 }
 
-const defaultCheckpointPath = "athenadynamomigration.json"
+const (
+	defaultCheckpointPath                    = "athenadynamomigration.json"
+	DefaultMaxMemoryUsedForSortingExportInMB = 500
+)
 
 func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.ExportTime.IsZero() {
@@ -111,6 +120,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.bufferSize == 0 {
 		cfg.bufferSize = 10 * cfg.NoOfEmitWorkers
+	}
+	if cfg.MaxMemoryUsedForSortingExportInMB == 0 {
+		cfg.MaxMemoryUsedForSortingExportInMB = DefaultMaxMemoryUsedForSortingExportInMB
 	}
 	if !cfg.DryRun {
 		if cfg.TopicARN == "" {
@@ -388,24 +400,18 @@ func (t *task) getEventsFromDataFiles(ctx context.Context, exportInfo *exportInf
 }
 
 func (t *task) fromS3ToChan(ctx context.Context, dataObj dataObjectInfo, eventsC chan<- apievents.AuditEvent, checkpoint *checkpointData, afterCheckpointIn bool) (afterCheckpointOut bool, err error) {
-	f, err := t.downloadFromS3(ctx, dataObj.DataFileS3Key)
+	sortedExportFile, err := t.downloadFromS3AndSort(ctx, dataObj)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	defer f.Close()
-
-	gzipReader, err := gzip.NewReader(f)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	defer gzipReader.Close()
+	defer sortedExportFile.Close()
 
 	checkpointValues := checkpoint.checkpointValues()
 	afterCheckpoint := afterCheckpointIn
 
 	t.Logger.Debugf("Scanning %d events", dataObj.ItemCount)
 	count := 0
-	decoder := json.NewDecoder(gzipReader)
+	decoder := json.NewDecoder(sortedExportFile)
 	for decoder.More() {
 		count++
 		ev, err := exportedDynamoItemToAuditEvent(ctx, decoder)
@@ -475,8 +481,8 @@ func exportedDynamoItemToAuditEvent(ctx context.Context, decoder *json.Decoder) 
 	return event, trace.Wrap(err)
 }
 
-func (t *task) downloadFromS3(ctx context.Context, key string) (*os.File, error) {
-	originalName := path.Base(key)
+func (t *task) downloadFromS3AndSort(ctx context.Context, dataObj dataObjectInfo) (*os.File, error) {
+	originalName := path.Base(dataObj.DataFileS3Key)
 
 	var dir string
 	if t.Config.ExportLocalDir != "" {
@@ -486,18 +492,252 @@ func (t *task) downloadFromS3(ctx context.Context, key string) (*os.File, error)
 	}
 	path := path.Join(dir, originalName)
 
-	f, err := os.Create(path)
+	originalFile, err := os.Create(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := t.s3Downloader.Download(ctx, f, &s3.GetObjectInput{
+	if _, err := t.s3Downloader.Download(ctx, originalFile, &s3.GetObjectInput{
 		Bucket: aws.String(t.Bucket),
-		Key:    aws.String(key),
+		Key:    aws.String(dataObj.DataFileS3Key),
 	}); err != nil {
-		f.Close()
+		return nil, trace.NewAggregate(err, originalFile.Close())
+	}
+
+	defer originalFile.Close()
+
+	// maxMemoryUsedForSortingExportInBytes defines how big chunks of audit events
+	// will be loaded into memory, sorted and stored in temporary files.
+	maxMemoryUsedForSortingExportInBytes := 1024 * 1024 * t.MaxMemoryUsedForSortingExportInMB
+	sortedFile, err := createSortedExport(originalFile, dir, dataObj.ItemCount, maxMemoryUsedForSortingExportInBytes)
+	return sortedFile, trace.Wrap(err)
+}
+
+type eventWithTime struct {
+	rawLine   json.RawMessage
+	eventDate string
+}
+
+// createSortedExport reads a large json.gz export file, which cannot fit entirely
+// into memory and splits it into multiple smaller sorted (in memory) files.
+// Afterwards, it merges these smaller files into a final sorted output.
+// The function returns json file which is sorted by createdAtDate ascending.
+func createSortedExport(inFile *os.File, dir string, itemCount, maxSize int) (f *os.File, err error) {
+	tmpSortedFilesDir := path.Join(dir, fmt.Sprintf("sort-%s", uuid.NewString()))
+	if err := os.Mkdir(tmpSortedFilesDir, 0o755); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return f, nil
+	defer func() {
+		err = trace.NewAggregate(err, os.RemoveAll(tmpSortedFilesDir))
+	}()
+
+	gzipReader, err := gzip.NewReader(inFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer gzipReader.Close()
+
+	dec := json.NewDecoder(gzipReader)
+
+	const averageEventSize = 500
+	eventsCapacity := itemCount
+	// If expected number of events * average size is grater then 1/4 of max size,
+	// then set events capacity as 1/4 of max size / averageEventSize.
+	if itemCount*averageEventSize > maxSize/4 {
+		eventsCapacity = maxSize / averageEventSize / 4
+	}
+
+	events := make([]eventWithTime, 0, eventsCapacity)
+	var tmpFiles []*os.File
+	var size int
+	// dec.More read export line by line because export is new line json.
+	for dec.More() {
+		// First decode whole line to rawMessage.
+		var singleLine json.RawMessage
+		err = dec.Decode(&singleLine)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Parse just createAtDate.
+		var parsedLine dynamoEventPart
+		err = json.Unmarshal(singleLine, &parsedLine)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, eventWithTime{
+			rawLine:   singleLine,
+			eventDate: parsedLine.Item.CreatedAtDate.Value,
+		})
+		size += len(singleLine) + len(parsedLine.Item.CreatedAtDate.Value)
+		if size >= maxSize {
+			// When max size is reached, sort events and write tmp file.
+			tmpFile, err := sortEventsAndWriteTmpFile(tmpSortedFilesDir, events)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tmpFiles = append(tmpFiles, tmpFile)
+			// clear size and events slice, keeping the buffer.
+			events = events[:0]
+			size = 0
+		}
+	}
+	// last batch, after last event was read from file.
+	if size > 0 {
+		tmpFile, err := sortEventsAndWriteTmpFile(tmpSortedFilesDir, events)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tmpFiles = append(tmpFiles, tmpFile)
+	}
+	finalFile, err := os.CreateTemp(dir, "final_sorted_*.json")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := mergeFiles(tmpFiles, finalFile); err != nil {
+		return nil, trace.NewAggregate(err, finalFile.Close())
+	}
+	if _, err := finalFile.Seek(0, io.SeekStart); err != nil {
+		return nil, trace.NewAggregate(err, finalFile.Close())
+	}
+	return finalFile, nil
+}
+
+func sortEventsAndWriteTmpFile(dir string, events []eventWithTime) (*os.File, error) {
+	tmp, err := os.CreateTemp(dir, "tmp_sort_*.json")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sort.SliceStable(events, func(i, j int) bool {
+		return events[i].eventDate < events[j].eventDate
+	})
+	enc := json.NewEncoder(tmp)
+	for _, eventWithTime := range events {
+		err = enc.Encode(eventWithTime.rawLine)
+		if err != nil {
+			return nil, trace.NewAggregate(err, tmp.Close())
+		}
+	}
+	// file reference will be used for reading later, so go to SeekStart.
+	_, err = tmp.Seek(0, io.SeekStart)
+	return tmp, trace.Wrap(err)
+}
+
+type stringVal struct {
+	Value string `json:"S"`
+}
+type item struct {
+	CreatedAtDate stringVal `json:"CreatedAtDate"`
+}
+type dynamoEventPart struct {
+	Item item `json:"Item"`
+}
+
+// fileLine represents a line read from one of the input files.
+// It contains the EventPart parsed from the JSON line, rawEvent
+// and a decoder to read more lines objects from the file this line was read from.
+type fileLine struct {
+	// EventPart is part of event which contains only createdAtDate
+	EventPart dynamoEventPart
+	// RawEvent is full event line.
+	RawEvent json.RawMessage
+	// Dec is decoder which allows to read next items for given file.
+	Dec *json.Decoder
+}
+
+// priorityQueue implements heap.Interface and holds FileLines.
+// Mostly copied from https://cs.opensource.google/go/go/+/master:src/container/heap/example_pq_test.go
+// without index field which is not needed when merging files.
+type priorityQueue []*fileLine
+
+func (pq *priorityQueue) Len() int { return len(*pq) }
+
+func (pq *priorityQueue) Less(i, j int) bool {
+	// We want a min heap, so use less for dates comparison.
+	return (*pq)[i].EventPart.Item.CreatedAtDate.Value < (*pq)[j].EventPart.Item.CreatedAtDate.Value
+}
+
+func (pq *priorityQueue) Swap(i, j int) {
+	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
+}
+
+func (pq *priorityQueue) Push(x interface{}) {
+	item := x.(*fileLine)
+	*pq = append(*pq, item)
+}
+
+func (pq *priorityQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil
+	*pq = old[0 : n-1]
+	return item
+}
+
+func readLine(dec *json.Decoder) (*fileLine, error) {
+	var raw json.RawMessage
+	// It will return EOF which is handled in caller.
+	if err := dec.Decode(&raw); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var dynamoEvent dynamoEventPart
+	if err := json.Unmarshal(raw, &dynamoEvent); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &fileLine{
+		EventPart: dynamoEvent,
+		Dec:       dec,
+		RawEvent:  raw,
+	}, nil
+}
+
+// mergeFiles merges multiple sorted JSON files into a single output file.
+// The function maintains the sorted order of JSON lines based on the
+// 'CreatedAtDate' field.
+func mergeFiles(files []*os.File, outputFile *os.File) error {
+	finalFileEncoder := json.NewEncoder(outputFile)
+
+	// A priority queue (heap) is used to efficiently select the smallest date from
+	// the current line of each file.
+	pq := &priorityQueue{}
+	heap.Init(pq)
+
+	// Open input files and read first line from each file to initialize
+	// priority queue.
+	for _, file := range files {
+		dec := json.NewDecoder(file)
+		line, err := readLine(dec)
+		if err != nil {
+			// on first line, there should be no error.
+			return trace.Wrap(err)
+		}
+		heap.Push(pq, line)
+	}
+
+	// Consume first event from queue, write it to file and add next item from
+	// that file to queue.
+	for pq.Len() > 0 {
+		min := heap.Pop(pq).(*fileLine)
+		if err := finalFileEncoder.Encode(min.RawEvent); err != nil {
+			return trace.Wrap(err)
+		}
+
+		nextLine, err := readLine(min.Dec)
+		if trace.Unwrap(err) == io.EOF {
+			// EOF means that file no longer has events. Continue with other files.
+			continue
+		} else if err != nil {
+			return trace.Wrap(err)
+		}
+		heap.Push(pq, nextLine)
+	}
+
+	// Close all tmp files.
+	var tmpCloseErrors []error
+	for _, file := range files {
+		tmpCloseErrors = append(tmpCloseErrors, file.Close())
+	}
+	return trace.NewAggregate(tmpCloseErrors...)
 }
 
 type checkpointData struct {
