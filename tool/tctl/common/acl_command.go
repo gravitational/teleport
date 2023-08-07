@@ -102,9 +102,21 @@ func (c *ACLCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI
 
 // List will list access lists visible to the user.
 func (c *ACLCommand) List(ctx context.Context, client auth.ClientI) error {
-	accessLists, err := client.AccessListClient().GetAccessLists(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	var accessLists []*accesslist.AccessList
+	var nextKey string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+		page, nextKey, err = client.AccessListClient().ListAccessLists(ctx, 0, nextKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		accessLists = append(accessLists, page...)
+
+		if nextKey == "" {
+			break
+		}
 	}
 
 	if len(accessLists) == 0 {
