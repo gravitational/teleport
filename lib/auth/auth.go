@@ -5404,8 +5404,7 @@ func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsa
 	}, nil
 }
 
-// getAccessRequestMonthlyUsage returns the number of access requests that have been used this month.
-// Only requests that were both created and since the start of the current month are included in this number.
+// getAccessRequestMonthlyUsage returns the number of access requests that have been created this month.
 func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.AccessRequestUsage, error) {
 	features := modules.GetModules().Features()
 	monthlyLimit := features.AccessRequests.MonthlyRequestLimit
@@ -5414,7 +5413,6 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.Acces
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	created := make(map[string]struct{})
-	reviewed := make(map[string]struct{})
 
 	var results []apievents.AuditEvent
 	var startKey string
@@ -5425,7 +5423,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.Acces
 			To:         now,
 			Limit:      apidefaults.DefaultChunkSize,
 			Order:      types.EventOrderAscending,
-			EventTypes: []string{events.AccessRequestCreateEvent, events.AccessRequestReviewEvent},
+			EventTypes: []string{events.AccessRequestCreateEvent},
 			StartKey:   startKey,
 		})
 		if err != nil {
@@ -5440,12 +5438,8 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.Acces
 			switch ev.GetType() {
 			case events.AccessRequestCreateEvent:
 				created[id] = struct{}{}
-			case events.AccessRequestReviewEvent:
-				if _, ok := created[id]; ok {
-					reviewed[id] = struct{}{}
-				}
 			default:
-				log.Warnf("Expected event type %q or %q, got %q", events.AccessRequestCreateEvent, events.AccessRequestReviewEvent, ev.GetType())
+				log.Warnf("Expected event type %q, got %q", events.AccessRequestCreateEvent, ev.GetType())
 			}
 		}
 		if startKey == "" {
@@ -5455,7 +5449,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.Acces
 
 	return &proto.AccessRequestUsage{
 		MonthlyLimit: int32(monthlyLimit),
-		MonthlyUsed:  int32(len(reviewed)),
+		MonthlyUsed:  int32(len(created)),
 	}, nil
 }
 

@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
 
 type mockAuditLogSessionStreamer struct {
@@ -46,7 +48,9 @@ func newMockAuditLogSessionStreamer(t *testing.T, events []apievents.AuditEvent)
 
 // SearchEvents implements events.AuditLogSessionStreamer
 func (m *mockAuditLogSessionStreamer) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	require.Equal(m.t, []string{events.AccessRequestCreateEvent, events.AccessRequestReviewEvent}, req.EventTypes)
+	if !slices.Equal([]string{events.AccessRequestCreateEvent}, req.EventTypes) {
+		return nil, "", trace.BadParameter("expected AccessRequestCreateEvent only, got %v", req.EventTypes)
+	}
 	var results []apievents.AuditEvent
 	for _, ev := range m.events {
 		if !req.From.IsZero() && ev.GetTime().Before(req.From) {
@@ -114,22 +118,14 @@ func TestAccessRequestLimit(t *testing.T) {
 	july := clock.Now()
 	august := clock.Now().AddDate(0, 1, 0)
 	mockEvents := []apievents.AuditEvent{
-		// 3 "used" (created + reviewed) requests in July:
-		// can not create any more
-		makeEvent(events.AccessRequestCreateEvent, "aaa", july.AddDate(0, 0, -6)),
-		makeEvent(events.AccessRequestReviewEvent, "aaa", july.AddDate(0, 0, -5)),
-		makeEvent(events.AccessRequestCreateEvent, "bbb", july.AddDate(0, 0, -4)),
-		makeEvent(events.AccessRequestReviewEvent, "bbb", july.AddDate(0, 0, -3)),
-		makeEvent(events.AccessRequestCreateEvent, "ccc", july.AddDate(0, 0, -2)),
-		makeEvent(events.AccessRequestReviewEvent, "ccc", july.AddDate(0, 0, -1)),
+		// 3 created requests in July: can not create any more
+		makeEvent(events.AccessRequestCreateEvent, "aaa", july.AddDate(0, 0, -3)),
+		makeEvent(events.AccessRequestCreateEvent, "bbb", july.AddDate(0, 0, -2)),
+		makeEvent(events.AccessRequestCreateEvent, "ccc", july.AddDate(0, 0, -1)),
 
-		// 3 access requests created in August,
-		// only 2 of them reviewed: can create one more
-		makeEvent(events.AccessRequestCreateEvent, "ddd", august.AddDate(0, 0, -5)),
-		makeEvent(events.AccessRequestReviewEvent, "ddd", august.AddDate(0, 0, -4)),
-		makeEvent(events.AccessRequestCreateEvent, "eee", august.AddDate(0, 0, -3)),
-		makeEvent(events.AccessRequestCreateEvent, "fff", august.AddDate(0, 0, -2)),
-		makeEvent(events.AccessRequestReviewEvent, "fff", august.AddDate(0, 0, -1)),
+		// 2 access requests created in August: can create one more
+		makeEvent(events.AccessRequestCreateEvent, "ddd", august.AddDate(0, 0, -2)),
+		makeEvent(events.AccessRequestCreateEvent, "eee", august.AddDate(0, 0, -1)),
 	}
 
 	al := newMockAuditLogSessionStreamer(t, mockEvents)
