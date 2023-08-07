@@ -49,6 +49,17 @@ const additionalResources = [
     clusterId: 'one',
     fqdn: 'jenkins.one',
   }),
+  makeApp({
+    name: 'An application with a lot of labels',
+    uri: 'http://localhost/',
+    labels: [
+      { name: 'day1', value: 'a partridge in a pear tree' },
+      { name: 'day2', value: 'two turtle doves' },
+      { name: 'day3', value: 'three French hens' },
+      { name: 'day4', value: 'four calling birds' },
+      { name: 'day5', value: 'five gold rings' },
+    ],
+  }),
 ];
 
 const meta: Meta<typeof ResourceCard> = {
@@ -74,8 +85,8 @@ export const Cards: Story = {
           ...databases,
           ...kubes,
           ...nodes,
-          ...desktops,
           ...additionalResources,
+          ...desktops,
         ].map(res => (
           <ResourceCard resource={res} />
         ))}

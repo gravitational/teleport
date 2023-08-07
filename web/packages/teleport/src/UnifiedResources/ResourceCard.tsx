@@ -17,7 +17,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonBorder, Flex, Label, Text } from 'design';
+import { Box, ButtonBorder, ButtonText, Flex, Label, Text } from 'design';
 
 import { CheckboxInput } from 'design/Checkbox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
@@ -60,54 +60,91 @@ export const ResourceCard = ({ resource }: Props) => {
   const resIcon = resourceIconName(resource);
   const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
+  const labelsInnerContainer = React.useRef(null);
+  const [showMoreLabelsButton, setShowMoreLabelsButton] = React.useState(false);
+  const [showAllLabels, setShowAllLabels] = React.useState(false);
+
+  React.useEffect(() => {
+    if (labelsInnerContainer.current) {
+      const observer = new ResizeObserver(entries => {
+        setShowMoreLabelsButton(entries[0].contentBoxSize[0].blockSize > 26);
+      });
+      observer.observe(labelsInnerContainer.current);
+      return () => {
+        observer.disconnect();
+      };
+    }
+  });
+
+  const onMoreLabelsClick = () => {
+    setShowAllLabels(true);
+  };
+
   return (
-    <CardContainer p={3} alignItems="start">
-      <CheckboxInput type="checkbox" mx={0}></CheckboxInput>
-      <ResourceIcon
-        alignSelf="center"
-        name={resIcon}
-        width="45px"
-        height="45px"
-        ml={2}
-      />
-      {/* MinWidth is important to prevent descriptions from overflowing. */}
-      <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
-        <Flex flexDirection="row" alignItems="start">
-          <SingleLineBox flex="1" title={name}>
-            <Text typography="h5">{name}</Text>
-          </SingleLineBox>
-          <ButtonBorder size="small">Connect</ButtonBorder>
-        </Flex>
-        <Flex flexDirection="row" alignItems="center">
-          <ResTypeIconBox>
-            <ResTypeIcon size={18} />
-          </ResTypeIconBox>
-          {description.primary && (
-            <SingleLineBox ml={1} title={description.primary}>
-              <Text typography="body2" color="text.slightlyMuted">
-                {description.primary}
-              </Text>
+    <CardContainer>
+      <CardInnerContainer
+        p={3}
+        alignItems="start"
+        showAllLabels={showAllLabels}
+        onMouseLeave={() => setShowAllLabels(false)}
+      >
+        <CheckboxInput type="checkbox" mx={0}></CheckboxInput>
+        <ResourceIcon
+          alignSelf="center"
+          name={resIcon}
+          width="45px"
+          height="45px"
+          ml={2}
+        />
+        {/* MinWidth is important to prevent descriptions from overflowing. */}
+        <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
+          <Flex flexDirection="row" alignItems="start">
+            <SingleLineBox flex="1" title={name}>
+              <Text typography="h5">{name}</Text>
             </SingleLineBox>
-          )}
-          {description.secondary && (
-            <SingleLineBox ml={2} title={description.secondary}>
-              <Text typography="body2" color="text.muted">
-                {description.secondary}
-              </Text>
-            </SingleLineBox>
-          )}
+            <ButtonBorder size="small">Connect</ButtonBorder>
+          </Flex>
+          <Flex flexDirection="row" alignItems="center">
+            <ResTypeIconBox>
+              <ResTypeIcon size={18} />
+            </ResTypeIconBox>
+            {description.primary && (
+              <SingleLineBox ml={1} title={description.primary}>
+                <Text typography="body2" color="text.slightlyMuted">
+                  {description.primary}
+                </Text>
+              </SingleLineBox>
+            )}
+            {description.secondary && (
+              <SingleLineBox ml={2} title={description.secondary}>
+                <Text typography="body2" color="text.muted">
+                  {description.secondary}
+                </Text>
+              </SingleLineBox>
+            )}
+          </Flex>
+          <LabelsContainer showAll={showAllLabels}>
+            <LabelsInnerContainer ref={labelsInnerContainer}>
+              <MoreLabelsButton
+                style={{
+                  visibility: showMoreLabelsButton ? 'visible' : 'hidden',
+                }}
+                onClick={onMoreLabelsClick}
+              >
+                more
+              </MoreLabelsButton>
+              {resource.labels.map(({ name, value }) => {
+                const label = `${name}: ${value}`;
+                return (
+                  <TruncatingLabel key={label} title={label} kind="secondary">
+                    {label}
+                  </TruncatingLabel>
+                );
+              })}
+            </LabelsInnerContainer>
+          </LabelsContainer>
         </Flex>
-        <Flex gap={1}>
-          {resource.labels.map(({ name, value }) => {
-            const label = `${name}: ${value}`;
-            return (
-              <TruncatingLabel key={label} title={label} kind="secondary">
-                {label}
-              </TruncatingLabel>
-            );
-          })}
-        </Flex>
-      </Flex>
+      </CardInnerContainer>
     </CardContainer>
   );
 };
@@ -175,12 +212,38 @@ function resourceTypeIcon(kind: UnifiedResourceKind) {
   }
 }
 
-export const CardContainer = styled(Flex)`
+const CardContainer = styled(Box)`
+  position: relative;
+`;
+
+const CardInnerContainer = styled(Flex)`
   border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
+
+  ${props =>
+    props.showAllLabels
+      ? `position: absolute; left: 0; right: 0; z-index: 1; background-color: ${props.theme.colors.levels.elevated};`
+      : ''}
 
   @media (min-width: ${props => props.theme.breakpoints.tablet}px) {
     border: ${props => props.theme.borders[2]}
       ${props => props.theme.colors.spotBackground[0]};
     border-radius: ${props => props.theme.radii[3]}px;
   }
+`;
+
+const LabelsContainer = styled(Box)`
+  ${props => (props.showAll ? '' : 'height: 26px;')}
+  overflow: hidden;
+`;
+
+const LabelsInnerContainer = styled(Flex)`
+  gap: ${props => props.theme.space[1]}px;
+  flex-wrap: wrap;
+  align-items: start;
+  position: relative;
+`;
+
+const MoreLabelsButton = styled(ButtonText)`
+  position: absolute;
+  right: 0;
 `;
