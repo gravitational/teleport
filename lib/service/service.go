@@ -1395,7 +1395,9 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 	default:
 		return nil, trace.BadParameter(
 			"unsupported scheme for audit_sessions_uri: %q, currently supported schemes are: %v",
-			uri.Scheme, strings.Join([]string{teleport.SchemeS3, teleport.SchemeGCS, teleport.SchemeFile}, ", "))
+			uri.Scheme, strings.Join([]string{
+				teleport.SchemeS3, teleport.SchemeGCS, teleport.SchemeAZBlob, teleport.SchemeFile,
+			}, ", "))
 	}
 }
 
@@ -1513,8 +1515,11 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			loggers = append(loggers, logger)
 		default:
 			return nil, trace.BadParameter(
-				"unsupported scheme for audit_events_uri: %q, currently supported schemes are %q and %q",
-				uri.Scheme, dynamo.GetName(), teleport.SchemeFile)
+				"unsupported scheme for audit_events_uri: %q, currently supported schemes are: %v",
+				uri.Scheme, strings.Join([]string{
+					teleport.SchemeFile, dynamo.GetName(), firestore.GetName(),
+					pgevents.Schema, teleport.ComponentAthena, teleport.SchemeStdout,
+				}, ", "))
 		}
 	}
 
