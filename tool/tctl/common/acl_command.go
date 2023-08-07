@@ -25,6 +25,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -38,8 +39,8 @@ import (
 type ACLCommand struct {
 	format string
 
-	list        *kingpin.CmdClause
-	show        *kingpin.CmdClause
+	ls          *kingpin.CmdClause
+	get         *kingpin.CmdClause
 	usersAdd    *kingpin.CmdClause
 	usersRemove *kingpin.CmdClause
 	usersList   *kingpin.CmdClause
@@ -57,19 +58,19 @@ type ACLCommand struct {
 func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) {
 	acl := app.Command("acl", "Manage access lists.").Alias("access-lists")
 
-	c.list = acl.Command("list", "List cluster access lists.").Alias("ls")
-	c.list.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
+	c.ls = acl.Command("ls", "List cluster access lists.")
+	c.ls.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
-	c.show = acl.Command("show", "Show detailed information for an access list..")
-	c.show.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
-	c.show.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
+	c.get = acl.Command("get", "Get detailed information for an access list.")
+	c.get.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
+	c.get.Flag("format", "Output format, 'yaml', 'json', or 'text'").Default(teleport.YAML).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
 	users := acl.Command("users", "Manage user membership to access lists.")
 
 	c.usersAdd = users.Command("add", "Add a user to an access list.")
 	c.usersAdd.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
-	c.usersAdd.Arg("user-name", "The user to add to the access list.").Required().StringVar(&c.userName)
-	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339).").Required().StringVar(&c.expires)
+	c.usersAdd.Arg("user", "The user to add to the access list.").Required().StringVar(&c.userName)
+	c.usersAdd.Arg("ttl", "When the user's access expires (must be in RFC3339).").Required().StringVar(&c.expires)
 	c.usersAdd.Arg("reason", "The reason the user has been added to the access list.").Required().StringVar(&c.reason)
 
 	c.usersRemove = users.Command("rm", "Remove a user from an access list.")
@@ -83,10 +84,10 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
 func (c *ACLCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
-	case c.list.FullCommand():
+	case c.ls.FullCommand():
 		err = c.List(ctx, client)
-	case c.show.FullCommand():
-		err = c.Show(ctx, client)
+	case c.ls.FullCommand():
+		err = c.Get(ctx, client)
 	case c.usersAdd.FullCommand():
 		err = c.UsersAdd(ctx, client)
 	case c.usersRemove.FullCommand():
@@ -114,8 +115,8 @@ func (c *ACLCommand) List(ctx context.Context, client auth.ClientI) error {
 	return trace.Wrap(displayAccessLists(c.format, accessLists...))
 }
 
-// Show will display information about an access list visible to the user.
-func (c *ACLCommand) Show(ctx context.Context, client auth.ClientI) error {
+// Get will display information about an access list visible to the user.
+func (c *ACLCommand) Get(ctx context.Context, client auth.ClientI) error {
 	accessList, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -163,19 +164,15 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client auth.ClientI) error
 		return trace.Wrap(err)
 	}
 
-	memberIndex := -1
-	for i, member := range accessList.Spec.Members {
-		if member.Name == c.userName {
-			memberIndex = i
-			break
-		}
-	}
+	memberIndex := slices.IndexFunc(accessList.Spec.Members, func(member accesslist.Member) bool {
+		return member.Name == c.userName
+	})
 
 	if memberIndex == -1 {
 		return trace.NotFound("user %s is not a member of access list %s\n", c.userName, c.accessListName)
 	}
 
-	accessList.Spec.Members = append(accessList.Spec.Members[:memberIndex], accessList.Spec.Members[memberIndex+1:]...)
+	slices.Delete(accessList.Spec.Members, memberIndex, memberIndex+1)
 
 	_, err = client.AccessListClient().UpsertAccessList(ctx, accessList)
 	if err != nil {
