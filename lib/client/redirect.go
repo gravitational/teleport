@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
@@ -148,7 +149,10 @@ func (rd *Redirector) Start() error {
 		}
 		rd.server = &httptest.Server{
 			Listener: listener,
-			Config:   &http.Server{Handler: rd.mux},
+			Config: &http.Server{
+				Handler:           rd.mux,
+				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+				IdleTimeout:       apidefaults.DefaultIdleTimeout},
 		}
 		rd.server.Start()
 	} else {
