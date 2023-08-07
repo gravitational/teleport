@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -421,7 +422,9 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		Handler:       s,
 	}
 	s.httpServer = &http.Server{Handler: httplib.MakeTracingHandler(authMiddleware, eteleport.ComponentOkta),
-		TLSConfig: s.tlsConfig}
+		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		TLSConfig:         s.tlsConfig}
 
 	clusterName, err := s.accessPoint.GetClusterName()
 	if err != nil {
