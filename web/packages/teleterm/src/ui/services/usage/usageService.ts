@@ -187,7 +187,8 @@ export class UsageService {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
         success: properties.success,
-        failedStep: properties.success === false && properties.failedStep,
+        failedStep:
+          (properties.success === false && properties.failedStep) || undefined,
       },
     });
   }
