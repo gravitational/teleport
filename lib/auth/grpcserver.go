@@ -5313,17 +5313,6 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
-// GetResourceUsage returns the usage data for resources which are limited on usage-based billing plans.
-func (g *GRPCServer) GetResourceUsage(ctx context.Context, req *authpb.GetResourceUsageRequest) (*authpb.GetResourceUsageResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := auth.GetResourceUsage(ctx, req)
-	return resp, trace.Wrap(err)
-}
-
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk

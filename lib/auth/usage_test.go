@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -132,14 +131,6 @@ func TestAccessRequestLimit(t *testing.T) {
 	p.a.SetAuditLog(al)
 
 	// Check July
-	usage, err := p.a.GetResourceUsage(ctx, &proto.GetResourceUsageRequest{})
-	require.NoError(t, err)
-	want := &proto.AccessRequestUsage{
-		MonthlyLimit: monthlyLimit,
-		MonthlyUsed:  3,
-	}
-	require.Equal(t, want, usage.AccessRequests)
-
 	req, err := types.NewAccessRequest(uuid.New().String(), "alice", "access")
 	require.NoError(t, err)
 	err = p.a.CreateAccessRequest(ctx, req, tlsca.Identity{})
@@ -147,14 +138,6 @@ func TestAccessRequestLimit(t *testing.T) {
 
 	// Check August
 	clock.Advance(31 * 24 * time.Hour)
-	usage, err = p.a.GetResourceUsage(ctx, &proto.GetResourceUsageRequest{})
-	require.NoError(t, err)
-	want = &proto.AccessRequestUsage{
-		MonthlyLimit: monthlyLimit,
-		MonthlyUsed:  2,
-	}
-	require.Equal(t, want, usage.AccessRequests)
-
 	req, err = types.NewAccessRequest(uuid.New().String(), "alice", "access")
 	require.NoError(t, err)
 	err = p.a.CreateAccessRequest(ctx, req, tlsca.Identity{})

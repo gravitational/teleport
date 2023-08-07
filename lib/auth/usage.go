@@ -18,20 +18,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/trace"
 )
 
 // GetAccessRequestMonthlyUsage returns the number of access requests that have been created this month.
-func GetAccessRequestMonthlyUsage(ctx context.Context, alog events.AuditLogger, now time.Time) (*proto.AccessRequestUsage, error) {
-	features := modules.GetModules().Features()
-	monthlyLimit := features.AccessRequests.MonthlyRequestLimit
-
+func GetAccessRequestMonthlyUsage(ctx context.Context, alog events.AuditLogger, now time.Time) (int, error) {
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	created := make(map[string]struct{})
@@ -49,12 +44,12 @@ func GetAccessRequestMonthlyUsage(ctx context.Context, alog events.AuditLogger, 
 			StartKey:   startKey,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return 0, trace.Wrap(err)
 		}
 		for _, ev := range results {
 			ev, ok := ev.(*apievents.AccessRequestCreate)
 			if !ok {
-				return nil, trace.BadParameter("expected *AccessRequestCreate, but got %T", ev)
+				return 0, trace.BadParameter("expected *AccessRequestCreate, but got %T", ev)
 			}
 			id := ev.RequestID
 			switch ev.GetType() {
@@ -69,8 +64,5 @@ func GetAccessRequestMonthlyUsage(ctx context.Context, alog events.AuditLogger, 
 		}
 	}
 
-	return &proto.AccessRequestUsage{
-		MonthlyLimit: int32(monthlyLimit),
-		MonthlyUsed:  int32(len(created)),
-	}, nil
+	return len(created), nil
 }

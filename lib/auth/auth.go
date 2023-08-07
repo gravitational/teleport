@@ -5388,24 +5388,8 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 	return headlessAuthn, trace.Wrap(err)
 }
 
-// GetResourceUsage returns the usage data for resources which are limited on usage-based billing plans.
-func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsageRequest) (*proto.GetResourceUsageResponse, error) {
-	features := modules.GetModules().Features()
-	if !features.IsUsageBasedBilling {
-		return &proto.GetResourceUsageResponse{}, nil
-	}
-	accessRequestUsage, err := a.getAccessRequestMonthlyUsage(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &proto.GetResourceUsageResponse{
-		AccessRequests: accessRequestUsage,
-	}, nil
-}
-
 // getAccessRequestMonthlyUsage returns the number of access requests that have been created this month.
-func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.AccessRequestUsage, error) {
+func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
 	return GetAccessRequestMonthlyUsage(ctx, a.Services.AuditLogSessionStreamer, a.clock.Now().UTC())
 }
 
@@ -5416,6 +5400,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	if !f.IsUsageBasedBilling {
 		return nil // unlimited
 	}
+	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
 
 	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
 
@@ -5423,7 +5408,7 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if usage.MonthlyUsed >= usage.MonthlyLimit {
+	if usage >= monthlyLimit {
 		return trace.AccessDenied(limitReachedMessage)
 	}
 
