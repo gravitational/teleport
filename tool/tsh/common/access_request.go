@@ -503,7 +503,12 @@ func onRequestSearch(cf *CLIConf) error {
 		}
 		rows = append(rows, row)
 	}
-	table := asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	var table asciitable.Table
+	if cf.Verbose {
+		table = asciitable.MakeTable(tableColumns, rows...)
+	} else {
+		table = asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	}
 	if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
 		return trace.Wrap(err)
 	}
