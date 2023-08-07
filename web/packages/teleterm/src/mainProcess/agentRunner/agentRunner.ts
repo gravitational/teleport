@@ -101,12 +101,8 @@ export class AgentRunner {
   }
 
   async killAll(): Promise<void> {
-    const processes = Array.from(this.agentProcesses.values());
-    await Promise.all(
-      processes.map(async agent => {
-        await terminateWithTimeout(agent.process);
-      })
-    );
+    const agents = Array.from(this.agentProcesses.values());
+    await Promise.all(agents.map(agent => terminateWithTimeout(agent.process)));
   }
 
   private addListeners(
@@ -140,9 +136,13 @@ export class AgentRunner {
       code: number | null,
       signal: NodeJS.Signals | null
     ) => {
-      // Remove handlers when the process exits.
+      // We don't have to worry about the exit event being emitted after an error event, because
+      // even if that happens, we do want the agent to be updated to the exited state and not remain
+      // in the error state.
+      //
+      // Still, guard against an inverse situation where error would be called after exit. It's
+      // unclear when that would happen, but it doesn't hurt to add this one line.
       process.off('error', errorHandler);
-      process.off('spawn', spawnHandler);
 
       const exitedSuccessfully = code === 0 || signal === 'SIGTERM';
 
