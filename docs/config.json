@@ -1377,7 +1377,25 @@
         },
         {
           "title": "Command Line",
-          "slug": "/reference/cli/"
+          "slug": "/reference/cli/",
+          "entries": [
+	      {
+	      	  "title": "teleport",
+	      	  "slug": "/reference/cli/teleport/"
+	      },
+	      {
+	      	  "title": "tsh",
+	      	  "slug": "/reference/cli/tsh/"
+	      },
+	      {
+	      	  "title": "tctl",
+	      	  "slug": "/reference/cli/tctl/"
+	      },
+	      {
+	      	  "title": "tbot",
+	      	  "slug": "/reference/cli/tbot/"
+	      }
+	  ]
         },
         {
           "title": "Metrics",
