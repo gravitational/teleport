@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -461,7 +462,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 			return tc.PromptMFAChallenge(ctx, proxyAddr, c,
-				func(opts *client.PromptMFAChallengeOpts) {
+				func(opts *mfa.PromptMFAChallengeOpts) {
 					opts.HintBeforePrompt = hint
 				})
 		},

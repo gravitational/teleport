@@ -25,7 +25,7 @@ import (
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
@@ -35,7 +35,7 @@ import (
 // suitable for being sent over a network connection.
 type mfaCodec interface {
 	// encode converts an MFA challenge to wire format
-	encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error)
+	encode(chal *mfa.MFAAuthenticateChallenge, envelopeType string) ([]byte, error)
 
 	// decodeChallenge parses an MFA authentication challenge
 	decodeChallenge(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error)
@@ -48,7 +48,7 @@ type mfaCodec interface {
 // format used by SSH web sessions
 type protobufMFACodec struct{}
 
-func (protobufMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
+func (protobufMFACodec) encode(chal *mfa.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
 	jsonBytes, err := json.Marshal(chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,7 +70,7 @@ func (protobufMFACodec) decodeResponse(bytes []byte, envelopeType string) (*auth
 }
 
 func (protobufMFACodec) decodeChallenge(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error) {
-	var challenge client.MFAAuthenticateChallenge
+	var challenge mfa.MFAAuthenticateChallenge
 	if err := json.Unmarshal(bytes, &challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,7 +84,7 @@ func (protobufMFACodec) decodeChallenge(bytes []byte, envelopeType string) (*aut
 // Protocol (TDP) messages used by Desktop Access web sessions
 type tdpMFACodec struct{}
 
-func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
+func (tdpMFACodec) encode(chal *mfa.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
 	switch envelopeType {
 	case defaults.WebsocketWebauthnChallenge:
 	default:

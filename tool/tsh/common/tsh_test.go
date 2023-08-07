@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1244,14 +1245,14 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					panic("this should not be called")
 				})
 
-			oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+			oldStdin, oldWebauthn := prompt.Stdin(), *mfa.PromptWebauthn
 			t.Cleanup(func() {
 				prompt.SetStdin(oldStdin)
-				*client.PromptWebauthn = oldWebauthn
+				*mfa.PromptWebauthn = oldWebauthn
 			})
 
 			prompt.SetStdin(inputReader)
-			*client.PromptWebauthn = mfaPrompt
+			*mfa.PromptWebauthn = mfaPrompt
 		}
 	}
 

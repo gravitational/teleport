@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -608,12 +609,12 @@ func promptMFAChallenge(
 	codec mfaCodec,
 ) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		var challenge *client.MFAAuthenticateChallenge
+		var challenge *mfa.MFAAuthenticateChallenge
 
 		// Convert from proto to JSON types.
 		switch {
 		case c.GetWebauthnChallenge() != nil:
-			challenge = &client.MFAAuthenticateChallenge{
+			challenge = &mfa.MFAAuthenticateChallenge{
 				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
 			}
 		default:
@@ -1200,7 +1201,7 @@ func (t *TerminalStream) sessionCreated(s *tracessh.Session) {
 
 // writeChallenge encodes and writes the challenge to the
 // websocket in the correct format.
-func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
+func (t *WSStream) writeChallenge(challenge *mfa.MFAAuthenticateChallenge, codec mfaCodec) error {
 	// Send the challenge over the socket.
 	msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
 	if err != nil {

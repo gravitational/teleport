@@ -103,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -1896,7 +1897,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 		name                      string
 		getAuthPreference         func() types.AuthPreference
 		registerDevice            func() *auth.TestDevice
-		getChallengeResponseBytes func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
+		getChallengeResponseBytes func(chals *mfa.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte
 	}{
 		{
 			name: "with webauthn",
@@ -1919,7 +1920,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 
 				return webauthnDev
 			},
-			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
+			getChallengeResponseBytes: func(chals *mfa.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
 				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
@@ -1958,7 +1959,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			var env Envelope
 			require.Nil(t, proto.Unmarshal(raw, &env))
 
-			chals := &client.MFAAuthenticateChallenge{}
+			chals := &mfa.MFAAuthenticateChallenge{}
 			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
 
 			// Send response over ws.
@@ -4961,7 +4962,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 			res, err := tc.clt.PostJSON(ctx, endpoint, tc.reqBody)
 			require.NoError(t, err)
 
-			var chal client.MFAAuthenticateChallenge
+			var chal mfa.MFAAuthenticateChallenge
 			err = json.Unmarshal(res.Bytes(), &chal)
 			require.NoError(t, err)
 			require.True(t, chal.TOTPChallenge)
@@ -5000,7 +5001,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	tests := []struct {
 		name            string
 		req             *createRegisterChallengeRequest
-		assertChallenge func(t *testing.T, c *client.MFARegisterChallenge)
+		assertChallenge func(t *testing.T, c *mfa.MFARegisterChallenge)
 	}{
 		{
 			name: "totp",
@@ -5020,7 +5021,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 				DeviceType:  "webauthn",
 				DeviceUsage: "passwordless",
 			},
-			assertChallenge: func(t *testing.T, c *client.MFARegisterChallenge) {
+			assertChallenge: func(t *testing.T, c *mfa.MFARegisterChallenge) {
 				// rrk=true is a good proxy for passwordless.
 				require.NotNil(t, c.Webauthn.Response.AuthenticatorSelection.RequireResidentKey, "rrk cannot be nil")
 				require.True(t, *c.Webauthn.Response.AuthenticatorSelection.RequireResidentKey, "rrk cannot be false")
@@ -5035,7 +5036,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 			res, err := clt.PostJSON(ctx, endpoint, tc.req)
 			require.NoError(t, err)
 
-			var chal client.MFARegisterChallenge
+			var chal mfa.MFARegisterChallenge
 			require.NoError(t, json.Unmarshal(res.Bytes(), &chal))
 
 			switch tc.req.DeviceType {
@@ -7464,7 +7465,7 @@ func (s *WebSuite) loginMFA(clt *TestWebClient, reqData *client.MFAChallengeRequ
 		return nil, trace.Wrap(err)
 	}
 
-	var challenge client.MFAAuthenticateChallenge
+	var challenge mfa.MFAAuthenticateChallenge
 	err = json.Unmarshal(resp.Bytes(), &challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -9481,7 +9482,7 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	var env Envelope
 	require.NoError(t, proto.Unmarshal(raw, &env))
 
-	var challenge client.MFAAuthenticateChallenge
+	var challenge mfa.MFAAuthenticateChallenge
 	require.NoError(t, json.Unmarshal([]byte(env.Payload), &challenge))
 
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{

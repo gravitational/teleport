@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,10 @@
 
 package client
 
+// PromptMFAChallenge is used in tests to replace the standard MFA prompt.
+var PromptMFAChallenge = &promptMFAChallenge
+
+// HasTouchIDCredentials is used in tests to replace the standard Touch ID platform support check.
 var HasTouchIDCredentials = &hasTouchIDCredentials
 
 func (tc *TeleportClient) SetDTAttemptLoginIgnorePing(val bool) {

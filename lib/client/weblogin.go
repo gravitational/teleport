@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -502,7 +503,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &mfa.MFAAuthenticateChallenge{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -524,7 +525,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
 
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	mfaResp, _, err := (*mfa.PromptWebauthn)(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
 		User:                    login.User,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})
@@ -574,7 +575,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		return nil, trace.Wrap(err)
 	}
 
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &mfa.MFAAuthenticateChallenge{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -588,7 +589,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
-	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
+	respPB, err := mfa.PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &mfa.PromptMFAChallengeOpts{
 		AllowStdinHijack:        login.AllowStdinHijack,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 		PreferOTP:               login.PreferOTP,
@@ -771,7 +772,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &mfa.MFAAuthenticateChallenge{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -785,7 +786,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
-	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
+	respPB, err := mfa.PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &mfa.PromptMFAChallengeOpts{
 		AllowStdinHijack:        login.AllowStdinHijack,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 		PreferOTP:               login.PreferOTP,
@@ -833,7 +834,7 @@ func SSHAgentPasswordlessLoginWeb(ctx context.Context, login SSHLoginPasswordles
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &mfa.MFAAuthenticateChallenge{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -855,7 +856,7 @@ func SSHAgentPasswordlessLoginWeb(ctx context.Context, login SSHLoginPasswordles
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
 
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	mfaResp, _, err := (*mfa.PromptWebauthn)(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
 		User:                    login.User,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})

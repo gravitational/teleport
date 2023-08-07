@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client_test
+package mfa_test
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -35,21 +35,21 @@ import (
 // See api_login_test.go and/or TeleportClient tests for more general
 // authentication tests.
 func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
-	oldPromptWebauthn := *client.PromptWebauthn
-	oldHasPlatformSupport := *client.HasPlatformSupport
+	oldPromptWebauthn := *mfa.PromptWebauthn
+	oldHasPlatformSupport := *mfa.HasPlatformSupport
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() {
-		*client.PromptWebauthn = oldPromptWebauthn
-		*client.HasPlatformSupport = oldHasPlatformSupport
+		*mfa.PromptWebauthn = oldPromptWebauthn
+		*mfa.HasPlatformSupport = oldHasPlatformSupport
 		prompt.SetStdin(oldStdin)
 	})
 
 	// User always picks a non-registered device.
-	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	*mfa.PromptWebauthn = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		return nil, "", wancli.ErrUsingNonRegisteredDevice
 	}
 	// Support always enabled.
-	*client.HasPlatformSupport = func() bool {
+	*mfa.HasPlatformSupport = func() bool {
 		return true
 	}
 
@@ -81,7 +81,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	tests := []struct {
 		name      string
 		challenge *proto.MFAAuthenticateChallenge
-		opts      *client.PromptMFAChallengeOpts
+		opts      *mfa.PromptMFAChallengeOpts
 	}{
 		{
 			name:      "webauthn only",
@@ -90,7 +90,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 		{
 			name:      "webauthn and OTP",
 			challenge: challengeWebauthnOTP,
-			opts: &client.PromptMFAChallengeOpts{
+			opts: &mfa.PromptMFAChallengeOpts{
 				AllowStdinHijack: true, // required for OTP+WebAuthn prompt.
 			},
 		},
@@ -108,7 +108,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 				return "", ctx.Err()
 			}))
 
-			_, err := client.PromptMFAChallenge(ctx, test.challenge, proxyAddr, test.opts)
+			_, err := mfa.PromptMFAChallenge(ctx, test.challenge, proxyAddr, test.opts)
 			if !errors.Is(err, wancli.ErrUsingNonRegisteredDevice) {
 				t.Errorf("PromptMFAChallenge returned err=%q, want %q", err, wancli.ErrUsingNonRegisteredDevice)
 			}
