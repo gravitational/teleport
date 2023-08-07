@@ -20,6 +20,7 @@ import { wait } from 'shared/utils/wait';
 
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import AppContext from 'teleterm/ui/appContext';
 import * as types from 'teleterm/ui/services/workspacesService';
 
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
@@ -80,6 +81,20 @@ export function ExitedUnsuccessfully() {
   );
 }
 
+export function FailedToReadAgentConfigFile() {
+  const appContext = new MockAppContext();
+  appContext.connectMyComputerService.isAgentConfigFileCreated = async () => {
+    throw new Error('EPERM');
+  };
+
+  return (
+    <ShowState
+      agentProcessState={{ status: 'not-started' }}
+      appContext={appContext}
+    />
+  );
+}
+
 const cluster = makeRootCluster();
 const doc: types.DocumentConnectMyComputerStatus = {
   title: 'Connect My Computer',
@@ -88,8 +103,11 @@ const doc: types.DocumentConnectMyComputerStatus = {
   kind: 'doc.connect_my_computer_status',
 };
 
-function ShowState(props: { agentProcessState: AgentProcessState }) {
-  const appContext = new MockAppContext();
+function ShowState(props: {
+  agentProcessState: AgentProcessState;
+  appContext?: AppContext;
+}) {
+  const appContext = props.appContext || new MockAppContext();
 
   appContext.mainProcessClient.getAgentState = () => props.agentProcessState;
   appContext.mainProcessClient.subscribeToAgentUpdate = (

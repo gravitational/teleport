@@ -221,23 +221,30 @@ export class DocumentsService {
     // constructor and then to the document, instead of being taken from the parameter.
     // However, we decided not to do so because other documents are based only on the provided parameters.
     rootClusterUri: RootClusterUri;
-  }): DocumentConnectMyComputerSetup {
+  }): void {
     const existingDoc = this.findFirstOfKind('doc.connect_my_computer_setup');
     if (existingDoc) {
       this.open(existingDoc.uri);
       return;
     }
 
-    const uri = routing.getDocUri({ docId: unique() });
-    const doc = {
-      uri,
+    const doc = this.createConnectMyComputerSetupDocument(opts);
+    this.add(doc);
+    this.open(doc.uri);
+  }
+
+  createConnectMyComputerSetupDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): DocumentConnectMyComputerSetup {
+    return {
+      uri: routing.getDocUri({ docId: unique() }),
       kind: 'doc.connect_my_computer_setup' as const,
       title: 'Connect My Computer',
       rootClusterUri: opts.rootClusterUri,
     };
-
-    this.add(doc);
-    this.open(doc.uri);
   }
 
   //TODO(gzdunek): Instead of having this method, consider something like openOrSwitch(document) to allow only one instance of a document.

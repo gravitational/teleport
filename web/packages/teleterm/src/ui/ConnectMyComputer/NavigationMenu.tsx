@@ -14,16 +14,22 @@
  * limitations under the License.
  */
 
-import React, { useRef, useState } from 'react';
-import { Menu, MenuItem } from 'design';
+import React, { forwardRef, useRef, useState } from 'react';
+import styled, { css } from 'styled-components';
+import { Box, Button, Indicator, Menu, MenuItem } from 'design';
+import { Laptop, Warning } from 'design/Icon';
+
+import { Attempt } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ClusterUri } from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
-import { NavigationMenuIcon } from './NavigationMenuIcon';
 import { canUseConnectMyComputer } from './permissions';
-import { useConnectMyComputerContext } from './connectMyComputerContext';
+import {
+  AgentState,
+  useConnectMyComputerContext,
+} from './connectMyComputerContext';
 
 interface NavigationMenuProps {
   clusterUri: ClusterUri;
@@ -73,10 +79,23 @@ export function NavigationMenu(props: NavigationMenuProps) {
     return null;
   }
 
+  const setupMenuItem = (
+    <MenuItem onClick={openSetupDocument}>Connect computer</MenuItem>
+  );
+  const statusMenuItem = (
+    <MenuItem onClick={openStatusDocument}>
+      {isInErrorState(state, isAgentConfiguredAttempt) && (
+        <Warning size="small" color="error.main" mr={1} />
+      )}
+      Manage agent
+    </MenuItem>
+  );
+
   return (
     <>
-      <NavigationMenuIcon
+      <MenuIcon
         agentState={state}
+        isSetupDoneAttempt={isAgentConfiguredAttempt}
         onClick={toggleMenu}
         ref={iconRef}
       />
@@ -87,17 +106,125 @@ export function NavigationMenu(props: NavigationMenuProps) {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         onClose={() => setIsMenuOpened(false)}
+        menuListCss={() =>
+          css`
+            width: 150px;
+            display: flex;
+            flex-direction: column;
+          `
+        }
       >
-        {isAgentConfiguredAttempt.status === 'success' && (
-          <>
-            {!isAgentConfiguredAttempt.data ? (
-              <MenuItem onClick={openSetupDocument}>Connect computer</MenuItem>
-            ) : (
-              <MenuItem onClick={openStatusDocument}>Manage agent</MenuItem>
-            )}
-          </>
+        {isAgentConfiguredAttempt.status === 'processing' && (
+          <Indicator
+            delay="none"
+            css={`
+              align-self: center;
+            `}
+          />
         )}
+        {isAgentConfiguredAttempt.status === 'success' &&
+          (!isAgentConfiguredAttempt.data ? setupMenuItem : statusMenuItem)}
+        {isAgentConfiguredAttempt.status === 'error' && statusMenuItem}
       </Menu>
     </>
   );
 }
+
+interface MenuIconProps {
+  onClick(): void;
+  agentState: AgentState;
+  isSetupDoneAttempt: Attempt<boolean>;
+}
+
+export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
+  (props, ref) => {
+    return (
+      <StyledButton
+        setRef={ref}
+        onClick={props.onClick}
+        kind="secondary"
+        size="small"
+        title="Open Connect My Computer"
+      >
+        <Laptop size="medium" />
+        {getStateIndicator(props.agentState, props.isSetupDoneAttempt)}
+      </StyledButton>
+    );
+  }
+);
+
+function getStateIndicator(
+  agentState: AgentState,
+  isSetupDoneAttempt: Attempt<boolean>
+): JSX.Element {
+  if (isInErrorState(agentState, isSetupDoneAttempt)) {
+    return <StyledStatus bg="error.main" />;
+  }
+  switch (agentState.status) {
+    case 'starting':
+    case 'stopping': {
+      return (
+        <StyledStatus
+          bg="success"
+          css={`
+            @keyframes blink {
+              0% {
+                opacity: 0;
+              }
+              50% {
+                opacity: 100%;
+              }
+              100% {
+                opacity: 0;
+              }
+            }
+
+            animation: blink 1.4s ease-in-out infinite;
+          `}
+        />
+      );
+    }
+    case 'running': {
+      return <StyledStatus bg="success" />;
+    }
+  }
+}
+
+function isInErrorState(
+  agentState: AgentState,
+  isSetupDoneAttempt: Attempt<boolean>
+): boolean {
+  if (isSetupDoneAttempt.status === 'error') {
+    return true;
+  }
+  switch (agentState.status) {
+    case 'error': {
+      return true;
+    }
+    case 'exited': {
+      if (!agentState.exitedSuccessfully) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+const StyledButton = styled(Button)`
+  position: relative;
+  background: ${props => props.theme.colors.spotBackground[0]};
+  padding: 0;
+  width: ${props => props.theme.space[5]}px;
+  height: ${props => props.theme.space[5]}px;
+`;
+
+const StyledStatus = styled(Box)`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+`;
