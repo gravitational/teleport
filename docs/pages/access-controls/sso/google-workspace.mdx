@@ -237,9 +237,9 @@ To create a service account:
    {
       "type": "service_account",
       "project_id": "teleport-project-xxxxxx",
-      "private_key_id": "f06exxxxxxxxxxxxxxxdc18",
+      "private_key_id": "f06e000000000000000dc18",
       "private_key": "-----BEGIN PRIVATE KEY-----\n0000000000000w==\n-----END PRIVATE KEY-----\n",
-      "client_email": "gwsso@teleport-project-xxxxxx.iam.gserviceaccount.com",
+      "client_email": "g-w-sso@teleport-project-xxxxxx.iam.gserviceaccount.com",
       "client_id": "11xxxxxxxxxxxxx76",
       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
       "token_uri": "https://oauth2.googleapis.com/token",
@@ -425,7 +425,7 @@ Don't use the email of the service account for `google_admin_email`. The
 configuration might look the same, but the service account doesn't have
 the required domain-wide delegation.
 
-The `client_id` field must be the unique numberic ID for the service account that you created 
+The `client_id` field must be the unique numeric ID for the service account that you created 
 for the OAuth client in the Google Cloud console. You can check whether this setting is configured 
 correctly by viewing the audit logs on the host running the Teleport Auth Service or from 
 the **Management** tab in the Teleport Web UI. If you see "invalid Google Workspace 
