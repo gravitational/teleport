@@ -16,7 +16,7 @@
 
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { rm, stat } from 'node:fs/promises';
+import { access, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -76,7 +76,7 @@ export async function isAgentConfigFileCreated(
     rootClusterUri
   );
   try {
-    await stat(configFile);
+    await access(configFile);
     return true;
   } catch (e) {
     if (e.code === 'ENOENT') {
