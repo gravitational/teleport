@@ -2956,22 +2956,30 @@ func onListClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(4)
-		} else {
-			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"})
+		header := []string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"}
+		rows := [][]string{
+			{rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName)},
 		}
-
-		t.AddRow([]string{
-			rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName),
-		})
 		for _, cluster := range leafClusters {
 			labels := common.FormatLabels(cluster.GetAllLabels(), cf.Verbose)
-			t.AddRow([]string{
+			rows = append(rows, []string{
 				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", labels, showSelected(cluster.GetName()),
 			})
 		}
+
+		var t asciitable.Table
+		switch {
+		case cf.Quiet:
+			t = asciitable.MakeHeadlessTable(4)
+			for _, row := range rows {
+				t.AddRow(row)
+			}
+		case cf.Verbose:
+			t = asciitable.MakeTable(header, rows...)
+		default:
+			t = asciitable.MakeTableWithTruncatedColumn(header, rows, "Labels")
+		}
+
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
 		rootClusterInfo := clusterInfo{
