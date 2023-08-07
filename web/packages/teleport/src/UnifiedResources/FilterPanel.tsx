@@ -83,7 +83,7 @@ export function FilterPanel({
   return (
     <Flex justifyContent="space-between" mb={2}>
       <Box width="300px">
-        <Select
+        <FilterSelect
           isMulti={true}
           placeholder="Type"
           options={kindOptions}
@@ -96,6 +96,7 @@ export function FilterPanel({
           <SortSelect
             options={sortFieldOptions}
             value={activeSortFieldOption}
+            isSearchable={false}
             onChange={onSortFieldChange}
           />
         </Box>
@@ -124,6 +125,14 @@ function oppositeSort(sort: SortType): SortType {
 const SortOrderButton = styled(ButtonBorder)`
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+  border-color: ${props => props.theme.colors.spotBackground[1]};
+  border-left: none;
+`;
+
+const FilterSelect = styled(Select)`
+  .react-select__control {
+    border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+  }
 `;
 
 const SortSelect = styled(Select)`
@@ -131,6 +140,7 @@ const SortSelect = styled(Select)`
     border-right: none;
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
+    border: 1px solid ${props => props.theme.colors.spotBackground[1]};
   }
   .react-select__dropdown-indicator {
     display: none;
