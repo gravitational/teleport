@@ -50,7 +50,7 @@ func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestF
 		err             error
 	)
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -96,7 +96,7 @@ func (c *Cluster) GetAccessRequests(ctx context.Context, req types.AccessRequest
 		requests []types.AccessRequest
 		err      error
 	)
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		requests, err = c.clusterClient.GetAccessRequests(ctx, req)
 		return err
 	})
@@ -145,7 +145,7 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	request.SetRequestReason(req.Reason)
 	request.SetSuggestedReviewers(req.SuggestedReviewers)
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		return c.clusterClient.CreateAccessRequest(ctx, request)
 	})
 	if err != nil {
@@ -171,7 +171,7 @@ func (c *Cluster) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		return nil, trace.Wrap(err)
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -215,7 +215,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 		proxyClient *client.ProxyClient
 	)
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -240,7 +240,7 @@ func (c *Cluster) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
 	var err error
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		params := client.ReissueParams{
 			AccessRequests:     req.AccessRequestIds,
 			DropAccessRequests: req.DropRequestIds,

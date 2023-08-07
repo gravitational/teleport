@@ -3,6 +3,8 @@ title: Using Teleport Machine ID with Jenkins
 description: Using Teleport Machine ID with Jenkins
 ---
 
+(!docs/pages/includes/machine-id/v2-config-warning.mdx!)
+
 Jenkins is an open source automation server that is frequently used to build
 Continuous Integration and Continuous Delivery (CI/CD) pipelines.
 
@@ -127,37 +129,27 @@ $ sudo tbot init \
 
 Next, you need to start Machine ID in the background of each Jenkins worker.
 
-<ScopedBlock scope={["cloud"]}>
-  First create a configuration file for Machine ID at `/etc/tbot.yaml`.
-
-  ```yaml
-  auth_server: "example.teleport.sh:443"
-  onboarding:
-    join_method: "token"
-    token: "00000000000000000000000000000000"
-    ca_pins:
-    - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-  storage:
-    directory: /var/lib/teleport/bot
-  destinations:
-    - directory: /opt/machine-id
-  ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
 First create a configuration file for Machine ID at `/etc/tbot.yaml`.
-  ```yaml
-  auth_server: "auth.example.com:3025"
-  onboarding:
-    join_method: "token"
-    token: "00000000000000000000000000000000"
-    ca_pins:
-    - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-  storage:
-    directory: /var/lib/teleport/bot
-  destinations:
-    - directory: /opt/machine-id
-  ```
-</ScopedBlock>
+
+```yaml
+version: v2
+# Replace "example.teleport.sh:443" with the address of your Teleport Proxy or
+# Teleport Cloud tenant.
+auth_server: "example.teleport.sh:443"
+onboarding:
+  join_method: "token"
+  # Replace the token field with the name of the token that was output when you
+  # ran `tctl bots add`.
+  token: "00000000000000000000000000000000"
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: /opt/machine-id
+```
 
 Next, create a systemd.unit file at `/etc/systemd/system/machine-id.service`.
 

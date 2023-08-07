@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -82,8 +82,8 @@ type transport struct {
 	// (perform handshake and handle request).
 	server ServerHandler
 
-	// emitter is an audit stream emitter.
-	emitter events.StreamEmitter
+	// emitter is an audit event emitter.
+	emitter apievents.Emitter
 
 	// proxySigner is used to sign PROXY headers and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
@@ -272,8 +272,7 @@ func (p *transport) start() {
 		clientDst = dst
 	}
 	var signedHeader []byte
-	isKubeOrAuth := dreq.ConnType == types.KubeTunnel || dreq.Address == reversetunnelclient.RemoteAuthServer
-	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, !isKubeOrAuth, clientSrc, clientDst) {
+	if shouldSendSignedPROXYHeader(p.proxySigner, useTunnel, dreq.IsAgentlessNode, clientSrc, clientDst) {
 		signedHeader, err = p.proxySigner.SignPROXYHeader(clientSrc, clientDst)
 		if err != nil {
 			errorMessage := fmt.Sprintf("connection rejected - could not create signed PROXY header: %v", err)

@@ -26,6 +26,7 @@ import {
 
 import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
 import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
+import { DeployService } from 'teleport/Discover/Database/DeployService';
 import { ManualDeploy } from 'teleport/Discover/Database/DeployService/ManualDeploy';
 import { MutualTls } from 'teleport/Discover/Database/MutualTls';
 import { TestConnection } from 'teleport/Discover/Database/TestConnection';
@@ -68,8 +69,9 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
             },
             {
               title: 'Deploy Database Service',
-              component: ManualDeploy,
+              component: DeployService,
               eventName: DiscoverEvent.DeployService,
+              manuallyEmitSuccessEvent: true,
             },
             {
               title: 'Configure IAM Policy',

@@ -69,7 +69,7 @@ type TestAuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
-	// Streamer allows a test to set its own audit events streamer.
+	// Streamer allows a test to set its own session recording streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.AuditLogSessionStreamer
@@ -373,7 +373,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(ctx, local.HeadlessAuthenticationWatcherConfig{
+	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
 	})
 	if err != nil {
@@ -507,6 +507,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: pub,
+				SystemRoles:  id.AdditionalSystemRoles,
 			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

@@ -26,7 +26,7 @@ const Card = styled(Box)`
 `;
 
 Card.defaultProps = {
-  theme: { darkTheme },
+  theme: darkTheme,
 };
 
 Card.displayName = 'Card';

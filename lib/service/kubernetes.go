@@ -27,7 +27,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/events"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -198,18 +197,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner:       conn.Client,
-		Clock:       process.Clock,
-		ClusterName: teleportClusterName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	streamEmitter := &events.StreamerAndEmitter{
-		Emitter:  asyncEmitter,
-		Streamer: streamer,
-	}
 
 	var publicAddr string
 	if len(cfg.Kube.PublicAddrs) > 0 {
@@ -223,7 +210,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			ClusterName:       teleportClusterName,
 			Authz:             authorizer,
 			AuthClient:        conn.Client,
-			StreamEmitter:     streamEmitter,
+			Emitter:           asyncEmitter,
 			DataDir:           cfg.DataDir,
 			CachingAuthClient: accessPoint,
 			HostID:            cfg.HostUUID,

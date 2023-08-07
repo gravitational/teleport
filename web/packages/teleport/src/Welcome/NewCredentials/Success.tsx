@@ -19,6 +19,7 @@ import { ButtonPrimary, Card, Flex, Image, Text } from 'design';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
+import { RegisterSuccessProps } from './types';
 import shieldCheck from './shield-check.png';
 
 export function RegisterSuccess({
@@ -26,12 +27,7 @@ export function RegisterSuccess({
   resetMode = false,
   username = '',
   isDashboard,
-}: {
-  redirect(): void;
-  resetMode: boolean;
-  username?: string;
-  isDashboard: boolean;
-}) {
+}: RegisterSuccessProps) {
   const actionTxt = resetMode ? 'reset' : 'registration';
 
   const handleRedirect = () => {

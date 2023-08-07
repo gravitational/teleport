@@ -36,7 +36,7 @@ export function CreateConfig(props: React.PropsWithChildren<EditConfigProps>) {
     <StepContent>
       <StepTitle>
         <StepTitleIcon>
-          <Icons.Code />
+          <Icons.Code size="extraLarge" />
         </StepTitleIcon>
         3. Create /etc/teleport.yaml
       </StepTitle>

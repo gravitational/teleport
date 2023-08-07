@@ -93,6 +93,25 @@ const (
 
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
+
+	// MetricTotalInstances provides an instance count
+	MetricTotalInstances = "total_instances"
+
+	// MetricEnrolledInUpgrades provides total number of instances that advertise an upgrader.
+	MetricEnrolledInUpgrades = "enrolled_in_upgrades"
+
+	// MetricUpgraderCounts provides instance count per-upgrader.
+	MetricUpgraderCounts = "upgrader_counts"
+
+	// TagUpgrader is a metric tag for upgraders.
+	TagUpgrader = "upgrader"
+
+	// MetricsAccessRequestsCreated provides total number of created access requests.
+	MetricAccessRequestsCreated = "access_requests_created"
+	// TagRoles is a number of roles requested as a part of access request.
+	TagRoles = "roles"
+	// TagResources is a number of resources requested as a part of access request.
+	TagResources = "resources"
 )
 
 const (

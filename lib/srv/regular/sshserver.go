@@ -40,6 +40,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -481,13 +482,16 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels,
 		}
 		s.labels = labelsClone
 
-		// Create dynamic labels.
-		s.dynamicLabels, err = labels.NewDynamic(s.ctx, &labels.DynamicConfig{
-			Labels: cmdLabels,
-		})
-		if err != nil {
-			return trace.Wrap(err)
+		if len(cmdLabels) > 0 {
+			// Create dynamic labels.
+			s.dynamicLabels, err = labels.NewDynamic(s.ctx, &labels.DynamicConfig{
+				Labels: cmdLabels,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
+
 		s.cloudLabels = cloudLabels
 		return nil
 	}
@@ -990,11 +994,20 @@ func (s *Server) getRole() types.SystemRole {
 // getStaticLabels gets the labels that the server should present as static,
 // which includes EC2 labels if available.
 func (s *Server) getStaticLabels() map[string]string {
-	if s.cloudLabels == nil {
-		return s.labels
+	labels := make(map[string]string, len(s.labels))
+	if s.cloudLabels != nil {
+		for k, v := range s.cloudLabels.Get() {
+			labels[k] = v
+		}
 	}
-	labels := s.cloudLabels.Get()
-	// Let static labels override ec2 labels if they conflict.
+	// Let labels sent over ics override labels from instance metadata.
+	if s.inventoryHandle != nil {
+		for k, v := range s.inventoryHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels) {
+			labels[k] = v
+		}
+	}
+
+	// Let static labels override any other labels.
 	for k, v := range s.labels {
 		labels[k] = v
 	}

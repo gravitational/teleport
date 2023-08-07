@@ -12,6 +12,7 @@ import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/t
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
 import * as teleport_lib_teleterm_v1_gateway_pb from "../../../../teleport/lib/teleterm/v1/gateway_pb";
 import * as teleport_lib_teleterm_v1_kube_pb from "../../../../teleport/lib/teleterm/v1/kube_pb";
+import * as teleport_lib_teleterm_v1_label_pb from "../../../../teleport/lib/teleterm/v1/label_pb";
 import * as teleport_lib_teleterm_v1_server_pb from "../../../../teleport/lib/teleterm/v1/server_pb";
 import * as teleport_lib_teleterm_v1_usage_events_pb from "../../../../teleport/lib/teleterm/v1/usage_events_pb";
 
@@ -44,6 +45,10 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     logout: ITerminalServiceService_ILogout;
     transferFile: ITerminalServiceService_ITransferFile;
     reportUsageEvent: ITerminalServiceService_IReportUsageEvent;
+    updateHeadlessAuthenticationState: ITerminalServiceService_IUpdateHeadlessAuthenticationState;
+    createConnectMyComputerRole: ITerminalServiceService_ICreateConnectMyComputerRole;
+    createConnectMyComputerNodeToken: ITerminalServiceService_ICreateConnectMyComputerNodeToken;
+    deleteConnectMyComputerToken: ITerminalServiceService_IDeleteConnectMyComputerToken;
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
@@ -298,6 +303,42 @@ interface ITerminalServiceService_IReportUsageEvent extends grpc.MethodDefinitio
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
+interface ITerminalServiceService_IUpdateHeadlessAuthenticationState extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/UpdateHeadlessAuthenticationState";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse>;
+}
+interface ITerminalServiceService_ICreateConnectMyComputerRole extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse>;
+}
+interface ITerminalServiceService_ICreateConnectMyComputerNodeToken extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerNodeToken";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse>;
+}
+interface ITerminalServiceService_IDeleteConnectMyComputerToken extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse> {
+    path: "/teleport.lib.teleterm.v1.TerminalService/DeleteConnectMyComputerToken";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -330,6 +371,10 @@ export interface ITerminalServiceServer {
     logout: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.LogoutRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     transferFile: grpc.handleServerStreamingCall<teleport_lib_teleterm_v1_service_pb.FileTransferRequest, teleport_lib_teleterm_v1_service_pb.FileTransferProgress>;
     reportUsageEvent: grpc.handleUnaryCall<teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
+    updateHeadlessAuthenticationState: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse>;
+    createConnectMyComputerRole: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse>;
+    createConnectMyComputerNodeToken: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse>;
+    deleteConnectMyComputerToken: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse>;
 }
 
 export interface ITerminalServiceClient {
@@ -416,6 +461,18 @@ export interface ITerminalServiceClient {
     reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    createConnectMyComputerRole(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse) => void): grpc.ClientUnaryCall;
+    createConnectMyComputerRole(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse) => void): grpc.ClientUnaryCall;
+    createConnectMyComputerRole(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse) => void): grpc.ClientUnaryCall;
+    createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
+    createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
+    createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
+    deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
+    deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
+    deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -502,4 +559,16 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public reportUsageEvent(request: teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    public updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    public updateHeadlessAuthenticationState(request: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.UpdateHeadlessAuthenticationStateResponse) => void): grpc.ClientUnaryCall;
+    public createConnectMyComputerRole(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse) => void): grpc.ClientUnaryCall;
+    public createConnectMyComputerRole(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse) => void): grpc.ClientUnaryCall;
+    public createConnectMyComputerRole(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerRoleResponse) => void): grpc.ClientUnaryCall;
+    public createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
+    public createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
+    public createConnectMyComputerNodeToken(request: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.CreateConnectMyComputerNodeTokenResponse) => void): grpc.ClientUnaryCall;
+    public deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
+    public deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
+    public deleteConnectMyComputerToken(request: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.DeleteConnectMyComputerTokenResponse) => void): grpc.ClientUnaryCall;
 }

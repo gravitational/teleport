@@ -43,11 +43,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -904,16 +906,6 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
-// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
-// instances to prove that they hold a given system role.
-//
-// DELETE IN: 11.0 (server side method should continue to exist until 12.0 for back-compat reasons,
-// but v11 clients should no longer need this method)
-func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req)
-	return trail.FromGRPC(err)
-}
-
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
@@ -1014,6 +1006,16 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	}
 	_, err := c.grpc.CreateAccessRequest(ctx, r)
 	return trail.FromGRPC(err)
+}
+
+// CreateAccessRequestV2 registers a new access request with the auth server.
+func (c *Client) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	r, ok := req.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected access request type %T", req)
+	}
+	resp, err := c.grpc.CreateAccessRequestV2(ctx, r)
+	return resp, trail.FromGRPC(err)
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -1453,6 +1455,10 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
+//
+// Note that in HA setups, a registered database may have multiple
+// DatabaseServer entries. Web UI and `tsh db ls` extract databases from this
+// list and remove duplicates by name.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
 	servers, err := GetAllResources[types.DatabaseServer](ctx, c, &proto.ListResourcesRequest{
 		Namespace:    namespace,
@@ -1836,7 +1842,7 @@ func (c *Client) GetServerInfos(ctx context.Context) stream.Stream[types.ServerI
 	return stream.Func(func() (types.ServerInfo, error) {
 		si, err := serverInfos.Recv()
 		if err != nil {
-			if trace.IsEOF(err) {
+			if errors.Is(err, io.EOF) {
 				// io.EOF signals that stream has completed successfully
 				return nil, io.EOF
 			}
@@ -2630,6 +2636,14 @@ func (c *Client) UpdateApp(ctx context.Context, app types.Application) error {
 }
 
 // GetApp returns the specified application resource.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a full list of registered applications that are served by an application
+// service, use GetApplicationServers instead.
 func (c *Client) GetApp(ctx context.Context, name string) (types.Application, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing application name")
@@ -2642,6 +2656,14 @@ func (c *Client) GetApp(ctx context.Context, name string) (types.Application, er
 }
 
 // GetApps returns all application resources.
+//
+// Note that application resources here refers to "dynamically-added"
+// applications such as applications created by `tctl create`, or the CreateApp
+// API. Applications defined in the `app_service.apps` section of the service
+// YAML configuration are not collected in this API.
+//
+// For a full list of registered applications that are served by an application
+// service, use GetApplicationServers instead.
 func (c *Client) GetApps(ctx context.Context) ([]types.Application, error) {
 	items, err := c.grpc.GetApps(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -2744,6 +2766,16 @@ func (c *Client) UpdateDatabase(ctx context.Context, database types.Database) er
 }
 
 // GetDatabase returns the specified database resource.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+//
+// For a full list of registered databases that are served by a database
+// service, use GetDatabaseServers instead.
 func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing database name")
@@ -2756,6 +2788,16 @@ func (c *Client) GetDatabase(ctx context.Context, name string) (types.Database, 
 }
 
 // GetDatabases returns all database resources.
+//
+// Note that database resources here refers to "dynamically-added" databases
+// such as databases created by `tctl create`, the discovery service, or the
+// CreateDatabase API. Databases discovered by the database agent (legacy
+// discovery flow using `database_service.aws/database_service.azure`) and
+// static databases defined in the `database_service.databases` section of the
+// service YAML configuration are not collected in this API.
+//
+// For a full list of registered databases that are served by a database
+// service, use GetDatabaseServers instead.
 func (c *Client) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	items, err := c.grpc.GetDatabases(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -3048,6 +3090,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubernetesServer()
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
+		case types.KindAppOrSAMLIdPServiceProvider:
+			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3140,6 +3184,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubernetesServer()
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
+			case types.KindAppOrSAMLIdPServiceProvider:
+				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -3833,6 +3879,14 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 // the default gRPC behavior).
 func (c *Client) OktaClient() *okta.Client {
 	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
+}
+
+// AccessListClient returns an access list client.
+// Clients connecting to  older Teleport versions, still get an access list client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) AccessListClient() *accesslist.Client {
+	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

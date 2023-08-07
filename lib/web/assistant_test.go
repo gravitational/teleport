@@ -37,9 +37,11 @@ import (
 	"golang.org/x/time/rate"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func Test_runAssistant(t *testing.T) {
@@ -150,8 +152,18 @@ func Test_runAssistant(t *testing.T) {
 				tc.setup(t, s)
 			}
 
+			assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: []types.Rule{
+						types.NewRule(types.KindAssistant, services.RW()),
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
 			ctx := context.Background()
-			authPack := s.authPack(t, "foo")
+			authPack := s.authPack(t, "foo", assistRole.GetName())
 			// Create the conversation
 			conversationID := s.makeAssistConversation(t, ctx, authPack)
 
@@ -239,7 +251,18 @@ func Test_runAssistError(t *testing.T) {
 	s := newWebSuiteWithConfig(t, webSuiteConfig{OpenAIConfig: &openaiCfg})
 
 	ctx := context.Background()
-	authPack := s.authPack(t, "foo")
+
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	authPack := s.authPack(t, "foo", assistRole.GetName())
 	// Create the conversation
 	conversationID := s.makeAssistConversation(t, ctx, authPack)
 
@@ -247,8 +270,10 @@ func Test_runAssistError(t *testing.T) {
 	ws, err := s.makeAssistant(t, authPack, conversationID)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// Close should yield an error as the server closes the connection
-		require.Error(t, ws.Close())
+		// The TLS connection might or might not be closed, this is an implementation detail.
+		// We want to check whether the websocket gets appropriately closed, not the underlying TLS connection.
+		// The connection will eventually be closed and reclaimed by the server. We can skip checking the error.
+		_ = ws.Close()
 	})
 
 	// verify responses
@@ -335,7 +360,17 @@ func Test_generateAssistantTitle(t *testing.T) {
 		OpenAIConfig: &openaiCfg,
 	})
 
-	pack := s.authPack(t, "foo")
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	pack := s.authPack(t, "foo", assistRole.GetName())
 
 	// Real test: we craft a request asking for a summary
 	endpoint := pack.clt.Endpoint("webapi", "assistant", "title", "summary")

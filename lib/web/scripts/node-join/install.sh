@@ -911,7 +911,8 @@ package_list() {
     # (warning): This expression is constant. Did you forget the $ on a variable?
     # Disabling the warning above because expression is templated.
     # shellcheck disable=SC2050
-    if [[ "{{.installUpdater}}" == "true" ]]; then
+    if is_using_systemd && [[ "{{.installUpdater}}" == "true" ]]; then
+        # Teleport Updater requires systemd.
         PACKAGE_LIST+=" ${TELEPORT_UPDATER_PIN_VERSION}"
     fi
     echo ${PACKAGE_LIST}
@@ -932,7 +933,7 @@ is_repo_available() {
         debian-9* | debian-10* | debian-11* | \
         rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \
-        amzn-2)
+        amzn-2 | amzn-2023)
             return 0;;
     esac
 

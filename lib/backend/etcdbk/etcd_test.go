@@ -82,7 +82,7 @@ func TestEtcd(t *testing.T) {
 		// we can't fiddle with clocks inside the etcd client, so instead of creating
 		// and returning a fake clock, we wrap the real clock used by the etcd client
 		// in a FakeClock interface that sleeps instead of instantly advancing.
-		sleepingClock := blockingFakeClock{bk.clock}
+		sleepingClock := test.BlockingFakeClock{Clock: bk.clock}
 
 		return bk, sleepingClock, nil
 	}
@@ -153,7 +153,7 @@ func TestPrefix(t *testing.T) {
 func requireKV(ctx context.Context, t *testing.T, bk *EtcdBackend, key, val string) {
 	t.Logf("assert that key %q contains value %q", key, val)
 
-	resp, err := bk.client.Get(ctx, key)
+	resp, err := bk.clients.Next().Get(ctx, key)
 	require.NoError(t, err)
 	require.Len(t, resp.Kvs, 1)
 	require.Equal(t, key, string(resp.Kvs[0].Key))
@@ -254,22 +254,4 @@ func etcdTestEndpoint() string {
 		return host
 	}
 	return "https://127.0.0.1:2379"
-}
-
-func (r blockingFakeClock) Advance(d time.Duration) {
-	if d < 0 {
-		panic("Invalid argument, negative duration")
-	}
-
-	// We cannot rewind time for etcd since it will not have any effect on the server
-	// so we actually sleep in this case
-	time.Sleep(d)
-}
-
-func (r blockingFakeClock) BlockUntil(int) {
-	panic("Not implemented")
-}
-
-type blockingFakeClock struct {
-	clockwork.Clock
 }

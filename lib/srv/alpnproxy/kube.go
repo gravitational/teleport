@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"net"
 	"net/http"
@@ -37,6 +38,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -270,30 +273,93 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 	return listener, trace.Wrap(err)
 }
 
-// NewKubeForwardProxy creates a forward proxy for kube access.
-func NewKubeForwardProxy(ctx context.Context, listenPort, forwardAddr string) (*ForwardProxy, error) {
-	listenAddr := "localhost:0"
-	if listenPort != "" {
-		listenAddr = "localhost:" + listenPort
-	}
+// KubeForwardProxyConfig is the config for making kube forward proxy.
+type KubeForwardProxyConfig struct {
+	// CloseContext is the close context.
+	CloseContext context.Context
+	// ListenPort is the localhost port to listen.
+	ListenPort string
+	// Listener is the listener for the forward proxy. A listener is created
+	// from ListenPort if Listener is not provided.
+	Listener net.Listener
+	// ForwardAddr is the target address the requests get forwarded to.
+	ForwardAddr string
+}
 
-	listener, err := net.Listen("tcp", listenAddr)
-	if err != nil {
+// CheckAndSetDefaults checks and sets default config values.
+func (c *KubeForwardProxyConfig) CheckAndSetDefaults() error {
+	if c.ForwardAddr == "" {
+		return trace.BadParameter("missing forward address")
+	}
+	if c.CloseContext == nil {
+		c.CloseContext = context.Background()
+	}
+	if c.Listener == nil {
+		if c.ListenPort == "" {
+			c.ListenPort = "0"
+		}
+
+		listener, err := net.Listen("tcp", "localhost:"+c.ListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Listener = listener
+	}
+	return nil
+}
+
+// NewKubeForwardProxy creates a forward proxy for kube access.
+func NewKubeForwardProxy(config KubeForwardProxyConfig) (*ForwardProxy, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	fp, err := NewForwardProxy(ForwardProxyConfig{
-		Listener:     listener,
-		CloseContext: ctx,
+		Listener:     config.Listener,
+		CloseContext: config.CloseContext,
 		Handlers: []ConnectRequestHandler{
 			NewForwardToHostHandler(ForwardToHostHandlerConfig{
 				MatchFunc: MatchAllRequests,
-				Host:      forwardAddr,
+				Host:      config.ForwardAddr,
 			}),
 		},
 	})
 	if err != nil {
-		return nil, trace.NewAggregate(listener.Close(), err)
+		return nil, trace.NewAggregate(config.Listener.Close(), err)
 	}
 	return fp, nil
+}
+
+// CreateKubeLocalCAs generate local CAs used for kube local proxy with provided key.
+func CreateKubeLocalCAs(key *keys.PrivateKey, teleportClusters []string) (map[string]tls.Certificate, error) {
+	cas := make(map[string]tls.Certificate)
+	for _, teleportCluster := range teleportClusters {
+		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), common.KubeLocalProxyWildcardDomain(teleportCluster))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cas[teleportCluster] = ca
+	}
+	return cas, nil
+}
+
+func createLocalCA(key *keys.PrivateKey, validUntil time.Time, dnsNames ...string) (tls.Certificate, error) {
+	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    dnsNames,
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         time.Until(validUntil),
+	})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	tlsCert, err := keys.X509KeyPair(cert, key.PrivateKeyPEM())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
 }

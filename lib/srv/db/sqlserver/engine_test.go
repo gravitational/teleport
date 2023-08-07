@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
-	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
@@ -79,7 +79,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -98,7 +102,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -118,7 +126,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.DatabaseSessionQuery{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
@@ -149,10 +161,23 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			_, err := b.Write(fixtures.Login7)
 			require.NoError(t, err)
 
+			db, err := types.NewDatabaseV3(types.Metadata{
+				Name:   "dummy",
+				Labels: map[string]string{"env": "prod"},
+			}, types.DatabaseSpecV3{
+				Protocol: "test",
+				URI:      "uri",
+			})
+			require.NoError(t, err)
+
 			_, err = b.Write(tc.packet)
 			require.NoError(t, err)
-			emitterMock := &mockEmitter{}
-			audit, err := common.NewAudit(common.AuditConfig{Emitter: emitterMock})
+			emitterMock := &eventstest.MockRecorderEmitter{}
+			audit, err := common.NewAudit(common.AuditConfig{
+				Emitter:  emitterMock,
+				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
+				Database: db,
+			})
 			require.NoError(t, err)
 
 			e := Engine{
@@ -174,10 +199,10 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 
 			err = e.HandleConnection(context.Background(), &common.Session{
 				Checker:  &mockChecker{},
-				Database: &types.DatabaseV3{},
+				Database: db,
 			})
 			for _, ch := range tc.checks {
-				ch(t, err, emitterMock.emittedEvents)
+				ch(t, err, emitterMock.Events())
 			}
 		})
 	}
@@ -191,23 +216,12 @@ type mockConn struct {
 func (o *mockConn) Read(p []byte) (n int, err error) {
 	return o.buff.Read(p)
 }
+
 func (o *mockConn) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
+
 func (o *mockConn) Close() error {
-	return nil
-}
-
-type mockEmitter struct {
-	Emitter       events.Emitter
-	emittedEvents []events.AuditEvent
-	mtx           sync.Mutex
-}
-
-func (m *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	m.emittedEvents = append(m.emittedEvents, event)
 	return nil
 }
 

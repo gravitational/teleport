@@ -21,6 +21,7 @@ import {
   paths,
   routing,
   RootClusterUri,
+  KubeUri,
 } from 'teleterm/ui/uri';
 
 import {
@@ -33,6 +34,7 @@ import {
   DocumentCluster,
   DocumentConnectMyComputerSetup,
   DocumentGateway,
+  DocumentGatewayKube,
   DocumentGatewayCliClient,
   DocumentOrigin,
   DocumentTshKube,
@@ -85,6 +87,10 @@ export class DocumentsService {
     };
   }
 
+  /**
+   * @deprecated Use createGatewayKubeDocument instead.
+   * DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+   */
   createTshKubeDocument(
     options: CreateTshKubeDocumentOptions
   ): DocumentTshKube {
@@ -188,19 +194,51 @@ export class DocumentsService {
     };
   }
 
-  createConnectMyComputerSetupDocument(opts: {
+  createGatewayKubeDocument({
+    targetUri,
+    origin,
+  }: {
+    targetUri: KubeUri;
+    origin: DocumentOrigin;
+  }): DocumentGatewayKube {
+    const uri = routing.getDocUri({ docId: unique() });
+    const { params } = routing.parseKubeUri(targetUri);
+
+    return {
+      uri,
+      kind: 'doc.gateway_kube',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      targetUri,
+      title: `${params.kubeId}`,
+      origin,
+    };
+  }
+
+  openConnectMyComputerSetupDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
     // However, we decided not to do so because other documents are based only on the provided parameters.
     rootClusterUri: RootClusterUri;
   }): DocumentConnectMyComputerSetup {
+    const existingDoc = this.getDocuments().find(
+      doc => doc.kind === 'doc.connect_my_computer_setup'
+    );
+    if (existingDoc) {
+      this.open(existingDoc.uri);
+      return;
+    }
+
     const uri = routing.getDocUri({ docId: unique() });
-    return {
+    const doc = {
       uri,
-      kind: 'doc.connect_my_computer_setup',
+      kind: 'doc.connect_my_computer_setup' as const,
       title: 'Connect My Computer',
       rootClusterUri: opts.rootClusterUri,
     };
+
+    this.add(doc);
+    this.open(doc.uri);
   }
 
   openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {

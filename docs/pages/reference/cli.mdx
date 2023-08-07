@@ -294,6 +294,14 @@ as a bastion host.
 $ tsh config
 ```
 
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-l, --login` | none | Linux username | Default Linux username to use. Will translate to SSH config's `User` option. |
+| `-p`, `--port` | 3022 | port | Default SSH port to use. Will translate to SSH config's `Port` option. |
+
+
 #### Examples
 
 ```code
@@ -303,6 +311,34 @@ $ tsh config
 # Append Teleport configuration to ssh config
 $ tsh config >> ~/.ssh/config
 ```
+
+### tsh puttyconfig
+
+Adds a PuTTY saved session to the Windows registry for the currently logged in Windows user.
+
+```
+$ tsh puttyconfig [--leaf <leaf-cluster-name>] [login@]hostname
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-l, --login` | none | Linux username | Default Linux username to use. Will translate to SSH config's `User` option. |
+| `-p`, `--port` | 3022 | port | Default SSH port to use. Will translate to SSH config's `Port` option. |
+| `--leaf` | none | Leaf cluster name | Leaf cluster name to add to the saved session. |
+
+#### Examples
+
+```code
+# Add a saved PuTTY session on 'node' for the user 'ec2-user'
+$ tsh puttyconfig ec2-user@node
+
+# Add a saved PuTTY session on leaf-node for the user 'ec2-user' on the leaf cluster 'example.teleport.sh'
+$ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
+```
+
+See [full docs on `tsh puttyconfig` here](../connect-your-client/putty.mdx).
 
 ### tsh apps ls
 
@@ -1191,6 +1227,7 @@ $ tsh request create [<flags>]
 | `--nowait` | `false` | `true` or `false` | Finish without waiting for request resolution |
 | `--request-ttl` | 1 hour | Relative duration like `5s`, `2m`, or `3h`, | Defines how long the Access Request will be in a `PENDING` state before becoming invalid |
 | `--session-ttl` | Time left on current session | Relative duration like `5s`, `2m`, or `3h` | Defines how long the elevated session will be valid for |
+| `--max-duration` | none | Relative duration like `5s`, `2m`, `3h`, or `7d` | Defines the maximum duration of the elevated session up to 7 days. The assigned role also must have `max_duration` option specified (optional) |
 
 <Admonition type="tip" title="Note">
 The `--request-ttl` and `--session-ttl` values can not be greater than the
@@ -1199,6 +1236,8 @@ following:
 - Maximum certificate lifetime.
 - Time left on an existing session (certificate).
 - Maximum session duration defined by the user's roles.
+
+Use `--max-duration` to request access for longer than the maximum certificate lifetime.
 </Admonition>
 
 ### tsh request ls
@@ -1321,6 +1360,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
+| TELEPORT_LOGIN_BROWSER | Set to `none` to stop the system default browser from opening for SSO logins. If the value is not `none`, `tsh` will open the system default browser. | none |
 | TELEPORT_PROXY | Address of the Teleport proxy server | cluster.example.com:3080 |
 | TELEPORT_HOME | Home location for tsh configuration and data | /directory |
 | TELEPORT_USER | A Teleport user name | alice |
@@ -1461,11 +1501,11 @@ proxy_templates:
 
 # Multiple templates can be provided. They are evaluated in order and the first
 # one matching will take effect.
-- template: ... 
+- template: ...
 ```
 
-`tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the 
-host server address `%h:%p` with the configured templates. For each replace rule set, 
+`tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the
+host server address `%h:%p` with the configured templates. For each replace rule set,
 the corresponding cli value will be set.
 
 If leaf certificates are required to connect to the node, `tsh` will automatically
@@ -1484,7 +1524,7 @@ $ tsh ssh -J {{proxy}} node1.none.example.com
 ERROR: proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config
 ```
 
-If the proxy variable `-J {{proxy}}` is not explicitly provided, then `tsh` will 
+If the proxy variable `-J {{proxy}}` is not explicitly provided, then `tsh` will
 still attempt to match a template, but will not fail when there is no match.
 Additionally, it will not replace the `proxy` value when explicitly set by the
 client.
@@ -1495,7 +1535,7 @@ $ tsh ssh -J leaf2.us.example.com:443 node1.leaf2
 $ tsh ssh -J leaf2.us.example.com:443 --cluster leaf2 node1
 ```
 
-Proxy Templates can also be used with OpenSSH by setting the `ProxyCommand` 
+Proxy Templates can also be used with OpenSSH by setting the `ProxyCommand`
 in `~/.ssh/config` to use `tsh proxy ssh`.
 
 ```txt
@@ -1575,7 +1615,7 @@ which could result in the error,
 `ERROR: open /var/lib/teleport/host_uuid: permission denied`.
 
   </TabItem>
-  <TabItem scope={["cloud"]} label="Teleport Cloud">
+  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 When running `tctl` commands, administrators must authenticate to a Teleport
 cluster. This can be done in two ways:
@@ -1663,6 +1703,8 @@ $ tctl users add [<flags>] <account>
 | `--gcp-service-accounts` | none | Comma-separated strings | List of allowed GCP service accounts for the new user |
 | `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
+| `--host-user-uid` | none | Unix UID | UID for auto provisioned host users to use |
+| `--host-user-gid` | none | Unix GID | GID for auto provisioned host users to use |
 
 #### Global flags
 
@@ -2982,7 +3024,7 @@ Starts the Machine ID client `tbot`, fetching and writing certificates to disk a
 
 #### Examples
 <Tabs>
-  <TabItem scope={["Cloud"]} label="Teleport Cloud">
+  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 
 ```code
 $ tbot start \
@@ -2995,7 +3037,7 @@ $ tbot start \
 ```
 
   </TabItem>
-  <TabItem scope={["Enterprise/OSS"]} label="Enterprise/OSS">
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 ```code
 $ tbot start \

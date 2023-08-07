@@ -245,6 +245,60 @@ spec:
     logins: [ "{{external.username}}" ]
 ```
 
+## Update: allow the UID and GID of the created user to be specified
+
+This will require adding new traits to users -- `teleport.dev/uid` and
+`teleport.dev/gid`. These will be settable manually or automatically
+via an SSO provider attributes if one is setup.
+
+Creating a user with a specific GID requires that a group with that
+GID already exists, if it does not yet exist for the specified GID, a
+group with that GID will be created with the same name as the user
+logging in.
+
+### Example of setting the uid/gid
+
+Role configuration remains the same:
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-user-groups
+spec:
+  options:
+    # allow auto provisioning of users.
+    create_host_user_mode: drop
+  allow:
+    logins: [ "{{internal.username}}" ]
+```
+
+```yaml
+kind: user
+metadata:
+  name: alex.mcgrath@goteleport.com
+spec:
+  created_by:
+    connector:
+      id: okta
+      identity: user@okta.com
+      type: saml
+  roles:
+  - editor
+  - access
+  - auditor
+  saml_identities:
+  - connector_id: okta
+    username: ...
+  traits:
+    # new traits included will be used when specifying --gid and --uid in useradd
+    teleport.dev/gid:
+    - "1239"
+    teleport.dev/uid:
+    - "1239"
+```
+
+When set like this, the user created upon login will have the `--gid`
+and `--uid` options specified when calling `useradd`
 
 ## UX Examples
 

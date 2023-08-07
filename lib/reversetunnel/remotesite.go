@@ -404,9 +404,8 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			logger.Infof("closing")
 			return
 		case <-proxyResyncTicker.Chan():
-			req := discoveryRequest{
-				Proxies: s.srv.proxyWatcher.GetCurrent(),
-			}
+			var req discoveryRequest
+			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
 
 			if err := conn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
@@ -414,9 +413,9 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				return
 			}
 		case proxies := <-conn.newProxiesC:
-			req := discoveryRequest{
-				Proxies: proxies,
-			}
+			var req discoveryRequest
+			req.SetProxies(proxies)
+
 			if err := conn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
 				conn.markInvalid(err)
@@ -781,7 +780,7 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.AgentlessSigner != nil,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -823,7 +822,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.AgentlessSigner != nil,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

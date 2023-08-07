@@ -101,7 +101,7 @@ func TestRecoveryCodeEventsEmitted(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	user := "fake@fake.com"
@@ -132,7 +132,7 @@ func TestStartAccountRecovery(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	fakeClock := srv.Clock().(clockwork.FakeClock)
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -315,7 +315,7 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 	fakeClock := srv.Clock().(clockwork.FakeClock)
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -448,7 +448,7 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -517,7 +517,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -616,7 +616,7 @@ func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 func TestCompleteAccountRecovery(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{
@@ -730,7 +730,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	srv.Auth().emitter = mockEmitter
 
 	modules.SetTestModules(t, &modules.TestModules{

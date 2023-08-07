@@ -14,11 +14,6 @@
       "resolved": "github:NixOS/nixpkgs/6cc260cfd60f094500b79e279069b499806bf6d8#bats",
       "version": "1.3.0"
     },
-    "clang@11.1.0": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#clang",
-      "version": "11.1.0"
-    },
     "gci@0.9.1": {
       "last_modified": "2023-02-28T22:11:13Z",
       "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#gci",
@@ -26,6 +21,24 @@
     },
     "git@latest": {
       "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#git"
+    },
+    "go@1.20.5": {
+      "last_modified": "2023-06-29T16:20:38Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#go",
+      "source": "devbox-search",
+      "version": "1.20.5"
+    },
+    "golangci-lint@1.53.3": {
+      "last_modified": "2023-06-29T16:20:38Z",
+      "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#golangci-lint",
+      "source": "devbox-search",
+      "version": "1.53.3"
+    },
+    "gotestsum@1.10.1": {
+      "last_modified": "2023-07-23T03:35:12Z",
+      "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#gotestsum",
+      "source": "devbox-search",
+      "version": "1.10.1"
     },
     "libfido2@1.13.0": {
       "last_modified": "2023-05-01T16:53:22Z",
@@ -36,6 +49,12 @@
       "last_modified": "2023-05-01T16:53:22Z",
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#libiconvReal",
       "version": "1.16"
+    },
+    "llvmPackages_14.clangUseLLVM@14.0.6": {
+      "last_modified": "2023-07-23T03:35:12Z",
+      "resolved": "github:NixOS/nixpkgs/af8cd5ded7735ca1df1a1174864daab75feeb64a#llvmPackages_14.clangUseLLVM",
+      "source": "devbox-search",
+      "version": "14.0.6"
     },
     "nodejs@16.18.1": {
       "last_modified": "2023-01-02T04:31:48Z",

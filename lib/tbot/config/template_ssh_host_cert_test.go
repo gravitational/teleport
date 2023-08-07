@@ -27,6 +27,7 @@ import (
 )
 
 func TestTemplateSSHHostCertRender(t *testing.T) {
+	ctx := context.Background()
 	cfg, err := newTestConfig("example.com")
 	require.NoError(t, err)
 
@@ -40,17 +41,17 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	require.NoError(t, dest.CheckAndSetDefaults())
 
 	ident := getTestIdent(t, "bot-test")
-	err = tmpl.render(context.Background(), mockBot, ident, dest)
+	err = tmpl.render(ctx, mockBot, ident, dest)
 	require.NoError(t, err)
 
 	// Make sure a cert is written. We just use a dummy cert (the CA fixture)
-	certBytes, err := dest.Read(defaultSSHHostCertPrefix + sshHostCertSuffix)
+	certBytes, err := dest.Read(ctx, defaultSSHHostCertPrefix+sshHostCertSuffix)
 	require.NoError(t, err)
 
 	require.Equal(t, fixtures.SSHCAPublicKey, string(certBytes))
 
 	// Make sure a CA is written.
-	caBytes, err := dest.Read(defaultSSHHostCertPrefix + sshHostUserCASuffix)
+	caBytes, err := dest.Read(ctx, defaultSSHHostCertPrefix+sshHostUserCASuffix)
 	require.NoError(t, err)
 
 	require.True(t, strings.HasPrefix(string(caBytes), fixtures.SSHCAPublicKey))
