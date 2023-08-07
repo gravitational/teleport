@@ -36,13 +36,20 @@ const agentPid = parseInt(process.argv[2], 10);
 // Pass ppid over argv rather than reading process.ppid, as ppid can change when the cleanup deamon
 // gets orphaned.
 const parentPid = parseInt(process.argv[3], 10);
-const timeToSigkill = parseInt(process.argv[4], 10) || 5_000;
+// For debugging purposes only.
+const rootClusterUri = process.argv[4];
+const timeToSigkill = parseInt(process.argv[5], 10) || 5_000;
 
 if (!agentPid) {
-  throw new Error('Agent PID must be passed over argv');
+  throw new Error('Agent PID must be passed over argv as the first argument');
 }
 if (!parentPid) {
-  throw new Error('Parent PID must be passed over argv');
+  throw new Error('Parent PID must be passed over argv as the second argument');
+}
+if (!rootClusterUri) {
+  throw new Error(
+    'Root cluster URI must be passed over argv as the third argument'
+  );
 }
 if (!process.send) {
   // https://nodejs.org/docs/latest-v18.x/api/child_process.html#optionsstdio
@@ -52,13 +59,13 @@ if (!process.send) {
   );
 }
 
-console.log(`Spawned from PID ${parentPid}, agent PID ${agentPid}.`);
+const logLine = `parent=${parentPid} agent=${agentPid} self=${process.pid} cluster=${rootClusterUri}`;
 
 // disconnect will be emitted when the IPC channel between the cleanup daemon and the parent gets
 // closed. Since we don't explicitly close the channel at any point, this means that the parent got
 // unexpectedly terminated.
 process.on('disconnect', async () => {
-  console.log(`Disconnected from the parent with PID ${parentPid}.`);
+  log(`Disconnected from the parent.`);
   await terminateAgent();
 });
 
@@ -72,6 +79,8 @@ process.send(null, undefined, undefined, () => {
   // We handle the IPC channel being closed below with process.connected.
 });
 
+log(`Spawned and ready.`);
+
 postLaunchChecks();
 
 async function postLaunchChecks() {
@@ -81,18 +90,14 @@ async function postLaunchChecks() {
   // In that scenario, the 'disconnect' event will never be fired and the event loop will no longer
   // have any work to perform.
   if (!process.connected) {
-    console.error(
-      `The parent with PID ${parentPid} got terminated during setup.`
-    );
+    logError(`The parent got terminated during setup.`);
     await terminateAgent();
     process.exitCode = 41;
     return;
   }
 
   if (!isRunning(agentPid)) {
-    console.error(
-      `The agent with PID ${agentPid} got terminated during setup, exiting.`
-    );
+    logError(`The agent got terminated during setup, exiting.`);
     process.removeAllListeners('disconnect');
     process.exitCode = 42;
     return;
@@ -101,22 +106,22 @@ async function postLaunchChecks() {
 
 async function terminateAgent() {
   try {
-    console.log(`Sending SIGTERM to PID ${agentPid}.`);
+    log(`Sending SIGTERM to the agent.`);
     // SIGTERM should cause a fast shutdown of the agent.
     process.kill(agentPid, 'SIGTERM');
 
     await setTimeout(timeToSigkill);
     if (!isRunning(agentPid)) {
-      console.log('The agent was gracefully terminated with SIGTERM.');
+      log('The agent was gracefully terminated with SIGTERM.');
       return;
     }
 
     // Follow up with SIGKILL in case the agent is still running after receiving SIGTERM.
-    console.log(`Sending SIGKILL to PID ${agentPid}.`);
+    log(`Sending SIGKILL to the agent.`);
     process.kill(agentPid, 'SIGKILL');
   } catch (error) {
     if (error.code === 'ESRCH') {
-      console.log(`No agent process found under PID ${agentPid}.`);
+      logError(`No agent process found.`);
       return;
     }
     throw error;
@@ -139,4 +144,12 @@ function isRunning(pid) {
 
     throw error;
   }
+}
+
+function log(...args) {
+  console.log(...args, logLine);
+}
+
+function logError(...args) {
+  console.error(...args, logLine);
 }

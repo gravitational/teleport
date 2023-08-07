@@ -38,7 +38,7 @@ const agentCleanupDaemon = childProcess.fork(
   path.join(__dirname, 'agentCleanupDaemon.js'),
   // Use a shorter timeout in tests. Each test needs to wait for the cleanup daemon to terminate,
   // so we don't want to spend full 5s on that.
-  [agent.pid, process.pid, 50 /* timeToSigkill */],
+  [agent.pid, process.pid, '/clusters/foo', 50 /* timeToSigkill */],
   { stdio: 'inherit' }
 );
 
