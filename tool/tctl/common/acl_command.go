@@ -75,7 +75,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 
 	c.usersRemove = users.Command("rm", "Remove a user from an access list.")
 	c.usersRemove.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
-	c.usersRemove.Arg("user-name", "The user to add to the access list.").Required().StringVar(&c.userName)
+	c.usersRemove.Arg("user", "The user to remove from the access list.").Required().StringVar(&c.userName)
 
 	c.usersList = users.Command("ls", "List users that are members of an access list.")
 	c.usersList.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
