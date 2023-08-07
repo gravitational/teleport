@@ -948,8 +948,8 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	})
 }
 
-// NewDatabaseFromOpenSearchDomain creates a database resource from an OpenSearch domain.
-func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
+// NewDatabasesFromOpenSearchDomain creates database resources from an OpenSearch domain.
+func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
 	var databases types.Databases
 
 	if aws.StringValue(domain.Endpoint) != "" {
@@ -1540,7 +1540,6 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 		labels[types.DiscoveryLabelAccountID] = meta.AccountID
 		labels[types.DiscoveryLabelRegion] = meta.Region
 	}
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAWS
 	return labels
 }
@@ -1561,7 +1560,6 @@ func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLa
 // azureTagsToLabels converts Azure tags to a labels map.
 func azureTagsToLabels(tags map[string]string) map[string]string {
 	labels := make(map[string]string)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAzure
 	return addLabels(labels, tags)
 }

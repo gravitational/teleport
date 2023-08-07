@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestWatcher verifies that database server properly detects and applies
@@ -162,6 +164,11 @@ func TestWatcherDynamicResource(t *testing.T) {
 		OnReconcile: func(d types.Databases) {
 			reconcileCh <- d
 		},
+		DiscoveryResourceChecker: &fakeDiscoveryResourceChecker{
+			errorsByName: map[string]error{
+				"db-fail-check": trace.BadParameter("bad db"),
+			},
+		},
 	})
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
 
@@ -234,9 +241,19 @@ func TestWatcherDynamicResource(t *testing.T) {
 		// Validate that AssumeRoleARN is overwritten by the one configured in
 		// the resource matcher.
 		db5 = discoveredDB5.Copy()
-		db5.SetAWSAssumeRole("arn:aws:iam::123456789012:role/DBAccess")
-		db5.SetAWSExternalID("external-id")
+		setStatusAWSAssumeRole(db5, "arn:aws:iam::123456789012:role/DBAccess", "external-id")
 
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
+	})
+
+	t.Run("discovery resource - fail check", func(t *testing.T) {
+		// Created a discovery service created database resource that fails the
+		// fakeDiscoveryResourceChecker.
+		dbFailCheck, err := makeDiscoveryDatabase("db-fail-check", map[string]string{"group": "a"}, withRDSURL)
+		require.NoError(t, err)
+		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
+
+		// dbFailCheck should not be proxied.
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
 	})
 }
@@ -263,6 +280,7 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
 	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
+	discovery.ApplyAWSDatabaseNameSuffix(redshiftServerlessDatabase, services.AWSMatcherRedshiftServerless)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
 	setDiscoveryGroupLabel(azSQLServerDatabase, "")
@@ -375,5 +393,6 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 	}
 	database, err := services.NewDatabaseFromAzureSQLServer(server)
 	require.NoError(t, err)
+	discovery.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherSQLServer)
 	return server, database
 }

@@ -16,7 +16,7 @@
 
 import React, { useState } from 'react';
 import { ButtonIcon, Flex, Label, Text } from 'design';
-import { ExitRight } from 'design/Icon';
+import { Logout } from 'design/Icon';
 
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
@@ -80,7 +80,7 @@ export function IdentityListItem(props: IdentityListItemProps) {
             }}
           >
             {/* Due to the icon shape it appears to be not centered, so a small margin is added */}
-            <ExitRight ml="2px" fontSize={14} />
+            <Logout ml="2px" size="small" />
           </ButtonIcon>
         </Flex>
       </Flex>

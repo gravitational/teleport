@@ -39,26 +39,26 @@ func TestRegister(t *testing.T) {
 
 	const origin = "https://example.com"
 	okCC := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: protocol.RelyingPartyEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
 				ID: "example.com",
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "Teleport",
 				},
 			},
-			User: protocol.UserEntity{
+			User: wanlib.UserEntity{
 				ID:          []byte{1, 2, 3, 4},
 				DisplayName: "display name",
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "user name",
 				},
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgRS256},
 			},
-			AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorSelection: wanlib.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
 			},
 			Attestation: protocol.PreferNoAttestation,
@@ -164,10 +164,10 @@ func TestLogin(t *testing.T) {
 
 	const origin = "https://example.com"
 	okAssertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: "example.com",
-			AllowedCredentials: []protocol.CredentialDescriptor{
+			AllowedCredentials: []wanlib.CredentialDescriptor{
 				{Type: protocol.PublicKeyCredentialType, CredentialID: []byte{1, 2, 3, 4, 5}},
 			},
 			UserVerification: protocol.VerificationDiscouraged,

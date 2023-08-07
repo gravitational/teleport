@@ -242,6 +242,11 @@ func TestBotConfig_YAML(t *testing.T) {
 					&IdentityOutput{
 						Destination: &DestinationMemory{},
 					},
+					&IdentityOutput{
+						Destination: &DestinationKubernetesSecret{
+							Name: "my-secret",
+						},
+					},
 				},
 			},
 		},

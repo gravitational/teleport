@@ -105,7 +105,7 @@ func (o *DatabaseOutput) templates() []template {
 }
 
 func (o *DatabaseOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
-	if err := identity.SaveIdentity(ident, o.Destination, identity.DestinationKinds()...); err != nil {
+	if err := identity.SaveIdentity(ctx, ident, o.Destination, identity.DestinationKinds()...); err != nil {
 		return trace.Wrap(err, "persisting identity")
 	}
 
@@ -118,13 +118,13 @@ func (o *DatabaseOutput) Render(ctx context.Context, p provider, ident *identity
 	return nil
 }
 
-func (o *DatabaseOutput) Init() error {
+func (o *DatabaseOutput) Init(ctx context.Context) error {
 	subDirs, err := listSubdirectories(o.templates())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Destination.Init(subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
 func (o *DatabaseOutput) CheckAndSetDefaults() error {

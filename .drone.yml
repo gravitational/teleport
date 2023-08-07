@@ -81,7 +81,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-amd64-centos7" '
+    -input "build-connect=true" -input "release-target=release-amd64-centos7" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -154,7 +154,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-386" '
+    -input "build-connect=false" -input "release-target=release-386" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -227,7 +227,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-amd64-centos7-fips" '
+    -input "build-connect=false" -input "release-target=release-amd64-centos7-fips" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -300,7 +300,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-windows-unsigned" '
+    -input "build-connect=false" -input "release-target=release-windows-unsigned" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -914,7 +914,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-arm" '
+    -input "build-connect=false" -input "release-target=release-arm" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -1268,7 +1268,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -1477,7 +1477,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -1685,7 +1685,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -1900,7 +1900,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -3200,7 +3200,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -4026,7 +4026,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -5355,7 +5355,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -17069,6 +17069,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: ce020e9f162c0dfe8a1f3b6197955f0b39a02d56d99b9d4e3e53bef7e7b63921
+hmac: 2236d84644bcfbea2a7633251a0ca64647c411fdfbc6f89eb1055e933bfc3bd8
 
 ...
