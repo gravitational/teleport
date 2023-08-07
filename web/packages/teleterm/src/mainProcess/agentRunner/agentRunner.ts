@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { spawn, ChildProcess } from 'node:child_process';
+import { spawn, fork, ChildProcess } from 'node:child_process';
 import os from 'node:os';
 
 import stripAnsiStream from 'strip-ansi-stream';
@@ -81,7 +81,8 @@ export class AgentRunner {
       process: agentProcess,
       state: { status: 'not-started' },
     });
-    this.addListeners(rootClusterUri, agentProcess);
+    this.addAgentListeners(rootClusterUri, agentProcess);
+    this.setupCleanupDaemon(rootClusterUri, agentProcess);
 
     return agentProcess;
   }
@@ -105,7 +106,7 @@ export class AgentRunner {
     await Promise.all(agents.map(agent => terminateWithTimeout(agent.process)));
   }
 
-  private addListeners(
+  private addAgentListeners(
     rootClusterUri: RootClusterUri,
     process: ChildProcess
   ): void {
@@ -158,6 +159,58 @@ export class AgentRunner {
     process.once('spawn', spawnHandler);
     process.once('error', errorHandler);
     process.once('exit', exitHandler);
+  }
+
+  private setupCleanupDaemon(
+    rootClusterUri: RootClusterUri,
+    agent: ChildProcess
+  ) {
+    agent.once('spawn', () => {
+      const cleanupDaemon = fork(this.settings.agentCleanupDaemonPath, [
+        // agent.pid can in theory be null if the agent gets terminated before the execution gets to
+        // this point. In that case, the cleanup daemon is going to exit early.
+        agent.pid?.toString(),
+        process.pid.toString(),
+        rootClusterUri,
+      ]);
+
+      // The cleanup daemon terminates the agent only when the parent (this process) gets
+      // unexpectedly killed and loses control over the agent by orphaning it.
+      //
+      // We must ensure that whenever an agent is running, a cleanup daemon is running as well.
+      // That's why we have the listeners on the child processes below.
+
+      // The cleanup daemon failing to start.
+      const errorHandler = () => {
+        this.logger.error(
+          `Cleanup daemon for ${rootClusterUri} has failed to start. Terminating agent.`
+        );
+        terminateWithTimeout(agent);
+      };
+      cleanupDaemon.once('error', errorHandler);
+      cleanupDaemon.once('spawn', () => {
+        // Error handler is no longer needed after the cleanup daemon manages to spawn.
+        cleanupDaemon.off('error', errorHandler);
+      });
+
+      // The cleanup daemon unexpectedly exiting, without the agent exiting as well.
+      const onUnexpectedDaemonExit = () => {
+        this.logger.error(
+          `Cleanup daemon for ${rootClusterUri} terminated before agent. Terminating agent.`
+        );
+        terminateWithTimeout(agent);
+      };
+      cleanupDaemon.once('exit', onUnexpectedDaemonExit);
+
+      // The agent exiting during normal operation.
+      agent.once('exit', () => {
+        // We're about to consciously terminate the cleanup daemon, so let's remove the unexpected
+        // exit handler.
+        cleanupDaemon.off('exit', onUnexpectedDaemonExit);
+
+        terminateWithTimeout(cleanupDaemon);
+      });
+    });
   }
 
   private updateProcessState(
