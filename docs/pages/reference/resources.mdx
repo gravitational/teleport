@@ -13,14 +13,14 @@ A Teleport administrator has two tools to configure a Teleport cluster:
 
 - The [configuration file](./config.mdx) is used for static configuration
   settings such as the cluster name.
-- The [`tctl`](./cli.mdx#tctl) admin tool is used for configuring the Teleport
+- The [`tctl`](./cli/tctl.mdx) admin tool is used for configuring the Teleport
   Auth Service, and can be used to manage dynamic records like Teleport users.
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
 A Teleport administrator can configure a Teleport cluster by using the
-[`tctl`](./cli.mdx#tctl) admin tool to manage dynamic records like Teleport
+[`tctl`](./cli/tctl.mdx) admin tool to manage dynamic records like Teleport
 users.
 
 </TabItem>
@@ -30,11 +30,11 @@ users.
 
 ### `tctl` concepts
 
-[`tctl`](./cli.mdx#tctl) has convenient sub-commands for dynamic
+[`tctl`](./cli/tctl.mdx) has convenient sub-commands for dynamic
 configuration, such as `tctl users` or `tctl nodes`.
 
 For more advanced management tasks, like connecting clusters together or
-troubleshooting trust, [`tctl`](./cli.mdx#tctl) offers the more powerful,
+troubleshooting trust, [`tctl`](./cli/tctl.mdx) offers the more powerful,
 lower-level CLI interface called `resources`.
 
 The concept is borrowed from the REST programming pattern. A cluster is composed
@@ -53,9 +53,9 @@ be manipulated with just three CLI commands:
 
 | Command | Description | Examples |
 | - | - | - |
-| [`tctl get`](./cli.mdx#tctl-get) | Get one or multiple resources. | `tctl get users` or `tctl get user/joe` |
-| [`tctl rm`](./cli.mdx#tctl-rm) | Delete a resource by type/name. | `tctl rm user/joe` |
-| [`tctl create`](./cli.mdx#tctl-create) | Create a new resource from a YAML file. Use the `-f` flag to update existing resources. | `tctl create -f joe.yaml` |
+| [`tctl get`](./cli/tctl.mdx#tctl-get) | Get one or multiple resources. | `tctl get users` or `tctl get user/joe` |
+| [`tctl rm`](./cli/tctl.mdx#tctl-rm) | Delete a resource by type/name. | `tctl rm user/joe` |
+| [`tctl create`](./cli/tctl.mdx#tctl-create) | Create a new resource from a YAML file. Use the `-f` flag to update existing resources. | `tctl create -f joe.yaml` |
 
 <Admonition
   type="warning"
@@ -110,7 +110,7 @@ spec:
 
 ## Dynamic resources
 
-Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
+Here's the list of resources currently exposed via [`tctl`](./cli/tctl.mdx):
 
 | Resource Kind | Description |
 | - | - |

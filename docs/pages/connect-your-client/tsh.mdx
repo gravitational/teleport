@@ -21,7 +21,7 @@ terminal for the CLI reference.
 ## Introduction
 
 For the impatient, here's an example of how a user would typically use
-[`tsh`](../reference/cli.mdx#tsh):
+[`tsh`](../reference/cli/tsh.mdx):
 
 <ScopedBlock scope={["oss","enterprise"]}>
 
@@ -76,7 +76,7 @@ $ tsh logout
 
 In other words, Teleport was designed to be fully compatible with existing
 SSH-based workflows and does not require users to learn anything new, other than
-to call [`tsh login`](../reference/cli.mdx#tsh-login) in the beginning.
+to call [`tsh login`](../reference/cli/tsh.mdx#tsh-login) in the beginning.
 
 ## Installing tsh
 
@@ -114,7 +114,7 @@ $ tsh ssh --proxy=mytenant.teleport.sh --user=joe root@node
 
 </ScopedBlock>
 
-[CLI Docs - tsh ssh](../reference/cli.mdx#tsh-ssh)
+[CLI Docs - tsh ssh](../reference/cli/tsh.mdx#tsh-ssh)
 
 ## Logging in
 
@@ -145,7 +145,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 
 </ScopedBlock>
 
-[CLI Docs - tsh login](../reference/cli.mdx#tsh-login)
+[CLI Docs - tsh login](../reference/cli/tsh.mdx#tsh-login)
 
 | Port | Description |
 | - | - |
@@ -160,7 +160,7 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   type="tip"
   title="Tip"
 >
-  It is recommended to always use [`tsh login`](../reference/cli.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
+  It is recommended to always use [`tsh login`](../reference/cli/tsh.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
 A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../access-controls/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
@@ -213,7 +213,7 @@ $ tsh login --proxy=mytenant.teleport.sh --browser=none
 In this situation, a link will be printed on the screen. You can copy and paste this link into
 a browser of your choice to continue the login flow.
 
-[CLI Docs - tsh login](../reference/cli.mdx#tsh-login)
+[CLI Docs - tsh login](../reference/cli/tsh.mdx#tsh-login)
 
 ### Inspecting an SSH certificate
 
@@ -253,7 +253,7 @@ $ tsh status
 
 </ScopedBlock>
 
-[CLI Docs - tsh status](../reference/cli.mdx#tsh-status)
+[CLI Docs - tsh status](../reference/cli/tsh.mdx#tsh-status)
 
 ### SSH agent support
 
@@ -274,7 +274,7 @@ variable to `false` in your shell profile to make this permanent.
 
 ### Identity files
 
-[`tsh login`](../reference/cli.mdx#tsh-login) can also save the user certificate into a
+[`tsh login`](../reference/cli/tsh.mdx#tsh-login) can also save the user certificate into a
 file:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -366,7 +366,7 @@ $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 
 </ScopedBlock>
 
-[CLI Docs - tctl auth sign](../reference/cli.mdx#tctl-auth-sign)
+[CLI Docs - tctl auth sign](../reference/cli/tctl.mdx#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the Jenkins server and passed to the `-i`
 (identity file) flag of `tsh`.
@@ -395,7 +395,7 @@ $ tsh ls
 # graviton      10.1.0.7:3022      os:osx
 ```
 
-[CLI Docs - tsh ls](../reference/cli.mdx#tsh-ls)
+[CLI Docs - tsh ls](../reference/cli/tsh.mdx#tsh-ls)
 
 `tsh ls` can apply a filter based on the node labels.
 
@@ -408,7 +408,7 @@ $ tsh ls os=osx
 # graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
 
-[CLI Docs -tsh ls](../reference/cli.mdx#tsh-ls)
+[CLI Docs -tsh ls](../reference/cli/tsh.mdx#tsh-ls)
 
 <Details title="Not seeing Nodes?" opened={false}>
 
@@ -679,7 +679,7 @@ $ tsh --proxy=mytenant.teleport.sh clusters
 
 </ScopedBlock>
 
-[CLI Docs - tsh clusters](../reference/cli.mdx#tsh-clusters)
+[CLI Docs - tsh clusters](../reference/cli/tsh.mdx#tsh-clusters)
 
 Now you can use the `--cluster` flag with any `tsh` command. For example, to list SSH nodes that are members of the `production` cluster, simply run:
 

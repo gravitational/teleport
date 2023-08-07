@@ -9,9 +9,10 @@ provider via **authentication connectors**.
 ## Local (no authentication connector)
 
 Local authentication is used to authenticate against a local Teleport user
-database. This database is managed by the [`tctl users`](./cli.mdx#tctl-users-add)
-command. Teleport also supports multi-factor authentication (MFA) for the local
-connector. There are several possible values (types) of MFA:
+database. This database is managed by the [`tctl
+users`](./cli/tctl.mdx#tctl-users-add) command. Teleport also supports
+multi-factor authentication (MFA) for the local connector. There are several
+possible values (types) of MFA:
 
 - `otp` is the default. It implements the [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
   standard. You can use [Google Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator), [Authy](https://www.authy.com/) or any other TOTP client.
