@@ -28,9 +28,14 @@ export const MockWorkspaceContextProvider: React.FC<{
   return (
     <WorkspaceContextProvider
       value={{
-        accessRequestsService: undefined,
+        accessRequestsService:
+          appContext.workspacesService.getWorkspaceAccessRequestsService(
+            props.rootClusterUri
+          ),
         documentsService:
-          appContext.workspacesService.getActiveWorkspaceDocumentService(),
+          appContext.workspacesService.getWorkspaceDocumentService(
+            props.rootClusterUri
+          ),
         localClusterUri: props.rootClusterUri,
         rootClusterUri: props.rootClusterUri,
       }}
