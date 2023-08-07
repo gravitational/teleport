@@ -414,6 +414,7 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.AccessLists
+	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
@@ -441,6 +442,11 @@ func (r *Services) OktaClient() services.Okta {
 
 // AccessListClient returns the access list client.
 func (r *Services) AccessListClient() services.AccessLists {
+	return r
+}
+
+// UserLoginStateClient returns the user login state client.
+func (r *Services) UserLoginStateClient() services.UserLoginStates {
 	return r
 }
 
