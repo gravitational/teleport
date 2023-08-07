@@ -34,7 +34,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
   const [isMenuOpened, setIsMenuOpened] = useState(false);
   const appCtx = useAppContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
-  const { isSetupDoneAttempt, state } = useConnectMyComputerContext();
+  const { isAgentConfiguredAttempt, state } = useConnectMyComputerContext();
   // DocumentCluster renders this component only if the cluster exists.
   const cluster = appCtx.clustersService.findCluster(props.clusterUri);
 
@@ -88,9 +88,9 @@ export function NavigationMenu(props: NavigationMenuProps) {
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         onClose={() => setIsMenuOpened(false)}
       >
-        {isSetupDoneAttempt.status === 'success' && (
+        {isAgentConfiguredAttempt.status === 'success' && (
           <>
-            {!isSetupDoneAttempt.data ? (
+            {!isAgentConfiguredAttempt.data ? (
               <MenuItem onClick={openSetupDocument}>Connect computer</MenuItem>
             ) : (
               <MenuItem onClick={openStatusDocument}>Manage agent</MenuItem>

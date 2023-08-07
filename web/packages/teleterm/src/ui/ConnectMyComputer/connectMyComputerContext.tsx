@@ -57,8 +57,8 @@ export interface ConnectMyComputerContext {
   runAgentAndWaitForNodeToJoin(): Promise<void>;
   runWithPreparation(): Promise<[void, Error]>;
   kill(): Promise<[void, Error]>;
-  isSetupDoneAttempt: Attempt<boolean>;
-  markSetupAsDone(): void;
+  isAgentConfiguredAttempt: Attempt<boolean>;
+  markAgentAsConfigured(): void;
 }
 
 const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
@@ -67,16 +67,17 @@ export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
 }> = props => {
   const { mainProcessClient, connectMyComputerService } = useAppContext();
-  const [isSetupDoneAttempt, checkIfSetupIsDone, setSetupDoneAttempt] =
-    useAsync(
-      useCallback(
-        () =>
-          connectMyComputerService.isAgentConfigFileCreated(
-            props.rootClusterUri
-          ),
-        [connectMyComputerService, props.rootClusterUri]
-      )
-    );
+  const [
+    isAgentConfiguredAttempt,
+    checkIfAgentIsConfigured,
+    setAgentConfiguredAttempt,
+  ] = useAsync(
+    useCallback(
+      () =>
+        connectMyComputerService.isAgentConfigFileCreated(props.rootClusterUri),
+      [connectMyComputerService, props.rootClusterUri]
+    )
+  );
 
   const [agentProcessState, setAgentProcessState] = useState<AgentProcessState>(
     () =>
@@ -128,9 +129,9 @@ export const ConnectMyComputerContextProvider: FC<{
     }, [connectMyComputerService, props.rootClusterUri])
   );
 
-  const markSetupAsDone = useCallback(() => {
-    setSetupDoneAttempt(makeSuccessAttempt(true));
-  }, [setSetupDoneAttempt]);
+  const markAgentAsConfigured = useCallback(() => {
+    setAgentConfiguredAttempt(makeSuccessAttempt(true));
+  }, [setAgentConfiguredAttempt]);
 
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
@@ -141,8 +142,8 @@ export const ConnectMyComputerContextProvider: FC<{
   }, [mainProcessClient, props.rootClusterUri]);
 
   useEffect(() => {
-    checkIfSetupIsDone();
-  }, [checkIfSetupIsDone]);
+    checkIfAgentIsConfigured();
+  }, [checkIfAgentIsConfigured]);
 
   const computedState = computeAgentState(
     agentProcessState,
@@ -166,8 +167,8 @@ export const ConnectMyComputerContextProvider: FC<{
           setKillAttempt(makeEmptyAttempt());
           return runWithPreparation();
         },
-        markSetupAsDone,
-        isSetupDoneAttempt,
+        markAgentAsConfigured,
+        isAgentConfiguredAttempt,
       }}
       children={props.children}
     />

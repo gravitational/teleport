@@ -98,7 +98,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
 function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
   const ctx = useAppContext();
   const { rootClusterUri, documentsService } = useWorkspaceContext();
-  const { runAgentAndWaitForNodeToJoin, markSetupAsDone } =
+  const { runAgentAndWaitForNodeToJoin, markAgentAsConfigured } =
     useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
@@ -217,7 +217,7 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
       }
     }
     await wait(500);
-    markSetupAsDone();
+    markAgentAsConfigured();
     const statusDocument =
       documentsService.createConnectMyComputerStatusDocument({
         rootClusterUri,
@@ -232,7 +232,7 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
     runDownloadAgentAttempt,
     runGenerateConfigFileAttempt,
     runJoinClusterAttempt,
-    markSetupAsDone,
+    markAgentAsConfigured,
     documentsService,
     rootClusterUri,
     props.doc.uri,
