@@ -15,7 +15,16 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Alert, Box, ButtonPrimary, Flex, Label, MenuItem, Text } from 'design';
+import {
+  Alert,
+  Box,
+  ButtonPrimary,
+  Flex,
+  Label,
+  Link,
+  MenuItem,
+  Text,
+} from 'design';
 import styled, { css } from 'styled-components';
 import { Transition } from 'react-transition-group';
 
@@ -29,6 +38,7 @@ import {
 } from 'teleterm/ui/ConnectMyComputer';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { useAgentProperties } from '../useAgentProperties';
 
@@ -42,8 +52,14 @@ interface DocumentConnectMyComputerStatusProps {
 export function DocumentConnectMyComputerStatus(
   props: DocumentConnectMyComputerStatusProps
 ) {
-  const { state, agentNode, runWithPreparation, kill } =
-    useConnectMyComputerContext();
+  const {
+    state,
+    agentNode,
+    runWithPreparation,
+    kill,
+    isAgentConfiguredAttempt,
+  } = useConnectMyComputerContext();
+  const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
 
   const prettyAgentState = prettifyAgentState(state);
@@ -51,6 +67,30 @@ export function DocumentConnectMyComputerStatus(
   return (
     <Document visible={props.visible}>
       <Box maxWidth="590px" mx="auto" mt="4" px="5" width="100%">
+        {isAgentConfiguredAttempt.status === 'error' && (
+          <Alert
+            css={`
+              display: block;
+            `}
+          >
+            An error occurred while reading the agent config file:{' '}
+            {isAgentConfiguredAttempt.statusText}. <br />
+            You can try to{' '}
+            <Link
+              onClick={() =>
+                documentsService.openConnectMyComputerStatusDocument({
+                  rootClusterUri,
+                })
+              }
+              css={`
+                cursor: pointer;
+              `}
+            >
+              run the setup
+            </Link>{' '}
+            again.
+          </Alert>
+        )}
         <Flex justifyContent="space-between" mb={3}>
           <Text
             typography="h3"
