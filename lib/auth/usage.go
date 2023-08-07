@@ -20,7 +20,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -39,7 +38,6 @@ func GetAccessRequestMonthlyUsage(ctx context.Context, alog events.AuditLogger, 
 		results, startKey, err = alog.SearchEvents(ctx, events.SearchEventsRequest{
 			From:       monthStart,
 			To:         now,
-			Limit:      apidefaults.DefaultChunkSize,
 			Order:      types.EventOrderAscending,
 			EventTypes: []string{events.AccessRequestCreateEvent},
 			StartKey:   startKey,
