@@ -28,6 +28,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -207,6 +208,7 @@ type cacheCollections struct {
 	uiConfigs                collectionReader[uiConfigGetter]
 	users                    collectionReader[userGetter]
 	userGroups               collectionReader[userGroupGetter]
+	userLoginStates          collectionReader[services.UserLoginStatesGetter]
 	webSessions              collectionReader[webSessionGetter]
 	webTokens                collectionReader[webTokenGetter]
 	windowsDesktops          collectionReader[windowsDesktopsGetter]
@@ -601,6 +603,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessLists = &genericCollection[*accesslist.AccessList, services.AccessListsGetter, accessListsExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessLists
+		case types.KindUserLoginState:
+			if c.UserLoginStates == nil {
+				return nil, trace.BadParameter("missing parameter UserLoginStates")
+			}
+			collections.userLoginStates = &genericCollection[*userloginstate.UserLoginState, services.UserLoginStatesGetter, userLoginStateExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.userLoginStates
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2369,3 +2377,34 @@ func (noopExecutor) getReader(_ *Cache, _ bool) noReader {
 }
 
 var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}
+
+type userLoginStateExecutor struct{}
+
+func (userLoginStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
+	resources, err := cache.userLoginStateCache.GetUserLoginStates(ctx)
+	return resources, trace.Wrap(err)
+}
+
+func (userLoginStateExecutor) upsert(ctx context.Context, cache *Cache, resource *userloginstate.UserLoginState) error {
+	_, err := cache.userLoginStateCache.UpsertUserLoginState(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (userLoginStateExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.userLoginStateCache.DeleteAllUserLoginStates(ctx)
+}
+
+func (userLoginStateExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.userLoginStateCache.DeleteUserLoginState(ctx, resource.GetName())
+}
+
+func (userLoginStateExecutor) isSingleton() bool { return false }
+
+func (userLoginStateExecutor) getReader(cache *Cache, cacheOK bool) services.UserLoginStatesGetter {
+	if cacheOK {
+		return cache.userLoginStateCache
+	}
+	return cache.Config.UserLoginStates
+}
+
+var _ executor[*accesslist.AccessList, services.AccessListsGetter] = accessListsExecutor{}
