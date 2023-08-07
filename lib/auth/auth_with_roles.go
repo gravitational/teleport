@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
@@ -1485,32 +1484,6 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
-func stringCompare(a string, b string, isDesc bool) bool {
-	if isDesc {
-		return a > b
-	}
-	return a < b
-}
-
-func unifiedNameCompare(a types.ResourceWithLabels, b types.ResourceWithLabels, isDesc bool) bool {
-	var nameA, nameB string
-	resourceA, ok := a.(types.Server)
-	if ok {
-		nameA = resourceA.GetHostname()
-	} else {
-		nameA = a.GetName()
-	}
-
-	resourceB, ok := b.(types.Server)
-	if ok {
-		nameB = resourceB.GetHostname()
-	} else {
-		nameB = b.GetName()
-	}
-
-	return stringCompare(nameA, nameB, isDesc)
-}
-
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*types.ListResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
@@ -1523,7 +1496,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	elapsedFetch := time.Since(startFetch)
 
 	// Filter resources to return the ones for the connected identity.
-	filteredResources := make([]types.ResourceWithLabels, 0)
+	filteredResources := make(types.ResourcesWithLabels, 0)
 	startFilter := time.Now()
 	for _, resource := range unifiedResources {
 		switch r := resource.(type) {
@@ -1606,18 +1579,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
 
 	if req.SortBy.Field != "" {
-		isDesc := req.SortBy.IsDesc
-		switch req.SortBy.Field {
-		case types.ResourceMetadataName:
-			sort.SliceStable(filteredResources, func(i, j int) bool {
-				return unifiedNameCompare(filteredResources[i], filteredResources[j], isDesc)
-			})
-		case types.ResourceSpecKind:
-			sort.SliceStable(filteredResources, func(i, j int) bool {
-				return stringCompare(filteredResources[i].GetKind(), filteredResources[j].GetKind(), isDesc)
-			})
-		default:
-			return nil, trace.NotImplemented("sorting by field %q for unified resource %q is not supported", req.SortBy.Field, types.KindUnifiedResource)
+		if err := filteredResources.SortByCustom(req.SortBy); err != nil {
+			return nil, err
 		}
 	}
 
