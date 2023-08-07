@@ -105,6 +105,7 @@ func buildWorkflows(releaseEnvironmentFilePath string, packageDeployments []osPa
 				timeout:           12 * time.Hour, // DR takes a long time
 				shouldTagWorkflow: true,
 				seriesRun:         true,
+				seriesRunFilter:   fmt.Sprintf(".*%s.*", repoType),
 				inputs:            inputs,
 			})
 		}

@@ -33,6 +33,7 @@ type ghaWorkflow struct {
 	slackOnError      bool
 	shouldTagWorkflow bool
 	seriesRun         bool
+	seriesRunFilter   string
 	inputs            map[string]string
 }
 
@@ -96,10 +97,14 @@ func buildWorkflowSteps(workflow ghaWorkflow, checkoutPath string, enableParalle
 	steps := make([]step, 0)
 	workflowStep := buildGHAWorkflowCallStep(workflow, checkoutPath)
 
-	if enableParallelWorkflowRuns && sleepTime > 0 {
-		sleepStep := sleepStep(sleepTime, setupStepNames, workflow.stepName)
-		steps = append(steps, sleepStep)
-		workflowStep.DependsOn = append(workflowStep.DependsOn, sleepStep.Name)
+	if enableParallelWorkflowRuns {
+		if sleepTime > 0 {
+			sleepStep := sleepStep(sleepTime, setupStepNames, workflow.stepName)
+			steps = append(steps, sleepStep)
+			workflowStep.DependsOn = append(workflowStep.DependsOn, sleepStep.Name)
+		} else {
+			workflowStep.DependsOn = append(workflowStep.DependsOn, setupStepNames...)
+		}
 	}
 
 	steps = append(steps, workflowStep)
@@ -139,6 +144,10 @@ func buildGHAWorkflowCallStep(workflow ghaWorkflow, checkoutPath string) step {
 
 	if workflow.seriesRun {
 		cmd.WriteString(`-series-run `)
+
+		if workflow.seriesRunFilter != "" {
+			fmt.Fprintf(&cmd, `-series-run-filter %s `, workflow.seriesRunFilter)
+		}
 	}
 
 	fmt.Fprintf(&cmd, `-timeout %s `, workflow.timeout.String())
