@@ -294,7 +294,7 @@ func reportResult(this unsafe.Pointer, status uint32, substatus uint32, ppszOpti
 	if status == statusLogonFailure {
 		switch substatus {
 		case invalidLicense:
-			s, err := coTaskMemString("This feature requires an enterprise license")
+			s, err := coTaskMemString("Number of non-AD desktops exceeds limit for Teleport Community")
 			if err != nil {
 				return E_FAIL
 			}

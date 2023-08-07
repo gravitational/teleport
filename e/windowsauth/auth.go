@@ -96,7 +96,12 @@ const (
 
 var smartCardLogonKeyUsage = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}
 
-var createUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
+// OID values have to be kept in sync with Teleport (tls/ca.go)
+var (
+	createUserOID            = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
+	licenseOID               = asn1.ObjectIdentifier{1, 3, 9999, 2, 14}
+	desktopsLimitExceededOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 17}
+)
 
 // LSATokenInformation is Go version of LSA_TOKEN_INFORMATION_V1 structure
 // https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa378721(v=vs.85)
@@ -304,9 +309,9 @@ func lsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authe
 		return statusLogonFailure
 	}
 
-	if !hasEnterpriseLicense(cert) {
+	if !hasEnterpriseLicense(cert) && desktopsLimitExceeded(cert) {
 		*subStatus = invalidLicense
-		log.Error("no enterprise license")
+		log.Error("no enterprise license and desktops limit exceeded")
 		return statusLogonFailure
 	}
 
@@ -481,8 +486,6 @@ func lsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authe
 	return *subStatus
 }
 
-var licenseOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 14}
-
 func hasEnterpriseLicense(cert *x509.Certificate) bool {
 	for _, ext := range cert.Extensions {
 		if ext.Id.Equal(licenseOID) {
@@ -490,6 +493,15 @@ func hasEnterpriseLicense(cert *x509.Certificate) bool {
 		}
 	}
 	return false
+}
+
+func desktopsLimitExceeded(cert *x509.Certificate) bool {
+	for _, ext := range cert.Extensions {
+		if ext.Id.Equal(desktopsLimitExceededOID) {
+			return string(ext.Value) != "false"
+		}
+	}
+	return true
 }
 
 func hasSmartCardKeyUsage(cert *x509.Certificate) bool {
