@@ -54,7 +54,7 @@ export function DocumentConnectMyComputerSetup(
         {step === 'information' && (
           <Information onSetUpAgentClick={() => setStep('agent-setup')} />
         )}
-        {step === 'agent-setup' && <AgentSetup />}
+        {step === 'agent-setup' && <AgentSetup doc={props.doc} />}
       </Box>
     </Document>
   );
@@ -95,7 +95,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
   );
 }
 
-function AgentSetup() {
+function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
   const ctx = useAppContext();
   const { rootClusterUri, documentsService } = useWorkspaceContext();
   const { runAgentAndWaitForNodeToJoin, markSetupAsDone } =
@@ -218,10 +218,11 @@ function AgentSetup() {
     }
     await wait(500);
     markSetupAsDone();
-    documentsService.openConnectMyComputerStatusDocument({
-      rootClusterUri,
-      replaceSetupDocument: true,
-    });
+    const statusDocument =
+      documentsService.createConnectMyComputerStatusDocument({
+        rootClusterUri,
+      });
+    documentsService.replace(props.doc.uri, statusDocument);
   }, [
     setCreateRoleAttempt,
     setDownloadAgentAttempt,
@@ -234,6 +235,7 @@ function AgentSetup() {
     markSetupAsDone,
     documentsService,
     rootClusterUri,
+    props.doc.uri,
   ]);
 
   useEffect(() => {

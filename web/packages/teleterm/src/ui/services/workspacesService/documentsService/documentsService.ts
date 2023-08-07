@@ -240,12 +240,12 @@ export class DocumentsService {
     this.open(doc.uri);
   }
 
+  //TODO(gzdunek): Instead of having this method, consider something like openOrSwitch(document) to allow only one instance of a document.
   openConnectMyComputerStatusDocument(opts: {
     // URI of the root cluster could be passed to the `DocumentsService`
     // constructor and then to the document, instead of being taken from the parameter.
     // However, we decided not to do so because other documents are based only on the provided parameters.
     rootClusterUri: RootClusterUri;
-    replaceSetupDocument?: boolean;
   }): void {
     const existingDoc = this.findFirstOfKind('doc.connect_my_computer_status');
     if (existingDoc) {
@@ -253,21 +253,23 @@ export class DocumentsService {
       return;
     }
 
-    const uri = routing.getDocUri({ docId: unique() });
-    const doc: DocumentConnectMyComputerStatus = {
-      uri,
+    const doc = this.createConnectMyComputerStatusDocument(opts);
+    this.add(doc);
+    this.open(doc.uri);
+  }
+
+  createConnectMyComputerStatusDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): DocumentConnectMyComputerStatus {
+    return {
+      uri: routing.getDocUri({ docId: unique() }),
       kind: 'doc.connect_my_computer_status',
       title: 'Connect My Computer',
       rootClusterUri: opts.rootClusterUri,
     };
-    const existingSetupDocIndex = this.getDocuments().findIndex(
-      doc => doc.kind === 'doc.connect_my_computer_setup'
-    );
-    if (existingSetupDocIndex) {
-      this.close(this.getDocuments().at(existingSetupDocIndex).uri);
-    }
-    this.add(doc, existingSetupDocIndex);
-    this.open(doc.uri);
   }
 
   openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {
@@ -377,6 +379,18 @@ export class DocumentsService {
       const toUpdate = draft.documents.find(doc => doc.uri === uri);
       Object.assign(toUpdate, partialDoc);
     });
+  }
+
+  replace(uri: DocumentUri, document: Document): void {
+    const documentToCloseIndex = this.getDocuments().findIndex(
+      doc => doc.uri === uri
+    );
+    const documentToClose = this.getDocuments().at(documentToCloseIndex);
+    if (documentToClose) {
+      this.close(documentToClose.uri);
+    }
+    this.add(document, documentToClose ? documentToCloseIndex : undefined);
+    this.open(document.uri);
   }
 
   filter(uri: string) {
