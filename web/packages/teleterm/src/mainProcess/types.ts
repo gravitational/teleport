@@ -34,6 +34,7 @@ export type RuntimeSettings = {
   defaultShell: string;
   platform: Platform;
   agentBinaryPath: string;
+  agentCleanupDaemonPath: string;
   tshd: {
     insecure: boolean;
     requestedNetworkAddress: string;
