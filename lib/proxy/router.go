@@ -194,10 +194,8 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
-// configuration is not set to route to the most recent an error is returned. Also returns teleport version of the
-// target server if it's a teleport server
-// DELETE IN 14.0: remove returning teleport version, it was needed for compatibility
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
+// configuration is not set to route to the most recent an error is returned.
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -214,12 +212,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		span.End()
 	}()
 
-	var targetTeleportVersion string
 	site := r.localSite
 	if clusterName != r.clusterName {
 		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
 		if err != nil {
-			return nil, targetTeleportVersion, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		site = remoteSite
 	}
@@ -227,7 +224,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	span.AddEvent("looking up server")
 	target, err := r.serverResolver(ctx, host, port, remoteSite{site})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	span.AddEvent("retrieved target server")
 
@@ -255,15 +252,13 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		case serverAddr != "":
 			h, _, err := net.SplitHostPort(serverAddr)
 			if err != nil {
-				return nil, "", trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 
 			principals = append(principals, h)
 		case serverAddr == "" && target.GetUseTunnel():
 			serverAddr = reversetunnelclient.LocalNode
 		}
-
-		targetTeleportVersion = target.GetTeleportVersion()
 	} else {
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
@@ -280,11 +275,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	if isAgentlessNode {
 		client, err := r.GetSiteClient(ctx, clusterName)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		sshSigner, err = signer(ctx, client)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		agentGetter = nil
 	}
@@ -299,15 +294,14 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		Principals:            principals,
 		ServerID:              serverID,
 		ProxyIDs:              proxyIDs,
-		TeleportVersion:       targetTeleportVersion,
 		ConnType:              types.NodeTunnel,
 		TargetServer:          target,
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), targetTeleportVersion, trace.Wrap(err)
+	return newProxiedMetricConn(conn), trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with

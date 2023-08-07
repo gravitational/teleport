@@ -16,6 +16,8 @@ package watcherjob
 
 import (
 	"context"
+	"errors"
+	"io"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -87,7 +89,7 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) lib.Serv
 			switch {
 			case trace.IsConnectionProblem(err):
 				log.WithError(err).Error("Failed to connect to Teleport Auth server. Reconnecting...")
-			case trace.IsEOF(err):
+			case errors.Is(err, io.EOF):
 				log.WithError(err).Error("Watcher stream closed. Reconnecting...")
 			case lib.IsCanceled(err):
 				log.Debug("Watcher context is canceled")

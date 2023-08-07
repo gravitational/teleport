@@ -648,6 +648,8 @@ const (
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
+	// ReqAnnotationNotifyServicesLabel is the request annotation key at which notify services are stored for access plugins.
+	ReqAnnotationNotifyServicesLabel = "/notify-services"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"

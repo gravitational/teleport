@@ -28,7 +28,6 @@
         "github.com/coreos/go-oidc",
         "github.com/go-mysql-org/go-mysql",
         "github.com/go-redis/redis/v9",
-        "github.com/go-webauthn/webauthn",
         "github.com/gogo/protobuf",
         "github.com/gravitational/teleport/api",
         "github.com/gravitational/ttlmap",

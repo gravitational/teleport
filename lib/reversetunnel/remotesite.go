@@ -780,7 +780,7 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.AgentlessSigner != nil,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -822,7 +822,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
+		IsAgentlessNode: params.AgentlessSigner != nil,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

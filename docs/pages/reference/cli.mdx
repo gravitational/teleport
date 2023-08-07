@@ -1357,6 +1357,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
+| TELEPORT_LOGIN_BROWSER | Set to `none` to stop the system default browser from opening for SSO logins. If the value is not `none`, `tsh` will open the system default browser. | none |
 | TELEPORT_PROXY | Address of the Teleport proxy server | cluster.example.com:3080 |
 | TELEPORT_HOME | Home location for tsh configuration and data | /directory |
 | TELEPORT_USER | A Teleport user name | alice |
@@ -1699,6 +1700,8 @@ $ tctl users add [<flags>] <account>
 | `--gcp-service-accounts` | none | Comma-separated strings | List of allowed GCP service accounts for the new user |
 | `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
+| `--host-user-uid` | none | Unix UID | UID for auto provisioned host users to use |
+| `--host-user-gid` | none | Unix GID | GID for auto provisioned host users to use |
 
 #### Global flags
 
