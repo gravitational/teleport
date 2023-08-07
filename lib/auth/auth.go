@@ -5406,51 +5406,7 @@ func (a *Server) GetResourceUsage(ctx context.Context, req *proto.GetResourceUsa
 
 // getAccessRequestMonthlyUsage returns the number of access requests that have been created this month.
 func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (*proto.AccessRequestUsage, error) {
-	features := modules.GetModules().Features()
-	monthlyLimit := features.AccessRequests.MonthlyRequestLimit
-
-	now := a.clock.Now().UTC()
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-
-	created := make(map[string]struct{})
-
-	var results []apievents.AuditEvent
-	var startKey string
-	var err error
-	for {
-		results, startKey, err = a.SearchEvents(ctx, events.SearchEventsRequest{
-			From:       monthStart,
-			To:         now,
-			Limit:      apidefaults.DefaultChunkSize,
-			Order:      types.EventOrderAscending,
-			EventTypes: []string{events.AccessRequestCreateEvent},
-			StartKey:   startKey,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, ev := range results {
-			ev, ok := ev.(*apievents.AccessRequestCreate)
-			if !ok {
-				return nil, trace.BadParameter("expected *AccessRequestCreate, but got %T", ev)
-			}
-			id := ev.RequestID
-			switch ev.GetType() {
-			case events.AccessRequestCreateEvent:
-				created[id] = struct{}{}
-			default:
-				log.Warnf("Expected event type %q, got %q", events.AccessRequestCreateEvent, ev.GetType())
-			}
-		}
-		if startKey == "" {
-			break
-		}
-	}
-
-	return &proto.AccessRequestUsage{
-		MonthlyLimit: int32(monthlyLimit),
-		MonthlyUsed:  int32(len(created)),
-	}, nil
+	return GetAccessRequestMonthlyUsage(ctx, a.Services.AuditLogSessionStreamer, a.clock.Now().UTC())
 }
 
 // verifyAccessRequestMonthlyLimit checks whether the cluster has exceeded the monthly access request limit.
