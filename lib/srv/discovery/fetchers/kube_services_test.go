@@ -341,14 +341,14 @@ func TestGetServicePorts(t *testing.T) {
 	}{
 		{
 			desc:     "Empty input",
-			expected: []corev1.ServicePort{},
+			expected: nil,
 		},
 		{
 			desc: "One unsupported port (UDP)",
 			ports: []corev1.ServicePort{
 				{Port: 80, Protocol: corev1.ProtocolUDP},
 			},
-			expected: []corev1.ServicePort{},
+			expected: nil,
 		},
 		{
 			desc: "One supported port",
@@ -420,8 +420,8 @@ func TestGetServicePorts(t *testing.T) {
 				{Port: 80, Protocol: corev1.ProtocolTCP},
 				{Port: 42, Protocol: corev1.ProtocolTCP},
 			},
-			expected: []corev1.ServicePort{},
-			wantErr:  "Specified preferred port",
+			expected: nil,
+			wantErr:  "specified preferred port",
 		},
 	}
 
