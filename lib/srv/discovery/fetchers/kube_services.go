@@ -187,8 +187,9 @@ func (f *kubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 		})
 	}
 
-	// We already logged individual errors of converting service to apps, there are never errors returned.
-	_ = g.Wait()
+	if err := g.Wait(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return apps.AsResources(), nil
 }
