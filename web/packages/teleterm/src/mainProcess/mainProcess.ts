@@ -76,14 +76,6 @@ export default class MainProcess {
   private configFileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
   private windowsManager: WindowsManager;
-  // this function can be safely called concurrently
-  private downloadAgentShared = sharePromise(() =>
-    downloadAgent(
-      new FileDownloader(this.windowsManager.getWindow()),
-      this.settings,
-      process.env
-    )
-  );
   private readonly agentRunner: AgentRunner;
 
   private constructor(opts: Options) {
@@ -95,6 +87,7 @@ export default class MainProcess {
     this.windowsManager = opts.windowsManager;
     this.agentRunner = new AgentRunner(
       this.settings,
+      new FileDownloader(this.windowsManager.getWindow()),
       (rootClusterUri, state) => {
         const window = this.windowsManager.getWindow();
         if (window.isDestroyed()) {
@@ -320,8 +313,14 @@ export default class MainProcess {
       return path;
     });
 
-    ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
-      this.downloadAgentShared()
+    ipcMain.handle(
+      'main-process-connect-my-computer-download-agent',
+      (
+        event,
+        args: {
+          rootClusterUri: RootClusterUri;
+        }
+      ) => this.agentRunner.downloadAgent(args.rootClusterUri)
     );
 
     ipcMain.handle(
@@ -483,19 +482,4 @@ const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);
-}
-
-/** Shares promise returned from `promiseFn` across multiple concurrent callers. */
-function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
-  let pending: Promise<T> | undefined = undefined;
-
-  return () => {
-    if (!pending) {
-      pending = promiseFn();
-      pending.finally(() => {
-        pending = undefined;
-      });
-    }
-    return pending;
-  };
 }

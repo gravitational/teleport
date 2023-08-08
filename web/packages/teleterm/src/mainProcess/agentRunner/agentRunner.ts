@@ -25,6 +25,11 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 import { generateAgentConfigPaths } from '../createAgentConfigFile';
 import { AgentProcessState, RuntimeSettings } from '../types';
 import { terminateWithTimeout } from '../terminateWithTimeout';
+import {
+  downloadAgent,
+  FileDownloader,
+  IFileDownloader,
+} from 'teleterm/mainProcess/agentDownloader';
 
 const MAX_STDERR_LINES = 10;
 
@@ -37,21 +42,43 @@ export class AgentRunner {
       state: AgentProcessState;
     }
   >();
+  // this function can be safely called concurrently
+  private downloadAgentShared = sharePromise(() =>
+    downloadAgent(this.fileDownloader, this.settings, process.env)
+  );
 
   constructor(
     private settings: RuntimeSettings,
+    private fileDownloader: IFileDownloader,
     private sendProcessState: (
       rootClusterUri: RootClusterUri,
       state: AgentProcessState
     ) => void
   ) {}
 
+  async downloadAgent(rootClusterUri: RootClusterUri): Promise<void> {
+    if (!this.agentProcesses.has(rootClusterUri)) {
+      this.agentProcesses.set(rootClusterUri, {
+        process: undefined,
+        state: { status: 'not-started' },
+      });
+    }
+    this.updateProcessState(rootClusterUri, { status: 'downloading' });
+    try {
+      await this.downloadAgentShared();
+    } catch (e) {
+      this.updateProcessState(rootClusterUri, { status: 'error', message: e.message });
+      throw e;
+    }
+  }
+
   /**
    * Starts a new agent process.
    * If an existing process exists for the given root cluster, the old one will be killed.
    */
   async start(rootClusterUri: RootClusterUri): Promise<ChildProcess> {
-    if (this.agentProcesses.has(rootClusterUri)) {
+    this.updateProcessState(rootClusterUri, { status: 'starting' });
+    if (this.agentProcesses.get(rootClusterUri)?.process) {
       await this.kill(rootClusterUri);
     }
 
@@ -176,4 +203,19 @@ export class AgentRunner {
 
 function limitProcessOutputLines(output: string): string {
   return output.split(os.EOL).slice(-MAX_STDERR_LINES).join(os.EOL);
+}
+
+/** Shares promise returned from `promiseFn` across multiple concurrent callers. */
+function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | undefined = undefined;
+
+  return () => {
+    if (!pending) {
+      pending = promiseFn();
+      pending.finally(() => {
+        pending = undefined;
+      });
+    }
+    return pending;
+  };
 }

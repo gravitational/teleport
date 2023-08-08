@@ -75,9 +75,10 @@ export default function createMainProcessClient(): MainProcessClient {
         cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
       };
     },
-    downloadAgent() {
+    downloadAgent(clusterProperties: { rootClusterUri: RootClusterUri }) {
       return ipcRenderer.invoke(
-        'main-process-connect-my-computer-download-agent'
+        'main-process-connect-my-computer-download-agent',
+        clusterProperties
       );
     },
     createAgentConfigFile(clusterProperties: AgentConfigFileClusterProperties) {

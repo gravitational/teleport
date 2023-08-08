@@ -137,8 +137,8 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
     setDownloadAgentAttempt,
   ] = useAsync(
     useCallback(
-      () => ctx.connectMyComputerService.downloadAgent(),
-      [ctx.connectMyComputerService]
+      () => ctx.connectMyComputerService.downloadAgent(cluster.uri),
+      [cluster.uri, ctx.connectMyComputerService]
     )
   );
   const [

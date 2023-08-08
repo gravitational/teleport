@@ -58,6 +58,7 @@ export function DocumentConnectMyComputerStatus(
     runWithPreparation,
     kill,
     isAgentConfiguredAttempt,
+    lifecycleActionAttempt,
   } = useConnectMyComputerContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
@@ -133,19 +134,44 @@ export function DocumentConnectMyComputerStatus(
             </LabelsContainer>
           )}
         </Transition>
-        <Flex mt={3} mb={3} display="flex" alignItems="center">
+        <Flex mt={3} mb={2} display="flex" alignItems="center">
           {prettyAgentState.title}
         </Flex>
-        {prettyAgentState.error && (
+        {(prettyAgentState.error ||
+          lifecycleActionAttempt.status === 'error') && (
           <Alert
             css={`
               white-space: pre-wrap;
             `}
           >
-            {prettyAgentState.error}
+            {prettyAgentState.error || lifecycleActionAttempt.statusText}
           </Alert>
         )}
-        <Text mb={4}>
+        {prettyAgentState.stackTrace && (
+          <>
+            <Text mb={2}>Last 10 lines of error logs:</Text>
+            <Flex
+              width="100%"
+              color="light"
+              bg="bgTerminal"
+              p={2}
+              mb={2}
+              flexDirection="column"
+              borderRadius={1}
+            >
+              <span
+                css={`
+                  white-space: pre-wrap;
+                  font-size: 12px;
+                  font-family: ${props => props.theme.fonts.mono};
+                `}
+              >
+                {prettyAgentState.stackTrace}
+              </span>
+            </Flex>
+          </>
+        )}
+        <Text mb={4} mt={1}>
           Connecting your computer will allow any cluster user with the role{' '}
           <strong>{roleName}</strong> to access it as an SSH resource with the
           user <strong>{systemUsername}</strong>.
@@ -161,7 +187,10 @@ export function DocumentConnectMyComputerStatus(
         ) : (
           <ButtonPrimary
             block
-            disabled={agentState.status === 'starting'}
+            disabled={
+              agentState.status === 'starting' ||
+              agentState.status === 'downloading'
+            }
             onClick={runWithPreparation}
           >
             Connect
@@ -184,8 +213,13 @@ function renderLabels(labelsList: tsh.Label[]): JSX.Element[] {
 function prettifyAgentState(agentState: AgentState): {
   title: string;
   error?: string;
+  stackTrace?: string;
 } {
   switch (agentState.status) {
+    case 'downloading': {
+      //TODO add progress
+      return { title: '🔄 Verifying binary' };
+    }
     case 'starting':
       return { title: '🔄 Starting' };
     case 'stopping':
@@ -209,9 +243,9 @@ function prettifyAgentState(agentState: AgentState): {
       return {
         title: [
           exitedSuccessfully ? '🔘' : '🔴',
-          `Agent process exited with ${codeOrSignal}.`,
+          `Agent process exited with ${codeOrSignal}`,
         ].join('\n'),
-        error: agentState.stackTrace,
+        stackTrace: agentState.stackTrace,
       };
     }
     case 'error': {

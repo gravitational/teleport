@@ -15,6 +15,14 @@
  */
 
 /** Resolves after a given duration */
-export function wait(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
+  return new Promise(resolve => {
+    const timeout = setTimeout(resolve, ms);
+    if (abortSignal) {
+      abortSignal.onabort = () => {
+        clearTimeout(timeout);
+        resolve();
+      }
+    }
+  });
 }

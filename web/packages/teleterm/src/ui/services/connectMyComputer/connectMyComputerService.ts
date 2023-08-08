@@ -32,8 +32,8 @@ export class ConnectMyComputerService {
     private tshClient: TshClient
   ) {}
 
-  async downloadAgent(): Promise<void> {
-    await this.mainProcessClient.downloadAgent();
+  async downloadAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    await this.mainProcessClient.downloadAgent({ rootClusterUri });
   }
 
   createRole(
@@ -81,7 +81,7 @@ export class ConnectMyComputerService {
     return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
   }
 
-  async waitForNodeToJoin(rootClusterUri: uri.RootClusterUri): Promise<Server> {
+  async waitForNodeToJoin(rootClusterUri: uri.RootClusterUri, abortSignal: AbortSignal): Promise<Server> {
     // TODO(gzdunek): Replace with waiting for the node to join.
     await wait(1_000);
     return {

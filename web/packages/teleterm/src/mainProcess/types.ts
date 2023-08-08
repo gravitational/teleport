@@ -95,7 +95,7 @@ export type MainProcessClient = {
   ) => {
     cleanup: () => void;
   };
-  downloadAgent(): Promise<void>;
+  downloadAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   createAgentConfigFile(
     properties: AgentConfigFileClusterProperties
   ): Promise<void>;
@@ -127,6 +127,15 @@ export type GrpcServerAddresses = ChildProcessAddresses & {
 export type Platform = NodeJS.Platform;
 
 export type AgentProcessState =
+  | {
+      status: 'downloading';
+    }
+  | {
+      status: 'starting';
+    }
+  | {
+      status: 'stopping';
+    }
   | {
       status: 'not-started';
     }
