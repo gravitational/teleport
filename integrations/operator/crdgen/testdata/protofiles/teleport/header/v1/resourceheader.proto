@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,20 @@
 
 syntax = "proto3";
 
-package teleport.devicetrust.v1;
+package teleport.header.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
+import "teleport/header/v1/metadata.proto";
 
-// UserCertificates is used to transport X.509 and SSH certificates during
-// device authentication.
-// See the AuthenticateDevice RPC.
-message UserCertificates {
-  // DER-encoded X.509 user certificate.
-  bytes x509_der = 1;
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1;headerv1";
 
-  // SSH certificate marshaled in the authorized key format.
-  bytes ssh_authorized_key = 2;
+// ResourceHeader is a shared resource header.
+message ResourceHeader {
+  // kind is a resource kind.
+  string kind = 1;
+  // sub_kind is an optional resource sub kind, used in some resources.
+  string sub_kind = 2;
+  // version is version.
+  string version = 3;
+  // metadata is resource metadata.
+  Metadata metadata = 4;
 }

@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,14 @@
 
 syntax = "proto3";
 
-package teleport.devicetrust.v1;
+package teleport.trait.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1;traitv1";
 
-// UserCertificates is used to transport X.509 and SSH certificates during
-// device authentication.
-// See the AuthenticateDevice RPC.
-message UserCertificates {
-  // DER-encoded X.509 user certificate.
-  bytes x509_der = 1;
-
-  // SSH certificate marshaled in the authorized key format.
-  bytes ssh_authorized_key = 2;
+// Trait is a trait that can be use in various resources.
+message Trait {
+  // key is the name of the trait.
+  string key = 1;
+  // values is the list of trait values.
+  repeated string values = 2;
 }
