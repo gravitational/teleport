@@ -1162,9 +1162,14 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
-	c.Flag("set-context-name", "Define a custom context name.").StringVar(&c.overrideContextName)
+	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
+		// Use the default context name template if --set-context-name is not set.
+		// This works as an hint to the user that the context name can be customized.
+		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
+		StringVar(&c.overrideContextName)
 	c.Flag("request-reason", "Reason for requesting access").StringVar(&c.requestReason)
 	c.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&c.disableAccessRequest)
+
 	return c
 }
 
@@ -1172,8 +1177,10 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if c.kubeCluster == "" && !c.all {
 		return trace.BadParameter("kube-cluster name is required. Check 'tsh kube ls' for a list of available clusters.")
 	}
-	if c.all && c.overrideContextName != "" {
-		return trace.BadParameter("cannot use --set-context-name with --all")
+	// If --all and --set-context-name are set, ensure that the template is valid
+	// and can produce distinct context names for each cluster before proceeding.
+	if err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName); err != nil && c.all {
+		return trace.Wrap(err)
 	}
 
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
