@@ -89,6 +89,16 @@ const (
 	PortForwardPayload = "Portforward handler message"
 )
 
+// Option is a functional option for KubeMockServer
+type Option func(*KubeMockServer)
+
+// WithGetPodError sets the error to be returned by the GetPod call
+func WithGetPodError(status metav1.Status) Option {
+	return func(s *KubeMockServer) {
+		s.getPodError = &status
+	}
+}
+
 type deletedResource struct {
 	requestID string
 	kind      string
@@ -102,6 +112,7 @@ type KubeMockServer struct {
 	Address          string
 	CA               []byte
 	deletedResources map[deletedResource][]string
+	getPodError      *metav1.Status
 	mu               sync.Mutex
 }
 
@@ -112,12 +123,17 @@ type KubeMockServer struct {
 // The output returns the container followed by a dump of the data received from stdin.
 // More endpoints can be configured
 // TODO(tigrato): add support for other endpoints
-func NewKubeAPIMock() (*KubeMockServer, error) {
+func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 	s := &KubeMockServer{
 		router:           httprouter.New(),
 		log:              log.NewEntry(log.New()),
 		deletedResources: make(map[deletedResource][]string),
 	}
+
+	for _, o := range opts {
+		o(s)
+	}
+
 	s.setup()
 	if err := http2.ConfigureServer(s.server.Config, &http2.Server{}); err != nil {
 		return nil, err
@@ -183,6 +199,10 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 		Message: respErr.Error(),
 		Code:    int32(trace.ErrorToCode(respErr)),
 	}
+	s.writeResponseError(rw, respErr, status)
+}
+
+func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr error, status *metav1.Status) {
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
 		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
@@ -193,7 +213,7 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 	// Always write InternalServerError, that's the only code that kubectl will
 	// parse the Status object for. The Status object has the real status code
 	// embedded.
-	rw.WriteHeader(http.StatusInternalServerError)
+	rw.WriteHeader(int(status.Code))
 	if _, err := rw.Write(data); err != nil {
 		s.log.Warningf("Failed writing kube error response body: %v", err)
 	}
