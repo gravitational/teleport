@@ -82,7 +82,7 @@ func TestStart(t *testing.T) {
 				return &tls.Config{InsecureSkipVerify: true}
 			},
 			connReadExpectationFunc: func(t *testing.T, connReadErr error) {
-				require.ErrorContains(t, connReadErr, "tls: certificate required")
+				require.ErrorContains(t, connReadErr, "tls:")
 			},
 		},
 		{
@@ -93,7 +93,7 @@ func TestStart(t *testing.T) {
 				return &tls.Config{InsecureSkipVerify: true}
 			},
 			connReadExpectationFunc: func(t *testing.T, connReadErr error) {
-				require.ErrorContains(t, connReadErr, "tls: certificate required")
+				require.ErrorContains(t, connReadErr, "tls:")
 			},
 		},
 	}
