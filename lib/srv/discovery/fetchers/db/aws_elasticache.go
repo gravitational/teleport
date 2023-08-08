@@ -146,28 +146,11 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.ResourcesWithLabels
 
 		extraLabels := services.ExtraElastiCacheLabels(cluster, tags, allNodes, allSubnetGroups)
 
-		// Create database using configuration endpoint for Redis with cluster
-		// mode enabled.
-		if aws.BoolValue(cluster.ClusterEnabled) {
-			if database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels); err != nil {
-				f.log.Infof("Could not convert ElastiCache cluster %q configuration endpoint to database resource: %v.",
-					aws.StringValue(cluster.ReplicationGroupId), err)
-			} else {
-				databases = append(databases, database)
-			}
-
-			continue
-		}
-
-		// Create databases using primary and reader endpoints for Redis with
-		// cluster mode disabled. When cluster mode is disabled, it is expected
-		// there is only one node group (aka shard) with one primary endpoint
-		// and one reader endpoint.
-		if databasesFromNodeGroups, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels); err != nil {
-			f.log.Infof("Could not convert ElastiCache cluster %q node groups to database resources: %v.",
+		if dbs, err := services.NewDatabasesFromElastiCacheReplicationGroup(cluster, extraLabels); err != nil {
+			f.log.Infof("Could not convert ElastiCache cluster %q to database resources: %v.",
 				aws.StringValue(cluster.ReplicationGroupId), err)
 		} else {
-			databases = append(databases, databasesFromNodeGroups...)
+			databases = append(databases, dbs...)
 		}
 	}
 
