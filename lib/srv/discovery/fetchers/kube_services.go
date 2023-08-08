@@ -36,10 +36,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-// KubeAppsFetcherConfig configures kubeAppFetcher
+// KubeAppsFetcherConfig configures KubeAppFetcher
 type KubeAppsFetcherConfig struct {
 	// Name of the kubernetes cluster
 	ClusterName string
@@ -76,18 +75,18 @@ func (k *KubeAppsFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// kubeAppFetcher fetches app resources from Kubernetes services
-type kubeAppFetcher struct {
+// KubeAppFetcher fetches app resources from Kubernetes services
+type KubeAppFetcher struct {
 	KubeAppsFetcherConfig
 }
 
 // NewKubeAppsFetcher creates new Kubernetes app fetcher
-func NewKubeAppsFetcher(cfg KubeAppsFetcherConfig) (common.Fetcher, error) {
+func NewKubeAppsFetcher(cfg KubeAppsFetcherConfig) (*KubeAppFetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &kubeAppFetcher{
+	return &KubeAppFetcher{
 		KubeAppsFetcherConfig: cfg,
 	}, nil
 }
@@ -99,7 +98,7 @@ func isInternalKubeService(s v1.Service) bool {
 		s.GetNamespace() == metav1.NamespacePublic
 }
 
-func (f *kubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) {
+func (f *KubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) {
 	var result []v1.Service
 	nextToken := ""
 	namespaceFilter := func(ns string) bool {
@@ -146,7 +145,7 @@ const (
 )
 
 // Get fetches Kubernetes apps from the cluster
-func (f *kubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
+func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
 	kubeServices, err := f.getServices(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -226,16 +225,16 @@ func (f *kubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	return apps.AsResources(), nil
 }
 
-func (f *kubeAppFetcher) ResourceType() string {
+func (f *KubeAppFetcher) ResourceType() string {
 	return types.KindApp
 }
 
-func (f *kubeAppFetcher) Cloud() string {
+func (f *KubeAppFetcher) Cloud() string {
 	return ""
 }
 
-func (f *kubeAppFetcher) String() string {
-	return fmt.Sprintf("kubeAppFetcher(Namespaces=%v, Labels=%v)", f.Namespaces, f.FilterLabels)
+func (f *KubeAppFetcher) String() string {
+	return fmt.Sprintf("KubeAppFetcher(Namespaces=%v, Labels=%v)", f.Namespaces, f.FilterLabels)
 }
 
 // autoProtocolDetection tries to determine port's protocol. It uses heuristics and port HTTP pinging if needed, provided
