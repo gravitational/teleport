@@ -82,6 +82,13 @@ these options:
 You can use `cert-manager` to provision and automatically renew TLS credentials
 by completing ACME challenges via Let's Encrypt.
 
+`cert-manager` can also be used with AWS Private CAs in EKS using the `aws-privateca-issuer`
+plugin.  If using an AWS PCA, you will need to ensure you set `addCommonName: true` in your
+values file.  You will also need to get the certificate authority certificate for the CA
+(`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`),
+upload the full certificate chain to a secret, and reference the secret with 
+`tls.existingCASecretName` in the values file.
+
 This method uses a Kubernetes `LoadBalancer`, which will provision an underlying AWS Network Load
 Balancer (NLB) to handle incoming traffic.
 
