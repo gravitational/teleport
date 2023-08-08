@@ -172,7 +172,6 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 	}{
 		{
 			desc:              "No services",
-			services:          []*corev1.Service{},
 			matcherNamespaces: []string{"ns1"},
 			matcherLabels:     types.Labels{"test-label": []string{"testval"}},
 			expected:          types.Apps{},
