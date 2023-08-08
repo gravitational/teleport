@@ -158,7 +158,7 @@ func (f *kubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	// Convert services to resources
 	var (
 		appsMu sync.Mutex
-		apps types.Apps
+		apps   types.Apps
 	)
 	for _, service := range kubeServices {
 		service := service
@@ -188,7 +188,7 @@ func (f *kubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	}
 
 	if err := g.Wait(); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return apps.AsResources(), nil

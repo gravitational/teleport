@@ -101,8 +101,9 @@ type discoveryClients struct {
 }
 
 type kubeClientGetter struct {
-	mu         sync.RWMutex
+	once       sync.Once
 	kubeClient kubernetes.Interface
+	err        error
 }
 
 func newKubeClientGetter() KubernetesClient {
@@ -110,20 +111,23 @@ func newKubeClientGetter() KubernetesClient {
 }
 
 func (k *kubeClientGetter) GetKubernetesClient() (kubernetes.Interface, error) {
-	if k.kubeClient != nil {
-		return k.kubeClient, nil
-	}
+	k.once.Do(func() {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			k.err = trace.Wrap(err)
+			return
+		}
+		client, err := kubernetes.NewForConfig(cfg)
+		if err != nil {
+			k.err = trace.Wrap(err)
+			return
+		}
+		k.kubeClient = client
+	})
 
-	cfg, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if k.err != nil {
+		return nil, k.err
 	}
-	client, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	k.kubeClient = client
 
 	return k.kubeClient, nil
 }
