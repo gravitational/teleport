@@ -112,7 +112,7 @@ on your local computer.
    $ tsh ls --query 'labels["environment"]=="dev"'
    ```
 
-   You should see output similiar to the following:
+   You should see output similar to the following:
 
    ```code
    Node Name        Address    Labels                                                                                                       
@@ -145,8 +145,8 @@ on your local computer.
    
    ```code
    > Profile URL:        https://ajuba-aws.teledocs.click:443
-     Logged in as:       lsgunn-admin
-     Cluster:            ajuba-aws.teledocs.click
+     Logged in as:       teleport-admin
+     Cluster:            teleport-aws.example.com
      Roles:              access, editor
      Logins:             root, ubuntu, ec2-user
      Kubernetes:         enabled
@@ -165,7 +165,7 @@ on your local computer.
       $ tctl get user/myuser > user.yaml
       ```
    
-   1. Locat the `traits` section and update the `logins` field to specify one or more local users that exist 
+   1. Locate the `traits` section and update the `logins` field to specify one or more local users that exist 
    on the local host:
 
       ```diff
@@ -180,14 +180,14 @@ on your local computer.
       version: v2
       ```
 
-   1. Apply your changes by running the following cmmand:
+   1. Apply your changes by running the following command:
 
       ```code
       $ tctl create -f user.yaml
       user "myuser" has been updated
       ```
 
-   1. Sign out, then sign back in to the cluseter and run `tsh ls`.
+   1. Sign out, then sign back in to the cluster and run `tsh ls`.
 
    For more information about managing logins for Teleport users, see [Local Users](../../management/admin/users).
 
@@ -254,7 +254,7 @@ host server every one hour.
    ```
    
    For more complex commands, you can use single (') and double (") 
-   quotation marks interchangeablely to create nested expressions. 
+   quotation marks interchangeably to create nested expressions. 
    For example:
 
    ```yaml
@@ -268,12 +268,12 @@ host server every one hour.
    - Shell scripts must have a [shebang line](https://en.wikipedia.org/wiki/Shebang_\(Unix\)).
    
    The `period` setting specifies how frequently Teleport executes each command.
-   In this eaxample, the `uname -p` command is executed every one hour (1h), zero minutes (0m),
+   In this example, the `uname -p` command is executed every one hour (1h), zero minutes (0m),
    and zero seconds (0s). This value can't be less than one minute.
 
 1. Save your changes and close the file.
 
-1. Start Teleport with the invitation token you saved in the `INVITE_TOKEN` eni=vironment variable:
+1. Start Teleport with the invitation token you saved in the `INVITE_TOKEN` environment variable:
 
    ```code
    $ sudo teleport start --token=${INVITE_TOKEN?}
