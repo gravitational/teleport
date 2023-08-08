@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,8 +32,11 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
-const DefaultMaxConcurrency = 128
-const DefaultEventFuncTimeout = time.Second * 5
+const (
+	DefaultMaxConcurrency   = 128
+	DefaultEventFuncTimeout = time.Second * 5
+	failFastEnvVarName      = "TELEPORT_PLUGIN_FAIL_FAST"
+)
 
 type EventFunc func(context.Context, types.Event) error
 
@@ -39,6 +44,7 @@ type Config struct {
 	Watch            types.Watch
 	MaxConcurrency   int
 	EventFuncTimeout time.Duration
+	FailFast         bool
 }
 
 type job struct {
@@ -54,16 +60,23 @@ type eventKey struct {
 	name string
 }
 
-func NewJob(client teleport.Client, config Config, fn EventFunc) lib.ServiceJob {
+func NewJob(client teleport.Client, config Config, fn EventFunc) (lib.ServiceJob, error) {
 	return NewJobWithEvents(client, config, fn)
 }
 
-func NewJobWithEvents(events types.Events, config Config, fn EventFunc) lib.ServiceJob {
+func NewJobWithEvents(events types.Events, config Config, fn EventFunc) (lib.ServiceJob, error) {
 	if config.MaxConcurrency == 0 {
 		config.MaxConcurrency = DefaultMaxConcurrency
 	}
 	if config.EventFuncTimeout == 0 {
 		config.EventFuncTimeout = DefaultEventFuncTimeout
+	}
+	if flagVar := os.Getenv(failFastEnvVarName); !config.FailFast && flagVar != "" {
+		flag, err := strconv.ParseBool(flagVar)
+		if err != nil {
+			return nil, trace.WrapWithMessage(err, "failed to parse content '%s' of the %s environment variable", flagVar, failFastEnvVarName)
+		}
+		config.FailFast = flag
 	}
 	job := job{
 		events:    events,
@@ -95,18 +108,15 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) lib.Serv
 
 			switch {
 			case trace.IsConnectionProblem(err):
-<<<<<<< HEAD
-				log.WithError(err).Error("Failed to connect to Teleport Auth server. Reconnecting...")
+				if config.FailFast {
+					return trace.WrapWithMessage(err, "Connection problem detected. Exiting as fail fast is on.")
+				}
+				log.WithError(err).Error("Connection problem detected. Attempting to reconnect.")
 			case errors.Is(err, io.EOF):
-=======
-				// Not all connection problems can be retried. The client can
-				// end up in a broken state and won't be able to connect.
-				// Exiting in error is noisier but allows the orchestrator to
-				// know something is not right.
-				return trace.WrapWithMessage(err, "Failed to connect to Teleport server. Exiting.")
-			case trace.IsEOF(err):
->>>>>>> 5965bbe145 (integrations/access: avoid infinite retry on broken connection)
-				log.WithError(err).Error("Watcher stream closed. Reconnecting...")
+				if config.FailFast {
+					return trace.WrapWithMessage(err, "Watcher stream closed. Exiting as fail fast is on.")
+				}
+				log.WithError(err).Error("Watcher stream closed. Attempting to reconnect.")
 			case lib.IsCanceled(err):
 				log.Debug("Watcher context is canceled")
 				// Context cancellation is not an error
@@ -123,7 +133,7 @@ func NewJobWithEvents(events types.Events, config Config, fn EventFunc) lib.Serv
 			}
 		}
 	})
-	return job
+	return job, nil
 }
 
 // watchEvents spawns a watcher and reads events from it.
