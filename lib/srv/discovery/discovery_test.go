@@ -486,11 +486,11 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
 				},
 			},
-			expectedAppsToExistInAuth: types.Apps{app1, app2},
+			expectedAppsToExistInAuth: types.Apps{app1.Copy(), app2.Copy()},
 		},
 		{
 			name:         "one app in auth server, import 1 apps",
-			existingApps: types.Apps{app1},
+			existingApps: types.Apps{app1.Copy()},
 			kubernetesMatchers: []types.KubernetesMatcher{
 				{
 					Types:      []string{"app"},
@@ -498,11 +498,11 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
 				},
 			},
-			expectedAppsToExistInAuth: types.Apps{app1, app2},
+			expectedAppsToExistInAuth: types.Apps{app1.Copy(), app2.Copy()},
 		},
 		{
 			name:         "two apps in the auth server, one updated one imported",
-			existingApps: types.Apps{modifiedApp1, app2},
+			existingApps: types.Apps{modifiedApp1.Copy(), app2.Copy()},
 			kubernetesMatchers: []types.KubernetesMatcher{
 				{
 					Types:      []string{"app"},
@@ -510,11 +510,11 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
 				},
 			},
-			expectedAppsToExistInAuth: types.Apps{app1, app2},
+			expectedAppsToExistInAuth: types.Apps{app1.Copy(), app2.Copy()},
 		},
 		{
 			name:         "one app in auth server, discovery doesn't match another app",
-			existingApps: types.Apps{app1},
+			existingApps: types.Apps{app1.Copy()},
 			kubernetesMatchers: []types.KubernetesMatcher{
 				{
 					Types:      []string{"app"},
@@ -522,11 +522,11 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
 				},
 			},
-			expectedAppsToExistInAuth: types.Apps{app1},
+			expectedAppsToExistInAuth: types.Apps{app1.Copy()},
 		},
 		{
 			name:         "one app in auth server from another discovery group, import 2 apps",
-			existingApps: types.Apps{otherGroupApp1},
+			existingApps: types.Apps{otherGroupApp1.Copy()},
 			kubernetesMatchers: []types.KubernetesMatcher{
 				{
 					Types:      []string{"app"},
@@ -534,7 +534,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
 				},
 			},
-			expectedAppsToExistInAuth: types.Apps{app1, otherGroupApp1, app2},
+			expectedAppsToExistInAuth: types.Apps{app1.Copy(), otherGroupApp1.Copy(), app2.Copy()},
 		},
 	}
 

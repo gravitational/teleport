@@ -322,7 +322,7 @@ func NewProtoChecker(insecureSkipVerify bool) *ProtoChecker {
 
 func (p *ProtoChecker) createClient() {
 	p.client = &http.Client{
-		Timeout: 2 * time.Second,
+		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: p.InsecureSkipVerify,
