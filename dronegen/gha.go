@@ -87,7 +87,7 @@ func ghaMultiBuildPipeline(setupSteps []step, ghaBuild ghaBuildType) pipeline {
 
 	for counter, workflow := range ghaBuild.workflows {
 		// This wait time is to avoid a GHA pending/queuing issue where multiple workflows fired off at the same time
-		// (or somewhat close to the same time) will cause only one workflow to be queued, with the others being cancelled.
+		// (or somewhat close to the same time) will cause only one workflow to be queued, with the others being canceled.
 		// For details, see
 		// https://docs.github.com/en/actions/using-jobs/using-concurrency#example-only-cancel-in-progress-jobs-or-runs-for-the-current-workflow:~:text=When%20a%20concurrent,progress%3A%20true.
 		sleepTime := time.Duration(counter*10) * time.Second // 10 seconds for each workflow
