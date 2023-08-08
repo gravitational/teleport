@@ -331,9 +331,9 @@ func TestDiscoveryServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testClients := discoveryClients{
-				KubernetesClient: &mockKubeClientGetter{},
-				Clients: &cloud.TestCloudClients{
+			testClients := Clients{
+				Kubernetes: fake.NewSimpleClientset(),
+				Cloud: &cloud.TestCloudClients{
 					EC2: &mockEC2Client{
 						output: &ec2.DescribeInstancesOutput{
 							Reservations: []*ec2.Reservation{
@@ -372,7 +372,7 @@ func TestDiscoveryServer(t *testing.T) {
 
 			logger := logrus.New()
 			server, err := New(context.Background(), &Config{
-				Clients:     &testClients,
+				Clients:     testClients,
 				AccessPoint: tlsServer.Auth(),
 				AWSMatchers: []types.AWSMatcher{{
 					Types:   []string{"ec2"},
@@ -545,11 +545,9 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			for _, s := range mockKubeServices {
 				objects = append(objects, s)
 			}
-			fakeClient := fake.NewSimpleClientset(objects...)
-
-			testClients := discoveryClients{
-				KubernetesClient: &mockKubeClientGetter{kubeClient: fakeClient},
-				Clients:          &cloud.TestCloudClients{},
+			testClients := Clients{
+				Kubernetes: fake.NewSimpleClientset(objects...),
+				Cloud:      &cloud.TestCloudClients{},
 			}
 
 			ctx := context.Background()
@@ -611,7 +609,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					Clients:            &testClients,
+					Clients:            testClients,
 					AccessPoint:        tlsServer.Auth(),
 					KubernetesMatchers: tt.kubernetesMatchers,
 					Emitter:            authClient,
@@ -865,9 +863,9 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			t.Parallel()
 			sts := &mocks.STSMock{}
 
-			testClients := discoveryClients{
-				KubernetesClient: &mockKubeClientGetter{},
-				Clients: &cloud.TestCloudClients{
+			testClients := Clients{
+				Kubernetes: fake.NewSimpleClientset(),
+				Cloud: &cloud.TestCloudClients{
 					STS:            sts,
 					AzureAKSClient: newPopulatedAKSMock(),
 					EKS:            newPopulatedEKSMock(),
@@ -933,7 +931,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					Clients:        &testClients,
+					Clients:        testClients,
 					AccessPoint:    tlsServer.Auth(),
 					AWSMatchers:    tc.awsMatchers,
 					AzureMatchers:  tc.azureMatchers,
@@ -1277,9 +1275,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
-	testClients := discoveryClients{
-		KubernetesClient: &mockKubeClientGetter{},
-		Clients: &cloud.TestCloudClients{
+	testClients := Clients{
+		Kubernetes: fake.NewSimpleClientset(),
+		Cloud: &cloud.TestCloudClients{
 			STS: &mocks.STSMock{},
 			RDS: &mocks.RDSMock{
 				DBInstances: []*rds.DBInstance{awsRDSInstance},
@@ -1732,9 +1730,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testClients := discoveryClients{
-				KubernetesClient: &mockKubeClientGetter{},
-				Clients: &cloud.TestCloudClients{
+			testClients := Clients{
+				Kubernetes: fake.NewSimpleClientset(),
+				Cloud: &cloud.TestCloudClients{
 					AzureVirtualMachines: &mockAzureClient{
 						vms: tc.foundAzureVMs,
 					},
@@ -1766,7 +1764,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			logger := logrus.New()
 			emitter := &mockEmitter{}
 			server, err := New(context.Background(), &Config{
-				Clients:     &testClients,
+				Clients:     testClients,
 				AccessPoint: tlsServer.Auth(),
 				AzureMatchers: []types.AzureMatcher{{
 					Types:          []string{"vm"},
