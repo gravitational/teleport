@@ -97,7 +97,7 @@ type Server interface {
 	SetCloudMetadata(meta *CloudMetadata)
 
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICE.
 	IsOpenSSHNode() bool
 }
 
@@ -419,13 +419,13 @@ func (s *ServerV2) setStaticFields() {
 }
 
 // IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICE.
 func (s *ServerV2) IsOpenSSHNode() bool {
-	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEC2InstanceConnectEndpointNode
+	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEICE
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
-// They include SubKindOpenSSHNode and SubKindOpenSSHEC2InstanceConnectEndpointNode.
+// They include SubKindOpenSSHNode and SubKindOpenSSHEICE.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	if s.Spec.Addr == "" {
 		return trace.BadParameter(`addr must be set when server SubKind is "openssh"`)
@@ -444,13 +444,13 @@ func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	return nil
 }
 
-// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEC2InstanceConnectEndpointNode.
+// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEICE.
 func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() error {
 	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// AWS fields are required for SubKindOpenSSHEC2InstanceConnectEndpointNode.
+	// AWS fields are required for SubKindOpenSSHEICE.
 	switch {
 	case s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil:
 		return trace.BadParameter("missing AWS CloudMetadata (required for %q SubKind)", s.SubKind)
@@ -505,7 +505,7 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 
-	case SubKindOpenSSHEC2InstanceConnectEndpointNode:
+	case SubKindOpenSSHEICE:
 		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}

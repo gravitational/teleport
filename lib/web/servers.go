@@ -357,8 +357,8 @@ func (r *createNodeRequest) checkAndSetDefaults() error {
 	//
 	// Agentless Nodes with Teleport CA call the Teleport Proxy and upsert themselves,
 	// so they are also not meant to be added from web api.
-	if r.SubKind != types.SubKindOpenSSHEC2InstanceConnectEndpointNode {
-		return trace.BadParameter("invalid subkind %q, only %q is supported", r.SubKind, types.SubKindOpenSSHEC2InstanceConnectEndpointNode)
+	if r.SubKind != types.SubKindOpenSSHEICE {
+		return trace.BadParameter("invalid subkind %q, only %q is supported", r.SubKind, types.SubKindOpenSSHEICE)
 	}
 
 	if r.Hostname == "" {

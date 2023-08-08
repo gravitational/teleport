@@ -41,7 +41,7 @@ func TestCreateNode(t *testing.T) {
 	makeCreateNodeRequest := func(fn func(*createNodeRequest)) createNodeRequest {
 		s := createNodeRequest{
 			Name:     uuid.NewString(),
-			SubKind:  types.SubKindOpenSSHEC2InstanceConnectEndpointNode,
+			SubKind:  types.SubKindOpenSSHEICE,
 			Hostname: "myhostname",
 			Addr:     "172.31.1.1:22",
 			Labels:   []ui.Label{},

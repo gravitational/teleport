@@ -1074,7 +1074,7 @@ func (s *session) sessionRecordingMode() string {
 
 	// agentless connections always record the session at the proxy
 	if !services.IsRecordAtProxy(sessionRecMode) && (subKind == types.SubKindOpenSSHNode ||
-		subKind == types.SubKindOpenSSHEC2InstanceConnectEndpointNode) {
+		subKind == types.SubKindOpenSSHEICE) {
 		if services.IsRecordSync(sessionRecMode) {
 			sessionRecMode = types.RecordAtProxySync
 		} else {
