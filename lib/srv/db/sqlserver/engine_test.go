@@ -79,8 +79,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -99,8 +102,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -120,8 +126,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.DatabaseSessionQuery{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
@@ -153,8 +162,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.DatabaseSessionQuery{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
@@ -176,8 +188,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -201,8 +216,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				hasAuditEventCode(libevents.DatabaseSessionEndCode),
 				hasAuditEvent(1, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -213,8 +231,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				}),
 				hasAuditEvent(2, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -225,8 +246,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				}),
 				hasAuditEvent(3, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -237,8 +261,11 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				}),
 				hasAuditEvent(4, &events.SQLServerRPCRequest{
 					DatabaseMetadata: events.DatabaseMetadata{
-						DatabaseUser: "sa",
-						DatabaseType: "self-hosted",
+						DatabaseUser:     "sa",
+						DatabaseType:     "self-hosted",
+						DatabaseService:  "dummy",
+						DatabaseURI:      "uri",
+						DatabaseProtocol: "test",
 					},
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
@@ -257,6 +284,15 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			_, err := b.Write(fixtures.Login7)
 			require.NoError(t, err)
 
+			db, err := types.NewDatabaseV3(types.Metadata{
+				Name:   "dummy",
+				Labels: map[string]string{"env": "prod"},
+			}, types.DatabaseSpecV3{
+				Protocol: "test",
+				URI:      "uri",
+			})
+			require.NoError(t, err)
+
 			for _, packet := range tc.packets {
 				_, err = b.Write(packet)
 				require.NoError(t, err)
@@ -266,6 +302,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			audit, err := common.NewAudit(common.AuditConfig{
 				Emitter:  emitterMock,
 				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
+				Database: db,
 			})
 			require.NoError(t, err)
 
@@ -288,7 +325,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 
 			err = e.HandleConnection(context.Background(), &common.Session{
 				Checker:  &mockChecker{},
-				Database: &types.DatabaseV3{},
+				Database: db,
 			})
 			for _, ch := range tc.checks {
 				ch(t, err, emitterMock.Events())

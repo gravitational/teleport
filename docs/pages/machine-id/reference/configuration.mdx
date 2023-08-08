@@ -358,3 +358,37 @@ Configuration:
 # will always be `memory`.
 type: memory
 ```
+
+#### `kubernetes_secret`
+
+The `kubernetes_secret` destination type stores artifacts in a Kubernetes
+secret. This allows them to be mounted into other containers deployed in
+Kubernetes.
+
+Prerequisites:
+
+- `tbot` must be running in Kubernetes with at most one replica. If using a
+  `deployment`, then the `Recreate` strategy must be used to ensure only one
+  instance exists at any time. This is because multiple `tbot` agents configured
+  with the same secret will compete to write to the secret and it may be left
+  in an inconsistent state or the `tbot` agents may fail to write.
+- The `tbot` pod must be configured with a service account that allows it to
+  read and write from the configured secret.
+- The `POD_NAMESPACE` environment variable must be configured with the
+  name of the namespace that `tbot` is running in. This is best achieved with
+  the [Downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/).
+
+There is no requirement that the secret already exists, one will be created
+if it does not exist. If a secret already exists, `tbot` will overwrite any
+other keys within the secret.
+
+Configuration:
+
+```yaml
+# type specifies the type of the destination. For the kubernetes_secret
+# destination, this will always be `kubernetes_secret`.
+type: kubernetes_secret
+# name specifies the name of the Kubernetes Secret to write the artifacts to.
+# This must be in the same namespace that `tbot` is running in.
+name: my-secret
+```

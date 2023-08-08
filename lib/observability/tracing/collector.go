@@ -31,6 +31,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
 // Collector is a simple in memory implementation of an OpenTelemetry Collector
@@ -80,7 +82,12 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 		exportedC:  make(chan struct{}, 1),
 	}
 
-	c.httpServer = &http.Server{Handler: c, TLSConfig: tlsConfig.Clone()}
+	c.httpServer = &http.Server{
+		Handler:           c,
+		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		TLSConfig:         tlsConfig.Clone(),
+	}
 
 	coltracepb.RegisterTraceServiceServer(c.grpcServer, c)
 

@@ -600,6 +600,10 @@ message AgentMetadataEvent {
   string container_runtime = 9;
   string container_orchestrator = 10;
   string cloud_environment = 11;
+
+  // external_upgrader is the name of the registered external upgrader. if non-empty, this field indicates
+  // that the associated agent is enrolled in automatic upgrades.
+  string external_upgrader = 12;
 }
 
 // AssistCompletionEvent is an event that is emitted
@@ -618,6 +622,33 @@ message AssistCompletionEvent {
   int64 prompt_tokens = 4;
   // CompletionTokens is the amount of tokens that the completion response consists of
   int64 completion_tokens = 5;
+}
+
+// AssistExecutionEvent is an event that is emitted when an Assist command
+// execution is triggered by the user.
+message AssistExecutionEvent {
+  // UserName is anonymized user name
+  string user_name = 1;
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 2;
+  // NodeCount is the number of nodes the command was executed on
+  int64 node_count = 3;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 4;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 5;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 6;
+}
+
+// AssistNewConversationEvent is an event that is emitted for each new Assist
+// conversation and contains the conversation category.
+message AssistNewConversationEvent {
+  // UserName is anonymized user name
+  string user_name = 1;
+  // Category is the conversation category. This represents what kind of request
+  // the user is asking Assist.
+  string category = 2;
 }
 
 // IntegrationEnrollKind represents the types of integration that
@@ -765,6 +796,9 @@ message SubmitEventRequest {
     UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 48;
 
     BotJoinEvent bot_join = 49;
+
+    AssistExecutionEvent assist_execution = 50;
+    AssistNewConversationEvent assist_new_conversation = 51;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
