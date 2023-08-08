@@ -897,6 +897,7 @@ func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discover
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyEKSNameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
@@ -905,6 +906,7 @@ func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, d
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyAKSNameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
@@ -979,6 +981,7 @@ func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discov
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	common.ApplyGKENameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
@@ -1756,7 +1759,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 
 // TestServer_onCreate tests the update of the discovery_group of a resource
 // when it differs from the one in the database.
-// TODO(tigrato): DELETE in 14.0.0
+// TODO(tigrato): DELETE in 15.0.0
 func TestServer_onCreate(t *testing.T) {
 	_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
 	accessPoint := &fakeAccessPoint{}

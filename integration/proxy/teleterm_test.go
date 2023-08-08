@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -252,7 +253,7 @@ func TestTeletermKubeGateway(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
@@ -349,7 +350,7 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 			client = kubeClientForLocalProxy(t, kubeconfigPath, teleportCluster, kubeCluster)
 		})
 
-		mustGetKubePod(t, client, kubePodName)
+		mustGetKubePod(t, client)
 	}
 
 	testGatewayCertRenewal(
@@ -362,7 +363,6 @@ func testKubeGatewayCertRenewal(t *testing.T, suite *Suite, albAddr string, kube
 		},
 		testKubeConnection,
 	)
-
 }
 
 func checkKubeconfigPathInCommandEnv(t *testing.T, gw gateway.Gateway, wantKubeconfigPath string) {

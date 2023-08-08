@@ -897,6 +897,10 @@
               "slug": "/server-access/guides/azure-discovery/"
             },
             {
+              "title": "GCP Instance Discovery",
+              "slug": "/server-access/guides/gcp-discovery/"
+            },
+            {
               "title": "Using Teleport with Ansible",
               "slug": "/server-access/guides/ansible/"
             }

@@ -314,9 +314,6 @@ const (
 )
 
 const (
-	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
-	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
 )
