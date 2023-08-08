@@ -751,6 +751,61 @@ func TestAWSIAMDocuments(t *testing.T) {
 				},
 			},
 		},
+		"OpenSearch discovery": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Service: config.Service{EnabledFlag: "true"},
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"es:ListDomainNames", "es:DescribeDomains", "es:ListTags"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"es:ListDomainNames", "es:DescribeDomains", "es:ListTags", "sts:AssumeRole"},
+				},
+			},
+		},
+		"OpenSearch static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Service: config.Service{EnabledFlag: "true"},
+					Databases: []*config.Database{{
+						Name:     "opensearch1",
+						Protocol: "opensearch",
+						URI:      "search-opensearch1-aaaabbbbcccc.us-west-1.es.amazonaws.com:443",
+						AWS: config.DatabaseAWS{
+							AccountID: "123456789012",
+						},
+					}},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"es:ListDomainNames", "es:DescribeDomains", "es:ListTags"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"es:ListDomainNames", "es:DescribeDomains", "es:ListTags", "sts:AssumeRole"},
+				},
+			},
+		},
 		"target in assume role": {
 			target: roleTarget,
 			fileConfig: &config.FileConfig{
@@ -977,6 +1032,24 @@ func TestAWSIAMDocuments(t *testing.T) {
 						Effect:    awslib.EffectAllow,
 						Resources: awslib.SliceOrString{"*"},
 						Actions:   awslib.SliceOrString{"memorydb:ListTags", "memorydb:DescribeClusters", "memorydb:DescribeSubnetGroups"},
+					},
+				},
+				wantInlineAsBoundary: true,
+			},
+			"OpenSearch": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						Service: config.Service{EnabledFlag: "true"},
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"es:DescribeDomains", "es:ListDomainNames", "es:ListTags"},
 					},
 				},
 				wantInlineAsBoundary: true,
@@ -1265,6 +1338,23 @@ func TestAWSIAMDocuments(t *testing.T) {
 							"secretsmanager:TagResource",
 						},
 						Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
+					},
+				},
+			},
+			"OpenSearch": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						Service: config.Service{EnabledFlag: "true"},
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{services.AWSMatcherOpenSearch}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				boundaryStatements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"sts:AssumeRole"},
 					},
 				},
 			},
