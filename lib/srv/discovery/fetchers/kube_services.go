@@ -156,8 +156,10 @@ func (f *kubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	g.SetLimit(10)
 
 	// Convert services to resources
-	var appsMu sync.Mutex
-	var apps types.Apps
+	var (
+		appsMu sync.Mutex
+		apps types.Apps
+	)
 	for _, service := range kubeServices {
 		service := service
 
