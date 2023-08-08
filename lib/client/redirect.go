@@ -152,7 +152,8 @@ func (rd *Redirector) Start() error {
 			Config: &http.Server{
 				Handler:           rd.mux,
 				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
-				IdleTimeout:       apidefaults.DefaultIdleTimeout},
+				IdleTimeout:       apidefaults.DefaultIdleTimeout,
+			},
 		}
 		rd.server.Start()
 	} else {
