@@ -17,15 +17,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import {
-  Box,
-  ButtonBorder,
-  ButtonLink,
-  ButtonText,
-  Flex,
-  Label,
-  Text,
-} from 'design';
+import { Box, ButtonBorder, ButtonLink, Flex, Label, Text } from 'design';
 
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
@@ -42,23 +34,11 @@ import {
   UnifiedResourceKind,
 } from 'teleport/services/agents';
 
+// Since we do a lot of manual resizing and some absolute positioning, we have
+// to put some layout constants in place here.
 const labelRowHeight = 26; // px
 const labelVerticalMargin = 1; // px
 const labelHeight = labelRowHeight - 2 * labelVerticalMargin;
-
-const SingleLineBox = styled(Box)`
-  overflow: hidden;
-  white-space: nowrap;
-`;
-
-const ResourceLabel = styled(Label)`
-  height: ${labelHeight}px;
-  margin: 1px 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-`;
 
 /**
  * This box serves twofold purpose: first, it prevents the underlying icon from
@@ -72,7 +52,7 @@ const ResTypeIconBox = styled(Box)`
 
 type Props = {
   resource: UnifiedResource;
-  onLabelClick: (label: AgentLabel) => void;
+  onLabelClick?: (label: AgentLabel) => void;
 };
 
 export const ResourceCard = ({ resource, onLabelClick }: Props) => {
@@ -80,11 +60,16 @@ export const ResourceCard = ({ resource, onLabelClick }: Props) => {
   const resIcon = resourceIconName(resource);
   const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
+
   const labelsInnerContainer = React.useRef(null);
+
   const [showMoreLabelsButton, setShowMoreLabelsButton] = React.useState(false);
   const [showAllLabels, setShowAllLabels] = React.useState(false);
   const [numMoreLabels, setNumMoreLabels] = React.useState(0);
 
+  // This effect installs a resize observer whose purpose is to detect the size
+  // of the component that contains all the labels. If this component is taller
+  // than the height of a single label row, we show a "+x more" button.
   React.useEffect(() => {
     if (!labelsInnerContainer.current) return;
 
@@ -97,11 +82,13 @@ export const ResourceCard = ({ resource, onLabelClick }: Props) => {
         container.contentBoxSize[0].blockSize > labelRowHeight * 1.5;
       setShowMoreLabelsButton(moreThanOneRow);
 
-      // Count number of labels in the first row.
+      // Count number of labels in the first row. This will let us calculate and
+      // show the number of labels left out from the view.
       const labelElements = [
         ...entries[0].target.querySelectorAll('[data-is-label]'),
       ];
       const firstLabelPos = labelElements[0]?.getBoundingClientRect().top;
+      // Find the first one below.
       const firstLabelInSecondRow = labelElements.findIndex(
         e => e.getBoundingClientRect().top > firstLabelPos
       );
@@ -272,10 +259,30 @@ function resourceTypeIcon(kind: UnifiedResourceKind) {
   }
 }
 
+/**
+ * The outer container's purpose is to reserve horizontal space on the resource
+ * grid. It holds the inner container that normally holds a regular layout of
+ * the card, and is fully contained inside the outer container.  Once the user
+ * clicks the "more" button, the inner container "pops out" by changing its
+ * position to absolute.
+ *
+ * TODO(bl-nero): Known issue: this doesn't really work well with one-column
+ * layout; we may need to globally set the card height to fixed size on the
+ * outer container.
+ */
 const CardContainer = styled(Box)`
   position: relative;
 `;
 
+/**
+ * The inner container that normally holds a regular layout of the card, and is
+ * fully contained inside the outer container.  Once the user clicks the "more"
+ * button, the inner container "pops out" by changing its position to absolute.
+ *
+ * TODO(bl-nero): Known issue: this doesn't really work well with one-column
+ * layout; we may need to globally set the card height to fixed size on the
+ * outer container.
+ */
 const CardInnerContainer = styled(Flex)`
   border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
   background-color: ${props => props.theme.colors.levels.sunken};
@@ -300,28 +307,58 @@ const CardInnerContainer = styled(Flex)`
   }
 `;
 
+const SingleLineBox = styled(Box)`
+  overflow: hidden;
+  white-space: nowrap;
+`;
+
+/**
+ * The outer labels container is resized depending on whether we want to show a
+ * single row, or all labels. It hides the internal container's overflow if more
+ * than one row of labels exist, but is not yet visible.
+ */
 const LabelsContainer = styled(Box)`
   ${props => (props.showAll ? '' : `height: ${labelRowHeight}px;`)}
   overflow: hidden;
 `;
 
-const LabelsInnerContainer = styled(Flex)`
-  gap: ${props => props.theme.space[1]}px;
-  flex-wrap: wrap;
-  align-items: start;
-  position: relative;
+const ResourceLabel = styled(Label)`
+  height: ${labelHeight}px;
+  margin: 1px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
 `;
 
+/**
+ * The inner labels container always adapts to the size of labels.  Its height
+ * is measured by the resize observer.
+ */
+const LabelsInnerContainer = styled(Flex)`
+  position: relative;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: ${props => props.theme.space[1]}px;
+`;
+
+/**
+ * It's important for this button to use absolute positioning; otherwise, its
+ * presence in the layout may itself influence the resize logic, potentially
+ * causing a feedback loop.
+ */
 const MoreLabelsButton = styled(ButtonLink)`
-  background-color: ${props => props.theme.colors.levels.sunken};
-  color: ${props => props.theme.colors.text.slightlyMuted};
+  position: absolute;
+  right: 0;
+
   height: ${labelHeight}px;
   margin: ${labelVerticalMargin}px 0;
   min-height: 0;
+
+  background-color: ${props => props.theme.colors.levels.sunken};
+  color: ${props => props.theme.colors.text.slightlyMuted};
   font-style: italic;
   border-radius: 0;
-  position: absolute;
-  right: 0;
 
   transition: visibility 0s;
   transition: background 150ms;
