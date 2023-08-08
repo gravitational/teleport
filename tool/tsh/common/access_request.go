@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
@@ -474,7 +475,7 @@ func onRequestSearch(cf *CLIConf) error {
 			row = []string{
 				resource.GetName(),
 				r.Spec.Namespace,
-				sortedLabels(resource.GetAllLabels()),
+				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
 			}
 
@@ -496,13 +497,18 @@ func onRequestSearch(cf *CLIConf) error {
 			row = []string{
 				resource.GetName(),
 				hostName,
-				sortedLabels(resource.GetAllLabels()),
+				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
 			}
 		}
 		rows = append(rows, row)
 	}
-	table := asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	var table asciitable.Table
+	if cf.Verbose {
+		table = asciitable.MakeTable(tableColumns, rows...)
+	} else {
+		table = asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	}
 	if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
 		return trace.Wrap(err)
 	}
