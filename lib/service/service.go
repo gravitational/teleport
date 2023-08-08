@@ -4968,7 +4968,8 @@ func (process *TeleportProcess) initApps() {
 			var rewrite *types.Rewrite
 			if app.Rewrite != nil {
 				rewrite = &types.Rewrite{
-					Redirect: app.Rewrite.Redirect,
+					Redirect:  app.Rewrite.Redirect,
+					JWTClaims: app.Rewrite.JWTClaims,
 				}
 				for _, header := range app.Rewrite.Headers {
 					rewrite.Headers = append(rewrite.Headers,
