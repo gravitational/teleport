@@ -269,7 +269,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			objects := []runtime.Object{}
+			var objects []runtime.Object
 			for _, s := range tt.services {
 				objects = append(objects, s)
 			}
