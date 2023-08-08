@@ -68,7 +68,7 @@ func (m Matchers) IsEmpty() bool {
 type Config struct {
 	// CloudClients is an interface for retrieving cloud clients.
 	CloudClients cloud.Clients
-	// Kubernetes is the Kubernetes client interface
+	// KubernetesClient is the Kubernetes client interface
 	KubernetesClient kubernetes.Interface
 	// Matchers stores all types of matchers to discover resources
 	Matchers Matchers
