@@ -1375,11 +1375,16 @@ message ProvisionTokenSpecV2Kubernetes {
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2KubernetesRemote {
   // Rule is a set of properties the Kubernetes-issued token might have to be
-  // allowed to use this ProvisionToken
+  // allowed to use this ProvisionToken.
   message Rule {
     // ServiceAccount is the namespaced name of the Kubernetes service account.
-    // Its format is "namespace:service-account".
+    // The format is "namespace:service-account". This value must be provided
+    // for each rule.
     string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
+    // Clusters is a list of cluster names.
+    // If empty, the allow rule can be used by any cluster. If specified,
+    // only tokens from the specified clusters can use this allow rule.
+    repeated string Clusters = 2 [(gogoproto.jsontag) = "clusters,omitempty"];
   }
 
   // Cluster is a set of properties that describe a cluster that an entity may
@@ -1401,7 +1406,7 @@ message ProvisionTokenSpecV2KubernetesRemote {
   // Clusters is a list of Cluster that are accepted sources of JWTs to use
   // against this token. A Service Account JWT signed by a cluster not listed
   // here will be rejected.
-  repeated Cluster Clusters = 1;
+  repeated Cluster Clusters = 1 [(gogoproto.jsontag) = "clusters,omitempty"];
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 2 [(gogoproto.jsontag) = "allow,omitempty"];
