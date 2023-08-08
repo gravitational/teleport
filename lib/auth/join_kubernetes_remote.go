@@ -15,3 +15,59 @@ limitations under the License.
 */
 
 package auth
+
+import (
+	"context"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/trace"
+)
+
+func (a *Server) RegisterUsingKubernetesRemoteMethod(ctx context.Context, req *types.RegisterUsingTokenRequest, solver client.KubernetesRemoteChallengeSolver) (*proto.Certs, error) {
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.RemoteAddr = clientAddr.String()
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	solutionJWT, err := solver("challenge")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if provisionToken.GetVersion() != types.V2 {
+		panic("version mitcmathc")
+	}
+	if provisionToken.GetJoinMethod() != types.JoinMethodKubernetesRemote {
+		panic("mismtatch join methiod")
+	}
+
+	// TODO: Evaluate solutionJWT
+
+	if req.Role == types.RoleBot {
+		certs, err := a.generateCertsBot(
+			ctx,
+			provisionToken,
+			req,
+			nil,
+		)
+		return certs, trace.Wrap(err)
+	}
+	certs, err := a.generateCerts(
+		ctx,
+		provisionToken,
+		req,
+		nil,
+	)
+	return certs, trace.Wrap(err)
+}
