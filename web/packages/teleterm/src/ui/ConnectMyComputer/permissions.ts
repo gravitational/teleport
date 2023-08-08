@@ -45,7 +45,7 @@ export function canUseConnectMyComputer(
   return (
     isUnix &&
     rootCluster.loggedInUser?.acl?.tokens.create &&
-    rootCluster.features?.isUsageBasedBilling &&
+    // rootCluster.features?.isUsageBasedBilling &&
     rootCluster.loggedInUser?.userType == tsh.UserType.USER_TYPE_LOCAL &&
     configService.get('feature.connectMyComputer').value
   );

@@ -112,7 +112,7 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe(getShortcutDesc('open the search bar')),
     'feature.connectMyComputer': z
       .boolean()
-      .default(false)
+      .default(true)
       .describe('Enables sharing the computer.'),
   });
 };

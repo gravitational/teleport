@@ -100,7 +100,7 @@ export function DocumentConnectMyComputerStatus(
           >
             <Laptop mr={2} />
             {/** The node name can be changed, so it might be different from the system hostname. */}
-            {agentNode?.hostname || hostname}
+            {hostname}
           </Text>
           <MenuIcon
             buttonIconProps={{
