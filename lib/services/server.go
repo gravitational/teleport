@@ -43,6 +43,9 @@ const (
 	OnlyTimestampsDifferent = iota
 	// Different means that some fields are different
 	Different = iota
+
+	// defaultSSHPort is the default port for the OpenSSH Service.
+	defaultSSHPort = "22"
 )
 
 // CompareServers compares two provided servers.
@@ -448,7 +451,7 @@ func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *typ
 	}
 	// Address requires the Port.
 	// We use the default port for the OpenSSH daemon.
-	addr := net.JoinHostPort(aws.ToString(instance.PrivateIpAddress), "22")
+	addr := net.JoinHostPort(aws.ToString(instance.PrivateIpAddress), defaultSSHPort)
 
 	server, err := types.NewNode(
 		uuid.NewString(),
