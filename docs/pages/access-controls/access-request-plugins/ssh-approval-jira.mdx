@@ -30,7 +30,7 @@ proxy<--Forwarded gRPC traffic-->auth
 
 ## Prerequisites
 
-(!/docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - A Jira account with permissions to create applications and webhooks.
 
@@ -42,12 +42,11 @@ proxy<--Forwarded gRPC traffic-->auth
   - A Linux virtual machine with ports `80` and `8081` open, plus a means of
     accessing the host (e.g., OpenSSH with an SSH port exposed to your
     workstation). 
-
   - A Kubernetes cluster deployed via a cloud provider. This guide shows you how
     to allow traffic to the Jira plugin via a `LoadBalancer` service, so your
     environment must support services of this type.
 
-- (!/docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Define RBAC resources
 
@@ -56,7 +55,7 @@ proxy<--Forwarded gRPC traffic-->auth
 Before you set up the Jira plugin, you need to enable Role Access Requests in
 your Teleport cluster.
 
-(!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
+(!docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
 ### Create a user and role for the plugin
 
@@ -283,7 +282,7 @@ NGINX ingress controller to configure TLS passthrough for the Jira webhook. Note
 that we have not deployed the webhook yet, so the Kubernetes Service named
 `teleport-plugin-jira` does not yet exist.
 
-Replace `teleport-jira.exmaple.com` with the address of your Jira webhook.
+Replace `teleport-jira.example.com` with the address of your Jira webhook.
 
 Apply the Ingress resource:
 
