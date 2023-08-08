@@ -85,13 +85,6 @@ type Server interface {
 	SetPeerAddr(string)
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
-	// MatchAgainst takes a map of labels and returns True if this server
-	// has ALL of them
-	//
-	// Any server matches against an empty label set
-	MatchAgainst(labels map[string]string) bool
-	// LabelsString returns a comma separated string with all node's labels
-	LabelsString() string
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
@@ -382,33 +375,6 @@ func (s *ServerV2) GetPeerAddr() string {
 // SetPeerAddr sets the peer address of the server.
 func (s *ServerV2) SetPeerAddr(addr string) {
 	s.Spec.PeerAddr = addr
-}
-
-// MatchAgainst takes a map of labels and returns True if this server
-// has ALL of them
-//
-// Any server matches against an empty label set
-func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
-	return MatchLabels(s, labels)
-}
-
-// LabelsString returns a comma separated string of all labels.
-func (s *ServerV2) LabelsString() string {
-	return LabelsAsString(s.Metadata.Labels, s.Spec.CmdLabels)
-}
-
-// LabelsAsString combines static and dynamic labels and returns a comma
-// separated string.
-func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2) string {
-	labels := []string{}
-	for key, val := range static {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
-	}
-	for key, val := range dynamic {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, ",")
 }
 
 // setStaticFields sets static resource header and metadata fields.
