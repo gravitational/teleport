@@ -148,6 +148,8 @@ type Rewrite struct {
 	Redirect []string
 	// Headers is a list of extra headers to inject in the request.
 	Headers []Header
+	// JWTClaims configures whether roles/traits are included in the JWT token.
+	JWTClaims string
 }
 
 // Header represents a single http header passed over to the proxied application.

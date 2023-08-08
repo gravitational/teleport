@@ -3561,8 +3561,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 				db, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: "test-db",
 				}, types.DatabaseServerSpecV3{
-					Protocol: "test-protocol",
-					URI:      "test-uri",
+					Database: mustCreateDatabase(t, "test-db", "test-protocol", "test-uri"),
 					Hostname: "test-hostname",
 					HostID:   "test-hostID",
 				})
@@ -3609,6 +3608,20 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 			tc.deleteResource()
 		})
 	}
+}
+
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
 }
 
 func TestAuthExport(t *testing.T) {
@@ -3779,6 +3792,10 @@ func TestClusterDatabasesGet(t *testing.T) {
 			Spec: types.DatabaseSpecV3{
 				Protocol: "test-protocol",
 				URI:      "test-uri:1234",
+				AWS: types.AWS{
+					IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
+					Region:          "us-west-2",
+				},
 			},
 		},
 	})
@@ -3817,10 +3834,16 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Name:     "db1",
 		Desc:     "test-description",
 		Protocol: "test-protocol",
-		Type:     types.DatabaseTypeSelfHosted,
+		Type:     types.DatabaseTypeRDS,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
 		Hostname: "test-uri",
 		URI:      "test-uri:1234",
+		AWS: &ui.AWS{
+			AWS: types.AWS{
+				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
+				Region:          "us-west-2",
+			},
+		},
 	}, {
 		Name:     "db2",
 		Type:     types.DatabaseTypeSelfHosted,
@@ -3857,12 +3880,18 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Name:          "db1",
 		Desc:          "test-description",
 		Protocol:      "test-protocol",
-		Type:          types.DatabaseTypeSelfHosted,
+		Type:          types.DatabaseTypeRDS,
 		Labels:        []ui.Label{{Name: "test-field", Value: "test-value"}},
 		Hostname:      "test-uri",
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
 		URI:           "test-uri:1234",
+		AWS: &ui.AWS{
+			AWS: types.AWS{
+				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
+				Region:          "us-west-2",
+			},
+		},
 	}, {
 		Name:          "db2",
 		Type:          types.DatabaseTypeSelfHosted,
@@ -4014,8 +4043,6 @@ func TestClusterDatabaseGet(t *testing.T) {
 					Name: tt.name,
 				}, types.DatabaseServerSpecV3{
 					Hostname: tt.name,
-					Protocol: "test-protocol",
-					URI:      "test-uri",
 					HostID:   uuid.NewString(),
 					Database: db,
 				})
@@ -4460,19 +4487,34 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	collectAppSessions := func(ctx context.Context) []types.WebSession {
+		var (
+			nextToken string
+			sessions  []types.WebSession
+		)
+		for {
+			webSessions, token, err := proxy.client.ListAppSessions(ctx, apidefaults.DefaultChunkSize, nextToken, "")
+			require.NoError(t, err)
+			sessions = append(sessions, webSessions...)
+			if token == "" {
+				break
+			}
+
+			nextToken = token
+		}
+
+		return sessions
+	}
+
 	// List sessions, should have one for each application.
-	sessions, err := proxy.client.GetAppSessions(context.Background())
-	require.NoError(t, err)
-	require.Len(t, sessions, len(applications))
+	require.Len(t, collectAppSessions(context.Background()), len(applications))
 
 	// Logout from Telport.
-	_, err = pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions", "web"))
+	_, err := pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sessions", "web"))
 	require.NoError(t, err)
 
 	// Check sessions after logout, should be empty.
-	sessions, err = proxy.client.GetAppSessions(context.Background())
-	require.NoError(t, err)
-	require.Len(t, sessions, 0)
+	require.Len(t, collectAppSessions(context.Background()), 0)
 }
 
 func TestGetWebConfig(t *testing.T) {
@@ -8445,7 +8487,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		HostUUID: hostID,
 		NodeName: "kube_server",
 	}
-	dns := []string{"localhost", "127.0.0.1", "kube." + constants.APIDomain, "*" + constants.APIDomain}
+	dns := []string{"localhost", "127.0.0.1", constants.KubeTeleportProxyALPNPrefix + constants.APIDomain, "*" + constants.APIDomain}
 	identity, err := auth.LocalRegister(authID, cfg.authServer.Auth(), nil, dns, "", nil)
 	require.NoError(t, err)
 

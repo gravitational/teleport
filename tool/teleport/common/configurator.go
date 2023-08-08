@@ -43,6 +43,7 @@ var awsDatabaseTypes = []string{
 	types.DatabaseTypeMemoryDB,
 	types.DatabaseTypeAWSKeyspaces,
 	types.DatabaseTypeDynamoDB,
+	types.DatabaseTypeOpenSearch,
 }
 
 type installSystemdFlags struct {
@@ -269,6 +270,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 			configuratorFlags.ForceAWSKeyspacesPermissions = true
 		case types.DatabaseTypeDynamoDB:
 			configuratorFlags.ForceDynamoDBPermissions = true
+		case types.DatabaseTypeOpenSearch:
+			configuratorFlags.ForceOpenSearchPermissions = true
 		}
 	}
 

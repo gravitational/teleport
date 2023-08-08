@@ -1,10 +1,20 @@
-Teleport assigns a subdomain to each application you have configured for Application
-Access (e.g., `grafana.teleport.example.com`), so you will need to ensure that a
-DNS A (or CNAME for services that only provide a hostname) record exists for each
-application-specific subdomain so clients can access your applications via Teleport.
+Teleport assigns a subdomain to each application you configure for Application
+Access. For example, if you enroll Grafana as a resource, Teleport assigns the resource
+to the `grafana.teleport.example.com` subdomain. 
 
-You should create either a separate DNS record for each subdomain, or a single
-record with a wildcard subdomain such as `*.teleport.example.com`. This way, your
-certificate authority (e.g., Let's Encrypt) can issue a certificate for each
-subdomain, enabling clients to verify your Teleport hosts regardless of the
+If you host the Teleport cluster on your own network, you should update your DNS 
+configuration to account for application subdomains.
+You can update DNS in one of two ways: 
+
+- Create a single DNS address (A) or canonical name (CNAME) record using wildcard substitution 
+for the subdomain name. For example, create a DNS record with the name `*.teleport.example.com`. 
+- Create a separate DNS address (A) or canonical name (CNAME) record for each application subdomain.
+
+Modifying DNS ensures that the certificate authority—for example, Let's Encrypt—can issue a 
+certificate for each subdomain and that clients can verify Teleport hosts regardless of the
 application they are accessing.
+
+If you use the Teleport cloud platform, no DNS updates are needed because your Teleport 
+cluster automatically provides the subdomains and signed TLS certificates for your 
+applications under your tenant address.
+

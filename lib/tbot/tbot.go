@@ -32,6 +32,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -185,8 +186,10 @@ func (b *Bot) Run(ctx context.Context) error {
 				_, _ = w.Write([]byte(msg))
 			}))
 			srv := http.Server{
-				Addr:    b.cfg.DiagAddr,
-				Handler: mux,
+				Addr:              b.cfg.DiagAddr,
+				Handler:           mux,
+				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			}
 			go func() {
 				<-egCtx.Done()

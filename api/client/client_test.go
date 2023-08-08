@@ -227,10 +227,17 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 					"label": string(make([]byte, labelSize)),
 				},
 			}, types.DatabaseServerSpecV3{
-				Protocol: "",
-				URI:      "localhost:5432",
 				Hostname: "localhost",
 				HostID:   fmt.Sprintf("host-%d", i),
+				Database: &types.DatabaseV3{
+					Metadata: types.Metadata{
+						Name: fmt.Sprintf("db-%d", i),
+					},
+					Spec: types.DatabaseSpecV3{
+						Protocol: types.DatabaseProtocolPostgreSQL,
+						URI:      "localhost",
+					},
+				},
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -258,7 +265,6 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 				HostID: fmt.Sprintf("host-%d", i),
 				App:    app,
 			})
-
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -356,7 +362,6 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 					HostID: fmt.Sprintf("host-%d", i),
 					App:    app,
 				})
-
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

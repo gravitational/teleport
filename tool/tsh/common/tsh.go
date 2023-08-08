@@ -616,7 +616,12 @@ func initLogger(cf *CLIConf) {
 	}
 }
 
-// Run executes TSH client. same as main() but easier to test
+// Run executes TSH client. same as main() but easier to test. Note that this
+// function modifies global state in `tsh` (e.g. the system logger), and WILL
+// ALSO MODIFY EXTERNAL SHARED STATE in its default configuration (e.g. the
+// $HOME/.tsh dir, $KUBECONFIG, etc).
+//
+// DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf := CLIConf{
 		Context:         ctx,
@@ -907,6 +912,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	clusters := app.Command("clusters", "List available Teleport clusters.")
 	clusters.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
+	clusters.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
@@ -1026,6 +1032,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
 	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
+	reqSearch.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
@@ -1739,10 +1746,6 @@ func onLogin(cf *CLIConf) error {
 	}
 	tc.HomePath = cf.HomePath
 
-	// DEPRECATED DELETE IN 14.0
-	var warnOnDeprecatedKubeSNIPrinted bool
-	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
-
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
@@ -1757,7 +1760,7 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1777,7 +1780,7 @@ func onLogin(cf *CLIConf) error {
 
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
-			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err == nil {
+			if err := updateKubeConfigOnLogin(cf, tc); err == nil {
 				profile, profiles, err = cf.FullProfileStatus()
 				if err != nil {
 					return trace.Wrap(err)
@@ -1806,7 +1809,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1823,7 +1826,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			// Print status to show information of the logged in user.
@@ -1838,7 +1841,7 @@ func onLogin(cf *CLIConf) error {
 	// If the cluster is using single-sign on, providing the user name
 	// with --user is likely a mistake, so display a warning.
 	if cf.Username != "" {
-		var displayIgnoreUserWarning = false
+		displayIgnoreUserWarning := false
 		if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.AuthConnector != constants.PasswordlessConnector {
 			displayIgnoreUserWarning = true
 		} else if cf.AuthConnector == "" {
@@ -1932,7 +1935,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
+		if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1946,7 +1949,6 @@ func onLogin(cf *CLIConf) error {
 		capabilities, err := rootAuthClient.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
 			User: cf.Username,
 		})
-
 		if err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
@@ -2592,10 +2594,11 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 		row = append(row, proxy, cluster)
 	}
 
+	labels := common.FormatLabels(node.GetAllLabels(), verbose)
 	if verbose {
-		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), node.LabelsString())
+		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), labels)
 	} else {
-		row = append(row, node.GetHostname(), getAddr(node), sortedLabels(node.GetAllLabels()))
+		row = append(row, node.GetHostname(), getAddr(node), labels)
 	}
 	return row
 }
@@ -2621,28 +2624,6 @@ func printNodesAsText(output io.Writer, nodes []types.Server, verbose bool) erro
 	}
 
 	return nil
-}
-
-func sortedLabels(labels map[string]string) string {
-	var teleportNamespaced []string
-	var namespaced []string
-	var result []string
-	for key, val := range labels {
-		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
-			teleportNamespaced = append(teleportNamespaced, key)
-			continue
-		}
-		if strings.Contains(key, "/") {
-			namespaced = append(namespaced, fmt.Sprintf("%s=%s", key, val))
-			continue
-		}
-		result = append(result, fmt.Sprintf("%s=%s", key, val))
-	}
-	sort.Strings(result)
-	sort.Strings(namespaced)
-	sort.Strings(teleportNamespaced)
-	namespaced = append(namespaced, teleportNamespaced...)
-	return strings.Join(append(result, namespaced...), ",")
 }
 
 func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
@@ -2690,10 +2671,11 @@ func getAppRow(proxy, cluster string, app types.Application, active []tlsca.Rout
 		}
 	}
 
+	labels := common.FormatLabels(app.GetAllLabels(), verbose)
 	if verbose {
-		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels)
 	} else {
-		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), labels)
 	}
 
 	return row
@@ -2884,6 +2866,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		row = append(row, proxy, cluster)
 	}
 
+	labels := common.FormatLabels(database.GetAllLabels(), verbose)
 	if verbose {
 		row = append(row,
 			printName,
@@ -2892,7 +2875,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			database.GetType(),
 			database.GetURI(),
 			formatUsersForDB(database, accessChecker),
-			database.LabelsString(),
+			labels,
 			connect,
 		)
 	} else {
@@ -2900,7 +2883,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			printName,
 			database.GetDescription(),
 			formatUsersForDB(database, accessChecker),
-			formatDatabaseLabels(database),
+			labels,
 			connect,
 		)
 	}
@@ -2950,14 +2933,6 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 		)
 	}
 	fmt.Println(t.AsBuffer().String())
-}
-
-func formatDatabaseLabels(database types.Database) string {
-	labels := database.GetAllLabels()
-	// Hide the origin and discovered-name labels unless printing verbose table.
-	delete(labels, types.OriginLabel)
-	delete(labels, types.DiscoveredNameLabel)
-	return sortedLabels(labels)
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
@@ -3014,22 +2989,30 @@ func onListClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(4)
-		} else {
-			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"})
+		header := []string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"}
+		rows := [][]string{
+			{rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName)},
 		}
-
-		t.AddRow([]string{
-			rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName),
-		})
 		for _, cluster := range leafClusters {
-			labels := sortedLabels(cluster.GetMetadata().Labels)
-			t.AddRow([]string{
+			labels := common.FormatLabels(cluster.GetAllLabels(), cf.Verbose)
+			rows = append(rows, []string{
 				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", labels, showSelected(cluster.GetName()),
 			})
 		}
+
+		var t asciitable.Table
+		switch {
+		case cf.Quiet:
+			t = asciitable.MakeHeadlessTable(4)
+			for _, row := range rows {
+				t.AddRow(row)
+			}
+		case cf.Verbose:
+			t = asciitable.MakeTable(header, rows...)
+		default:
+			t = asciitable.MakeTableWithTruncatedColumn(header, rows, "Labels")
+		}
+
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
 		rootClusterInfo := clusterInfo{
@@ -3044,7 +3027,7 @@ func onListClusters(cf *CLIConf) error {
 				ClusterName: leaf.GetName(),
 				Status:      leaf.GetConnectionStatus(),
 				ClusterType: "leaf",
-				Labels:      leaf.GetMetadata().Labels,
+				Labels:      leaf.GetAllLabels(),
 				Selected:    isSelected(leaf.GetName()),
 			})
 		}
@@ -3082,7 +3065,10 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 
 // accessRequestForSSH attempts to create a resource access request for the case
 // where "tsh ssh" was attempted and access was denied
-func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
+func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
+	if tc.Host == "" {
+		return nil, trace.BadParameter("no host specified")
+	}
 	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3144,19 +3130,25 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	return req, nil
 }
 
-func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
+func retryWithAccessRequest(
+	cf *CLIConf,
+	tc *client.TeleportClient,
+	fn func() error,
+	onAccessRequestCreator func(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error),
+	resource string,
+) error {
 	origErr := fn()
-	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
+	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) {
 		// Return if --disable-access-request was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
 	}
 
-	// Try to construct an access request for this node.
-	req, err := accessRequestForSSH(cf.Context, tc)
+	// Try to construct an access request for this resource.
+	req, err := onAccessRequestCreator(cf.Context, cf, tc)
 	if err != nil {
-		// We can't request access to the node or we couldn't query the ID. Log
+		// We can't request access to the resource or we couldn't query the ID. Log
 		// a short debug message in case this is unexpected, but return the
 		// original AccessDenied error from the ssh attempt which is likely to
 		// be far more relevant to the user.
@@ -3167,7 +3159,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 
 	// Print and log the original AccessDenied error.
 	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
-	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
+	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 
 	requestReason := cf.RequestReason
 	if requestReason == "" {
@@ -3258,7 +3250,10 @@ func onSSH(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		return nil
-	})
+	},
+		accessRequestForSSH,
+		fmt.Sprintf("%s@%s", tc.HostLogin, tc.Host),
+	)
 	// Exit with the same exit status as the failed command.
 	if tc.ExitStatus != 0 {
 		var exitErr *common.ExitCodeError
@@ -4236,7 +4231,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Traits:             p.Traits,
 		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster(p.Cluster),
+		KubernetesCluster:  selectedKubeCluster(p.Cluster, ""),
 		KubernetesUsers:    p.KubeUsers,
 		KubernetesGroups:   p.KubeGroups,
 		Databases:          p.DatabaseServices(),
@@ -4703,7 +4698,7 @@ func onEnvironment(cf *CLIConf) error {
 			fmt.Printf("unset %v\n", kubeClusterEnvVar)
 			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 		case !cf.unsetEnvironment:
-			kubeName := selectedKubeCluster(profile.Cluster)
+			kubeName := selectedKubeCluster(profile.Cluster, "")
 			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
 			if kubeName != "" {
@@ -4728,7 +4723,7 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		proxyEnvVar:   profile.ProxyURL.Host,
 		clusterEnvVar: profile.Cluster,
 	}
-	kubeName := selectedKubeCluster(profile.Cluster)
+	kubeName := selectedKubeCluster(profile.Cluster, "")
 	if kubeName != "" {
 		env[kubeClusterEnvVar] = kubeName
 		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
@@ -4859,85 +4854,15 @@ func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client
 	return trace.Wrap(group.Wait())
 }
 
-type updateKubeConfigOpt struct {
-	warnOnDeprecatedSNI bool
-	// warnSNIPrinted is a pointer to bool forwarded from outside and set internally to
-	// prevent printing deprecated warning server times in a single tsh flow.
-	// Example usage:
-	//  var warnOnDeprecatedKubeSNIPrinted bool
-	//	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
-	// then sequence  call of updateKubeConfigOption like
-	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
-	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
-	// will print the warning message only once.
-	warnSNIPrinted *bool
-}
-
-type updateKubeConfigOnLoginOpt func(opt *updateKubeConfigOpt)
-
-func withWarnOnDeprecatedSNI(printed *bool) updateKubeConfigOnLoginOpt {
-	return func(opt *updateKubeConfigOpt) {
-		opt.warnOnDeprecatedSNI = true
-		opt.warnSNIPrinted = printed
-	}
-}
-
 // updateKubeConfigOnLogin checks if the `--kube-cluster` flag was provided to
 // tsh login call and updates the default kubeconfig with its value,
 // otherwise does nothing.
-func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, opts ...updateKubeConfigOnLoginOpt) error {
-	var settings updateKubeConfigOpt
-	for _, opt := range opts {
-		opt(&settings)
-	}
-	defer func() {
-		// DEPRECATED DELETE IN 14.0
-		if !settings.warnOnDeprecatedSNI {
-			return
-		}
-		if settings.warnSNIPrinted == nil || *settings.warnSNIPrinted {
-			return
-		}
-		warnOnDeprecatedKubeConfigServerName(cf, tc)
-		*settings.warnSNIPrinted = true
-	}()
-
+func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
 	err := updateKubeConfig(cf, tc, "" /* update the default kubeconfig */, "" /* do not override the context name */)
 	return trace.Wrap(err)
-}
-
-// DEPRECATED DELETE IN 14.0
-func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient) {
-	if !tc.TLSRoutingEnabled {
-		// The ServerName in KUBECONFIG is used only when the TLS Routing is enabled.
-		return
-	}
-	kubeConfigPath := getKubeConfigPath(cf, "")
-	value, err := kubeconfig.Load(kubeConfigPath)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return
-		}
-		log.Warnf("Failed to load KUBECONFIG file: %v", err)
-		return
-	}
-
-	var outdatedClusters []string
-	k8host, _ := tc.KubeProxyHostPort()
-	for name, cluster := range value.Clusters {
-		if cluster.TLSServerName == client.GetOldKubeTLSServerName(k8host) {
-			outdatedClusters = append(outdatedClusters, name)
-		}
-	}
-
-	if len(outdatedClusters) == 0 {
-		return
-	}
-	fmt.Printf("Deprecated tls-server-name value detected in %s KUBECONFIG file for [%v] clusters\n", kubeConfigPath, strings.Join(outdatedClusters, ", "))
-	fmt.Printf("Please re-login and update your KUBECONFIG cluster configuration by running the 'tsh kube login' command.\n\n")
 }
 
 // onHeadlessApprove executes 'tsh headless approve' command
