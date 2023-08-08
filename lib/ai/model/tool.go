@@ -31,6 +31,8 @@ import (
 )
 
 const (
+	// proxyLookupClusterMaxSize is max the number of nodes in the cluster to attempt an opportunistic node lookup
+	// in the proxy cache. We always do embedding lookups if the cluster is larger than this number.
 	proxyLookupClusterMaxSize = 100
 	maxEmbeddingsPerLookup    = 10
 )

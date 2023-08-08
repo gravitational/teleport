@@ -77,7 +77,7 @@ func NewAgent(username string, config ToolsConfig) (*Agent, error) {
 type ToolsConfig struct {
 	// DisableEmbeddingsTool disables the embedding retrieval tool, useful in tests.
 	DisableEmbeddingsTool bool
-	// EmbeddingsClient is required
+	// EmbeddingsClient is required when the embeddings tool is enabled.
 	EmbeddingsClient assist.AssistEmbeddingServiceClient
 	// AccessChecker is required when NodeClient is set
 	AccessChecker services.AccessChecker
