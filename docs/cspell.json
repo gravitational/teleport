@@ -315,6 +315,7 @@
     "compinit",
     "cond",
     "configmap",
+    "configurator",
     "connectorname",
     "cqlsh",
     "createkey",
