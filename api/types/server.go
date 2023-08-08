@@ -97,7 +97,7 @@ type Server interface {
 	SetCloudMetadata(meta *CloudMetadata)
 
 	// IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICE.
+	// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 	IsOpenSSHNode() bool
 }
 
@@ -419,13 +419,13 @@ func (s *ServerV2) setStaticFields() {
 }
 
 // IsOpenSSHNode returns whether the connection to this Server must use OpenSSH.
-// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICE.
+// This returns true for SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) IsOpenSSHNode() bool {
-	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEICE
+	return s.SubKind == SubKindOpenSSHNode || s.SubKind == SubKindOpenSSHEICENode
 }
 
 // openSSHNodeCheckAndSetDefaults are common validations for OpenSSH nodes.
-// They include SubKindOpenSSHNode and SubKindOpenSSHEICE.
+// They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	if s.Spec.Addr == "" {
 		return trace.BadParameter(`addr must be set when server SubKind is "openssh"`)
@@ -444,13 +444,13 @@ func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	return nil
 }
 
-// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEICE.
+// openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults are validations for SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() error {
 	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// AWS fields are required for SubKindOpenSSHEICE.
+	// AWS fields are required for SubKindOpenSSHEICENode.
 	switch {
 	case s.Spec.CloudMetadata == nil || s.Spec.CloudMetadata.AWS == nil:
 		return trace.BadParameter("missing AWS CloudMetadata (required for %q SubKind)", s.SubKind)
@@ -505,7 +505,7 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 
-	case SubKindOpenSSHEICE:
+	case SubKindOpenSSHEICENode:
 		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}

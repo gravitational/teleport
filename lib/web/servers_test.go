@@ -22,12 +22,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
 )
 
 func TestCreateNode(t *testing.T) {
@@ -41,7 +41,7 @@ func TestCreateNode(t *testing.T) {
 	makeCreateNodeRequest := func(fn func(*createNodeRequest)) createNodeRequest {
 		s := createNodeRequest{
 			Name:     uuid.NewString(),
-			SubKind:  types.SubKindOpenSSHEICE,
+			SubKind:  types.SubKindOpenSSHEICENode,
 			Hostname: "myhostname",
 			Addr:     "172.31.1.1:22",
 			Labels:   []ui.Label{},
