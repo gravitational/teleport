@@ -1918,9 +1918,12 @@ func TestGCPVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testClients := cloud.TestCloudClients{
-				GCPInstances: &mockGCPClient{
-					vms: tc.foundGCPVMs,
+			testClients := Clients{
+				Kubernetes: fake.NewSimpleClientset(),
+				Cloud: &cloud.TestCloudClients{
+					GCPInstances: &mockGCPClient{
+						vms: tc.foundGCPVMs,
+					},
 				},
 			}
 
@@ -1949,14 +1952,16 @@ func TestGCPVMDiscovery(t *testing.T) {
 			emitter := &mockEmitter{}
 
 			server, err := New(context.Background(), &Config{
-				Clients:     &testClients,
+				Clients:     testClients,
 				AccessPoint: tlsServer.Auth(),
-				GCPMatchers: []types.GCPMatcher{{
-					Types:      []string{"gce"},
-					ProjectIDs: []string{"myproject"},
-					Locations:  []string{"myzone"},
-					Tags:       types.Labels{"teleport": {"yes"}},
-				}},
+				Matchers: Matchers{
+					GCP: []types.GCPMatcher{{
+						Types:      []string{"gce"},
+						ProjectIDs: []string{"myproject"},
+						Locations:  []string{"myzone"},
+						Tags:       types.Labels{"teleport": {"yes"}},
+					}},
+				},
 				Emitter: emitter,
 				Log:     logger,
 			})

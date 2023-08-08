@@ -417,7 +417,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	// VM watcher.
 	if len(vmMatchers) > 0 {
 		var err error
-		s.gcpWatcher, err = server.NewGCPWatcher(s.ctx, vmMatchers, s.Clients)
+		s.gcpWatcher, err = server.NewGCPWatcher(s.ctx, vmMatchers, s.Clients.Cloud)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -766,7 +766,7 @@ outer:
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
-	client, err := s.Clients.GetGCPInstancesClient(s.ctx)
+	client, err := s.Clients.Cloud.GetGCPInstancesClient(s.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
