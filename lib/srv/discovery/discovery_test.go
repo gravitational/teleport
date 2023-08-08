@@ -374,15 +374,17 @@ func TestDiscoveryServer(t *testing.T) {
 			server, err := New(context.Background(), &Config{
 				Clients:     testClients,
 				AccessPoint: tlsServer.Auth(),
-				AWSMatchers: []types.AWSMatcher{{
-					Types:   []string{"ec2"},
-					Regions: []string{"eu-central-1"},
-					Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-					SSM:     &types.AWSSSM{DocumentName: "document"},
-					Params: &types.InstallerParams{
-						InstallTeleport: true,
-					},
-				}},
+				Matchers: Matchers{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+						SSM:     &types.AWSSSM{DocumentName: "document"},
+						Params: &types.InstallerParams{
+							InstallTeleport: true,
+						},
+					}},
+				},
 				Emitter: tc.emitter,
 				Log:     logger,
 			})
@@ -609,12 +611,14 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					Clients:            testClients,
-					AccessPoint:        tlsServer.Auth(),
-					KubernetesMatchers: tt.kubernetesMatchers,
-					Emitter:            authClient,
-					Log:                logger,
-					DiscoveryGroup:     mainDiscoveryGroup,
+					Clients:     testClients,
+					AccessPoint: tlsServer.Auth(),
+					Matchers: Matchers{
+						Kubernetes: tt.kubernetesMatchers,
+					},
+					Emitter:        authClient,
+					Log:            logger,
+					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
 			require.NoError(t, err)
@@ -931,11 +935,13 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					Clients:        testClients,
-					AccessPoint:    tlsServer.Auth(),
-					AWSMatchers:    tc.awsMatchers,
-					AzureMatchers:  tc.azureMatchers,
-					GCPMatchers:    tc.gcpMatchers,
+					Clients:     testClients,
+					AccessPoint: tlsServer.Auth(),
+					Matchers: Matchers{
+						AWS:   tc.awsMatchers,
+						Azure: tc.azureMatchers,
+						GCP:   tc.gcpMatchers,
+					},
 					Emitter:        authClient,
 					Log:            logger,
 					DiscoveryGroup: mainDiscoveryGroup,
@@ -1470,11 +1476,13 @@ func TestDiscoveryDatabase(t *testing.T) {
 			srv, err := New(
 				ctx,
 				&Config{
-					Clients:       testClients,
-					AccessPoint:   tlsServer.Auth(),
-					AWSMatchers:   tc.awsMatchers,
-					AzureMatchers: tc.azureMatchers,
-					Emitter:       authClient,
+					Clients:     testClients,
+					AccessPoint: tlsServer.Auth(),
+					Matchers: Matchers{
+						AWS:   tc.awsMatchers,
+						Azure: tc.azureMatchers,
+					},
+					Emitter: authClient,
 					onDatabaseReconcile: func() {
 						waitForReconcile <- struct{}{}
 					},
@@ -1766,13 +1774,15 @@ func TestAzureVMDiscovery(t *testing.T) {
 			server, err := New(context.Background(), &Config{
 				Clients:     testClients,
 				AccessPoint: tlsServer.Auth(),
-				AzureMatchers: []types.AzureMatcher{{
-					Types:          []string{"vm"},
-					Subscriptions:  []string{"testsub"},
-					ResourceGroups: []string{"testrg"},
-					Regions:        []string{"westcentralus"},
-					ResourceTags:   types.Labels{"teleport": {"yes"}},
-				}},
+				Matchers: Matchers{
+					Azure: []types.AzureMatcher{{
+						Types:          []string{"vm"},
+						Subscriptions:  []string{"testsub"},
+						ResourceGroups: []string{"testrg"},
+						Regions:        []string{"westcentralus"},
+						ResourceTags:   types.Labels{"teleport": {"yes"}},
+					}},
+				},
 				Emitter: emitter,
 				Log:     logger,
 			})

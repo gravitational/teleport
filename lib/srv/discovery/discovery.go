@@ -53,18 +53,27 @@ type Clients struct {
 	Kubernetes kubernetes.Interface
 }
 
+type Matchers struct {
+	// AWS is a list of AWS EC2 matchers.
+	AWS []types.AWSMatcher
+	// Azure is a list of Azure matchers to discover resources.
+	Azure []types.AzureMatcher
+	// GCP is a list of GCP matchers to discover resources.
+	GCP []types.GCPMatcher
+	// Kubernetes is a list of Kubernetes matchers to discovery resources.
+	Kubernetes []types.KubernetesMatcher
+}
+
+func (m Matchers) IsEmpty() bool {
+	return len(m.GCP) == 0 && len(m.AWS) == 0 && len(m.Azure) == 0 && len(m.Kubernetes) == 0
+}
+
 // Config provides configuration for the discovery server.
 type Config struct {
 	// Clients is used for retrieving clients needed for discovery.
 	Clients Clients
-	// AWSMatchers is a list of AWS EC2 matchers.
-	AWSMatchers []types.AWSMatcher
-	// AzureMatchers is a list of Azure matchers to discover resources.
-	AzureMatchers []types.AzureMatcher
-	// GCPMatchers is a list of GCP matchers to discover resources.
-	GCPMatchers []types.GCPMatcher
-	// KubernetesMatchers is a list of Kubernetes matchers to discovery resources.
-	KubernetesMatchers []types.KubernetesMatcher
+	// Matchers stores all types of matchers to discover resources
+	Matchers Matchers
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 	// AccessPoint is a discovery access point
@@ -89,7 +98,7 @@ type Config struct {
 }
 
 func (c *Config) CheckAndSetDefaults() error {
-	if len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0 && len(c.GCPMatchers) == 0 && len(c.KubernetesMatchers) == 0 {
+	if c.Matchers.IsEmpty() {
 		return trace.BadParameter("no matchers configured for discovery")
 	}
 	if c.Emitter == nil {
@@ -98,7 +107,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("no AccessPoint configured for discovery")
 	}
-	if len(c.KubernetesMatchers) > 0 && c.DiscoveryGroup == "" {
+	if len(c.Matchers.Kubernetes) > 0 && c.DiscoveryGroup == "" {
 		return trace.BadParameter(`Discovery group name should be set for discovery server if
 kubernetes matchers are present.`)
 	}
@@ -109,7 +118,7 @@ kubernetes matchers are present.`)
 		}
 		c.Clients.Cloud = cloudClients
 
-		if c.Clients.Kubernetes == nil && len(c.KubernetesMatchers) > 0 {
+		if c.Clients.Kubernetes == nil && len(c.Matchers.Kubernetes) > 0 {
 			cfg, err := rest.InClusterConfig()
 			if err != nil {
 				return trace.Wrap(err, "kubernetes discovery is only available for incluster configurations")
@@ -132,7 +141,7 @@ kubernetes matchers are present.`)
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
-	c.AzureMatchers = services.SimplifyAzureMatchers(c.AzureMatchers)
+	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
 	return nil
 }
 
@@ -187,15 +196,15 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		cancelfn: cancelfn,
 	}
 
-	if err := s.initAWSWatchers(cfg.AWSMatchers); err != nil {
+	if err := s.initAWSWatchers(cfg.Matchers.AWS); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAzureWatchers(ctx, cfg.AzureMatchers); err != nil {
+	if err := s.initAzureWatchers(ctx, cfg.Matchers.Azure); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initGCPWatchers(ctx, cfg.GCPMatchers); err != nil {
+	if err := s.initGCPWatchers(ctx, cfg.Matchers.GCP); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -205,7 +214,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		}
 	}
 
-	if err := s.initKubeAppWatchers(cfg.KubernetesMatchers); err != nil {
+	if err := s.initKubeAppWatchers(cfg.Matchers.Kubernetes); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -293,6 +302,10 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 }
 
 func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
+	if len(matchers) == 0 {
+		return nil
+	}
+
 	kubeClient := s.Clients.Kubernetes
 	if kubeClient == nil {
 		return trace.BadParameter("Kubernetes client is not present")
