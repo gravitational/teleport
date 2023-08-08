@@ -63,6 +63,61 @@ export function DocumentConnectMyComputerStatus(
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
 
+  type Steps =
+    | { step: 'download'; attempt: DownloadAttempt }
+    | { step: 'join'; attempt: JoinAttempt };
+
+  const [currentStep, setCurrentStep] = useState<
+    DownloadAttempt | JoinAttempt | ProcessAttempt
+  >();
+
+  const startAgent = async () => {
+    setCurrentStep(downloadAttempt);
+    let [, error] = await runDownload();
+    if (error) return;
+
+    setCurrentStep(joinAttempt);
+    [, error] = await runJoin();
+    if (error) return;
+
+    setCurrentStep(processAttempt);
+  };
+
+  const stopAgent = async () => {
+    setCurrentStep(stopAttempt);
+    [, error] = await runStop();
+    if (error) return;
+
+    setCurrentStep(processAttempt);
+  };
+
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 'download': {
+        switch (currentAttempt.status) {
+          case 'processing': {
+            return downloadProgress / 100;
+          }
+          case 'error': {
+            return 'download error';
+          }
+          case 'success': {
+            // TODO: This state doesn't seem to make sense.
+          }
+        }
+      }
+      case 'join': {
+        switch (currentAttempt.status) {
+          case 'error': {
+            return agentProcessStatus === 'exit'
+              ? agentProcessStatus.error + agentProcessStatus.stackTrace
+              : currentStep.errorText;
+          }
+        }
+      }
+    }
+  };
+
   const prettyAgentState = prettifyAgentState(agentState);
 
   return (

@@ -78,35 +78,34 @@ export const ConnectMyComputerContextProvider: FC<{
       }
   );
 
-  const agentProcessStateAttempt = () => {
-    switch (agentProcessState.status){
+  const [runAgentAndWaitForNodeToJoinAttempt, runAgentAndWaitForNodeToJoin] =
+    useAsync(
+      useCallback(async () => {
+        await connectMyComputerService.runAgent(props.rootClusterUri);
 
-    }
-  }
-
-  const [runAgentAndWaitForNodeToJoinAttempt, runAgentAndWaitForNodeToJoin] = useAsync(
-    useCallback(async () => {
-      await connectMyComputerService.runAgent(props.rootClusterUri);
-
-      const abortController = new AbortController();
-      return new Promise<Server>((resolve, reject) => {
-        //TODO(gzdunek): Do we need to kill the agent if any of the following promises fail?
-        Promise.race([
-          connectMyComputerService
-            .waitForNodeToJoin(props.rootClusterUri, abortController.signal)
-            .then(resolve),
-          waitForAgentProcessErrors(
-            mainProcessClient,
-            props.rootClusterUri,
-            abortController.signal
-          ).then(reject),
-          wait(20000, abortController.signal).then(() =>
-            reject(new Error('The agent did not manage to join the cluster within 20 seconds.'))
-          ),
-        ]).finally(() => abortController.abort());
-      });
-    }, [connectMyComputerService, mainProcessClient, props.rootClusterUri])
-  );
+        const abortController = new AbortController();
+        return new Promise<Server>((resolve, reject) => {
+          //TODO(gzdunek): Do we need to kill the agent if any of the following promises fail?
+          Promise.race([
+            connectMyComputerService
+              .waitForNodeToJoin(props.rootClusterUri, abortController.signal)
+              .then(resolve),
+            waitForAgentProcessErrors(
+              mainProcessClient,
+              props.rootClusterUri,
+              abortController.signal
+            ).then(reject),
+            wait(20000, abortController.signal).then(() =>
+              reject(
+                new Error(
+                  'The agent did not manage to join the cluster within 20 seconds.'
+                )
+              )
+            ),
+          ]).finally(() => abortController.abort());
+        });
+      }, [connectMyComputerService, mainProcessClient, props.rootClusterUri])
+    );
 
   const [lifecycleActionAttempt, runLifecycleActionAttempt] = useAsync(
     async (cb: () => Promise<void>) => await cb()
