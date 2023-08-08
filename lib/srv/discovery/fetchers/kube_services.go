@@ -53,7 +53,7 @@ type KubeAppsFetcherConfig struct {
 // CheckAndSetDefaults validates and sets the defaults values.
 func (k *KubeAppsFetcherConfig) CheckAndSetDefaults() error {
 	if k.FilterLabels == nil {
-		return trace.BadParameter("missing parameter AccessPoint")
+		return trace.BadParameter("missing parameter FilterLabels")
 	}
 	if k.KubernetesClient == nil {
 		return trace.BadParameter("missing parameter KubernetesClient")
