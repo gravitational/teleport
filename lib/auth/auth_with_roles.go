@@ -953,6 +953,18 @@ func (a *ServerWithRoles) RegisterUsingAzureMethod(ctx context.Context, challeng
 	return certs, trace.Wrap(err)
 }
 
+// RegisterUsingKubernetesRemoteMethod registers the caller using the Azure join method and
+// returns signed certs to join the cluster.
+//
+// See (*Server).RegisterUsingKubernetesRemoteMethod for further documentation.
+//
+// This wrapper does not do any extra authz checks, as the register method has
+// its own authz mechanism.
+func (a *ServerWithRoles) RegisterUsingKubernetesRemoteMethod(ctx context.Context, challengeResponse client.KubernetesRemoteChallengeSolver) (*proto.Certs, error) {
+	certs, err := a.authServer.RegisterUsingKubernetesRemoteMethod(ctx, challengeResponse)
+	return certs, trace.Wrap(err)
+}
+
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
 func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {

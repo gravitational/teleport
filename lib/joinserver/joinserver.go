@@ -20,6 +20,7 @@ package joinserver
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/types"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -32,17 +33,26 @@ import (
 )
 
 const (
-	iamJoinRequestTimeout   = time.Minute
-	azureJoinRequestTimeout = time.Minute
+	iamJoinRequestTimeout              = time.Minute
+	azureJoinRequestTimeout            = time.Minute
+	kubernetesRemoteJoinRequestTimeout = time.Minute
 )
 
 type joinServiceClient interface {
 	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error)
 	RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingKubernetesRemoteMethod(ctx context.Context, req *types.RegisterUsingTokenRequest, solver client.KubernetesRemoteChallengeSolver) (*proto.Certs, error)
 }
 
 // JoinServiceGRPCServer implements proto.JoinServiceServer and is designed
 // to run on both the Teleport Proxy and Auth servers.
+//
+// It proxies a streaming gRPC join session to the underlying implementation.
+// On a Proxy, this is over gRPC to the JoinService on the Auth server.
+// On an Auth Server, this is to the Go implementation on auth.Server.
+//
+// This means that when joining via a Proxy, a join session goes through the
+// JoinService twice.
 type JoinServiceGRPCServer struct {
 	joinServiceClient joinServiceClient
 	clock             clockwork.Clock
@@ -182,5 +192,76 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, sr
 }
 
 func (s *JoinServiceGRPCServer) RegisterUsingKubernetesRemoteMethod(srv proto.JoinService_RegisterUsingKubernetesRemoteMethodServer) error {
-	return trace.NotImplemented("RegisterUsingKubernetesRemoteMethod unimplemented in this version of Teleport.")
+	ctx := srv.Context()
+
+	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
+	// hold connections open indefinitely.
+	timeout := s.clock.After(kubernetesRemoteJoinRequestTimeout)
+
+	// The only way to cancel a blocked Send or Recv on the server side without
+	// adding an interceptor to the entire gRPC service is to return from the
+	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.registerUsingKubernetesRemoteMethod(ctx, srv)
+	}()
+	select {
+	case err := <-errCh:
+		// Completed before the deadline, return the error (may be nil).
+		return trace.Wrap(err)
+	case <-timeout:
+		nodeAddr := ""
+		if peerInfo, ok := peer.FromContext(ctx); ok {
+			nodeAddr = peerInfo.Addr.String()
+		}
+		logrus.Warnf("Kubernetes remote join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
+		// Returning here should cancel any blocked Send or Recv operations.
+		return trace.LimitExceeded("RegisterUsingKubernetesRemoteMethod timed out after %s, terminating the stream on the server", iamJoinRequestTimeout)
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+}
+
+func (s *JoinServiceGRPCServer) registerUsingKubernetesRemoteMethod(ctx context.Context, srv proto.JoinService_RegisterUsingKubernetesRemoteMethodServer) error {
+	req, err := srv.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	registerReq := req.GetRegisterUsingTokenRequest()
+	if registerReq == nil {
+		return trace.BadParameter("did not receive register_using_token_request payload")
+	}
+
+	certs, err := s.joinServiceClient.RegisterUsingKubernetesRemoteMethod(ctx, registerReq, func(challenge string) (string, error) {
+		err := srv.Send(&proto.RegisterUsingKubernetesRemoteMethodResponse{
+			Payload: &proto.RegisterUsingKubernetesRemoteMethodResponse_ChallengeAudience{
+				ChallengeAudience: challenge,
+			},
+		})
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		req, err := srv.Recv()
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		solution := req.GetChallengeSolutionJwt()
+		if solution == "" {
+			return "", trace.BadParameter("did not receive challenge_solution_jwt payload")
+		}
+
+		return solution, nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(srv.Send(&proto.RegisterUsingKubernetesRemoteMethodResponse{
+		Payload: &proto.RegisterUsingKubernetesRemoteMethodResponse_Certs{
+			Certs: certs,
+		},
+	}))
 }
