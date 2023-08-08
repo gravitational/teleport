@@ -314,7 +314,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "validating spec.%q", JoinMethodKubernetesRemote)
+			return trace.Wrap(err, "validating spec.%s", JoinMethodKubernetesRemote)
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -679,15 +679,16 @@ func (a *ProvisionTokenSpecV2GCP) checkAndSetDefaults() error {
 
 func (a *ProvisionTokenSpecV2KubernetesRemote) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
-		return trace.BadParameter("allow rules must be non-empty")
+		return trace.BadParameter("allow: must be non-empty")
 	}
-	for _, allowRule := range a.Allow {
+	for i, allowRule := range a.Allow {
 		if allowRule.ServiceAccount == "" {
-			return trace.BadParameter("allow rule must specify service_account")
+			return trace.BadParameter("allow[%d].service_account: must be non-empty", i)
 		}
 		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
 			return trace.BadParameter(
-				`service_account must be specified in format "namespace:service_account", got %q instead`,
+				`allow[%d].service_account: must be in format "namespace:service_account", got %q instead`,
+				i,
 				allowRule.ServiceAccount,
 			)
 		}
@@ -698,17 +699,22 @@ func (a *ProvisionTokenSpecV2KubernetesRemote) checkAndSetDefaults() error {
 				if clusterName == cluster.Name {
 					break
 				}
+				return trace.BadParameter("allow[%d].cluster: specifies %q but this cluster was not defined in clusters", i, clusterName)
 			}
-			return trace.BadParameter("allow rule includes cluster %q but this cluster was not defined in clusters")
 		}
 	}
-	for _, cluster := range a.Clusters {
+
+	if len(a.Clusters) == 0 {
+		return trace.BadParameter("clusters: must be non-empty")
+	}
+	for i, cluster := range a.Clusters {
 		if cluster.Name == "" {
-			return trace.BadParameter("cluster name must be specified")
+			return trace.BadParameter("clusters[%d].name: must be non-empty", i)
 		}
 		if cluster.GetStaticJWKS() == "" {
-			return trace.BadParameter("cluster static_jwks must be specified")
+			return trace.BadParameter("cluster[%d].static_jwks: must be non-empty", i)
 		}
+		// TODO: Validate JWKS ??
 	}
 	return nil
 }

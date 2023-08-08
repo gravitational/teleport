@@ -658,6 +658,214 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			expectedErr: &trace.BadParameterError{},
 		},
+		{
+			desc: "kubernetes_remote: success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetesRemote,
+					KubernetesRemote: &ProvisionTokenSpecV2KubernetesRemote{
+						Allow: []*ProvisionTokenSpecV2KubernetesRemote_Rule{
+							{
+								ServiceAccount: "default:my-sa",
+								Clusters: []string{
+									"my-cluster",
+								},
+							},
+						},
+						Clusters: []*ProvisionTokenSpecV2KubernetesRemote_Cluster{
+							{
+								Name: "my-cluster",
+								Source: &ProvisionTokenSpecV2KubernetesRemote_Cluster_StaticJWKS{
+									StaticJWKS: "some-jwks-here",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes_remote: missing allow rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetesRemote,
+					KubernetesRemote: &ProvisionTokenSpecV2KubernetesRemote{
+						Allow: []*ProvisionTokenSpecV2KubernetesRemote_Rule{},
+						Clusters: []*ProvisionTokenSpecV2KubernetesRemote_Cluster{
+							{
+								Name: "my-cluster",
+								Source: &ProvisionTokenSpecV2KubernetesRemote_Cluster_StaticJWKS{
+									StaticJWKS: "some-jwks-here",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes_remote: missing clusters",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetesRemote,
+					KubernetesRemote: &ProvisionTokenSpecV2KubernetesRemote{
+						Allow: []*ProvisionTokenSpecV2KubernetesRemote_Rule{
+							{
+								ServiceAccount: "default:my-sa",
+							},
+						},
+						Clusters: []*ProvisionTokenSpecV2KubernetesRemote_Cluster{},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes_remote: broken cluster reference",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetesRemote,
+					KubernetesRemote: &ProvisionTokenSpecV2KubernetesRemote{
+						Allow: []*ProvisionTokenSpecV2KubernetesRemote_Rule{
+							{
+								ServiceAccount: "default:my-sa",
+								Clusters:       []string{"foo"},
+							},
+						},
+						Clusters: []*ProvisionTokenSpecV2KubernetesRemote_Cluster{
+							{
+								Name: "my-cluster",
+								Source: &ProvisionTokenSpecV2KubernetesRemote_Cluster_StaticJWKS{
+									StaticJWKS: "some-jwks-here",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes_remote: cluster missing name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetesRemote,
+					KubernetesRemote: &ProvisionTokenSpecV2KubernetesRemote{
+						Allow: []*ProvisionTokenSpecV2KubernetesRemote_Rule{
+							{
+								ServiceAccount: "default:foo",
+							},
+						},
+						Clusters: []*ProvisionTokenSpecV2KubernetesRemote_Cluster{
+							{
+								Source: &ProvisionTokenSpecV2KubernetesRemote_Cluster_StaticJWKS{
+									StaticJWKS: "some-jwks-here",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes_remote: cluster missing static_jwks",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetesRemote,
+					KubernetesRemote: &ProvisionTokenSpecV2KubernetesRemote{
+						Allow: []*ProvisionTokenSpecV2KubernetesRemote_Rule{
+							{
+								ServiceAccount: "default:foo",
+							},
+						},
+						Clusters: []*ProvisionTokenSpecV2KubernetesRemote_Cluster{
+							{
+								Name: "foo",
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes_remote: service account name malformed",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetesRemote,
+					KubernetesRemote: &ProvisionTokenSpecV2KubernetesRemote{
+						Allow: []*ProvisionTokenSpecV2KubernetesRemote_Rule{
+							{
+								ServiceAccount: "noncompliantstring",
+							},
+						},
+						Clusters: []*ProvisionTokenSpecV2KubernetesRemote_Cluster{
+							{
+								Source: &ProvisionTokenSpecV2KubernetesRemote_Cluster_StaticJWKS{
+									StaticJWKS: "some-jwks-here",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "kubernetes_remote: service account missing",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetesRemote,
+					KubernetesRemote: &ProvisionTokenSpecV2KubernetesRemote{
+						Allow: []*ProvisionTokenSpecV2KubernetesRemote_Rule{
+							{},
+						},
+						Clusters: []*ProvisionTokenSpecV2KubernetesRemote_Cluster{
+							{
+								Source: &ProvisionTokenSpecV2KubernetesRemote_Cluster_StaticJWKS{
+									StaticJWKS: "some-jwks-here",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
 	}
 
 	for _, tc := range testcases {
