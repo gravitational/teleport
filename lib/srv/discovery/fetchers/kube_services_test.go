@@ -331,6 +331,7 @@ func newMockService(name, namespace, externalName string, labels, annotations ma
 }
 
 func TestGetServicePorts(t *testing.T) {
+    t.Parallel()
 	tests := []struct {
 		desc        string
 		annotations map[string]string
