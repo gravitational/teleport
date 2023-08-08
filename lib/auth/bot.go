@@ -273,6 +273,7 @@ var supportedBotJoinMethods = []types.JoinMethod{
 	types.JoinMethodGitHub,
 	types.JoinMethodGitLab,
 	types.JoinMethodIAM,
+	types.JoinMethodKubernetesRemote,
 }
 
 // checkOrCreateBotToken checks the existing token if given, or creates a new

@@ -18,56 +18,135 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/trace"
+	"time"
 )
 
-func (a *Server) RegisterUsingKubernetesRemoteMethod(ctx context.Context, req *types.RegisterUsingTokenRequest, solver client.KubernetesRemoteChallengeSolver) (*proto.Certs, error) {
+func (a *Server) RegisterUsingKubernetesRemoteMethod(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	solve client.KubernetesRemoteChallengeSolver,
+) (*proto.Certs, error) {
 	clientAddr, err := authz.ClientAddrFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	req.RemoteAddr = clientAddr.String()
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	provisionToken, err := a.checkTokenJoinRequestCommon(ctx, req)
+	unversionedToken, err := a.checkTokenJoinRequestCommon(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, ok := unversionedToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter(
+			"%s join method only supports ProvisionTokenV2, '%T' was provided",
+			types.JoinMethodKubernetesRemote,
+			unversionedToken,
+		)
+	}
+	if token.GetJoinMethod() != types.JoinMethodKubernetesRemote {
+		return nil, trace.BadParameter(
+			"%s join method mismatches token join method %q",
+			types.JoinMethodKubernetesRemote,
+			token.GetJoinMethod(),
+		)
+	}
+
+	// Challenge the client to provide a JWT including the generated "challenge
+	// audience".
+	clusterName, err := a.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	challenge, err := kubernetesRemoteChallenge(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	solution, err := solve(challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	solutionJWT, err := solver("challenge")
+	// Validate the solution JWT against the configured clusters and allow
+	// rules.
+	claims, err := validateKubernetesRemoteToken(
+		ctx, token, a.clock.Now(), challenge, solution,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if provisionToken.GetVersion() != types.V2 {
-		panic("version mitcmathc")
-	}
-	if provisionToken.GetJoinMethod() != types.JoinMethodKubernetesRemote {
-		panic("mismtatch join methiod")
+	if err := checkKubernetesRemoteAllowRules(token, claims); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Evaluate solutionJWT
-
+	// Validation success! We can return some certificates.
 	if req.Role == types.RoleBot {
 		certs, err := a.generateCertsBot(
 			ctx,
-			provisionToken,
+			token,
 			req,
-			nil,
+			claims,
 		)
 		return certs, trace.Wrap(err)
 	}
 	certs, err := a.generateCerts(
 		ctx,
-		provisionToken,
+		token,
 		req,
-		nil,
+		claims,
 	)
 	return certs, trace.Wrap(err)
+}
+
+func kubernetesRemoteChallenge(clusterName string) (string, error) {
+	challenge, err := generateChallenge(base64.RawStdEncoding, 32)
+	return fmt.Sprintf("%s/%s", clusterName, challenge), err
+}
+
+func validateKubernetesRemoteToken(
+	ctx context.Context, token *types.ProvisionTokenV2, now time.Time, challenge string, solution string,
+) (*kubernetestoken.ServiceAccountTokenClaims, error) {
+	var errs []error
+
+	// Search for the cluster which has signed the token.
+	for _, c := range token.Spec.KubernetesRemote.Clusters {
+		jwks, ok := c.Source.(*types.ProvisionTokenSpecV2KubernetesRemote_Cluster_StaticJWKS)
+		if !ok {
+			errs = append(errs, trace.BadParameter("cluster (%s): unsupported source %T", c.Name, c.Source))
+			continue
+		}
+		claims, err := kubernetestoken.ValidateRemoteToken(
+			ctx, now, []byte(jwks.StaticJWKS), challenge, solution,
+		)
+		if err == nil {
+			// Successful match - we can return the validated claims.
+			return claims, nil
+		}
+		errs = append(errs, trace.Wrap(err, "cluster (%s): token did not validate", c.Name))
+	}
+	return nil, trace.Wrap(trace.NewAggregate(errs...), "jwt did not match any configured cluster")
+}
+
+func checkKubernetesRemoteAllowRules(token *types.ProvisionTokenV2, claims *kubernetestoken.ServiceAccountTokenClaims) error {
+	for _, rule := range token.Spec.KubernetesRemote.Allow {
+		if claims.Sub != fmt.Sprintf("%s:%s", kubernetestoken.ServiceAccountNamePrefix, rule.ServiceAccount) {
+			continue
+		}
+		// If a single rule passes, accept the IDToken.
+		return nil
+	}
+
+	// No rules matched the token, so we reject.
+	return trace.AccessDenied("id token claims did not match any allow rules")
 }
