@@ -2538,7 +2538,6 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer rg.Release()
 
 	uls, err := rg.reader.GetUserLoginState(ctx, name)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
@@ -2550,6 +2549,7 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 			return uls, nil
 		}
 	}
+	defer rg.Release()
 	return uls, trace.Wrap(err)
 }
 

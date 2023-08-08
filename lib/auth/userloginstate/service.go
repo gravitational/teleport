@@ -54,7 +54,7 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.New().WithField(trace.Component, "user_login_state_crud_service")
+		c.Logger = logrus.WithField(trace.Component, "user_login_state_crud_service")
 	}
 
 	if c.Clock == nil {
