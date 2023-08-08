@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 	"time"
 )
 
@@ -65,11 +66,11 @@ func (a *Server) RegisterUsingKubernetesRemoteMethod(
 
 	// Challenge the client to provide a JWT including the generated "challenge
 	// audience".
-	clusterName, err := a.GetDomainName()
+	teleportCluster, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	challenge, err := kubernetesRemoteChallenge(clusterName)
+	challenge, err := kubernetesRemoteChallenge(teleportCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,13 +81,13 @@ func (a *Server) RegisterUsingKubernetesRemoteMethod(
 
 	// Validate the solution JWT against the configured clusters and allow
 	// rules.
-	claims, err := validateKubernetesRemoteToken(
+	claims, cluster, err := validateKubernetesRemoteToken(
 		ctx, token, a.clock.Now(), challenge, solution,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := checkKubernetesRemoteAllowRules(token, claims); err != nil {
+	if err := checkKubernetesRemoteAllowRules(token, cluster, claims); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -116,7 +117,7 @@ func kubernetesRemoteChallenge(clusterName string) (string, error) {
 
 func validateKubernetesRemoteToken(
 	ctx context.Context, token *types.ProvisionTokenV2, now time.Time, challenge string, solution string,
-) (*kubernetestoken.ServiceAccountTokenClaims, error) {
+) (*kubernetestoken.ServiceAccountTokenClaims, string, error) {
 	var errs []error
 
 	// Search for the cluster which has signed the token.
@@ -131,15 +132,21 @@ func validateKubernetesRemoteToken(
 		)
 		if err == nil {
 			// Successful match - we can return the validated claims.
-			return claims, nil
+			return claims, c.Name, nil
 		}
 		errs = append(errs, trace.Wrap(err, "cluster (%s): token did not validate", c.Name))
 	}
-	return nil, trace.Wrap(trace.NewAggregate(errs...), "jwt did not match any configured cluster")
+	return nil, "", trace.Wrap(trace.NewAggregate(errs...), "jwt did not match any configured cluster")
 }
 
-func checkKubernetesRemoteAllowRules(token *types.ProvisionTokenV2, claims *kubernetestoken.ServiceAccountTokenClaims) error {
+func checkKubernetesRemoteAllowRules(token *types.ProvisionTokenV2, cluster string, claims *kubernetestoken.ServiceAccountTokenClaims) error {
 	for _, rule := range token.Spec.KubernetesRemote.Allow {
+		if len(rule.Clusters) > 0 {
+			if !slices.Contains(rule.Clusters, cluster) {
+				continue
+			}
+		}
+
 		if claims.Sub != fmt.Sprintf("%s:%s", kubernetestoken.ServiceAccountNamePrefix, rule.ServiceAccount) {
 			continue
 		}
