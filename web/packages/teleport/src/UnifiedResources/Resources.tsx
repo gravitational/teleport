@@ -38,7 +38,14 @@ export function Resources() {
     attempt,
     fetchedData,
     fetchMore,
-    filtering: { pathname, params, setParams, setSort, replaceHistory },
+    filtering: {
+      pathname,
+      params,
+      setParams,
+      setSort,
+      replaceHistory,
+      onLabelClick,
+    },
   } = useResources(teleCtx);
   const observed = React.useRef(null);
 
@@ -77,7 +84,7 @@ export function Resources() {
       )}
       <ResourcesContainer gap={2}>
         {fetchedData.agents.map((agent, i) => (
-          <ResourceCard key={i} resource={agent} />
+          <ResourceCard key={i} resource={agent} onLabelClick={onLabelClick} />
         ))}
       </ResourcesContainer>
       <div

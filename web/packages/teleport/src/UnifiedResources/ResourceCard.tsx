@@ -17,9 +17,16 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonBorder, ButtonText, Flex, Label, Text } from 'design';
+import {
+  Box,
+  ButtonBorder,
+  ButtonLink,
+  ButtonText,
+  Flex,
+  Label,
+  Text,
+} from 'design';
 
-import { CheckboxInput } from 'design/Checkbox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
   ApplicationsIcon,
@@ -29,17 +36,28 @@ import {
   ServersIcon,
 } from 'design/SVGIcon';
 
-import { UnifiedResource, UnifiedResourceKind } from 'teleport/services/agents';
+import {
+  AgentLabel,
+  UnifiedResource,
+  UnifiedResourceKind,
+} from 'teleport/services/agents';
+
+const labelRowHeight = 26; // px
+const labelVerticalMargin = 1; // px
+const labelHeight = labelRowHeight - 2 * labelVerticalMargin;
 
 const SingleLineBox = styled(Box)`
   overflow: hidden;
   white-space: nowrap;
 `;
 
-const TruncatingLabel = styled(Label)`
+const ResourceLabel = styled(Label)`
+  height: ${labelHeight}px;
+  margin: 1px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 `;
 
 /**
@@ -54,8 +72,10 @@ const ResTypeIconBox = styled(Box)`
 
 type Props = {
   resource: UnifiedResource;
+  onLabelClick: (label: AgentLabel) => void;
 };
-export const ResourceCard = ({ resource }: Props) => {
+
+export const ResourceCard = ({ resource, onLabelClick }: Props) => {
   const name = resourceName(resource);
   const resIcon = resourceIconName(resource);
   const ResTypeIcon = resourceTypeIcon(resource.kind);
@@ -63,17 +83,40 @@ export const ResourceCard = ({ resource }: Props) => {
   const labelsInnerContainer = React.useRef(null);
   const [showMoreLabelsButton, setShowMoreLabelsButton] = React.useState(false);
   const [showAllLabels, setShowAllLabels] = React.useState(false);
+  const [numMoreLabels, setNumMoreLabels] = React.useState(0);
 
   React.useEffect(() => {
-    if (labelsInnerContainer.current) {
-      const observer = new ResizeObserver(entries => {
-        setShowMoreLabelsButton(entries[0].contentBoxSize[0].blockSize > 26);
-      });
-      observer.observe(labelsInnerContainer.current);
-      return () => {
-        observer.disconnect();
-      };
-    }
+    if (!labelsInnerContainer.current) return;
+
+    const observer = new ResizeObserver(entries => {
+      const container = entries[0];
+
+      // We're taking labelRowHeight * 1.5 just in case some glitch adds or
+      // removes a pixel here and there.
+      const moreThanOneRow =
+        container.contentBoxSize[0].blockSize > labelRowHeight * 1.5;
+      setShowMoreLabelsButton(moreThanOneRow);
+
+      // Count number of labels in the first row.
+      const labelElements = [
+        ...entries[0].target.querySelectorAll('[data-is-label]'),
+      ];
+      const firstLabelPos = labelElements[0]?.getBoundingClientRect().top;
+      const firstLabelInSecondRow = labelElements.findIndex(
+        e => e.getBoundingClientRect().top > firstLabelPos
+      );
+
+      setNumMoreLabels(
+        firstLabelInSecondRow > 0
+          ? labelElements.length - firstLabelInSecondRow
+          : 0
+      );
+    });
+
+    observer.observe(labelsInnerContainer.current);
+    return () => {
+      observer.disconnect();
+    };
   });
 
   const onMoreLabelsClick = () => {
@@ -87,14 +130,21 @@ export const ResourceCard = ({ resource }: Props) => {
         alignItems="start"
         showAllLabels={showAllLabels}
         onMouseLeave={() => setShowAllLabels(false)}
+        // Class name needed to properly propagate hover state to child
+        // components. If we don't do it, there's no way to sync the background
+        // of the "more" button, since it's opaque and the background is
+        // animated.
+        className="grv-unified-resource-card"
       >
-        <CheckboxInput type="checkbox" mx={0}></CheckboxInput>
         <ResourceIcon
-          alignSelf="center"
           name={resIcon}
           width="45px"
           height="45px"
           ml={2}
+          // We would love to just vertical-center-align this one, but then it
+          // would move down along with expanding the labels. So we apply a
+          // carefully measured top margin instead.
+          mt="16px"
         />
         {/* MinWidth is important to prevent descriptions from overflowing. */}
         <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
@@ -127,18 +177,28 @@ export const ResourceCard = ({ resource }: Props) => {
             <LabelsInnerContainer ref={labelsInnerContainer}>
               <MoreLabelsButton
                 style={{
-                  visibility: showMoreLabelsButton ? 'visible' : 'hidden',
+                  visibility:
+                    showMoreLabelsButton && !showAllLabels
+                      ? 'visible'
+                      : 'hidden',
                 }}
                 onClick={onMoreLabelsClick}
               >
-                more
+                + {numMoreLabels} more
               </MoreLabelsButton>
-              {resource.labels.map(({ name, value }) => {
-                const label = `${name}: ${value}`;
+              {resource.labels.map(label => {
+                const { name, value } = label;
+                const labelText = `${name}: ${value}`;
                 return (
-                  <TruncatingLabel key={label} title={label} kind="secondary">
-                    {label}
-                  </TruncatingLabel>
+                  <ResourceLabel
+                    key={labelText}
+                    title={labelText}
+                    onClick={() => onLabelClick?.(label)}
+                    kind="secondary"
+                    data-is-label=""
+                  >
+                    {labelText}
+                  </ResourceLabel>
                 );
               })}
             </LabelsInnerContainer>
@@ -218,11 +278,20 @@ const CardContainer = styled(Box)`
 
 const CardInnerContainer = styled(Flex)`
   border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
+  background-color: ${props => props.theme.colors.levels.sunken};
 
   ${props =>
     props.showAllLabels
-      ? `position: absolute; left: 0; right: 0; z-index: 1; background-color: ${props.theme.colors.levels.elevated};`
+      ? 'position: absolute; left: 0; right: 0; z-index: 1;'
       : ''}
+
+  transition: all 150ms;
+
+  &:hover {
+    background-color: ${props => props.theme.colors.levels.elevated};
+    border-color: ${props => props.theme.colors.levels.elevated};
+    box-shadow: ${props => props.theme.boxShadow[1]};
+  }
 
   @media (min-width: ${props => props.theme.breakpoints.tablet}px) {
     border: ${props => props.theme.borders[2]}
@@ -232,7 +301,7 @@ const CardInnerContainer = styled(Flex)`
 `;
 
 const LabelsContainer = styled(Box)`
-  ${props => (props.showAll ? '' : 'height: 26px;')}
+  ${props => (props.showAll ? '' : `height: ${labelRowHeight}px;`)}
   overflow: hidden;
 `;
 
@@ -243,7 +312,21 @@ const LabelsInnerContainer = styled(Flex)`
   position: relative;
 `;
 
-const MoreLabelsButton = styled(ButtonText)`
+const MoreLabelsButton = styled(ButtonLink)`
+  background-color: ${props => props.theme.colors.levels.sunken};
+  color: ${props => props.theme.colors.text.slightlyMuted};
+  height: ${labelHeight}px;
+  margin: ${labelVerticalMargin}px 0;
+  min-height: 0;
+  font-style: italic;
+  border-radius: 0;
   position: absolute;
   right: 0;
+
+  transition: visibility 0s;
+  transition: background 150ms;
+
+  .grv-unified-resource-card:hover & {
+    background-color: ${props => props.theme.colors.levels.elevated};
+  }
 `;
