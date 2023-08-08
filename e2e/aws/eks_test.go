@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -90,7 +91,14 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 		defer cancel()
 
 		clusters, err := authC.GetKubernetesClusters(ctx)
-		return err == nil && len(clusters) == 1 && clusters[0].GetName() == os.Getenv(discoveredClusterNameEnv)
+		if err != nil || len(clusters) == 0 {
+			return false
+		}
+		// Fail fast if the discovery service creates more than one cluster.
+		assert.Equal(t, 1, len(clusters))
+		// Fail fast if the discovery service creates a cluster with a different name.
+		assert.Equal(t, os.Getenv(discoveredClusterNameEnv), clusters[0].GetName())
+		return true
 	}, 3*time.Minute, 10*time.Second, "wait for the discovery service to create a cluster")
 
 	// Wait for the kubernetes service to create a KubernetesServer resource.

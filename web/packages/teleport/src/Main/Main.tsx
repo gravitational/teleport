@@ -184,7 +184,6 @@ export function Main(props: MainProps) {
       {showOnboardSurvey && (
         <Dialog open={showOnboardSurvey}>
           <props.Questionnaire
-            full={true}
             onSubmit={() => setShowOnboardSurvey(false)}
             onboard={false}
           />

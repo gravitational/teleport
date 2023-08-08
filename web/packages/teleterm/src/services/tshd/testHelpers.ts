@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type * as tsh from './types';
+import * as tsh from './types';
 
 export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   uri: '/clusters/teleport-local/servers/178ef081-259b-4aa5-a018-449b5ea7e694',
@@ -62,16 +62,22 @@ export const makeRootCluster = (
   leaf: false,
   proxyHost: 'teleport-local:3080',
   authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-  loggedInUser: {
-    activeRequestsList: [],
-    assumedRequests: {},
-    name: 'admin',
-    acl: {},
-    sshLoginsList: [],
-    rolesList: [],
-    requestableRolesList: [],
-    suggestedReviewersList: [],
-  },
+  loggedInUser: makeLoggedInUser(),
+  ...props,
+});
+
+export const makeLoggedInUser = (
+  props: Partial<tsh.LoggedInUser> = {}
+): tsh.LoggedInUser => ({
+  activeRequestsList: [],
+  assumedRequests: {},
+  name: 'alice',
+  acl: {},
+  sshLoginsList: [],
+  rolesList: [],
+  requestableRolesList: [],
+  suggestedReviewersList: [],
+  userType: tsh.UserType.USER_TYPE_LOCAL,
   ...props,
 });
 

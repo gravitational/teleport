@@ -70,8 +70,8 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 		return noCertsReloaded, trace.Wrap(err)
 	}
 
-	isLocalUser := clusterUser.GetCreatedBy().Connector == nil
-	if !isLocalUser {
+	userType := clusterUser.GetUserType()
+	if userType != types.UserTypeLocal {
 		return noCertsReloaded,
 			trace.BadParameter("Connect My Computer works only with local users, the user %v was created by %v connector",
 				clusterUser.GetName(), clusterUser.GetCreatedBy().Connector.Type)

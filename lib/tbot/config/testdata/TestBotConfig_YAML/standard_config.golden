@@ -15,6 +15,10 @@ outputs:
   - type: identity
     destination:
       type: memory
+  - type: identity
+    destination:
+      type: kubernetes_secret
+      name: my-secret
 debug: true
 auth_server: example.teleport.sh:443
 certificate_ttl: 1m0s

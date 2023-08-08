@@ -1,0 +1,6 @@
+should set imagePullSecrets on auth predeploy job when set in values:
+  1: |
+    - name: myRegistryKeySecretName
+should set imagePullSecrets on proxy predeploy job when set in values:
+  1: |
+    - name: myRegistryKeySecretName

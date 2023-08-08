@@ -809,6 +809,60 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	return databases, trace.NewAggregate(errors...)
 }
 
+// NewDatabasesFromRDSCluster creates all database resources from an RDS Aurora
+// cluster.
+func NewDatabasesFromRDSCluster(cluster *rds.DBCluster) (types.Databases, error) {
+	var errors []error
+	var databases types.Databases
+
+	// Find out what types of instances the cluster has. Some examples:
+	// - Aurora cluster with one instance: one writer
+	// - Aurora cluster with three instances: one writer and two readers
+	// - Secondary cluster of a global database: one or more readers
+	var hasWriterInstance, hasReaderInstance bool
+	for _, clusterMember := range cluster.DBClusterMembers {
+		if clusterMember != nil {
+			if aws.BoolValue(clusterMember.IsClusterWriter) {
+				hasWriterInstance = true
+			} else {
+				hasReaderInstance = true
+			}
+		}
+	}
+
+	// Add a database from primary endpoint, if any writer instances.
+	if cluster.Endpoint != nil && hasWriterInstance {
+		database, err := NewDatabaseFromRDSCluster(cluster)
+		if err != nil {
+			errors = append(errors, err)
+		} else {
+			databases = append(databases, database)
+		}
+	}
+
+	// Add a database from reader endpoint, if any reader instances.
+	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html#Aurora.Endpoints.Reader
+	if cluster.ReaderEndpoint != nil && hasReaderInstance {
+		database, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
+		if err != nil {
+			errors = append(errors, err)
+		} else {
+			databases = append(databases, database)
+		}
+	}
+
+	// Add databases from custom endpoints
+	if len(cluster.CustomEndpoints) > 0 {
+		customEndpointDatabases, err := NewDatabasesFromRDSClusterCustomEndpoints(cluster)
+		if err != nil {
+			errors = append(errors, err)
+		}
+		databases = append(databases, customEndpointDatabases...)
+	}
+
+	return databases, trace.NewAggregate(errors...)
+}
+
 // NewDatabaseFromRDSProxy creates database resource from RDS Proxy.
 func NewDatabaseFromRDSProxy(dbProxy *rds.DBProxy, port int64, tags []*rds.Tag) (types.Database, error) {
 	metadata, err := MetadataFromRDSProxy(dbProxy)
@@ -926,6 +980,27 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 	return databases, nil
 }
 
+// NewDatabasesFromElastiCacheReplicationGroup creates all database resources
+// from an ElastiCache ReplicationGroup.
+func NewDatabasesFromElastiCacheReplicationGroup(cluster *elasticache.ReplicationGroup, extraLabels map[string]string) (types.Databases, error) {
+	// Create database using configuration endpoint for Redis with cluster
+	// mode enabled.
+	if aws.BoolValue(cluster.ClusterEnabled) {
+		database, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Databases{database}, nil
+	}
+
+	// Create databases using primary and reader endpoints for Redis with
+	// cluster mode disabled. When cluster mode is disabled, it is expected
+	// there is only one node group (aka shard) with one primary endpoint
+	// and one reader endpoint.
+	databases, err := NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
+	return databases, trace.Wrap(err)
+}
+
 // newElastiCacheDatabase returns a new ElastiCache database.
 func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *elasticache.Endpoint, endpointType string, extraLabels map[string]string) (types.Database, error) {
 	metadata, err := MetadataFromElastiCacheCluster(cluster, endpointType)
@@ -948,8 +1023,8 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	})
 }
 
-// NewDatabaseFromOpenSearchDomain creates a database resource from an OpenSearch domain.
-func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
+// NewDatabasesFromOpenSearchDomain creates database resources from an OpenSearch domain.
+func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
 	var databases types.Databases
 
 	if aws.StringValue(domain.Endpoint) != "" {
@@ -1540,7 +1615,6 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 		labels[types.DiscoveryLabelAccountID] = meta.AccountID
 		labels[types.DiscoveryLabelRegion] = meta.Region
 	}
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAWS
 	return labels
 }
@@ -1561,7 +1635,6 @@ func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLa
 // azureTagsToLabels converts Azure tags to a labels map.
 func azureTagsToLabels(tags map[string]string) map[string]string {
 	labels := make(map[string]string)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[types.CloudLabel] = types.CloudAzure
 	return addLabels(labels, tags)
 }
