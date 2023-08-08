@@ -305,6 +305,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case JoinMethodKubernetesRemote:
+		providerCfg := p.Spec.KubernetesRemote
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"kubernetes_remote" configuration must be provided for the join method %q`,
+				JoinMethodKubernetesRemote,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating spec.%q", JoinMethodKubernetesRemote)
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -661,6 +672,42 @@ func (a *ProvisionTokenSpecV2GCP) checkAndSetDefaults() error {
 				"the %q join method requires gcp allow rules with at least one project ID",
 				JoinMethodGCP,
 			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2KubernetesRemote) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("allow rules must be non-empty")
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.ServiceAccount == "" {
+			return trace.BadParameter("allow rule must specify service_account")
+		}
+		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
+			return trace.BadParameter(
+				`service_account must be specified in format "namespace:service_account", got %q instead`,
+				allowRule.ServiceAccount,
+			)
+		}
+		// Ensure any cluster referenced within the allow rules has been
+		// specified under clusters.
+		for _, clusterName := range allowRule.Clusters {
+			for _, cluster := range a.Clusters {
+				if clusterName == cluster.Name {
+					break
+				}
+			}
+			return trace.BadParameter("allow rule includes cluster %q but this cluster was not defined in clusters")
+		}
+	}
+	for _, cluster := range a.Clusters {
+		if cluster.Name == "" {
+			return trace.BadParameter("cluster name must be specified")
+		}
+		if cluster.GetStaticJWKS() == "" {
+			return trace.BadParameter("cluster static_jwks must be specified")
 		}
 	}
 	return nil
