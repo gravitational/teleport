@@ -330,21 +330,18 @@ func TestDiscoveryServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testClients := Clients{
-				Kubernetes: fake.NewSimpleClientset(),
-				Cloud: &cloud.TestCloudClients{
-					EC2: &mockEC2Client{
-						output: &ec2.DescribeInstancesOutput{
-							Reservations: []*ec2.Reservation{
-								{
-									OwnerId:   aws.String("owner"),
-									Instances: tc.foundEC2Instances,
-								},
+			testCloudClients := &cloud.TestCloudClients{
+				EC2: &mockEC2Client{
+					output: &ec2.DescribeInstancesOutput{
+						Reservations: []*ec2.Reservation{
+							{
+								OwnerId:   aws.String("owner"),
+								Instances: tc.foundEC2Instances,
 							},
 						},
 					},
-					SSM: tc.ssm,
 				},
+				SSM: tc.ssm,
 			}
 
 			ctx := context.Background()
@@ -371,8 +368,9 @@ func TestDiscoveryServer(t *testing.T) {
 
 			logger := logrus.New()
 			server, err := New(context.Background(), &Config{
-				Clients:     testClients,
-				AccessPoint: tlsServer.Auth(),
+				CloudClients:     testCloudClients,
+				KubernetesClient: fake.NewSimpleClientset(),
+				AccessPoint:      tlsServer.Auth(),
 				Matchers: Matchers{
 					AWS: []types.AWSMatcher{{
 						Types:   []string{"ec2"},
@@ -549,10 +547,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			for _, s := range mockKubeServices {
 				objects = append(objects, s)
 			}
-			testClients := Clients{
-				Kubernetes: fake.NewSimpleClientset(objects...),
-				Cloud:      &cloud.TestCloudClients{},
-			}
 
 			ctx := context.Background()
 			// Create and start test auth server.
@@ -585,8 +579,9 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					Clients:     testClients,
-					AccessPoint: tlsServer.Auth(),
+					CloudClients:     &cloud.TestCloudClients{},
+					KubernetesClient: fake.NewSimpleClientset(objects...),
+					AccessPoint:      tlsServer.Auth(),
 					Matchers: Matchers{
 						Kubernetes: tt.kubernetesMatchers,
 					},
@@ -828,14 +823,11 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			t.Parallel()
 			sts := &mocks.STSMock{}
 
-			testClients := Clients{
-				Kubernetes: fake.NewSimpleClientset(),
-				Cloud: &cloud.TestCloudClients{
-					STS:            sts,
-					AzureAKSClient: newPopulatedAKSMock(),
-					EKS:            newPopulatedEKSMock(),
-					GCPGKE:         newPopulatedGCPMock(),
-				},
+			testCloudClients := &cloud.TestCloudClients{
+				STS:            sts,
+				AzureAKSClient: newPopulatedAKSMock(),
+				EKS:            newPopulatedEKSMock(),
+				GCPGKE:         newPopulatedGCPMock(),
 			}
 
 			ctx := context.Background()
@@ -896,8 +888,9 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					Clients:     testClients,
-					AccessPoint: tlsServer.Auth(),
+					CloudClients:     testCloudClients,
+					KubernetesClient: fake.NewSimpleClientset(),
+					AccessPoint:      tlsServer.Auth(),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -1230,27 +1223,24 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
-	testClients := Clients{
-		Kubernetes: fake.NewSimpleClientset(),
-		Cloud: &cloud.TestCloudClients{
-			STS: &mocks.STSMock{},
-			RDS: &mocks.RDSMock{
-				DBInstances: []*rds.DBInstance{awsRDSInstance},
-				DBEngineVersions: []*rds.DBEngineVersion{
-					{Engine: aws.String(services.RDSEnginePostgres)},
-				},
+	testCloudClients := &cloud.TestCloudClients{
+		STS: &mocks.STSMock{},
+		RDS: &mocks.RDSMock{
+			DBInstances: []*rds.DBInstance{awsRDSInstance},
+			DBEngineVersions: []*rds.DBEngineVersion{
+				{Engine: aws.String(services.RDSEnginePostgres)},
 			},
-			Redshift: &mocks.RedshiftMock{
-				Clusters: []*redshift.Cluster{awsRedshiftResource},
-			},
-			AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
-				Servers: []*armredis.ResourceInfo{azRedisResource},
-			}),
-			AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
-				&azure.ARMRedisEnterpriseClusterMock{},
-				&azure.ARMRedisEnterpriseDatabaseMock{},
-			),
 		},
+		Redshift: &mocks.RedshiftMock{
+			Clusters: []*redshift.Cluster{awsRedshiftResource},
+		},
+		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
+			Servers: []*armredis.ResourceInfo{azRedisResource},
+		}),
+		AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
+			&azure.ARMRedisEnterpriseClusterMock{},
+			&azure.ARMRedisEnterpriseDatabaseMock{},
+		),
 	}
 
 	tcs := []struct {
@@ -1425,8 +1415,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 			srv, err := New(
 				ctx,
 				&Config{
-					Clients:     testClients,
-					AccessPoint: tlsServer.Auth(),
+					CloudClients:     testCloudClients,
+					KubernetesClient: fake.NewSimpleClientset(),
+					AccessPoint:      tlsServer.Auth(),
 					Matchers: Matchers{
 						AWS:   tc.awsMatchers,
 						Azure: tc.azureMatchers,
@@ -1687,14 +1678,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testClients := Clients{
-				Kubernetes: fake.NewSimpleClientset(),
-				Cloud: &cloud.TestCloudClients{
-					AzureVirtualMachines: &mockAzureClient{
-						vms: tc.foundAzureVMs,
-					},
-					AzureRunCommand: &mockAzureRunCommandClient{},
+			testCloudClients := &cloud.TestCloudClients{
+				AzureVirtualMachines: &mockAzureClient{
+					vms: tc.foundAzureVMs,
 				},
+				AzureRunCommand: &mockAzureRunCommandClient{},
 			}
 
 			ctx := context.Background()
@@ -1721,8 +1709,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 			logger := logrus.New()
 			emitter := &mockEmitter{}
 			server, err := New(context.Background(), &Config{
-				Clients:     testClients,
-				AccessPoint: tlsServer.Auth(),
+				CloudClients:     testCloudClients,
+				KubernetesClient: fake.NewSimpleClientset(),
+				AccessPoint:      tlsServer.Auth(),
 				Matchers: Matchers{
 					Azure: []types.AzureMatcher{{
 						Types:          []string{"vm"},
@@ -1910,12 +1899,9 @@ func TestGCPVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testClients := Clients{
-				Kubernetes: fake.NewSimpleClientset(),
-				Cloud: &cloud.TestCloudClients{
-					GCPInstances: &mockGCPClient{
-						vms: tc.foundGCPVMs,
-					},
+			testCloudClients := &cloud.TestCloudClients{
+				GCPInstances: &mockGCPClient{
+					vms: tc.foundGCPVMs,
 				},
 			}
 
@@ -1944,8 +1930,9 @@ func TestGCPVMDiscovery(t *testing.T) {
 			emitter := &mockEmitter{}
 
 			server, err := New(context.Background(), &Config{
-				Clients:     testClients,
-				AccessPoint: tlsServer.Auth(),
+				CloudClients:     testCloudClients,
+				KubernetesClient: fake.NewSimpleClientset(),
+				AccessPoint:      tlsServer.Auth(),
 				Matchers: Matchers{
 					GCP: []types.GCPMatcher{{
 						Types:      []string{"gce"},

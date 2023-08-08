@@ -48,14 +48,6 @@ import (
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
-// Clients contains all clients used by discovery service
-type Clients struct {
-	// Cloud are cloud clients
-	Cloud cloud.Clients
-	// Kubernetes is Kubernetes client
-	Kubernetes kubernetes.Interface
-}
-
 // Matchers contains all matchers used by discovery service
 type Matchers struct {
 	// AWS is a list of AWS EC2 matchers.
@@ -74,8 +66,10 @@ func (m Matchers) IsEmpty() bool {
 
 // Config provides configuration for the discovery server.
 type Config struct {
-	// Clients is used for retrieving clients needed for discovery.
-	Clients Clients
+	// CloudClients is an interface for retrieving cloud clients.
+	CloudClients cloud.Clients
+	// Kubernetes is the Kubernetes client interface
+	KubernetesClient kubernetes.Interface
 	// Matchers stores all types of matchers to discover resources
 	Matchers Matchers
 	// Emitter is events emitter, used to submit discrete events
@@ -118,14 +112,14 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter(`the DiscoveryGroup name should be set for discovery server if
 kubernetes matchers are present.`)
 	}
-	if c.Clients.Cloud == nil {
+	if c.CloudClients == nil {
 		cloudClients, err := cloud.NewClients()
 		if err != nil {
 			return trace.Wrap(err, "unable to create cloud clients")
 		}
-		c.Clients.Cloud = cloudClients
+		c.CloudClients = cloudClients
 	}
-	if c.Clients.Kubernetes == nil && len(c.Matchers.Kubernetes) > 0 {
+	if c.KubernetesClient == nil && len(c.Matchers.Kubernetes) > 0 {
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
 			return trace.Wrap(err,
@@ -136,7 +130,7 @@ kubernetes matchers are present.`)
 			return trace.Wrap(err, "unable to create Kubernetes client")
 		}
 
-		c.Clients.Kubernetes = kubeClient
+		c.KubernetesClient = kubeClient
 	}
 
 	if c.Log == nil {
@@ -240,7 +234,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	var err error
 	if len(ec2Matchers) > 0 {
 		s.caRotationCh = make(chan []types.Server)
-		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients.Cloud, s.caRotationCh, server.WithPollInterval(s.PollInterval))
+		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.CloudClients, s.caRotationCh, server.WithPollInterval(s.PollInterval))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -261,7 +255,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	// Add database fetchers.
 	databaseMatchers, otherMatchers := splitMatchers(otherMatchers, db.IsAWSMatcherType)
 	if len(databaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.Clients.Cloud, databaseMatchers)
+		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.CloudClients, databaseMatchers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -279,7 +273,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 			for _, region := range matcher.Regions {
 				switch t {
 				case services.AWSMatcherEKS:
-					client, err := s.Clients.Cloud.GetAWSEKSClient(
+					client, err := s.CloudClients.GetAWSEKSClient(
 						s.ctx,
 						region,
 						cloud.WithAssumeRole(
@@ -315,7 +309,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 		return nil
 	}
 
-	kubeClient := s.Clients.Kubernetes
+	kubeClient := s.KubernetesClient
 	if kubeClient == nil {
 		return trace.BadParameter("Kubernetes client is not present")
 	}
@@ -350,7 +344,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	// VM watcher.
 	if len(vmMatchers) > 0 {
 		var err error
-		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients.Cloud, server.WithPollInterval(s.PollInterval))
+		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.CloudClients, server.WithPollInterval(s.PollInterval))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -362,7 +356,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	// Add database fetchers.
 	databaseMatchers, otherMatchers := splitMatchers(otherMatchers, db.IsAzureMatcherType)
 	if len(databaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAzureFetchers(s.Clients.Cloud, databaseMatchers)
+		databaseFetchers, err := db.MakeAzureFetchers(s.CloudClients, databaseMatchers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -379,7 +373,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 			for _, t := range matcher.Types {
 				switch t {
 				case services.AzureMatcherKubernetes:
-					kubeClient, err := s.Clients.Cloud.GetAzureKubernetesClient(subscription)
+					kubeClient, err := s.CloudClients.GetAzureKubernetesClient(subscription)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -416,7 +410,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	// VM watcher.
 	if len(vmMatchers) > 0 {
 		var err error
-		s.gcpWatcher, err = server.NewGCPWatcher(s.ctx, vmMatchers, s.Clients.Cloud)
+		s.gcpWatcher, err = server.NewGCPWatcher(s.ctx, vmMatchers, s.CloudClients)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -425,7 +419,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		}
 	}
 
-	kubeClient, err := s.Clients.Cloud.GetGCPGKEClient(ctx)
+	kubeClient, err := s.CloudClients.GetGCPGKEClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -515,7 +509,7 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.Clients.Cloud.GetAWSSSMClient(s.ctx, instances.Region)
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -686,7 +680,7 @@ outer:
 }
 
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
-	client, err := s.Clients.Cloud.GetAzureRunCommandClient(instances.SubscriptionID)
+	client, err := s.CloudClients.GetAzureRunCommandClient(instances.SubscriptionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -765,7 +759,7 @@ outer:
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
-	client, err := s.Clients.Cloud.GetGCPInstancesClient(s.ctx)
+	client, err := s.CloudClients.GetGCPInstancesClient(s.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -866,7 +860,7 @@ func (s *Server) Wait() error {
 func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]string, error) {
 	subscriptionIds := subs
 	if slices.Contains(subs, types.Wildcard) {
-		subsClient, err := s.Clients.Cloud.GetAzureSubscriptionClient()
+		subsClient, err := s.CloudClients.GetAzureSubscriptionClient()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
