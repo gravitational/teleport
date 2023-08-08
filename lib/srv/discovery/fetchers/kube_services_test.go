@@ -449,9 +449,7 @@ func TestGetServicePorts(t *testing.T) {
 
 func TestProtoChecker_CheckProtocol(t *testing.T) {
 	t.Parallel()
-	checker := ProtoChecker{
-		InsecureSkipVerify: true,
-	}
+	checker := NewProtoChecker(true)
 
 	httpsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprintln(w, "httpsServer")

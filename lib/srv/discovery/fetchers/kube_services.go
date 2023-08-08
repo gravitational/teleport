@@ -69,7 +69,7 @@ func (k *KubeAppsFetcherConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if k.ProtocolChecker == nil {
-		k.ProtocolChecker = &ProtoChecker{}
+		k.ProtocolChecker = NewProtoChecker(false)
 	}
 
 	return nil
@@ -117,8 +117,8 @@ func (f *KubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) 
 			return nil, trace.Wrap(err)
 		}
 		for _, s := range kubeServices.Items {
-			if !namespaceFilter(s.GetNamespace()) {
-				// Namespace is not in the list of namespaces to fetch
+			if !namespaceFilter(s.GetNamespace()) || isInternalKubeService(s) {
+				// Namespace is not in the list of namespaces to fetch or it's an internal service
 				continue
 			}
 			match, _, err := services.MatchLabels(f.FilterLabels, s.Labels)
@@ -165,11 +165,6 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	for _, service := range kubeServices {
 		service := service
 
-		// Skip kubernetes own internal services
-		if isInternalKubeService(service) {
-			continue
-		}
-
 		// Skip service if it has type annotation and it's not 'app'
 		if v, ok := service.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != services.KubernetesMatchersApp {
 			continue
@@ -186,19 +181,17 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 
 			portProtocols := map[v1.ServicePort]string{}
 			for _, port := range ports {
-				protocol := ""
 				switch protocolAnnotation {
 				case protoHTTPS, protoHTTP, protoTCP:
-					protocol = protocolAnnotation
+					portProtocols[port] = protocolAnnotation
 				default:
-					protocol = autoProtocolDetection(getServiceFQDN(service), port, f.ProtocolChecker)
-					if protocol == protoTCP {
-						continue
+					if p := autoProtocolDetection(getServiceFQDN(service), port, f.ProtocolChecker); p != protoTCP {
+						portProtocols[port] = p
 					}
 				}
-				portProtocols[port] = protocol
 			}
 
+			var newApps types.Apps
 			for port, portProtocol := range portProtocols {
 				if len(portProtocols) == 1 {
 					port.Name = ""
@@ -208,11 +201,11 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 					f.Log.WithError(err).Warnf("Could not get app from a Kubernetes service %q, port %d", service.GetName(), port.Port)
 					return nil
 				}
-
-				appsMu.Lock()
-				apps = append(apps, newApp)
-				appsMu.Unlock()
+				newApps = append(newApps, newApp)
 			}
+			appsMu.Lock()
+			apps = append(apps, newApps...)
+			appsMu.Unlock()
 
 			return nil
 		})
@@ -239,6 +232,11 @@ func (f *KubeAppFetcher) String() string {
 
 // autoProtocolDetection tries to determine port's protocol. It uses heuristics and port HTTP pinging if needed, provided
 // by protocol checker. It is used when no explicit annotation for port's protocol was provided.
+//   - If port's AppProtocol specifies `http` or `https` we return it
+//   - If port's name is `https` or number is 443 we return `https`
+//   - If protocol checker is available it will perform HTTP request to the service fqdn trying to find out protocol. If it
+//     gives us result `http` or `https` we return it
+//   - If port's name is `http` or number is 80 or 8080, we return `http`
 func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolChecker) string {
 	if port.AppProtocol != nil {
 		switch p := strings.ToLower(*port.AppProtocol); p {
@@ -266,11 +264,13 @@ func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolC
 }
 
 func getServiceFQDN(s v1.Service) string {
-	host := s.GetName()
+	// If service type is ExternalName it points to external DNS name, to keep correct
+	// HOST for HTTP requests we return already final external DNS name.
+	// https://kubernetes.io/docs/concepts/services-networking/service/#externalname
 	if s.Spec.Type == v1.ServiceTypeExternalName {
-		host = s.Spec.ExternalName
+		return s.Spec.ExternalName
 	}
-	return fmt.Sprintf("%s.%s.svc.cluster.local", host, s.GetNamespace())
+	return fmt.Sprintf("%s.%s.svc.cluster.local", s.GetName(), s.GetNamespace())
 }
 
 // ProtocolChecker is an interface used to check what protocol uri serves
@@ -311,16 +311,29 @@ type ProtoChecker struct {
 	client             *http.Client
 }
 
+func NewProtoChecker(insecureSkipVerify bool) *ProtoChecker {
+	p := &ProtoChecker{
+		InsecureSkipVerify: insecureSkipVerify,
+	}
+	p.createClient()
+
+	return p
+}
+
+func (p *ProtoChecker) createClient() {
+	p.client = &http.Client{
+		Timeout: 2 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: p.InsecureSkipVerify,
+			},
+		},
+	}
+}
+
 func (p *ProtoChecker) CheckProtocol(uri string) string {
 	if p.client == nil {
-		p.client = &http.Client{
-			Timeout: 2 * time.Second,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: p.InsecureSkipVerify,
-				},
-			},
-		}
+		p.createClient()
 	}
 
 	resp, err := p.client.Head(fmt.Sprintf("https://%s", uri))

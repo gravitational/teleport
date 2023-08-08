@@ -203,6 +203,12 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 }
 
 func getServiceFQDN(s corev1.Service) string {
+	// If service type is ExternalName it points to external DNS name, to keep correct
+	// HOST for HTTP requests we return already final external DNS name.
+	// https://kubernetes.io/docs/concepts/services-networking/service/#externalname
+	if s.Spec.Type == corev1.ServiceTypeExternalName {
+		return s.Spec.ExternalName
+	}
 	return fmt.Sprintf("%s.%s.svc.cluster.local", s.GetName(), s.GetNamespace())
 }
 

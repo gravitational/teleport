@@ -143,7 +143,7 @@ kubernetes matchers are present.`)
 		c.Log = logrus.New()
 	}
 	if c.protocolChecker == nil {
-		c.protocolChecker = &fetchers.ProtoChecker{}
+		c.protocolChecker = fetchers.NewProtoChecker(false)
 	}
 	if c.PollInterval == 0 {
 		c.PollInterval = 5 * time.Minute
@@ -325,18 +325,13 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 			continue
 		}
 
-		pc := s.Config.protocolChecker
-		if pc == nil {
-			pc = &fetchers.ProtoChecker{}
-		}
-
 		fetcher, err := fetchers.NewKubeAppsFetcher(fetchers.KubeAppsFetcherConfig{
 			KubernetesClient: kubeClient,
 			FilterLabels:     matcher.Labels,
 			Namespaces:       matcher.Namespaces,
 			Log:              s.Log,
 			ClusterName:      s.DiscoveryGroup,
-			ProtocolChecker:  pc,
+			ProtocolChecker:  s.Config.protocolChecker,
 		})
 		if err != nil {
 			return trace.Wrap(err)
