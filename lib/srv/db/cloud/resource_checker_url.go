@@ -103,7 +103,7 @@ func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 
 	if check := checkersByDatabaseType[database.GetType()]; check != nil {
 		err := check(ctx, database)
-		if c.warnOnError {
+		if err != nil && c.warnOnError {
 			c.log.Warnf("URL check failed for %q: %v.", database.GetName(), err)
 			return nil
 		}
