@@ -143,14 +143,12 @@ func (c *Config) CheckAndSetDefaults() error {
 kubernetes matchers are present.`)
 	}
 	if c.Clients == nil {
-		clients := discoveryClients{}
 		cloudClients, err := cloud.NewClients()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		clients.Clients = cloudClients
-		clients.KubernetesClient = newKubeClientGetter()
+		clients := discoveryClients{Clients: cloudClients, KubernetesClient: newKubeClientGetter()}
 
 		if len(c.KubernetesMatchers) > 0 {
 			_, err = clients.KubernetesClient.GetKubernetesClient()
