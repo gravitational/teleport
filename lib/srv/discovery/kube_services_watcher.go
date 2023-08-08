@@ -56,9 +56,9 @@ func (s *Server) startKubeAppsWatchers() error {
 				return appResources.ToMap()
 			},
 			Log:      s.Log.WithField("kind", types.KindApp),
-			OnCreate: s.onKubeAppCreate,
-			OnUpdate: s.onKubeAppUpdate,
-			OnDelete: s.onKubeAppDelete,
+			OnCreate: s.onAppCreate,
+			OnUpdate: s.onAppUpdate,
+			OnDelete: s.onAppDelete,
 		},
 	)
 	if err != nil {
@@ -97,7 +97,7 @@ func (s *Server) startKubeAppsWatchers() error {
 	return nil
 }
 
-func (s *Server) onKubeAppCreate(ctx context.Context, rwl types.ResourceWithLabels) error {
+func (s *Server) onAppCreate(ctx context.Context, rwl types.ResourceWithLabels) error {
 	app, ok := rwl.(types.Application)
 	if !ok {
 		return trace.BadParameter("invalid type received; expected types.Application, received %T", app)
@@ -111,12 +111,12 @@ func (s *Server) onKubeAppCreate(ctx context.Context, rwl types.ResourceWithLabe
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
 	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onKubeAppUpdate(ctx, rwl))
+		return trace.Wrap(s.onAppUpdate(ctx, rwl))
 	}
 	return trace.Wrap(err)
 }
 
-func (s *Server) onKubeAppUpdate(ctx context.Context, rwl types.ResourceWithLabels) error {
+func (s *Server) onAppUpdate(ctx context.Context, rwl types.ResourceWithLabels) error {
 	app, ok := rwl.(types.Application)
 	if !ok {
 		return trace.BadParameter("invalid type received; expected types.Application, received %T", app)
@@ -125,7 +125,7 @@ func (s *Server) onKubeAppUpdate(ctx context.Context, rwl types.ResourceWithLabe
 	return trace.Wrap(s.AccessPoint.UpdateApp(ctx, app))
 }
 
-func (s *Server) onKubeAppDelete(ctx context.Context, rwl types.ResourceWithLabels) error {
+func (s *Server) onAppDelete(ctx context.Context, rwl types.ResourceWithLabels) error {
 	app, ok := rwl.(types.Application)
 	if !ok {
 		return trace.BadParameter("invalid type received; expected types.Application, received %T", app)

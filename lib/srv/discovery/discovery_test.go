@@ -1186,7 +1186,7 @@ type mockKubeClientGetter struct {
 	kubeClient kubernetes.Interface
 }
 
-func (m *mockKubeClientGetter) GetKubernetesClient(_ string) (kubernetes.Interface, error) {
+func (m *mockKubeClientGetter) GetKubernetesClient() (kubernetes.Interface, error) {
 	if m.kubeClient == nil {
 		return fake.NewSimpleClientset(), nil
 	}

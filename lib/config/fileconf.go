@@ -482,6 +482,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	}
 	if len(conf.Discovery.KubernetesMatchers) > 0 {
 		if conf.Discovery.DiscoveryGroup == "" {
+			// TODO(anton): add link to documentation when it's available
 			return trace.BadParameter(`Parameter 'discovery_group' should be defined for discovery service if
 kubernetes matchers are present.`)
 		}

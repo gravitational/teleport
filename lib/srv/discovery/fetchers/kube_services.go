@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -95,23 +96,35 @@ func NewKubeAppsFetcher(cfg KubeAppsFetcherConfig) (common.Fetcher, error) {
 }
 
 func isInternalKubeService(s v1.Service) bool {
-	return (s.GetNamespace() == "default" && s.GetName() == "kubernetes") ||
-		(s.GetNamespace() == "kube-system" && s.GetName() == "kube-dns")
+	const kubernetesDefaultServiceName = "kubernetes"
+	return (s.GetNamespace() == metav1.NamespaceDefault && s.GetName() == kubernetesDefaultServiceName) ||
+		s.GetNamespace() == metav1.NamespaceSystem ||
+		s.GetNamespace() == metav1.NamespacePublic
 }
 
 func (f *kubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) {
 	result := []v1.Service{}
-	for _, namespace := range f.Namespaces {
-		ns := namespace
-		if namespace == types.Wildcard {
-			ns = ""
-		}
-		kubeServices, err := f.KubernetesClient.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
+	nextToken := ""
+	namespaceFilter := func(ns string) bool {
+		return slices.Contains(f.Namespaces, types.Wildcard) || slices.Contains(f.Namespaces, ns)
+	}
+	for {
+		// Get all services in the cluster
+		// We need to do this in a loop because the API only returns 500 items at a time
+		// and we need to paginate through the results.
+		kubeServices, err := f.KubernetesClient.CoreV1().Services(v1.NamespaceAll).List(
+			ctx,
+			metav1.ListOptions{
+				Continue: nextToken,
+			})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		for _, s := range kubeServices.Items {
+			if !namespaceFilter(s.GetNamespace()) {
+				// Namespace is not in the list of namespaces to fetch
+				continue
+			}
 			match, _, err := services.MatchLabels(f.FilterLabels, s.Labels)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -121,8 +134,11 @@ func (f *kubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) 
 				f.Log.WithField("service_name", s.Name).Debug("Service doesn't match labels.")
 			}
 		}
+		nextToken = kubeServices.Continue
+		if nextToken == "" {
+			break
+		}
 	}
-
 	return result, nil
 }
 
@@ -152,10 +168,8 @@ func (f *kubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 			}
 
 			// Skip service if it has type annotation and it's not 'app'
-			for k, v := range service.GetAnnotations() {
-				if k == types.DiscoveryTypeLabel && v != services.KubernetesMatchersApp {
-					return nil
-				}
+			if v, ok := service.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != services.KubernetesMatchersApp {
+				return nil
 			}
 
 			serviceApps, err := services.NewApplicationsFromKubeService(service, f.ClusterName, f.protocolChecker)
