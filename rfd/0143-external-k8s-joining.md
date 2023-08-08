@@ -9,7 +9,7 @@ state: draft
 
 * Engineering: @zmb3 && (@hugoShaka || @tigrato)
 * Product: @klizhentas || @xinding33
-* Security: @reedloden
+* Security: @reedloden || @jentfoo
 
 ## What
 
