@@ -20,14 +20,16 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"time"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
-	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
-	"time"
 )
 
 func (a *Server) RegisterUsingKubernetesRemoteMethod(

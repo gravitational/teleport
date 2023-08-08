@@ -18,13 +18,14 @@ package kubernetestoken
 
 import (
 	"context"
+	"os"
+	"time"
+
 	"github.com/gravitational/trace"
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"time"
 )
 
 const podNamespaceEnv = "POD_NAMESPACE"

@@ -19,11 +19,12 @@ package kubernetestoken
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
 	"gopkg.in/square/go-jose.v2"
 	josejwt "gopkg.in/square/go-jose.v2/jwt"
-	"time"
 )
 
 type PodSubClaim struct {

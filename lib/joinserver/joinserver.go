@@ -20,7 +20,6 @@ package joinserver
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/types"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (

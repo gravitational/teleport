@@ -18,11 +18,11 @@ package client
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // JoinServiceClient is a client for the JoinService, which runs on both the
