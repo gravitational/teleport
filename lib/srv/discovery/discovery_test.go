@@ -545,7 +545,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			objects := []runtime.Object{}
+			var objects []runtime.Object
 			for _, s := range mockKubeServices {
 				objects = append(objects, s)
 			}
