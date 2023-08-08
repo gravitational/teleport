@@ -103,6 +103,10 @@ message ProvisionTokenSpecV2KubernetesJWKS {
     // ServiceAccount is the namespaced name of the Kubernetes service account.
     // Its format is "namespace:service-account".
     string ServiceAccount = 1;
+    // Clusters specifies which of the clusters this allow rule applies to.
+    // If unspecified, this allow rule will not be restricted to a specific
+    // cluster.
+    repeated string Clusters = 2;
   }
 
   // Cluster is a set of properties that describe a cluster that an entity may
@@ -142,43 +146,60 @@ In the case that an operator rotates the certificate authority used by their
 Kubernetes Cluster to sign Service Account JWTS, the `jwks` field will also
 need to be updated.
 
-#### Configuring a pod for `kubernetes-remote` joining
+#### Configuring Kubernetes RBAC
 
-The Pod will require a service account with a role granting it the ability to
-call the TokenRequest endpoint for itself. This allows the creation of a token
-with an audience of our choosing in order to include a nonce during the join
-to prevent token reuse.
+The pod will require a service account that grants it access to generate a token
+for the service account used for joining. It is our recommendation that these
+two service accounts are seperate. The Kubernetes RBAC for generating tokens
+is not finely grained, and creating a service account which can impersonate
+itself gives a bad actor who has access to the pod the ability to create
+long-lived and unbound tokens. By using a second service account for joining, 
+the primary service account is no longer given the permission to generate a
+token for itself and can instead only generate tokens for the permissionless
+secondary service account.
 
-E.g for a service account named: "argocd":
+E.g for a service account named: "foo":
 
 ```yaml
-apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
+# This is the primary SA that will be bound to the pod.
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-  name: argocd-token-request
+  name: foo
+---
+# This is the secondary SA that has no permissions within Kubernetes but is 
+# used by Teleport for joining.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: foo-join
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: foo-join-impersonator
 rules:
 - apiGroups: [""]
   resources:
   - "serviceaccounts/token"
   verbs:
   - "create"
-  # Only grant the ability to create tokens for itself. Missing this field leads
-  # to a dangerously powerful role.
+  # Only grant the ability to create tokens for the secondary service account.
+  # WARNING: Missing this field leads to a dangerously powerful role.
   resourceNames:
-    - argocd
+    - foo-join
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: RoleBinding
 metadata:
-  name: argocd-token-review
+  name: foo-join-impersonator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: argocd-token-review
+  kind: Role
+  name: foo-join-impersonator
 subjects:
 - kind: ServiceAccount
-  name: argocd
-  namespace: default
+  name: foo
 ```
 
 ### Implementation
@@ -193,8 +214,8 @@ to that implemented for IAM joining. The flow will run as follows:
   cryptographically random data encoded in base64 URL encoding, e.g:
   `example.teleport.sh/YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4`
 3. The client uses its Kubernetes Service Account to call TokenRequest. It
-  requests a JWT for its own service account, with the audience specified by
-  the Auth Server and with a short time-to-live.
+  requests a JWT for the secondary service account, with the audience specified
+  by the Auth Server and with a short time-to-live.
 4. The client sends a further request up the stream including this token.
 5. The server validates:
   a. The JWT is signed by the keys present in the `jwks` field of the token 
