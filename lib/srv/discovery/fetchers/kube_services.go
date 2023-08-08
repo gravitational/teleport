@@ -300,7 +300,7 @@ func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
 
 	// If preferred port is specified and we're here, it means we couldn't find it in service's ports.
 	if preferredPort != "" {
-		return nil, trace.BadParameter("Specified preferred port %s is absent among available service ports", preferredPort)
+		return nil, trace.BadParameter("specified preferred port %s is absent among available service ports", preferredPort)
 	}
 
 	return availablePorts, nil
