@@ -718,6 +718,9 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
 
+	// Go 1.21 changed the default behavior of TLS servers https://tip.golang.org/doc/go1.21
+	tlsConfig.SessionTicketsDisabled = true
+
 	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.AuditLog)
 	if err != nil {
 		return nil, trace.Wrap(err)

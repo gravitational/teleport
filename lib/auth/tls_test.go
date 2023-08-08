@@ -415,7 +415,7 @@ func TestAutoRotation(t *testing.T) {
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
 	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "unknown certificate authority")
 
 	// new clients work
 	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -588,7 +588,7 @@ func TestManualRotation(t *testing.T) {
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
 	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "unknown certificate authority")
 
 	// new clients work
 	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -683,7 +683,7 @@ func TestRollback(t *testing.T) {
 
 	// clients with new creds will no longer work
 	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "unknown certificate authority")
 
 	// clients with old creds will still work
 	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
