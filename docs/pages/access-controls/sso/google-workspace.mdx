@@ -298,11 +298,8 @@ The alternative to creating the OIDC connector with embedded JSON is to upload t
 If you have a self-hosted Teleport cluster, you can upload the service account JSON file to all hosts 
 running the Teleport Auth Service.
 
-On your workstation, write your Google Workspace client secret to a file:
-
-```code
-$ echo <APPLICATION-SECRET> > client-secret.txt
-```
+On your workstation, create a file called `client-secret.txt` consisting only of
+your client secret.
 
 <Tabs>
 <TabItem label="Embed JSON">
