@@ -241,9 +241,9 @@ func (f *KubeAppFetcher) String() string {
 // by protocol checker. It is used when no explicit annotation for port's protocol was provided.
 func autoProtocolDetection(serviceFQDN string, port v1.ServicePort, pc ProtocolChecker) string {
 	if port.AppProtocol != nil {
-		switch strings.ToLower(*port.AppProtocol) {
+		switch p := strings.ToLower(*port.AppProtocol); p {
 		case protoHTTP, protoHTTPS:
-			return strings.ToLower(*port.AppProtocol)
+			return p
 		}
 	}
 
