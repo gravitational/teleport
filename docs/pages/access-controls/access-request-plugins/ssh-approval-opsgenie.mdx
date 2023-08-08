@@ -25,7 +25,7 @@ Opsgenie.
 - An Opsgenie account with the ability to create API keys with the 'read' and
   'create and update' access rights.
 
-- Opsgenie integration is currently only available in Teleport Cloud.
+- The Opsgenie integration is currently only available in Teleport Enterprise Cloud.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -86,7 +86,7 @@ spec:
         schedules: ["Teleport Access Request Notifications"]
 ```
 
-## Step 3/5. Set up a Opsgenie API key
+## Step 3/5. Set up an Opsgenie API key
 
 Generate an API key that the Opsgenie plugin will use to create and modify
 alerts as well as list users, services, and on-call policies.
@@ -117,7 +117,7 @@ As the Teleport user `myuser`, create an Access Request for the `editor` role:
 (!docs/pages/includes/plugins/create-request.mdx!)
 
 In Opsgenie, you will see a new alert containing information about the
-access request in either the default schedule specified when enrolling the plugin,
+Access Request in either the default schedule specified when enrolling the plugin,
 or if annotations were set to override this then the alert will appear where specified
 there instead.
 
