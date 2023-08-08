@@ -2145,8 +2145,6 @@ type clusterSession struct {
 	// A HTTP2 configured transport does not work with connections that are going to be
 	// upgraded to SPDY, like in the cases of exec, port forward...
 	upgradeToHTTP2 bool
-	// monitorCancel is the conn monitor monitorCancel function.
-	monitorCancel context.CancelFunc
 	// requestContext is the context of the original request.
 	requestContext context.Context
 	// codecFactory is the codec factory used to create the serializer
@@ -2155,12 +2153,16 @@ type clusterSession struct {
 	// rbacSupportedResources is the list of resources that support RBAC for the
 	// current cluster.
 	rbacSupportedResources rbacSupportedResources
+	// connCtx is the context used to monitor the connection.
+	connCtx context.Context
+	// connMonitorCancel is the conn monitor connMonitorCancel function.
+	connMonitorCancel context.CancelFunc
 }
 
 // close cancels the connection monitor context if available.
 func (s *clusterSession) close() {
-	if s.monitorCancel != nil {
-		s.monitorCancel()
+	if s.connMonitorCancel != nil {
+		s.connMonitorCancel()
 	}
 }
 
@@ -2169,16 +2171,14 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(s.parent.ctx)
-	s.monitorCancel = cancel
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   s.parent.cfg.Clock,
-		Context: ctx,
-		Cancel:  cancel,
+		Context: s.connCtx,
+		Cancel:  s.connMonitorCancel,
 	})
 	if err != nil {
-		cancel()
+		s.connMonitorCancel()
 		return nil, trace.Wrap(err)
 	}
 
@@ -2190,7 +2190,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Clock:                 s.parent.cfg.Clock,
 		Tracker:               tc,
 		Conn:                  tc,
-		Context:               ctx,
+		Context:               s.connCtx,
 		TeleportUser:          s.User.GetName(),
 		ServerID:              s.parent.cfg.HostID,
 		Entry:                 s.parent.log,
@@ -2198,7 +2198,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 	})
 	if err != nil {
 		tc.Close()
-		cancel()
+		s.connMonitorCancel()
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil
@@ -2244,6 +2244,7 @@ func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) 
 
 func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	f.log.Debugf("Forwarding kubernetes session for %v to remote cluster.", authCtx)
+	connCtx, cancel := context.WithCancel(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,
@@ -2251,8 +2252,10 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx 
 		// and the targetKubernetes cluster endpoint is determined from the identity
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-		targetAddr:     reversetunnelclient.LocalKubernetes,
-		requestContext: ctx,
+		targetAddr:        reversetunnelclient.LocalKubernetes,
+		requestContext:    ctx,
+		connCtx:           connCtx,
+		connMonitorCancel: cancel,
 	}, nil
 }
 
@@ -2280,7 +2283,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	if err != nil {
 		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
-
+	connCtx, cancel := context.WithCancel(ctx)
 	codecFactory, rbacSupportedResources := details.getClusterSupportedResources()
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
@@ -2291,17 +2294,22 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 		requestContext:         ctx,
 		codecFactory:           codecFactory,
 		rbacSupportedResources: rbacSupportedResources,
+		connCtx:                connCtx,
+		connMonitorCancel:      cancel,
 	}, nil
 }
 
 func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authContext) (*clusterSession, error) {
+	connCtx, cancel := context.WithCancel(ctx)
 	return &clusterSession{
 		parent:      f,
 		authContext: authCtx,
 		// This session talks to a kubernetes_service, which should handle
 		// audit logging. Avoid duplicate logging.
-		noAuditEvents:  true,
-		requestContext: ctx,
+		noAuditEvents:     true,
+		requestContext:    ctx,
+		connCtx:           connCtx,
+		connMonitorCancel: cancel,
 	}, nil
 }
 
