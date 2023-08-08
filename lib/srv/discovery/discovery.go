@@ -129,7 +129,7 @@ kubernetes matchers are present.`)
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
 			return trace.Wrap(err,
-				"kubernetes discovery is only available for Teleport kube agent running inside Kubernetes cluster")
+				"the Kubernetes App Discovery requires a Teleport Kube Agent running on a Kubernetes cluster")
 		}
 		kubeClient, err := kubernetes.NewForConfig(cfg)
 		if err != nil {
