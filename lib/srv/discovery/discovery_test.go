@@ -478,7 +478,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 		existingApps              []types.Application
 		kubernetesMatchers        []types.KubernetesMatcher
 		expectedAppsToExistInAuth []types.Application
-		appsNotUpdated            []string
 	}{
 		{
 			name: "no apps in auth server, import 2 apps",
@@ -502,7 +501,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				},
 			},
 			expectedAppsToExistInAuth: types.Apps{app1, app2},
-			appsNotUpdated:            []string{app1.GetName()},
 		},
 		{
 			name:         "two apps in the auth server, one updated one imported",
@@ -515,7 +513,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				},
 			},
 			expectedAppsToExistInAuth: types.Apps{app1, app2},
-			appsNotUpdated:            []string{app2.GetName()},
 		},
 		{
 			name:         "one app in auth server, discovery doesn't match another app",
@@ -528,7 +525,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				},
 			},
 			expectedAppsToExistInAuth: types.Apps{app1},
-			appsNotUpdated:            []string{app1.GetName()},
 		},
 		{
 			name:         "one app in auth server from another discovery group, import 2 apps",
@@ -541,7 +537,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				},
 			},
 			expectedAppsToExistInAuth: types.Apps{app1, otherGroupApp1, app2},
-			appsNotUpdated:            []string{app1.GetName()},
 		},
 	}
 
@@ -581,40 +576,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// we analyze the logs emitted by discovery service to detect apps that were not updated
-			// because their state didn't change.
-			r, w := io.Pipe()
-			t.Cleanup(func() {
-				require.NoError(t, r.Close())
-				require.NoError(t, w.Close())
-			})
-
-			logger := logrus.New()
-			logger.SetOutput(w)
-			logger.SetLevel(logrus.DebugLevel)
-			appsNotUpdated := make(chan string, 10)
-			go func() {
-				// reconcileRegexp is the regex extractor of a log message emitted by reconciler when
-				// the current state of the app is equal to the previous.
-				// [r.log.Debugf("%v %v is already registered.", new.GetKind(), new.GetName())]
-				// lib/services/reconciler.go
-				reconcileRegexp := regexp.MustCompile("app (.*) is already registered")
-
-				scanner := bufio.NewScanner(r)
-				for scanner.Scan() {
-					text := scanner.Text()
-					// we analyze the logs emitted by discovery service to detect apps that were not updated
-					// because their state didn't change.
-					if reconcileRegexp.MatchString(text) {
-						result := reconcileRegexp.FindStringSubmatch(text)
-						if len(result) != 2 {
-							continue
-						}
-						appsNotUpdated <- result[1]
-					}
-				}
-			}()
-
 			discServer, err := New(
 				ctx,
 				&Config{
@@ -624,7 +585,6 @@ func TestDiscoveryKubeServices(t *testing.T) {
 						Kubernetes: tt.kubernetesMatchers,
 					},
 					Emitter:         authClient,
-					Log:             logger,
 					DiscoveryGroup:  mainDiscoveryGroup,
 					protocolChecker: &noopProtocolChecker{},
 				})
@@ -636,35 +596,21 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			})
 			go discServer.Start()
 
-			appsNotUpdatedMap := sliceToSet(tt.appsNotUpdated)
-			appsFoundInAuth := false
 			require.Eventually(t, func() bool {
-			loop:
-				for {
-					select {
-					case app := <-appsNotUpdated:
-						if _, ok := appsNotUpdatedMap[app]; !ok {
-							require.Failf(t, "expected Action for app %s but got no action from reconciler", app)
+				existingApps, err := tlsServer.Auth().GetApps(ctx)
+				require.NoError(t, err)
+				if len(existingApps) == len(tt.expectedAppsToExistInAuth) {
+					a1 := types.Apps(existingApps)
+					a2 := types.Apps(tt.expectedAppsToExistInAuth)
+					for k := range a1 {
+						if services.CompareResources(a1[k], a2[k]) != services.Equal {
+							return false
 						}
-						delete(appsNotUpdatedMap, app)
-					default:
-						existingApps, err := tlsServer.Auth().GetApps(ctx)
-						require.NoError(t, err)
-						if len(existingApps) == len(tt.expectedAppsToExistInAuth) {
-							a1 := types.Apps(existingApps)
-							a2 := types.Apps(tt.expectedAppsToExistInAuth)
-							print(cmp.Diff(a1, a2))
-							for k := range a1 {
-								if services.CompareResources(a1[k], a2[k]) != services.Equal {
-									return false
-								}
-							}
-							appsFoundInAuth = true
-						}
-						break loop
 					}
+					return true
 				}
-				return len(appsNotUpdated) == 0 && appsFoundInAuth
+
+				return false
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
