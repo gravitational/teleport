@@ -230,6 +230,8 @@ jobs:
         working-directory: ./assets/systemd-unit-upgrader/
         run: aws s3 cp "$PACKAGE_CHECKSUM_NAME" "$ARTIFACT_CHECKSUM_BUCKET_PATH"
   # This job will deploy artifacts when not targeting production to facilitate easier development and testing
+  # This could probably be joined with the build-artifacts step as the strategy is the same, but doing so would
+  # increase complexity without providing a meaningful decrease in runtime.
   deploy-artifacts:
     name: Deploy the Teleport updater packages
     permissions:
@@ -241,10 +243,9 @@ jobs:
       - build-artifacts
     if: needs.setup-build.outputs.should-target-production == 'false'
     environment: ${{ needs.setup-build.outputs.package-environment }}
-    concurrency: Only allow a single teleport-ent-updater build at a time
+    concurrency: Only allow a single teleport-ent-updater ${{ matrix.repo-type }} deployment at a time
     strategy:
-      fail-fast: true
-      max-parallel: 1
+      fail-fast: false  # If either APT or YUM deployment fails, let the other one run before failing
       matrix:
         repo-type:
           - apt
@@ -279,5 +280,7 @@ jobs:
           artifact-tag: ${{ needs.setup-build.outputs.artifact-version }}
           version-channel: ${{ env.VERSION_CHANNEL }}
           package-name-filter: "teleport-ent-updater*"
-          package-to-test: ""
+          package-to-test: teleport-ent-updater
+          do-teleport-package-tests: false
+          workflow-git-reference: ${{ github.event_name == 'pull_request' && github.head_ref || 'refs/heads/master' }}
     

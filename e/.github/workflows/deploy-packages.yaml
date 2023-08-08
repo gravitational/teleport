@@ -41,6 +41,11 @@ on:
         description: "The package to install and test during the smoke test"
         type: string
         required: false
+      do-teleport-package-tests:
+        description: "True if Teleport-specific smoke tests should be run, false otherwise"
+        type: boolean
+        required: true
+        default: true
       # This is a workaround so that the actor who initiated a workflow run via a workflow dispatch event can determine the run ID of the started workflow run
       workflow-tag:
         description: "This field adds the provided value to a run step, allowing the calling actor to associate the started run with the GHA run ID."
@@ -48,22 +53,70 @@ on:
         required: false
 
 jobs:
+  determine-runner:
+    name: Determine what runner the job should be sent to
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.output-step.outputs.runner }}
+    steps:
+      - name: Set the label output
+        id: output-step
+        env:
+          RUNNER_GROUP: prod
+          REPO_TYPE: ${{ inputs.repo-type }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          case "$ENVIRONMENT" in
+            "promote" | "production")
+              RUNNER_LABEL_ENVIRONMENT="prod"
+            ;;
+            "build" | "staging")
+              RUNNER_LABEL_ENVIRONMENT="dev"
+            ;;
+            *)
+              echo "Unknown environment '$ENVIRONMENT', aborting"
+              exit 1
+            ;;
+          esac
+
+          # The runner group in the label value is due to a very "interesting" decision by GH. See
+          # https://github.com/gravitational/cloud-terraform/pull/2693 for details.
+          RUNNER_LABEL="$REPO_TYPE-$RUNNER_LABEL_ENVIRONMENT-runner-$RUNNER_GROUP"
+          # This "--arg" arg is a bit verbose but is the JQ recommended way of passing environment
+          # variables to ensure that they are properly JSON escaped
+          # x64 arch is required because the Aptly repo does not support arm64/other ISAs
+          RUNNER="$(\
+            jq --compact-output --null-input \
+            --arg RUNNER_LABEL "$RUNNER_LABEL" \
+            '{"labels": ["self-hosted", "x64", $RUNNER_LABEL]}' \
+          )"
+          echo "runner=$RUNNER" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Runner target" 
+            echo '```json'
+            echo "$RUNNER" | jq .
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: ${{ inputs.workflow-tag }}
+        run: |
+          # This is a do-nothing step so that agents calling this workflow can identify the run ID associated
+          # with the run they started
+
   deploy:
     name: Deploy packages to ${{ inputs.repo-type }} repo
     # Note that the value of this string is arbitrary as long as it contains the `${{ inputs.repo-type }}`
     # and `${{ inputs.environment }}` expressions
     concurrency:
-      group: Only allow a single OS package deployment at a time
+      group: Only allow a single ${{ inputs.repo-type }} package deployment at a time for ${{ inputs.environment }}
       cancel-in-progress: false
+    timeout-minutes: 2880 # 2 days. Value is set this high for DR but in most cases should not be needed.
+    needs:
+      - determine-runner
     permissions:
       contents: read
       id-token: write   # Required for aws-actions/configure-aws-credentials
     environment: ${{ inputs.environment }}
-    runs-on:
-      - self-hosted
-      - linux
-      - x64
-      - os-package-repo-tool
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     outputs:
       # This is the actual name of the version channel used in the repo component. It's calculated here and
       # used when installing pacakges for smoke tests.
@@ -72,9 +125,7 @@ jobs:
       TOOL_BINARY_PATH: os-package-repo-tool
       DOWNLOAD_DIRECTORY: /tmp/artifacts
       GNUPGHOME: /tmp/gnupg
-      # These paths must be updated in the mount script in the `cloud-terraform` repo if they are changed here
-      APT_CACHE_PATH: /mnt/apt-cache/${{ inputs.environment }}
-      YUM_CACHE_PATH: /mnt/yum-cache/${{ inputs.environment }}
+      CACHE_PATH: /mnt/oprt-cache
     steps:
       - name: Disallow prerelease artifacts from being deployed to production repos
         if: inputs.environment == 'production' || inputs.environment == 'promote'
@@ -105,18 +156,16 @@ jobs:
         if: inputs.repo-type == 'apt'
         run: |
           echo "PACKAGE_TYPE=deb" >> "$GITHUB_ENV"
-          echo "CACHE_PATH=$APT_CACHE_PATH" >> "$GITHUB_ENV"
           echo "BUCKET_NAME=${{ vars.APT_S3_BUCKET }}" >> "$GITHUB_ENV"
-          echo "TOOL_ARGUMENTS=-aptly-root-dir $APT_CACHE_PATH/aptly" >> "$GITHUB_ENV"
+          echo "TOOL_ARGUMENTS=-aptly-root-dir $CACHE_PATH/aptly" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_AWS_ROLE=${{ vars.APT_DEPLOYMENT_AWS_ROLE }}" >> "$GITHUB_ENV"
           echo "CLOUDFRONT_DISTRIBUTION=${{ vars.APT_CLOUDFRONT_DISTRIBUTION }}" >> "$GITHUB_ENV"
       - name: Derive and set repo type-specific variables for YUM
         if: inputs.repo-type == 'yum'
         run: |
           echo "PACKAGE_TYPE=rpm" >> "$GITHUB_ENV"
-          echo "CACHE_PATH=$YUM_CACHE_PATH" >> "$GITHUB_ENV"
           echo "BUCKET_NAME=${{ vars.YUM_S3_BUCKET }}" >> "$GITHUB_ENV"
-          echo "TOOL_ARGUMENTS=-cache-dir $YUM_CACHE_PATH/createrepo -repo-domain-name ${{ vars.YUM_REPO_DOMAIN_NAME }}" >> "$GITHUB_ENV"
+          echo "TOOL_ARGUMENTS=-cache-dir $CACHE_PATH/createrepo -repo-domain-name ${{ vars.YUM_REPO_DOMAIN_NAME }}" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_AWS_ROLE=${{ vars.YUM_DEPLOYMENT_AWS_ROLE }}" >> "$GITHUB_ENV"
           echo "CLOUDFRONT_DISTRIBUTION=${{ vars.YUM_CLOUDFRONT_DISTRIBUTION }}" >> "$GITHUB_ENV"
       - name: Log set variables
@@ -136,8 +185,8 @@ jobs:
 
           echo
           echo
-          echo "YUM repo info:"
-          sudo yum repolist
+          echo "APT repo info:"
+          sudo apt update
 
           echo
           echo "Disk info:"
@@ -155,7 +204,7 @@ jobs:
         run: go version
       - name: Build tool
         run: |
-          sudo yum install -y gcc
+          sudo apt install -y gcc
           CGO_ENABLED=1 go build -race -o "$(pwd)/$TOOL_BINARY_PATH" -C "./tooling/os-package-repo-tool/" "./src/"
       - name: Install the required runtime dependencies
         run: |
@@ -163,77 +212,55 @@ jobs:
           set -o errexit
           set -o nounset
 
-          # Create new bin directory for the user
-          RUNNER_BIN_DIR="$HOME/bin"
-          mkdir -pv "$RUNNER_BIN_DIR"
-          export PATH="$RUNNER_BIN_DIR:$PATH"
-          echo "PATH=$PATH" | tee -a "$GITHUB_ENV"
-
-          # Aptly
-          # Download the artifact (tarball archive)
-          # TODO add something to hook dependabot here
-          TARBALL_FILE_NAME="/tmp/aptly.tar.gz"
-          LATEST_APTLY_RELEASE_URL=$(curl -s "https://api.github.com/repos/aptly-dev/aptly/releases/latest" | jq -r ".assets[].browser_download_url" | grep "linux_amd64.tar.gz")
-          wget -nv -O "$TARBALL_FILE_NAME" "$LATEST_APTLY_RELEASE_URL"
-          
-          # Extract the artifact
-          EXTRACT_FOLDER="/tmp/aptly_extraction"
-          mkdir -pv "$EXTRACT_FOLDER"
-          tar -xzvf "$TARBALL_FILE_NAME" --strip-components=1 -C "$EXTRACT_FOLDER"
-
-          # Copy the extracted binary to the bin directory
-          APTLY_DEST_PATH="$RUNNER_BIN_DIR/aptly"
-          cp "$EXTRACT_FOLDER/aptly" "$APTLY_DEST_PATH"
-          chmod +x "$APTLY_DEST_PATH"
-
-          # Cleanup temporary files
-          rm -rfv "$EXTRACT_FOLDER"
-          rm -rfv "$TARBALL_FILE_NAME"
-
-          # Verify the install
-          aptly version
-
           # Createrepo
-          sudo yum install -y createrepo_c
+          sudo apt install -y createrepo-c
 
           # Verify the install
           createrepo_c --version
 
-          # GPG >=2.2, required for both Aptly and createrepo
-          # Amazon Linux 2 only has up to gpg 2.0.22 available for some reason despite being a decade old
-          # See:
-          # * https://stackoverflow.com/questions/72973055/static-install-gnupg2-gpg-version-2-3-6-on-amazon-linux-2
-          # * https://stackoverflow.com/questions/72197579/how-to-upgrade-the-gpg-version-installed-on-aws-ec2
-          # Unfortunately this really is the simplest solution until the base AMI is updated to the new version
-          # of Amazon Linux.
-          # Download the artifacts from CentOS 8 repos (rpm archive)
-          RPM_DIR="/tmp/gpg_rpms"
-          mkdir -pv "$RPM_DIR"
-
-          WGET_URL_FILE="$RPM_DIR/wget_urls"
-          cat <<EOF > "$WGET_URL_FILE"
-          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/gnupg2-2.2.20-2.el8.x86_64.rpm
-          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/libgcrypt-1.8.5-6.el8.x86_64.rpm
-          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/readline-7.0-10.el8.x86_64.rpm
-          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/libgpg-error-1.31-1.el8.x86_64.rpm
-          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/npth-1.5-4.el8.x86_64.rpm
-          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/libassuan-2.5.1-3.el8.x86_64.rpm
-          EOF
-          cat "$WGET_URL_FILE"
-          wget -nv -P "$RPM_DIR/" -i "$WGET_URL_FILE"
-
-          # Force install the artifact despite lots of missing dependencies and conflicts (if it works, it works)
-          sudo rpm -i --nodeps --force "$RPM_DIR/*.rpm"
-
-          # Cleanup temporary files
-          rm -rfv "$RPM_DIR"
-
-          # Stop the existing agent if running and start a new process with the new version
-          pkill -9 gpg-agent || true
-          source <(gpg-agent --daemon)
+          # GPG >=2.2
+          sudo apt satisfy -y "gnupg2 (>= 2.2)"
 
           # Verify the install
           gpg --version
+
+          # Aptly
+          # The version available from Ubuntu repos is old, so install it based on Aptly docs here
+          APTLY_KEYRING_PATH="/usr/share/keyrings/aptly-archive-keyring.asc"
+          APTLY_DOMAIN_NAME="repo.aptly.info"
+          sudo curl -s https://www.aptly.info/pubkey.txt -o "$APTLY_KEYRING_PATH"
+          # Note that the Aptly repo does not appear to support HTTPS
+          echo "deb [signed-by=$APTLY_KEYRING_PATH] http://$APTLY_DOMAIN_NAME squeeze main" \
+            | sudo tee /etc/apt/sources.list.d/aptly.list > /dev/null
+          # Ensure that Aptly is always installed from Aptly repo rather than Ubuntu repos
+          cat << EOF | sudo tee /etc/apt/preferences.d/aptly
+          Package: aptly
+          Pin: origin $APTLY_DOMAIN_NAME
+          Pin-Priority: 900
+          EOF
+          sudo apt update
+          sudo apt install -y aptly bzip2
+
+          # Verify the install
+          aptly version
+
+          # AWS CLI
+          # Ubuntu 22.04 latest version of the CLI is v1, so v2 is installed manually based on the AWS docs
+          # Download the release
+          AWSCLI_DOWNLOAD_PATH="/tmp/awscli.zip"
+          curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "$AWSCLI_DOWNLOAD_PATH"
+
+          # Extract and install
+          EXTRACT_DIR="/tmp/awscli-extract"
+          unzip "$AWSCLI_DOWNLOAD_PATH" -d "$EXTRACT_DIR"
+          sudo "$EXTRACT_DIR/aws/install"
+
+          # Cleanup
+          rm -rf "$AWSCLI_DOWNLOAD_PATH" "$EXTRACT_DIR"
+
+          # Verify the install
+          aws --version
+
       # Download the artifacts
       - name: Assume AWS role for downloading the artifacts
         uses: aws-actions/configure-aws-credentials@v2
@@ -294,9 +321,10 @@ jobs:
           gnupghome: ${{ env.GNUPGHOME }}
       - name: Ensure the environment cache path exists
         run: |
-          echo "Creating the ${{ inputs.environment }} environment cache path at $CACHE_PATH"
+          OWNER="$(id -un):$(id -gn)"
+          echo "Creating the ${{ inputs.environment }} environment cache path at $CACHE_PATH, owned by $OWNER"
           mkdir -pv -m0770 "$CACHE_PATH"
-          sudo chown -v "ec2-user:ec2-user" "$CACHE_PATH"
+          sudo chown -v "$OWNER" "$CACHE_PATH"
 
           # Clear out files to trigger DR
           # Do not uncomment this unless you know what you are doing!
@@ -372,10 +400,11 @@ jobs:
           fi
 
           echo "Cache invalidation succeeded!"
-      - name: ${{ inputs.workflow-tag }}
+      - name: ${{ inputs.repo-type }}-${{ inputs.environment }}
         run: |
-          # This is a do-nothing step so that agents calling this workflow can identify the run ID associated
-          # with the run they started
+          # This is a do-nothing step so that agents calling this workflow can determine what concurrency group
+          # this run is using
+
   
   # These jobs are designed to be a very final test to verify that we didn't just publish a broken release
   # They are very much not a catch-all even of the few basic tests they run - but if they fail, something
@@ -429,9 +458,12 @@ jobs:
           apt update
           apt install -y curl
 
+          # Install apt-file
+          apt install -y apt-file
+
           # Set the package version
           echo "PACKAGE_VERSION=${ARTIFACT_TAG#v}" >> "$GITHUB_ENV"
-      - name: Install package
+      - name: Prepare to install the package
         env:
           RELEASE_CHANNEL: ${{ inputs.release-channel }}
           VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
@@ -446,13 +478,30 @@ jobs:
             https://$APT_REPO_DOMAIN_NAME/${ID?} ${VERSION_CODENAME?} $RELEASE_CHANNEL/$VERSION_CHANNEL" \
             | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
           sudo apt-get update
+      - name: Log package pre-install information
+        env:
+          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
+        run: |
+          # Setup
+          apt-file update > /dev/null
+
+          # Log data
+          echo "Available versions of package:"
+          apt-cache policy "$PACKAGE_TO_TEST"
+
+          echo "Package files:"
+          apt-file list "$PACKAGE_TO_TEST"
+      - name: Install the package
+        if: inputs.do-teleport-package-tests
+        env:
+          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
+        run: |
           sudo apt-get install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
       - name: Log Teleport version
+        if: inputs.do-teleport-package-tests
         run: teleport version
-      - name: Log package cache information
-        run: |
-          apt-cache policy ${{ inputs.package-to-test }}
       - name: Verify installed Teleport version matches provided artifact version
+        if: inputs.do-teleport-package-tests
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
@@ -523,7 +572,7 @@ jobs:
 
           # Set the package version
           echo "PACKAGE_VERSION=$(echo "${ARTIFACT_TAG#v}" | sed 's/-/_/g')" >> "$GITHUB_ENV"
-      - name: Install package
+      - name: Prepare to install the package
         env:
           RELEASE_CHANNEL: ${{ inputs.release-channel }}
           VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
@@ -537,13 +586,29 @@ jobs:
           VERSION_ID=$(echo $VERSION_ID | cut -d'.' -f1)
 
           sudo yum-config-manager --add-repo $(rpm --eval "https://${YUM_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport.repo")
+      - name: Log package pre-install information
+        env:
+          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
+        run: |
+          echo "Available versions of package:"
+          yum --showduplicates -y list available "$PACKAGE_TO_TEST"
+
+          echo "Deployed package version:"
+          yum --showduplicates -y list available "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
+
+          echo "Package files:"
+          repoquery -l "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
+      - name: Install the package
+        if: inputs.do-teleport-package-tests
+        env:
+          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
+        run: |
           sudo yum install -y "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
       - name: Log Teleport version
+        if: inputs.do-teleport-package-tests
         run: teleport version
-      - name: Log package cache information
-        run: |
-          yum --showduplicates list available ${{ inputs.package-to-test }}
       - name: Verify installed Teleport version matches provided artifact version
+        if: inputs.do-teleport-package-tests
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
