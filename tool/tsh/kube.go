@@ -1155,7 +1155,11 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
-	c.Flag("set-context-name", "Define a custom context name.").StringVar(&c.overrideContextName)
+	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
+		// Use the default context name template if --set-context-name is not set.
+		// This works as an hint to the user that the context name can be customized.
+		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
+		StringVar(&c.overrideContextName)
 	return c
 }
 
@@ -1163,8 +1167,10 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if c.kubeCluster == "" && !c.all {
 		return trace.BadParameter("kube-cluster name is required. Check 'tsh kube ls' for a list of available clusters.")
 	}
-	if c.all && c.overrideContextName != "" {
-		return trace.BadParameter("cannot use --set-context-name with --all")
+	// If --all and --set-context-name are set, ensure that the template is valid
+	// and can produce distinct context names for each cluster before proceeding.
+	if err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName); err != nil && c.all {
+		return trace.Wrap(err)
 	}
 
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
@@ -1227,19 +1233,27 @@ func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClie
 func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
 	switch {
 	case c.kubeCluster != "":
-		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q. Start the local proxy:
-  tsh proxy kube -p 8443
-
-Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
-`, c.kubeCluster)
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
 
 	default:
-		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available. Start the local proxy:
+		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+	}
+
+	fmt.Fprintf(cf.Stdout(), `
+
+Your Teleport cluster runs behind a layer 7 load balancer or reverse proxy.
+
+To access the cluster, use "tsh kubectl" which is a fully featured "kubectl"
+command that works when the Teleport cluster is behind layer 7 load balancer or
+reverse proxy. To run the Kubernetes client, use:
+  tsh kubectl version
+
+Or, start a local proxy with "tsh proxy kube" and use the kubeconfig
+provided by the local proxy with your native Kubernetes clients:
   tsh proxy kube -p 8443
 
-Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
+Learn more at https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview
 `)
-	}
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
