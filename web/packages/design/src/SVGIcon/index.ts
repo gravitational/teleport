@@ -70,3 +70,6 @@ export { UpgradeIcon } from './Upgrade';
 export { UserIcon } from './User';
 export { UsersIcon } from './Users';
 export { UserSettingsIcon } from './UserSettings';
+
+export { SVGIcon } from './SVGIcon';
+export type { SVGIconProps } from './common';

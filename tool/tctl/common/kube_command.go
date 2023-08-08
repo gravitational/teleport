@@ -25,8 +25,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -35,6 +40,10 @@ type KubeCommand struct {
 
 	// format is the output format (text or yaml)
 	format string
+
+	searchKeywords string
+	predicateExpr  string
+	labels         string
 
 	// verbose sets whether full table output should be shown for labels
 	verbose bool
@@ -49,8 +58,11 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")
 	c.kubeList = kube.Command("ls", "List all Kubernetes clusters registered with the cluster.")
+	c.kubeList.Arg("labels", labelHelp).StringVar(&c.labels)
 	c.kubeList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.kubeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
+	c.kubeList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
+	c.kubeList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 }
 
 // TryRun attempts to run subcommands like "kube ls".
@@ -66,10 +78,22 @@ func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
-func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
-
-	kubes, err := client.GetKubernetesServers(ctx)
+func (c *KubeCommand) ListKube(ctx context.Context, clt auth.ClientI) error {
+	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kubes, err := client.GetAllResources[types.KubeServer](ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        types.KindKubeServer,
+		Labels:              labels,
+		PredicateExpression: c.predicateExpr,
+		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
+	})
+	if err != nil {
+		if utils.IsPredicateError(err) {
+			return trace.Wrap(utils.PredicateError{Err: err})
+		}
 		return trace.Wrap(err)
 	}
 

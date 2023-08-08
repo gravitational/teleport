@@ -106,7 +106,7 @@ export function NewMfaDevice(props: Props) {
         <Box p={5} ref={refCallback}>
           <Flex mb={3} alignItems="center">
             <ArrowBack
-              fontSize={30}
+              size="large"
               mr={3}
               onClick={() => {
                 clearSubmitAttempt();

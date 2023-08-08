@@ -59,7 +59,7 @@ export function ButtonLockedFeature({
       {...rest}
     >
       <Flex alignItems="center">
-        {!noIcon && <UnlockIcon data-testid="locked-icon" />}
+        {!noIcon && <UnlockIcon size="medium" data-testid="locked-icon" />}
         {children}
       </Flex>
     </ButtonPrimary>

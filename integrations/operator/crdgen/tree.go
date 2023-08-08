@@ -143,6 +143,9 @@ func (file File) Package() string {
 }
 
 func (message Message) Name() string {
+	if message.parentMsg != nil {
+		return message.parentMsg.Name() + "/" + message.desc.GetName()
+	}
 	return message.desc.GetName()
 }
 

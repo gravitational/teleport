@@ -27,13 +27,13 @@ NODE_VERSION ?= 16.18.1
 
 # Sync any version changes below with devbox.json.
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.68.0
+RUST_VERSION ?= 1.71.0
 LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 # Sync any version changes below with devbox.json.
 # Protogen related versions.
-BUF_VERSION ?= 1.25.0
+BUF_VERSION ?= 1.25.1
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4

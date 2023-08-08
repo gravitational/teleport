@@ -42,10 +42,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai/testutils"
 	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -65,7 +67,17 @@ func TestExecuteCommand(t *testing.T) {
 		OpenAIConfig:              &openAIConfig,
 	})
 
-	ws, _, err := s.makeCommand(t, s.authPack(t, testUser), uuid.New())
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	ws, _, err := s.makeCommand(t, s.authPack(t, testUser, assistRole.GetName()), uuid.New())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -84,7 +96,18 @@ func TestExecuteCommandHistory(t *testing.T) {
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
 	})
-	authPack := s.authPack(t, testUser)
+
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	authPack := s.authPack(t, testUser, assistRole.GetName())
 
 	ctx := context.Background()
 	clt, err := s.server.NewClient(auth.TestUser(testUser))
@@ -115,7 +138,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 
 	// Then command execution history is saved
 	var messages *assist.GetAssistantMessagesResponse
-	// Command execution history is saved in asynchronusly, so we need to wait for it.
+	// Command execution history is saved in asynchronously, so we need to wait for it.
 	require.Eventually(t, func() bool {
 		messages, err = clt.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
 			ConversationId: conversationID.String(),
@@ -152,7 +175,18 @@ func TestExecuteCommandSummary(t *testing.T) {
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
 	})
-	authPack := s.authPack(t, testUser)
+
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	authPack := s.authPack(t, testUser, assistRole.GetName())
 
 	ctx := context.Background()
 	clt, err := s.server.NewClient(auth.TestUser(testUser))

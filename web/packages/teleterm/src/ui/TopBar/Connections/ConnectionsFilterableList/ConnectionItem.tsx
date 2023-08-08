@@ -131,7 +131,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
             actionIcon.action();
           }}
         >
-          <actionIcon.Icon fontSize={13} />
+          <actionIcon.Icon size={18} />
         </ButtonIcon>
       </Flex>
     </ListItem>

@@ -112,7 +112,7 @@ func (s *Server) onDatabaseCreate(ctx context.Context, resource types.ResourceWi
 	// In this case, we need to update the resource with the
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
-	// TODO(tigrato): DELETE on 14.0.0
+	// TODO(tigrato): DELETE on 15.0.0
 	if trace.IsAlreadyExists(err) {
 		return trace.Wrap(s.onDatabaseUpdate(ctx, resource))
 	}

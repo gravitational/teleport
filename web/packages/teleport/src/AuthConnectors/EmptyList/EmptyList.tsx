@@ -15,22 +15,19 @@ limitations under the License.
 */
 
 import React from 'react';
+import { useTheme } from 'styled-components';
 import { Text, Box, Flex, ButtonPrimary, Card } from 'design';
-import * as Icons from 'design/Icon';
+import { GitHubIcon } from 'design/SVGIcon';
 
 import { State as ResourceState } from 'teleport/components/useResources';
 
 export default function EmptyList({ onCreate }: Props) {
+  const theme = useTheme();
   return (
     <Card maxWidth="700px" p={4} as={Flex} alignItems="center">
-      <Icons.Github
-        style={{ textAlign: 'center' }}
-        fontSize="150px"
-        css={`
-          color: ${props => props.theme.colors.spotBackground[1]};
-        `}
-        mr={5}
-      />
+      <Box mr={5}>
+        <GitHubIcon size={128} fill={theme.colors.spotBackground[1]} />
+      </Box>
       <Box>
         <Text typography="h6" mb={3} caps>
           Create Your First GitHub Connector
