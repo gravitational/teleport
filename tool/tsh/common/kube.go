@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 type kubeCommands struct {
@@ -958,18 +959,6 @@ func (l kubeListings) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-func formatKubeLabels(cluster types.KubeCluster) string {
-	labels := make([]string, 0, len(cluster.GetStaticLabels())+len(cluster.GetDynamicLabels()))
-	for key, value := range cluster.GetStaticLabels() {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-	}
-	for key, value := range cluster.GetDynamicLabels() {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value.GetResult()))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, " ")
-}
-
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.Labels = c.labels
@@ -1004,7 +993,11 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 			if cluster.GetName() == selectedCluster {
 				selectedMark = "*"
 			}
-			rows = append(rows, []string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
+			rows = append(rows, []string{
+				cluster.GetName(),
+				common.FormatLabels(cluster.GetAllLabels(), c.verbose),
+				selectedMark,
+			})
 		}
 
 		if c.quiet {
@@ -1039,11 +1032,10 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
-		labels := cl.GetStaticLabels()
-		for key, value := range cl.GetDynamicLabels() {
-			labels[key] = value.GetResult()
+		labels := cl.GetAllLabels()
+		if len(labels) == 0 {
+			labels = nil
 		}
-
 		clusterInfo = append(clusterInfo, cluster{
 			KubeClusterName: cl.GetName(),
 			Labels:          labels,
@@ -1101,7 +1093,12 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"})
 		}
 		for _, listing := range listings {
-			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster.GetName(), formatKubeLabels(listing.KubeCluster)})
+			t.AddRow([]string{
+				listing.Proxy,
+				listing.Cluster,
+				listing.KubeCluster.GetName(),
+				common.FormatLabels(listing.KubeCluster.GetAllLabels(), c.verbose),
+			})
 		}
 		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
@@ -1263,19 +1260,27 @@ func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClie
 func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
 	switch {
 	case c.kubeCluster != "":
-		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q. Start the local proxy:
-  tsh proxy kube -p 8443
-
-Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
-`, c.kubeCluster)
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
 
 	default:
-		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available. Start the local proxy:
+		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+	}
+
+	fmt.Fprintf(cf.Stdout(), `
+
+Your Teleport cluster runs behind a layer 7 load balancer or reverse proxy.
+
+To access the cluster, use "tsh kubectl" which is a fully featured "kubectl"
+command that works when the Teleport cluster is behind layer 7 load balancer or
+reverse proxy. To run the Kubernetes client, use:
+  tsh kubectl version
+
+Or, start a local proxy with "tsh proxy kube" and use the kubeconfig
+provided by the local proxy with your native Kubernetes clients:
   tsh proxy kube -p 8443
 
-Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
+Learn more at https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview
 `)
-	}
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
