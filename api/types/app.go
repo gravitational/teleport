@@ -363,15 +363,18 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
-	// DEPRECATED DELETE IN 14.0 use KubeTeleportProxyALPNPrefix check only.
-	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
-		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
-			constants.KubeSNIPrefix, a.Spec.PublicAddr)
-	}
-
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
+	}
+
+	if a.Spec.Rewrite != nil {
+		switch a.Spec.Rewrite.JWTClaims {
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone:
+		default:
+			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
+
+		}
 	}
 
 	return nil

@@ -298,6 +298,7 @@ export function useUserTraits(props: AgentStepProps) {
     dynamicTraits,
     staticTraits,
     resourceSpec: props.resourceSpec,
+    agentMeta: props.agentMeta,
   };
 }
 

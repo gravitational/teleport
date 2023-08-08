@@ -272,53 +272,40 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 		daemonService.Stop()
 	})
 
-	// Start the tshd event service and connect the daemon to it. This should also
-	// start a headless watcher for the connected cluster.
-
-	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
-	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
-	require.NoError(t, err)
-
-	// Ensure the watcher catches events and sends them to the Electron App.
-
 	expires := pack.Root.Cluster.Config.Clock.Now().Add(time.Minute)
 	ha, err := types.NewHeadlessAuthentication(pack.Root.User.GetName(), "uuid", expires)
 	require.NoError(t, err)
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
 
-	eventuallyCatchAndSendHeadlessAuthn := func(t require.TestingT) {
-		tshdEventsService.sendPendingHeadlessAuthenticationCount.Store(0)
+	// Start the tshd event service and connect the daemon to it.
 
-		err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
-		require.NoError(t, err)
-
-		assert.Eventually(t, func() bool {
-			return tshdEventsService.sendPendingHeadlessAuthenticationCount.Load() == 1
-		}, 100*time.Millisecond, 20*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
-	}
-
-	// The watcher takes some amount of time to set up, so if we immediately upsert a headless
-	// authentication, it may not be caught by the watcher.
-	// require.Eventually(t, upsertAndWaitForEvent, time.Second, 100*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		eventuallyCatchAndSendHeadlessAuthn(collect)
-	}, time.Second, 100*time.Millisecond)
+	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
 
 	// Stop and restart the watcher twice to simulate logout + login + relogin. Ensure the watcher catches events.
 
 	err = daemonService.StopHeadlessWatcher(cluster.URI.String())
 	require.NoError(t, err)
-	err = daemonService.StartHeadlessWatcher(cluster.URI.String())
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), false /* waitInit */)
 	require.NoError(t, err)
-	err = daemonService.StartHeadlessWatcher(cluster.URI.String())
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String(), true /* waitInit */)
 	require.NoError(t, err)
 
 	// Ensure the watcher catches events and sends them to the Electron App.
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		eventuallyCatchAndSendHeadlessAuthn(collect)
-	}, time.Second, 100*time.Millisecond)
+	err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
+	assert.NoError(t, err)
+
+	assert.Eventually(t,
+		func() bool {
+			return tshdEventsService.sendPendingHeadlessAuthenticationCount.Load() == 1
+		},
+		10*time.Second,
+		500*time.Millisecond,
+		"Expected tshdEventService to receive 1 SendPendingHeadlessAuthentication message but got %v",
+		tshdEventsService.sendPendingHeadlessAuthenticationCount.Load(),
+	)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
@@ -464,7 +451,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 					Name: roleName,
 				})
 				existingRole = &role
-				err = authServer.UpsertRole(ctx, &role)
+				err := authServer.UpsertRole(ctx, &role)
 				require.NoError(t, err)
 			}
 
@@ -699,17 +686,28 @@ type mockTSHDEventsService struct {
 func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
 	tshdEventsService := &mockTSHDEventsService{}
 
-	ls, err := net.Listen("tcp", ":0")
+	ls, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
-	t.Cleanup(grpcServer.GracefulStop)
 
+	serveErr := make(chan error)
 	go func() {
-		err := grpcServer.Serve(ls)
-		assert.NoError(t, err)
+		serveErr <- grpcServer.Serve(ls)
 	}()
+
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+
+		// For test cases that did not send any grpc calls, test may finish
+		// before grpcServer.Serve is called and grpcServer.Serve will return
+		// grpc.ErrServerStopped.
+		err := <-serveErr
+		if err != grpc.ErrServerStopped {
+			assert.NoError(t, err)
+		}
+	})
 
 	return tshdEventsService, ls.Addr().String()
 }

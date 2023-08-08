@@ -201,6 +201,7 @@ func (s *JiraSuite) SetupTest() {
 	conf.Jira.Project = "PROJ"
 	conf.HTTP.ListenAddr = ":0"
 	conf.HTTP.Insecure = true
+	conf.DisableWebhook = false
 
 	s.appConfig = conf
 	s.SetContextTimeout(5 * time.Second)

@@ -613,7 +613,12 @@ func initLogger(cf *CLIConf) {
 	}
 }
 
-// Run executes TSH client. same as main() but easier to test
+// Run executes TSH client. same as main() but easier to test. Note that this
+// function modifies global state in `tsh` (e.g. the system logger), and WILL
+// ALSO MODIFY EXTERNAL SHARED STATE in its default configuration (e.g. the
+// $HOME/.tsh dir, $KUBECONFIG, etc).
+//
+// DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf := CLIConf{
 		Context:         ctx,
@@ -1735,10 +1740,6 @@ func onLogin(cf *CLIConf) error {
 	}
 	tc.HomePath = cf.HomePath
 
-	// DEPRECATED DELETE IN 14.0
-	var warnOnDeprecatedKubeSNIPrinted bool
-	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
-
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
@@ -1753,7 +1754,7 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1773,7 +1774,7 @@ func onLogin(cf *CLIConf) error {
 
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
-			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err == nil {
+			if err := updateKubeConfigOnLogin(cf, tc); err == nil {
 				profile, profiles, err = cf.FullProfileStatus()
 				if err != nil {
 					return trace.Wrap(err)
@@ -1802,7 +1803,7 @@ func onLogin(cf *CLIConf) error {
 			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1819,7 +1820,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
 			// Print status to show information of the logged in user.
@@ -1834,7 +1835,7 @@ func onLogin(cf *CLIConf) error {
 	// If the cluster is using single-sign on, providing the user name
 	// with --user is likely a mistake, so display a warning.
 	if cf.Username != "" {
-		var displayIgnoreUserWarning = false
+		displayIgnoreUserWarning := false
 		if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.AuthConnector != constants.PasswordlessConnector {
 			displayIgnoreUserWarning = true
 		} else if cf.AuthConnector == "" {
@@ -1928,7 +1929,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
+		if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1942,7 +1943,6 @@ func onLogin(cf *CLIConf) error {
 		capabilities, err := rootAuthClient.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
 			User: cf.Username,
 		})
-
 		if err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
@@ -3078,7 +3078,10 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 
 // accessRequestForSSH attempts to create a resource access request for the case
 // where "tsh ssh" was attempted and access was denied
-func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
+func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
+	if tc.Host == "" {
+		return nil, trace.BadParameter("no host specified")
+	}
 	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3140,19 +3143,25 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	return req, nil
 }
 
-func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() error) error {
+func retryWithAccessRequest(
+	cf *CLIConf,
+	tc *client.TeleportClient,
+	fn func() error,
+	onAccessRequestCreator func(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error),
+	resource string,
+) error {
 	origErr := fn()
-	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) || tc.Host == "" {
+	if cf.disableAccessRequest || !trace.IsAccessDenied(origErr) {
 		// Return if --disable-access-request was specified.
 		// Return the original error if it's not AccessDenied.
 		// Quit now if we don't have a hostname.
 		return trace.Wrap(origErr)
 	}
 
-	// Try to construct an access request for this node.
-	req, err := accessRequestForSSH(cf.Context, tc)
+	// Try to construct an access request for this resource.
+	req, err := onAccessRequestCreator(cf.Context, cf, tc)
 	if err != nil {
-		// We can't request access to the node or we couldn't query the ID. Log
+		// We can't request access to the resource or we couldn't query the ID. Log
 		// a short debug message in case this is unexpected, but return the
 		// original AccessDenied error from the ssh attempt which is likely to
 		// be far more relevant to the user.
@@ -3163,7 +3172,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 
 	// Print and log the original AccessDenied error.
 	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(origErr))
-	fmt.Fprintf(os.Stdout, "You do not currently have access to %s@%s, attempting to request access.\n\n", tc.HostLogin, tc.Host)
+	fmt.Fprintf(os.Stdout, "You do not currently have access to %q, attempting to request access.\n\n", resource)
 
 	requestReason := cf.RequestReason
 	if requestReason == "" {
@@ -3254,7 +3263,10 @@ func onSSH(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		return nil
-	})
+	},
+		accessRequestForSSH,
+		fmt.Sprintf("%s@%s", tc.HostLogin, tc.Host),
+	)
 	// Exit with the same exit status as the failed command.
 	if tc.ExitStatus != 0 {
 		var exitErr *common.ExitCodeError
@@ -4232,7 +4244,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Traits:             p.Traits,
 		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster(p.Cluster),
+		KubernetesCluster:  selectedKubeCluster(p.Cluster, ""),
 		KubernetesUsers:    p.KubeUsers,
 		KubernetesGroups:   p.KubeGroups,
 		Databases:          p.DatabaseServices(),
@@ -4699,7 +4711,7 @@ func onEnvironment(cf *CLIConf) error {
 			fmt.Printf("unset %v\n", kubeClusterEnvVar)
 			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 		case !cf.unsetEnvironment:
-			kubeName := selectedKubeCluster(profile.Cluster)
+			kubeName := selectedKubeCluster(profile.Cluster, "")
 			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
 			if kubeName != "" {
@@ -4724,7 +4736,7 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		proxyEnvVar:   profile.ProxyURL.Host,
 		clusterEnvVar: profile.Cluster,
 	}
-	kubeName := selectedKubeCluster(profile.Cluster)
+	kubeName := selectedKubeCluster(profile.Cluster, "")
 	if kubeName != "" {
 		env[kubeClusterEnvVar] = kubeName
 		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
@@ -4855,85 +4867,15 @@ func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client
 	return trace.Wrap(group.Wait())
 }
 
-type updateKubeConfigOpt struct {
-	warnOnDeprecatedSNI bool
-	// warnSNIPrinted is a pointer to bool forwarded from outside and set internally to
-	// prevent printing deprecated warning server times in a single tsh flow.
-	// Example usage:
-	//  var warnOnDeprecatedKubeSNIPrinted bool
-	//	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
-	// then sequence  call of updateKubeConfigOption like
-	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
-	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
-	// will print the warning message only once.
-	warnSNIPrinted *bool
-}
-
-type updateKubeConfigOnLoginOpt func(opt *updateKubeConfigOpt)
-
-func withWarnOnDeprecatedSNI(printed *bool) updateKubeConfigOnLoginOpt {
-	return func(opt *updateKubeConfigOpt) {
-		opt.warnOnDeprecatedSNI = true
-		opt.warnSNIPrinted = printed
-	}
-}
-
 // updateKubeConfigOnLogin checks if the `--kube-cluster` flag was provided to
 // tsh login call and updates the default kubeconfig with its value,
 // otherwise does nothing.
-func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, opts ...updateKubeConfigOnLoginOpt) error {
-	var settings updateKubeConfigOpt
-	for _, opt := range opts {
-		opt(&settings)
-	}
-	defer func() {
-		// DEPRECATED DELETE IN 14.0
-		if !settings.warnOnDeprecatedSNI {
-			return
-		}
-		if settings.warnSNIPrinted == nil || *settings.warnSNIPrinted {
-			return
-		}
-		warnOnDeprecatedKubeConfigServerName(cf, tc)
-		*settings.warnSNIPrinted = true
-	}()
-
+func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
 	err := updateKubeConfig(cf, tc, "" /* update the default kubeconfig */, "" /* do not override the context name */)
 	return trace.Wrap(err)
-}
-
-// DEPRECATED DELETE IN 14.0
-func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient) {
-	if !tc.TLSRoutingEnabled {
-		// The ServerName in KUBECONFIG is used only when the TLS Routing is enabled.
-		return
-	}
-	kubeConfigPath := getKubeConfigPath(cf, "")
-	value, err := kubeconfig.Load(kubeConfigPath)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return
-		}
-		log.Warnf("Failed to load KUBECONFIG file: %v", err)
-		return
-	}
-
-	var outdatedClusters []string
-	k8host, _ := tc.KubeProxyHostPort()
-	for name, cluster := range value.Clusters {
-		if cluster.TLSServerName == client.GetOldKubeTLSServerName(k8host) {
-			outdatedClusters = append(outdatedClusters, name)
-		}
-	}
-
-	if len(outdatedClusters) == 0 {
-		return
-	}
-	fmt.Printf("Deprecated tls-server-name value detected in %s KUBECONFIG file for [%v] clusters\n", kubeConfigPath, strings.Join(outdatedClusters, ", "))
-	fmt.Printf("Please re-login and update your KUBECONFIG cluster configuration by running the 'tsh kube login' command.\n\n")
 }
 
 // onHeadlessApprove executes 'tsh headless approve' command

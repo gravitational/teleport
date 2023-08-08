@@ -593,7 +593,8 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.byKind[resourceKind] = collections.integrations
 		case types.KindHeadlessAuthentication:
-			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, headlessAuthenticationServiceExecutor]{cache: c, watch: watch}
+			// For headless authentications, we need only process events. We don't need to keep the cache up to date.
+			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, noReader, noopExecutor]{cache: c, watch: watch}
 		case types.KindAccessList:
 			if c.AccessLists == nil {
 				return nil, trace.BadParameter("missing parameter AccessLists")
@@ -889,8 +890,9 @@ func (namespaceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets b
 	}
 
 	derefNamespaces := make([]*types.Namespace, len(namespaces))
-	for i, namespace := range namespaces {
-		derefNamespaces[i] = &namespace
+	for i := range namespaces {
+		ns := namespaces[i]
+		derefNamespaces[i] = &ns
 	}
 	return derefNamespaces, nil
 }
@@ -2309,36 +2311,6 @@ func (integrationsExecutor) getReader(cache *Cache, cacheOK bool) services.Integ
 
 var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExecutor{}
 
-type headlessAuthenticationServiceExecutor struct{}
-
-func (headlessAuthenticationServiceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.HeadlessAuthentication, error) {
-	return cache.headlessAuthenticationsCache.GetHeadlessAuthentications(ctx)
-}
-
-func (headlessAuthenticationServiceExecutor) upsert(ctx context.Context, cache *Cache, resource *types.HeadlessAuthentication) error {
-	return cache.headlessAuthenticationsCache.UpsertHeadlessAuthentication(ctx, resource)
-}
-
-func (headlessAuthenticationServiceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.headlessAuthenticationsCache.DeleteAllHeadlessAuthentications(ctx)
-}
-
-func (headlessAuthenticationServiceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	ha, ok := resource.(*types.HeadlessAuthentication)
-	if !ok {
-		return trace.BadParameter("unexpected type %T", resource)
-	}
-	return cache.headlessAuthenticationsCache.DeleteHeadlessAuthentication(ctx, ha.User, resource.GetName())
-}
-
-func (headlessAuthenticationServiceExecutor) isSingleton() bool { return false }
-
-func (headlessAuthenticationServiceExecutor) getReader(_ *Cache, _ bool) noReader {
-	return noReader{}
-}
-
-var _ executor[*types.HeadlessAuthentication, noReader] = headlessAuthenticationServiceExecutor{}
-
 type accessListsExecutor struct{}
 
 func (accessListsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessList, error) {
@@ -2369,3 +2341,31 @@ func (accessListsExecutor) getReader(cache *Cache, cacheOK bool) services.Access
 }
 
 var _ executor[*accesslist.AccessList, services.AccessListsGetter] = accessListsExecutor{}
+
+// noopExecutor can be used when a resource's events do not need to processed by
+// the cache itself, only passed on to other watchers.
+type noopExecutor struct{}
+
+func (noopExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.HeadlessAuthentication, error) {
+	return nil, nil
+}
+
+func (noopExecutor) upsert(ctx context.Context, cache *Cache, resource *types.HeadlessAuthentication) error {
+	return nil
+}
+
+func (noopExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return nil
+}
+
+func (noopExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return nil
+}
+
+func (noopExecutor) isSingleton() bool { return false }
+
+func (noopExecutor) getReader(_ *Cache, _ bool) noReader {
+	return noReader{}
+}
+
+var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}

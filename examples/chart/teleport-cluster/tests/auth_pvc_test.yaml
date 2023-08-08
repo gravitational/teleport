@@ -35,6 +35,18 @@ tests:
           path: spec.resources.requests.storage
           value: 50Gi
 
+  - it: uses a custom storage class when set
+    values:
+      - ../.lint/standalone-custom-storage-class.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.storageClassName
+          value: ebs-ssd
+
   - it: does not create a PersistentVolumeClaim when chartMode=standalone and existingClaimName is not blank
     set:
       chartMode: standalone
@@ -63,6 +75,13 @@ tests:
   - it: does not create a PersistentVolumeClaim when chartMode=gcp
     set:
       chartMode: gcp
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not create a PersistentVolumeClaim when chartMode=azure
+    set:
+      chartMode: azure
     asserts:
       - hasDocuments:
           count: 0

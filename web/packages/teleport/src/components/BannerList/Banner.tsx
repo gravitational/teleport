@@ -41,9 +41,9 @@ export function Banner({
   onClose,
 }: Props) {
   const icon = {
-    info: <Info mr={3} fontSize="3" role="icon" />,
-    warning: <Info mr={3} fontSize="3" role="icon" />,
-    danger: <Warning mr={3} fontSize="3" role="icon" />,
+    info: <Info mr={3} size="medium" role="icon" />,
+    warning: <Info mr={3} size="medium" role="icon" />,
+    danger: <Warning mr={3} size="medium" role="icon" />,
   }[severity];
 
   const isValidTeleportLink = (link: string) => {
@@ -91,7 +91,7 @@ export function Banner({
             onClose(id);
           }}
         >
-          <Cross />
+          <Cross size="medium" />
         </CloseButton>
       </Flex>
     </Box>

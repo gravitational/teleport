@@ -38,6 +38,8 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
+	// PluginTypeJira is the Jira access plugin
+	PluginTypeJira = "jira"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
 	PluginTypeOpsgenie = "opsgenie"
 	// PluginTypePagerDuty is the PagerDuty access plugin
@@ -183,6 +185,29 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+
+	case *PluginSpecV1_Jira:
+		if settings.Jira == nil {
+			return trace.BadParameter("missing Jira settings")
+		}
+
+		if err := settings.Jira.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("jira plugin must be used with the static credentials ref type")
+		}
+
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+
 	case *PluginSpecV1_Okta:
 		// Check settings.
 		if settings.Okta == nil {
@@ -345,6 +370,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOkta
 	case *PluginSpecV1_Jamf:
 		return PluginTypeJamf
+	case *PluginSpecV1_Jira:
+		return PluginTypeJira
 	case *PluginSpecV1_Opsgenie:
 		return PluginTypeOpsgenie
 	case *PluginSpecV1_PagerDuty:
@@ -391,16 +418,36 @@ func (s *PluginJamfSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+func (s *PluginJiraSettings) CheckAndSetDefaults() error {
+	if s.ServerUrl == "" {
+		return trace.BadParameter("Jira server URL must be set")
+	}
+
+	if s.ProjectKey == "" {
+		return trace.BadParameter("Jira project key must be set")
+	}
+
+	if s.IssueType == "" {
+		return trace.BadParameter("Jira issue type must be set")
+	}
+
+	return nil
+}
+
 // CheckAndSetDefaults validates and set the default values
 func (s *PluginMattermostSettings) CheckAndSetDefaults() error {
 	if s.ServerUrl == "" {
 		return trace.BadParameter("server url is required")
 	}
-	if s.Team == "" {
-		return trace.BadParameter("team is required")
-	}
-	if s.Channel == "" {
-		return trace.BadParameter("channel is required")
+
+	// If one field is defined, both should be required.
+	if len(s.Channel) > 0 || len(s.Team) > 0 {
+		if len(s.Team) == 0 {
+			return trace.BadParameter("team is required")
+		}
+		if len(s.Channel) == 0 {
+			return trace.BadParameter("channel is required")
+		}
 	}
 	return nil
 }

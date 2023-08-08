@@ -2313,7 +2313,11 @@ service AuthService {
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.
+  // Deprecated: use CreateAccessRequestV2 instead.
+  // DELETE IN v15.0.0.
   rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
+  // CreateAccessRequestV2 creates a new access request.
+  rpc CreateAccessRequestV2(types.AccessRequestV3) returns (types.AccessRequestV3);
   // DeleteAccessRequest deletes an access request.
   rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
   // SetAccessRequestState sets the state of an access request.
@@ -2592,12 +2596,6 @@ service AuthService {
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
-  // UpsertToken upserts a token in a backend.
-  // Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
-  rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
-  // CreateToken creates a token in a backend.
-  // Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
-  rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateTokenV2 creates a token in a backend.
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
   // UpsertTokenV2 upserts a token in a backend.

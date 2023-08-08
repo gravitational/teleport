@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
 
@@ -506,7 +507,7 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
 				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
-			clustersNotUpdated: []string{"eks-cluster1"},
+			clustersNotUpdated: []string{mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup).GetName()},
 		},
 		{
 			name: "1 cluster in auth that belongs the same discovery group but has unmatched labels + import 2 prod clusters from EKS",
@@ -593,7 +594,7 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
 				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], mainDiscoveryGroup),
 			},
-			clustersNotUpdated: []string{"aks-cluster1"},
+			clustersNotUpdated: []string{mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup).GetName()},
 		},
 		{
 			name:                 "no clusters in auth server, import 2 prod clusters from GKE",
@@ -895,6 +896,8 @@ func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discover
 	cluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyEKSNameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
@@ -902,6 +905,8 @@ func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, d
 	cluster, err := services.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyAKSNameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
@@ -975,6 +980,8 @@ func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discov
 	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
 	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyGKENameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
@@ -1061,7 +1068,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "update existing database",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should be updated",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
 				}, types.DatabaseSpecV3{
@@ -1085,7 +1092,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "update existing database with assumed role",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-rds",
+					Name:        awsRDSDBWithRole.GetName(),
 					Description: "should be updated",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
 				}, types.DatabaseSpecV3{
@@ -1105,7 +1112,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			name: "delete existing database",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should not be deleted",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
 				}, types.DatabaseSpecV3{
@@ -1120,7 +1127,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 			}},
 			expectDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-redshift",
+					Name:        awsRedshiftDB.GetName(),
 					Description: "should not be deleted",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
 				}, types.DatabaseSpecV3{
@@ -1210,7 +1217,11 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 			select {
 			case <-waitForReconcile:
-				actualDatabases, err := authClient.GetDatabases(ctx)
+				// Use tlsServer.Auth() instead of authClient to compare
+				// databases stored in auth. authClient was created with
+				// types.RoleDiscovery and it does not have permissions to
+				// access non-cloud databases.
+				actualDatabases, err := tlsServer.Auth().GetDatabases(ctx)
 				require.NoError(t, err)
 				require.Empty(t, cmp.Diff(tc.expectDatabases, actualDatabases,
 					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
@@ -1241,6 +1252,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
+	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRDS)
 	return instance, database
 }
 
@@ -1262,6 +1274,7 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
+	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshift)
 	return cluster, database
 }
 
@@ -1284,6 +1297,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)
+	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherRedis)
 	return resourceInfo, database
 }
 
@@ -1745,7 +1759,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 
 // TestServer_onCreate tests the update of the discovery_group of a resource
 // when it differs from the one in the database.
-// TODO(tigrato): DELETE in 14.0.0
+// TODO(tigrato): DELETE in 15.0.0
 func TestServer_onCreate(t *testing.T) {
 	_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
 	accessPoint := &fakeAccessPoint{}

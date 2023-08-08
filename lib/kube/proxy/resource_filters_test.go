@@ -63,7 +63,7 @@ func Test_filterBuffer(t *testing.T) {
 		types.KindKubeIngress:               {obj: "Ingress", api: "networking.k8s.io/v1"},
 	}
 
-	_, decoder, err := newEncoderAndDecoderForContentType(responsewriters.DefaultContentType, newClientNegotiator())
+	_, decoder, err := newEncoderAndDecoderForContentType(responsewriters.DefaultContentType, newClientNegotiator(&globalKubeCodecs))
 	require.NoError(t, err)
 
 	type args struct {
@@ -150,7 +150,7 @@ func Test_filterBuffer(t *testing.T) {
 
 				buf, decompress := newMemoryResponseWriter(t, data.Bytes(), tt.args.contentEncoding)
 
-				err = filterBuffer(newResourceFilterer(r, types.KubeVerbList, allowedResources, nil, log), buf)
+				err = filterBuffer(newResourceFilterer(r, types.KubeVerbList, &globalKubeCodecs, allowedResources, nil, log), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.
