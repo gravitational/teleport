@@ -103,6 +103,11 @@ type AzureParams struct {
 	ClientID string
 }
 
+type KubernetesRemoteParams struct {
+	ServiceAccount          string
+	ServiceAccountNamespace string
+}
+
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
@@ -152,6 +157,8 @@ type RegisterParams struct {
 	// certificates that are returned by registering should expire at.
 	// It should not be specified for non-bot registrations.
 	Expires *time.Time
+
+	KubernetesRemoteParams KubernetesRemoteParams
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -714,7 +721,9 @@ func registerUsingKubernetesRemoteMethod(client joinServiceClient, token string,
 	)
 	certs, err := client.RegisterUsingKubernetesRemoteMethod(ctx, req, func(audience string) (string, error) {
 		jwt, err := kubernetestoken.RequestToken(ctx, kubernetestoken.RequestTokenOpts{
-			Audience: audience,
+			Audience:                audience,
+			ServiceAccount:          params.KubernetesRemoteParams.ServiceAccount,
+			ServiceAccountNamespace: params.KubernetesRemoteParams.ServiceAccountNamespace,
 		})
 		if err != nil {
 			return "", trace.Wrap(err, "requesting token")

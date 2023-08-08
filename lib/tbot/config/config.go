@@ -177,6 +177,11 @@ type AzureOnboardingConfig struct {
 	ClientID string `yaml:"client_id,omitempty"`
 }
 
+type KubernetesRemoteOnboardingConfig struct {
+	ServiceAccount          string `yaml:"service_account,omitempty"`
+	ServiceAccountNamespace string `yaml:"service_account_namespace,omitempty"`
+}
+
 // OnboardingConfig contains values relevant to how the bot authenticates with
 // the Teleport cluster.
 type OnboardingConfig struct {
@@ -200,6 +205,10 @@ type OnboardingConfig struct {
 
 	// Azure holds configuration relevant to the azure joining method.
 	Azure AzureOnboardingConfig `yaml:"azure,omitempty"`
+
+	// KubernetesRemote
+	// TODO: Docs
+	KubernetesRemote KubernetesRemoteOnboardingConfig `yaml:"kubernetes_remote,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored

@@ -221,11 +221,14 @@ func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*ident
 		Expires:            &expires,
 		FIPS:               cfg.FIPS,
 		CipherSuites:       cfg.CipherSuites(),
-	}
-	if params.JoinMethod == types.JoinMethodAzure {
-		params.AzureParams = auth.AzureParams{
+
+		AzureParams: auth.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
-		}
+		},
+		KubernetesRemoteParams: auth.KubernetesRemoteParams{
+			ServiceAccount:          cfg.Onboarding.KubernetesRemote.ServiceAccount,
+			ServiceAccountNamespace: cfg.Onboarding.KubernetesRemote.ServiceAccountNamespace,
+		},
 	}
 
 	certs, err := auth.Register(params)
