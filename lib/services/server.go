@@ -115,9 +115,6 @@ func compareServers(a, b types.Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-	if !cmp.Equal(a.GetApps(), b.GetApps()) {
-		return Different
-	}
 
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different

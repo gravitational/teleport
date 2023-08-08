@@ -1361,34 +1361,6 @@ func (g *GRPCServer) GetAppSession(ctx context.Context, req *authpb.GetAppSessio
 	}, nil
 }
 
-// GetAppSessions gets all application web sessions.
-// DEPRECATED: ListAppSessions should be used instead to avoid retrieving all sessions at once.
-// TODO(tross): DELETE IN 13.0
-func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *emptypb.Empty) (*authpb.GetAppSessionsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions, err := auth.GetAppSessions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out := make([]*types.WebSessionV2, 0, len(sessions))
-	for _, sess := range sessions {
-		s, ok := sess.(*types.WebSessionV2)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", sess)
-		}
-		out = append(out, s)
-	}
-
-	return &authpb.GetAppSessionsResponse{
-		Sessions: out,
-	}, nil
-}
-
 // ListAppSessions gets a paginated list of application web sessions.
 func (g *GRPCServer) ListAppSessions(ctx context.Context, req *authpb.ListAppSessionsRequest) (*authpb.ListAppSessionsResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -4445,7 +4417,8 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 								AppServer: appOrSP,
 							},
 						},
-					}}
+					},
+				}
 			case *types.SAMLIdPServiceProviderV1:
 				protoResource = &authpb.PaginatedResource{
 					Resource: &authpb.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
@@ -4454,7 +4427,8 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 								SAMLIdPServiceProvider: appOrSP,
 							},
 						},
-					}}
+					},
+				}
 			default:
 				return nil, trace.BadParameter("expected types.SAMLIdPServiceProviderV1 or types.AppServerV3, got %T", resource)
 			}
