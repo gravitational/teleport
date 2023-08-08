@@ -15,3 +15,4 @@
  */
 
 export { Container as NewCredentials } from './NewCredentials';
+export * from './types';

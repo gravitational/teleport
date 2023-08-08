@@ -240,10 +240,10 @@ func (a *BaseApp) onPendingRequest(ctx context.Context, req types.AccessRequest)
 
 	reqID := req.GetName()
 	reqData := pd.AccessRequestData{
-		User:               req.GetUser(),
-		Roles:              req.GetRoles(),
-		RequestReason:      req.GetRequestReason(),
-		ResolveAnnotations: req.GetResolveAnnotations(),
+		User:              req.GetUser(),
+		Roles:             req.GetRoles(),
+		RequestReason:     req.GetRequestReason(),
+		SystemAnnotations: req.GetSystemAnnotations(),
 	}
 
 	_, err := a.pluginData.Create(ctx, reqID, GenericPluginData{AccessRequestData: reqData})
@@ -388,7 +388,7 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 
 	switch a.Conf.GetPluginType() {
 	case types.PluginTypeOpsgenie:
-		if recipients, ok := req.GetResolveAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
+		if recipients, ok := req.GetSystemAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 			for _, recipient := range recipients {
 				rec, err := a.bot.FetchRecipient(ctx, recipient)
 				if err != nil {

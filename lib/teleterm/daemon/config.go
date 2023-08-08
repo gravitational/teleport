@@ -38,14 +38,15 @@ type Config struct {
 	PrehogAddr string
 
 	GatewayCreator         GatewayCreator
-	TCPPortAllocator       gateway.TCPPortAllocator
 	DBCLICommandProvider   gateway.CLICommandProvider
 	KubeCLICommandProvider gateway.CLICommandProvider
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
 	// Electron app. This is to ensure that the server public key is written to the disk under the
 	// expected location by the time we get around to creating the client.
 	CreateTshdEventsClientCredsFunc CreateTshdEventsClientCredsFunc
-	ConnectMyComputerRoleSetup      *connectmycomputer.RoleSetup
+
+	ConnectMyComputerRoleSetup        *connectmycomputer.RoleSetup
+	ConnectMyComputerTokenProvisioner *connectmycomputer.TokenProvisioner
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
@@ -58,10 +59,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.GatewayCreator == nil {
 		c.GatewayCreator = clusters.NewGatewayCreator(c.Storage)
-	}
-
-	if c.TCPPortAllocator == nil {
-		c.TCPPortAllocator = gateway.NetTCPPortAllocator{}
 	}
 
 	if c.Log == nil {
@@ -82,6 +79,10 @@ func (c *Config) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		c.ConnectMyComputerRoleSetup = roleSetup
+	}
+
+	if c.ConnectMyComputerTokenProvisioner == nil {
+		c.ConnectMyComputerTokenProvisioner = connectmycomputer.NewTokenProvisioner(&connectmycomputer.TokenProvisionerConfig{Clock: c.Storage.Clock})
 	}
 
 	return nil

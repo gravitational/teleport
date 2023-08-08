@@ -217,6 +217,7 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (n
 	}
 
 	req.Header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
+	req.Header.Add(constants.WebAPIConnUpgradeTeleportHeader, upgradeType)
 
 	// Set "Connection" header to meet RFC spec:
 	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42

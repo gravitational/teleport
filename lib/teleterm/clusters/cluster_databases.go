@@ -151,8 +151,8 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 	return response, nil
 }
 
-// ReissueDBCerts issues new certificates for specific DB access and saves them to disk.
-func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) error {
+// reissueDBCerts issues new certificates for specific DB access and saves them to disk.
+func (c *Cluster) reissueDBCerts(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.

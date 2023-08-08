@@ -908,3 +908,93 @@ func TestTrackingSession(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionRecordingMode(t *testing.T) {
+	tests := []struct {
+		name          string
+		serverSubKind string
+		mode          string
+		expectedMode  string
+	}{
+		{
+			name:          "teleport node record at node",
+			serverSubKind: types.SubKindTeleportNode,
+			mode:          types.RecordAtNode,
+			expectedMode:  types.RecordAtNode,
+		},
+		{
+			name:          "teleport node record at proxy",
+			serverSubKind: types.SubKindTeleportNode,
+			mode:          types.RecordAtProxy,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "agentless node record at node",
+			serverSubKind: types.SubKindOpenSSHNode,
+			mode:          types.RecordAtNode,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "agentless node record at proxy",
+			serverSubKind: types.SubKindOpenSSHNode,
+			mode:          types.RecordAtProxy,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "agentless node record at node sync",
+			serverSubKind: types.SubKindOpenSSHNode,
+			mode:          types.RecordAtNodeSync,
+			expectedMode:  types.RecordAtProxySync,
+		},
+		{
+			name:          "agentless node record at proxy sync",
+			serverSubKind: types.SubKindOpenSSHNode,
+			mode:          types.RecordAtProxySync,
+			expectedMode:  types.RecordAtProxySync,
+		},
+		{
+			name:          "ec2 node record at node",
+			serverSubKind: types.SubKindOpenSSHEICENode,
+			mode:          types.RecordAtNode,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "ec2 node record at proxy",
+			serverSubKind: types.SubKindOpenSSHEICENode,
+			mode:          types.RecordAtProxy,
+			expectedMode:  types.RecordAtProxy,
+		},
+		{
+			name:          "ec2 node record at node sync",
+			serverSubKind: types.SubKindOpenSSHEICENode,
+			mode:          types.RecordAtNodeSync,
+			expectedMode:  types.RecordAtProxySync,
+		},
+		{
+			name:          "ec2 node record at proxy sync",
+			serverSubKind: types.SubKindOpenSSHEICENode,
+			mode:          types.RecordAtProxySync,
+			expectedMode:  types.RecordAtProxySync,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sess := session{
+				scx: &ServerContext{
+					SessionRecordingConfig: &types.SessionRecordingConfigV2{
+						Spec: types.SessionRecordingConfigSpecV2{
+							Mode: tt.mode,
+						},
+					},
+				},
+				serverMeta: apievents.ServerMetadata{
+					ServerSubKind: tt.serverSubKind,
+				},
+			}
+
+			gotMode := sess.sessionRecordingMode()
+			require.Equal(t, tt.expectedMode, gotMode)
+		})
+	}
+}

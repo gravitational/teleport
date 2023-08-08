@@ -45,6 +45,11 @@ type UsersService interface {
 	UserGetter
 	// UpdateUser updates an existing user.
 	UpdateUser(ctx context.Context, user types.User) error
+	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
+	// the result to storage. Return `false` from `fn` to avoid storage changes.
+	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+	// Returns the storage user.
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
 	// UpsertUser updates parameters about user
 	UpsertUser(user types.User) error
 	// CompareAndSwapUser updates an existing user, but fails if the user does
@@ -274,8 +279,6 @@ type Identity interface {
 type AppSession interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
-	// GetAppSessions gets all application web sessions.
-	GetAppSessions(context.Context) ([]types.WebSession, error)
 	// ListAppSessions gets a paginated list of application web sessions.
 	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
 	// UpsertAppSession upserts an application web session.

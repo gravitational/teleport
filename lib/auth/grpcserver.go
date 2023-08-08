@@ -29,7 +29,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -65,7 +64,6 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -474,20 +472,6 @@ func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *authpb.OpenSS
 	return cert, nil
 }
 
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-func (g *GRPCServer) UnstableAssertSystemRole(ctx context.Context, req *authpb.UnstableSystemRoleAssertion) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	if err := auth.UnstableAssertSystemRole(ctx, *req); err != nil {
-		return nil, trail.ToGRPC(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
@@ -538,7 +522,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// hold open the stream until it completes
 	<-ics.Done()
 
-	if trace.IsEOF(ics.Error()) {
+	if errors.Is(ics.Error(), io.EOF) {
 		return nil
 	}
 
@@ -604,7 +588,7 @@ func (g *GRPCServer) GetInstances(filter *types.InstanceFilter, stream authpb.Au
 		}
 		if err := stream.Send(instance); err != nil {
 			instances.Done()
-			if trace.IsEOF(err) {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -792,6 +776,11 @@ func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream au
 }
 
 func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessRequestV3) (*emptypb.Empty, error) {
+	_, err := g.CreateAccessRequestV2(ctx, req)
+	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.AccessRequestV3) (*types.AccessRequestV3, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -807,7 +796,7 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessR
 	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &emptypb.Empty{}, nil
+	return req, nil
 }
 
 func (g *GRPCServer) DeleteAccessRequest(ctx context.Context, id *authpb.RequestID) (*emptypb.Empty, error) {
@@ -1369,34 +1358,6 @@ func (g *GRPCServer) GetAppSession(ctx context.Context, req *authpb.GetAppSessio
 
 	return &authpb.GetAppSessionResponse{
 		Session: sess,
-	}, nil
-}
-
-// GetAppSessions gets all application web sessions.
-// DEPRECATED: ListAppSessions should be used instead to avoid retrieving all sessions at once.
-// TODO(tross): DELETE IN 13.0
-func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *emptypb.Empty) (*authpb.GetAppSessionsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions, err := auth.GetAppSessions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out := make([]*types.WebSessionV2, 0, len(sessions))
-	for _, sess := range sessions {
-		s, ok := sess.(*types.WebSessionV2)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", sess)
-		}
-		out = append(out, s)
-	}
-
-	return &authpb.GetAppSessionsResponse{
-		Sessions: out,
 	}, nil
 }
 
@@ -3310,45 +3271,6 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}, nil
 }
 
-// setDefaultTokenTTL replicates the old server-side behavior of universally
-// applying a 30 minute TTL default to newly created tokens.
-// This can be removed when CreateToken and UpsertToken are removed.
-func setDefaultTokenTTL(clock clockwork.Clock, token *types.ProvisionTokenV2) {
-	if token.Expiry().IsZero() || token.Expiry().Sub(clock.Now().UTC()) < time.Second {
-		token.SetExpiry(clock.Now().Add(defaults.ProvisioningTokenTTL))
-	}
-}
-
-// UpsertToken upserts a token.
-// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
-func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	g.Warn("Deprecated RPC UpsertToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling UpsertTokenV2. This will stop functioning in Teleport 14.0.0.")
-	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
-	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
-// CreateToken creates a token.
-// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
-func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	g.Warn("Deprecated RPC CreateToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling CreateTokenV2. This will stop functioning in Teleport 14.0.0.")
-	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
-	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
 // UpsertTokenV2 upserts a token.
 func (g *GRPCServer) UpsertTokenV2(ctx context.Context, req *authpb.UpsertTokenV2Request) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -3389,24 +3311,6 @@ func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *authpb.CreateTokenV
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
-}
-
-// GenerateToken generates a new auth token.
-// Deprecated: Use CreateToken or UpdateToken.
-// DELETE IN 14.0.0, replaced by methods above (strideynet).
-func (g *GRPCServer) GenerateToken(ctx context.Context, req *authpb.GenerateTokenRequest) (*authpb.GenerateTokenResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	g.Warn("Deprecated GenerateToken RPC called. This will stop functioning in Teleport 14.0.0. Upgrade your client.")
-
-	token, err := auth.ServerWithRoles.GenerateToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &authpb.GenerateTokenResponse{Token: token}, nil
 }
 
 // DeleteToken deletes a token by name.
@@ -4503,6 +4407,32 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 			}
 
 			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_UserGroup{UserGroup: userGroup}}
+		case types.KindAppOrSAMLIdPServiceProvider:
+			switch appOrSP := resource.(type) {
+			case *types.AppServerV3:
+				protoResource = &authpb.PaginatedResource{
+					Resource: &authpb.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+								AppServer: appOrSP,
+							},
+						},
+					},
+				}
+			case *types.SAMLIdPServiceProviderV1:
+				protoResource = &authpb.PaginatedResource{
+					Resource: &authpb.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
+							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+								SAMLIdPServiceProvider: appOrSP,
+							},
+						},
+					},
+				}
+			default:
+				return nil, trace.BadParameter("expected types.SAMLIdPServiceProviderV1 or types.AppServerV3, got %T", resource)
+			}
+
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}
@@ -4905,7 +4835,10 @@ func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster.SetOrigin(types.OriginDynamic)
+	// if origin is not set, force it to be dynamic.
+	if len(cluster.Origin()) == 0 {
+		cluster.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.UpdateKubernetesCluster(ctx, cluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5461,7 +5394,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
-		Backend: cfg.AuthServer.Services,
+		Backend:    cfg.AuthServer.Services,
+		Authorizer: cfg.Authorizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

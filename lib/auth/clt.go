@@ -33,6 +33,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -237,6 +238,11 @@ func (c *Client) DeleteAllAuthServers() error {
 // DeleteAuthServer not implemented: can only be called locally.
 func (c *Client) DeleteAuthServer(name string) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateAndSwapUser not implemented: can only be called locally.
+func (c *Client) UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (bool, error)) (types.User, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // CompareAndSwapUser not implemented: can only be called locally
@@ -526,6 +532,12 @@ type IdentityService interface {
 	// UpdateUser updates an existing user in a backend.
 	UpdateUser(ctx context.Context, user types.User) error
 
+	// UpdateAndSwapUser reads an existing user, runs `fn` against it and writes
+	// the result to storage. Return `false` from `fn` to avoid storage changes.
+	// Roughly equivalent to [GetUser] followed by [CompareAndSwapUser].
+	// Returns the storage user.
+	UpdateAndSwapUser(ctx context.Context, user string, withSecrets bool, fn func(types.User) (changed bool, err error)) (types.User, error)
+
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user types.User) error
 
@@ -680,7 +692,6 @@ type ClientI interface {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.Assistant
-	services.UserPreferences
 	WebService
 	services.Status
 	services.ClusterConfiguration
@@ -837,4 +848,10 @@ type ClientI interface {
 
 	// GetResources returns a paginated list of resources.
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+
+	// GetUserPreferences returns the user preferences for a given user.
+	GetUserPreferences(ctx context.Context, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error)
+
+	// UpsertUserPreferences creates or updates user preferences for a given username.
+	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
 }

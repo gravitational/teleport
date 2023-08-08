@@ -30,7 +30,7 @@ option (gogoproto.unmarshaler_all) = true;
 
 // Metadata is a common event metadata
 message Metadata {
-  // Index is a monotonicaly incremented index in the event sequence
+  // Index is a monotonically incremented index in the event sequence
   int64 Index = 1 [(gogoproto.jsontag) = "ei"];
 
   // Type is the event type
@@ -53,7 +53,7 @@ message Metadata {
   string ClusterName = 6 [(gogoproto.jsontag) = "cluster_name,omitempty"];
 }
 
-// SesssionMetadata is a common session event metadata
+// SessionMetadata is a common session event metadata
 message SessionMetadata {
   // SessionID is a unique UUID of the session.
   string SessionID = 1 [(gogoproto.jsontag) = "sid"];
@@ -328,7 +328,7 @@ message SessionJoin {
 }
 
 // SessionPrint event happens every time a write occurs to
-// temirnal I/O during a session
+// terminal I/O during a session
 message SessionPrint {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -337,7 +337,7 @@ message SessionPrint {
     (gogoproto.jsontag) = ""
   ];
 
-  // ChunkIndex is a monotonicaly incremented index for ordering print events
+  // ChunkIndex is a monotonically incremented index for ordering print events
   int64 ChunkIndex = 2 [(gogoproto.jsontag) = "ci"];
 
   // Data is data transferred, it is not marshaled to JSON format
@@ -1089,7 +1089,7 @@ message SessionLeave {
   ];
 }
 
-// UserLogin records a successfull or failed user login event
+// UserLogin records a successfully or failed user login event
 message UserLogin {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -1277,7 +1277,7 @@ message AccessRequestCreate {
   string Reason = 8 [(gogoproto.jsontag) = "reason,omitempty"];
 
   // Annotations is an optional set of attributes supplied by a plugin during
-  // approval/denail of the request.
+  // approval/denial of the request.
   google.protobuf.Struct Annotations = 9 [
     (gogoproto.jsontag) = "annotations,omitempty",
     (gogoproto.casttype) = "Struct"
@@ -1294,6 +1294,13 @@ message AccessRequestCreate {
   repeated ResourceID RequestedResourceIDs = 12 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
+  ];
+
+  // MaxDuration indicates how long the access should be granted for.
+  google.protobuf.Timestamp MaxDuration = 13 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "max_duration,omitempty"
   ];
 }
 

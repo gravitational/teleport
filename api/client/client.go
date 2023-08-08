@@ -906,16 +906,6 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
-// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
-// instances to prove that they hold a given system role.
-//
-// DELETE IN: 11.0 (server side method should continue to exist until 12.0 for back-compat reasons,
-// but v11 clients should no longer need this method)
-func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req)
-	return trail.FromGRPC(err)
-}
-
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
@@ -1016,6 +1006,16 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	}
 	_, err := c.grpc.CreateAccessRequest(ctx, r)
 	return trail.FromGRPC(err)
+}
+
+// CreateAccessRequestV2 registers a new access request with the auth server.
+func (c *Client) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	r, ok := req.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected access request type %T", req)
+	}
+	resp, err := c.grpc.CreateAccessRequestV2(ctx, r)
+	return resp, trail.FromGRPC(err)
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -1208,34 +1208,6 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	}
 
 	return resp.GetSession(), nil
-}
-
-// GetAppSessions gets all application web sessions.
-func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	var (
-		nextToken string
-		sessions  []types.WebSession
-	)
-
-	// Leverages ListAppSessions instead of GetAppSessions to prevent
-	// the server from having to send all sessions in a single message.
-	// If there are enough sessions it can cause the max message size to be
-	// exceeded.
-	for {
-		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
-		if err != nil {
-			return nil, trail.FromGRPC(err)
-		}
-
-		sessions = append(sessions, webSessions...)
-		if token == "" {
-			break
-		}
-
-		nextToken = token
-	}
-
-	return sessions, nil
 }
 
 // ListAppSessions gets a paginated list of application web sessions.
@@ -1842,7 +1814,7 @@ func (c *Client) GetServerInfos(ctx context.Context) stream.Stream[types.ServerI
 	return stream.Func(func() (types.ServerInfo, error) {
 		si, err := serverInfos.Recv()
 		if err != nil {
-			if trace.IsEOF(err) {
+			if errors.Is(err, io.EOF) {
 				// io.EOF signals that stream has completed successfully
 				return nil, io.EOF
 			}
@@ -1977,15 +1949,7 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	if err != nil {
-		err := trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			_, err := c.grpc.UpsertToken(ctx, tokenV2)
-			return trail.FromGRPC(err)
-		}
-		return err
-	}
-	return nil
+	return trail.FromGRPC(err)
 }
 
 // CreateToken creates a provision token.
@@ -2000,15 +1964,7 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	if err != nil {
-		err := trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			_, err := c.grpc.CreateToken(ctx, tokenV2)
-			return trail.FromGRPC(err)
-		}
-		return err
-	}
-	return nil
+	return trail.FromGRPC(err)
 }
 
 // DeleteToken deletes a provision token by name.
@@ -3090,6 +3046,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubernetesServer()
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
+		case types.KindAppOrSAMLIdPServiceProvider:
+			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3182,6 +3140,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubernetesServer()
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
+			case types.KindAppOrSAMLIdPServiceProvider:
+				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
