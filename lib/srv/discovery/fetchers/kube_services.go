@@ -19,6 +19,7 @@ package fetchers
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -174,6 +175,16 @@ func (f *kubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 				return nil
 			}
 
+			ports, err := getServicePorts(service)
+			if err != nil {
+				f.Log.WithError(err).Errorf("could not get ports for the service %q", service.GetName())
+				return nil
+			}
+
+			for _, port := range ports {
+
+			}
+
 			serviceApps, err := services.NewApplicationsFromKubeService(service, f.ClusterName, f.protocolChecker)
 			if err != nil {
 				f.Log.Warnf("Could not get app from Kubernetes service: %v", err)
@@ -204,4 +215,32 @@ func (f *kubeAppFetcher) Cloud() string {
 
 func (f *kubeAppFetcher) String() string {
 	return fmt.Sprintf("kubeAppFetcher(Namespaces=%v, Labels=%v)", f.Namespaces, f.FilterLabels)
+}
+
+func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
+	preferredPort := ""
+	for k, v := range s.GetAnnotations() {
+		if k == types.DiscoveryPortLabel {
+			preferredPort = v
+		}
+	}
+	availablePorts := []v1.ServicePort{}
+	for _, p := range s.Spec.Ports {
+		// Only supporting TCP ports.
+		if p.Protocol != v1.ProtocolTCP {
+			continue
+		}
+		availablePorts = append(availablePorts, p)
+		// If preferred port is specified and we found it in available ports, use this one
+		if preferredPort != "" && (preferredPort == strconv.Itoa(int(p.Port)) || p.Name == preferredPort) {
+			return []v1.ServicePort{p}, nil
+		}
+	}
+
+	// If preferred port is specified and we're here, it means we couldn't find it in service's ports.
+	if preferredPort != "" {
+		return nil, trace.BadParameter("Specified preferred port %s is absent among available service ports", preferredPort)
+	}
+
+	return availablePorts, nil
 }

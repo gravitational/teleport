@@ -325,3 +325,120 @@ func newMockService(name, namespace, externalName string, labels, annotations ma
 		},
 	}
 }
+
+func TestGetServicePorts(t *testing.T) {
+	tests := []struct {
+		desc        string
+		annotations map[string]string
+		ports       []corev1.ServicePort
+		expected    []corev1.ServicePort
+		wantErr     string
+	}{
+		{
+			desc:     "Empty input",
+			ports:    []corev1.ServicePort{},
+			expected: []corev1.ServicePort{},
+		},
+		{
+			desc: "One unsupported port (UDP)",
+			ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolUDP},
+			},
+			expected: []corev1.ServicePort{},
+		},
+		{
+			desc: "One supported port",
+			ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+			},
+			expected: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+			},
+		},
+		{
+			desc: "One supported port, one unsupported port",
+			ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+				{Port: 81, Protocol: corev1.ProtocolUDP},
+			},
+			expected: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+			},
+		},
+		{
+			desc: "One supported port, one unsupported port",
+			ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+				{Port: 81, Protocol: corev1.ProtocolUDP},
+			},
+			expected: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+			},
+		},
+		{
+			desc: "Two supported ports",
+			ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+				{Port: 81, Protocol: corev1.ProtocolTCP},
+			},
+			expected: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+				{Port: 81, Protocol: corev1.ProtocolTCP},
+			},
+		},
+		{
+			desc:        "Two supported ports with numeric annotation",
+			annotations: map[string]string{types.DiscoveryPortLabel: "42"},
+			ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+				{Port: 42, Protocol: corev1.ProtocolTCP},
+			},
+			expected: []corev1.ServicePort{
+				{Port: 42, Protocol: corev1.ProtocolTCP},
+			},
+		},
+		{
+			desc:        "Two supported ports with name annotation",
+			annotations: map[string]string{types.DiscoveryPortLabel: "right-port"},
+			ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+				{Port: 42, Protocol: corev1.ProtocolTCP},
+				{Port: 43, Protocol: corev1.ProtocolTCP, Name: "right-port"},
+			},
+			expected: []corev1.ServicePort{
+				{Port: 43, Protocol: corev1.ProtocolTCP, Name: "right-port"},
+			},
+		},
+		{
+			desc:        "Annotation doesn't match available port, want error",
+			annotations: map[string]string{types.DiscoveryPortLabel: "43"},
+			ports: []corev1.ServicePort{
+				{Port: 80, Protocol: corev1.ProtocolTCP},
+				{Port: 42, Protocol: corev1.ProtocolTCP},
+			},
+			expected: []corev1.ServicePort{},
+			wantErr:  "Specified preferred port",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			service := corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: tt.annotations,
+				},
+				Spec: corev1.ServiceSpec{
+					Ports: tt.ports,
+				},
+			}
+
+			result, err := getServicePorts(service)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
