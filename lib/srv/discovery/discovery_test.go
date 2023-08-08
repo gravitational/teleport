@@ -1759,7 +1759,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 
 // TestServer_onCreate tests the update of the discovery_group of a resource
 // when it differs from the one in the database.
-// TODO(tigrato): DELETE in 14.0.0
+// TODO(tigrato): DELETE in 15.0.0
 func TestServer_onCreate(t *testing.T) {
 	_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
 	accessPoint := &fakeAccessPoint{}

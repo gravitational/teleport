@@ -1976,13 +1976,13 @@ func TestProxyKube(t *testing.T) {
 			cfg: Proxy{Kube: KubeProxy{
 				Service:        Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 				KubeconfigFile: "/tmp/kubeconfig",
-				PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
+				PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
 			}},
 			want: servicecfg.KubeProxyConfig{
 				Enabled:         true,
 				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
 				KubeconfigPath:  "/tmp/kubeconfig",
-				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("kube.example.com:443")},
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
 				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
@@ -2013,7 +2013,7 @@ func TestProxyKube(t *testing.T) {
 				Kube: KubeProxy{
 					Service:        Service{EnabledFlag: "no", ListenAddress: "0.0.0.0:8080"},
 					KubeconfigFile: "/tmp/kubeconfig",
-					PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
+					PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
 				},
 			},
 			want: servicecfg.KubeProxyConfig{
