@@ -448,8 +448,6 @@ func TestGetServicePorts(t *testing.T) {
 }
 
 func TestProtoChecker_CheckProtocol(t *testing.T) {
-	t.Parallel()
-
 	checker := ProtoChecker{
 		InsecureSkipVerify: true,
 	}
