@@ -435,7 +435,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	}
 
 	if o.Spec.MaxAge != nil {
-		maxAge := time.Duration(o.Spec.MaxAge.Value)
+		maxAge := o.Spec.MaxAge.Value.Duration()
 		if maxAge < 0 {
 			return trace.BadParameter("max_age cannot be negative")
 		}
