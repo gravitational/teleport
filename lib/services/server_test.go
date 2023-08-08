@@ -95,6 +95,47 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 			},
 		},
 		{
+			name: "instance metadata generated labels are not replaced by instance tags",
+			ec2Instance: makeEC2Instance(func(i *ec2Types.Instance) {
+				i.Tags = append(i.Tags, ec2Types.Tag{
+					Key:   aws.String("region"),
+					Value: aws.String("evil"),
+				})
+			}),
+			awsCloudMetadata: &types.AWSInfo{
+				AccountID:   "1234567889012",
+				Region:      "us-east-1",
+				Integration: "myintegration",
+			},
+			errCheck: require.NoError,
+			expectedServer: &types.ServerV2{
+				Kind:    "node",
+				Version: "v2",
+				SubKind: "openssh-ec2-ice",
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"account-id": "1234567889012",
+						"region":     "us-east-1",
+						"MyTag":      "MyTagValue",
+					},
+					Namespace: "default",
+				},
+				Spec: types.ServerSpecV2{
+					Addr:     "172.31.1.1:22",
+					Hostname: "my-private-dns.compute.aws",
+					CloudMetadata: &types.CloudMetadata{
+						AWS: &types.AWSInfo{
+							AccountID:   "1234567889012",
+							InstanceID:  "i-123456789abcedf",
+							Region:      "us-east-1",
+							VPCID:       "vpc-abcd",
+							Integration: "myintegration",
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "missing ec2 private dns name",
 			ec2Instance: makeEC2Instance(func(i *ec2Types.Instance) {
 				i.PrivateDnsName = nil

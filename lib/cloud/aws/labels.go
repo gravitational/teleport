@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,14 +16,10 @@ limitations under the License.
 
 package aws
 
-// Labels to add to Teleport Resources when importing them from AWS
-const (
-	labelAccountID = "account-id"
-	labelRegion    = "region"
-)
+import "github.com/gravitational/teleport/api/types"
 
 // AddMetadataLabels adds the AccountID and Region as labels.
 func AddMetadataLabels(labels map[string]string, accountID, region string) {
-	labels[labelAccountID] = accountID
-	labels[labelRegion] = region
+	labels[types.DiscoveryLabelAccountID] = accountID
+	labels[types.DiscoveryLabelRegion] = region
 }

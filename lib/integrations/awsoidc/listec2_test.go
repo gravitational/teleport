@@ -75,7 +75,7 @@ func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.De
 	}
 
 	if sliceEnd < totalInstances {
-		nextToken := fmt.Sprintf("%d", requestedPage+1)
+		nextToken := strconv.Itoa(requestedPage + 1)
 		ret.NextToken = stringPointer(nextToken)
 	}
 
@@ -89,7 +89,7 @@ func TestListEC2(t *testing.T) {
 		return err == nil
 	}
 
-	pageSize := 100
+	const pageSize = 100
 	t.Run("pagination", func(t *testing.T) {
 		totalEC2s := 203
 
@@ -97,7 +97,7 @@ func TestListEC2(t *testing.T) {
 		for i := 0; i < totalEC2s; i++ {
 			allInstances = append(allInstances, ec2Types.Instance{
 				PrivateDnsName:   aws.String("my-private-dns.compute.aws"),
-				InstanceId:       aws.String("i-123456789abcedf"),
+				InstanceId:       aws.String(fmt.Sprintf("i-%d", i)),
 				VpcId:            aws.String("vpc-abcd"),
 				PrivateIpAddress: aws.String("172.31.1.1"),
 			})
@@ -119,6 +119,7 @@ func TestListEC2(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.Servers, pageSize)
 		nextPageToken := resp.NextToken
+		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-0")
 
 		// Second page must return pageSize number of Servers
 		resp, err = ListEC2(ctx, mockListClient, ListEC2Request{
@@ -130,6 +131,7 @@ func TestListEC2(t *testing.T) {
 		require.NotEmpty(t, resp.NextToken)
 		require.Len(t, resp.Servers, pageSize)
 		nextPageToken = resp.NextToken
+		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-100")
 
 		// Third page must return only the remaining Servers and an empty nextToken
 		resp, err = ListEC2(ctx, mockListClient, ListEC2Request{
@@ -140,6 +142,7 @@ func TestListEC2(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, resp.NextToken)
 		require.Len(t, resp.Servers, 3)
+		require.Equal(t, resp.Servers[0].GetCloudMetadata().AWS.InstanceID, "i-200")
 	})
 
 	for _, tt := range []struct {
@@ -201,18 +204,14 @@ func TestListEC2(t *testing.T) {
 			req: ListEC2Request{
 				Integration: "myintegration",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "no integration",
 			req: ListEC2Request{
 				Region: "us-east-1",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -223,11 +222,9 @@ func TestListEC2(t *testing.T) {
 			}
 			resp, err := ListEC2(ctx, mockListClient, tt.req)
 			require.True(t, tt.errCheck(err), "unexpected err: %v", err)
-			if err != nil {
-				return
+			if tt.respCheck != nil {
+				tt.respCheck(t, resp)
 			}
-
-			tt.respCheck(t, resp)
 		})
 	}
 }

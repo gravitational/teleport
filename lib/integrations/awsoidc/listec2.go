@@ -84,7 +84,7 @@ type ListEC2Response struct {
 
 // ListEC2Client describes the required methods to List EC2 Instances using a 3rd Party API.
 type ListEC2Client interface {
-	// Describes the specified instances or all instances.
+	// DescribeInstances describes the specified instances or all instances.
 	DescribeInstances(ctx context.Context, params *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error)
 
 	// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
@@ -132,6 +132,9 @@ func ListEC2(ctx context.Context, clt ListEC2Client, req ListEC2Request) (*ListE
 		return nil, trace.Wrap(err)
 	}
 	accountID := aws.ToString(callerIdentity.Account)
+	if accountID == "" {
+		return nil, trace.BadParameter("failed to get AWS AccountID using GetCallerIdentity")
+	}
 
 	describeEC2Instances := &ec2.DescribeInstancesInput{
 		Filters: []ec2Types.Filter{
