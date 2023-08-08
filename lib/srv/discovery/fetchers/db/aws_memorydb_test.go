@@ -16,7 +16,6 @@ limitations under the License.
 package db
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -98,20 +97,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 }
 
 func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydb.Cluster)) (*memorydb.Cluster, types.Database, []*memorydb.Tag) {
-	cluster := &memorydb.Cluster{
-		ARN:        aws.String(fmt.Sprintf("arn:aws:memorydb:%s:123456789012:cluster:%s", region, name)),
-		Name:       aws.String(name),
-		Status:     aws.String("available"),
-		TLSEnabled: aws.Bool(true),
-		ClusterEndpoint: &memorydb.Endpoint{
-			Address: aws.String("memorydb.localhost"),
-			Port:    aws.Int64(6379),
-		},
-	}
-
-	for _, opt := range opts {
-		opt(cluster)
-	}
+	cluster := mocks.MemoryDBCluster(name, region, opts...)
 
 	tags := []*memorydb.Tag{{
 		Key:   aws.String("env"),

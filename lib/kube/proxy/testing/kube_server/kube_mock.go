@@ -24,9 +24,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,8 +98,8 @@ type KubeMockServer struct {
 	log              *log.Entry
 	server           *httptest.Server
 	TLS              *tls.Config
-	Addr             net.Addr
 	URL              string
+	Address          string
 	CA               []byte
 	deletedResources map[deletedResource][]string
 	mu               sync.Mutex
@@ -124,7 +124,7 @@ func NewKubeAPIMock() (*KubeMockServer, error) {
 	}
 	s.server.StartTLS()
 	s.TLS = s.server.TLS
-	s.Addr = s.server.Listener.Addr()
+	s.Address = strings.TrimPrefix(s.server.URL, "https://")
 	s.URL = s.server.URL
 	return s, nil
 }
@@ -152,10 +152,10 @@ func (s *KubeMockServer) setup() {
 
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 
-	s.router.GET("/resources.teleport.dev/v6/namespaces/:namespace/teleportroles", s.withWriter(s.listTeleportRoles))
-	s.router.GET("/resources.teleport.dev/v6/teleportroles", s.withWriter(s.listTeleportRoles))
-	s.router.GET("/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.getTeleportRole))
-	s.router.DELETE("/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.deleteTeleportRole))
+	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles", s.withWriter(s.listTeleportRoles))
+	s.router.GET("/apis/resources.teleport.dev/v6/teleportroles", s.withWriter(s.listTeleportRoles))
+	s.router.GET("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.getTeleportRole))
+	s.router.DELETE("/apis/resources.teleport.dev/v6/namespaces/:namespace/teleportroles/:name", s.withWriter(s.deleteTeleportRole))
 
 	for _, endpoint := range []string{"/api", "/api/:ver", "/apis", "/apis/resources.teleport.dev/v6"} {
 		s.router.GET(endpoint, s.withWriter(s.discoveryEndpoint))

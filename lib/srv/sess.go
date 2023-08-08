@@ -19,6 +19,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -1002,7 +1003,7 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
 			// The party's connection may already be closed, in which case we expect an EOF
-			if !trace.IsEOF(err) {
+			if !errors.Is(err, io.EOF) {
 				s.log.Warnf("Unable to send %v to %v: %v.", events.SessionLeaveEvent, p.sconn.RemoteAddr(), err)
 			}
 			continue
