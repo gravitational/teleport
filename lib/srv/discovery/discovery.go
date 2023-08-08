@@ -49,7 +49,7 @@ import (
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
-// KubernetesClient is an interface for providing client for accessing Kubernetes cluster
+// KubernetesClient is an interface for providing clients which can access a Kubernetes cluster.
 type KubernetesClient interface {
 	GetKubernetesClient() (kubernetes.Interface, error)
 }
