@@ -944,7 +944,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	if len(process.Config.AuthServerAddresses()) != 0 && process.Config.AuthServerAddresses()[0].Port(0) == 0 {
 		// port appears undefined, attempt early listener creation so that we can get the real port
-		listener, err := process.importOrCreateListener(ListenerAuth, process.Config.Auth.ListenAddr.Addr)
+		listener, err := process.ImportOrCreateListener(ListenerAuth, process.Config.Auth.ListenAddr.Addr)
 		if err == nil {
 			process.Config.SetAuthServerAddress(utils.FromAddr(listener.Addr()))
 		}
@@ -1840,7 +1840,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	listener, err := process.importOrCreateListener(ListenerAuth, cfg.Auth.ListenAddr.Addr)
+	listener, err := process.ImportOrCreateListener(ListenerAuth, cfg.Auth.ListenAddr.Addr)
 	if err != nil {
 		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.ListenAddr.Addr, err)
 		return trace.Wrap(err)
@@ -2555,7 +2555,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		var agentPool *reversetunnel.AgentPool
 		if !conn.UseTunnel() {
-			listener, err := process.importOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
+			listener, err := process.ImportOrCreateListener(ListenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2831,7 +2831,7 @@ func (process *TeleportProcess) initMetricsService() error {
 		trace.Component: teleport.Component(teleport.ComponentMetrics, process.id),
 	})
 
-	listener, err := process.importOrCreateListener(ListenerMetrics, process.Config.Metrics.ListenAddr.Addr)
+	listener, err := process.ImportOrCreateListener(ListenerMetrics, process.Config.Metrics.ListenAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2992,7 +2992,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		}
 	})
 
-	listener, err := process.importOrCreateListener(ListenerDiagnostic, process.Config.DiagnosticAddr.Addr)
+	listener, err := process.ImportOrCreateListener(ListenerDiagnostic, process.Config.DiagnosticAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3331,7 +3331,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	}
 
 	if !cfg.Proxy.SSHAddr.IsEmpty() {
-		l, err := process.importOrCreateListener(ListenerProxySSH, cfg.Proxy.SSHAddr.Addr)
+		l, err := process.ImportOrCreateListener(ListenerProxySSH, cfg.Proxy.SSHAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3359,7 +3359,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 
 	if cfg.Proxy.Kube.Enabled && !cfg.Proxy.Kube.ListenAddr.IsEmpty() {
 		process.log.Debugf("Setup Proxy: turning on Kubernetes proxy.")
-		listener, err := process.importOrCreateListener(ListenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
+		listener, err := process.ImportOrCreateListener(ListenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3369,7 +3369,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	if !cfg.Proxy.DisableDatabaseProxy {
 		if !cfg.Proxy.MySQLAddr.IsEmpty() {
 			process.log.Debugf("Setup Proxy: MySQL proxy address: %v.", cfg.Proxy.MySQLAddr.Addr)
-			listener, err := process.importOrCreateListener(ListenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
+			listener, err := process.ImportOrCreateListener(ListenerProxyMySQL, cfg.Proxy.MySQLAddr.Addr)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3378,7 +3378,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 
 		if !cfg.Proxy.MongoAddr.IsEmpty() {
 			process.log.Debugf("Setup Proxy: Mongo proxy address: %v.", cfg.Proxy.MongoAddr.Addr)
-			listener, err := process.importOrCreateListener(ListenerProxyMongo, cfg.Proxy.MongoAddr.Addr)
+			listener, err := process.ImportOrCreateListener(ListenerProxyMongo, cfg.Proxy.MongoAddr.Addr)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3387,7 +3387,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 
 		if !cfg.Proxy.PostgresAddr.IsEmpty() {
 			process.log.Debugf("Setup Proxy: Postgres proxy address: %v.", cfg.Proxy.PostgresAddr.Addr)
-			listener, err := process.importOrCreateListener(ListenerProxyPostgres, cfg.Proxy.PostgresAddr.Addr)
+			listener, err := process.ImportOrCreateListener(ListenerProxyPostgres, cfg.Proxy.PostgresAddr.Addr)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3413,7 +3413,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 
-		listener, err := process.importOrCreateListener(ListenerProxyPeer, addr.String())
+		listener, err := process.ImportOrCreateListener(ListenerProxyPeer, addr.String())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3427,7 +3427,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		return &listeners, nil
 	case cfg.Proxy.ReverseTunnelListenAddr == cfg.Proxy.WebAddr && !cfg.Proxy.DisableTLS:
 		process.log.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
-		listener, err := process.importOrCreateListener(ListenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
+		listener, err := process.ImportOrCreateListener(ListenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3457,7 +3457,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
 		process.log.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
-		listener, err := process.importOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
+		listener, err := process.ImportOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3491,7 +3491,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		process.log.Debug("Setup Proxy: Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel && !cfg.Proxy.ReverseTunnelListenAddr.IsEmpty() {
 			if cfg.Proxy.DisableWebService {
-				listeners.reverseTunnel, err = process.importOrCreateListener(ListenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+				listeners.reverseTunnel, err = process.ImportOrCreateListener(ListenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 				if err != nil {
 					listeners.Close()
 					return nil, trace.Wrap(err)
@@ -3504,7 +3504,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			}
 		}
 		if !cfg.Proxy.DisableWebService && !cfg.Proxy.WebAddr.IsEmpty() {
-			listener, err := process.importOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
+			listener, err := process.ImportOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 			if err != nil {
 				listeners.Close()
 				return nil, trace.Wrap(err)
@@ -3541,7 +3541,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 
 		// Even if web service API was disabled create a web listener used for ALPN/SNI service as the master port
 		if cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS && listeners.web == nil {
-			listeners.web, err = process.importOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
+			listeners.web, err = process.ImportOrCreateListener(ListenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3553,7 +3553,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 // initMinimalReverseTunnelListener starts a listener over a reverse tunnel that multiplexes a minimal subset of the
 // web API.
 func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *servicecfg.Config, listeners *proxyListeners) error {
-	listener, err := process.importOrCreateListener(ListenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+	listener, err := process.ImportOrCreateListener(ListenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
