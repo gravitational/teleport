@@ -480,6 +480,15 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	if err := checkAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
 		return trace.Wrap(err)
 	}
+	if len(conf.Discovery.KubernetesMatchers) > 0 {
+		if conf.Discovery.DiscoveryGroup == "" {
+			return trace.BadParameter(`Parameter 'discovery_group' should be defined for discovery service if
+kubernetes matchers are present.`)
+		}
+		if err := checkAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	return nil
 }
@@ -741,6 +750,35 @@ func checkAndSetDefaultsForGCPInstaller(matcher *GCPMatcher) error {
 	if installer := matcher.InstallParams.ScriptName; installer == "" {
 		matcher.InstallParams.ScriptName = installers.InstallerScriptName
 	}
+	return nil
+}
+
+// checkAndSetDefaultsForKubeMatchers sets the default values for Kubernetes matchers
+// and validates the provided types.
+func checkAndSetDefaultsForKubeMatchers(matchers []KubernetesMatcher) error {
+	for i := range matchers {
+		matcher := &matchers[i]
+
+		if len(matcher.Types) == 0 {
+			matcher.Types = []string{services.KubernetesMatchersApp}
+		}
+
+		for _, t := range matcher.Types {
+			if !slices.Contains(services.SupportedKubernetesMatchers, t) {
+				return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
+					t, services.SupportedKubernetesMatchers)
+			}
+		}
+
+		if len(matcher.Namespaces) == 0 {
+			matcher.Namespaces = []string{types.Wildcard}
+		}
+
+		if len(matcher.Labels) == 0 {
+			matcher.Labels = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
+		}
+	}
+
 	return nil
 }
 
@@ -1618,6 +1656,9 @@ type Discovery struct {
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
 
+	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
+	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
+
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1869,6 +1910,13 @@ type AzureMatcher struct {
 	// InstallParams sets the join method when installing on
 	// discovered Azure nodes.
 	InstallParams *InstallParams `yaml:"install,omitempty"`
+}
+
+// KubernetesMatcher matches Kubernetes resources.
+type KubernetesMatcher struct {
+	Types      []string                    `yaml:"types,omitempty"`
+	Namespaces []string                    `yaml:"namespaces,omitempty"`
+	Labels     map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.

@@ -49,6 +49,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -326,18 +331,21 @@ func TestDiscoveryServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testClients := cloud.TestCloudClients{
-				EC2: &mockEC2Client{
-					output: &ec2.DescribeInstancesOutput{
-						Reservations: []*ec2.Reservation{
-							{
-								OwnerId:   aws.String("owner"),
-								Instances: tc.foundEC2Instances,
+			testClients := discoveryClients{
+				KubernetesClient: &mockKubeClientGetter{},
+				Clients: &cloud.TestCloudClients{
+					EC2: &mockEC2Client{
+						output: &ec2.DescribeInstancesOutput{
+							Reservations: []*ec2.Reservation{
+								{
+									OwnerId:   aws.String("owner"),
+									Instances: tc.foundEC2Instances,
+								},
 							},
 						},
 					},
+					SSM: tc.ssm,
 				},
-				SSM: tc.ssm,
 			}
 
 			ctx := context.Background()
@@ -414,7 +422,244 @@ func TestDiscoveryServer(t *testing.T) {
 	}
 }
 
-func TestDiscoveryKube(t *testing.T) {
+func newMockKubeService(name, namespace, externalName string, labels, annotations map[string]string, ports []corev1.ServicePort) *corev1.Service {
+	serviceType := corev1.ServiceTypeClusterIP
+	if externalName != "" {
+		serviceType = corev1.ServiceTypeExternalName
+	}
+	return &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name:        name,
+			Namespace:   namespace,
+			Labels:      labels,
+			Annotations: annotations,
+		},
+		Spec: corev1.ServiceSpec{
+			Ports:        ports,
+			ClusterIP:    "192.168.100.100",
+			ClusterIPs:   []string{"192.168.100.100"},
+			Type:         serviceType,
+			ExternalName: externalName,
+		},
+	}
+}
+
+func TestDiscoveryKubeServices(t *testing.T) {
+	const (
+		mainDiscoveryGroup  = "main"
+		otherDiscoveryGroup = "other"
+	)
+	t.Parallel()
+
+	appProtocolHTTP := "http"
+	mockKubeServices := []*corev1.Service{
+		newMockKubeService("service1", "ns1", "", map[string]string{"test-label": "testval"}, nil,
+			[]corev1.ServicePort{{Port: 42, Name: "http", Protocol: corev1.ProtocolTCP}}),
+		newMockKubeService("service2", "ns2", "", map[string]string{"test-label": "testval",
+			"test-label2": "testval2"}, nil, []corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
+	}
+
+	app1 := mustConvertKubeServiceToApps(t, mainDiscoveryGroup, mockKubeServices[0])[0]
+	modifiedApp1 := mustConvertKubeServiceToApps(t, mainDiscoveryGroup, mockKubeServices[0])[0]
+	modifiedApp1.SetURI("http://wrong.example.com")
+	app2 := mustConvertKubeServiceToApps(t, mainDiscoveryGroup, mockKubeServices[1])[0]
+
+	tests := []struct {
+		name                      string
+		existingApps              []types.Application
+		kubernetesMatchers        []types.KubernetesMatcher
+		expectedAppsToExistInAuth []types.Application
+		appsNotUpdated            []string
+	}{
+		{
+			name: "no apps in auth server, import 2 apps",
+			kubernetesMatchers: []types.KubernetesMatcher{
+				{
+					Types:      []string{"app"},
+					Namespaces: []string{types.Wildcard},
+					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
+				},
+			},
+			expectedAppsToExistInAuth: types.Apps{app1, app2},
+		},
+		{
+			name:         "one app in auth server, import 1 apps",
+			existingApps: types.Apps{app1},
+			kubernetesMatchers: []types.KubernetesMatcher{
+				{
+					Types:      []string{"app"},
+					Namespaces: []string{types.Wildcard},
+					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
+				},
+			},
+			expectedAppsToExistInAuth: types.Apps{app1, app2},
+			appsNotUpdated:            []string{app1.GetName()},
+		},
+		{
+			name:         "two apps in the auth server, one updated one imported",
+			existingApps: types.Apps{modifiedApp1, app2},
+			kubernetesMatchers: []types.KubernetesMatcher{
+				{
+					Types:      []string{"app"},
+					Namespaces: []string{types.Wildcard},
+					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
+				},
+			},
+			expectedAppsToExistInAuth: types.Apps{app1, app2},
+			appsNotUpdated:            []string{app2.GetName()},
+		},
+		{
+			name:         "one app in auth server, discovery doesn't match another app",
+			existingApps: types.Apps{app1},
+			kubernetesMatchers: []types.KubernetesMatcher{
+				{
+					Types:      []string{"app"},
+					Namespaces: []string{"ns1"},
+					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
+				},
+			},
+			expectedAppsToExistInAuth: types.Apps{app1},
+			appsNotUpdated:            []string{app1.GetName()},
+		},
+		{
+			name:         "one app in auth server from another discovery group, import 2 apps",
+			existingApps: types.Apps{mustConvertKubeServiceToApps(t, otherDiscoveryGroup, mockKubeServices[0])[0]},
+			kubernetesMatchers: []types.KubernetesMatcher{
+				{
+					Types:      []string{"app"},
+					Namespaces: []string{types.Wildcard},
+					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
+				},
+			},
+			expectedAppsToExistInAuth: types.Apps{app1, mustConvertKubeServiceToApps(t, otherDiscoveryGroup, mockKubeServices[0])[0], app2},
+			appsNotUpdated:            []string{app1.GetName()},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			objects := []runtime.Object{}
+			for _, s := range mockKubeServices {
+				objects = append(objects, s)
+			}
+			fakeClient := fake.NewSimpleClientset(objects...)
+
+			testClients := discoveryClients{
+				KubernetesClient: &mockKubeClientGetter{kubeClient: fakeClient},
+				Clients:          &cloud.TestCloudClients{},
+			}
+
+			ctx := context.Background()
+			// Create and start test auth server.
+			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+				Dir: t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+			// Auth client for discovery service.
+			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+			for _, app := range tt.existingApps {
+				err := tlsServer.Auth().CreateApp(ctx, app)
+				require.NoError(t, err)
+			}
+
+			// we analyze the logs emitted by discovery service to detect apps that were not updated
+			// because their state didn't change.
+			r, w := io.Pipe()
+			t.Cleanup(func() {
+				require.NoError(t, r.Close())
+				require.NoError(t, w.Close())
+			})
+
+			logger := logrus.New()
+			logger.SetOutput(w)
+			logger.SetLevel(logrus.DebugLevel)
+			appsNotUpdated := make(chan string, 10)
+			go func() {
+				// reconcileRegexp is the regex extractor of a log message emitted by reconciler when
+				// the current state of the app is equal to the previous.
+				// [r.log.Debugf("%v %v is already registered.", new.GetKind(), new.GetName())]
+				// lib/services/reconciler.go
+				reconcileRegexp := regexp.MustCompile("app (.*) is already registered")
+
+				scanner := bufio.NewScanner(r)
+				for scanner.Scan() {
+					text := scanner.Text()
+					// we analyze the logs emitted by discovery service to detect apps that were not updated
+					// because their state didn't change.
+					if reconcileRegexp.MatchString(text) {
+						result := reconcileRegexp.FindStringSubmatch(text)
+						if len(result) != 2 {
+							continue
+						}
+						appsNotUpdated <- result[1]
+					}
+				}
+			}()
+
+			discServer, err := New(
+				ctx,
+				&Config{
+					Clients:            &testClients,
+					AccessPoint:        tlsServer.Auth(),
+					KubernetesMatchers: tt.kubernetesMatchers,
+					Emitter:            authClient,
+					Log:                logger,
+					DiscoveryGroup:     mainDiscoveryGroup,
+				})
+
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				discServer.Stop()
+			})
+			go discServer.Start()
+
+			appsNotUpdatedMap := sliceToSet(tt.appsNotUpdated)
+			appsFoundInAuth := false
+			require.Eventually(t, func() bool {
+			loop:
+				for {
+					select {
+					case app := <-appsNotUpdated:
+						if _, ok := appsNotUpdatedMap[app]; !ok {
+							require.Failf(t, "expected Action for app %s but got no action from reconciler", app)
+						}
+						delete(appsNotUpdatedMap, app)
+					default:
+						existingApps, err := tlsServer.Auth().GetApps(ctx)
+						require.NoError(t, err)
+						if len(existingApps) == len(tt.expectedAppsToExistInAuth) {
+							a1 := types.Apps(existingApps)
+							a2 := types.Apps(tt.expectedAppsToExistInAuth)
+							for k := range a1 {
+								if services.CompareResources(a1[k], a2[k]) != services.Equal {
+									return false
+								}
+							}
+							appsFoundInAuth = true
+						}
+						break loop
+					}
+				}
+				return len(appsNotUpdated) == 0 && appsFoundInAuth
+			}, 5*time.Second, 200*time.Millisecond)
+		})
+	}
+}
+
+func TestDiscoveryInCloudKube(t *testing.T) {
 	const (
 		mainDiscoveryGroup  = "main"
 		otherDiscoveryGroup = "other"
@@ -619,11 +864,15 @@ func TestDiscoveryKube(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			sts := &mocks.STSMock{}
-			testClients := cloud.TestCloudClients{
-				STS:            sts,
-				AzureAKSClient: newPopulatedAKSMock(),
-				EKS:            newPopulatedEKSMock(),
-				GCPGKE:         newPopulatedGCPMock(),
+
+			testClients := discoveryClients{
+				KubernetesClient: &mockKubeClientGetter{},
+				Clients: &cloud.TestCloudClients{
+					STS:            sts,
+					AzureAKSClient: newPopulatedAKSMock(),
+					EKS:            newPopulatedEKSMock(),
+					GCPGKE:         newPopulatedGCPMock(),
+				},
 			}
 
 			ctx := context.Background()
@@ -923,6 +1172,27 @@ func sliceToSet[T comparable](slice []T) map[T]struct{} {
 	return set
 }
 
+func mustConvertKubeServiceToApps(t *testing.T, discoveryGroup string, kubeService *corev1.Service) types.Apps {
+	apps, err := services.NewApplicationsFromKubeService(*kubeService, discoveryGroup, nil)
+	require.NoError(t, err)
+	for _, app := range apps {
+		app.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+		app.GetStaticLabels()[types.OriginLabel] = types.OriginDiscoveryKubernetes
+	}
+	return apps
+}
+
+type mockKubeClientGetter struct {
+	kubeClient kubernetes.Interface
+}
+
+func (m *mockKubeClientGetter) GetKubernetesClient(_ string) (kubernetes.Interface, error) {
+	if m.kubeClient == nil {
+		return fake.NewSimpleClientset(), nil
+	}
+	return m.kubeClient, nil
+}
+
 func newPopulatedGCPMock() *mockGKEAPI {
 	return &mockGKEAPI{
 		clusters: gkeMockClusters,
@@ -1007,24 +1277,27 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")
 
-	testClients := &cloud.TestCloudClients{
-		STS: &mocks.STSMock{},
-		RDS: &mocks.RDSMock{
-			DBInstances: []*rds.DBInstance{awsRDSInstance},
-			DBEngineVersions: []*rds.DBEngineVersion{
-				{Engine: aws.String(services.RDSEnginePostgres)},
+	testClients := discoveryClients{
+		KubernetesClient: &mockKubeClientGetter{},
+		Clients: &cloud.TestCloudClients{
+			STS: &mocks.STSMock{},
+			RDS: &mocks.RDSMock{
+				DBInstances: []*rds.DBInstance{awsRDSInstance},
+				DBEngineVersions: []*rds.DBEngineVersion{
+					{Engine: aws.String(services.RDSEnginePostgres)},
+				},
 			},
+			Redshift: &mocks.RedshiftMock{
+				Clusters: []*redshift.Cluster{awsRedshiftResource},
+			},
+			AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
+				Servers: []*armredis.ResourceInfo{azRedisResource},
+			}),
+			AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
+				&azure.ARMRedisEnterpriseClusterMock{},
+				&azure.ARMRedisEnterpriseDatabaseMock{},
+			),
 		},
-		Redshift: &mocks.RedshiftMock{
-			Clusters: []*redshift.Cluster{awsRedshiftResource},
-		},
-		AzureRedis: azure.NewRedisClientByAPI(&azure.ARMRedisMock{
-			Servers: []*armredis.ResourceInfo{azRedisResource},
-		}),
-		AzureRedisEnterprise: azure.NewRedisEnterpriseClientByAPI(
-			&azure.ARMRedisEnterpriseClusterMock{},
-			&azure.ARMRedisEnterpriseDatabaseMock{},
-		),
 	}
 
 	tcs := []struct {
@@ -1459,11 +1732,14 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			testClients := cloud.TestCloudClients{
-				AzureVirtualMachines: &mockAzureClient{
-					vms: tc.foundAzureVMs,
+			testClients := discoveryClients{
+				KubernetesClient: &mockKubeClientGetter{},
+				Clients: &cloud.TestCloudClients{
+					AzureVirtualMachines: &mockAzureClient{
+						vms: tc.foundAzureVMs,
+					},
+					AzureRunCommand: &mockAzureRunCommandClient{},
 				},
-				AzureRunCommand: &mockAzureRunCommandClient{},
 			}
 
 			ctx := context.Background()
