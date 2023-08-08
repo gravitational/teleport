@@ -103,7 +103,7 @@ func isInternalKubeService(s v1.Service) bool {
 }
 
 func (f *kubeAppFetcher) getServices(ctx context.Context) ([]v1.Service, error) {
-	result := []v1.Service{}
+	var result []v1.Service
 	nextToken := ""
 	namespaceFilter := func(ns string) bool {
 		return slices.Contains(f.Namespaces, types.Wildcard) || slices.Contains(f.Namespaces, ns)
