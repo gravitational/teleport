@@ -864,7 +864,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, %q or %q to print in JSON or YAML.",
 		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
-	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
+	dbConnect.Arg("db", "Database service name to connect to.").HintAction(hintDBConnect).StringVar(&cf.DatabaseService)
 	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 	dbConnect.Flag("labels", labelHelp).StringVar(&cf.Labels)

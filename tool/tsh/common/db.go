@@ -746,6 +746,54 @@ func getUserSpecifiedLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, 
 	return []tls.Certificate{cert}, nil
 }
 
+// TODO do better
+func makeHintCLIConf() (*CLIConf, bool) {
+	var err error
+	cf := CLIConf{
+		Context: context.Background(),
+	}
+	cf.executablePath, err = os.Executable()
+	if err != nil {
+		return nil, false
+	}
+	setEnvFlags(&cf)
+
+	confOptions, err := loadAllConfigs(cf)
+	if err != nil {
+		return nil, false
+	}
+	cf.TshConfig = *confOptions
+	return &cf, true
+}
+
+func hintDBConnect() []string {
+	cf, ok := makeHintCLIConf()
+	if !ok {
+		return nil
+	}
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return nil
+	}
+	proxy, err := tc.ConnectToProxy(cf.Context)
+	if err != nil {
+		return nil
+	}
+
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.ResourceFilter(types.KindDatabaseServer), tc.SiteName)
+	if err != nil {
+		return nil
+	}
+
+	names := make([]string, 0, len(databases))
+	for _, database := range databases {
+		names = append(names, database.GetName())
+	}
+	slices.Sort(names)
+	return names
+}
+
 // onDatabaseConnect implements "tsh db connect" command.
 func onDatabaseConnect(cf *CLIConf) error {
 	tc, err := makeClient(cf)
