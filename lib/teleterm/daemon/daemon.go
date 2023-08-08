@@ -30,14 +30,24 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
-// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
-// wait for a response from the tshd events server managed by the Electron app. This timeout
-// should be used for quick one-off calls where the client doesn't need the server or the user to
-// perform any additional work, such as the SendNotification RPC.
-const tshdEventsTimeout = time.Second
+const (
+	// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
+	// wait for a response from the tshd events server managed by the Electron app. This timeout
+	// should be used for quick one-off calls where the client doesn't need the server or the user to
+	// perform any additional work, such as the SendNotification RPC.
+	tshdEventsTimeout = time.Second
+
+	// imporantModalWaitDuraiton is the amount of time to wait between sending tshd events that
+	// display important modals in the Electron App. This ensures a clear transition between modals.
+	imporantModalWaitDuraiton = time.Second / 2
+
+	// The Electron App can only display one important modal at a time.
+	maxConcurrentImportantModals = 1
+)
 
 // New creates an instance of Daemon service
 func New(cfg Config) (*Service, error) {
@@ -67,12 +77,17 @@ func New(cfg Config) (*Service, error) {
 
 // relogin makes the Electron app display a login modal to trigger re-login.
 func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
-	// The Electron app cannot display two login modals at the same time, so we have to cut short any
-	// concurrent relogin requests.
+	// Relogin may be triggered by multiple gateways simultaneously. To prevent
+	// redundant relogin requests, cut short additional relogin requests.
 	if !s.reloginMu.TryLock() {
 		return trace.AlreadyExists("another relogin request is in progress")
 	}
 	defer s.reloginMu.Unlock()
+
+	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	defer s.importantModalSemaphore.Release()
 
 	const reloginUserTimeout = time.Minute
 	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
@@ -222,7 +237,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := s.StopHeadlessWatcher(uri); err != nil {
+	if err := s.StopHeadlessWatcher(uri); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
@@ -670,6 +685,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	client := api.NewTshdEventsServiceClient(conn)
 
 	s.tshdEventsClient = client
+	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
 
 	// Resume headless watchers for any active login sessions.
 	if err := s.StartHeadlessWatchers(); err != nil {
@@ -730,6 +746,60 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 	return response, trace.Wrap(err)
 }
 
+// CreateConnectMyComputerNodeToken creates a node join token that is valid for 5 minutes.
+func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClusterUri string) (*connectmycomputer.NodeToken, error) {
+	cluster, clusterClient, err := s.ResolveCluster(rootClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var nodeToken *connectmycomputer.NodeToken
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		nodeToken, err = s.cfg.ConnectMyComputerTokenProvisioner.CreateNodeToken(ctx, authClient, cluster)
+		return trace.Wrap(err)
+	})
+
+	return nodeToken, trace.Wrap(err)
+}
+
+// DeleteConnectMyComputerToken deletes a join token
+func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
+	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := &api.DeleteConnectMyComputerTokenResponse{}
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		err = s.cfg.ConnectMyComputerTokenProvisioner.DeleteToken(ctx, authClient, req.Token)
+		return trace.Wrap(err)
+	})
+
+	return response, trace.Wrap(err)
+}
+
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
 	// A single gateway can be shared for all terminals of the same kube
 	// cluster.
@@ -763,6 +833,15 @@ type Service struct {
 	gateways map[string]gateway.Gateway
 	// tshdEventsClient is a client to send events to the Electron App.
 	tshdEventsClient api.TshdEventsServiceClient
+	// The Electron App can only display one important Modal at a time. tshd events
+	// that trigger an important modal (relogin, headless login) should use this
+	// lock to ensure it doesn't overwrite existing tshd-initiated important modals.
+	//
+	// We use a semaphore instead of a mutex in order to cancel important modals that
+	// are no longer relevant before acquisition.
+	//
+	// We use a waitSemaphore in order to make sure there is a clear transition between modals.
+	importantModalSemaphore *waitSemaphore
 	// usageReporter batches the events and sends them to prehog
 	usageReporter *usagereporter.UsageReporter
 	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the
@@ -778,4 +857,34 @@ type CreateGatewayParams struct {
 	TargetUser            string
 	TargetSubresourceName string
 	LocalPort             string
+}
+
+// waitSemaphore is a semaphore that waits for a specified duration between acquisitions.
+type waitSemaphore struct {
+	semC         chan struct{}
+	lastRelease  time.Time
+	waitDuration time.Duration
+}
+
+func newWaitSemaphore(maxConcurrency int, waitDuration time.Duration) *waitSemaphore {
+	return &waitSemaphore{
+		semC:         make(chan struct{}, maxConcurrency),
+		waitDuration: waitDuration,
+	}
+}
+
+func (s *waitSemaphore) Acquire(ctx context.Context) error {
+	select {
+	case s.semC <- struct{}{}:
+		// wait up to the specified wait duration before returning.
+		time.Sleep(s.waitDuration - time.Since(s.lastRelease))
+		return nil
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+}
+
+func (s *waitSemaphore) Release() {
+	s.lastRelease = time.Now()
+	<-s.semC
 }

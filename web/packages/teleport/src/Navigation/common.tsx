@@ -28,11 +28,19 @@ export const Icon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  svg {
+    height: 24px;
+    width: 24px;
+  }
 `;
 
 export const SmallIcon = styled(Icon)`
   flex: 0 0 14px;
   margin-right: 10px;
+  svg {
+    height: 18px;
+    width: 18px;
+  }
 `;
 
 interface LinkContentProps {

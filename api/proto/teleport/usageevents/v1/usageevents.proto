@@ -354,6 +354,29 @@ message AssistCompletionEvent {
   int64 completion_tokens = 4;
 }
 
+// AssistExecutionEvent is an event that is emitted when an Assist command
+// execution is triggered by the user.
+message AssistExecutionEvent {
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 1;
+  // NodeCount is the number of nodes the command was executed on
+  int64 node_count = 2;
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 3;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 4;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 5;
+}
+
+// AssistNewConversationEvent is an event that is emitted for each new Assist
+// conversation and contains the conversation category.
+message AssistNewConversationEvent {
+  // Category is the conversation category. This represents what kind of request
+  // the user is asking Assist.
+  string category = 1;
+}
+
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 enum IntegrationEnrollKind {
@@ -437,6 +460,8 @@ message UsageEventOneOf {
     UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 31;
     UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 32;
     UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 33;
+    AssistExecutionEvent assist_execution = 34;
+    AssistNewConversationEvent assist_new_conversation = 35;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

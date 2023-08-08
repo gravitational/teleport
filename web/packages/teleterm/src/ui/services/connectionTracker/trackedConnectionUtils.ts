@@ -16,6 +16,7 @@
 
 import {
   DocumentGateway,
+  DocumentGatewayKube,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
@@ -44,9 +45,17 @@ export function getServerConnectionByDocument(document: DocumentTshNode) {
     i.login === document.login;
 }
 
+// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
 export function getKubeConnectionByDocument(document: DocumentTshKube) {
   return (i: TrackedKubeConnection) =>
     i.kind === 'connection.kube' && i.kubeUri === document.kubeUri;
+}
+
+export function getGatewayKubeConnectionByDocument(
+  document: DocumentGatewayKube
+) {
+  return (i: TrackedKubeConnection) =>
+    i.kind === 'connection.kube' && i.kubeUri === document.targetUri;
 }
 
 export function getGatewayDocumentByConnection(
@@ -58,6 +67,14 @@ export function getGatewayDocumentByConnection(
     i.targetUser === connection.targetUser;
 }
 
+export function getGatewayKubeDocumentByConnection(
+  connection: TrackedKubeConnection
+) {
+  return (i: DocumentGatewayKube) =>
+    i.kind === 'doc.gateway_kube' && i.targetUri === connection.kubeUri;
+}
+
+// DELETE IN 15.0.0. See DocumentGatewayKube for more details.
 export function getKubeDocumentByConnection(connection: TrackedKubeConnection) {
   return (i: DocumentTshKube) =>
     i.kind === 'doc.terminal_tsh_kube' && i.kubeUri === connection.kubeUri;
@@ -113,5 +130,17 @@ export function createKubeConnection(
     title: document.title,
     kubeConfigRelativePath: document.kubeConfigRelativePath,
     kubeUri: document.kubeUri,
+  };
+}
+
+export function createGatewayKubeConnection(
+  document: DocumentGatewayKube
+): TrackedKubeConnection {
+  return {
+    kind: 'connection.kube',
+    connected: true,
+    id: unique(),
+    title: document.title,
+    kubeUri: document.targetUri,
   };
 }

@@ -36,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -59,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
-	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -530,11 +530,21 @@ var (
 		[]string{teleport.TagUpgrader},
 	)
 
+	accessRequestsCreatedMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricAccessRequestsCreated,
+			Help:      "Tracks the number of created access requests",
+		},
+		[]string{teleport.TagRoles, teleport.TagResources},
+	)
+
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
 		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
+		accessRequestsCreatedMetric,
 	}
 )
 
@@ -1189,37 +1199,6 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
 
-	// build the general alert msg meant for broader consumption
-	msg, verInUse := makeUpgradeSuggestionMsg(visitor, current, instanceVisitor.Oldest())
-
-	if msg != "" {
-		alert, err := types.NewClusterAlert(
-			releaseAlertID,
-			msg,
-			// Defaulting to "low" severity level. We may want to make this dynamic
-			// in the future depending on the distance from up-to-date.
-			types.WithAlertSeverity(types.AlertSeverity_LOW),
-			types.WithAlertLabel(types.AlertOnLogin, "yes"),
-			types.WithAlertLabel(types.AlertPermitAll, "yes"),
-			types.WithAlertLabel(verInUseLabel, verInUse),
-			types.WithAlertExpires(a.clock.Now().Add(alertTTL)),
-		)
-		if err != nil {
-			log.Warnf("Failed to build %s alert: %v (this is a bug)", releaseAlertID, err)
-			return
-		}
-		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
-			log.Warnf("Failed to set %s alert: %v", releaseAlertID, err)
-			return
-		}
-	} else if cleanup {
-		log.Debugf("Cluster appears up to date, clearing %s alert.", releaseAlertID)
-		err := a.DeleteClusterAlert(ctx, releaseAlertID)
-		if err != nil && !trace.IsNotFound(err) {
-			log.Warnf("Failed to delete %s alert: %v", releaseAlertID, err)
-		}
-	}
-
 	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) && !sp.SecurityPatchAltOf(current) {
 		// explicit security patch alerts have a more limited audience, so we generate
 		// them as their own separate alert.
@@ -1256,29 +1235,6 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
 		}
 	}
-}
-
-// makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
-// needed (returns "" if everything looks up to date).
-func makeUpgradeSuggestionMsg(visitor vc.Visitor, current, oldestInstance vc.Target) (msg string, ver string) {
-	if next := visitor.NextMajor(); next.Ok() {
-		// at least one stable release exists for the next major version
-		log.Debugf("Generating alert msg for next major version. current=%s, next=%s", current.Version(), next.Version())
-		return fmt.Sprintf("The next major version of Teleport is %s. Please consider upgrading your Cluster.", next.Major()), next.Version()
-	}
-
-	if nc := visitor.NewestCurrent(); nc.Ok() && nc.NewerThan(current) {
-		// newer release of the currently running major version is available
-		log.Debugf("Generating alert msg for new minor or patch release. current=%s, newest=%s", current.Version(), nc.Version())
-		return fmt.Sprintf("Teleport %s is now available, please consider upgrading your Cluster.", nc.Version()), nc.Version()
-	}
-
-	if oldestInstance.Ok() && current.NewerThan(oldestInstance) {
-		// at least one connected instance is older than this auth server
-		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them.", current.Version()
-	}
-
-	return "", ""
 }
 
 // updateVersionMetrics leverages the inventory control stream to report the versions of
@@ -1790,6 +1746,8 @@ type AppTestCertRequest struct {
 	GCPServiceAccount string
 	// PinnedIP is optional IP to pin certificate to.
 	PinnedIP string
+	// LoginTrait is the login to include in the cert
+	LoginTrait string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1812,6 +1770,12 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
+
+	login := req.LoginTrait
+	if login == "" {
+		login = uuid.New().String()
+	}
+
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1821,7 +1785,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			constants.TraitLogins: {uuid.New().String()},
+			constants.TraitLogins: {login},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -3226,7 +3190,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	if req.ReloadUser {
 		// We don't call from the cache layer because we want to
-		// retrieve the recently updated user. Otherwise the cache
+		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
 		user, err := a.Identity.GetUser(req.User, false)
 		if err != nil {
@@ -3254,9 +3218,11 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
 
-		// Let session expire with the shortest expiry time.
-		if expiresAt.After(accessRequest.GetAccessExpiry()) {
-			expiresAt = accessRequest.GetAccessExpiry()
+		webSessionTTL := a.getWebSessionTTL(accessRequest)
+
+		// Let the session expire with the shortest expiry time.
+		if expiresAt.After(webSessionTTL) {
+			expiresAt = webSessionTTL
 		}
 	} else if req.Switchback {
 		if prevSession.GetLoginTime().IsZero() {
@@ -3310,6 +3276,27 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	return sess, nil
+}
+
+// getWebSessionTTL returns the earliest expiration time of allowed in the access request.
+func (a *Server) getWebSessionTTL(accessRequest types.AccessRequest) time.Time {
+	webSessionTTL := accessRequest.GetAccessExpiry()
+	sessionTTL := accessRequest.GetSessionTLL()
+	if sessionTTL.IsZero() {
+		return webSessionTTL
+	}
+
+	// Session TTL contains the time when the session should end.
+	// We need to subtract it from the creation time to get the
+	// session duration.
+	sessionDuration := sessionTTL.Sub(accessRequest.GetCreationTime())
+	// Calculate the adjusted session TTL.
+	adjustedSessionTTL := a.clock.Now().UTC().Add(sessionDuration)
+	// Adjusted TTL can't exceed webSessionTTL.
+	if adjustedSessionTTL.Before(webSessionTTL) {
+		return adjustedSessionTTL
+	}
+	return webSessionTTL
 }
 
 func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.Identity, user string, accessRequestID string) (types.AccessRequest, error) {
@@ -3977,17 +3964,21 @@ func (a *Server) DeleteNamespace(namespace string) error {
 	}
 	return a.Services.DeleteNamespace(namespace)
 }
-
 func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) error {
+	_, err := a.CreateAccessRequestV2(ctx, req, identity)
+	return trace.Wrap(err)
+}
+
+func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
 	now := a.clock.Now().UTC()
 
 	req.SetCreationTime(now)
 
-	// Always perform variable expansion on creation only, this ensures the
+	// Always perform variable expansion on creation only; this ensures the
 	// access request that is reviewed is the same that is approved.
 	expandOpts := services.ExpandVars(true)
 	if err := services.ValidateAccessRequestForUser(ctx, a.clock, a, req, identity, expandOpts); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Look for user groups and associated applications to the request.
@@ -4012,7 +4003,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 
 		userGroup, err := a.GetUserGroup(ctx, resource.Name)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		for _, app := range userGroup.GetApplications() {
@@ -4036,13 +4027,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if req.GetDryRun() {
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
-		return nil
+		return req, nil
 	}
 
 	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
 
-	if err := a.Services.CreateAccessRequest(ctx, req); err != nil {
-		return trace.Wrap(err)
+	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AccessRequestCreate{
 		Metadata: apievents.Metadata{
@@ -4063,7 +4054,11 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	if err != nil {
 		log.WithError(err).Warn("Failed to emit access request create event.")
 	}
-	return nil
+
+	accessRequestsCreatedMetric.WithLabelValues(
+		strconv.Itoa(len(req.GetRoles())),
+		strconv.Itoa(len(req.GetRequestedResourceIDs()))).Inc()
+	return req, nil
 }
 
 func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -5418,17 +5413,6 @@ func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assis
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
-}
-
-// GetUserPreferences returns the user preferences for a given user.
-func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
-	resp, err := a.Services.GetUserPreferences(ctx, request)
-	return resp, trace.Wrap(err)
-}
-
-// UpsertUserPreferences creates or updates user preferences for a given username.
-func (a *Server) UpsertUserPreferences(ctx context.Context, request *userpreferencesv1.UpsertUserPreferencesRequest) error {
-	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, request))
 }
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it

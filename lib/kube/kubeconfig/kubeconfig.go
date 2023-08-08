@@ -100,8 +100,9 @@ type ExecValues struct {
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
 func Update(path string, v Values, storeAllCAs bool) error {
-	if v.OverrideContext != "" && len(v.KubeClusters) > 1 {
-		return trace.BadParameter("cannot override context when adding multiple clusters")
+	contextTmpl, err := parseContextOverrideTemplate(v.OverrideContext)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	config, err := Load(path)
@@ -142,8 +143,10 @@ func Update(path string, v Values, storeAllCAs bool) error {
 		for _, c := range v.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
 			authName := contextName
-			if v.OverrideContext != "" {
-				contextName = v.OverrideContext
+			if contextTmpl != nil {
+				if contextName, err = executeKubeContextTemplate(contextTmpl, v.TeleportClusterName, c); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 			execArgs := []string{
 				"kube", "credentials",
@@ -174,8 +177,10 @@ func Update(path string, v Values, storeAllCAs bool) error {
 		}
 		if v.SelectCluster != "" {
 			contextName := ContextName(v.TeleportClusterName, v.SelectCluster)
-			if v.OverrideContext != "" {
-				contextName = v.OverrideContext
+			if contextTmpl != nil {
+				if contextName, err = executeKubeContextTemplate(contextTmpl, v.TeleportClusterName, v.SelectCluster); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 			if _, ok := config.Contexts[contextName]; !ok {
 				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.SelectCluster)
@@ -271,7 +276,7 @@ func removeByClusterName(config *clientcmdapi.Config, clusterName string) {
 	maps.DeleteFunc(
 		config.Contexts,
 		func(key string, val *clientcmdapi.Context) bool {
-			if !strings.HasPrefix(key, clusterName) {
+			if !strings.HasPrefix(key, clusterName) && val.Cluster != clusterName {
 				return false
 			}
 			delete(config.AuthInfos, val.AuthInfo)

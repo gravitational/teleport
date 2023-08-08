@@ -45,11 +45,12 @@ type AccessRequestCommand struct {
 	config *servicecfg.Config
 	reqIDs string
 
-	user        string
-	roles       string
-	delegator   string
-	reason      string
-	annotations string
+	user                 string
+	roles                string
+	requestedResourceIDs []string
+	delegator            string
+	reason               string
+	annotations          string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -95,7 +96,8 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 
 	c.requestCreate = requests.Command("create", "Create pending access request.")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
-	c.requestCreate.Flag("roles", "Roles to be requested").Default("*").StringVar(&c.roles)
+	c.requestCreate.Flag("roles", "Roles to be requested").StringVar(&c.roles)
+	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the access request").BoolVar(&c.dryRun)
 
@@ -260,7 +262,14 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) er
 }
 
 func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) error {
-	req, err := services.NewAccessRequest(c.user, c.splitRoles()...)
+	if len(c.roles) == 0 && len(c.requestedResourceIDs) == 0 {
+		c.roles = "*"
+	}
+	requestedResourceIDs, err := types.ResourceIDsFromStrings(c.requestedResourceIDs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req, err := services.NewAccessRequestWithResources(c.user, c.splitRoles(), requestedResourceIDs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

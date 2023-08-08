@@ -299,7 +299,7 @@ const StepTwo = ({
       {error && (
         <Box>
           <TextIcon mt={3}>
-            <Icons.Warning ml={1} color="error.main" />
+            <Icons.Warning size="medium" ml={1} mr={2} color="error.main" />
             Encountered Error: {error.message}
           </TextIcon>
         </Box>
@@ -413,7 +413,7 @@ const InstallHelmChart = ({
             white-space: pre;
           `}
         >
-          <Icons.Restore fontSize={4} />
+          <Icons.Restore size="medium" mr={2} />
         </TextIcon>
         After running the command above, we'll automatically detect your new
         Kubernetes cluster.

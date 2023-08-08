@@ -138,7 +138,7 @@ const (
 	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
 	SubKindOpenSSHNode = "openssh"
 
-	// SubKindOpenSSHEC2InstanceConnectEndpointNode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
+	// SubKindOpenSSHEICENode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
 	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
 	//
 	// For Amazon EC2 Instances, it uploads the key using:
@@ -146,7 +146,7 @@ const (
 	// This Key is valid for 60 seconds.
 	//
 	// It uses the private key created above to SSH into the host.
-	SubKindOpenSSHEC2InstanceConnectEndpointNode = "openssh-ec2-ice"
+	SubKindOpenSSHEICENode = "openssh-ec2-ice"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -586,6 +586,18 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportNamespace + "/vm-id"
+	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// id found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	ProjectIDLabel = TeleportNamespace + "/project-id"
+	// ZoneLabek is used to identify virtual machines by GCP zone
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	ZoneLabel = TeleportNamespace + "/zone"
+	// NameLabel is used to identify virtual machines by GCP VM name
+	// found via automatic discovery, to avoid re-running installation
+	// commands on the node.
+	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -620,8 +632,24 @@ const (
 	// kubernetes cluster name override for discovered GCP kube clusters.
 	GCPKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
 
+	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
+	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
+
+	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
+	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
+	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
+	DiscoveryPortLabel = TeleportNamespace + "/port"
+	// DiscoveryProtocolLabel specifies protocol for a discovered app created from Kubernetes service.
+	DiscoveryProtocolLabel = TeleportNamespace + "/protocol"
+	// DiscoveryAppRewriteLabel specifies rewrite rules for a discovered app created from Kubernetes service.
+	DiscoveryAppRewriteLabel = TeleportNamespace + "/app-rewrite"
+	// DiscoveryAppNameLabel specifies explicitly name of an app created from Kubernetes service.
+	DiscoveryAppNameLabel = TeleportNamespace + "/name"
+
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
+	// ReqAnnotationNotifyServicesLabel is the request annotation key at which notify services are stored for access plugins.
+	ReqAnnotationNotifyServicesLabel = "/notify-services"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -1028,4 +1056,13 @@ const (
 	// teleport automated user provisioning system get added to so
 	// already existing users are not deleted
 	TeleportServiceGroup = "teleport-system"
+)
+
+const (
+	// JWTClaimsRewriteRolesAndTraits includes both roles and traits in the JWT token.
+	JWTClaimsRewriteRolesAndTraits = "roles-and-traits"
+	// JWTClaimsRewriteRoles includes only the roles in the JWT token.
+	JWTClaimsRewriteRoles = "roles"
+	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
+	JWTClaimsRewriteNone = "none"
 )

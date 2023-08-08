@@ -46,8 +46,6 @@ type Database interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the database.
 	String() string
 	// GetDescription returns the database description.
@@ -253,11 +251,6 @@ func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
 	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
-}
-
-// LabelsString returns all database labels as a string.
-func (d *DatabaseV3) LabelsString() string {
-	return LabelsAsString(d.Metadata.Labels, d.Spec.DynamicLabels)
 }
 
 // GetDescription returns the database description.
@@ -1092,4 +1085,24 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 		return nil
 	}
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
+}
+
+// MarshalJSON supports marshaling enum value into it's string value.
+func (s *IAMPolicyStatus) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
+// UnmarshalJSON supports unmarshaling enum string value back to number.
+func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	var stringVal string
+	if err := json.Unmarshal(data, &stringVal); err != nil {
+		return err
+	}
+
+	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
+	return nil
 }
