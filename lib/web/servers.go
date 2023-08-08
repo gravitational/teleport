@@ -390,7 +390,7 @@ func (h *Handler) handleNodeCreate(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	labels := make(map[string]string)
+	labels := make(map[string]string, len(req.Labels))
 	for _, label := range req.Labels {
 		labels[label.Name] = label.Value
 	}

@@ -27,32 +27,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/trace"
 )
 
 func TestCreateNode(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	username := "someuser"
-	roleUpsertNode, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins: []string{"osuser"},
-			Rules: []types.Rule{
-				types.NewRule(types.KindNode,
-					[]string{types.VerbCreate, types.VerbUpdate}),
-			},
-			NodeLabels: types.Labels{
-				types.Wildcard: {types.Wildcard},
-			},
-		},
-	})
-	require.NoError(t, err)
 
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()
-	pack := env.proxies[0].authPack(t, username, []types.Role{roleUpsertNode})
-
-	createNodeEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
 	makeCreateNodeRequest := func(fn func(*createNodeRequest)) createNodeRequest {
 		s := createNodeRequest{
@@ -73,64 +57,105 @@ func TestCreateNode(t *testing.T) {
 		return s
 	}
 
-	for _, tt := range []struct {
-		name           string
-		req            createNodeRequest
-		expectedStatus int
-		errAssert      require.ErrorAssertionFunc
-	}{
-		{
-			name:           "valid",
-			req:            makeCreateNodeRequest(func(cnr *createNodeRequest) {}),
-			expectedStatus: http.StatusOK,
-			errAssert:      require.NoError,
-		},
-		{
-			name: "empty name",
-			req: makeCreateNodeRequest(func(cnr *createNodeRequest) {
-				cnr.Name = ""
-			}),
-			expectedStatus: http.StatusBadRequest,
-			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(tt, err, "missing node name")
+	t.Run("user without rbac access to nodes", func(t *testing.T) {
+		username := "user-without-node-access"
+		roleUpsertNode, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins: []string{"osuser"},
+				NodeLabels: types.Labels{
+					types.Wildcard: {types.Wildcard},
+				},
 			},
-		},
-		{
-			name: "missing aws account id",
-			req: makeCreateNodeRequest(func(cnr *createNodeRequest) {
-				cnr.AWSInfo.AccountID = ""
-			}),
-			expectedStatus: http.StatusBadRequest,
-			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(tt, err, `missing AWS Account ID (required for "openssh-ec2-ice" SubKind)`)
-			},
-		},
-		{
-			name: "invalid subkind",
-			req: makeCreateNodeRequest(func(cnr *createNodeRequest) {
-				cnr.SubKind = types.SubKindOpenSSHNode
-			}),
-			expectedStatus: http.StatusBadRequest,
-			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(tt, err, `invalid subkind "openssh", only "openssh-ec2-ice" is supported`)
-			},
-		},
-	} {
-		// Create node
-		resp, err := pack.clt.PostJSON(ctx, createNodeEndpoint, tt.req)
-		tt.errAssert(t, err)
-
-		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
-
-		if err != nil {
-			continue
-		}
-
-		// Ensure node exists
-		node, err := env.proxies[0].client.GetNode(ctx, "default", tt.req.Name)
+		})
 		require.NoError(t, err)
+		pack := env.proxies[0].authPack(t, username, []types.Role{roleUpsertNode})
 
-		require.Equal(t, node.GetName(), tt.req.Name)
-		require.Equal(t, node.GetCloudMetadata().AWS, tt.req.AWSInfo)
-	}
+		createNodeEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
+		// Create node must return access denied.
+		req := makeCreateNodeRequest(func(cnr *createNodeRequest) {})
+		_, err = pack.clt.PostJSON(ctx, createNodeEndpoint, req)
+		require.True(t, trace.IsAccessDenied(err))
+	})
+
+	t.Run("user with rbac access to nodes", func(t *testing.T) {
+		username := "someuser"
+		roleUpsertNode, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins: []string{"osuser"},
+				Rules: []types.Rule{
+					types.NewRule(types.KindNode,
+						[]string{types.VerbCreate, types.VerbUpdate}),
+				},
+				NodeLabels: types.Labels{
+					types.Wildcard: {types.Wildcard},
+				},
+			},
+		})
+		require.NoError(t, err)
+		pack := env.proxies[0].authPack(t, username, []types.Role{roleUpsertNode})
+
+		createNodeEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
+
+		for _, tt := range []struct {
+			name           string
+			req            createNodeRequest
+			expectedStatus int
+			errAssert      require.ErrorAssertionFunc
+		}{
+			{
+				name:           "valid",
+				req:            makeCreateNodeRequest(func(cnr *createNodeRequest) {}),
+				expectedStatus: http.StatusOK,
+				errAssert:      require.NoError,
+			},
+			{
+				name: "empty name",
+				req: makeCreateNodeRequest(func(cnr *createNodeRequest) {
+					cnr.Name = ""
+				}),
+				expectedStatus: http.StatusBadRequest,
+				errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(tt, err, "missing node name")
+				},
+			},
+			{
+				name: "missing aws account id",
+				req: makeCreateNodeRequest(func(cnr *createNodeRequest) {
+					cnr.AWSInfo.AccountID = ""
+				}),
+				expectedStatus: http.StatusBadRequest,
+				errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(tt, err, `missing AWS Account ID (required for "openssh-ec2-ice" SubKind)`)
+				},
+			},
+			{
+				name: "invalid subkind",
+				req: makeCreateNodeRequest(func(cnr *createNodeRequest) {
+					cnr.SubKind = types.SubKindOpenSSHNode
+				}),
+				expectedStatus: http.StatusBadRequest,
+				errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+					require.ErrorContains(tt, err, `invalid subkind "openssh", only "openssh-ec2-ice" is supported`)
+				},
+			},
+		} {
+			// Create node
+			resp, err := pack.clt.PostJSON(ctx, createNodeEndpoint, tt.req)
+			tt.errAssert(t, err)
+
+			require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+
+			if err != nil {
+				continue
+			}
+
+			// Ensure node exists
+			node, err := env.proxies[0].client.GetNode(ctx, "default", tt.req.Name)
+			require.NoError(t, err)
+
+			require.Equal(t, node.GetName(), tt.req.Name)
+			require.Equal(t, node.GetCloudMetadata().AWS, tt.req.AWSInfo)
+		}
+	})
+
 }
