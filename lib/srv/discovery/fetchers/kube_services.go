@@ -314,26 +314,22 @@ type ProtoChecker struct {
 func NewProtoChecker(insecureSkipVerify bool) *ProtoChecker {
 	p := &ProtoChecker{
 		InsecureSkipVerify: insecureSkipVerify,
+		client: &http.Client{
+			Timeout: 5 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: insecureSkipVerify,
+				},
+			},
+		},
 	}
-	p.createClient()
 
 	return p
 }
 
-func (p *ProtoChecker) createClient() {
-	p.client = &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: p.InsecureSkipVerify,
-			},
-		},
-	}
-}
-
 func (p *ProtoChecker) CheckProtocol(uri string) string {
 	if p.client == nil {
-		p.createClient()
+		return protoTCP
 	}
 
 	resp, err := p.client.Head(fmt.Sprintf("https://%s", uri))

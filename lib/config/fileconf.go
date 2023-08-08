@@ -483,8 +483,8 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	if len(conf.Discovery.KubernetesMatchers) > 0 {
 		if conf.Discovery.DiscoveryGroup == "" {
 			// TODO(anton): add link to documentation when it's available
-			return trace.BadParameter(`Parameter 'discovery_group' should be defined for discovery service if
-kubernetes matchers are present.`)
+			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
+kubernetes matchers are present`)
 		}
 		if err := checkAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
 			return trace.Wrap(err)

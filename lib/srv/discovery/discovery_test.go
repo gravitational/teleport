@@ -572,8 +572,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				existingApps, err := tlsServer.Auth().GetApps(ctx)
-				require.NoError(t, err)
-				return len(existingApps) == len(tt.existingApps)
+				return err == nil && len(existingApps) == len(tt.existingApps)
 			}, time.Second, 100*time.Millisecond)
 
 			discServer, err := New(
@@ -599,19 +598,18 @@ func TestDiscoveryKubeServices(t *testing.T) {
 
 			require.Eventually(t, func() bool {
 				existingApps, err := tlsServer.Auth().GetApps(ctx)
-				require.NoError(t, err)
-				if len(existingApps) == len(tt.expectedAppsToExistInAuth) {
-					a1 := types.Apps(existingApps)
-					a2 := types.Apps(tt.expectedAppsToExistInAuth)
-					for k := range a1 {
-						if services.CompareResources(a1[k], a2[k]) != services.Equal {
-							return false
-						}
-					}
-					return true
+				if err != nil || len(existingApps) != len(tt.expectedAppsToExistInAuth) {
+					return false
 				}
+				a1 := types.Apps(existingApps)
+				a2 := types.Apps(tt.expectedAppsToExistInAuth)
+				for k := range a1 {
+					if services.CompareResources(a1[k], a2[k]) != services.Equal {
+						return false
+					}
+				}
+				return true
 
-				return false
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
