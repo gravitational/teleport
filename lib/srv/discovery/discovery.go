@@ -48,11 +48,15 @@ import (
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
+// Clients contains all clients used by discovery service
 type Clients struct {
-	Cloud      cloud.Clients
+	// Cloud are cloud clients
+	Cloud cloud.Clients
+	// Kubernetes is Kubernetes client
 	Kubernetes kubernetes.Interface
 }
 
+// Matchers contains all matchers used by discovery service
 type Matchers struct {
 	// AWS is a list of AWS EC2 matchers.
 	AWS []types.AWSMatcher
@@ -111,7 +115,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if len(c.Matchers.Kubernetes) > 0 && c.DiscoveryGroup == "" {
-		return trace.BadParameter(`Discovery group name should be set for discovery server if
+		return trace.BadParameter(`the DiscoveryGroup name should be set for discovery server if
 kubernetes matchers are present.`)
 	}
 	if c.Clients.Cloud == nil {
@@ -124,11 +128,12 @@ kubernetes matchers are present.`)
 	if c.Clients.Kubernetes == nil && len(c.Matchers.Kubernetes) > 0 {
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
-			return trace.Wrap(err, "kubernetes discovery is only available for incluster configurations")
+			return trace.Wrap(err,
+				"kubernetes discovery is only available for Teleport kube agent running inside Kubernetes cluster")
 		}
 		kubeClient, err := kubernetes.NewForConfig(cfg)
 		if err != nil {
-			return trace.Wrap(err, "unable to create kubernetes client")
+			return trace.Wrap(err, "unable to create Kubernetes client")
 		}
 
 		c.Clients.Kubernetes = kubeClient
@@ -333,7 +338,6 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 			ClusterName:      s.DiscoveryGroup,
 			ProtocolChecker:  pc,
 		})
-
 		if err != nil {
 			return trace.Wrap(err)
 		}

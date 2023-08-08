@@ -576,19 +576,11 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Wait for the apps to be fully created
-			timeout := time.Now().Add(1 * time.Second)
-			for {
+			require.Eventually(t, func() bool {
 				existingApps, err := tlsServer.Auth().GetApps(ctx)
 				require.NoError(t, err)
-				if len(existingApps) == len(tt.existingApps) {
-					break
-				}
-				if time.Now().After(timeout) {
-					require.FailNow(t, "")
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
+				return len(existingApps) == len(tt.existingApps)
+			}, time.Second, 100*time.Millisecond)
 
 			discServer, err := New(
 				ctx,

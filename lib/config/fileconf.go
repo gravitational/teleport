@@ -760,15 +760,15 @@ func checkAndSetDefaultsForKubeMatchers(matchers []KubernetesMatcher) error {
 	for i := range matchers {
 		matcher := &matchers[i]
 
-		if len(matcher.Types) == 0 {
-			matcher.Types = []string{services.KubernetesMatchersApp}
-		}
-
 		for _, t := range matcher.Types {
 			if !slices.Contains(services.SupportedKubernetesMatchers, t) {
 				return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
 					t, services.SupportedKubernetesMatchers)
 			}
+		}
+
+		if len(matcher.Types) == 0 {
+			matcher.Types = []string{services.KubernetesMatchersApp}
 		}
 
 		if len(matcher.Namespaces) == 0 {
@@ -1915,9 +1915,12 @@ type AzureMatcher struct {
 
 // KubernetesMatcher matches Kubernetes resources.
 type KubernetesMatcher struct {
-	Types      []string                    `yaml:"types,omitempty"`
-	Namespaces []string                    `yaml:"namespaces,omitempty"`
-	Labels     map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// Types are Kubernetes services types to match. Currently only 'app' is supported.
+	Types []string `yaml:"types,omitempty"`
+	// Namespaces are Kubernetes namespaces in which to discover services
+	Namespaces []string `yaml:"namespaces,omitempty"`
+	// Labels are Kubernetes services labels to match.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
 // Database represents a single database proxied by the service.

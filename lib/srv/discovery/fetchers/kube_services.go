@@ -165,17 +165,17 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 	for _, service := range kubeServices {
 		service := service
 
+		// Skip kubernetes own internal services
+		if isInternalKubeService(service) {
+			continue
+		}
+
+		// Skip service if it has type annotation and it's not 'app'
+		if v, ok := service.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != services.KubernetesMatchersApp {
+			continue
+		}
+
 		g.Go(func() error {
-			// Skip kubernetes own internal services
-			if isInternalKubeService(service) {
-				return nil
-			}
-
-			// Skip service if it has type annotation and it's not 'app'
-			if v, ok := service.GetAnnotations()[types.DiscoveryTypeLabel]; ok && v != services.KubernetesMatchersApp {
-				return nil
-			}
-
 			protocolAnnotation := service.GetAnnotations()[types.DiscoveryProtocolLabel]
 
 			ports, err := getServicePorts(service)
@@ -308,19 +308,22 @@ func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
 
 type ProtoChecker struct {
 	InsecureSkipVerify bool
+	client             *http.Client
 }
 
 func (p *ProtoChecker) CheckProtocol(uri string) string {
-	client := http.Client{
-		Timeout: 2 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: p.InsecureSkipVerify,
+	if p.client == nil {
+		p.client = &http.Client{
+			Timeout: 2 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: p.InsecureSkipVerify,
+				},
 			},
-		},
+		}
 	}
 
-	resp, err := client.Head(fmt.Sprintf("https://%s", uri))
+	resp, err := p.client.Head(fmt.Sprintf("https://%s", uri))
 	if err == nil {
 		_ = resp.Body.Close()
 		return protoHTTPS
