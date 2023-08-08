@@ -3969,7 +3969,8 @@ message OIDCConnectorSpecV3 {
   ];
 }
 
-// MaxAge allows the max_age parameter to be unset to preserve backwards compatibility.
+// MaxAge allows the max_age parameter to be nullable to preserve backwards
+// compatibility. The duration is stored as nanoseconds.
 message MaxAge {
   int64 Value = 1 [
     (gogoproto.jsontag) = "max_age",

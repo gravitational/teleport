@@ -10306,7 +10306,8 @@ func (m *OIDCConnectorSpecV3) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_OIDCConnectorSpecV3 proto.InternalMessageInfo
 
-// MaxAge allows the max_age parameter to be unset to preserve backwards compatibility.
+// MaxAge allows the max_age parameter to be nullable to preserve backwards
+// compatibility. The duration is stored as nanoseconds.
 type MaxAge struct {
 	Value                Duration `protobuf:"varint,1,opt,name=Value,proto3,casttype=Duration" json:"max_age"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

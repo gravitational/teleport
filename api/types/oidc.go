@@ -460,7 +460,7 @@ func (o *OIDCConnectorV3) GetMaxAge() (time.Duration, bool) {
 	if o.Spec.MaxAge == nil {
 		return 0, false
 	}
-	return time.Duration(o.Spec.MaxAge.Value), true
+	return o.Spec.MaxAge.Value.Duration(), true
 }
 
 // Check returns nil if all parameters are great, err otherwise
