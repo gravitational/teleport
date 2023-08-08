@@ -109,7 +109,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 	makeOpenSSHEC2InstanceConnectEndpointNode := func(fn func(s *ServerV2)) *ServerV2 {
 		s := &ServerV2{
 			Kind:    KindNode,
-			SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
+			SubKind: SubKindOpenSSHEICENode,
 			Version: V2,
 			Metadata: Metadata{
 				Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
@@ -436,7 +436,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing vpc id",
 			server: &ServerV2{
 				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
+				SubKind: SubKindOpenSSHEICENode,
 				Version: V2,
 				Metadata: Metadata{
 					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
@@ -463,7 +463,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 			name: "OpenSSHEC2InstanceConnectEndpoint node with aws cloud metadata but missing integration",
 			server: &ServerV2{
 				Kind:    KindNode,
-				SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
+				SubKind: SubKindOpenSSHEICENode,
 				Version: V2,
 				Metadata: Metadata{
 					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
@@ -493,7 +493,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				require.NoError(t, err)
 				expectedServer := &ServerV2{
 					Kind:    KindNode,
-					SubKind: SubKindOpenSSHEC2InstanceConnectEndpointNode,
+					SubKind: SubKindOpenSSHEICENode,
 					Version: V2,
 					Metadata: Metadata{
 						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
