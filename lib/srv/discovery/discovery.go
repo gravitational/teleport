@@ -82,6 +82,8 @@ type Config struct {
 	Log logrus.FieldLogger
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
+	// protocolChecker is used by Kubernetes fetchers to check port's protocol if needed.
+	protocolChecker fetchers.ProtocolChecker
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -107,6 +109,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("no AccessPoint configured for discovery")
 	}
+
 	if len(c.Matchers.Kubernetes) > 0 && c.DiscoveryGroup == "" {
 		return trace.BadParameter(`Discovery group name should be set for discovery server if
 kubernetes matchers are present.`)
@@ -117,25 +120,26 @@ kubernetes matchers are present.`)
 			return trace.Wrap(err, "unable to create cloud clients")
 		}
 		c.Clients.Cloud = cloudClients
-
-		if c.Clients.Kubernetes == nil && len(c.Matchers.Kubernetes) > 0 {
-			cfg, err := rest.InClusterConfig()
-			if err != nil {
-				return trace.Wrap(err, "kubernetes discovery is only available for incluster configurations")
-			}
-			kubeClient, err := kubernetes.NewForConfig(cfg)
-			if err != nil {
-				return trace.Wrap(err, "unable to create kubernetes client")
-			}
-
-			c.Clients.Kubernetes = kubeClient
+	}
+	if c.Clients.Kubernetes == nil && len(c.Matchers.Kubernetes) > 0 {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			return trace.Wrap(err, "kubernetes discovery is only available for incluster configurations")
 		}
+		kubeClient, err := kubernetes.NewForConfig(cfg)
+		if err != nil {
+			return trace.Wrap(err, "unable to create kubernetes client")
+		}
+
+		c.Clients.Kubernetes = kubeClient
 	}
 
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
-
+	if c.protocolChecker == nil {
+		c.protocolChecker = &fetchers.ProtoChecker{}
+	}
 	if c.PollInterval == 0 {
 		c.PollInterval = 5 * time.Minute
 	}
@@ -316,12 +320,18 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 			continue
 		}
 
+		pc := s.Config.protocolChecker
+		if pc == nil {
+			pc = &fetchers.ProtoChecker{}
+		}
+
 		fetcher, err := fetchers.NewKubeAppsFetcher(fetchers.KubeAppsFetcherConfig{
 			KubernetesClient: kubeClient,
 			FilterLabels:     matcher.Labels,
 			Namespaces:       matcher.Namespaces,
 			Log:              s.Log,
 			ClusterName:      s.DiscoveryGroup,
+			ProtocolChecker:  pc,
 		})
 
 		if err != nil {

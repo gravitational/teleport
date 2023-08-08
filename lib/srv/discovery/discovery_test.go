@@ -52,7 +52,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -446,6 +445,13 @@ func newMockKubeService(name, namespace, externalName string, labels, annotation
 	}
 }
 
+type noopProtocolChecker struct{}
+
+// CheckProtocol for noopProtocolChecker just returns 'tcp'
+func (*noopProtocolChecker) CheckProtocol(uri string) string {
+	return "tcp"
+}
+
 func TestDiscoveryKubeServices(t *testing.T) {
 	const (
 		mainDiscoveryGroup  = "main"
@@ -461,10 +467,11 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			"test-label2": "testval2"}, nil, []corev1.ServicePort{{Port: 42, Name: "custom", AppProtocol: &appProtocolHTTP, Protocol: corev1.ProtocolTCP}}),
 	}
 
-	app1 := mustConvertKubeServiceToApps(t, mainDiscoveryGroup, mockKubeServices[0])[0]
-	modifiedApp1 := mustConvertKubeServiceToApps(t, mainDiscoveryGroup, mockKubeServices[0])[0]
+	app1 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
+	modifiedApp1 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
 	modifiedApp1.SetURI("http://wrong.example.com")
-	app2 := mustConvertKubeServiceToApps(t, mainDiscoveryGroup, mockKubeServices[1])[0]
+	app2 := mustConvertKubeServiceToApp(t, mainDiscoveryGroup, "http", mockKubeServices[1], mockKubeServices[1].Spec.Ports[0])
+	otherGroupApp1 := mustConvertKubeServiceToApp(t, otherDiscoveryGroup, "http", mockKubeServices[0], mockKubeServices[0].Spec.Ports[0])
 
 	tests := []struct {
 		name                      string
@@ -525,7 +532,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 		},
 		{
 			name:         "one app in auth server from another discovery group, import 2 apps",
-			existingApps: types.Apps{mustConvertKubeServiceToApps(t, otherDiscoveryGroup, mockKubeServices[0])[0]},
+			existingApps: types.Apps{otherGroupApp1},
 			kubernetesMatchers: []types.KubernetesMatcher{
 				{
 					Types:      []string{"app"},
@@ -533,7 +540,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Labels:     map[string]utils.Strings{"test-label": {"testval"}},
 				},
 			},
-			expectedAppsToExistInAuth: types.Apps{app1, mustConvertKubeServiceToApps(t, otherDiscoveryGroup, mockKubeServices[0])[0], app2},
+			expectedAppsToExistInAuth: types.Apps{app1, otherGroupApp1, app2},
 			appsNotUpdated:            []string{app1.GetName()},
 		},
 	}
@@ -616,9 +623,10 @@ func TestDiscoveryKubeServices(t *testing.T) {
 					Matchers: Matchers{
 						Kubernetes: tt.kubernetesMatchers,
 					},
-					Emitter:        authClient,
-					Log:            logger,
-					DiscoveryGroup: mainDiscoveryGroup,
+					Emitter:         authClient,
+					Log:             logger,
+					DiscoveryGroup:  mainDiscoveryGroup,
+					protocolChecker: &noopProtocolChecker{},
 				})
 
 			require.NoError(t, err)
@@ -645,6 +653,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 						if len(existingApps) == len(tt.expectedAppsToExistInAuth) {
 							a1 := types.Apps(existingApps)
 							a2 := types.Apps(tt.expectedAppsToExistInAuth)
+							print(cmp.Diff(a1, a2))
 							for k := range a1 {
 								if services.CompareResources(a1[k], a2[k]) != services.Equal {
 									return false
@@ -1176,25 +1185,13 @@ func sliceToSet[T comparable](slice []T) map[T]struct{} {
 	return set
 }
 
-func mustConvertKubeServiceToApps(t *testing.T, discoveryGroup string, kubeService *corev1.Service) types.Apps {
-	apps, err := services.NewApplicationsFromKubeService(*kubeService, discoveryGroup, nil)
+func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, kubeService *corev1.Service, port corev1.ServicePort) types.Application {
+	port.Name = ""
+	app, err := services.NewApplicationFromKubeService(*kubeService, discoveryGroup, protocol, port)
 	require.NoError(t, err)
-	for _, app := range apps {
-		app.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-		app.GetStaticLabels()[types.OriginLabel] = types.OriginDiscoveryKubernetes
-	}
-	return apps
-}
-
-type mockKubeClientGetter struct {
-	kubeClient kubernetes.Interface
-}
-
-func (m *mockKubeClientGetter) GetKubernetesClient() (kubernetes.Interface, error) {
-	if m.kubeClient == nil {
-		return fake.NewSimpleClientset(), nil
-	}
-	return m.kubeClient, nil
+	app.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	app.GetStaticLabels()[types.OriginLabel] = types.OriginDiscoveryKubernetes
+	return app
 }
 
 func newPopulatedGCPMock() *mockGKEAPI {

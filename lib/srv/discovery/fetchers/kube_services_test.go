@@ -18,6 +18,11 @@ package fetchers
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -29,7 +34,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -168,7 +172,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 		matcherNamespaces []string
 		matcherLabels     types.Labels
 		expected          types.Apps
-		protoChecker      services.ProtocolChecker
+		protoChecker      ProtocolChecker
 	}{
 		{
 			desc:              "No services",
@@ -276,7 +280,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 				KubernetesClient: fakeClient,
 				FilterLabels:     tt.matcherLabels,
 				Namespaces:       tt.matcherNamespaces,
-				protocolChecker:  tt.protoChecker,
+				ProtocolChecker:  tt.protoChecker,
 				Log:              utils.NewLogger(),
 			})
 			require.NoError(t, err)
@@ -439,6 +443,144 @@ func TestGetServicePorts(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tt.expected, result)
 			}
+		})
+	}
+}
+
+func TestProtoChecker_CheckProtocol(t *testing.T) {
+	t.Parallel()
+
+	checker := ProtoChecker{
+		InsecureSkipVerify: true,
+	}
+
+	httpsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintln(w, "httpsServer")
+	}))
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintln(w, "httpServer")
+	}))
+	tcpServer := newTCPServer(t, func(conn net.Conn) {
+		_, _ = conn.Write([]byte("tcpServer"))
+		_ = conn.Close()
+	})
+	t.Cleanup(func() {
+		httpsServer.Close()
+		httpServer.Close()
+		_ = tcpServer.Close()
+	})
+
+	tests := []struct {
+		uri      string
+		expected string
+	}{
+		{
+			uri:      strings.TrimPrefix(httpServer.URL, "http://"),
+			expected: "http",
+		},
+		{
+			uri:      strings.TrimPrefix(httpsServer.URL, "https://"),
+			expected: "https",
+		},
+		{
+			uri:      tcpServer.Addr().String(),
+			expected: "tcp",
+		},
+	}
+
+	for _, tt := range tests {
+		res := checker.CheckProtocol(tt.uri)
+		require.Equal(t, tt.expected, res)
+	}
+}
+
+func newTCPServer(t *testing.T, handleConn func(net.Conn)) net.Listener {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err == nil {
+				go handleConn(conn)
+			}
+			if err != nil && !utils.IsOKNetworkError(err) {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+
+	return listener
+}
+
+func TestAutoProtocolDetection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		portName    string
+		portNumber  int32
+		appProtocol string
+		expected    string
+	}{
+		{
+			portName:   "http",
+			portNumber: 80,
+			expected:   protoHTTP,
+		},
+		{
+			portName:   "https",
+			portNumber: 443,
+			expected:   protoHTTPS,
+		},
+		{
+			portNumber: 4242,
+			expected:   protoTCP,
+		},
+		{
+			portNumber: 8080,
+			expected:   protoHTTP,
+		},
+		{
+			portNumber: 4242,
+			portName:   "http",
+			expected:   protoHTTP,
+		},
+		{
+			portNumber: 4242,
+			portName:   "https",
+			expected:   protoHTTPS,
+		},
+		{
+			portNumber:  4242,
+			appProtocol: "http",
+			expected:    protoHTTP,
+		},
+		{
+			portNumber:  80,
+			appProtocol: "https",
+			expected:    protoHTTPS,
+		},
+		{
+			portNumber: 4242,
+			portName:   "dns",
+			expected:   protoTCP,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("portNumber: %d, portName: %s", tt.portNumber, tt.portName), func(t *testing.T) {
+			port := corev1.ServicePort{
+				Name: tt.portName,
+				Port: tt.portNumber,
+			}
+			if tt.appProtocol != "" {
+				port.AppProtocol = &tt.appProtocol
+			}
+
+			result := autoProtocolDetection("192.1.1.1", port, nil)
+
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
