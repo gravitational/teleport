@@ -73,7 +73,7 @@ type makeCredentialRequest struct {
 }
 
 // Login implements Login for Windows Webauthn API.
-func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+func Login(_ context.Context, origin string, assertion *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 	if origin == "" {
 		return nil, "", trace.BadParameter("origin required")
 	}
@@ -112,10 +112,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 }
 
 // Register implements Register for Windows Webauthn API.
-func Register(
-	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation,
-) (*proto.MFARegisterResponse, error) {
+func Register(_ context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	if origin == "" {
 		return nil, trace.BadParameter("origin required")
 	}
@@ -163,12 +160,20 @@ func Register(
 	}, nil
 }
 
+const defaultPromptMessage = "Using platform authenticator, follow the OS dialogs"
+
 var (
-	// PromptPlatformMessage is the message shown before Touch ID prompts.
-	PromptPlatformMessage = "Using platform authenticator, follow the OS dialogs"
+	// PromptPlatformMessage is the message shown before system prompts.
+	PromptPlatformMessage = defaultPromptMessage
+
 	// PromptWriter is the writer used for prompt messages.
 	PromptWriter io.Writer = os.Stderr
 )
+
+// ResetPromptPlatformMessage resets [PromptPlatformMessage] to its original state.
+func ResetPromptPlatformMessage() {
+	PromptPlatformMessage = defaultPromptMessage
+}
 
 func promptPlatform() {
 	if PromptPlatformMessage != "" {
