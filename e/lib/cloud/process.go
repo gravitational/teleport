@@ -17,7 +17,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -26,18 +25,12 @@ import (
 )
 
 var (
-	// defaultAPIServerAddr is default cloud API server address
-	defaultAPIServerAddr = "api.teleport.sh"
 	// defaultReportingInterval is how often Teleport Cloud reports its usage
 	defaultReportingInterval = 5 * time.Minute
 	// defaultFeatureQueryInterval is how often Teleport will query Cloud for the feature set
 	defaultFeatureQueryInterval = 2 * time.Minute
 	//  defaultRequestTimeout is the timeout of requests to fetch Cloud features
 	defaultFeatureQueryTimeout = time.Second * 30
-	// defaultAPIServerPort is the default SalesCenter API port
-	defaultAPIServerPort = 443
-	// EnvVarHostPort is used to override the default cloud api server address
-	EnvVarHostPort = "TELEPORT_CLOUD_HOSTPORT"
 	// EnvVarInterval is used to override the default reporting interval
 	EnvVarInterval = "TELEPORT_CLOUD_INTERVAL"
 	// cloudComponent is the logging name of the Teleport cloud component
@@ -52,8 +45,6 @@ type Config struct {
 	OSSProcess *service.TeleportProcess
 	// LicenseFile is a license file
 	LicenseFile *licensefile.LicenseFile
-	// CloudAPIServerAddr is the address of the Cloud API Server
-	CloudAPIServerAddr string
 	// ReportingInterval is how often Teleport Cloud reports usage
 	ReportingInterval time.Duration
 	// Log is the logger
@@ -75,22 +66,11 @@ func NewTeleport(cfg Config) (*Process, error) {
 		TeleportProcess: cfg.OSSProcess,
 	}
 
-	apiServerAddr, err := GetServerAddr(cfg.CloudAPIServerAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	tlsConfig, err := liblicense.MakeTLSConfig(*cfg.LicenseFile.KeyPair)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig.ServerName = apiServerAddr.Host()
-	tlsConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
-
-	cloudClient, err := cloud.NewClient(cloud.ClientConfig{
-		Hostname:  apiServerAddr.Addr,
-		TLSConfig: tlsConfig,
-	})
+	cloudClient, err := cloud.NewClientFromTLSConfig(tlsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -229,15 +209,6 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 		return trace.Wrap(err, "invalid reporting interval value")
 	}
 
-	// TODO(alexeyk): add server address field to the license
-	if c.CloudAPIServerAddr == "" {
-		c.CloudAPIServerAddr = os.Getenv(EnvVarHostPort)
-	}
-
-	if c.CloudAPIServerAddr == "" {
-		c.CloudAPIServerAddr = defaultAPIServerAddr
-	}
-
 	return nil
 }
 
@@ -260,40 +231,4 @@ func (c *Config) checkAndSetInterval() (err error) {
 	}
 
 	return nil
-}
-
-// GetServerAddr parses a given hostport and returns a cloud address
-func GetServerAddr(hostport string) (*utils.NetAddr, error) {
-	addr, err := utils.ParseHostPortAddr(hostport, defaultAPIServerPort)
-	if err != nil {
-		return nil, trace.BadParameter("invalid cloud API server address")
-	}
-
-	return addr, nil
-}
-
-// NewClientFromLicense returns a new cloud client from a license file
-func NewClientFromLicense(license liblicense.License) (cloud.Client, error) {
-	cloudAPIServerAddr := os.Getenv(EnvVarHostPort)
-	if cloudAPIServerAddr == "" {
-		return nil, trace.BadParameter("license requires fetching features from Cloud but no Cloud host was provided")
-	}
-
-	apiServerAddr, err := GetServerAddr(cloudAPIServerAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig, err := liblicense.MakeTLSConfig(license)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig.ServerName = apiServerAddr.Host()
-	tlsConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
-
-	return cloud.NewClient(cloud.ClientConfig{
-		Hostname:  apiServerAddr.Addr,
-		TLSConfig: tlsConfig,
-	})
 }

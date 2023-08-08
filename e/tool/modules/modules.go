@@ -10,13 +10,14 @@ import (
 	"sync"
 	"time"
 
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/e/lib/cloud"
+	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -51,7 +52,12 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 
 	if licenseFile.License.GetFeatureSource() == types.FeatureSourceCloud {
 		p.log.Debug("fetching features from Cloud")
-		client, err := cloud.NewClientFromLicense(*licenseFile.KeyPair)
+		tlsConfig, err := liblicense.MakeTLSConfig(*licenseFile.KeyPair)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		client, err := cloud.NewClientFromTLSConfig(tlsConfig)
 		if err != nil {
 			p.log.Errorf("failed creating cloud client to fetch features: %+v", err)
 			return trace.Wrap(err)

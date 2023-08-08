@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package types
 
 import (
 	"testing"
@@ -27,13 +27,13 @@ import (
 func TestGithubConnectorCheckAndSetDefaults(t *testing.T) {
 	tests := []struct {
 		name              string
-		connector         GithubConnectorE
-		expectedConnector GithubConnectorE
+		connector         GithubConnector
+		expectedConnector GithubConnector
 		expectedErr       string
 	}{
 		{
 			name: "all defaults",
-			connector: GithubConnectorE{
+			connector: GithubConnector{
 				GithubConnectorV3: &types.GithubConnectorV3{
 					Metadata: types.Metadata{
 						Name: "test-connector",
@@ -48,7 +48,7 @@ func TestGithubConnectorCheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedConnector: GithubConnectorE{
+			expectedConnector: GithubConnector{
 				GithubConnectorV3: &types.GithubConnectorV3{
 					Kind: types.KindGithubConnector,
 					Metadata: types.Metadata{
@@ -71,7 +71,7 @@ func TestGithubConnectorCheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "unset api_endpoint_url",
-			connector: GithubConnectorE{
+			connector: GithubConnector{
 				GithubConnectorV3: &types.GithubConnectorV3{
 					Metadata: types.Metadata{
 						Name: "test-connector",
@@ -87,7 +87,7 @@ func TestGithubConnectorCheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedConnector: GithubConnectorE{
+			expectedConnector: GithubConnector{
 				GithubConnectorV3: &types.GithubConnectorV3{
 					Kind: types.KindGithubConnector,
 					Metadata: types.Metadata{
@@ -110,7 +110,7 @@ func TestGithubConnectorCheckAndSetDefaults(t *testing.T) {
 		},
 		{
 			name: "endpoint_url explicitly set to default",
-			connector: GithubConnectorE{
+			connector: GithubConnector{
 				GithubConnectorV3: &types.GithubConnectorV3{
 					Metadata: types.Metadata{
 						Name: "test-connector",
@@ -126,7 +126,7 @@ func TestGithubConnectorCheckAndSetDefaults(t *testing.T) {
 					},
 				},
 			},
-			expectedConnector: GithubConnectorE{
+			expectedConnector: GithubConnector{
 				GithubConnectorV3: &types.GithubConnectorV3{
 					Kind: types.KindGithubConnector,
 					Metadata: types.Metadata{

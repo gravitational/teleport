@@ -1,4 +1,4 @@
-package auth
+package types
 
 import (
 	"encoding/json"
@@ -11,9 +11,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// GithubConnectorE is an enterprise version of the GitHub auth connector
+// GithubConnector is an enterprise version of the GitHub auth connector
 // that allows connecting to self-hosted GitHub Enterprise instances.
-type GithubConnectorE struct {
+type GithubConnector struct {
 	*types.GithubConnectorV3
 }
 
@@ -28,15 +28,14 @@ func NewGithubConnectorE(name string, spec types.GithubConnectorSpecV3) (types.G
 		return nil, trace.BadParameter("unrecognized github connector %T", ghc)
 	}
 
-	return &GithubConnectorE{
+	return &GithubConnector{
 		GithubConnectorV3: ghConnector,
 	}, nil
 }
 
 // CheckAndSetDefaults verifies the connector is valid and sets some defaults.
-func (c *GithubConnectorE) CheckAndSetDefaults() error {
-	err := c.GithubConnectorV3.CheckAndSetDefaults()
-	if err != nil {
+func (c *GithubConnector) CheckAndSetDefaults() error {
+	if err := c.GithubConnectorV3.CheckAndSetDefaults(); err != nil {
 		return err
 	}
 
@@ -84,17 +83,17 @@ func checkAndSetDefaultURL(u string, defaultURL string) (*url.URL, error) {
 }
 
 // GetEndpointURL returns the endpoint URL.
-func (c *GithubConnectorE) GetEndpointURL() string {
+func (c *GithubConnector) GetEndpointURL() string {
 	return c.Spec.EndpointURL
 }
 
-// GetEndpointAPIURL returns the API endpoint URL.
-func (c *GithubConnectorE) GetAPIEndpointURL() string {
+// GetAPIEndpointURL returns the API endpoint URL.
+func (c *GithubConnector) GetAPIEndpointURL() string {
 	return c.Spec.APIEndpointURL
 }
 
-// UnmarshalGithubConnectorE unmarshals the GithubConnectorE resource from JSON.
-func UnmarshalGithubConnectorE(bytes []byte) (types.GithubConnector, error) {
+// UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
+func UnmarshalGithubConnector(bytes []byte) (types.GithubConnector, error) {
 	var h types.ResourceHeader
 	if err := json.Unmarshal(bytes, &h); err != nil {
 		return nil, trace.Wrap(err)
@@ -105,7 +104,7 @@ func UnmarshalGithubConnectorE(bytes []byte) (types.GithubConnector, error) {
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		ec := GithubConnectorE{
+		ec := GithubConnector{
 			GithubConnectorV3: c,
 		}
 		if err := ec.CheckAndSetDefaults(); err != nil {
@@ -117,9 +116,9 @@ func UnmarshalGithubConnectorE(bytes []byte) (types.GithubConnector, error) {
 		"GitHub connector resource version %q is not supported", h.Version)
 }
 
-// MarshalGithubConnectorE marshals the GithubConnectorE resource to JSON.
-func MarshalGithubConnectorE(connector types.GithubConnector, opts ...services.MarshalOption) ([]byte, error) {
-	githubConnector, ok := connector.(*GithubConnectorE)
+// MarshalGithubConnector marshals the GithubConnector resource to JSON.
+func MarshalGithubConnector(connector types.GithubConnector, opts ...services.MarshalOption) ([]byte, error) {
+	githubConnector, ok := connector.(*GithubConnector)
 	if !ok {
 		return nil, trace.BadParameter("unrecognized github connector version %T", connector)
 	}

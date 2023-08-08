@@ -3,6 +3,7 @@ package cloud
 import (
 	"crypto/tls"
 	"io"
+	"os"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
@@ -11,6 +12,8 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ClientConfig is the Teleport Pro (Enterprise) config
@@ -60,6 +63,39 @@ func NewClientFromConnection(conn *grpc.ClientConn) (Client, error) {
 		TenantsServiceClient: client,
 		conn:                 conn,
 	}, nil
+}
+
+const (
+	// defaultAPIServerAddr is default cloud API server address
+	defaultAPIServerAddr = "api.teleport.sh"
+	// defaultAPIServerPort is the default SalesCenter API port
+	defaultAPIServerPort = 443
+	// EnvVarHostPort is used to override the default cloud api server address
+	EnvVarHostPort = "TELEPORT_CLOUD_HOSTPORT"
+)
+
+// NewClientFromTLSConfig creates a client using the provided [tls.Config]
+// as a base. The Cloud server address defaults to api.teleport.sh but can
+// be overridden via the TELEPORT_CLOUD_HOSTPORT envvar
+func NewClientFromTLSConfig(cfg *tls.Config) (Client, error) {
+	cloudAPIServerAddr := defaultAPIServerAddr
+	if addr := os.Getenv(EnvVarHostPort); addr != "" {
+		cloudAPIServerAddr = addr
+	}
+
+	apiServerAddr, err := utils.ParseHostPortAddr(cloudAPIServerAddr, defaultAPIServerPort)
+	if err != nil {
+		return nil, trace.BadParameter("invalid cloud API server address")
+	}
+
+	tlsCfg := cfg.Clone()
+	tlsCfg.ServerName = apiServerAddr.Host()
+	tlsCfg.InsecureSkipVerify = lib.IsInsecureDevMode()
+
+	return NewClient(ClientConfig{
+		Hostname:  apiServerAddr.Addr,
+		TLSConfig: tlsCfg,
+	})
 }
 
 // Client is a client of the Cloud Server API

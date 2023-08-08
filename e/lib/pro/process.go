@@ -8,10 +8,8 @@ import (
 
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/auth"
-	cloudlib "github.com/gravitational/teleport/e/lib/cloud"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/prehog"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 )
@@ -65,23 +63,13 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 	// if the cloud hostport is set when we don't have a cloud license, we're in
 	// "tenant dashboard mode"
-	if cloudHostPort := os.Getenv(cloudlib.EnvVarHostPort); cloudHostPort != "" {
-		apiServerAddr, err := cloudlib.GetServerAddr(cloudHostPort)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+	if cloudHostPort := os.Getenv(cloud.EnvVarHostPort); cloudHostPort != "" {
 		tlsConfig, err := liblicense.MakeTLSConfig(*cfg.LicenseFile.KeyPair)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConfig.ServerName = apiServerAddr.Host()
-		tlsConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
 
-		cloudClient, err := cloud.NewClient(cloud.ClientConfig{
-			Hostname:  apiServerAddr.Addr,
-			TLSConfig: tlsConfig,
-		})
+		cloudClient, err := cloud.NewClientFromTLSConfig(tlsConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

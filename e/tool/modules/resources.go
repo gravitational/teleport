@@ -4,7 +4,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/auth"
+	etypes "github.com/gravitational/teleport/e/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -53,15 +53,15 @@ func init() {
 	})
 
 	// Register functions to create enterprise GitHub auth connectors.
-	services.RegisterGithubAuthCreator(auth.NewGithubConnectorE)
+	services.RegisterGithubAuthCreator(etypes.NewGithubConnectorE)
 	// Register function to convert OSS GitHub auth connectors to
 	// enterprise connectors so endpoint_url will be respected.
 	services.RegisterGithubAuthInitializer(func(c types.GithubConnector) (types.GithubConnector, error) {
 		switch connector := c.(type) {
-		case *auth.GithubConnectorE:
+		case *etypes.GithubConnector:
 			return connector, nil
 		case *types.GithubConnectorV3:
-			return &auth.GithubConnectorE{
+			return &etypes.GithubConnector{
 				GithubConnectorV3: connector,
 			}, nil
 		default:
@@ -72,7 +72,7 @@ func init() {
 	// OSS connectors so they can be sent over gRPC.
 	services.RegisterGithubAuthConverter(func(c types.GithubConnector) (*types.GithubConnectorV3, error) {
 		switch connector := c.(type) {
-		case *auth.GithubConnectorE:
+		case *etypes.GithubConnector:
 			return connector.GithubConnectorV3, nil
 		case *types.GithubConnectorV3:
 			return connector, nil
@@ -86,7 +86,7 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected GithubConnector, got %T", resource)
 		}
-		bytes, err := auth.MarshalGithubConnectorE(githubConnector, opts...)
+		bytes, err := etypes.MarshalGithubConnector(githubConnector, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -94,7 +94,7 @@ func init() {
 	})
 	// Register unmarshaler for enterprise GitHub auth connector.
 	services.RegisterResourceUnmarshaler(types.KindGithubConnector, func(bytes []byte, opts ...services.MarshalOption) (types.Resource, error) {
-		githubConnector, err := auth.UnmarshalGithubConnectorE(bytes) // XXX: Does not support marshal options.
+		githubConnector, err := etypes.UnmarshalGithubConnector(bytes) // XXX: Does not support marshal options.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
