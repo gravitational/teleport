@@ -139,7 +139,7 @@ type Config struct {
 
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
-	discoveryResourceChecker discoveryResourceChecker
+	discoveryResourceChecker cloud.DiscoveryResourceChecker
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -246,7 +246,11 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.discoveryResourceChecker == nil {
-		c.discoveryResourceChecker, err = newCloudCrednentialsChecker(ctx, c.CloudClients, c.ResourceMatchers)
+		c.discoveryResourceChecker, err = cloud.NewDiscoveryResourceChecker(cloud.DiscoveryResourceCheckerConfig{
+			ResourceMatchers: c.ResourceMatchers,
+			Clients:          c.CloudClients,
+			Context:          ctx,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
