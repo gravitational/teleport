@@ -2539,7 +2539,18 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetUserLoginState(ctx, name)
+
+	uls, err := rg.reader.GetUserLoginState(ctx, name)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if uls, err := c.Config.UserLoginStates.GetUserLoginState(ctx, name); err == nil {
+			return uls, nil
+		}
+	}
+	return uls, trace.Wrap(err)
 }
 
 // ListResources is a part of auth.Cache implementation
