@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
+	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -5390,7 +5391,7 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 
 // getAccessRequestMonthlyUsage returns the number of access requests that have been created this month.
 func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
-	return GetAccessRequestMonthlyUsage(ctx, a.Services.AuditLogSessionStreamer, a.clock.Now().UTC())
+	return resourceusage.GetAccessRequestMonthlyUsage(ctx, a.Services.AuditLogSessionStreamer, a.clock.Now().UTC())
 }
 
 // verifyAccessRequestMonthlyLimit checks whether the cluster has exceeded the monthly access request limit.
