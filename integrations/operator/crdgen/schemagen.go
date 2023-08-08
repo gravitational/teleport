@@ -205,23 +205,14 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 		}
 
 		jsonName := field.JSONName()
-		if jsonName == "" && field.Name() != "MaxAge" && message.Name() != "OIDCConnectorSpecV3" {
-			return nil, trace.Errorf("empty json tag for %s.%s", message.Name(), field.Name())
-		}
-		if jsonName == "-" {
+		if jsonName == "" {
+			handled := handleEmptyJSONTag(schema, message, field)
+			if !handled {
+				return nil, trace.Errorf("empty json tag for %s.%s", message.Name(), field.Name())
+			}
 			continue
 		}
-
-		// Handle MaxAge as a special case. It's type is a message that is embedded.
-		// Because the message is embedded, MaxAge itself explicitly sets its json
-		// name to an empty string, but the embedded message type has a single field
-		// with a json name, so use that instead.
-		if field.Name() == "MaxAge" && message.Name() == "OIDCConnectorSpecV3" {
-			schema.Properties["max_age"] = apiextv1.JSONSchemaProps{
-				Description: field.LeadingComments(),
-				Type:        "string",
-				Format:      "duration",
-			}
+		if jsonName == "-" {
 			continue
 		}
 
@@ -234,6 +225,27 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 	schema.built = true
 
 	return schema, nil
+}
+
+// handleEmptyJSONTag attempts to handle special case fields that have
+// an empty JSON tag. True is returned if the field was handled and a
+// new schema property was created.
+func handleEmptyJSONTag(schema *Schema, message *Message, field *Field) bool {
+	if field.Name() != "MaxAge" && message.Name() != "OIDCConnectorSpecV3" {
+		return false
+	}
+
+	// Handle MaxAge as a special case. It's type is a message that is embedded.
+	// Because the message is embedded, MaxAge itself explicitly sets its json
+	// name to an empty string, but the embedded message type has a single field
+	// with a json name, so use that instead.
+	schema.Properties["max_age"] = apiextv1.JSONSchemaProps{
+		Description: field.LeadingComments(),
+		Type:        "string",
+		Format:      "duration",
+	}
+
+	return true
 }
 
 func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, error) {
