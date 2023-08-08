@@ -215,7 +215,7 @@ type DiagResult struct {
 
 // Diag runs a few diagnostic commands and returns the result.
 // User interaction is required.
-func Diag(ctx context.Context, promptOut io.Writer) (*DiagResult, error) {
+func Diag(ctx context.Context) (*DiagResult, error) {
 	res := &DiagResult{}
 	if !IsAvailable() {
 		return res, nil
