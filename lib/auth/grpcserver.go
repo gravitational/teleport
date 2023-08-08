@@ -29,7 +29,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -65,7 +64,6 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -3299,45 +3297,6 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	return &types.ProvisionTokenV2List{
 		ProvisionTokens: provisionTokensV2,
 	}, nil
-}
-
-// setDefaultTokenTTL replicates the old server-side behavior of universally
-// applying a 30 minute TTL default to newly created tokens.
-// This can be removed when CreateToken and UpsertToken are removed.
-func setDefaultTokenTTL(clock clockwork.Clock, token *types.ProvisionTokenV2) {
-	if token.Expiry().IsZero() || token.Expiry().Sub(clock.Now().UTC()) < time.Second {
-		token.SetExpiry(clock.Now().Add(defaults.ProvisioningTokenTTL))
-	}
-}
-
-// UpsertToken upserts a token.
-// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
-func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	g.Warn("Deprecated RPC UpsertToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling UpsertTokenV2. This will stop functioning in Teleport 14.0.0.")
-	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
-	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
-// CreateToken creates a token.
-// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
-func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	g.Warn("Deprecated RPC CreateToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling CreateTokenV2. This will stop functioning in Teleport 14.0.0.")
-	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
-	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
 }
 
 // UpsertTokenV2 upserts a token.
