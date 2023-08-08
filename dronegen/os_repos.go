@@ -46,10 +46,11 @@ func buildPromoteOsPackagePipelines(packageDeployments []osPackageDeployment) pi
 	clonePath := "/go/src/github.com/gravitational/teleport"
 
 	ghaBuild := ghaBuildType{
-		trigger:      triggerPromote,
-		pipelineName: "publish-os-package-repos",
-		checkoutPath: clonePath,
-		workflows:    buildWorkflows(releaseEnvironmentFilePath, packageDeployments),
+		trigger:                    triggerPromote,
+		pipelineName:               "publish-os-package-repos",
+		checkoutPath:               clonePath,
+		workflows:                  buildWorkflows(releaseEnvironmentFilePath, packageDeployments),
+		enableParallelWorkflowRuns: true,
 	}
 	setupSteps := []step{
 		{
@@ -91,6 +92,7 @@ func buildWorkflows(releaseEnvironmentFilePath string, packageDeployments []osPa
 				timeout:           12 * time.Hour, // DR takes a long time
 				shouldTagWorkflow: true,
 				seriesRun:         true,
+				seriesRunFilter:   fmt.Sprintf(".*%s.*", repoType),
 				inputs:            inputs,
 			})
 		}
