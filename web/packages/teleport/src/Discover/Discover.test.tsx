@@ -103,7 +103,7 @@ test('displays all resources by default', () => {
   );
 });
 
-test('location state overrides preferred resource state', () => {
+test('location state applies filter/search', () => {
   create({
     initialEntry: 'desktop',
     preferredResource: ClusterResource.RESOURCE_WEB_APPLICATIONS,
@@ -194,93 +194,6 @@ describe('location state', () => {
 
   test('displays kube resources when the location state is kubernetes', () => {
     create({ initialEntry: 'kubernetes' });
-
-    expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
-      KUBERNETES.length
-    );
-
-    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(ResourceKind.Application)
-    ).not.toBeInTheDocument();
-  });
-});
-
-describe('preferred resources', () => {
-  test('displays servers when the preferred resource is server', () => {
-    create({ preferredResource: ClusterResource.RESOURCE_SERVER_SSH });
-
-    expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
-      SERVERS.length
-    );
-
-    // we assert three databases for servers because the naming convention includes "server"
-    expect(screen.queryAllByTestId(ResourceKind.Database)).toHaveLength(3);
-
-    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(ResourceKind.Application)
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(ResourceKind.Kubernetes)
-    ).not.toBeInTheDocument();
-  });
-
-  test('displays desktops when the preferred resource is desktop', () => {
-    create({ preferredResource: ClusterResource.RESOURCE_WINDOWS_DESKTOPS });
-
-    expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-      WINDOWS_DESKTOPS.length
-    );
-
-    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(ResourceKind.Application)
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(ResourceKind.Kubernetes)
-    ).not.toBeInTheDocument();
-  });
-
-  test('displays apps when the preferred resource is application', () => {
-    create({ preferredResource: ClusterResource.RESOURCE_WEB_APPLICATIONS });
-
-    expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
-      APPLICATIONS.length
-    );
-
-    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Database)).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(ResourceKind.Kubernetes)
-    ).not.toBeInTheDocument();
-  });
-
-  test('displays databases when the preferred resource is database', () => {
-    create({ preferredResource: ClusterResource.RESOURCE_DATABASES });
-
-    expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
-      DATABASES.length +
-        DATABASES_UNGUIDED.length +
-        DATABASES_UNGUIDED_DOC.length
-    );
-
-    expect(screen.queryByTestId(ResourceKind.Server)).not.toBeInTheDocument();
-    expect(screen.queryByTestId(ResourceKind.Desktop)).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(ResourceKind.Application)
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(ResourceKind.Kubernetes)
-    ).not.toBeInTheDocument();
-  });
-
-  test('displays kube resources when the preferred resource is kubernetes', () => {
-    create({ preferredResource: ClusterResource.RESOURCE_KUBERNETES });
 
     expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
       KUBERNETES.length

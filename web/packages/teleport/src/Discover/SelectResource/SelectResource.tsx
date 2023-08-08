@@ -36,7 +36,13 @@ import {
 } from 'teleport/Discover/SelectResource/resources';
 import AddApp from 'teleport/Apps/AddApp';
 import { useUser } from 'teleport/User/UserContext';
-import { resourceMapping } from 'teleport/Discover/SelectResource/constants';
+
+import {
+  ClusterResource,
+  UserPreferences,
+} from 'teleport/services/userPreferences/types';
+
+import { resourceKindToPreferredResource } from 'teleport/Discover/Shared/ResourceKind';
 
 import { DiscoverIcon } from './icons';
 
@@ -61,9 +67,9 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
-    const splitted = s.split(' ').map(s => s.toLowerCase());
+    const split = s.split(' ').map(s => s.toLowerCase());
     const foundResources = list.filter(r => {
-      const match = splitted.every(s => r.keywords.includes(s));
+      const match = split.every(s => r.keywords.includes(s));
       if (match) {
         return r;
       }
@@ -84,13 +90,13 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     const updatedResources = makeResourcesWithHasAccessField(acl);
 
     // Sort resources that user has access to the
-    // the top of the list, so it is more visible to
+    // top of the list, so it is more visible to
     // the user.
     const filteredResourcesByPerm = [
       ...updatedResources.filter(r => r.hasAccess),
       ...updatedResources.filter(r => !r.hasAccess),
     ];
-    const sortedResources = sortResources(filteredResourcesByPerm);
+    const sortedResources = sortResources(filteredResourcesByPerm, preferences);
     setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
@@ -105,24 +111,6 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
-      return;
-    }
-
-    // A user can have preferredResources set via their onboarding survey.
-    // We sort the list by the preferred resource type,
-    // and then apply a search filter to it to reduce
-    // the amount of results.
-    const preferredResources = preferences.onboard.preferredResources;
-    if (preferredResources.length > 0) {
-      // resourceKindSpecifiedByPreferences currently only looks at the first item in the list, until we support multiple filter/sort options
-      const resourceKindSpecifiedByPreferences =
-        resourceMapping[preferredResources[0]];
-
-      const sortedResourcesByKind = sortResourcesByKind(
-        resourceKindSpecifiedByPreferences,
-        sortedResources
-      );
-      onSearch(resourceKindSpecifiedByPreferences, sortedResourcesByKind);
       return;
     }
 
@@ -151,7 +139,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
         </InputWrapper>
         {search && <ClearSearch onClick={onClearSearch} />}
       </Box>
-      {resources.length > 0 && (
+      {resources && resources.length > 0 && (
         <>
           <Grid>
             {resources.map((r, index) => {
@@ -343,10 +331,43 @@ function sortResourcesByKind(
   return sorted;
 }
 
-// Sort the resources alphabetically and with the Guided resources listed first.
-export function sortResources(resources: ResourceSpec[]) {
+// Sort the resources by 1. preferred 2. guided and 3. alphabetically
+export function sortResources(
+  resources: ResourceSpec[],
+  preferences: UserPreferences
+) {
+  // A user can have preferredResources set via their onboarding survey.
+  // We sort the list by the preferred resource type but do not apply a search.
+  const preferredResources =
+    (preferences &&
+      preferences.onboard &&
+      preferences.onboard.preferredResources) ||
+    [];
+  const hasPreferredResources =
+    preferredResources && preferredResources.length > 0;
+  const maxResources = Object.keys(ClusterResource).length / 2 - 1;
+  const selectedAllResources = preferredResources.length === maxResources;
+
   const sortedResources = [...resources];
   sortedResources.sort((a, b) => {
+    let aPreferred,
+      bPreferred = false;
+    if (hasPreferredResources && !selectedAllResources) {
+      aPreferred = preferredResources.includes(
+        resourceKindToPreferredResource(a.kind)
+      );
+      bPreferred = preferredResources.includes(
+        resourceKindToPreferredResource(b.kind)
+      );
+    }
+
+    if (aPreferred && a.hasAccess && !bPreferred && b.hasAccess) {
+      return -1;
+    }
+    if (!aPreferred && a.hasAccess && bPreferred && b.hasAccess) {
+      return 1;
+    }
+
     if (!a.unguidedLink && a.hasAccess && !b.unguidedLink && b.hasAccess) {
       return a.name.localeCompare(b.name);
     }
