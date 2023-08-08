@@ -123,28 +123,21 @@ spec:
                       must match one allow rule to use this token.
                     items:
                       properties:
-                        actions:
-                          description: Actions specifies optional actions taken when
-                            this rule matches
+                        locations:
                           items:
                             type: string
                           nullable: true
                           type: array
-                        resources:
-                          description: Resources is a list of resources
+                        project_ids:
                           items:
                             type: string
                           nullable: true
                           type: array
-                        verbs:
-                          description: Verbs is a list of verbs
+                        service_accounts:
                           items:
                             type: string
                           nullable: true
                           type: array
-                        where:
-                          description: Where specifies optional advanced matcher
-                          type: string
                       type: object
                     nullable: true
                     type: array
