@@ -686,7 +686,8 @@ jobs:
           # Set the package version
           # Note that if we ever republish a tag then the `-1` at the end will refer to the original version
           echo "PACKAGE_VERSION=$(echo "${ARTIFACT_TAG#v}" | sed 's/-/_/g')-1" >> "$GITHUB_ENV"
-      - name: Install package
+      - name: Install the package
+        if: inputs.do-teleport-package-tests
         env:
           RELEASE_CHANNEL: ${{ inputs.release-channel }}
           VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
@@ -711,6 +712,7 @@ jobs:
 
           sudo zypper install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
       - name: Log Teleport version
+        if: inputs.do-teleport-package-tests
         run: teleport version
       - name: Log package cache information
         env:
@@ -718,6 +720,7 @@ jobs:
         run: |
           zypper search -s "$PACKAGE_TO_TEST"
       - name: Verify installed Teleport version matches provided artifact version
+        if: inputs.do-teleport-package-tests
         env:
           ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
