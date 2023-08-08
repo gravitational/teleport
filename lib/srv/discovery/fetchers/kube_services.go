@@ -285,7 +285,7 @@ func getServicePorts(s v1.Service) ([]v1.ServicePort, error) {
 			preferredPort = v
 		}
 	}
-	availablePorts := []v1.ServicePort{}
+	var availablePorts []v1.ServicePort
 	for _, p := range s.Spec.Ports {
 		// Only supporting TCP ports.
 		if p.Protocol != v1.ProtocolTCP {
