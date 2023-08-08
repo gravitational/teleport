@@ -44,7 +44,7 @@ export interface ConnectMyComputerContext {
   agentState: AgentState;
   agentNode: Server;
   runAgentAndWaitForNodeToJoin(): Promise<void>;
-  runWithPreparation(): Promise<[void, Error]>;
+  downloadAndRun(): Promise<[void, Error]>;
   kill(): Promise<[void, Error]>;
   isAgentConfiguredAttempt: Attempt<boolean>;
   markAgentAsConfigured(): void;
@@ -78,45 +78,41 @@ export const ConnectMyComputerContextProvider: FC<{
       }
   );
 
-  const waitForNodeToJoinAbortController = useRef(new AbortController());
-  const [waitForNodeToJoinAttempt, runWaitForNodeToJoin] = useAsync(() =>
-    connectMyComputerService.waitForNodeToJoin(
-      props.rootClusterUri,
-      waitForNodeToJoinAbortController.current.signal
-    )
-  );
+  const agentProcessStateAttempt = () => {
+    switch (agentProcessState.status){
 
-  const runAgentAndWaitForNodeToJoin = useCallback(async () => {
-    await connectMyComputerService.runAgent(props.rootClusterUri);
-
-    try {
-      await Promise.race([
-        runWaitForNodeToJoin()
-          .then(([v, e]) => {
-            if (e) {
-              throw e;
-            }
-          })
-          .finally(() => waitForNodeToJoinAbortController.current.abort()),
-        // waitForAgentProcessErrors(mainProcessClient, props.rootClusterUri),
-      ]);
-    } catch (error) {
-      // in case of any error kill the agent
-      await connectMyComputerService.killAgent(props.rootClusterUri);
-      throw error;
     }
-  }, [
-    connectMyComputerService,
-    mainProcessClient,
-    props.rootClusterUri,
-    runWaitForNodeToJoin,
-  ]);
+  }
+
+  const [runAgentAndWaitForNodeToJoinAttempt, runAgentAndWaitForNodeToJoin] = useAsync(
+    useCallback(async () => {
+      await connectMyComputerService.runAgent(props.rootClusterUri);
+
+      const abortController = new AbortController();
+      return new Promise<Server>((resolve, reject) => {
+        //TODO(gzdunek): Do we need to kill the agent if any of the following promises fail?
+        Promise.race([
+          connectMyComputerService
+            .waitForNodeToJoin(props.rootClusterUri, abortController.signal)
+            .then(resolve),
+          waitForAgentProcessErrors(
+            mainProcessClient,
+            props.rootClusterUri,
+            abortController.signal
+          ).then(reject),
+          wait(20000, abortController.signal).then(() =>
+            reject(new Error('The agent did not manage to join the cluster within 20 seconds.'))
+          ),
+        ]).finally(() => abortController.abort());
+      });
+    }, [connectMyComputerService, mainProcessClient, props.rootClusterUri])
+  );
 
   const [lifecycleActionAttempt, runLifecycleActionAttempt] = useAsync(
     async (cb: () => Promise<void>) => await cb()
   );
 
-  const runWithPreparation = useCallback(
+  const downloadAndRun = useCallback(
     async () =>
       runLifecycleActionAttempt(async () => {
         await connectMyComputerService.downloadAgent(props.rootClusterUri);
@@ -167,7 +163,7 @@ export const ConnectMyComputerContextProvider: FC<{
         agentNode: waitForNodeToJoinAttempt.data,
         lifecycleActionAttempt,
         kill,
-        runWithPreparation,
+        downloadAndRun,
         markAgentAsConfigured,
         isAgentConfiguredAttempt,
       }}
@@ -190,41 +186,38 @@ export const useConnectMyComputerContext = () => {
 
 /**
  * Waits for `error` and `exit` events from the agent process.
- * If none of them happen within 20 seconds, the promise resolves.
  */
-async function waitForAgentProcessErrors(
+function waitForAgentProcessErrors(
   mainProcessClient: MainProcessClient,
-  rootClusterUri: RootClusterUri
+  rootClusterUri: RootClusterUri,
+  abortSignal: AbortSignal
 ) {
-  let cleanupFn: () => void;
-
-  try {
-    const errorPromise = new Promise((_, reject) => {
-      const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
-        rootClusterUri,
-        agentProcessState => {
-          const error = isProcessInErrorOrExitState(agentProcessState);
-          if (error) {
-            reject(error);
-          }
+  return new Promise((resolve, reject) => {
+    const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
+      rootClusterUri,
+      agentProcessState => {
+        const error = isProcessInErrorOrExitState(agentProcessState);
+        if (error) {
+          resolve(error);
+          cleanup();
         }
-      );
-
-      // the state may have changed before we started listening, we have to check the current state
-      const agentProcessState = mainProcessClient.getAgentState({
-        rootClusterUri,
-      });
-      const error = isProcessInErrorOrExitState(agentProcessState);
-      if (error) {
-        reject(error);
       }
+    );
+    abortSignal.onabort = () => {
+      cleanup();
+      reject();
+    };
 
-      cleanupFn = cleanup;
+    // the state may have changed before we started listening, we have to check the current state
+    const agentProcessState = mainProcessClient.getAgentState({
+      rootClusterUri,
     });
-    await Promise.race([errorPromise, wait(20_000)]);
-  } finally {
-    cleanupFn();
-  }
+    const error = isProcessInErrorOrExitState(agentProcessState);
+    if (error) {
+      resolve(error);
+      cleanup();
+    }
+  });
 }
 
 function isProcessInErrorOrExitState(
@@ -258,7 +251,7 @@ function isProcessInErrorOrExitState(
 
 function computeAgentState(
   agentState: AgentProcessState,
-  nodeReadyAttempt: Attempt<Server>,
+  nodeReadyAttempt: Attempt<Server>
   // downloadAgentAttempt: Attempt<void>,
 ): AgentState {
   if (nodeReadyAttempt.status === 'processing') {
