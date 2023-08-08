@@ -1691,7 +1691,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	if req.SortBy.Field != "" {
 		if err := filteredResources.SortByCustom(req.SortBy); err != nil {
-			return nil, err
+			return nil, trace.Wrap(err, "sorting unified resources")
 		}
 	}
 

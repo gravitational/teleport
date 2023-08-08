@@ -591,7 +591,7 @@ func (r ResourcesWithLabels) SortByCustom(by SortBy) error {
 		sort.SliceStable(r, func(i, j int) bool {
 			return unifiedNameCompare(r[i], r[j], isDesc)
 		})
-	case ResourceSpecKind:
+	case ResourceKind:
 		sort.SliceStable(r, func(i, j int) bool {
 			return unifiedKindCompare(r[i], r[j], isDesc)
 		})
