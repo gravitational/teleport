@@ -88,13 +88,14 @@ async function calculateAgentVersion(
   settings: RuntimeSettings,
   env: Record<string, any>
 ): Promise<string> {
-  if (!settings.isLocalBuild) {
-    return settings.appVersion;
-  }
   if (env.CONNECT_CMC_AGENT_VERSION) {
     return env.CONNECT_CMC_AGENT_VERSION;
   }
   return await fetchLatestTeleportRelease();
+
+  if (!settings.isLocalBuild) {
+    return settings.appVersion;
+  }
 }
 
 /**
