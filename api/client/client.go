@@ -1210,34 +1210,6 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	return resp.GetSession(), nil
 }
 
-// GetAppSessions gets all application web sessions.
-func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	var (
-		nextToken string
-		sessions  []types.WebSession
-	)
-
-	// Leverages ListAppSessions instead of GetAppSessions to prevent
-	// the server from having to send all sessions in a single message.
-	// If there are enough sessions it can cause the max message size to be
-	// exceeded.
-	for {
-		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
-		if err != nil {
-			return nil, trail.FromGRPC(err)
-		}
-
-		sessions = append(sessions, webSessions...)
-		if token == "" {
-			break
-		}
-
-		nextToken = token
-	}
-
-	return sessions, nil
-}
-
 // ListAppSessions gets a paginated list of application web sessions.
 func (c *Client) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	resp, err := c.grpc.ListAppSessions(

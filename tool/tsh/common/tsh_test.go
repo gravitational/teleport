@@ -3535,6 +3535,7 @@ func setCmdRunner(cmdRunner func(*exec.Cmd) error) CliOption {
 }
 
 func testSerialization(t *testing.T, expected string, serializer func(string) (string, error)) {
+	t.Helper()
 	out, err := serializer(teleport.JSON)
 	require.NoError(t, err)
 	require.JSONEq(t, expected, out)

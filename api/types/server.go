@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -68,25 +67,12 @@ type Server interface {
 	SetPublicAddrs([]string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
-	// GetApps gets the list of applications this server is proxying.
-	// DELETE IN 9.0.
-	GetApps() []*App
-	// GetApps gets the list of applications this server is proxying.
-	// DELETE IN 9.0.
-	SetApps([]*App)
 	// GetPeerAddr returns the peer address of the server.
 	GetPeerAddr() string
 	// SetPeerAddr sets the peer address of the server.
 	SetPeerAddr(string)
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
-	// MatchAgainst takes a map of labels and returns True if this server
-	// has ALL of them
-	//
-	// Any server matches against an empty label set
-	MatchAgainst(labels map[string]string) bool
-	// LabelsString returns a comma separated string with all node's labels
-	LabelsString() string
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
@@ -327,16 +313,6 @@ func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
 	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
 }
 
-// GetApps gets the list of applications this server is proxying.
-func (s *ServerV2) GetApps() []*App {
-	return s.Spec.Apps
-}
-
-// SetApps sets the list of applications this server is proxying.
-func (s *ServerV2) SetApps(apps []*App) {
-	s.Spec.Apps = apps
-}
-
 func (s *ServerV2) String() string {
 	return fmt.Sprintf("Server(name=%v, namespace=%v, addr=%v, labels=%v)", s.Metadata.Name, s.Metadata.Namespace, s.Spec.Addr, s.Metadata.Labels)
 }
@@ -384,33 +360,6 @@ func (s *ServerV2) GetPeerAddr() string {
 // SetPeerAddr sets the peer address of the server.
 func (s *ServerV2) SetPeerAddr(addr string) {
 	s.Spec.PeerAddr = addr
-}
-
-// MatchAgainst takes a map of labels and returns True if this server
-// has ALL of them
-//
-// Any server matches against an empty label set
-func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
-	return MatchLabels(s, labels)
-}
-
-// LabelsString returns a comma separated string of all labels.
-func (s *ServerV2) LabelsString() string {
-	return LabelsAsString(s.Metadata.Labels, s.Spec.CmdLabels)
-}
-
-// LabelsAsString combines static and dynamic labels and returns a comma
-// separated string.
-func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2) string {
-	labels := []string{}
-	for key, val := range static {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
-	}
-	for key, val := range dynamic {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, ",")
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -556,16 +505,6 @@ func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
 // SetCloudMetadata sets the server's cloud metadata.
 func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
 	s.Spec.CloudMetadata = meta
-}
-
-// IsAWSConsole returns true if this app is AWS management console.
-func (a *App) IsAWSConsole() bool {
-	return strings.HasPrefix(a.URI, constants.AWSConsoleURL)
-}
-
-// GetAWSAccountID returns value of label containing AWS account ID on this app.
-func (a *App) GetAWSAccountID() string {
-	return a.StaticLabels[constants.AWSAccountIDLabel]
 }
 
 // CommandLabel is a label that has a value as a result of the
