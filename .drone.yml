@@ -81,7 +81,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-amd64-centos7" '
+    -input "build-connect=true" -input "release-target=release-amd64-centos7" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -154,7 +154,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-386" '
+    -input "build-connect=false" -input "release-target=release-386" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -227,7 +227,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-amd64-centos7-fips" '
+    -input "build-connect=false" -input "release-target=release-amd64-centos7-fips" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -300,7 +300,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-windows-unsigned" '
+    -input "build-connect=false" -input "release-target=release-windows-unsigned" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -939,7 +939,7 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-linux.yaml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "release-target=release-arm" '
+    -input "build-connect=false" -input "release-target=release-arm" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -1376,7 +1376,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -1585,7 +1585,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -1793,7 +1793,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -2008,7 +2008,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -3308,7 +3308,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -4134,7 +4134,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -5463,7 +5463,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.20.6
+  RUNTIME: go1.20.7
 trigger:
   event:
     include:
@@ -6293,34 +6293,46 @@ steps:
   - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
     "build") > "/go/vars/release-environment.txt"
+  depends_on:
+  - Check out code
 - name: Publish Teleport to stable/${DRONE_TAG} apt repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
-    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
-    -input "package-to-test=teleport-ent" -input "release-channel=stable" -input "repo-type=apt"
-    -input "version-channel=${DRONE_TAG}" '
+    -tag-workflow -series-run -series-run-filter .*apt.* -timeout 12h0m0s -workflow
+    deploy-packages.yaml -workflow-ref=refs/heads/master -input "artifact-tag=${DRONE_TAG}"
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-name-filter=$($DRONE_REPO_PRIVATE
+    && echo "*ent*" || echo "")" -input "package-to-test=teleport-ent" -input "release-channel=stable"
+    -input "repo-type=apt" -input "version-channel=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+  depends_on:
+  - Determine if release should go to development or production
+- name: Wait - Publish Teleport to stable/${DRONE_TAG} yum repo
+  image: alpine:latest
+  commands:
+  - sleep 10
+  depends_on:
+  - Determine if release should go to development or production
 - name: Publish Teleport to stable/${DRONE_TAG} yum repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
-    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
-    -input "package-to-test=teleport-ent" -input "release-channel=stable" -input "repo-type=yum"
-    -input "version-channel=${DRONE_TAG}" '
+    -tag-workflow -series-run -series-run-filter .*yum.* -timeout 12h0m0s -workflow
+    deploy-packages.yaml -workflow-ref=refs/heads/master -input "artifact-tag=${DRONE_TAG}"
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "package-name-filter=$($DRONE_REPO_PRIVATE
+    && echo "*ent*" || echo "")" -input "package-to-test=teleport-ent" -input "release-channel=stable"
+    -input "repo-type=yum" -input "version-channel=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+  depends_on:
+  - Wait - Publish Teleport to stable/${DRONE_TAG} yum repo
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -18762,6 +18774,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: e62b1074cfe89f559626d790ba3a10f62473aab8ff3506c059b39575a2f7284e
+hmac: a81d79569e6447f66f952b830d5ceff2d9bb0a12f02791420c2102ca54cc51cd
 
 ...
