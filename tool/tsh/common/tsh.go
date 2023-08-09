@@ -179,7 +179,7 @@ type CLIConf struct {
 	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
-	// SiteName specifies remote site go login to
+	// SiteName specifies remote site to login to.
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
@@ -189,6 +189,9 @@ type CLIConf struct {
 	DaemonCertsDir string
 	// DaemonPrehogAddr is the URL where prehog events should be submitted.
 	DaemonPrehogAddr string
+	// DaemonKubeconfigsDir is the directory "Directory containing kubeconfig
+	// for Kubernetes Access.
+	DaemonKubeconfigsDir string
 	// DaemonPid is the PID to be stopped
 	DaemonPid int
 	// DatabaseService specifies the database proxy server to log into.
@@ -722,6 +725,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
+	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 

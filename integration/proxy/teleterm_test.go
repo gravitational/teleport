@@ -129,6 +129,7 @@ func testGatewayCertRenewal(t *testing.T, inst *helpers.TeleInstance, username, 
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
+		KubeconfigsDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
