@@ -426,7 +426,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 
 		var count int64
 		defer func() {
-			log.WithField("parsed_total", count).Debugf("Stop parsing messages from server.")
+			log.WithField("parsed_total", count).Debug("Stopped parsing messages from server.")
 		}()
 
 		for {
@@ -455,7 +455,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	}
 
 	serverErrCh <- trace.Wrap(err)
-	log.Debugf("Stop receiving from server. Transferred %v bytes.", total)
+	log.Debugf("Stopped receiving from server. Transferred %v bytes.", total)
 }
 
 // getConnectConfig returns config that can be used to connect to the
