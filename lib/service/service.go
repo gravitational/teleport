@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -1663,7 +1664,7 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
-	var embedderClient ai.Embedder
+	var embedderClient embedding.Embedder
 	if cfg.Auth.AssistAPIKey != "" {
 		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
 		// Like for proxy, if a custom OpenAIConfig is passed, the token from
@@ -3897,6 +3898,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			SessionControl:   sessionController,
 			PROXYSigner:      proxySigner,
 			OpenAIConfig:     cfg.OpenAIConfig,
+			NodeWatcher:      nodeWatcher,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

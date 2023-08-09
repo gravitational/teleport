@@ -136,6 +136,10 @@ type Handler struct {
 
 	// ClusterFeatures contain flags for supported and unsupported features.
 	ClusterFeatures proto.Features
+
+	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
+	// the proxy's cache and get nodes in real time.
+	nodeWatcher *services.NodeWatcher
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -258,6 +262,10 @@ type Config struct {
 
 	// OpenAIConfig provides config options for the OpenAI integration.
 	OpenAIConfig *openai.ClientConfig
+
+	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
+	// the proxy's cache and get nodes in real time.
+	NodeWatcher *services.NodeWatcher
 }
 
 type APIHandler struct {
@@ -407,6 +415,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 
 		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getWebConfig))
+	}
+
+	if cfg.NodeWatcher != nil {
+		h.nodeWatcher = cfg.NodeWatcher
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
