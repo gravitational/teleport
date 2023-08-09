@@ -17,14 +17,14 @@ access control (RBAC), you can define policies like the following:
 Before you get started, verify the following:
 
 - You have a Google Workspace super administrator account. 
-   As a best practice, you should set up a separate account that requires multifactor 
-   authentication to perform administrative actions. In most cases, you should avoid 
-   granting your own sign-in user account elevated administrative privileges.
+  As a best practice, you should set up a separate account that requires multifactor 
+  authentication to perform administrative actions. In most cases, you should avoid 
+  granting your own sign-in user account elevated administrative privileges.
 - You can sign up for Google Cloud and create a Google Cloud project. 
-   Note that this guide doesn't require using any paid Google Cloud services.
+  Note that this guide doesn't require using any paid Google Cloud services.
 - You can set up Google Workspace groups.
 - You have a Teleport role with permission to maintain `oidc` resources. 
-   This permission is available in the default `editor` role.
+  This permission is available in the preset `editor` role.
 - You have a Teleport cluster, Enterprise edition, and command-line tools.
    
    (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -50,10 +50,11 @@ for individuals and organizations. Because of differences between Google Workspa
 there are fundamental differences in how Teleport integrates with Google Workspace depending on
 the Google Workspace edition you use. 
 
-The key property that Teleport relies on to support Google Workspace is **transitive group membership**.
-With transitive group membership, a user can be a member of one group by virtue of being in another group. 
-For example, if there is a child group nested within a parent group, every member of the child group is also
-a member of the parent group.
+Some editions of Google Workspace provide **transitive group membership**.
+With transitive group membership, a user can be a member of one group by virtue of being in 
+another group. For example, if there is a child group nested within a parent group, every 
+member of the child group is also a member of the parent group. Teleport can support both 
+direct group membership and transitive group membership, but does so using different methods.
 
 #### Google Workspace editions and API
 
@@ -69,8 +70,8 @@ Workspace editions.
 
 #### How Teleport uses Google Workspace APIs
 
-The Teleport OIDC connector uses the Google Workspace APIs to map users in Teleport 
-roles to the Google Workspace groups they belong to.
+The Teleport OIDC connector uses the Google Workspace APIs to map Google Workspace 
+group members to the Teleport roles they belong to.
 
 To list a user's Google Workspace groups, Teleport first attempts to
 get credentials by calling Cloud Identity API methods. If successful, Teleport uses 
@@ -201,7 +202,6 @@ to save this information, then click **OK**.
 
    ![OAuth client data](../../../img/sso/googleoidc/oauth-client-id-and-secret.png)
 
-
 ### Create a service account
 
 To create a service account:
@@ -233,7 +233,7 @@ To create a service account:
    Google Cloud automatically downloads a JSON file with the keys for the service account 
    similar to the following:
 
-   ```code
+   ```yaml
    {
       "type": "service_account",
       "project_id": "teleport-project-xxxxxx",
@@ -310,7 +310,7 @@ $ tctl sso configure oidc --preset google --id <CLIENT-ID> \
 --google-acc '
 {
   "type": "service_account",
-  "project_id": <GOOGLE-PROJECT-ID>>,
+  "project_id": <GOOGLE-PROJECT-ID>,
   "private_key_id": <GOOGLE-PRIVATE-KEY-ID>,
   "private_key": "-----BEGIN PRIVATE KEY-----\n0000000000000w==\n-----END PRIVATE KEY-----\n",
   "client_email": <GOOGLE-SERVICE-ACCOUNT-EMAIL>,
@@ -377,7 +377,7 @@ make the JSON file available to all hosts running the Teleport Auth Service.
 ```code
 $ tctl sso configure oidc --preset google --id <CLIENT-ID> \
 --secret <CLIENT-SECRET> \
---google-acc-uri </PATH-TO-SERVICE-ACCOUNT-KEY>.json \
+--google-acc-uri <PATH-TO-SERVICE-ACCOUNT-KEY>.json \
 --claims-to-roles groups,auditor@example.com,auditor \
 --claims-to-roles groups,teleport-developers@example.com,access \
 --google-admin=<GOOGLE-WORKSPACE-ADMIN-EMAIL> > gworkspace-connector.yaml
