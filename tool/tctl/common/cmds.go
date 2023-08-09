@@ -42,6 +42,7 @@ func Commands() []CLICommand {
 		&ProxyCommand{},
 		&ResourceCommand{},
 		&EditCommand{},
+		&ACLCommand{},
 	}
 }
 
