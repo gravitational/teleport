@@ -384,6 +384,14 @@ const (
 	// TraitGCPServiceAccounts is the name of the role variable used to store
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
+
+	// TraitHostUserUID is the name of the variable used to specify
+	// the UID to create host user account with.
+	TraitHostUserUID = "host_user_uid"
+
+	// TraitHostUserGID is the name of the variable used to specify
+	// the GID to create host user account with.
+	TraitHostUserGID = "host_user_gid"
 )
 const (
 	// ProxyHelloSignature is a string which Teleport proxy will send
