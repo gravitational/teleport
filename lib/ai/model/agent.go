@@ -73,7 +73,7 @@ type AgentAction struct {
 // agentFinish is an event type representing the decision to finish a thought
 // loop and return a final text answer to the user.
 type agentFinish struct {
-	// output must be Message, StreamingMessage, CompletionCommand, AccessRequest or AccessRequestsDisplay.
+	// output must be Message, StreamingMessage, CompletionCommand, AccessRequest.
 	output any
 }
 
