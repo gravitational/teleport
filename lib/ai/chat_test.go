@@ -109,9 +109,10 @@ func TestChat_PromptTokens(t *testing.T) {
 
 			client := NewClientFromConfig(cfg)
 
-			toolsConfig := model.ToolsConfig{DisableEmbeddingsTool: true}
-			chat, err := client.NewChat("Bob", toolsConfig)
-			require.NoError(t, err)
+			toolContext := model.ToolContext{
+				User: "Bob",
+			}
+			chat := client.NewChat(&toolContext)
 
 			for _, message := range tt.messages {
 				chat.Insert(message.Role, message.Content)
@@ -152,12 +153,13 @@ func TestChat_Complete(t *testing.T) {
 	cfg.BaseURL = server.URL + "/v1"
 	client := NewClientFromConfig(cfg)
 
-	toolsConfig := model.ToolsConfig{DisableEmbeddingsTool: true}
-	chat, err := client.NewChat("Bob", toolsConfig)
-	require.NoError(t, err)
+	toolContext := model.ToolContext{
+		User: "Bob",
+	}
+	chat := client.NewChat(&toolContext)
 
 	ctx := context.Background()
-	_, _, err = chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
+	_, _, err := chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
 	require.NoError(t, err)
 
 	chat.Insert(openai.ChatMessageRoleUser, "Show me free disk space on localhost node.")

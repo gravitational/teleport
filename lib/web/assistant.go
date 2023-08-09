@@ -567,12 +567,16 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 		return trace.Wrap(err)
 	}
 
-	toolsConfig := model.ToolsConfig{
-		EmbeddingsClient: authClient.EmbeddingClient(),
-		AccessChecker:    ac,
-		NodeClient:       h.nodeWatcher,
+	toolContext := &model.ToolContext{
+		AssistEmbeddingServiceClient: authClient.EmbeddingClient(),
+		AccessRequestClient:          authClient,
+		AccessChecker:                ac,
+		NodeWatcher:                  h.nodeWatcher,
+		ClusterName:                  sctx.cfg.Parent.clusterName,
+		User:                         sctx.GetUser(),
 	}
-	chat, err := assistClient.NewChat(ctx, authClient, conversationID, sctx.GetUser(), toolsConfig)
+
+	chat, err := assistClient.NewChat(ctx, toolContext, conversationID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -602,7 +606,14 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 			return trace.Wrap(err)
 		}
 
-		if !h.assistantLimiter.AllowN(h.clock.Now(), lookaheadTokens) {
+		if wsIncoming.Type == assist.MessageKindAccessRequestCreated {
+			chat.RecordMesssage(ctx, wsIncoming.Type, wsIncoming.Payload)
+		}
+
+		// We can not know how many tokens we will consume in advance.
+		// Try to consume a small amount of tokens first.
+		const lookaheadTokens = 100
+		if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
 			err := onMessageFn(ws, assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
 			if err != nil {
 				return trace.Wrap(err)

@@ -48,40 +48,30 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 
 // NewChat creates a new chat. The username is set in the conversation context,
 // so that the AI can use it to personalize the conversation.
-// toolsConfig contains all required clients and configuration for agent tools
-// to interact with Teleport.
-func (client *Client) NewChat(username string, toolsConfig model.ToolsConfig) (*Chat, error) {
-	tools := []model.Tool{
-		model.NewExecutionTool(),
-	}
-	if !toolsConfig.DisableEmbeddingsTool {
-		tools = append(tools, model.NewRetrievalTool(toolsConfig.EmbeddingsClient, toolsConfig.NodeClient,
-			toolsConfig.AccessChecker, username))
-	}
-	agent, err := model.NewAgent(tools...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// embeddingServiceClient is used to get the embeddings from the Auth Server.
+func (client *Client) NewChat(toolContext *model.ToolContext) *Chat {
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: model.PromptCharacter(username),
+				Content: model.PromptCharacter(toolContext.User),
 			},
 		},
 		// Initialize a tokenizer for prompt token accounting.
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
-		agent:     agent,
-	}, nil
+		agent: model.NewAgent(toolContext, &model.CommandExecutionTool{},
+			&model.EmbeddingRetrievalTool{},
+			&model.AccessRequestCreateTool{},
+			&model.AccessRequestsListTool{},
+			&model.AccessRequestListRequestableRolesTool{},
+			&model.AccessRequestListRequestableResourcesTool{}),
+	}
 }
 
-func (client *Client) NewCommand(username string) (*Chat, error) {
-	agent, err := model.NewAgent(model.NewGenerateTool())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (client *Client) NewCommand(username string) *Chat {
+	toolContext := &model.ToolContext{User: username}
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{
@@ -93,8 +83,8 @@ func (client *Client) NewCommand(username string) (*Chat, error) {
 		// Initialize a tokenizer for prompt token accounting.
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
-		agent:     agent,
-	}, nil
+		agent:     model.NewAgent(toolContext, &model.CommandGenerationTool{}),
+	}
 }
 
 // Summary creates a short summary for the given input.

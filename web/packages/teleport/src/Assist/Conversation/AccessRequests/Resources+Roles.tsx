@@ -15,14 +15,21 @@
  */
 
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
-import { ApplicationsIcon, LeafIcon, ServerIcon } from 'design/SVGIcon';
+import {
+  ApplicationsIcon,
+  DatabasesIcon,
+  DesktopsIcon,
+  KubernetesIcon,
+  RolesIcon,
+  ServersIcon,
+} from 'design/SVGIcon';
 
-import type { Resource } from 'teleport/Assist/types';
+import type { AccessRequestResource, Resource } from 'teleport/Assist/types';
 
 interface ResourcesProps {
-  resources: Resource[];
+  resources: AccessRequestResource[];
 }
 
 const Container = styled.div`
@@ -45,6 +52,10 @@ const Resource = styled.div`
 
   &:hover {
     background: ${p => p.theme.colors.spotBackground[1]};
+  }
+
+  svg path {
+    fill: ${p => p.theme.colors.text.slightlyMuted};
   }
 `;
 
@@ -73,53 +84,61 @@ const ResourceName = styled.div`
 `;
 
 export function Resources(props: ResourcesProps) {
-  const theme = useTheme();
-
   return (
     <Container>
-      {props.resources.map((resource, index) => (
+      {props.resources.map((resource, index) => {
+        const name =
+          resource.type === 'node' ? resource.friendlyName : resource.id;
+
+        return (
+          <Resource key={index}>
+            {getBadge(resource.type)}
+
+            <ResourceName>{name}</ResourceName>
+          </Resource>
+        );
+      })}
+    </Container>
+  );
+}
+
+interface RolesProps {
+  roles: string[];
+}
+
+export function Roles(props: RolesProps) {
+  return (
+    <Container>
+      {props.roles.map((role, index) => (
         <Resource key={index}>
-          {getBadge(
-            resource.type,
-            resource.cluster,
-            theme.colors.text.slightlyMuted
-          )}
-          <ResourceName>{resource.name}</ResourceName>
-          {getClusterBadge(
-            resource.type,
-            resource.cluster,
-            theme.colors.text.slightlyMuted
-          )}
+          <RolesIcon size={14} />
+
+          <ResourceName>{role}</ResourceName>
         </Resource>
       ))}
     </Container>
   );
 }
 
-function getBadge(type: string, cluster: string, color: string) {
-  if (type === 'server') {
-    return <ServerIcon size={14} fill={color} />;
+function getBadge(type: string) {
+  if (type === 'node') {
+    return <ServersIcon size={14} />;
   }
 
-  if (type === 'application') {
-    return <ApplicationsIcon size={14} fill={color} />;
+  if (type === 'app') {
+    return <ApplicationsIcon size={14} />;
   }
 
-  return null;
-}
+  if (type === 'kubernetes') {
+    return <KubernetesIcon size={14} />;
+  }
 
-function getClusterBadge(type: string, cluster: string, color: string) {
-  if (type === 'server') {
-    if (cluster === 'teleport') {
-      return null;
-    }
+  if (type === 'desktop') {
+    return <DesktopsIcon size={14} />;
+  }
 
-    return (
-      <ResourceLeafCluster style={{ marginLeft: 20, marginRight: -8 }}>
-        <LeafIcon size={10} fill={color} />
-        {cluster}
-      </ResourceLeafCluster>
-    );
+  if (type === 'database') {
+    return <DatabasesIcon size={14} />;
   }
 
   return null;

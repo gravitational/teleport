@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package assistv1
+package assistv1_test
 
 import (
 	"context"
@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/assist"
+	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -182,7 +183,7 @@ func TestService_DeleteAssistantConversations(t *testing.T) {
 			ctxs, svc := initSvc(t)
 
 			// Create a conversation that we can remove, so we don't hit "conversation doesn't exist" error
-			convMsg, err := svc.backend.CreateAssistantConversation(ctxs[tt.username], &assistpb.CreateAssistantConversationRequest{
+			convMsg, err := svc.CreateAssistantConversation(ctxs[tt.username], &assistpb.CreateAssistantConversationRequest{
 				Username:    tt.username,
 				CreatedTime: timestamppb.Now(),
 			})
@@ -243,7 +244,7 @@ func TestService_InsertAssistantMessage(t *testing.T) {
 			ctxs, svc := initSvc(t)
 
 			// Create a conversation that we can remove, so we don't hit "conversation doesn't exist" error
-			convMsg, err := svc.backend.CreateAssistantConversation(ctxs[tt.username], &assistpb.CreateAssistantConversationRequest{
+			convMsg, err := svc.CreateAssistantConversation(ctxs[tt.username], &assistpb.CreateAssistantConversationRequest{
 				Username:    tt.username,
 				CreatedTime: timestamppb.Now(),
 			})
@@ -259,7 +260,7 @@ func TestService_InsertAssistantMessage(t *testing.T) {
 	}
 }
 
-func initSvc(t *testing.T) (map[string]context.Context, *Service) {
+func initSvc(t *testing.T) (map[string]context.Context, *assistv1.Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -349,7 +350,7 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 		ctxs[user.GetName()] = ctx
 	}
 
-	svc, err := NewService(&ServiceConfig{
+	svc, err := assistv1.NewService(&assistv1.ServiceConfig{
 		Backend:        local.NewAssistService(backend),
 		Authorizer:     authorizer,
 		Embeddings:     &ai.SimpleRetriever{},

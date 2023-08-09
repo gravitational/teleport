@@ -45,6 +45,13 @@ const (
 	MessageKindCommand MessageType = "COMMAND"
 	// MessageKindCommandResult is the type of Assist message that contains the command execution result.
 	MessageKindCommandResult MessageType = "COMMAND_RESULT"
+	// MessageKindAccessRequest is the type of Assist message that contains the access request.
+	MessageKindAccessRequest MessageType = "ACCESS_REQUEST"
+	// MessageKindAccessRequestCreated is a marker message to indicate that an access request was created.
+	MessageKindAccessRequestCreated MessageType = "ACCESS_REQUEST_CREATED"
+	// MessageKindAccessRequestsDisplay is the type of Assist message that contains one or more access
+	// requests to display inline in the conversation.
+	MessageKindAccessRequestsDisplay MessageType = "ACCESS_REQUESTS_DISPLAY"
 	// MessageKindCommandResultSummary is the type of message that is optionally
 	// emitted after a command and contains a summary of the command output.
 	// This message is both sent after the command execution to the web UI,
@@ -120,20 +127,16 @@ type Chat struct {
 }
 
 // NewChat creates a new Assist chat.
-func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
-	conversationID, username string, toolsConfig model.ToolsConfig,
+func (a *Assist) NewChat(ctx context.Context, toolContext *model.ToolContext,
+	conversationID string,
 ) (*Chat, error) {
-	aichat, err := a.client.NewChat(username, toolsConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	aichat := a.client.NewChat(toolContext)
 
 	chat := &Chat{
 		assist:                  a,
 		chat:                    aichat,
-		assistService:           assistService,
 		ConversationID:          conversationID,
-		Username:                username,
+		Username:                toolContext.User,
 		potentiallyStaleHistory: false,
 	}
 
@@ -154,11 +157,7 @@ type LightweightChat struct {
 // NewLightweightChat creates a new Assist chat what doesn't store the history
 // of the conversation.
 func (a *Assist) NewLightweightChat(username string) (*LightweightChat, error) {
-	aichat, err := a.client.NewCommand(username) // TODO(jakule): fix this after all in-flight PRs are merged
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	aichat := a.client.NewCommand(username)
 	return &LightweightChat{
 		assist: a,
 		chat:   aichat,
@@ -166,7 +165,7 @@ func (a *Assist) NewLightweightChat(username string) (*LightweightChat, error) {
 }
 
 func (a *Assist) NewSSHCommand(username string) (*ai.Chat, error) {
-	return a.client.NewCommand(username)
+	return a.client.NewCommand(username), nil
 }
 
 // GenerateSummary generates a summary for the given message.
@@ -293,6 +292,30 @@ func getAssistantClient(ctx context.Context, proxyClient PluginGetter,
 // onMessageFunc is a function that is called when a message is received.
 type onMessageFunc func(kind MessageType, payload []byte, createdTime time.Time) error
 
+// RecordMessage is used to record out-of-band messages such as hidden acknowledgements.
+func (c *Chat) RecordMesssage(ctx context.Context, kind MessageType, payload string) error {
+	switch kind {
+	case MessageKindAccessRequestCreated:
+		protoMsg := &assist.CreateAssistantMessageRequest{
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindAssistantMessage),
+				Payload:     payload,
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+		}
+
+		if err := c.assistService.CreateAssistantMessage(ctx, protoMsg); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unsupported market message kind: %v", kind)
+	}
+
+	return nil
+}
+
 // ProcessComplete processes the completion request and returns the number of tokens used.
 func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
 ) (*model.TokenCount, error) {
@@ -391,13 +414,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			return nil, trace.Wrap(err)
 		}
 	case *model.CompletionCommand:
-		payload := commandPayload{
-			Command: message.Command,
-			Nodes:   message.Nodes,
-			Labels:  message.Labels,
-		}
-
-		payloadJson, err := json.Marshal(payload)
+		payloadJson, err := json.Marshal(message)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -424,6 +441,65 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		// To take this command summary into account, we note the history might
 		// be stale.
 		c.potentiallyStaleHistory = true
+	case *model.AccessRequest:
+		payloadJson, err := json.Marshal(message)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		msg := &assist.CreateAssistantMessageRequest{
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindAccessRequest),
+				Payload:     string(payloadJson),
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+		}
+
+		if err := c.assistService.CreateAssistantMessage(ctx, msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := onMessage(MessageKindAccessRequest, payloadJson, c.assist.clock.Now().UTC()); nil != err {
+			return nil, trace.Wrap(err)
+		}
+	//case *model.AccessRequestsDisplay:
+	//	payload := &AccessRequestsDisplayPayload{
+	//		AccessRequests: make([]*ui.AccessRequest, 0, len(message.AccessRequests)),
+	//	}
+
+	//	for _, accessRequest := range message.AccessRequests {
+	//		item, err := ui.NewAccessRequest(accessRequest)
+	//		if err != nil {
+	//			return nil, trace.Wrap(err)
+	//		}
+
+	//		payload.AccessRequests = append(payload.AccessRequests, item)
+	//	}
+
+	//	payloadJson, err := json.Marshal(payload)
+	//	if err != nil {
+	//		return nil, trace.Wrap(err)
+	//	}
+
+	//	msg := &assist.CreateAssistantMessageRequest{
+	//		ConversationId: c.ConversationID,
+	//		Username:       c.Username,
+	//		Message: &assist.AssistantMessage{
+	//			Type:        string(MessageKindAccessRequestsDisplay),
+	//			Payload:     string(payloadJson),
+	//			CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+	//		},
+	//	}
+
+	//	if err := c.assistService.CreateAssistantMessage(ctx, msg); err != nil {
+	//		return nil, trace.Wrap(err)
+	//	}
+
+	//	if err := onMessage(MessageKindAccessRequestsDisplay, payloadJson, c.assist.clock.Now().UTC()); nil != err {
+	//		return nil, trace.Wrap(err)
+	//	}
 	default:
 		return nil, trace.Errorf("unknown message type: %T", message)
 	}
