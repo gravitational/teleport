@@ -179,7 +179,7 @@ type CLIConf struct {
 	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
-	// SiteName specifies remote site go login to
+	// SiteName specifies remote site to login to.
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
