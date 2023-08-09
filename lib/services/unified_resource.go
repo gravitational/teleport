@@ -110,40 +110,40 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 
 // Put stores the value into backend (creates if it does not
 // exist, updates it otherwise)
-func (c *UnifiedResourceCache) put(i item) error {
+func (c *UnifiedResourceCache) put(ctx context.Context, i item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.tree.ReplaceOrInsert(&i)
-	return nil
+	return c.read(ctx, func(tree *btree.BTreeG[*item]) error {
+		tree.ReplaceOrInsert(&i)
+		return nil
+	})
 }
 
-func putResources[T resource](c *UnifiedResourceCache, resources []T) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, resource := range resources {
-		c.tree.ReplaceOrInsert(&item{Key: resourceKey(resource), Value: resource})
-	}
-	return nil
+func putResources[T resource](ctx context.Context, c *UnifiedResourceCache, resources []T) error {
+	return c.read(ctx, func(tree *btree.BTreeG[*item]) error {
+		for _, resource := range resources {
+			tree.ReplaceOrInsert(&item{Key: resourceKey(resource), Value: resource})
+		}
+		return nil
+	})
 }
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (c *UnifiedResourceCache) delete(key []byte) error {
+func (c *UnifiedResourceCache) delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if _, ok := c.tree.Delete(&item{Key: key}); !ok {
-		return trace.NotFound("key %q is not found", string(key))
-	}
-	return nil
+	return c.read(ctx, func(tree *btree.BTreeG[*item]) error {
+		if _, ok := tree.Delete(&item{Key: key}); !ok {
+			return trace.NotFound("key %q is not found", string(key))
+		}
+		return nil
+	})
 }
 
-func (c *UnifiedResourceCache) getRange(startKey, endKey []byte, limit int) ([]resource, error) {
+func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey, endKey []byte, limit int) ([]resource, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -153,31 +153,32 @@ func (c *UnifiedResourceCache) getRange(startKey, endKey []byte, limit int) ([]r
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	var res []resource
-	c.tree.AscendRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
-		res = append(res, item.Value)
-		if limit > 0 && len(res) >= limit {
-			return false
-		}
-		return true
+	err := c.read(ctx, func(tree *btree.BTreeG[*item]) error {
+		tree.AscendRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
+			res = append(res, item.Value)
+			if limit > 0 && len(res) >= limit {
+				return false
+			}
+			return true
+		})
+		return nil
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	if len(res) == backend.DefaultRangeLimit {
 		c.log.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
+
 	return res, nil
 }
 
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree
 func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
-	if err := c.refreshStaleResources(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	result, err := c.getRange(backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
+	result, err := c.getRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting unified resource range")
 	}
@@ -217,7 +218,17 @@ func resourceKey(resource types.Resource) []byte {
 	return backend.Key(prefix, resource.GetName(), resource.GetKind())
 }
 
+func (c *UnifiedResourceCache) clear(ctx context.Context) {
+	c.read(ctx, func(tree *btree.BTreeG[*item]) error {
+		// we don't add the nodes to the feeList and just delete immediately, allowing
+		// garbage collection to remove the old nodes
+		tree.Clear(false)
+		return nil
+	})
+}
+
 func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	c.clear(ctx)
 	err := c.getAndUpdateNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -248,6 +259,8 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -260,7 +273,7 @@ func (c *UnifiedResourceCache) getAndUpdateNodes(ctx context.Context) error {
 		return trace.Wrap(err, "getting nodes for unified resource watcher")
 	}
 
-	return trace.Wrap(putResources[types.Server](c, newNodes))
+	return trace.Wrap(putResources[types.Server](ctx, c, newNodes))
 }
 
 // getAndUpdateDatabases will get database servers and update the current tree with each DatabaseServer
@@ -270,18 +283,23 @@ func (c *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) error 
 		return trace.Wrap(err, "getting databases for unified resource watcher")
 	}
 
-	return trace.Wrap(putResources[types.DatabaseServer](c, newDbs))
+	return trace.Wrap(putResources[types.DatabaseServer](ctx, c, newDbs))
 }
 
-func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error {
+// read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
+// wether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
+// not be accessed after the closure completes.
+func (c *UnifiedResourceCache) read(ctx context.Context, fn func(tree *btree.BTreeG[*item]) error) error {
 	c.mu.Lock()
-	if !c.stale && c.isInitialized() {
+
+	if !c.stale {
+		fn(c.tree)
 		c.mu.Unlock()
 		return nil
 	}
-	c.mu.Unlock()
 
-	_, err := utils.FnCacheGet(ctx, c.cache, "unified_resources", func(ctx context.Context) (any, error) {
+	c.mu.Unlock()
+	ttlTree, err := utils.FnCacheGet(ctx, c.cache, "unified_resources", func(ctx context.Context) (*btree.BTreeG[*item], error) {
 		fallbackCache := &UnifiedResourceCache{
 			cfg: c.cfg,
 			tree: btree.NewG(c.cfg.BTreeDegree, func(a, b *item) bool {
@@ -293,22 +311,25 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 		if err := fallbackCache.getResourcesAndUpdateCurrent(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		c.mu.Lock()
-		defer c.mu.Unlock()
-
-		// There is a chance that the watcher reinitialized while
-		// getting resources happened above. Check if we are still stale
-		// now that the lock is held to ensure that the refresh is
-		// still necessary.
-		if !c.stale {
-			return nil, nil
-		}
-
-		c.tree = fallbackCache.tree
 		return fallbackCache.tree, nil
 	})
-	return trace.Wrap(err)
+	c.mu.Lock()
+
+	if !c.stale {
+		// primary became healthy while we were waiting
+		fn(c.tree)
+		c.mu.Unlock()
+		return nil
+	}
+	c.mu.Unlock()
+
+	if err != nil {
+		// ttl-tree setup failed
+		return trace.Wrap(err)
+	}
+
+	fn(ttlTree)
+	return nil
 }
 
 // getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
@@ -318,7 +339,7 @@ func (c *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) error {
 		return trace.Wrap(err, "getting kubes for unified resource watcher")
 	}
 
-	return trace.Wrap(putResources[types.KubeServer](c, newKubes))
+	return trace.Wrap(putResources[types.KubeServer](ctx, c, newKubes))
 }
 
 // getAndUpdateApps will get application servers and update the current tree with each AppServer
@@ -328,7 +349,7 @@ func (c *UnifiedResourceCache) getAndUpdateApps(ctx context.Context) error {
 		return trace.Wrap(err, "getting apps for unified resource watcher")
 	}
 
-	return trace.Wrap(putResources[types.AppServer](c, newApps))
+	return trace.Wrap(putResources[types.AppServer](ctx, c, newApps))
 }
 
 // getAndUpdateSAMLApps will get SAML Idp Service Providers servers and update the current tree with each SAMLIdpServiceProvider
@@ -351,7 +372,7 @@ func (c *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
 		startKey = nextKey
 	}
 
-	return trace.Wrap(putResources[types.SAMLIdPServiceProvider](c, newSAMLApps))
+	return trace.Wrap(putResources[types.SAMLIdPServiceProvider](ctx, c, newSAMLApps))
 }
 
 // getAndUpdateDesktops will get windows desktops and update the current tree with each Desktop
@@ -361,7 +382,7 @@ func (c *UnifiedResourceCache) getAndUpdateDesktops(ctx context.Context) error {
 		return trace.Wrap(err, "getting desktops for unified resource watcher")
 	}
 
-	return trace.Wrap(putResources[types.WindowsDesktop](c, newDesktops))
+	return trace.Wrap(putResources[types.WindowsDesktop](ctx, c, newDesktops))
 }
 
 func (c *UnifiedResourceCache) notifyStale() {
@@ -374,7 +395,7 @@ func (c *UnifiedResourceCache) initializationChan() <-chan struct{} {
 	return c.initializationC
 }
 
-func (c *UnifiedResourceCache) isInitialized() bool {
+func (c *UnifiedResourceCache) IsInitialized() bool {
 	select {
 	case <-c.initializationC:
 		return true
@@ -391,9 +412,9 @@ func (c *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context,
 
 	switch event.Type {
 	case types.OpDelete:
-		c.delete(resourceKey(event.Resource))
+		c.delete(ctx, resourceKey(event.Resource))
 	case types.OpPut:
-		c.put(item{
+		c.put(ctx, item{
 			Key:   resourceKey(event.Resource),
 			Value: event.Resource.(resource),
 		})
