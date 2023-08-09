@@ -112,7 +112,6 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 		}
 
 		output, err := a.takeNextStep(ctx, state, progressUpdates)
-		log.Debugf("agent took step with output %#v", output)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -179,8 +178,6 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		log.Trace("agent picked finish, returning")
 		return stepOutput{finish: finish}, nil
 	}
-
-	log.Debugf("agent decided on action %v with input %v", action.Action, action.Input)
 
 	if state.isRepeatAction(action) {
 		return stepOutput{action: action, observation: "You've already ran this tool with this input."}, nil
