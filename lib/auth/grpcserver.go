@@ -5281,6 +5281,20 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance config singleton.
+func (g *GRPCServer) DeleteClusterMaintenanceConfig(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteClusterMaintenanceConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
