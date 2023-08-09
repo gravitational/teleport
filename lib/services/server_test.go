@@ -101,6 +101,10 @@ func TestNewAWSNodeFromEC2Instance(t *testing.T) {
 					Key:   aws.String("region"),
 					Value: aws.String("evil"),
 				})
+				i.Tags = append(i.Tags, ec2Types.Tag{
+					Key:   aws.String("account-id"),
+					Value: aws.String("evil"),
+				})
 			}),
 			awsCloudMetadata: &types.AWSInfo{
 				AccountID:   "1234567889012",
