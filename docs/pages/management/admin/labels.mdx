@@ -1,6 +1,6 @@
 ---
 title: Add Labels to Resources
-description: Labeling Teleport resources
+description: How to assign static and command-based dynamic labels to Teleport resources.
 ---
 
 Teleport allows you to add arbitrary key-value pairs to applications, servers,
@@ -8,17 +8,16 @@ databases, and other resources in your cluster. You can use labels to do
 the following:
 
 - Filter the resources returned when running `tctl` and `tsh` commands.
-- Limit the resources that Teleport roles can access.
+- Define roles that limit the resources Teleport users can access.
 
 This guide demonstrates how to add labels to enrolled server resources.
-However, you can use these instructions to add labels for any type 
-of resource managed by Teleport.
+However, you can follow a similar steps to add labels to other types of resources.
 
 ## Static and dynamic labels
 
 The labels you assign to resources can be **static labels** or **dynamic labels**.
 
-- Static labels are hardcoded in the `teleport` configuration file and don't change 
+- Static labels are hardcoded in the Teleport configuration file and don't change 
 while the `teleport` process is running. For example, you might use a static label to identify 
 the resources in a `staging` or `production` environment.
 - Dynamic labels—also known as **commands-based labels**—allow you to generate labels at runtime. 
@@ -48,14 +47,14 @@ but filter and limit access to the servers based on their AWS region.
 
 1. (!docs/pages/includes/install-linux.mdx!)
 
-1. Generate an invitation token for your local computer.
+1. Generate an invitation token for the host.
    
    The invitation token is required for the local computer to join the Teleport cluster.   
    The following example generates a new token that is valid for five minutes and can be used 
-   to enrolled a server, database, and application resource:
+   to enroll a server:
    
    ```code
-   $ tctl tokens add --ttl=5m --type=node,db,app
+   $ tctl tokens add --ttl=5m --type=node
    # The invite token: (=presets.tokens.first=)
    ```
 
@@ -82,7 +81,7 @@ starting Teleport.
 
 To add a static label:
 
-1. Open the Teleport configuration file—by default, `/etc/teleport.yaml`—in an editor on the computer 
+1. Open the Teleport configuration file, `/etc/teleport.yaml`, in an editor on the computer 
 where you installed the Teleport agent.
 
 1. Locate the `labels` configuration under the `ssh_service` section.
@@ -116,8 +115,8 @@ on your local computer.
 
    ```code
    Node Name        Address    Labels                                                                                                       
-   ---------------- ---------- ------------------------------------------------------------------------
-   ip-192-168-13-57 ⟵ Tunnel   environment=dev,hostname=ip-192-168-13-57,teleport.internal/resource-id
+   ---------------- ---------- ------------------------------------------
+   ip-192-168-13-57 ⟵ Tunnel   environment=dev,hostname=ip-192-168-13-57
    ```
 
    #### Checking the status of your server
@@ -154,41 +153,16 @@ on your local computer.
      Extensions:         login-ip, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
    ```
    
-   If no valid local logins have been assigned to the user, you should update your current user profile to include
-   at least one valid local login.
+   If no valid logins have been assigned to the user, you should update your current user profile to include
+   at least one valid login.
    
-   To add logins to your current user:
-
-   1. Retrieve your user configuration as YAML by replacing `myuser` with your Teleport username:
+   You can add logins to a user by running a command similar to the following:
       
-      ```code
-      $ tctl get user/myuser > user.yaml
-      ```
+   ```code
+   $ ttctl users update myuser --set-logins=root
+   ```
    
-   1. Locate the `traits` section and update the `logins` field to specify one or more local users that exist 
-   on the local host:
-
-      ```diff
-       traits:
-         db_users: null
-         kubernetes_groups: null
-         kubernetes_users: null
-      -  logins: null
-      +  logins:
-      +  - root
-         windows_logins: null
-      version: v2
-      ```
-
-   1. Apply your changes by running the following command:
-
-      ```code
-      $ tctl create -f user.yaml
-      user "myuser" has been updated
-      ```
-
-   1. Sign out, then sign back in to the cluster and run `tsh ls`.
-
+   This example adds the `root` login to the `myuser` Teleport user.
    For more information about managing logins for Teleport users, see [Local Users](../../management/admin/users).
 
 #### Using hidden static labels
@@ -263,7 +237,7 @@ host server every one hour.
    
    In configuring commands, keep the following in mind:
    
-   - You must specify the path to a valid executable program or file. 
+   - The executable must be discoverable in the `$PATH` or specified using an absolute path. 
    - You must set the executable permission bit on any file you use as a command. 
    - Shell scripts must have a [shebang line](https://en.wikipedia.org/wiki/Shebang_\(Unix\)).
    
@@ -294,31 +268,12 @@ computer. Your Teleport user must be authorized to access the Node.
    ip-192-168-13-57 ⟵ Tunnel       arch=x86_64,environment=dev,hostname=ip-192-168-13-57,teleport.internal/resource-id 
    ```
 
-## Adding resources and restarting
-
-In this guide, you learned how to add and apply a static label and a command-based dynamic label 
-for a server resource. If you want to add labels for other resources—for example, a database 
-or application—you might have to create another invitation token using the `tctl tokens add` command
-and start the Teleport service again with the new token.
-
-To restart a server with new resources:
-
-1. Generate a new invitation token.
-   
-   ```code
-   $ tctl tokens add --type=app
-   ```
-
-1. Delete the directory your server uses to maintain its state, by default `/var/lib/teleport`.
-
-1. Restart the Teleport service on the server with the new invitation token.
-
 ## Next steps
 
 After you have labeled your resources, you can use the labels when running
 `tsh` and `tctl` commands to filter the resources that the commands return.
 For more information, see [Resource filtering](../../reference/predicate-language.mdx).
 
-You can also use labels to limit the access that different roles have to
+You can also use labels to limit the access that users in different roles have to
 specific classes of resources. For more information, see
 [Teleport Role Templates](../../access-controls/guides/role-templates.mdx).
