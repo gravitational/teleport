@@ -406,7 +406,7 @@ func buildKeyLabel(key string, sensitivePrefixes, singletonPrefixes []string, is
 	var realStart int
 
 	// skip leading space if one exists so that we can consistently access path segments by
-	// index regardless of wether or not the specific path has a leading separator.
+	// index regardless of whether or not the specific path has a leading separator.
 	if finalLen-realStart > 1 && parts[realStart] == "" {
 		realStart = 1
 	}
