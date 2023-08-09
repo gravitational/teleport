@@ -423,7 +423,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     name: 'Jira',
     fullName: 'Jira',
     icon: jiraIcon,
-    url: 'https://https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira',
+    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira',
     hosted: true,
     permissions: [
       {
