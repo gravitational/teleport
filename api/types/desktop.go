@@ -214,7 +214,7 @@ func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
 }
 
 func (d *WindowsDesktopV3) CloneResource() ResourceWithLabels {
-	return utils.CloneProtoMsg(d)
+	return d.Copy()
 }
 
 // DeduplicateDesktops deduplicates desktops by name.

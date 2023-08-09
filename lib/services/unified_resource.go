@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
 type UnifiedResourceCacheConfig struct {
 	// BTreeDegree is a degree of B-Tree, 2 for example, will create a
 	// 2-3-4 tree (each node contains 1-3 items and 2-4 children).
@@ -50,7 +51,7 @@ type UnifiedResourceCache struct {
 	log *log.Entry
 	cfg UnifiedResourceCacheConfig
 	// tree is a BTree with items
-	tree            *btree.BTreeG[*Item]
+	tree            *btree.BTreeG[*item]
 	initializationC chan struct{}
 	stale           bool
 	once            sync.Once
@@ -75,10 +76,10 @@ func NewUnifiedResourceCache(ctx context.Context, cfg UnifiedResourceCacheConfig
 
 	m := &UnifiedResourceCache{
 		log: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentMemory,
+			trace.Component: cfg.Component,
 		}),
 		cfg: cfg,
-		tree: btree.NewG(cfg.BTreeDegree, func(a, b *Item) bool {
+		tree: btree.NewG(cfg.BTreeDegree, func(a, b *item) bool {
 			return a.Less(b)
 		}),
 		initializationC: make(chan struct{}),
@@ -107,9 +108,9 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Put puts value into backend (creates if it does not
+// Put stores the value into backend (creates if it does not
 // exist, updates it otherwise)
-func (c *UnifiedResourceCache) put(i Item) error {
+func (c *UnifiedResourceCache) put(i item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -123,7 +124,7 @@ func putResources[T resource](c *UnifiedResourceCache, resources []T) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, resource := range resources {
-		c.tree.ReplaceOrInsert(&Item{Key: keyOf(resource), Value: resource})
+		c.tree.ReplaceOrInsert(&item{Key: resourceKey(resource), Value: resource})
 	}
 	return nil
 }
@@ -136,7 +137,7 @@ func (c *UnifiedResourceCache) delete(key []byte) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, ok := c.tree.Delete(&Item{Key: key}); !ok {
+	if _, ok := c.tree.Delete(&item{Key: key}); !ok {
 		return trace.NotFound("key %q is not found", string(key))
 	}
 	return nil
@@ -156,7 +157,7 @@ func (c *UnifiedResourceCache) getRange(startKey, endKey []byte, limit int) ([]r
 	defer c.mu.Unlock()
 
 	var res []resource
-	c.tree.AscendRange(&Item{Key: startKey}, &Item{Key: endKey}, func(item *Item) bool {
+	c.tree.AscendRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
 		res = append(res, item.Value)
 		if limit > 0 && len(res) >= limit {
 			return false
@@ -189,6 +190,8 @@ func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types
 	return resources, nil
 }
 
+// ResourceGetter is an interface that provides a way to fetch all the resources
+// that can be stored in the UnifiedResourceCache
 type ResourceGetter interface {
 	NodesGetter
 	DatabaseServersGetter
@@ -210,7 +213,7 @@ func newWatcher(ctx context.Context, resourceCache *UnifiedResourceCache, cfg Re
 	return nil
 }
 
-func keyOf(resource types.Resource) []byte {
+func resourceKey(resource types.Resource) []byte {
 	return backend.Key(prefix, resource.GetName(), resource.GetKind())
 }
 
@@ -281,7 +284,7 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 	_, err := utils.FnCacheGet(ctx, c.cache, "unified_resources", func(ctx context.Context) (any, error) {
 		fallbackCache := &UnifiedResourceCache{
 			cfg: c.cfg,
-			tree: btree.NewG(c.cfg.BTreeDegree, func(a, b *Item) bool {
+			tree: btree.NewG(c.cfg.BTreeDegree, func(a, b *item) bool {
 				return a.Less(b)
 			}),
 			ResourceGetter:  c.ResourceGetter,
@@ -389,10 +392,10 @@ func (c *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context,
 
 	switch event.Type {
 	case types.OpDelete:
-		c.delete(keyOf(event.Resource))
+		c.delete(resourceKey(event.Resource))
 	case types.OpPut:
-		c.put(Item{
-			Key:   keyOf(event.Resource),
+		c.put(item{
+			Key:   resourceKey(event.Resource),
 			Value: event.Resource.(resource),
 		})
 	default:
@@ -422,9 +425,9 @@ func (c *UnifiedResourceCache) defineCollectorAsInitialized() {
 
 // Less is used for Btree operations,
 // returns true if item is less than the other one
-func (i *Item) Less(iother btree.Item) bool {
+func (i *item) Less(iother btree.Item) bool {
 	switch other := iother.(type) {
-	case *Item:
+	case *item:
 		return bytes.Compare(i.Key, other.Key) < 0
 	case *prefixItem:
 		return !iother.Less(i)
@@ -441,7 +444,7 @@ type prefixItem struct {
 
 // Less is used for Btree operations
 func (p *prefixItem) Less(iother btree.Item) bool {
-	other := iother.(*Item)
+	other := iother.(*item)
 	return !bytes.HasPrefix(other.Key, p.prefix)
 }
 
@@ -450,19 +453,11 @@ type resource interface {
 	CloneResource() types.ResourceWithLabels
 }
 
-type Item struct {
+type item struct {
 	// Key is a key of the key value item
 	Key []byte
 	// Value represents a resource such as types.Server or types.DatabaseServer
 	Value resource
-}
-
-// Event represents an event that happened in the backend
-type Event struct {
-	// Type is operation type
-	Type types.OpType
-	// Item is event Item
-	Item Item
 }
 
 const (

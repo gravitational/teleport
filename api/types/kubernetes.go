@@ -74,10 +74,6 @@ type KubeCluster interface {
 	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
 	Copy() *KubernetesClusterV3
-
-	// CloneAny is used to return a clone of the KubeCluster and match the CloneAny interface
-	// This is helpful when interfacing with multiple types at the same time in unified resources
-	CloneAny() any
 }
 
 // NewKubernetesClusterV3FromLegacyCluster creates a new Kubernetes cluster resource
@@ -317,11 +313,6 @@ func (k *KubernetesClusterV3) String() string {
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
 	return utils.CloneProtoMsg(k)
-}
-
-// Copy returns a copy of this resource.
-func (k *KubernetesClusterV3) CloneAny() any {
-	return k.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

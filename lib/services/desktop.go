@@ -37,6 +37,7 @@ type WindowsDesktops interface {
 	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
 }
 
+// WindowsDesktopGetter is an interface for fetching WindowsDesktop resources.
 type WindowsDesktopGetter interface {
 	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 }

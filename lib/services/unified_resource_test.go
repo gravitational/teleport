@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -78,16 +79,23 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	_, err = clt.UpsertNode(ctx, node)
 	require.NoError(t, err)
 
-	db, err := types.NewDatabaseServerV3(
-		types.Metadata{Name: "db1"},
-		types.DatabaseServerSpecV3{
-			Protocol: "postgres",
-			Hostname: "localhost",
-			HostID:   "db1-host-id",
-		},
-	)
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db1",
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri",
+	})
 	require.NoError(t, err)
-	_, err = clt.UpsertDatabaseServer(ctx, db)
+
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "db1-server",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "db-hostname",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 
 	// Add app to the backend.
@@ -126,7 +134,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// we expect each of the resources above to exist
-	expectedRes := []types.ResourceWithLabels{node, app, samlapp, db, win}
+	expectedRes := []types.ResourceWithLabels{node, app, samlapp, dbServer, win}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		return len(res) == len(expectedRes)
@@ -148,7 +156,7 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// this should include the updated node, and shouldn't have any apps included
-	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, db, win}
+	expectedRes = []types.ResourceWithLabels{nodeUpdated, samlapp, dbServer, win}
 	assert.Eventually(t, func() bool {
 		res, err = w.GetUnifiedResources(ctx)
 		require.NoError(t, err)
