@@ -413,7 +413,8 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 	log := e.Log.WithField("from", "server")
 	ctr := common.GetMessagesFromServerMetric(sessionCtx.Database)
 
-	// parse and count the messages from the server.
+	// parse and count the messages from the server in a separate goroutine,
+	// operating on a copy of the server message stream. the copy is arranged below.
 	copyReader, copyWriter := io.Pipe()
 	defer copyWriter.Close()
 
