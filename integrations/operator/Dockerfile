@@ -3,7 +3,7 @@ FROM --platform=$BUILDPLATFORM docker.io/debian:11 as builder
 ARG BUILDARCH
 
 ## Install dependencies.
-RUN apt-get update && apt-get -y install --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     unzip \
