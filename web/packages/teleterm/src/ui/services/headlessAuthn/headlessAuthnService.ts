@@ -17,6 +17,7 @@
 import { SendPendingHeadlessAuthenticationRequest } from 'teleterm/services/tshdEvents';
 import { MainProcessClient } from 'teleterm/types';
 import { ModalsService } from 'teleterm/ui/services/modals';
+import { ConfigService } from 'teleterm/services/config';
 
 import type * as types from 'teleterm/services/tshd/types';
 
@@ -24,16 +25,19 @@ export class HeadlessAuthenticationService {
   constructor(
     private mainProcessClient: MainProcessClient,
     private modalsService: ModalsService,
-    private tshClient: types.TshClient
+    private tshClient: types.TshClient,
+    private configService: ConfigService,
   ) {}
 
   sendPendingHeadlessAuthentication(
     request: SendPendingHeadlessAuthenticationRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
+    const skipConfirm = this.configService.get('feature.headlessSkipConfirm').value
+
     // If the user wants to skip the confirmation step, then don't force the window.
     // Instead, they can just tap their blinking yubikey with the window in the background.
-    if (!process.env.TELEPORT_HEADLESS_SKIP_CONFIRM) {
+    if (!skipConfirm) {
       this.mainProcessClient.forceFocusWindow();
     }
 
@@ -43,6 +47,7 @@ export class HeadlessAuthenticationService {
         rootClusterUri: request.rootClusterUri,
         headlessAuthenticationId: request.headlessAuthenticationId,
         headlessAuthenticationClientIp: request.headlessAuthenticationClientIp,
+        skipConfirm:  skipConfirm,
         onSuccess: () => resolve(),
         onCancel: () => resolve(),
       });

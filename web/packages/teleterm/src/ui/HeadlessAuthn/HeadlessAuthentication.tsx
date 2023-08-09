@@ -29,6 +29,7 @@ interface HeadlessAuthenticationProps {
   rootClusterUri: RootClusterUri;
   headlessAuthenticationId: string;
   clientIp: string;
+  skipConfirm: boolean;
   onCancel(): void;
   onSuccess(): void;
 }
@@ -72,6 +73,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
     <HeadlessPrompt
       cluster={cluster}
       clientIp={props.clientIp}
+      skipConfirm={props.skipConfirm}
       onApprove={handleHeadlessApprove}
       abortApproval={refAbortCtrl.current.abort}
       onReject={handleHeadlessReject}

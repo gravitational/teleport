@@ -30,6 +30,7 @@ export const Story = () => (
   <HeadlessPrompt
     cluster={makeRootCluster()}
     clientIp="localhost"
+    skipConfirm={false}
     onApprove={async () => {}}
     abortApproval={() => {}}
     onReject={async () => {}}

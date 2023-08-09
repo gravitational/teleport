@@ -32,6 +32,7 @@ import type * as tsh from 'teleterm/services/tshd/types';
 export type HeadlessPromptProps = {
   cluster: tsh.Cluster;
   clientIp: string;
+  skipConfirm: boolean;
   onApprove(): Promise<void>;
   abortApproval(): void;
   onReject(): Promise<void>;
@@ -43,6 +44,7 @@ export type HeadlessPromptProps = {
 export function HeadlessPrompt({
   cluster,
   clientIp,
+  skipConfirm,
   onApprove,
   abortApproval,
   onReject,
@@ -53,7 +55,7 @@ export function HeadlessPrompt({
   const [waitForMfa, setWaitForMfa] = useState(false);
 
   // skip to MFA confirmation step.
-  if (process.env.TELEPORT_HEADLESS_SKIP_CONFIRM) {
+  if (skipConfirm) {
     setWaitForMfa(true);
     onApprove();
   }
