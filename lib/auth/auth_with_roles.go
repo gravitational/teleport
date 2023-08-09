@@ -1524,15 +1524,6 @@ func (a *ServerWithRoles) StreamNodes(ctx context.Context, namespace string) str
 	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
-const (
-	// kubeService is a special resource type that is used to keep compatibility
-	// with Teleport 12 clients.
-	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
-	// clients still expect it to be present in the server.
-	// TODO(tigrato): DELETE in 14.0.0
-	kubeService = "kube_service"
-)
-
 // authContextForSearch returns an extended authz.Context which should be used
 // when searching for resources that a user may be able to request access to,
 // but does not already have access to.
@@ -1585,15 +1576,6 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	// kubeService is a special resource type that is used to keep compatibility
-	// with Teleport 12 clients.
-	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
-	// clients still expect it to be present in the server.
-	// TODO(tigrato): DELETE in 14.0.0
-	if req.ResourceType == kubeService {
-		return &types.ListResourcesResponse{}, nil
-	}
-
 	// Check if auth server has a license for this resource type but only return an
 	// error if the requester is not a builtin or remote server.
 	// Builtin and remote server roles are allowed to list resources to avoid crashes
@@ -4765,19 +4747,6 @@ func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 		}
 	}
 	return session, nil
-}
-
-// GetAppSessions gets all application web sessions.
-func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions, err := a.authServer.GetAppSessions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessions, nil
 }
 
 // ListAppSessions gets a paginated list of application web sessions.

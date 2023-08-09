@@ -19,48 +19,10 @@ package types
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
-
-// TestDatabaseServerGetDatabase verifies that older agents get adapted to
-// the new database server interface for backward compatibility.
-//
-// DELETE IN 9.0.
-func TestDatabaseServerGetDatabase(t *testing.T) {
-	server, err := NewDatabaseServerV3(Metadata{
-		Name:   "server-1",
-		Labels: map[string]string{"a": "b"},
-	}, DatabaseServerSpecV3{
-		Description:   "description",
-		Protocol:      "postgres",
-		URI:           "localhost:5432",
-		CACert:        []byte("cert"),
-		AWS:           AWS{Region: "us-east-1", Redshift: Redshift{ClusterID: "cluster-1"}},
-		Version:       "1.0.0",
-		Hostname:      "host",
-		HostID:        "host-1",
-		DynamicLabels: map[string]CommandLabelV2{"c": {Period: Duration(time.Minute), Command: []string{"/bin/date"}}},
-		GCP:           GCPCloudSQL{ProjectID: "project-1", InstanceID: "instance-1"},
-	})
-	require.NoError(t, err)
-	database, err := NewDatabaseV3(Metadata{
-		Name:        "server-1",
-		Description: "description",
-		Labels:      map[string]string{"a": "b"},
-	}, DatabaseSpecV3{
-		Protocol:      "postgres",
-		URI:           "localhost:5432",
-		CACert:        "cert",
-		AWS:           AWS{Region: "us-east-1", Redshift: Redshift{ClusterID: "cluster-1"}},
-		DynamicLabels: map[string]CommandLabelV2{"c": {Period: Duration(time.Minute), Command: []string{"/bin/date"}}},
-		GCP:           GCPCloudSQL{ProjectID: "project-1", InstanceID: "instance-1"},
-	})
-	require.NoError(t, err)
-	require.Equal(t, database, server.GetDatabase())
-}
 
 func TestDatabaseServerSorter(t *testing.T) {
 	t.Parallel()

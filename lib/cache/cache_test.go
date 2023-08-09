@@ -1716,6 +1716,20 @@ func TestApps(t *testing.T) {
 	})
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 // TestDatabaseServers tests that CRUD operations on database servers are
 // replicated from the backend to the cache.
 func TestDatabaseServers(t *testing.T) {
@@ -1729,8 +1743,7 @@ func TestDatabaseServers(t *testing.T) {
 			return types.NewDatabaseServerV3(types.Metadata{
 				Name: name,
 			}, types.DatabaseServerSpecV3{
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
+				Database: mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432"),
 				Hostname: "localhost",
 				HostID:   uuid.New().String(),
 			})
