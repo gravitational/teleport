@@ -39,6 +39,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -90,6 +92,7 @@ type testPack struct {
 	okta                    services.Okta
 	integrations            services.Integrations
 	accessLists             services.AccessLists
+	userLoginStates         services.UserLoginStates
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -247,6 +250,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.accessLists = alSvc
 
+	ulsSvc, err := local.NewUserLoginStateService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.userLoginStates = ulsSvc
+
 	return p, nil
 }
 
@@ -285,6 +294,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -679,6 +689,7 @@ func TestCompletenessInit(t *testing.T) {
 			Okta:                    p.okta,
 			Integrations:            p.integrations,
 			AccessLists:             p.accessLists,
+			UserLoginStates:         p.userLoginStates,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -748,6 +759,7 @@ func TestCompletenessReset(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -929,6 +941,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1008,6 +1021,7 @@ func initStrategy(t *testing.T) {
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
+		UserLoginStates:         p.userLoginStates,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2103,6 +2117,33 @@ func TestAccessLists(t *testing.T) {
 	})
 }
 
+// TestUserLoginStates tests that CRUD operations on user login state resources are
+// replicated from the backend to the cache.
+func TestUserLoginStates(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[*userloginstate.UserLoginState]{
+		newResource: func(name string) (*userloginstate.UserLoginState, error) {
+			return newUserLoginState(t, name), nil
+		},
+		create: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		list:      p.userLoginStates.GetUserLoginStates,
+		cacheGet:  p.cache.GetUserLoginState,
+		cacheList: p.cache.GetUserLoginStates,
+		update: func(ctx context.Context, uls *userloginstate.UserLoginState) error {
+			_, err := p.userLoginStates.UpsertUserLoginState(ctx, uls)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.userLoginStates.DeleteAllUserLoginStates,
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2569,6 +2610,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindIntegration:             &types.IntegrationV1{},
 		types.KindHeadlessAuthentication:  &types.HeadlessAuthentication{},
 		types.KindAccessList:              newAccessList(t, "access-list"),
+		types.KindUserLoginState:          newUserLoginState(t, "user-login-state"),
 	}
 
 	for name, cfg := range cases {
@@ -2834,6 +2876,25 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	)
 	require.NoError(t, err)
 	return accessList
+}
+
+func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {
+	t.Helper()
+
+	uls, err := userloginstate.New(
+		header.Metadata{
+			Name: name,
+		},
+		userloginstate.Spec{
+			Roles: []string{"role1", "role2"},
+			Traits: trait.Traits{
+				"key1": []string{"value1"},
+				"key2": []string{"value2"},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return uls
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
