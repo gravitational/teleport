@@ -458,7 +458,7 @@ func NewAWSNodeFromEC2Instance(instance ec2Types.Instance, awsCloudMetadata *typ
 
 	server, err := types.NewNode(
 		uuid.NewString(),
-		types.SubKindOpenSSHEC2InstanceConnectEndpointNode,
+		types.SubKindOpenSSHEICENode,
 		types.ServerSpecV2{
 			Hostname: aws.ToString(instance.PrivateDnsName),
 			Addr:     addr,
