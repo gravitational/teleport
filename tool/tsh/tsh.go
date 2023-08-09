@@ -2800,23 +2800,15 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDiscoveredName(r types.ResourceWithLabels) (string, bool) {
-	name, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
-	return name, ok
-}
-
 func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
 	name := database.GetName()
-	printName := name
-	if d, ok := getDiscoveredName(database); ok && !verbose && d != name {
-		printName = d
-	}
+	displayName := common.FormatResourceName(database, verbose)
 	var connect string
 	for _, a := range active {
 		if a.ServiceName == name {
-			a.ServiceName = printName
-			// format the db name with the print name
-			printName = formatActiveDB(a)
+			a.ServiceName = displayName
+			// format the db name with the display name
+			displayName = formatActiveDB(a)
 			// then revert it for connect string
 			a.ServiceName = name
 			switch a.Protocol {
@@ -2838,7 +2830,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	labels := common.FormatLabels(database.GetAllLabels(), verbose)
 	if verbose {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			database.GetProtocol(),
 			database.GetType(),
@@ -2849,7 +2841,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		)
 	} else {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			formatUsersForDB(database, accessChecker),
 			labels,
