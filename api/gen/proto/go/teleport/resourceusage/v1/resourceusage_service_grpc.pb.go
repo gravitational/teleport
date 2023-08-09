@@ -33,15 +33,15 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	ResourceUsageService_GetAccessRequestUsage_FullMethodName = "/teleport.resourceusage.v1.ResourceUsageService/GetAccessRequestUsage"
+	ResourceUsageService_GetUsage_FullMethodName = "/teleport.resourceusage.v1.ResourceUsageService/GetUsage"
 )
 
 // ResourceUsageServiceClient is the client API for ResourceUsageService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ResourceUsageServiceClient interface {
-	// GetAccessRequestUsage returns the usage of access requests
-	GetAccessRequestUsage(ctx context.Context, in *GetAccessRequestUsageRequest, opts ...grpc.CallOption) (*AccessRequestUsage, error)
+	// GetUsage returns usage information for all limited resources
+	GetUsage(ctx context.Context, in *GetUsageRequest, opts ...grpc.CallOption) (*GetUsageResponse, error)
 }
 
 type resourceUsageServiceClient struct {
@@ -52,9 +52,9 @@ func NewResourceUsageServiceClient(cc grpc.ClientConnInterface) ResourceUsageSer
 	return &resourceUsageServiceClient{cc}
 }
 
-func (c *resourceUsageServiceClient) GetAccessRequestUsage(ctx context.Context, in *GetAccessRequestUsageRequest, opts ...grpc.CallOption) (*AccessRequestUsage, error) {
-	out := new(AccessRequestUsage)
-	err := c.cc.Invoke(ctx, ResourceUsageService_GetAccessRequestUsage_FullMethodName, in, out, opts...)
+func (c *resourceUsageServiceClient) GetUsage(ctx context.Context, in *GetUsageRequest, opts ...grpc.CallOption) (*GetUsageResponse, error) {
+	out := new(GetUsageResponse)
+	err := c.cc.Invoke(ctx, ResourceUsageService_GetUsage_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +65,8 @@ func (c *resourceUsageServiceClient) GetAccessRequestUsage(ctx context.Context, 
 // All implementations must embed UnimplementedResourceUsageServiceServer
 // for forward compatibility
 type ResourceUsageServiceServer interface {
-	// GetAccessRequestUsage returns the usage of access requests
-	GetAccessRequestUsage(context.Context, *GetAccessRequestUsageRequest) (*AccessRequestUsage, error)
+	// GetUsage returns usage information for all limited resources
+	GetUsage(context.Context, *GetUsageRequest) (*GetUsageResponse, error)
 	mustEmbedUnimplementedResourceUsageServiceServer()
 }
 
@@ -74,8 +74,8 @@ type ResourceUsageServiceServer interface {
 type UnimplementedResourceUsageServiceServer struct {
 }
 
-func (UnimplementedResourceUsageServiceServer) GetAccessRequestUsage(context.Context, *GetAccessRequestUsageRequest) (*AccessRequestUsage, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAccessRequestUsage not implemented")
+func (UnimplementedResourceUsageServiceServer) GetUsage(context.Context, *GetUsageRequest) (*GetUsageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsage not implemented")
 }
 func (UnimplementedResourceUsageServiceServer) mustEmbedUnimplementedResourceUsageServiceServer() {}
 
@@ -90,20 +90,20 @@ func RegisterResourceUsageServiceServer(s grpc.ServiceRegistrar, srv ResourceUsa
 	s.RegisterService(&ResourceUsageService_ServiceDesc, srv)
 }
 
-func _ResourceUsageService_GetAccessRequestUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAccessRequestUsageRequest)
+func _ResourceUsageService_GetUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUsageRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ResourceUsageServiceServer).GetAccessRequestUsage(ctx, in)
+		return srv.(ResourceUsageServiceServer).GetUsage(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ResourceUsageService_GetAccessRequestUsage_FullMethodName,
+		FullMethod: ResourceUsageService_GetUsage_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ResourceUsageServiceServer).GetAccessRequestUsage(ctx, req.(*GetAccessRequestUsageRequest))
+		return srv.(ResourceUsageServiceServer).GetUsage(ctx, req.(*GetUsageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -116,8 +116,8 @@ var ResourceUsageService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ResourceUsageServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetAccessRequestUsage",
-			Handler:    _ResourceUsageService_GetAccessRequestUsage_Handler,
+			MethodName: "GetUsage",
+			Handler:    _ResourceUsageService_GetUsage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

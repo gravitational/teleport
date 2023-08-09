@@ -18,20 +18,25 @@ package teleport.resourceusage.v1;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1";
 
-// AccessRequestUsage defines the usage limits for access requests.
+// ResourceUsageService is a service to fetch information about the usage of limited resources on usage-billed plans.
+service ResourceUsageService {
+  // GetUsage returns usage information for all limited resources
+  rpc GetUsage(GetUsageRequest) returns (GetUsageResponse);
+}
+
+// GetUsageRequest is the request for GetUsage
+message GetUsageRequest {}
+
+// GetUsageResponse is the response for GetUsage
+message GetUsageResponse {
+  AccessRequestsUsage access_requests = 1;
+}
+
+// AccessRequestsUsage defines the usage limits for access requests.
 // Currently this is limited on the basis of access requests used per calendar month.
-message AccessRequestUsage {
+message AccessRequestsUsage {
   // MonthlyLimit is the amount of requests that are allowed per month
   int32 monthly_limit = 1;
   // MonthlyUsed is the amount of requests that have been used this month
   int32 monthly_used = 2;
-}
-
-// GetAccessRequestUsageRequest is the request for GetResourceUsage.
-message GetAccessRequestUsageRequest {}
-
-// ResourceUsageService is a service to fetch information about usage of limited resource on usage-billed plans.
-service ResourceUsageService {
-  // GetAccessRequestUsage returns the usage of access requests
-  rpc GetAccessRequestUsage(GetAccessRequestUsageRequest) returns (AccessRequestUsage);
 }
