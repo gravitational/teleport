@@ -127,13 +127,14 @@ type Chat struct {
 }
 
 // NewChat creates a new Assist chat.
-func (a *Assist) NewChat(ctx context.Context, toolContext *model.ToolContext,
+func (a *Assist) NewChat(ctx context.Context, assistService MessageService, toolContext *model.ToolContext,
 	conversationID string,
 ) (*Chat, error) {
 	aichat := a.client.NewChat(toolContext)
 
 	chat := &Chat{
 		assist:                  a,
+		assistService:           assistService,
 		chat:                    aichat,
 		ConversationID:          conversationID,
 		Username:                toolContext.User,

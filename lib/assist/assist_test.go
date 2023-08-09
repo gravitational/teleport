@@ -74,7 +74,7 @@ func TestChatComplete(t *testing.T) {
 	require.NoError(t, err)
 
 	// When a chat is created.
-	chat, err := client.NewChat(ctx, toolContext, conversationResp.Id)
+	chat, err := client.NewChat(ctx, authSrv.AuthServer, toolContext, conversationResp.Id)
 	require.NoError(t, err)
 
 	t.Run("new conversation is new", func(t *testing.T) {
