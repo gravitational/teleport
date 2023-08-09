@@ -4105,6 +4105,10 @@ func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) error
 
 // UpsertRole creates or updates role.
 func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error {
+	if err := a.verifyAdminActionMFAFromContext(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4284,6 +4288,10 @@ func (a *ServerWithRoles) GetRole(ctx context.Context, name string) (types.Role,
 
 // DeleteRole deletes role by name
 func (a *ServerWithRoles) DeleteRole(ctx context.Context, name string) error {
+	if err := a.verifyAdminActionMFAFromContext(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindRole, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
