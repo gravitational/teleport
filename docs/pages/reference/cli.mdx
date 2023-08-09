@@ -1673,6 +1673,8 @@ $ tctl users add [<flags>] <account>
 | `--gcp-service-accounts` | none | Comma-separated strings | List of allowed GCP service accounts for the new user |
 | `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
+| `--host-user-uid` | none | Unix UID | UID for auto provisioned host users to use |
+| `--host-user-gid` | none | Unix GID | GID for auto provisioned host users to use |
 
 #### Global flags
 
