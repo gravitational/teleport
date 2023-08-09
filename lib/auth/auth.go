@@ -378,7 +378,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if as.kubernetesTokenValidator == nil {
-		as.kubernetesTokenValidator = &kubernetestoken.Validator{}
+		as.kubernetesTokenValidator = &kubernetestoken.TokenReviewValidator{}
 	}
 
 	if as.gcpIDTokenValidator == nil {

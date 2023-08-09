@@ -210,7 +210,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		t.Run(tt.token, func(t *testing.T) {
 			client := newFakeClientset(tt.kubeVersion)
 			client.AddReactor("create", "tokenreviews", tokenReviewMock(t, tt.review))
-			v := Validator{
+			v := TokenReviewValidator{
 				client: client,
 			}
 			userInfo, err := v.Validate(context.Background(), tt.token)
