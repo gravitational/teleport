@@ -45,6 +45,9 @@ type RemoteCluster interface {
 
 	// Clone performs a deep copy.
 	Clone() RemoteCluster
+
+	// GetAllLabels returns all labels for the remote cluster
+	GetAllLabels() map[string]string
 }
 
 // NewRemoteCluster is a convenience way to create a RemoteCluster resource.
@@ -163,4 +166,10 @@ func (c *RemoteClusterV3) SetName(e string) {
 // String represents a human readable version of remote cluster settings.
 func (c *RemoteClusterV3) String() string {
 	return fmt.Sprintf("RemoteCluster(%v, %v)", c.Metadata.Name, c.Status.Connection)
+}
+
+// GetAllLabels returns all labels for the remote cluster. Remote clusters only
+// have static labels.
+func (c *RemoteClusterV3) GetAllLabels() map[string]string {
+	return c.Metadata.Labels
 }

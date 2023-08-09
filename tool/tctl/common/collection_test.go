@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 var (
@@ -150,5 +151,5 @@ func formatTestLabels(l1, l2 map[string]string, verbose bool) string {
 	for key, value := range l2 {
 		labels[key] = value
 	}
-	return stripInternalTeleportLabels(verbose, labels)
+	return common.FormatLabels(labels, verbose)
 }

@@ -187,7 +187,7 @@ func formatServiceLabels(labels map[string]string) string {
 	}
 
 	sort.Strings(labelSlice)
-	return strings.Join(labelSlice, " ")
+	return strings.Join(labelSlice, ",")
 }
 
 func newKubeSelfSubjectServer(t *testing.T) string {

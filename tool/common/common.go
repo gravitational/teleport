@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -127,4 +128,37 @@ func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writ
 		fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
 	}
 	return trace.NewAggregate(errs...)
+}
+
+// FormatLabels filters out Teleport namespaced (teleport.[dev|hidden|internal])
+// labels in non-verbose mode, groups the labels by namespace, sorts each
+// group, then re-combines the groups and returns the result as a comma
+// separated string.
+func FormatLabels(labels map[string]string, verbose bool) string {
+	var (
+		teleportNamespaced []string
+		namespaced         []string
+		result             []string
+	)
+	for key, val := range labels {
+		if strings.HasPrefix(key, types.TeleportNamespace+"/") ||
+			strings.HasPrefix(key, types.TeleportHiddenLabelPrefix) ||
+			strings.HasPrefix(key, types.TeleportInternalLabelPrefix) {
+			// remove teleport.[dev|hidden|internal] labels in non-verbose mode.
+			if verbose {
+				teleportNamespaced = append(teleportNamespaced, fmt.Sprintf("%s=%s", key, val))
+			}
+			continue
+		}
+		if strings.Contains(key, "/") {
+			namespaced = append(namespaced, fmt.Sprintf("%s=%s", key, val))
+			continue
+		}
+		result = append(result, fmt.Sprintf("%s=%s", key, val))
+	}
+	sort.Strings(result)
+	sort.Strings(namespaced)
+	sort.Strings(teleportNamespaced)
+	namespaced = append(namespaced, teleportNamespaced...)
+	return strings.Join(append(result, namespaced...), ",")
 }
