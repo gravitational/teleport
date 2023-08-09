@@ -602,7 +602,7 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	}
 
 	if a.Type == KubernetesJoinTypeUnspecified {
-		// For compatability with older resources which did not have a Type
+		// For compatibility with older resources which did not have a Type
 		// field we default to "in_cluster".
 		a.Type = KubernetesJoinTypeInCluster
 	}
