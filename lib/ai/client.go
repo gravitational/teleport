@@ -141,7 +141,7 @@ func (client *Client) ClassifyMessage(ctx context.Context, message string, class
 	return resp.Choices[0].Message.Content, nil
 }
 
-// ComputeEmbeddings taxes a map of nodes and calls openAI to generate
+// ComputeEmbeddings takes a map of nodes and calls openAI to generate
 // embeddings for those nodes. ComputeEmbeddings is responsible for
 // implementing a retry mechanism if the embedding computation is flaky.
 func (client *Client) ComputeEmbeddings(ctx context.Context, input []string) ([]embedding.Vector64, error) {
