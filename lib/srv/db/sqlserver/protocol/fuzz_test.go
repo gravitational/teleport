@@ -52,7 +52,7 @@ func FuzzMSSQLLogin(f *testing.F) {
 
 func FuzzRPCClientPartialLength(f *testing.F) {
 	f.Fuzz(func(t *testing.T, length uint64, chunks uint64) {
-		packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientPartiallyLength(length, chunks)))
+		packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientPartiallyLength("foo3", length, chunks)))
 		require.NoError(t, err)
 		require.Equal(t, packet.Type(), PacketTypeRPCRequest)
 
