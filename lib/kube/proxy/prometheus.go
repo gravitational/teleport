@@ -51,6 +51,8 @@ func init() {
 		execSessionsRequestCounter,
 		portforwardSessionsInFlightGauge,
 		portforwardRequestCounter,
+		joinSessionsInFlightGauge,
+		joinSessionsRequestCounter,
 	)
 }
 

@@ -16,11 +16,9 @@ limitations under the License.
 
 import styled from 'styled-components';
 
-import Icon from '../Icon';
-
 import SideNavItem from './SideNavItem';
 
-const SideNavItemIcon = styled(Icon)`
+const SideNavItemIcon = styled.svg`
   ${SideNavItem}:active &,
   ${SideNavItem}.active & {
     opacity: 1;

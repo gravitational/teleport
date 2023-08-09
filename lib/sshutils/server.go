@@ -126,10 +126,6 @@ const (
 	// https://tools.ietf.org/html/rfc4253
 	MaxVersionStringBytes = 255
 
-	// TrueClientAddrVar environment variable is used by the web UI to pass
-	// the remote IP (user's IP) from the browser/HTTP session into an SSH session
-	TrueClientAddrVar = "TELEPORT_CLIENT_ADDR"
-
 	// caGetterTimeout is the timeout on getting host cert authority, that is used in
 	// signed PROXY headers verification.
 	caGetterTimeout = 5 * time.Second
@@ -822,7 +818,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(buff)
 	if err != nil {
 		// EOF happens quite often, don't pollute the logs with it
-		if !trace.IsEOF(err) {
+		if !errors.Is(err, io.EOF) {
 			c.logger.Error(err)
 		}
 		return n, err

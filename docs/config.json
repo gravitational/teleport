@@ -661,6 +661,10 @@
           "slug": "/connect-your-client/teleport-connect/"
         },
         {
+          "title": "Using PuTTY",
+          "slug": "/connect-your-client/putty/"
+        },
+        {
           "title": "Database GUI Clients",
           "slug": "/connect-your-client/gui-clients/"
         }
@@ -883,6 +887,10 @@
               "slug": "/server-access/guides/azure-discovery/"
             },
             {
+              "title": "GCP Instance Discovery",
+              "slug": "/server-access/guides/gcp-discovery/"
+            },
+            {
               "title": "Using Teleport with Ansible",
               "slug": "/server-access/guides/ansible/"
             }
@@ -959,6 +967,14 @@
         {
           "title": "Access Controls Reference",
           "slug": "/kubernetes-access/controls/"
+        },
+        {
+          "title": "FAQ",
+          "slug": "/kubernetes-access/faq/"
+        },
+        {
+          "title": "Troubleshooting",
+          "slug": "/kubernetes-access/troubleshooting/"
         }
       ]
     },
@@ -1558,13 +1574,10 @@
       },
       "ca_pin": "sha256:abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678abdc1245efgh5678"
     },
-    "soc2": {
-      "last_report": "August 9th, 2022"
-    },
     "teleport": {
       "major_version": "14",
       "version": "14.0.0-dev",
-      "golang": "1.20",
+      "golang": "1.21",
       "plugin": {
         "version": "12.1.1"
       },

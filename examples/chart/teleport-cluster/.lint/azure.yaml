@@ -1,0 +1,11 @@
+clusterName: test-azure-cluster
+chartMode: azure
+azure:
+  databaseHost: "mypostgresinstance.postgres.database.azure.com"
+  databaseUser: "teleport"
+  backendDatabase: "teleport_backend"
+  auditLogDatabase: "teleport_audit"
+  auditLogMirrorOnStdout: true
+  sessionRecordingStorageAccount: "mystorageaccount.blob.core.windows.net"
+  clientID: "1234"
+  databasePoolMaxConnections: 100

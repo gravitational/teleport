@@ -94,13 +94,31 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *Service) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbCreate)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+	}
+
+	if userHasAccess(authCtx, req) {
+		return nil, trace.AccessDenied("user %q is not allowed to create conversation for user %q", authCtx.User.GetName(), req.Username)
+	}
+
 	resp, err := a.backend.CreateAssistantConversation(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // UpdateAssistantConversationInfo updates the conversation info for a conversation.
-func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, request *assist.UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
-	err := a.backend.UpdateAssistantConversationInfo(ctx, request)
+func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, req *assist.UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbUpdate)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+	}
+
+	if userHasAccess(authCtx, req) {
+		return nil, trace.AccessDenied("user %q is not allowed to update conversation for user %q", authCtx.User.GetName(), req.Username)
+	}
+
+	err = a.backend.UpdateAssistantConversationInfo(ctx, req)
 	if err != nil {
 		return &emptypb.Empty{}, trace.Wrap(err)
 	}
@@ -110,31 +128,91 @@ func (a *Service) UpdateAssistantConversationInfo(ctx context.Context, request *
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbList)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+	}
+
+	if userHasAccess(authCtx, req) {
+		return nil, trace.AccessDenied("user %q is not allowed to list conversations for user %q", authCtx.User.GetName(), req.GetUsername())
+	}
+
 	resp, err := a.backend.GetAssistantConversations(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // DeleteAssistantConversation deletes a conversation entry and associated messages from the backend.
 func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) (*emptypb.Empty, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbDelete)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+	}
+
+	if userHasAccess(authCtx, req) {
+		return nil, trace.AccessDenied("user %q is not allowed to delete conversation for user %q", authCtx.User.GetName(), req.GetUsername())
+	}
+
 	return &emptypb.Empty{}, trace.Wrap(a.backend.DeleteAssistantConversation(ctx, req))
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbRead)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+	}
+
+	if userHasAccess(authCtx, req) {
+		return nil, trace.AccessDenied("user %q is not allowed to get messages for user %q", authCtx.User.GetName(), req.GetUsername())
+	}
+
 	resp, err := a.backend.GetAssistantMessages(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // CreateAssistantMessage adds the message to the backend.
 func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.CreateAssistantMessageRequest) (*emptypb.Empty, error) {
+	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindAssistant, types.VerbCreate)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+	}
+
+	if userHasAccess(authCtx, req) {
+		return nil, trace.AccessDenied("user %q is not allowed to create message for user %q", authCtx.User.GetName(), req.GetUsername())
+	}
+
 	return &emptypb.Empty{}, trace.Wrap(a.backend.CreateAssistantMessage(ctx, req))
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
+	// If the embedder is not configured, the assist is not enabled as we cannot compute embeddings.
 	if a.embedder == nil {
-		// If the embedder is not configured, the assist is not enabled as we cannot compute embeddings.
 		return &assist.IsAssistEnabledResponse{Enabled: false}, nil
+	}
+
+	authCtx, err := a.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+	}
+
+	// Check if this endpoint is called by a user or Proxy.
+	if authz.IsLocalUser(*authCtx) {
+		checkErr := authCtx.Checker.CheckAccessToRule(
+			&services.Context{User: authCtx.User},
+			defaults.Namespace, types.KindAssistant, types.VerbRead,
+			false, /* silent */
+		)
+		if checkErr != nil {
+			return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
+		}
+	} else {
+		// This endpoint is called from Proxy to check if the assist is enabled.
+		// Proxy credentials are used instead of the user credentials.
+		requestedByProxy := authz.HasBuiltinRole(*authCtx, string(types.RoleProxy))
+		if !requestedByProxy {
+			return nil, trace.AccessDenied("only proxy is allowed to call IsAssistEnabled endpoint")
+		}
 	}
 
 	// Check if assist can use the backend.
@@ -145,7 +223,7 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	// TODO(jakule): The kind needs to be updated when we add more resources.
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindNode, types.VerbRead, types.VerbList)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, authz.ConvertAuthorizerError(ctx, a.log, err)
 	}
 
 	if a.embedder == nil {
@@ -194,4 +272,9 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	return &assist.GetAssistantEmbeddingsResponse{
 		Embeddings: protoDocs,
 	}, nil
+}
+
+// userHasAccess returns true if the user should have access to the resource.
+func userHasAccess(authCtx *authz.Context, req interface{ GetUsername() string }) bool {
+	return !authz.IsCurrentUser(*authCtx, req.GetUsername()) && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin))
 }
