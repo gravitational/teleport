@@ -155,11 +155,11 @@ To configure OAuth consent for the new project:
 
 To enable required APIs for the OAuth client:
 
-1. Select [Cloud Identity API](https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com) 
-in the API Library, then click **Enable** to support transitive group membership.
-
 1. Select [Admin SDK API](https://console.cloud.google.com/apis/library/admin.googleapis.com)
 in the API Library, then click **Enable** to support direct group membership. 
+
+1. Select [Cloud Identity API](https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com) 
+in the API Library, then click **Enable** to support transitive group membership.
 
 You can enable one or both API libraries.
 However, your Google Workspace edition must support the API you choose to use.
@@ -249,7 +249,7 @@ To create a service account:
     }
     ```
 
-   This file is used in a later step to configure the OIDC connector for the Teleport Auth Service to use, 
+   This file is used to configure the OIDC connector for the Teleport Auth Service to use, 
    either by referencing a local file on the host running the Teleport Auth Service or including the contents 
    in the command line to create the connector resource.
    
@@ -270,10 +270,11 @@ To configure delegation:
 
 1. Add **one** of the following scopes depending on your Google Workspace edition:
    
-   - For direct and indirect groups (*transitive group membership support*), add:
-      `https://www.googleapis.com/auth/cloud-identity.groups.readonly`
    - For direct groups only, add:
       `https://www.googleapis.com/auth/admin.directory.group.readonly`
+
+   - For direct and transitive group membership support, add:
+      `https://www.googleapis.com/auth/cloud-identity.groups.readonly`
 
 1. Click **Authorize**.
 
