@@ -25,6 +25,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestFetchInstallMethods(t *testing.T) {
@@ -79,6 +81,21 @@ func TestFetchInstallMethods(t *testing.T) {
 			},
 			expected: []string{
 				"node_script",
+			},
+		},
+		{
+			desc: "awsoidc_deployservice if env var is present",
+			getenv: func(name string) string {
+				if name == types.InstallMethodAWSOIDCDeployServiceEnvVar {
+					return "true"
+				}
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				return nil, trace.NotFound("command does not exist")
+			},
+			expected: []string{
+				"awsoidc_deployservice",
 			},
 		},
 		{
