@@ -510,7 +510,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 
 	if s.ingressReporter != nil {
-		metadata := fmt.Sprintf("%v;%v;%v", certType, string(sconn.ClientVersion()), string(sconn.ServerVersion()))
+		metadata := ingress.ServiceMetadata{
+			Label1: certType,
+			Label2: string(sconn.ClientVersion()),
+			Label3: string(sconn.ServerVersion()),
+		}
 
 		s.ingressReporter.ConnectionAuthenticated(s.ingressService, metadata, conn)
 		defer s.ingressReporter.AuthenticatedConnectionClosed(s.ingressService, metadata, conn)

@@ -16,7 +16,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 )
 
 type reporterConfig struct {
@@ -236,13 +236,20 @@ func GetMessagesFromServerMetric(db types.Database) prometheus.Counter {
 	return messagesFromServer.WithLabelValues(teleport.ComponentDatabase, db.GetProtocol(), db.GetType())
 }
 
-// ReporterMetadataFromProxyCtx returns string suitable for passing as a value for "service_metadata" label in
-// metrics "authenticated_active_connections" and "authenticated_accepted_connections_total"
-// declared by ingress.Reporter.
-func ReporterMetadataFromProxyCtx(proxyCtx *ProxyContext) string {
+// ReporterMetadataFromProxyCtx returns ingress.ServiceMetadata for a given ProxyContext,
+// filling it with the information about DB protocol and type.
+// If there are multiple servers in the context, only the first one is used,
+// as we expect the values to be identical for others.
+func ReporterMetadataFromProxyCtx(proxyCtx *ProxyContext) ingress.ServiceMetadata {
 	if len(proxyCtx.Servers) > 0 {
 		db := proxyCtx.Servers[0].GetDatabase()
-		return fmt.Sprintf("%v;%v", db.GetProtocol(), db.GetType())
+		return ingress.ServiceMetadata{
+			Label1: db.GetProtocol(),
+			Label2: db.GetType(),
+		}
 	}
-	return fmt.Sprintf("%v;%v", proxyCtx.Identity.RouteToDatabase.Protocol, "unknown")
+	return ingress.ServiceMetadata{
+		Label1: proxyCtx.Identity.RouteToDatabase.Protocol,
+		Label2: "unknown",
+	}
 }

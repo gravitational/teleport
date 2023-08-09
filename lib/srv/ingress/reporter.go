@@ -19,7 +19,6 @@ package ingress
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -79,29 +78,32 @@ var (
 	authenticatedConnectionsAccepted = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "teleport",
 		Name:      "authenticated_accepted_connections_total",
-	}, []string{"ingress_path", "ingress_service", "service_metadata"})
+	}, []string{"ingress_path", "ingress_service", "service_metadata_1", "service_metadata_2", "service_metadata_3"})
 
 	// authenticatedConnectionsActive measures the current number of active connections that
 	// successfully authenticated.
 	authenticatedConnectionsActive = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "teleport",
 		Name:      "authenticated_active_connections",
-	}, []string{"ingress_path", "ingress_service", "service_metadata"})
+	}, []string{"ingress_path", "ingress_service", "service_metadata_1", "service_metadata_2", "service_metadata_3"})
 )
 
-func metadataFromClientCert(clientCert *x509.Certificate) string {
+func metadataFromClientCert(clientCert *x509.Certificate) ServiceMetadata {
 	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
 	if err != nil {
-		return "unknown"
+		return ServiceMetadata{}
 	}
 
-	return fmt.Sprintf("%v;%v;%v;%v;%v", identity.TeleportCluster, identity.RouteToCluster, identity.KubernetesCluster, identity.RouteToApp.Name, identity.RouteToDatabase.ServiceName)
+	return ServiceMetadata{
+		Label1: identity.TeleportCluster,
+		Label2: identity.RouteToCluster,
+	}
 }
 
-func metadataFromTLSConnection(conn *tls.Conn) string {
+func metadataFromTLSConnection(conn *tls.Conn) ServiceMetadata {
 	peers := conn.ConnectionState().PeerCertificates
 	if len(peers) == 0 {
-		return "unknown"
+		return ServiceMetadata{}
 	}
 
 	return metadataFromClientCert(peers[0])
@@ -214,19 +216,24 @@ func (r *Reporter) ConnectionClosed(service string, conn net.Conn) {
 	activeConnections.WithLabelValues(path, service).Dec()
 }
 
+// ServiceMetadata holds service metadata labels. The meaning of those labels is service-dependant.
+type ServiceMetadata struct {
+	Label1, Label2, Label3 string
+}
+
 // ConnectionAuthenticated reports a new authenticated connection, AuthenticatedConnectionClosed must
 // be called when the connection is closed.
-func (r *Reporter) ConnectionAuthenticated(service string, metadata string, conn net.Conn) {
+func (r *Reporter) ConnectionAuthenticated(service string, metadata ServiceMetadata, conn net.Conn) {
 	path := r.getIngressPath(conn)
-	authenticatedConnectionsAccepted.WithLabelValues(path, service, metadata).Inc()
-	authenticatedConnectionsActive.WithLabelValues(path, service, metadata).Inc()
+	authenticatedConnectionsAccepted.WithLabelValues(path, service, metadata.Label1, metadata.Label2, metadata.Label3).Inc()
+	authenticatedConnectionsActive.WithLabelValues(path, service, metadata.Label1, metadata.Label2, metadata.Label3).Inc()
 }
 
 // AuthenticatedConnectionClosed reports a closed authenticated connection, this should only be called
 // after ConnectionAuthenticated.
-func (r *Reporter) AuthenticatedConnectionClosed(service string, metadata string, conn net.Conn) {
+func (r *Reporter) AuthenticatedConnectionClosed(service string, metadata ServiceMetadata, conn net.Conn) {
 	path := r.getIngressPath(conn)
-	authenticatedConnectionsActive.WithLabelValues(path, service, metadata).Dec()
+	authenticatedConnectionsActive.WithLabelValues(path, service, metadata.Label1, metadata.Label2, metadata.Label3).Dec()
 }
 
 // getIngressPath determines the ingress path of a given connection.

@@ -41,7 +41,7 @@ func TestIngressReporter(t *testing.T) {
 		authenticatedConnectionsActive.Reset()
 	})
 
-	const metadata = "foo;bar;baz"
+	metadata := ServiceMetadata{"foo", "bar", "baz"}
 
 	reporter.ConnectionAccepted(SSH, conn)
 	require.Equal(t, 1, getAcceptedConnections(PathALPN, SSH))
@@ -106,12 +106,12 @@ func getActiveConnections(path, service string) int {
 	return getGaugeValue(activeConnections, path, service)
 }
 
-func getAuthenticatedAcceptedConnections(path, service, metadata string) int {
-	return getCounterValue(authenticatedConnectionsAccepted, path, service, metadata)
+func getAuthenticatedAcceptedConnections(path, service string, metadata ServiceMetadata) int {
+	return getCounterValue(authenticatedConnectionsAccepted, path, service, metadata.Label1, metadata.Label2, metadata.Label3)
 }
 
-func getAuthenticatedActiveConnections(path, service, metadata string) int {
-	return getGaugeValue(authenticatedConnectionsActive, path, service, metadata)
+func getAuthenticatedActiveConnections(path, service string, metadata ServiceMetadata) int {
+	return getGaugeValue(authenticatedConnectionsActive, path, service, metadata.Label1, metadata.Label2, metadata.Label3)
 }
 
 func getCounterValue(metric *prometheus.CounterVec, values ...string) int {
@@ -185,7 +185,7 @@ func TestHTTPConnStateReporter(t *testing.T) {
 				authenticatedConnectionsActive.Reset()
 			}()
 
-			metadata := "unknown"
+			metadata := ServiceMetadata{}
 
 			require.Equal(t, 0, getAcceptedConnections(PathDirect, Web))
 			require.Equal(t, 0, getActiveConnections(PathDirect, Web))
