@@ -49,42 +49,13 @@ Create a user called `myuser` who has the `requester` role. Later in this
 guide, you will create an Access Request as this user to test the Opsgenie
 plugin:
 
-```code
-$ tctl users add myuser --roles=requester
-```
+To create a user first navigate to Management -> Access -> Users
 
-`tctl` will print an invitation URL to your terminal. Visit the URL and log in
-as `myuser` for the first time, registering credentials as configured for your
-Teleport cluster.
+![Add user one](../../../img/enterprise/plugins/opsgenie/add-user-one.png)
 
-Here is an example file which defines a role called `reviewer` that can
-review requests for the `editor` role, plus a `requester` role that can
-request this role.
+Then select 'Create New User' and create a user with the requester role.
 
-```yaml
-kind: role
-version: v5
-metadata:
-  name: reviewer
-spec:
-  allow:
-    review_requests:
-      roles: ['editor']
----
-kind: role
-version: v5
-metadata:
-  name: requester
-spec:
-  allow:
-    request:
-      roles: ['editor']
-      thresholds:
-        - approve: 1
-          deny: 1
-      annotations:
-        schedules: ["Teleport Access Request Notifications"]
-```
+![Add user two](../../../img/enterprise/plugins/opsgenie/add-user-two.png)
 
 ## Step 3/5. Set up an Opsgenie API key
 
@@ -102,7 +73,7 @@ At this point, you have generated credentials that the Opsgenie plugin will use
 to connect to the Opsgenie API. To configure the plugin to use this API key navigate
 to Management -> Integrations -> Enroll New Integration.
 
-![Integrations page](../../../img/enterprise/plugins/opsgenie/opsgenie-integrations-menu.png)
+![Integrations menu](../../../img/enterprise/plugins/opsgenie/opsgenie-integrations-menu.png)
 
 Then select the Opsgenie integration.
 
