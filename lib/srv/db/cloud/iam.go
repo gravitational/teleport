@@ -142,6 +142,7 @@ func (c *IAM) Start(ctx context.Context) error {
 // Setup sets up cloud IAM policies for the provided database.
 func (c *IAM) Setup(ctx context.Context, database types.Database) error {
 	if c.isSetupRequiredForDatabase(database) {
+		c.iamPolicyStatus.Store(database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_PENDING)
 		return c.addTask(iamTask{
 			isSetup:  true,
 			database: database,
@@ -168,10 +169,15 @@ func (c *IAM) UpdateIAMStatus(database types.Database) error {
 
 		iamPolicyStatus, ok := c.iamPolicyStatus.Load(database.GetName())
 		if !ok {
-			iamPolicyStatus = false
+			// If there was no key found it was a result of un-registering database
+			// (and policy) as a result of deletion or failing to re-register from
+			// updating database.
+			awsStatus.IAMPolicyStatus = types.IAMPolicyStatus_IAM_POLICY_STATUS_UNSPECIFIED
+			database.SetStatusAWS(awsStatus)
+			return nil
 		}
 
-		awsStatus.IAMPolicyExists = iamPolicyStatus.(bool)
+		awsStatus.IAMPolicyStatus = iamPolicyStatus.(types.IAMPolicyStatus)
 		database.SetStatusAWS(awsStatus)
 	}
 	return nil
@@ -268,6 +274,7 @@ func (c *IAM) getPolicyName() (string, error) {
 func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
+		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
 		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
 			c.log.Warnf("No AWS credentials provider. Skipping IAM task for database %v.", task.database.GetName())
 			return nil
@@ -300,6 +307,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		},
 	})
 	if err != nil {
+		c.iamPolicyStatus.Store(task.database.GetName(), types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED)
 		return trace.Wrap(err)
 	}
 
@@ -313,7 +321,11 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	if task.isSetup {
 		iamAuthErr := configurator.setupIAMAuth(ctx)
 		iamPolicySetup, iamPolicyErr := configurator.setupIAMPolicy(ctx)
-		c.iamPolicyStatus.Store(task.database.GetName(), iamPolicySetup)
+		statusEnum := types.IAMPolicyStatus_IAM_POLICY_STATUS_FAILED
+		if iamPolicySetup {
+			statusEnum = types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS
+		}
+		c.iamPolicyStatus.Store(task.database.GetName(), statusEnum)
 
 		return trace.NewAggregate(iamAuthErr, iamPolicyErr)
 	}

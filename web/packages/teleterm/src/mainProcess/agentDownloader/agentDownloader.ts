@@ -45,10 +45,8 @@ interface AgentBinary {
 /**
  * Downloads and unpacks the agent binary, if it has not already been downloaded.
  *
- * The agent version to download is taken from settings.appVersion if it is not a dev version (1.0.0-dev).
- * The settings.appVersion is set to a real version only for packaged apps that went through our CI build pipeline.
- * In local builds, both for the development version and for packaged apps, settings.appVersion is set to 1.0.0-dev.
- * In those cases, we fetch the latest available stable version of the agent.
+ * The agent version to download is taken from settings.appVersion if settings.isLocalBuild is false.
+ * If it isn't, we fetch the latest available stable version of the agent.
  * CONNECT_CMC_AGENT_VERSION is available as an escape hatch for cases where we want to fetch a different version.
  */
 export async function downloadAgent(
@@ -56,7 +54,7 @@ export async function downloadAgent(
   settings: RuntimeSettings,
   env: Record<string, any>
 ): Promise<void> {
-  const version = await calculateAgentVersion(settings.appVersion, env);
+  const version = await calculateAgentVersion(settings, env);
 
   if (
     await isCorrectAgentVersionAlreadyDownloaded(
@@ -87,11 +85,11 @@ export async function downloadAgent(
 }
 
 async function calculateAgentVersion(
-  appVersion: string,
+  settings: RuntimeSettings,
   env: Record<string, any>
 ): Promise<string> {
-  if (appVersion !== '1.0.0-dev') {
-    return appVersion;
+  if (!settings.isLocalBuild) {
+    return settings.appVersion;
   }
   if (env.CONNECT_CMC_AGENT_VERSION) {
     return env.CONNECT_CMC_AGENT_VERSION;

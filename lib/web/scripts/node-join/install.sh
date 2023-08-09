@@ -933,7 +933,7 @@ is_repo_available() {
         debian-9* | debian-10* | debian-11* | \
         rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \
-        amzn-2)
+        amzn-2 | amzn-2023)
             return 0;;
     esac
 

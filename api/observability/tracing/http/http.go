@@ -44,9 +44,23 @@ func HandlerFormatter(operation string, r *nethttp.Request) string {
 // https://github.com/open-telemetry/opentelemetry-go-contrib/issues/3543.
 // Once the issue is resolved the wrapper may be discarded.
 func NewTransport(rt nethttp.RoundTripper) nethttp.RoundTripper {
+	return NewTransportWithInner(rt, rt)
+}
+
+// NewTransportWithInner wraps the provided [nethttp.RoundTripper] with one
+// that automatically adds spans for each http request.
+// The inner round tripper is used to close idle connections when
+// rt.CloseIdleConnections isn't implemented for the rt provided.
+//
+// Note: special care has been taken to ensure that the returned
+// [nethttp.RoundTripper] has a CloseIdleConnections method because
+// the [otelhttp.Transport] does not implement it:
+// https://github.com/open-telemetry/opentelemetry-go-contrib/issues/3543.
+// Once the issue is resolved the wrapper may be discarded.
+func NewTransportWithInner(rt nethttp.RoundTripper, inner http.RoundTripper) nethttp.RoundTripper {
 	return &roundTripWrapper{
 		RoundTripper: otelhttp.NewTransport(rt, otelhttp.WithSpanNameFormatter(TransportFormatter)),
-		inner:        rt,
+		inner:        inner,
 	}
 }
 

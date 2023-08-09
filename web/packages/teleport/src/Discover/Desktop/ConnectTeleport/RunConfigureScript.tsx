@@ -51,7 +51,7 @@ export function RunConfigureScript(
     <StepContent>
       <StepTitle>
         <StepTitleIcon>
-          <Icons.Terminal />
+          <Icons.Terminal size="extraLarge" />
         </StepTitleIcon>
         1. Run the configure Active Directory script
       </StepTitle>
@@ -70,7 +70,7 @@ export function RunConfigureScriptLoading() {
     <StepContent>
       <StepTitle>
         <StepTitleIcon>
-          <Icons.Terminal />
+          <Icons.Terminal size="extraLarge" />
         </StepTitleIcon>
         1. Run the configure Active Directory script
       </StepTitle>

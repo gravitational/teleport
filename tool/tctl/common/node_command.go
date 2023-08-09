@@ -248,10 +248,10 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	coll := &serverCollection{servers: nodes, verbose: c.verbose}
+	coll := &serverCollection{servers: nodes}
 	switch c.lsFormat {
 	case teleport.Text:
-		if err := coll.writeText(os.Stdout); err != nil {
+		if err := coll.writeText(os.Stdout, c.verbose); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:

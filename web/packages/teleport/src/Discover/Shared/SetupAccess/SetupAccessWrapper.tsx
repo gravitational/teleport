@@ -16,7 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Box, Indicator } from 'design';
+import { Text, Box, Indicator, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import {
@@ -67,10 +67,10 @@ export function SetupAccessWrapper({
     case 'failed':
       $content = (
         <>
-          <Text my={3}>
-            <Icons.Warning ml={1} mr={2} color="error.main" />
-            Encountered Error: {attempt.statusText}
-          </Text>
+          <Flex my={3}>
+            <Icons.Warning ml={1} mr={2} color="error.main" size="medium" />
+            <Text>Encountered Error: {attempt.statusText}</Text>
+          </Flex>
           <ButtonBlueText ml={1} onClick={fetchUserTraits}>
             Retry
           </ButtonBlueText>

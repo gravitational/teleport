@@ -687,6 +687,92 @@ matches snapshot for aws.yaml:
           table_name: test-dynamodb-backend-table
           type: dynamodb
       version: v3
+matches snapshot for azure.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: test-azure-cluster
+        cluster_name: test-azure-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-azure-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - postgresql://teleport@mypostgresinstance.postgres.database.azure.com/teleport_audit?sslmode=verify-full#auth_mode=azure
+          - stdout://
+          audit_sessions_uri: azblob://mystorageaccount.blob.core.windows.net
+          auth_mode: azure
+          conn_string: postgresql://teleport@mypostgresinstance.postgres.database.azure.com/teleport_backend?sslmode=verify-full&pool_max_conns=100
+          type: postgresql
+      version: v3
+matches snapshot for azure.yaml without pool_max_conn:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factor: "on"
+          type: local
+          webauthn:
+            rp_id: test-azure-cluster
+        cluster_name: test-azure-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-azure-cluster
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - postgresql://teleport@mypostgresinstance.postgres.database.azure.com/teleport_audit?sslmode=verify-full#auth_mode=azure
+          - stdout://
+          audit_sessions_uri: azblob://mystorageaccount.blob.core.windows.net
+          auth_mode: azure
+          conn_string: postgresql://teleport@mypostgresinstance.postgres.database.azure.com/teleport_backend?sslmode=verify-full
+          type: postgresql
+      version: v3
 matches snapshot for existing-tls-secret-with-ca.yaml:
   1: |
     |-

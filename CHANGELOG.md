@@ -37,6 +37,21 @@ So databases in AWS and Azure must:
 2. contain only letters, digits, and hyphens.
 3. end with a letter or digit (no trailing hyphens).
 
+#### MongoDB Server versions prior to 3.6 are no longer supported
+
+Teleport 14 includes an update to the MongoDB driver. Due to the MongoDB team
+dropping support for Servers prior to version 3.6, Teleport also will no longer
+be able to support these old server versions.
+
+#### DynamoDB Billing Mode
+
+In Teleport 14, when creating new DynamoDB tables,  Teleport will now
+create them with the billing mode set to `pay_per_request` instead of
+being set to `provisioned` mode.
+
+The old behavior can be restored by setting the the `billing_mode`
+option in the storage configuration.
+
 ## 13.0.1 (05/xx/23)
 
 * Helm Charts

@@ -17,10 +17,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Moon, Sun } from 'design/Icon';
-import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
+import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';
-import { LogoutIcon } from 'design/SVGIcon';
 import { NavLink } from 'react-router-dom';
 
 import session from 'teleport/services/websession';
@@ -54,7 +52,7 @@ const UserInfo = styled.div`
 `;
 
 const Username = styled(Text)`
-  color: ${props => props.theme.colors.text.main}
+  color: ${props => props.theme.colors.text.main};
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
@@ -145,6 +143,11 @@ const commonDropdownItemStyles = css`
 
   &:hover {
     opacity: 1;
+  }
+
+  svg {
+    height: 18px;
+    width: 18px;
   }
 `;
 
@@ -245,7 +248,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         <Username>{username}</Username>
 
         <Arrow open={open}>
-          <ChevronDownIcon />
+          <ChevronDown size="medium" />
         </Arrow>
       </UserInfo>
 
@@ -277,7 +280,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         >
           <DropdownItemButton onClick={() => session.logout()}>
             <DropdownItemIcon>
-              <LogoutIcon size={16} />
+              <LogoutIcon />
             </DropdownItemIcon>
             Logout
           </DropdownItemButton>
