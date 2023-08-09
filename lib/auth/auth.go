@@ -5518,6 +5518,31 @@ func (a *Server) getProxyPublicAddr() string {
 	return ""
 }
 
+// GetNodeStream streams a list of registered servers.
+func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	var done bool
+	startKey := ""
+	return stream.PageFunc(func() ([]types.Server, error) {
+		if done {
+			return nil, io.EOF
+		}
+		resp, err := a.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        apidefaults.DefaultChunkSize,
+			StartKey:     startKey,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		startKey = resp.NextKey
+		done = startKey == ""
+		resources := types.ResourcesWithLabels(resp.Resources)
+		servers, err := resources.AsServers()
+		return servers, trace.Wrap(err)
+	})
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex
