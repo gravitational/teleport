@@ -482,8 +482,7 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 			return true
 		}
 	}
-
-	return false
+	return slices.Contains(kinds, resourceKind)
 }
 
 // IsValidLabelKey checks if the supplied string matches the
