@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // Proxy proxies connections from Postgres clients to database services
@@ -75,7 +76,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 // handleConnection dials database service, sends the postgres startup
 // message, and begins proxying the connection.
 func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, startupMessage pgproto3.FrontendMessage) error {
-	clientIP, err := utils.ClientIPFromConn(clientConn)
+	clientIP, err := utilsaddr.ClientIPFromConn(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestWriteUpgradeResponse(t *testing.T) {
@@ -62,7 +62,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		go func() {
 			defer conn.Close()
 
-			clientIP, err := utils.ClientIPFromConn(conn)
+			clientIP, err := utilsaddr.ClientIPFromConn(conn)
 			require.NoError(t, err)
 			require.Equal(t, expectedIP, clientIP)
 

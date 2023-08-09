@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -430,7 +431,7 @@ func checkCertIPPinning(tlsConn *tls.Conn) error {
 		return trace.Wrap(err)
 	}
 
-	clientIP, err := utils.ClientIPFromConn(tlsConn)
+	clientIP, err := utilsaddr.ClientIPFromConn(tlsConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

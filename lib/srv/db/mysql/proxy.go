@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // Proxy proxies connections from MySQL clients to database services
@@ -100,7 +101,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.MySQL, clientConn)
 	}
 
-	clientIP, err := utils.ClientIPFromConn(clientConn)
+	clientIP, err := utilsaddr.ClientIPFromConn(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -19,8 +19,6 @@ package utils
 import (
 	"context"
 	"net"
-
-	"github.com/gravitational/trace"
 )
 
 type webContextKey string
@@ -55,16 +53,4 @@ func ClientAddrFromContext(ctx context.Context) (src net.Addr, dst net.Addr) {
 	src, _ = ctx.Value(ClientSrcAddrContextKey).(net.Addr)
 	dst, _ = ctx.Value(ClientDstAddrContextKey).(net.Addr)
 	return
-}
-
-// ClientIPFromConn extracts host from provided remote address.
-func ClientIPFromConn(conn net.Conn) (string, error) {
-	clientRemoteAddr := conn.RemoteAddr()
-
-	clientIP, _, err := net.SplitHostPort(clientRemoteAddr.String())
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return clientIP, nil
 }

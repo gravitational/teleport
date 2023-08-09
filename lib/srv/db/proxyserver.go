@@ -322,7 +322,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if !ok {
 		return trace.BadParameter("expected utils.TLSConn, got %T", conn)
 	}
-	clientIP, err := utils.ClientIPFromConn(conn)
+	clientIP, err := utilsaddr.ClientIPFromConn(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
