@@ -78,29 +78,23 @@ func ValidateRemoteToken(_ context.Context, now time.Time, jwksData []byte, expe
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	var errs []error
-	for _, jwk := range jwks.Keys {
-		claims := ServiceAccountTokenClaims{}
-		err := jwt.Claims(jwk.Public(), &claims)
-		if err != nil {
-			// If the jwt fails to verify, we can try the next one.
-			errs = append(errs, err)
-			continue
-		}
-
-		// TODO: Determine "safe" leeway
-		err = claims.ValidateWithLeeway(josejwt.Expected{
-			// We don't need to check the subject or other claims here.
-			// Anything related to matching the token against ProvisionToken
-			// allow rules is left to the discretion of `lib/auth`.
-			Audience: []string{
-				expectAudience,
-			},
-			Time: now,
-		}, time.Minute)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	claims := ServiceAccountTokenClaims{}
+	if err := jwt.Claims(jwks, &claims); err != nil {
+		return nil, trace.Wrap(err, "validating jwt signature")
 	}
-	return nil, trace.Wrap(trace.NewAggregate(errs...), "jwt did not pass validation with any of the keys in the supplied jwks")
+
+	err = claims.ValidateWithLeeway(josejwt.Expected{
+		// We don't need to check the subject or other claims here.
+		// Anything related to matching the token against ProvisionToken
+		// allow rules is left to the discretion of `lib/auth`.
+		Audience: []string{
+			expectAudience,
+		},
+		Time: now,
+	}, time.Minute)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating jwt claims")
+	}
+
+	return &claims, nil
 }
