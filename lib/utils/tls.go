@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"net"
 	"os"
-	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -35,15 +34,13 @@ func TLSConfig(cipherSuites []uint16) *tls.Config {
 
 // SetupTLSConfig sets up cipher suites in existing TLS config
 func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
-	// If ciphers suites were passed in, use them. Otherwise use the the
+	// If ciphers suites were passed in, use them. Otherwise, use the
 	// Go defaults.
 	if len(cipherSuites) > 0 {
 		config.CipherSuites = cipherSuites
 	}
 
 	config.MinVersion = tls.VersionTLS12
-	config.SessionTicketsDisabled = false
-	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
 }
 
 // CreateTLSConfiguration sets up default TLS configuration
@@ -124,13 +121,6 @@ var cipherSuiteMapping = map[string]uint16{
 	"tls-ecdhe-rsa-with-chacha20-poly1305":    tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
 	"tls-ecdhe-ecdsa-with-chacha20-poly1305":  tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
 }
-
-const (
-	// DefaultLRUCapacity is a capacity for LRU session cache
-	DefaultLRUCapacity = 1024
-	// DefaultCertTTL sets the TTL of the self-signed certificate (1 year)
-	DefaultCertTTL = (24 * time.Hour) * 365
-)
 
 // DefaultCipherSuites returns the default list of cipher suites that
 // Teleport supports. By default Teleport only support modern ciphers
