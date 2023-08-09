@@ -51,7 +51,7 @@ export function Resources() {
       observer.observe(observed.current);
       return () => observer.disconnect();
     }
-  });
+  }, [observed.current, fetchMore]);
 
   return (
     <FeatureBox>
