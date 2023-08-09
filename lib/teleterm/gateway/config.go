@@ -91,8 +91,8 @@ type Config struct {
 	// RootClusterCACertPoolFunc is callback function to fetch Root cluster CAs
 	// when ALPN connection upgrade is required.
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
-	// ProfileDir specifies the tsh home dir of the user profile.
-	ProfileDir string
+	// KubeconfigsDir is the directory containing kubeconfigs for kube gateways.
+	KubeconfigsDir string
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
