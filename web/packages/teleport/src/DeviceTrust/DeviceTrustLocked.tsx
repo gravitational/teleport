@@ -79,14 +79,14 @@ export function DeviceTrustLocked() {
             Teleport will authenticate the Trusted Device, in addition to
             establishing the user's identity and enforcing the necessary roles,
             and leaves an audit trail with device information. For more details,
-            please{' '}
+            please view{' '}
             <Link
               href={
                 'https://goteleport.com/docs/access-controls/device-trust/guide/'
               }
               target="_blank"
             >
-              view Device Trust documentation
+              Device Trust documentation
             </Link>
             .
           </Text>
