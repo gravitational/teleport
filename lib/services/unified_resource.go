@@ -290,8 +290,7 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 			ResourceGetter:  c.ResourceGetter,
 			initializationC: make(chan struct{}),
 		}
-		err := fallbackCache.getResourcesAndUpdateCurrent(ctx)
-		if err != nil {
+		if err := fallbackCache.getResourcesAndUpdateCurrent(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -307,7 +306,7 @@ func (c *UnifiedResourceCache) refreshStaleResources(ctx context.Context) error 
 		}
 
 		c.tree = fallbackCache.tree
-		return fallbackCache.tree, trace.Wrap(err)
+		return fallbackCache.tree, nil
 	})
 	return trace.Wrap(err)
 }
