@@ -69,6 +69,11 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	require.False(t, w.IsInitialized())
+	assert.Eventually(t, func() bool {
+		return w.IsInitialized()
+	}, 5*time.Second, 10*time.Millisecond, "unified resource watcher never initialized")
+
 	// No resources expected initially.
 	res, err := w.GetUnifiedResources(ctx)
 	require.NoError(t, err)
