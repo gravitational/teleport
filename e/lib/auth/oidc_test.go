@@ -991,6 +991,69 @@ func TestUsernameClaim(t *testing.T) {
 	}
 }
 
+// TestReqMaxAge tests that MaxAge is correctly set in a OIDC authentication request.
+func TestReqMaxAge(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	s := setUpSuite(t)
+	idp := newFakeIDP(t, false)
+
+	connectorSpec := types.OIDCConnectorSpecV3{
+		IssuerURL:     idp.s.URL,
+		ClientID:      "000",
+		ClientSecret:  "0000",
+		ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
+		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		UsernameClaim: "preferred_username",
+	}
+
+	tests := []struct {
+		name              string
+		maxAge            *types.MaxAge
+		expectedReqMaxAge string
+		expectedErr       string
+	}{
+		{
+			name:              "empty",
+			maxAge:            nil,
+			expectedReqMaxAge: "",
+		},
+		{
+			name:              "zero",
+			maxAge:            &types.MaxAge{Value: types.Duration(0)},
+			expectedReqMaxAge: "0",
+		},
+		{
+			name:              "hour",
+			maxAge:            &types.MaxAge{Value: types.Duration(time.Hour)},
+			expectedReqMaxAge: "3600",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := connectorSpec
+			spec.MaxAge = tt.maxAge
+
+			oidcRequest := types.OIDCAuthRequest{
+				ConnectorID:   "okta-oidc",
+				Type:          constants.OIDC,
+				CertTTL:       defaults.OIDCAuthRequestTTL,
+				SSOTestFlow:   true,
+				ConnectorSpec: &spec,
+			}
+			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
+			require.NoError(t, err)
+
+			redirURL, err := url.Parse(request.RedirectURL)
+			require.NoError(t, err)
+			maxAge := redirURL.Query().Get("max_age")
+			require.Equal(t, tt.expectedReqMaxAge, maxAge)
+		})
+	}
+}
+
 func TestValidateACRValues(t *testing.T) {
 	tests := []struct {
 		comment       string

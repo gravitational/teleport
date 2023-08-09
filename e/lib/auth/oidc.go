@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -48,6 +49,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// authGracePeriod accounts for the time it takes for an OIDC provider to
+// make a request to the Teleport callback URL after authenticating the
+// user and setting the 'auth_time' claim.
+const authGracePeriod = time.Minute
 
 type OIDCAuthService struct {
 	auth         *auth.Server
@@ -298,23 +304,51 @@ func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types
 	req.StateToken = stateToken
 
 	// online indicates that this login should only work online
-	req.RedirectURL = oauthClient.AuthCodeURL(req.StateToken, teleport.OIDCAccessTypeOnline, connector.GetPrompt())
+	acURL := oauthClient.AuthCodeURL(req.StateToken, teleport.OIDCAccessTypeOnline, connector.GetPrompt())
+	var redirectURL *url.URL
+	var redirectQuery url.Values
+
+	// lazily add values to the redirect URL
+	parseRedirectURL := func() error {
+		if redirectURL != nil {
+			return nil
+		}
+
+		redirectURL, err = url.Parse(acURL)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		redirectQuery = redirectURL.Query()
+		return nil
+	}
 
 	// if the connector has an Authentication Context Class Reference (ACR) value set,
 	// update redirect url and add it as a query value.
 	acrValue := connector.GetACR()
 	if acrValue != "" {
-		u, err := url.Parse(req.RedirectURL)
-		if err != nil {
+		if err := parseRedirectURL(); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		q := u.Query()
-		q.Set("acr_values", acrValue)
-		u.RawQuery = q.Encode()
-		req.RedirectURL = u.String()
+
+		redirectQuery.Set("acr_values", acrValue)
 	}
 
-	log.Debugf("OIDC redirect URL: %v.", req.RedirectURL)
+	// set max_age to tell the provider the user must be reauthenticated
+	// after a certain amount of time if necessary.
+	// https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+	if maxAge, ok := connector.GetMaxAge(); ok {
+		if err := parseRedirectURL(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		maxAgeSeconds := int64(maxAge / time.Second)
+		redirectQuery.Set("max_age", strconv.FormatInt(maxAgeSeconds, 10))
+	}
+
+	if redirectURL != nil {
+		redirectURL.RawQuery = redirectQuery.Encode()
+		req.RedirectURL = redirectURL.String()
+	}
 
 	err = oas.auth.Services.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
@@ -514,6 +548,29 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	diagCtx.Info.OIDCClaims = types.OIDCClaims(claims)
 
 	log.Debugf("OIDC claims: %v.", claims)
+
+	// check auth_time claim if max_age was passed in the request
+	if maxAge, ok := connector.GetMaxAge(); ok {
+		authTime, hasAuthTime, err := claims.TimeClaim("auth_time")
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to parse 'auth_time' claim.")
+		}
+		if !hasAuthTime {
+			oidcErr := trace.OAuth2(oauth2.ErrorAccessDenied, "missing claim auth_time", q)
+			return nil, trace.Wrap(oidcErr, "Invalid parameters received from OIDC provider.")
+		}
+
+		// TODO: use max when Go 1.21 releases
+		if maxAge < authGracePeriod {
+			maxAge = authGracePeriod
+		}
+
+		if time.Since(authTime) > maxAge {
+			oidcErr := trace.OAuth2(oauth2.ErrorAccessDenied, "user needs to reauthenticate", q)
+			return nil, trace.Wrap(oidcErr, "Reauthentication is required.")
+		}
+	}
+
 	if !connector.GetAllowUnverifiedEmail() {
 		if err := checkEmailVerifiedClaim(claims); err != nil {
 			return nil, trace.Wrap(err, "OIDC provider did not verify email.")
