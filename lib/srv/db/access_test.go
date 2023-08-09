@@ -2786,14 +2786,16 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 }
 
 type fakeDiscoveryResourceChecker struct {
-	errorsByName map[string]error
+	byName map[string]func(context.Context, types.Database) error
 }
 
-func (f *fakeDiscoveryResourceChecker) Check(_ context.Context, database types.Database) error {
-	if len(f.errorsByName) == 0 {
-		return nil
+func (f *fakeDiscoveryResourceChecker) Check(ctx context.Context, database types.Database) error {
+	if len(f.byName) > 0 {
+		if check := f.byName[database.GetName()]; check != nil {
+			return trace.Wrap(check(ctx, database))
+		}
 	}
-	return trace.Wrap(f.errorsByName[database.GetName()])
+	return nil
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{
