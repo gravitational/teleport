@@ -564,6 +564,10 @@ const (
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
 
+	// OriginDiscoveryKubernetes indicates that the resource was imported
+	// from kubernetes cluster by discovery service.
+	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
+
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
 

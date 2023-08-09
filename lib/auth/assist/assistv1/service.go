@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
+	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -38,7 +39,7 @@ import (
 type ServiceConfig struct {
 	Backend        services.Assistant
 	Embeddings     *ai.SimpleRetriever
-	Embedder       ai.Embedder
+	Embedder       embeddinglib.Embedder
 	Authorizer     authz.Authorizer
 	Logger         *logrus.Entry
 	ResourceGetter ResourceGetter
@@ -59,7 +60,7 @@ type Service struct {
 	embeddings *ai.SimpleRetriever
 	// embedder is used to embed text into a vector.
 	// It can be nil if the OpenAI API key is not set.
-	embedder       ai.Embedder
+	embedder       embeddinglib.Embedder
 	authorizer     authz.Authorizer
 	log            *logrus.Entry
 	resourceGetter ResourceGetter
@@ -239,8 +240,8 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	}
 
 	// Use default values for the id and content, as we only care about the embeddings.
-	queryEmbeddings := ai.NewEmbedding(msg.Kind, "", embeddings[0], [32]byte{})
-	documents := a.embeddings.GetRelevant(queryEmbeddings, int(msg.Limit), func(id string, embedding *ai.Embedding) bool {
+	queryEmbeddings := embeddinglib.NewEmbedding(msg.Kind, "", embeddings[0], [32]byte{})
+	documents := a.embeddings.GetRelevant(queryEmbeddings, int(msg.Limit), func(id string, embedding *embeddinglib.Embedding) bool {
 		// Run RBAC check on the embedded resource.
 		node, err := a.resourceGetter.GetNode(ctx, defaults.Namespace, embedding.GetEmbeddedID())
 		if err != nil {
@@ -257,7 +258,7 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 			return nil, trace.Wrap(err)
 		}
 
-		content, err := ai.SerializeNode(node)
+		content, err := embeddinglib.SerializeNode(node)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
