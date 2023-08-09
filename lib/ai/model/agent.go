@@ -252,7 +252,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		log.Tracef("agent decided on command generation, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	default:
-		runOut, err := tool.Run(ctx, *a.toolCtx, action.Input)
+		runOut, err := tool.Run(ctx, a.toolCtx, action.Input)
 		if err != nil {
 			return stepOutput{}, trace.Wrap(err)
 		}

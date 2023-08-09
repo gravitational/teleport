@@ -49,7 +49,7 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (c *CommandGenerationTool) Run(_ context.Context, toolCtx ToolContext, _ string) (string, error) {
+func (c *CommandGenerationTool) Run(_ context.Context, toolCtx *ToolContext, _ string) (string, error) {
 	// This is stubbed because CommandGenerationTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.

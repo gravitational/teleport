@@ -46,6 +46,7 @@ const (
 // TODO(joel): remove/change when migrating to embeddings
 const maxShownRequestableItems = 50
 
+// *ToolContext contains various "data" which is commonly needed by various tools.
 type ToolContext struct {
 	assist.AssistEmbeddingServiceClient
 	AccessRequestClient
@@ -55,11 +56,16 @@ type ToolContext struct {
 	ClusterName string
 }
 
+// NodeWatcher abstracts away services.NodeWatcher for testing purposes.
 type NodeWatcher interface {
+	// GetNodes returns a list of nodes that match the given filter.
 	GetNodes(ctx context.Context, fn func(n services.Node) bool) []types.Server
+
+	// NodeCount returns the number of nodes in the cluster.
 	NodeCount() int
 }
 
+// AccessRequestClient abstracts away the access request client for testing purposes.
 type AccessRequestClient interface {
 	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
@@ -71,7 +77,7 @@ type AccessRequestClient interface {
 type Tool interface {
 	Name() string
 	Description() string
-	Run(ctx context.Context, toolCtx ToolContext, input string) (string, error)
+	Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error)
 }
 type CommandExecutionTool struct{}
 
@@ -93,7 +99,7 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (c *CommandExecutionTool) Run(_ context.Context, _ ToolContext, _ string) (string, error) {
+func (c *CommandExecutionTool) Run(_ context.Context, _ *ToolContext, _ string) (string, error) {
 	// This is stubbed because CommandExecutionTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
@@ -137,7 +143,7 @@ func (*AccessRequestListRequestableRolesTool) Description() string {
 	return "List all roles that can be requested via access requests."
 }
 
-func (a *AccessRequestListRequestableRolesTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
+func (a *AccessRequestListRequestableRolesTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
 	roles := toolCtx.AccessChecker.Roles()
 	requestable := make(map[string]struct{}, 0)
 	for _, role := range roles {
@@ -175,7 +181,7 @@ func (*AccessRequestListRequestableResourcesTool) Description() string {
 This includes nodes via SSH access.`
 }
 
-func (a *AccessRequestListRequestableResourcesTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
+func (a *AccessRequestListRequestableResourcesTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
 	foundResources := make(chan promptResource, 0)
 	workersAlive := new(int32)
 	*workersAlive = 5
@@ -296,7 +302,7 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (*AccessRequestCreateTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
+func (*AccessRequestCreateTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
 	// This is stubbed because AccessRequestCreateTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a suggestion UI prompt.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
@@ -363,7 +369,7 @@ func (*AccessRequestsListTool) Description() string {
 	return "List all access requests that the user has access to."
 }
 
-func (*AccessRequestsListTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
+func (*AccessRequestsListTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
 	requests, err := toolCtx.GetAccessRequests(ctx, types.AccessRequestFilter{
 		User: toolCtx.User,
 	})
@@ -412,7 +418,7 @@ type EmbeddingRetrievalToolInput struct {
 // successful and the result can be used. If the boolean is false, the caller
 // must not use the returned result and perform a Node lookup via other means
 // (embeddings lookup).
-func (e *EmbeddingRetrievalTool) tryNodeLookupFromProxyCache(ctx context.Context, toolCtx ToolContext) (bool, string, error) {
+func (e *EmbeddingRetrievalTool) tryNodeLookupFromProxyCache(ctx context.Context, toolCtx *ToolContext) (bool, string, error) {
 	nodes := toolCtx.NodeWatcher.GetNodes(ctx, func(node services.Node) bool {
 		err := toolCtx.CheckAccess(node, services.AccessState{MFAVerified: true})
 		return err == nil
@@ -432,7 +438,7 @@ func (e *EmbeddingRetrievalTool) tryNodeLookupFromProxyCache(ctx context.Context
 	return true, sb.String(), nil
 }
 
-func (e *EmbeddingRetrievalTool) Run(ctx context.Context, toolCtx ToolContext, input string) (string, error) {
+func (e *EmbeddingRetrievalTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
 	inputCmd, outErr := e.parseInput(input)
 	if outErr == nil {
 		// If we failed to parse the input, we can still send the payload for embedding retrieval.

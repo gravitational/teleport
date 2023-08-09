@@ -576,7 +576,7 @@ func (h *Handler) assistChatLoop(ctx context.Context, assistClient *assist.Assis
 		User:                         sctx.GetUser(),
 	}
 
-	chat, err := assistClient.NewChat(ctx, toolContext, conversationID)
+	chat, err := assistClient.NewChat(ctx, authClient, toolContext, conversationID)
 	if err != nil {
 		return trace.Wrap(err)
 	}

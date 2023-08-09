@@ -121,7 +121,7 @@ labels:
 				require.NoError(t, err)
 			}
 
-			toolCtx := ToolContext{
+			toolCtx := &ToolContext{
 				User:          testUser,
 				AccessChecker: &mockAccessChecker{allowAccess: tt.hasAccess},
 				NodeWatcher:   &mockNodeGetter{nodes: nodes},
