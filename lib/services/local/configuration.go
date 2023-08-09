@@ -485,6 +485,15 @@ func (s *ClusterConfigurationService) UpdateClusterMaintenanceConfig(ctx context
 	return trace.Wrap(err)
 }
 
+// DeleteClusterMaintenanceConfig deletes the maintenance config singleton resource.
+func (s *ClusterConfigurationService) DeleteClusterMaintenanceConfig(ctx context.Context) error {
+	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, maintenancePrefix))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 const (
 	clusterConfigPrefix    = "cluster_configuration"
 	namePrefix             = "name"

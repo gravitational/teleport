@@ -3834,6 +3834,12 @@ func (c *Client) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.C
 	return trail.FromGRPC(err)
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
+func (c *Client) DeleteClusterMaintenanceConfig(ctx context.Context) error {
+	_, err := c.grpc.DeleteClusterMaintenanceConfig(ctx, &emptypb.Empty{})
+	return trail.FromGRPC(err)
+}
+
 // integrationsClient returns an unadorned Integration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
