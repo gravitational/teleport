@@ -1,7 +1,6 @@
 # Keep all tool versions in one place.
 # This file can be included in other Makefiles to avoid duplication.
 
-
 # Sync with devbox.json.
 GOLANG_VERSION ?= go1.21.0
 
