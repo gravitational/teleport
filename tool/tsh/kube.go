@@ -1004,13 +1004,9 @@ func getKubeClusterTextRow(kc types.KubeCluster, selectedCluster string, verbose
 	if selectedCluster != "" && kc.GetName() == selectedCluster {
 		selectedMark = "*"
 	}
-	printName := kc.GetName()
-	if d, ok := getDiscoveredName(kc); ok && !verbose {
-		// print the (shorter) discovered name in non-verbose mode.
-		printName = d
-	}
+	displayName := common.FormatResourceName(kc, verbose)
 	labels := common.FormatLabels(kc.GetAllLabels(), verbose)
-	row = append(row, printName, labels, selectedMark)
+	row = append(row, displayName, labels, selectedMark)
 	return row
 }
 
