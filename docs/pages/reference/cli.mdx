@@ -1227,6 +1227,7 @@ $ tsh request create [<flags>]
 | `--nowait` | `false` | `true` or `false` | Finish without waiting for request resolution |
 | `--request-ttl` | 1 hour | Relative duration like `5s`, `2m`, or `3h`, | Defines how long the Access Request will be in a `PENDING` state before becoming invalid |
 | `--session-ttl` | Time left on current session | Relative duration like `5s`, `2m`, or `3h` | Defines how long the elevated session will be valid for |
+| `--max-duration` | none | Relative duration like `5s`, `2m`, `3h`, or `7d` | Defines the maximum duration of the elevated session up to 7 days. The assigned role also must have `max_duration` option specified (optional) |
 
 <Admonition type="tip" title="Note">
 The `--request-ttl` and `--session-ttl` values can not be greater than the
@@ -1235,6 +1236,8 @@ following:
 - Maximum certificate lifetime.
 - Time left on an existing session (certificate).
 - Maximum session duration defined by the user's roles.
+
+Use `--max-duration` to request access for longer than the maximum certificate lifetime.
 </Admonition>
 
 ### tsh request ls

@@ -1210,34 +1210,6 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	return resp.GetSession(), nil
 }
 
-// GetAppSessions gets all application web sessions.
-func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	var (
-		nextToken string
-		sessions  []types.WebSession
-	)
-
-	// Leverages ListAppSessions instead of GetAppSessions to prevent
-	// the server from having to send all sessions in a single message.
-	// If there are enough sessions it can cause the max message size to be
-	// exceeded.
-	for {
-		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
-		if err != nil {
-			return nil, trail.FromGRPC(err)
-		}
-
-		sessions = append(sessions, webSessions...)
-		if token == "" {
-			break
-		}
-
-		nextToken = token
-	}
-
-	return sessions, nil
-}
-
 // ListAppSessions gets a paginated list of application web sessions.
 func (c *Client) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
 	resp, err := c.grpc.ListAppSessions(
@@ -1977,15 +1949,7 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	if err != nil {
-		err := trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			_, err := c.grpc.UpsertToken(ctx, tokenV2)
-			return trail.FromGRPC(err)
-		}
-		return err
-	}
-	return nil
+	return trail.FromGRPC(err)
 }
 
 // CreateToken creates a provision token.
@@ -2000,15 +1964,7 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	if err != nil {
-		err := trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			_, err := c.grpc.CreateToken(ctx, tokenV2)
-			return trail.FromGRPC(err)
-		}
-		return err
-	}
-	return nil
+	return trail.FromGRPC(err)
 }
 
 // DeleteToken deletes a provision token by name.

@@ -115,9 +115,6 @@ func compareServers(a, b types.Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-	if !cmp.Equal(a.GetApps(), b.GetApps()) {
-		return Different
-	}
 
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
@@ -407,8 +404,8 @@ func UnmarshalServers(bytes []byte) ([]types.Server, error) {
 	}
 
 	out := make([]types.Server, len(servers))
-	for i, v := range servers {
-		out[i] = types.Server(&v)
+	for i := range servers {
+		out[i] = types.Server(&servers[i])
 	}
 	return out, nil
 }
