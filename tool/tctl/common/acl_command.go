@@ -70,7 +70,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 	c.usersAdd = users.Command("add", "Add a user to an access list.")
 	c.usersAdd.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
 	c.usersAdd.Arg("user", "The user to add to the access list.").Required().StringVar(&c.userName)
-	c.usersAdd.Arg("ttl", "When the user's access expires (must be in RFC3339).").Required().StringVar(&c.expires)
+	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339).").Required().StringVar(&c.expires)
 	c.usersAdd.Arg("reason", "The reason the user has been added to the access list.").Required().StringVar(&c.reason)
 
 	c.usersRemove = users.Command("rm", "Remove a user from an access list.")
