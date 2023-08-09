@@ -2145,6 +2145,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		UserGroups:              cfg.services,
 		Okta:                    cfg.services.OktaClient(),
 		AccessLists:             cfg.services.AccessListClient(),
+		UserLoginStates:         cfg.services.UserLoginStateClient(),
 		Integrations:            cfg.services,
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
