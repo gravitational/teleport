@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/cloud"
+	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -56,13 +57,13 @@ func (c *urlChecker) checkAWS(describeCheck, basicEndpointCheck checkDatabaseFun
 	}
 }
 
-func (c *urlChecker) logAWSAccessDeniedError(database types.Database, accessDeinedError error) {
+func (c *urlChecker) logAWSAccessDeniedError(database types.Database, accessDeniedError error) {
 	c.warnAWSOnce.Do(func() {
 		// TODO(greedy52) add links to doc.
 		c.log.Warn("No permissions to describe AWS resource metadata that is needed for validating databases created by Discovery Service. Basic AWS endpoint validation will be performed instead. For best security, please provide the Database Service with the proper IAM permissions. Enable --debug mode to see details on which databases require more IAM permissions. See Database Access documentation for more details.")
 	})
 
-	c.log.Debugf("No permissions to describe %q: %v.", database, accessDeinedError)
+	c.log.Debugf("No permissions to describe database %q for URL validation.", database.GetName())
 }
 
 func (c *urlChecker) checkRDS(ctx context.Context, database types.Database) error {
@@ -77,6 +78,7 @@ func (c *urlChecker) checkRDS(ctx context.Context, database types.Database) erro
 	}
 	return trace.Wrap(c.checkRDSInstance(ctx, database, rdsClient, meta.RDS.InstanceID))
 }
+
 func (c *urlChecker) checkRDSInstance(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, instanceID string) error {
 	rdsInstance, err := describeRDSInstance(ctx, rdsClient, instanceID)
 	if err != nil {
@@ -87,6 +89,7 @@ func (c *urlChecker) checkRDSInstance(ctx context.Context, database types.Databa
 	}
 	return trace.Wrap(requireDatabaseAddressPort(database, rdsInstance.Endpoint.Address, rdsInstance.Endpoint.Port))
 }
+
 func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, clusterID string) error {
 	rdsCluster, err := describeRDSCluster(ctx, rdsClient, clusterID)
 	if err != nil {
@@ -96,8 +99,13 @@ func (c *urlChecker) checkRDSCluster(ctx context.Context, database types.Databas
 	if err != nil {
 		c.log.Warnf("Could not convert RDS cluster %q to database resources: %v.",
 			aws.StringValue(rdsCluster.DBClusterIdentifier), err)
+
+		// services.NewDatabasesFromRDSCluster maybe partially successful.
+		if len(databases) == 0 {
+			return nil
+		}
 	}
-	return trace.Wrap(requireContainsDatabaseURLAndType(databases, database, rdsCluster))
+	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(databases, database, rdsCluster))
 }
 
 func (c *urlChecker) checkRDSProxy(ctx context.Context, database types.Database) error {
@@ -111,6 +119,7 @@ func (c *urlChecker) checkRDSProxy(ctx context.Context, database types.Database)
 	}
 	return trace.Wrap(c.checkRDSProxyPrimaryEndpoint(ctx, database, rdsClient, meta.RDSProxy.Name))
 }
+
 func (c *urlChecker) checkRDSProxyPrimaryEndpoint(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, proxyName string) error {
 	rdsProxy, err := describeRDSProxy(ctx, rdsClient, proxyName)
 	if err != nil {
@@ -153,6 +162,7 @@ func (c *urlChecker) checkRedshiftServerless(ctx context.Context, database types
 	}
 	return trace.Wrap(c.checkRedshiftServerlessWorkgroup(ctx, database, client, meta.RedshiftServerless.WorkgroupName))
 }
+
 func (c *urlChecker) checkRedshiftServerlessVPCEndpoint(ctx context.Context, database types.Database, client redshiftserverlessiface.RedshiftServerlessAPI, endpointName string) error {
 	endpoint, err := describeRedshiftServerlessVCPEndpoint(ctx, client, endpointName)
 	if err != nil {
@@ -160,6 +170,7 @@ func (c *urlChecker) checkRedshiftServerlessVPCEndpoint(ctx context.Context, dat
 	}
 	return trace.Wrap(requireDatabaseAddressPort(database, endpoint.Address, endpoint.Port))
 }
+
 func (c *urlChecker) checkRedshiftServerlessWorkgroup(ctx context.Context, database types.Database, client redshiftserverlessiface.RedshiftServerlessAPI, workgroupName string) error {
 	workgroup, err := describeRedshiftServerlessWorkgroup(ctx, client, workgroupName)
 	if err != nil {
@@ -185,7 +196,7 @@ func (c *urlChecker) checkElastiCache(ctx context.Context, database types.Databa
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(requireContainsDatabaseURLAndType(databases, database, cluster))
+	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(databases, database, cluster))
 }
 
 func (c *urlChecker) checkMemoryDB(ctx context.Context, database types.Database) error {
@@ -212,7 +223,7 @@ func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Databas
 		DomainNames: []*string{aws.String(meta.OpenSearch.DomainName)},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(cloudaws.ConvertRequestFailureError(err))
 	}
 	if len(domains.DomainStatusList) != 1 {
 		return trace.BadParameter("expect 1 domain but got %v", domains.DomainStatusList)
@@ -222,7 +233,7 @@ func (c *urlChecker) checkOpenSearch(ctx context.Context, database types.Databas
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(requireContainsDatabaseURLAndType(databases, database, domains.DomainStatusList[0]))
+	return trace.Wrap(requireContainsDatabaseURLAndEndpointType(databases, database, domains.DomainStatusList[0]))
 }
 
 func (c *urlChecker) checkOpenSearchEndpoint(ctx context.Context, database types.Database) error {

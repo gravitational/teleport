@@ -134,7 +134,7 @@ func requireDatabaseHost(database types.Database, wantURLHost string) error {
 	return nil
 }
 
-func requireContainsDatabaseURLAndType(in types.Databases, database types.Database, resource any) error {
+func requireContainsDatabaseURLAndEndpointType(in types.Databases, database types.Database, resource any) error {
 	matchURLAndType := func(other types.Database) bool {
 		return other.GetURI() == database.GetURI() && other.GetEndpointType() == database.GetEndpointType()
 	}
