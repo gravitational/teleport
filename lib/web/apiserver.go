@@ -85,7 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -182,19 +182,19 @@ type Config struct {
 	// to local cluster or remote clusters using unified interface
 	Proxy reversetunnelclient.Tunnel
 	// AuthServers is a list of auth servers this proxy talks to
-	AuthServers utils.NetAddr
+	AuthServers utilsaddr.NetAddr
 	// DomainName is a domain name served by web handler
 	DomainName string
 	// ProxyClient is a client that authenticated as proxy
 	ProxyClient auth.ClientI
 	// ProxySSHAddr points to the SSH address of the proxy
-	ProxySSHAddr utils.NetAddr
+	ProxySSHAddr utilsaddr.NetAddr
 	// ProxyKubeAddr points to the Kube address of the proxy
-	ProxyKubeAddr utils.NetAddr
+	ProxyKubeAddr utilsaddr.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
-	ProxyWebAddr utils.NetAddr
+	ProxyWebAddr utilsaddr.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
-	ProxyPublicAddrs []utils.NetAddr
+	ProxyPublicAddrs []utilsaddr.NetAddr
 
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
@@ -367,7 +367,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	sessionCache, err := newSessionCache(h.cfg.Context, sessionCacheOptions{
 		proxyClient:               cfg.ProxyClient,
 		accessPoint:               cfg.AccessPoint,
-		servers:                   []utils.NetAddr{cfg.AuthServers},
+		servers:                   []utilsaddr.NetAddr{cfg.AuthServers},
 		cipherSuites:              cfg.CipherSuites,
 		clock:                     h.clock,
 		sessionLingeringThreshold: sessionLingeringThreshold,
@@ -4026,7 +4026,7 @@ func (h *Handler) kubeProxyHostPort() string {
 // As such, replace 0.0.0.0 with localhost in this case: proxy listens on
 // all interfaces and localhost is always included in the valid principal
 // set.
-func createHostPort(netAddr utils.NetAddr, port int) string {
+func createHostPort(netAddr utilsaddr.NetAddr, port int) string {
 	if netAddr.IsHostUnspecified() {
 		return fmt.Sprintf("localhost:%v", netAddr.Port(port))
 	}

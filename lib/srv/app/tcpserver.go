@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type tcpServer struct {
@@ -38,7 +39,7 @@ type tcpServer struct {
 
 // handleConnection handles connection from a TCP application.
 func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application) error {
-	addr, err := utils.ParseAddr(app.GetURI())
+	addr, err := utilsaddr.ParseAddr(app.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
 	}

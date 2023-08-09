@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // botIdentityRenewalRetryLimit is the number of permissible consecutive
@@ -191,7 +191,7 @@ func botIdentityFromAuth(
 // server using auth.Register.
 func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*identity.Identity, error) {
 	log.Info("Fetching bot identity using token.")
-	addr, err := utils.ParseAddr(cfg.AuthServer)
+	authAddr, err := utilsaddr.ParseAddr(cfg.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err, "invalid auth server address %+v", cfg.AuthServer)
 	}
@@ -212,7 +212,7 @@ func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*ident
 		ID: auth.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers:        []utils.NetAddr{*addr},
+		AuthServers:        []utilsaddr.NetAddr{*authAddr},
 		PublicTLSKey:       tlsPublicKey,
 		PublicSSHKey:       sshPublicKey,
 		CAPins:             cfg.Onboarding.CAPins,

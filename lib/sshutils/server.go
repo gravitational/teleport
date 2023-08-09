@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 var proxyConnectionLimitHitCount = prometheus.NewCounter(
@@ -65,7 +66,7 @@ type Server struct {
 	component string
 
 	// addr is the address this server binds to and listens on
-	addr utils.NetAddr
+	addr utilsaddr.NetAddr
 
 	// listener is usually the listening TCP/IP socket
 	listener net.Listener
@@ -189,7 +190,7 @@ func SetClusterName(clusterName string) ServerOption {
 
 func NewServer(
 	component string,
-	a utils.NetAddr,
+	a utilsaddr.NetAddr,
 	h NewChanHandler,
 	hostSigners []ssh.Signer,
 	ah AuthMethods,
@@ -684,7 +685,7 @@ type AuthMethods struct {
 	NoClient  bool
 }
 
-func (s *Server) checkArguments(a utils.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
+func (s *Server) checkArguments(a utilsaddr.NetAddr, h NewChanHandler, hostSigners []ssh.Signer, ah AuthMethods) error {
 	// If the server is not in tunnel mode, an address must be specified.
 	if s.listener != nil {
 		if a.Addr == "" || a.AddrNetwork == "" {

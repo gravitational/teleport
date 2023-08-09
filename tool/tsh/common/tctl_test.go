@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	toolcommon "github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
@@ -192,21 +192,21 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 	tests := []struct {
 		desc           string
 		authServerFlag []string
-		want           []utils.NetAddr
+		want           []utilsaddr.NetAddr
 	}{
 		{
 			desc: "sets default web proxy addr without auth server flag",
-			want: []utils.NetAddr{*proxyAddr},
+			want: []utilsaddr.NetAddr{*proxyAddr},
 		},
 		{
 			desc:           "sets auth addr from auth server flag ignoring profile setting",
 			authServerFlag: []string{authAddr.String()},
-			want:           []utils.NetAddr{*authAddr},
+			want:           []utilsaddr.NetAddr{*authAddr},
 		},
 		{
 			desc:           "sets auth addr from auth server flag when profile is not found",
 			authServerFlag: []string{"site.not.in.profile.com:3080"},
-			want: []utils.NetAddr{
+			want: []utilsaddr.NetAddr{
 				{
 					Addr:        "site.not.in.profile.com:3080",
 					AddrNetwork: "tcp",

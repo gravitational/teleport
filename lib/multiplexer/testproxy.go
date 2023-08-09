@@ -24,6 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // TestProxy is tcp passthrough proxy that sends a proxy-line when connecting
@@ -116,11 +117,11 @@ func (p *TestProxy) handleConnection(clientConn net.Conn) error {
 
 // sendProxyLine sends proxy-line to the server.
 func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
-	clientAddr, err := utils.ParseAddr(clientConn.RemoteAddr().String())
+	clientAddr, err := utilsaddr.ParseAddr(clientConn.RemoteAddr().String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverAddr, err := utils.ParseAddr(serverConn.RemoteAddr().String())
+	serverAddr, err := utilsaddr.ParseAddr(serverConn.RemoteAddr().String())
 	if err != nil {
 		return trace.Wrap(err)
 	}

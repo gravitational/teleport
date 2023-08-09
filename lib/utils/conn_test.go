@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestTrackingReaderEOF(t *testing.T) {
@@ -51,7 +53,7 @@ func TestConnWithSrcAddr(t *testing.T) {
 	})
 
 	t.Run("valid clientSrcAddr", func(t *testing.T) {
-		addr := MustParseAddr("11.22.33.44:5566")
+		addr := utilsaddr.MustParseAddr("11.22.33.44:5566")
 		conn := NewConnWithSrcAddr(orgConn, addr)
 
 		require.NotEqual(t, orgConn.RemoteAddr().String(), conn.RemoteAddr().String())

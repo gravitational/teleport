@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 const (
@@ -731,7 +732,7 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 
 func getProxyAddrFromConfig(cfg *servicecfg.Config, flags configurators.BootstrapFlags) (string, error) {
 	if flags.Proxy != "" {
-		addr, err := utils.ParseHostPortAddr(flags.Proxy, defaults.HTTPListenPort)
+		addr, err := utilsaddr.ParseHostPortAddr(flags.Proxy, defaults.HTTPListenPort)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

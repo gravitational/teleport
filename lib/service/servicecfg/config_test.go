@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -41,7 +42,7 @@ func TestDefaultConfig(t *testing.T) {
 	require.True(t, config.SSH.Enabled)
 	require.True(t, config.Proxy.Enabled)
 
-	localAuthAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3025"}
+	localAuthAddr := utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3025"}
 
 	// data dir, hostname and auth server
 	require.Equal(t, config.DataDir, defaults.DataDir)
@@ -525,7 +526,7 @@ func TestValidateConfig(t *testing.T) {
 				Auth: AuthConfig{
 					Enabled: true,
 				},
-				ProxyServer: *utils.MustParseAddr("0.0.0.0"),
+				ProxyServer: *utilsaddr.MustParseAddr("0.0.0.0"),
 			},
 			wantErr: "config: proxy_server is supported from config version v3 onwards",
 		},
@@ -537,7 +538,7 @@ func TestValidateConfig(t *testing.T) {
 					Enabled: true,
 				},
 				DataDir:     "/",
-				authServers: []utils.NetAddr{*utils.MustParseAddr("0.0.0.0")},
+				authServers: []utilsaddr.NetAddr{*utilsaddr.MustParseAddr("0.0.0.0")},
 			},
 			wantErr: "config: when app_service is enabled, proxy_server must be specified instead of auth_server",
 		},
@@ -549,7 +550,7 @@ func TestValidateConfig(t *testing.T) {
 					Enabled: true,
 				},
 				DataDir:     "/",
-				authServers: []utils.NetAddr{*utils.MustParseAddr("0.0.0.0")},
+				authServers: []utilsaddr.NetAddr{*utilsaddr.MustParseAddr("0.0.0.0")},
 			},
 			wantErr: "config: when db_service is enabled, proxy_server must be specified instead of auth_server",
 		},
@@ -661,7 +662,7 @@ func TestWebPublicAddr(t *testing.T) {
 		{
 			name: "default port",
 			config: ProxyConfig{
-				PublicAddrs: []utils.NetAddr{
+				PublicAddrs: []utilsaddr.NetAddr{
 					{Addr: "0.0.0.0", AddrNetwork: "tcp"},
 				},
 			},
@@ -670,7 +671,7 @@ func TestWebPublicAddr(t *testing.T) {
 		{
 			name: "non-default port",
 			config: ProxyConfig{
-				PublicAddrs: []utils.NetAddr{
+				PublicAddrs: []utilsaddr.NetAddr{
 					{Addr: "0.0.0.0:443", AddrNetwork: "tcp"},
 				},
 			},

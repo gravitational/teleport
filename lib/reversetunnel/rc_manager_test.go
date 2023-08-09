@@ -27,15 +27,15 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 	t.Parallel()
 
 	resolverFn := func(addr string) reversetunnelclient.Resolver {
-		return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
-			return &utils.NetAddr{
+		return func(context.Context) (*utilsaddr.NetAddr, types.ProxyListenerMode, error) {
+			return &utilsaddr.NetAddr{
 				Addr:        addr,
 				AddrNetwork: "tcp",
 				Path:        "",

@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // Agent extends the agent.ExtendedAgent interface.
@@ -206,7 +207,7 @@ func (a *AgentServer) Serve() error {
 }
 
 // ListenAndServe is similar http.ListenAndServe
-func (a *AgentServer) ListenAndServe(addr utils.NetAddr) error {
+func (a *AgentServer) ListenAndServe(addr utilsaddr.NetAddr) error {
 	l, err := net.Listen(addr.AddrNetwork, addr.Addr)
 	if err != nil {
 		return trace.Wrap(err)

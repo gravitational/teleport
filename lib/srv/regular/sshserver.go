@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -81,7 +82,7 @@ type Server struct {
 	*logrus.Entry
 
 	namespace string
-	addr      utils.NetAddr
+	addr      utilsaddr.NetAddr
 	hostname  string
 
 	srv         *sshutils.Server
@@ -107,9 +108,9 @@ type Server struct {
 	proxyAccessPoint auth.ReadProxyAccessPoint
 	peerAddr         string
 
-	advertiseAddr   *utils.NetAddr
-	proxyPublicAddr utils.NetAddr
-	publicAddrs     []utils.NetAddr
+	advertiseAddr   *utilsaddr.NetAddr
+	proxyPublicAddr utilsaddr.NetAddr
+	publicAddrs     []utilsaddr.NetAddr
 
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
@@ -708,7 +709,7 @@ func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
 }
 
 // SetPublicAddrs sets the server's public addresses
-func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
+func SetPublicAddrs(addrs []utilsaddr.NetAddr) ServerOption {
 	return func(s *Server) error {
 		s.publicAddrs = addrs
 		return nil
@@ -718,13 +719,13 @@ func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 // New returns an unstarted server
 func New(
 	ctx context.Context,
-	addr utils.NetAddr,
+	addr utilsaddr.NetAddr,
 	hostname string,
 	signers []ssh.Signer,
 	authService srv.AccessPoint,
 	dataDir string,
 	advertiseAddr string,
-	proxyPublicAddr utils.NetAddr,
+	proxyPublicAddr utilsaddr.NetAddr,
 	auth auth.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
@@ -752,7 +753,7 @@ func New(
 		return nil, trace.Wrap(err)
 	}
 	if advertiseAddr != "" {
-		s.advertiseAddr, err = utils.ParseAddr(advertiseAddr)
+		s.advertiseAddr, err = utilsaddr.ParseAddr(advertiseAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -950,13 +951,13 @@ func (s *Server) PermitUserEnvironment() bool {
 	return s.permitUserEnvironment
 }
 
-func (s *Server) setAdvertiseAddr(addr *utils.NetAddr) {
+func (s *Server) setAdvertiseAddr(addr *utilsaddr.NetAddr) {
 	s.Lock()
 	defer s.Unlock()
 	s.advertiseAddr = addr
 }
 
-func (s *Server) getAdvertiseAddr() *utils.NetAddr {
+func (s *Server) getAdvertiseAddr() *utilsaddr.NetAddr {
 	s.Lock()
 	defer s.Unlock()
 	return s.advertiseAddr
@@ -1029,9 +1030,9 @@ func (s *Server) GetInfo() types.Server {
 
 func (s *Server) getBasicInfo() *types.ServerV2 {
 	// Only set the address for non-tunnel nodes.
-	var addr string
+	var addrStr string
 	if !s.useTunnel {
-		addr = s.AdvertiseAddr()
+		addrStr = s.AdvertiseAddr()
 	}
 
 	srv := &types.ServerV2{
@@ -1044,14 +1045,14 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		},
 		Spec: types.ServerSpecV2{
 			CmdLabels: s.getDynamicLabels(),
-			Addr:      addr,
+			Addr:      addrStr,
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
 			Version:   teleport.Version,
 			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
 		},
 	}
-	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+	srv.SetPublicAddrs(utilsaddr.NetAddrsToStrings(s.publicAddrs))
 
 	return srv
 }

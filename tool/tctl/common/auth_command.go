@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // AuthCommand implements `tctl auth` group of commands
@@ -1024,36 +1025,36 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI auth.Client
 		return trace.WrapWithMessage(err, "couldn't load registered proxies, try setting --proxy manually")
 	}
 	for _, p := range proxies {
-		addr := p.GetPublicAddr()
-		if addr == "" {
+		pubAddr := p.GetPublicAddr()
+		if pubAddr == "" {
 			continue
 		}
 		// if the proxy is multiplexing, the public address is the web proxy address.
 		if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
 			u := url.URL{
 				Scheme: "https",
-				Host:   addr,
+				Host:   pubAddr,
 			}
 			a.proxyAddr = u.String()
 			return nil
 		}
 
-		_, err := utils.ParseAddr(addr)
+		_, err := utilsaddr.ParseAddr(pubAddr)
 		if err != nil {
-			log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+			log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), pubAddr, err)
 			continue
 		}
 
 		ping, err := webclient.Ping(
 			&webclient.Config{
 				Context:   ctx,
-				ProxyAddr: addr,
+				ProxyAddr: pubAddr,
 				Timeout:   5 * time.Second,
 				Insecure:  a.testInsecureSkipVerify,
 			},
 		)
 		if err != nil {
-			log.Warningf("Unable to ping proxy public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+			log.Warningf("Unable to ping proxy public address on the proxy %q: %q: %v.", p.GetName(), pubAddr, err)
 			continue
 		}
 

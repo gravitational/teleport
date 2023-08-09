@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type Suite struct {
@@ -198,7 +199,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
-		tconf.SetAuthServerAddress(utils.NetAddr{
+		tconf.SetAuthServerAddress(utilsaddr.NetAddr{
 			AddrNetwork: "tcp",
 			Addr:        p.leaf.Web,
 		})
@@ -577,7 +578,7 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 	nodeConfig.Version = defaults.TeleportConfigVersionV3
 	nodeConfig.Hostname = nodeName
 	nodeConfig.SetToken("token")
-	nodeConfig.ProxyServer = *utils.MustParseAddr(proxyAddr)
+	nodeConfig.ProxyServer = *utilsaddr.MustParseAddr(proxyAddr)
 	nodeConfig.Auth.Enabled = false
 	nodeConfig.Proxy.Enabled = false
 	nodeConfig.SSH.Enabled = true
@@ -644,7 +645,7 @@ func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedAR
 	return provisionToken
 }
 
-func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials *credentials.Credentials) {
+func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utilsaddr.NetAddr, token string, credentials *credentials.Credentials) {
 	t.Helper()
 
 	cred, err := credentials.Get()

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 const (
@@ -73,7 +74,7 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authServers, err := utils.ParseAddrs([]string{opts.Addr})
+	authServers, err := utilsaddr.ParseAddrs([]string{opts.Addr})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

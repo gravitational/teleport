@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // GetClaimNames returns a list of claim names from the claim values
@@ -67,7 +68,7 @@ func GetRedirectURL(conn types.OIDCConnector, proxyAddr string) (string, error) 
 		return conn.GetRedirectURLs()[0], nil
 	}
 
-	proxyNetAddr, err := utils.ParseAddr(proxyAddr)
+	proxyNetAddr, err := utilsaddr.ParseAddr(proxyAddr)
 	if err != nil {
 		return "", trace.Wrap(err, "invalid proxy address %v", proxyAddr)
 	}

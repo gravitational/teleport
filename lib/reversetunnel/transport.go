@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
@@ -70,7 +71,7 @@ type transport struct {
 	localClusterName string
 
 	// kubeDialAddr is the address of the Kubernetes proxy.
-	kubeDialAddr utils.NetAddr
+	kubeDialAddr utilsaddr.NetAddr
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
 	sconn sshutils.Conn
@@ -192,7 +193,7 @@ func (p *transport) start() {
 
 			// If dreq has ClientSrcAddr we wrap connection
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
-			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
+			src, err := utilsaddr.ParseAddr(dreq.ClientSrcAddr)
 			if err == nil {
 				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
@@ -235,7 +236,7 @@ func (p *transport) start() {
 
 			// If dreq has ClientSrcAddr we wrap connection
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
-			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
+			src, err := utilsaddr.ParseAddr(dreq.ClientSrcAddr)
 			if err == nil {
 				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
@@ -263,11 +264,11 @@ func (p *transport) start() {
 	}
 
 	var clientSrc, clientDst net.Addr
-	src, err := utils.ParseAddr(dreq.ClientSrcAddr)
+	src, err := utilsaddr.ParseAddr(dreq.ClientSrcAddr)
 	if err == nil {
 		clientSrc = src
 	}
-	dst, err := utils.ParseAddr(dreq.ClientDstAddr)
+	dst, err := utilsaddr.ParseAddr(dreq.ClientDstAddr)
 	if err == nil {
 		clientDst = dst
 	}

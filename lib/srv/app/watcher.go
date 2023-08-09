@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -143,7 +143,7 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 		return "", trace.BadParameter("cluster has no proxy registered, at least one proxy must be registered for application access")
 	}
 	if servers[0].GetPublicAddr() != "" {
-		addr, err := utils.ParseAddr(servers[0].GetPublicAddr())
+		addr, err := utilsaddr.ParseAddr(servers[0].GetPublicAddr())
 		if err != nil {
 			return "", trace.Wrap(err)
 		}

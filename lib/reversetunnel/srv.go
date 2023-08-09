@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 var (
@@ -342,7 +343,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		teleport.ComponentReverseTunnelServer,
 		// TODO(klizhentas): improve interface, use struct instead of parameter list
 		// this address is not used
-		utils.NetAddr{Addr: "127.0.0.1:1", AddrNetwork: "tcp"},
+		utilsaddr.NetAddr{Addr: "127.0.0.1:1", AddrNetwork: "tcp"},
 		srv,
 		cfg.HostSigners,
 		sshutils.AuthMethods{

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type DatabasePack struct {
@@ -123,7 +124,7 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	conf.DataDir = filepath.Join(t.TempDir(), pack.name)
 	conf.SetToken("static-token-value")
 
-	conf.SetAuthServerAddress(utils.NetAddr{
+	conf.SetAuthServerAddress(utilsaddr.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        pack.Cluster.Web,
 	})
@@ -425,8 +426,8 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf := servicecfg.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
 	conf.SetToken("static-token-value")
-	conf.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))
-	conf.SetAuthServerAddress(utils.NetAddr{
+	conf.DiagnosticAddr = *utilsaddr.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))
+	conf.SetAuthServerAddress(utilsaddr.NetAddr{
 		AddrNetwork: "tcp",
 		Addr:        p.Root.Cluster.Web,
 	})

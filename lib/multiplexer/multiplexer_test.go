@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestMain(m *testing.M) {
@@ -1251,7 +1252,7 @@ func Test_GetTcpAddr(t *testing.T) {
 		expected string
 	}{
 		{
-			input: &utils.NetAddr{
+			input: &utilsaddr.NetAddr{
 				Addr:        "127.0.0.1:24998",
 				AddrNetwork: "tcp",
 				Path:        "",
@@ -1333,8 +1334,8 @@ func TestIsDifferentTCPVersion(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		addr1 := getTCPAddr(utils.MustParseAddr(tt.addr1))
-		addr2 := getTCPAddr(utils.MustParseAddr(tt.addr2))
+		addr1 := getTCPAddr(utilsaddr.MustParseAddr(tt.addr1))
+		addr2 := getTCPAddr(utilsaddr.MustParseAddr(tt.addr2))
 		require.Equal(t, tt.expected, isDifferentTCPVersion(addr1, addr2),
 			fmt.Sprintf("Unexpected result for %q, %q", tt.addr1, tt.addr2))
 	}

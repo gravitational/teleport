@@ -34,7 +34,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type mockSSHClient struct {
@@ -141,7 +141,7 @@ func (m *mockAgentInjection) transport(context.Context, ssh.Channel, <-chan *ssh
 	return &transport{}
 }
 
-func (m *mockAgentInjection) DialContext(context.Context, utils.NetAddr) (SSHClient, error) {
+func (m *mockAgentInjection) DialContext(context.Context, utilsaddr.NetAddr) (SSHClient, error) {
 	return m.client, nil
 }
 
@@ -155,7 +155,7 @@ func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	})
 	require.NoError(t, err)
 
-	addr := utils.NetAddr{Addr: "test-proxy-addr"}
+	addr := utilsaddr.NetAddr{Addr: "test-proxy-addr"}
 
 	lease := tracker.TryAcquire()
 	require.NotNil(t, lease)

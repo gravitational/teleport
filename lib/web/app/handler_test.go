@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type eventCheckFn func(t *testing.T, events []apievents.AuditEvent)
@@ -96,7 +97,7 @@ func TestAuthPOST(t *testing.T) {
 		sessionError       error
 		outStatusCode      int
 		eventChecks        []eventCheckFn
-		proxyAddrs         []utils.NetAddr
+		proxyAddrs         []utilsaddr.NetAddr
 		cookieValue        string
 		subjectCookieValue string
 	}{
@@ -109,8 +110,8 @@ func TestAuthPOST(t *testing.T) {
 			},
 			outStatusCode: http.StatusOK,
 			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
+			proxyAddrs: []utilsaddr.NetAddr{
+				*utilsaddr.MustParseAddr(publicAddr),
 			},
 			cookieValue:        cookieValue,
 			subjectCookieValue: appSession.GetBearerToken(),
@@ -124,8 +125,8 @@ func TestAuthPOST(t *testing.T) {
 			},
 			outStatusCode: http.StatusOK,
 			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr("proxy.goteleport.com:3080"),
+			proxyAddrs: []utilsaddr.NetAddr{
+				*utilsaddr.MustParseAddr("proxy.goteleport.com:3080"),
 			},
 			cookieValue:        cookieValue,
 			subjectCookieValue: appSession.GetBearerToken(),
@@ -154,8 +155,8 @@ func TestAuthPOST(t *testing.T) {
 					},
 				}),
 			},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
+			proxyAddrs: []utilsaddr.NetAddr{
+				*utilsaddr.MustParseAddr(publicAddr),
 			},
 		},
 		{
@@ -183,8 +184,8 @@ func TestAuthPOST(t *testing.T) {
 					},
 				}),
 			},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
+			proxyAddrs: []utilsaddr.NetAddr{
+				*utilsaddr.MustParseAddr(publicAddr),
 			},
 		},
 		{
@@ -197,8 +198,8 @@ func TestAuthPOST(t *testing.T) {
 			sessionError:  trace.NotFound("invalid session"),
 			outStatusCode: http.StatusForbidden,
 			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
+			proxyAddrs: []utilsaddr.NetAddr{
+				*utilsaddr.MustParseAddr(publicAddr),
 			},
 		},
 		{
@@ -210,8 +211,8 @@ func TestAuthPOST(t *testing.T) {
 			},
 			outStatusCode: http.StatusForbidden,
 			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
+			proxyAddrs: []utilsaddr.NetAddr{
+				*utilsaddr.MustParseAddr(publicAddr),
 			},
 		},
 		{
@@ -223,8 +224,8 @@ func TestAuthPOST(t *testing.T) {
 			},
 			outStatusCode: http.StatusForbidden,
 			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
+			proxyAddrs: []utilsaddr.NetAddr{
+				*utilsaddr.MustParseAddr(publicAddr),
 			},
 		},
 	}
@@ -310,7 +311,7 @@ func TestHasName(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
 			require.NoError(t, err)
 
-			addrs := utils.MustParseAddrList(test.addrs...)
+			addrs := utilsaddr.MustParseAddrList(test.addrs...)
 			u, ok := HasName(req, addrs)
 			require.Equal(t, test.expectedURL, u)
 			require.Equal(t, test.hasName, ok)
@@ -500,7 +501,7 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
+func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utilsaddr.NetAddr) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
 		Clock:            clock,
 		AuthClient:       authClient,

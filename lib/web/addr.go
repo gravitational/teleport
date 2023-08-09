@@ -27,6 +27,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 const xForwardedForHeader = "X-Forwarded-For"
@@ -96,7 +97,7 @@ func parseXForwardedForHeaders(observedAddr string, xForwardedForHeaders []strin
 	}
 
 	var port int
-	if parsed, err := utils.ParseAddr(observedAddr); err == nil {
+	if parsed, err := utilsaddr.ParseAddr(observedAddr); err == nil {
 		port = parsed.Port(port)
 	}
 

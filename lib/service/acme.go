@@ -26,12 +26,13 @@ import (
 
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
 type hostPolicyCheckerConfig struct {
 	// publicAddrs is a list of pubic addresses to support acme for
-	publicAddrs []utils.NetAddr
+	publicAddrs []utilsaddr.NetAddr
 	// clt is used to get the list of registered applications
 	clt app.Getter
 	// tun is a reverse tunnel

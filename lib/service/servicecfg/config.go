@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -65,7 +66,7 @@ type Config struct {
 	JoinParams JoinParams
 
 	// ProxyServer is the address of the proxy
-	ProxyServer utils.NetAddr
+	ProxyServer utilsaddr.NetAddr
 
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
@@ -176,7 +177,7 @@ type Config struct {
 	MACAlgorithms []string
 
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
-	DiagnosticAddr utils.NetAddr
+	DiagnosticAddr utilsaddr.NetAddr
 
 	// Debug sets debugging mode, results in diagnostic address
 	// endpoint extended with additional /debug handlers
@@ -283,7 +284,7 @@ type Config struct {
 	// In order to keep backwards compatibility between v3 and v2/v1, this is now private
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
-	authServers []utils.NetAddr
+	authServers []utilsaddr.NetAddr
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -341,7 +342,7 @@ func (c CachePolicy) String() string {
 // AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
 // will return just the first (as only one should be set) address for config versions v3
 // onwards.
-func (cfg *Config) AuthServerAddresses() []utils.NetAddr {
+func (cfg *Config) AuthServerAddresses() []utilsaddr.NetAddr {
 	return cfg.authServers
 }
 
@@ -349,7 +350,7 @@ func (cfg *Config) AuthServerAddresses() []utils.NetAddr {
 // If the config version is v1 or v2, it will set the value to all the given addresses (as
 // multiple can be specified).
 // If the config version is v3 or onwards, it'll error if more than one address is given.
-func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) error {
+func (cfg *Config) SetAuthServerAddresses(addrs []utilsaddr.NetAddr) error {
 	// from config v3 onwards, we will error if more than one address is given
 	if cfg.Version != defaults.TeleportConfigVersionV1 && cfg.Version != defaults.TeleportConfigVersionV2 {
 		if len(addrs) > 1 {
@@ -363,8 +364,8 @@ func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) error {
 }
 
 // SetAuthServerAddress sets the value of authServers to a single value
-func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
-	cfg.authServers = []utils.NetAddr{addr}
+func (cfg *Config) SetAuthServerAddress(a utilsaddr.NetAddr) {
+	cfg.authServers = []utilsaddr.NetAddr{a}
 }
 
 // Token returns token needed to join the auth server

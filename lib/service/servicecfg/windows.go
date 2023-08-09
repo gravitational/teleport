@@ -19,7 +19,7 @@ import (
 	"regexp"
 
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
@@ -27,9 +27,9 @@ import (
 type WindowsDesktopConfig struct {
 	Enabled bool
 	// ListenAddr is the address to listed on for incoming desktop connections.
-	ListenAddr utils.NetAddr
+	ListenAddr utilsaddr.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
-	PublicAddrs []utils.NetAddr
+	PublicAddrs []utilsaddr.NetAddr
 	// ShowDesktopWallpaper determines whether desktop sessions will show a
 	// user-selected wallpaper vs a system-default, single-color wallpaper.
 	ShowDesktopWallpaper bool
@@ -44,11 +44,11 @@ type WindowsDesktopConfig struct {
 	// Hosts is an optional list of static, AD-connected Windows hosts. This gives users
 	// a way to specify AD-connected hosts that won't be found by the filters
 	// specified in Discovery (or if Discovery is omitted).
-	Hosts []utils.NetAddr
+	Hosts []utilsaddr.NetAddr
 
 	// NonADHosts is an optional list of static Windows hosts to expose through this
 	// service. These hosts are not part of Active Directory.
-	NonADHosts []utils.NetAddr
+	NonADHosts []utilsaddr.NetAddr
 
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config

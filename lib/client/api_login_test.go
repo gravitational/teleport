@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
@@ -481,7 +482,7 @@ type standaloneBundle struct {
 // TODO(codingllama): Consider refactoring newStandaloneTeleport into a public
 // function and reusing in other places.
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
-	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	randomAddr := utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
 	// Silent logger and console.
 	logger := utils.NewLoggerForTests()

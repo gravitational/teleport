@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // withRouterAuth authenticates requests then hands the request to a
@@ -80,7 +80,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request) err
 			"https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service.")
 		return trace.BadParameter("public address of the proxy is not set")
 	}
-	addr, err := utils.ParseAddr(r.Host)
+	addr, err := utilsaddr.ParseAddr(r.Host)
 	if err != nil {
 		return trace.Wrap(err)
 	}

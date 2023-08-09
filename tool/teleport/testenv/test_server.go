@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -127,7 +128,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
 	cfg.Log = utils.NewLoggerForTests()
-	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
+	authAddr := utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
 	cfg.SetToken(staticToken)
 	cfg.SetAuthServerAddress(authAddr)
 
@@ -144,12 +145,12 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	require.NoError(t, err)
 	cfg.Auth.StaticTokens = staticToken
 
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
-	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
+	cfg.Proxy.WebAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
+	cfg.Proxy.SSHAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
+	cfg.Proxy.ReverseTunnelListenAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
 	cfg.Proxy.DisableWebInterface = true
 
-	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors)}
+	cfg.SSH.Addr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors)}
 	cfg.SSH.DisableCreateHostUser = true
 
 	// Apply options
@@ -307,7 +308,7 @@ func WithHostname(hostname string) TestServerOptFunc {
 
 func WithSSHPublicAddrs(addrs ...string) TestServerOptFunc {
 	return WithConfig(func(cfg *servicecfg.Config) {
-		cfg.SSH.PublicAddrs = utils.MustParseAddrList(addrs...)
+		cfg.SSH.PublicAddrs = utilsaddr.MustParseAddrList(addrs...)
 	})
 }
 

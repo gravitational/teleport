@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -112,9 +113,9 @@ type RegisterParams struct {
 	// ID is identity ID
 	ID IdentityID
 	// AuthServers is a list of auth servers to dial
-	AuthServers []utils.NetAddr
+	AuthServers []utilsaddr.NetAddr
 	// ProxyServer is a proxy server to dial
-	ProxyServer utils.NetAddr
+	ProxyServer utilsaddr.NetAddr
 	// AdditionalPrincipals is a list of additional principals to dial
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
@@ -290,7 +291,7 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 
 // authServerIsProxy returns true if the first specified auth server
 // to register with appears to be a proxy.
-func authServerIsProxy(servers []utils.NetAddr) bool {
+func authServerIsProxy(servers []utilsaddr.NetAddr) bool {
 	if len(servers) == 0 {
 		return false
 	}
@@ -300,7 +301,7 @@ func authServerIsProxy(servers []utils.NetAddr) bool {
 
 // proxyServerIsAuth returns true if the address given to register with
 // appears to be an auth server.
-func proxyServerIsAuth(server utils.NetAddr) bool {
+func proxyServerIsAuth(server utilsaddr.NetAddr) bool {
 	port := server.Port(0)
 	return port == defaults.AuthListenPort
 }
@@ -359,7 +360,7 @@ func getHostAddresses(params RegisterParams) []string {
 		return []string{params.ProxyServer.String()}
 	}
 
-	return utils.NetAddrsToStrings(params.AuthServers)
+	return utilsaddr.NetAddrsToStrings(params.AuthServers)
 }
 
 // registerThroughAuth is used to register through the auth server.

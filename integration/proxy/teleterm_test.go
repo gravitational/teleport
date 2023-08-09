@@ -44,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // testTeletermGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
@@ -285,7 +285,7 @@ func TestTeletermKubeGateway(t *testing.T) {
 			config.Proxy.Kube.Enabled = true
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPath
-			config.Kube.ListenAddr = utils.MustParseAddr(
+			config.Kube.ListenAddr = utilsaddr.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *servicecfg.Config) {
@@ -293,7 +293,7 @@ func TestTeletermKubeGateway(t *testing.T) {
 			config.Proxy.Kube.Enabled = true
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPath
-			config.Kube.ListenAddr = utils.MustParseAddr(
+			config.Kube.ListenAddr = utilsaddr.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withRootClusterRoles(kubeRole),

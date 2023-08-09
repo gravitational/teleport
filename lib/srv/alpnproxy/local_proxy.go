@@ -129,7 +129,7 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 
 	// If SNI is not set, default to cfg.RemoteProxyAddr.
 	if cfg.SNI == "" {
-		address, err := utils.ParseAddr(cfg.RemoteProxyAddr)
+		address, err := utilsaddr.ParseAddr(cfg.RemoteProxyAddr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -331,7 +331,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 
 			// Requests from forward proxy have original hostnames instead of
 			// localhost. Set appropriate header to keep this information.
-			if addr, err := utils.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
+			if addr, err := utilsaddr.ParseAddr(req.Host); err == nil && !addr.IsLocal() {
 				req.Header.Set("X-Forwarded-Host", req.Host)
 			} else { // ensure that there is no client provided X-Forwarded-Host
 				req.Header.Del("X-Forwarded-Host")

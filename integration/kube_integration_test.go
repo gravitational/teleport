@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type KubeSuite struct {
@@ -1887,7 +1888,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 	t.Cleanup(func() {
 		teleport.StopAll()
 	})
-	kubeAddr, err := utils.ParseAddr(proxyConfig.KubeAddr)
+	kubeAddr, err := utilsaddr.ParseAddr(proxyConfig.KubeAddr)
 	require.NoError(t, err)
 	// wait until the proxy and kube are ready
 	require.Eventually(t, func() bool {

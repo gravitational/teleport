@@ -23,7 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 var parseTestCases = []struct {
@@ -37,7 +37,7 @@ var parseTestCases = []struct {
 		in:   "root@remote.host:/etc/nginx.conf",
 		dest: Destination{
 			Login: "root",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
@@ -48,7 +48,7 @@ var parseTestCases = []struct {
 		name: "spec with just the remote host",
 		in:   "remote.host:/etc/nginx.co:nf",
 		dest: Destination{
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
@@ -59,7 +59,7 @@ var parseTestCases = []struct {
 		name: "ipv6 remote destination address",
 		in:   "[::1]:/etc/nginx.co:nf",
 		dest: Destination{
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "[::1]",
 				AddrNetwork: "tcp",
 			},
@@ -71,7 +71,7 @@ var parseTestCases = []struct {
 		in:   "root@123.123.123.123:/var/www/html/",
 		dest: Destination{
 			Login: "root",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "123.123.123.123",
 				AddrNetwork: "tcp",
 			},
@@ -83,7 +83,7 @@ var parseTestCases = []struct {
 		in:   "myusername@myremotehost.com:/home/hope/*",
 		dest: Destination{
 			Login: "myusername",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "myremotehost.com",
 				AddrNetwork: "tcp",
 			},
@@ -95,7 +95,7 @@ var parseTestCases = []struct {
 		in:   "complex@example.com@remote.com:/anything.txt",
 		dest: Destination{
 			Login: "complex@example.com",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "remote.com",
 				AddrNetwork: "tcp",
 			},
@@ -107,7 +107,7 @@ var parseTestCases = []struct {
 		in:   "root@remote.host:",
 		dest: Destination{
 			Login: "root",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
@@ -118,7 +118,7 @@ var parseTestCases = []struct {
 		name: "no login and '@' in path",
 		in:   "remote.host:/some@file",
 		dest: Destination{
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
@@ -129,7 +129,7 @@ var parseTestCases = []struct {
 		name: "no login, '@' and ':' in path",
 		in:   "remote.host:/some@remote:file",
 		dest: Destination{
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
@@ -141,7 +141,7 @@ var parseTestCases = []struct {
 		in:   "complex@user@[::1]:/remote:file",
 		dest: Destination{
 			Login: "complex@user",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "[::1]",
 				AddrNetwork: "tcp",
 			},
@@ -153,7 +153,7 @@ var parseTestCases = []struct {
 		in:   "user@server.com:/tmp/user-2022-03-10T09:49:23-98cd2a03/file.txt",
 		dest: Destination{
 			Login: "user",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "server.com",
 				AddrNetwork: "tcp",
 			},
@@ -165,7 +165,7 @@ var parseTestCases = []struct {
 		in:   "user@server:file@",
 		dest: Destination{
 			Login: "user",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "server",
 				AddrNetwork: "tcp",
 			},
@@ -177,7 +177,7 @@ var parseTestCases = []struct {
 		in:   "user@server:file[::1]name",
 		dest: Destination{
 			Login: "user",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "server",
 				AddrNetwork: "tcp",
 			},
@@ -189,7 +189,7 @@ var parseTestCases = []struct {
 		in:   "user@[::1]:file[::1]name",
 		dest: Destination{
 			Login: "user",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "[::1]",
 				AddrNetwork: "tcp",
 			},
@@ -201,7 +201,7 @@ var parseTestCases = []struct {
 		in:   "user@[::1]:file@[::1]@name",
 		dest: Destination{
 			Login: "user",
-			Host: &utils.NetAddr{
+			Host: &utilsaddr.NetAddr{
 				Addr:        "[::1]",
 				AddrNetwork: "tcp",
 			},

@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestLoadConfigNonExistingFile(t *testing.T) {
@@ -406,7 +407,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			outPort:    4022,
 			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
+				Addr: utilsaddr.NetAddr{
 					Addr:        "us.example.com:443",
 					AddrNetwork: "tcp",
 				},
@@ -422,7 +423,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			outPort:    4022,
 			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
+				Addr: utilsaddr.NetAddr{
 					Addr:        "us.example.com:443",
 					AddrNetwork: "tcp",
 				},
@@ -438,7 +439,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			outPort:    4022,
 			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
+				Addr: utilsaddr.NetAddr{
 					Addr:        "us.example.com:443",
 					AddrNetwork: "tcp",
 				},
@@ -455,7 +456,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			outPort:    4022,
 			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
-				Addr: utils.NetAddr{
+				Addr: utilsaddr.NetAddr{
 					Addr:        "specified.proxy.com:443",
 					AddrNetwork: "tcp",
 				},

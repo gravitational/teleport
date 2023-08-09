@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestStaticResolver(t *testing.T) {
@@ -39,7 +39,7 @@ func TestStaticResolver(t *testing.T) {
 		address          string
 		mode             types.ProxyListenerMode
 		errorAssertionFn require.ErrorAssertionFunc
-		expected         *utils.NetAddr
+		expected         *utilsaddr.NetAddr
 	}{
 		{
 			name:             "invalid address yields error",
@@ -50,7 +50,7 @@ func TestStaticResolver(t *testing.T) {
 			name:             "valid address yields NetAddr",
 			address:          "localhost:80",
 			errorAssertionFn: require.NoError,
-			expected: &utils.NetAddr{
+			expected: &utilsaddr.NetAddr{
 				Addr:        "localhost:80",
 				AddrNetwork: "tcp",
 				Path:        "",
@@ -80,14 +80,14 @@ func TestResolveViaWebClient(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	fakeAddr := utils.NetAddr{}
+	fakeAddr := utilsaddr.NetAddr{}
 
 	cases := []struct {
 		name             string
-		proxyAddr        utils.NetAddr
+		proxyAddr        utilsaddr.NetAddr
 		address          string
 		errorAssertionFn require.ErrorAssertionFunc
-		expected         *utils.NetAddr
+		expected         *utilsaddr.NetAddr
 	}{
 		{
 			name:             "no addrs yields errors",
@@ -107,10 +107,10 @@ func TestResolveViaWebClient(t *testing.T) {
 		},
 		{
 			name:             "valid address yields NetAddr",
-			proxyAddr:        utils.NetAddr{Addr: srv.Listener.Addr().String()},
+			proxyAddr:        utilsaddr.NetAddr{Addr: srv.Listener.Addr().String()},
 			address:          "localhost:80",
 			errorAssertionFn: require.NoError,
-			expected: &utils.NetAddr{
+			expected: &utilsaddr.NetAddr{
 				Addr:        "localhost:80",
 				AddrNetwork: "tcp",
 				Path:        "",
@@ -140,8 +140,8 @@ func TestResolveViaWebClient(t *testing.T) {
 }
 
 func TestCachingResolver(t *testing.T) {
-	randomResolver := func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
-		return &utils.NetAddr{
+	randomResolver := func(context.Context) (*utilsaddr.NetAddr, types.ProxyListenerMode, error) {
+		return &utilsaddr.NetAddr{
 			Addr:        uuid.New().String(),
 			AddrNetwork: uuid.New().String(),
 			Path:        uuid.New().String(),

@@ -48,8 +48,8 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -1546,7 +1546,7 @@ func TestIdentityChecker(t *testing.T) {
 			})
 			sshServer, err := sshutils.NewServer(
 				"test",
-				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+				utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
 				[]ssh.Signer{test.cert},
 				sshutils.AuthMethods{NoClient: true},

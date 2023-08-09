@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // reconnectToAuthService continuously attempts to reconnect to the auth
@@ -1104,7 +1105,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	// for config v1 and v2, attempt to directly connect to the auth server and fall back to tunneling
 	case defaults.TeleportConfigVersionV1, defaults.TeleportConfigVersionV2:
 		// if we don't have a proxy address, try to connect to the auth server directly
-		logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
+		logger := process.log.WithField("auth-addrs", utilsaddr.NetAddrsToStrings(authServers))
 
 		directClient, directErr := connectToAuthServer(logger)
 		if directErr == nil {
@@ -1158,7 +1159,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		}
 
 		// if we don't have a proxy address, try to connect to the auth server directly
-		logger := process.log.WithField("auth-server", utils.NetAddrsToStrings(authServers))
+		logger := process.log.WithField("auth-server", utilsaddr.NetAddrsToStrings(authServers))
 
 		return connectToAuthServer(logger)
 	}
@@ -1215,7 +1216,7 @@ func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *t
 	return clt, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
+func (process *TeleportProcess) newClientDirect(authServers []utilsaddr.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{
@@ -1238,7 +1239,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 
 	clt, err := auth.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
-		Addrs:   utils.NetAddrsToStrings(authServers),
+		Addrs:   utilsaddr.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},

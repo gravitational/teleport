@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -283,7 +284,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 
 	// --auth-server flag(-s)
 	if len(ccf.AuthServerAddr) != 0 {
-		authServers, err := utils.ParseAddrs(ccf.AuthServerAddr)
+		authServers, err := utilsaddr.ParseAddrs(ccf.AuthServerAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -315,7 +316,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	// If auth server is not provided on the command line or in file
 	// configuration, use the default.
 	if len(cfg.AuthServerAddresses()) == 0 {
-		authServers, err := utils.ParseAddrs([]string{defaults.AuthConnectAddr().Addr})
+		authServers, err := utilsaddr.ParseAddrs([]string{defaults.AuthConnectAddr().Addr})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -419,7 +420,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 	// Do not override auth servers from command line
 	if len(ccf.AuthServerAddr) == 0 {
-		webProxyAddr, err := utils.ParseAddr(c.WebProxyAddr)
+		webProxyAddr, err := utilsaddr.ParseAddr(c.WebProxyAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

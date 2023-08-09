@@ -54,6 +54,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
@@ -609,7 +610,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
 		raConf.SetToken("static-token-value")
-		raConf.SetAuthServerAddress(utils.NetAddr{
+		raConf.SetAuthServerAddress(utilsaddr.NetAddr{
 			AddrNetwork: "tcp",
 			Addr:        p.rootCluster.Web,
 		})
@@ -771,7 +772,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
 		laConf.SetToken("static-token-value")
-		laConf.SetAuthServerAddress(utils.NetAddr{
+		laConf.SetAuthServerAddress(utilsaddr.NetAddr{
 			AddrNetwork: "tcp",
 			Addr:        p.leafCluster.Web,
 		})

@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // ProxyServer runs inside Teleport proxy and is responsible to accepting
@@ -472,7 +473,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		dialAttempts.With(labels).Inc()
 		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnelclient.DialParams{
 			From:                  clientSrcAddr,
-			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
+			To:                    &utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 			OriginalClientDstAddr: clientDstAddr,
 			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
 			ConnType:              types.DatabaseTunnel,

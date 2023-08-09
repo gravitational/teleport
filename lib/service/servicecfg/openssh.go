@@ -15,7 +15,7 @@
 package servicecfg
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type OpenSSHConfig struct {
@@ -33,7 +33,7 @@ type OpenSSHConfig struct {
 	// InstanceAddr is the connectable address of the OpenSSh instance.
 	InstanceAddr string
 	// ProxyServer is the address of the teleport proxy.
-	ProxyServer *utils.NetAddr
+	ProxyServer *utilsaddr.NetAddr
 	// Labels are labels to set on the instance.
 	Labels map[string]string
 }

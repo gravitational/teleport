@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
@@ -57,8 +57,8 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	require.NoError(t, err)
 
 	sshConn := &mockSSHConn{}
-	sshConn.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
-	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
+	sshConn.localAddr, _ = utilsaddr.ParseAddr("127.0.0.1:3022")
+	sshConn.remoteAddr, _ = utilsaddr.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	recConfig := types.DefaultSessionRecordingConfig()

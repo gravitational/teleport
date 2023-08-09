@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically
@@ -266,7 +266,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 	}
 
 	s.cfg.Log.Debugf("resolved %v => %v", hostname, addrs)
-	addr, err := utils.ParseHostPortAddr(addrs[0], defaults.RDPListenPort)
+	addr, err := utilsaddr.ParseHostPortAddr(addrs[0], defaults.RDPListenPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

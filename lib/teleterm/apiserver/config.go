@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // Config is the APIServer configuration
@@ -34,7 +34,7 @@ type Config struct {
 	TshdServerCreds grpc.ServerOption
 	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
 	// the Electron app gets the server port from stdout.
-	ListeningC chan<- utils.NetAddr
+	ListeningC chan<- utilsaddr.NetAddr
 }
 
 // CheckAndSetDefaults checks and sets default config values.

@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestAuth_RegisterUsingToken(t *testing.T) {
@@ -369,7 +369,7 @@ func TestRegister_Bot(t *testing.T) {
 				ID: IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				AuthServers:  []utilsaddr.NetAddr{*utilsaddr.MustParseAddr(srv.Addr().String())},
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: publicKey,
 			})
@@ -471,7 +471,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 				ID: IdentityID{
 					Role: types.RoleBot,
 				},
-				AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+				AuthServers:  []utilsaddr.NetAddr{*utilsaddr.MustParseAddr(srv.Addr().String())},
 				PublicTLSKey: tlsPublicKey,
 				PublicSSHKey: publicKey,
 				Expires:      tt.requestExpires,

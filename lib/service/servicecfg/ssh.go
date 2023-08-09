@@ -18,14 +18,14 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // SSHConfig configures Teleport's SSH service.
 type SSHConfig struct {
-	Enabled               bool
-	Addr                  utils.NetAddr
-	Namespace             string
+	Enabled   bool
+	Addr      utilsaddr.NetAddr
+	Namespace string
 	Shell                 string
 	Limiter               limiter.Config
 	Labels                map[string]string
@@ -36,7 +36,7 @@ type SSHConfig struct {
 	PAM *PAMConfig
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
-	PublicAddrs []utils.NetAddr
+	PublicAddrs []utilsaddr.NetAddr
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *BPFConfig

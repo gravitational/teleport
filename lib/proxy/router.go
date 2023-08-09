@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 var (
@@ -297,7 +298,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 	conn, err := site.Dial(reversetunnelclient.DialParams{
 		From:                  clientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
+		To:                    &utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
 		IsAgentlessNode:       isAgentlessNode,

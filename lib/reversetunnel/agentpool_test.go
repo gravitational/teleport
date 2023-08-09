@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type mockAgent struct {
@@ -80,8 +80,8 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 		HostUUID:     "test-uuid",
 		LocalCluster: "test-cluster",
 		Cluster:      "test-cluster",
-		Resolver: func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
-			return &utils.NetAddr{}, types.ProxyListenerMode_Separate, nil
+		Resolver: func(context.Context) (*utilsaddr.NetAddr, types.ProxyListenerMode, error) {
+			return &utilsaddr.NetAddr{}, types.ProxyListenerMode_Separate, nil
 		},
 	})
 	require.NoError(t, err)

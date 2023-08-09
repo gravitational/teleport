@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // WriteContextCloser provides close method with context
@@ -582,10 +583,10 @@ func CheckCertificateFormatFlag(s string) (string, error) {
 }
 
 // AddrsFromStrings returns strings list converted to address list
-func AddrsFromStrings(s apiutils.Strings, defaultPort int) ([]NetAddr, error) {
-	addrs := make([]NetAddr, len(s))
+func AddrsFromStrings(s apiutils.Strings, defaultPort int) ([]utilsaddr.NetAddr, error) {
+	addrs := make([]utilsaddr.NetAddr, len(s))
 	for i, val := range s {
-		addr, err := ParseHostPortAddr(val, defaultPort)
+		addr, err := utilsaddr.ParseHostPortAddr(val, defaultPort)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

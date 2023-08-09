@@ -50,6 +50,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // onProxyCommandSSH creates a local ssh proxy.
@@ -391,14 +392,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	addr := "localhost:0"
+	addrStr := "localhost:0"
 	randomPort := true
 	if cf.LocalProxyPort != "" {
 		randomPort = false
-		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
+		addrStr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
 
-	listener, err := createLocalProxyListener(addr, dbInfo.RouteToDatabase, profile)
+	listener, err := createLocalProxyListener(addrStr, dbInfo.RouteToDatabase, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -430,7 +431,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}()
 
 	if cf.LocalProxyTunnel {
-		addr, err := utils.ParseAddr(lp.GetAddr())
+		addr, err := utilsaddr.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
 		}

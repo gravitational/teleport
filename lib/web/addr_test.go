@@ -26,13 +26,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestNewXForwardedForMiddleware(t *testing.T) {
 	t.Parallel()
 
-	observeredAddr := utils.MustParseAddr("11.22.33.44:1234")
-	xForwardedAddr := utils.MustParseAddr("55.66.77.88:5678")
+	observeredAddr := utilsaddr.MustParseAddr("11.22.33.44:1234")
+	xForwardedAddr := utilsaddr.MustParseAddr("55.66.77.88:5678")
 
 	// Setup response writer with observeredAddr.
 	fakeConn, _ := net.Pipe()

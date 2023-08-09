@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // TestAgentCertChecker validates that reverse tunnel agents properly validate
@@ -71,7 +71,7 @@ func TestAgentCertChecker(t *testing.T) {
 
 			sshServer, err := sshutils.NewServer(
 				"test",
-				utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+				utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
 				handler,
 				[]ssh.Signer{cert},
 				sshutils.AuthMethods{NoClient: true},
@@ -93,7 +93,7 @@ func TestAgentCertChecker(t *testing.T) {
 				log:         logrus.New(),
 			}
 
-			_, err = dialer.DialContext(context.Background(), *utils.MustParseAddr(sshServer.Addr()))
+			_, err = dialer.DialContext(context.Background(), *utilsaddr.MustParseAddr(sshServer.Addr()))
 			tc.requireErr(t, err)
 		})
 	}

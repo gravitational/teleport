@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/loglimit"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 var (
@@ -301,12 +302,12 @@ func getTCPAddr(a net.Addr) net.TCPAddr {
 		return net.TCPAddr{}
 	}
 
-	addr, ok := a.(*net.TCPAddr)
+	tcpA, ok := a.(*net.TCPAddr)
 	if ok { // Hot path
-		return *addr
+		return *tcpA
 	}
 
-	parsedAddr := utils.FromAddr(a)
+	parsedAddr := utilsaddr.FromAddr(a)
 	return net.TCPAddr{
 		IP:   net.ParseIP(parsedAddr.Host()),
 		Port: parsedAddr.Port(-1),

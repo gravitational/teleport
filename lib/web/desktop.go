@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
@@ -435,7 +436,7 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 	*c.log = *c.log.WithField("windows-service-addr", service.GetAddr())
 	return c.site.DialTCP(reversetunnelclient.DialParams{
 		From:                  c.clientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
+		To:                    &utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
 		ConnType:              types.WindowsDesktopTunnel,
 		ServerID:              service.GetName() + "." + clusterName,
 		ProxyIDs:              service.GetProxyIDs(),

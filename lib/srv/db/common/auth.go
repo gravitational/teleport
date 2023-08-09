@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
@@ -706,7 +707,7 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		addr, err := utils.ParseAddr(u.Host)
+		addr, err := utilsaddr.ParseAddr(u.Host)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -715,7 +716,7 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 	default:
 		// For other databases we're always connecting to the server specified
 		// in URI so set ServerName ourselves.
-		addr, err := utils.ParseAddr(sessionCtx.Database.GetURI())
+		addr, err := utilsaddr.ParseAddr(sessionCtx.Database.GetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}

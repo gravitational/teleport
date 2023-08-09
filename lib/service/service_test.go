@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestMain(m *testing.M) {
@@ -90,10 +91,10 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 			cfg: func() *servicecfg.Config {
 				cfg := servicecfg.MakeDefaultConfig()
 				cfg.DataDir = t.TempDir()
-				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+				cfg.SetAuthServerAddress(utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.DiagnosticAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.Auth.ListenAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
 				cfg.Auth.Enabled = true
 				cfg.SSH.Enabled = true
@@ -121,10 +122,10 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 			cfg: func() *servicecfg.Config {
 				cfg := servicecfg.MakeDefaultConfig()
 				cfg.DataDir = t.TempDir()
-				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+				cfg.SetAuthServerAddress(utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.DiagnosticAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.Auth.ListenAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
 				cfg.Auth.Enabled = true
 				cfg.SSH.Enabled = true
@@ -246,11 +247,11 @@ func TestMonitor(t *testing.T) {
 	cfg.Clock = fakeClock
 	var err error
 	cfg.DataDir = t.TempDir()
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.DiagnosticAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.SetAuthServerAddress(utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.ListenAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -506,25 +507,25 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			HostUUID:    "global-uuid",
 			AdvertiseIP: "1.2.3.4",
 			Proxy: servicecfg.ProxyConfig{
-				PublicAddrs:         utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
-				SSHPublicAddrs:      utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
-				TunnelPublicAddrs:   utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
-				PostgresPublicAddrs: utils.MustParseAddrList("proxy-postgres-public-1", "proxy-postgres-public-2"),
-				MySQLPublicAddrs:    utils.MustParseAddrList("proxy-mysql-public-1", "proxy-mysql-public-2"),
+				PublicAddrs:         utilsaddr.MustParseAddrList("proxy-public-1", "proxy-public-2"),
+				SSHPublicAddrs:      utilsaddr.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
+				TunnelPublicAddrs:   utilsaddr.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
+				PostgresPublicAddrs: utilsaddr.MustParseAddrList("proxy-postgres-public-1", "proxy-postgres-public-2"),
+				MySQLPublicAddrs:    utilsaddr.MustParseAddrList("proxy-mysql-public-1", "proxy-mysql-public-2"),
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled:     true,
-					PublicAddrs: utils.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
+					PublicAddrs: utilsaddr.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
 				},
-				WebAddr: *utils.MustParseAddr(":443"),
+				WebAddr: *utilsaddr.MustParseAddr(":443"),
 			},
 			Auth: servicecfg.AuthConfig{
-				PublicAddrs: utils.MustParseAddrList("auth-public-1", "auth-public-2"),
+				PublicAddrs: utilsaddr.MustParseAddrList("auth-public-1", "auth-public-2"),
 			},
 			SSH: servicecfg.SSHConfig{
-				PublicAddrs: utils.MustParseAddrList("node-public-1", "node-public-2"),
+				PublicAddrs: utilsaddr.MustParseAddrList("node-public-1", "node-public-2"),
 			},
 			Kube: servicecfg.KubeConfig{
-				PublicAddrs: utils.MustParseAddrList("kube-public-1", "kube-public-2"),
+				PublicAddrs: utilsaddr.MustParseAddrList("kube-public-1", "kube-public-2"),
 			},
 		},
 	}
@@ -663,7 +664,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 
 	// Create and configure a default Teleport configuration.
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.SetAuthServerAddress(utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -782,7 +783,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = t.TempDir()
-			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
+			cfg.Proxy.PublicAddrs = utilsaddr.MustParseAddrList("localhost")
 			process := TeleportProcess{
 				Config: cfg,
 				// Setting Supervisor so that `ExitContext` can be called.
@@ -813,7 +814,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	t.Parallel()
 	// Create and configure a default Teleport configuration.
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.SetAuthServerAddress(utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewRealClock()
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -867,7 +868,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	authAddr, err := getFreePort()
 	require.NoError(t, err)
-	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
+	listenAddr := utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: authAddr}
 	token := "join-token"
 
 	// Create Node process.
@@ -1433,9 +1434,9 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			config: servicecfg.Config{
 				Proxy: servicecfg.ProxyConfig{
 					Enabled: true,
-					TunnelPublicAddrs: []utils.NetAddr{
-						*utils.MustParseAddr("example.com:12345"),
-						*utils.MustParseAddr("example.org:12345"),
+					TunnelPublicAddrs: []utilsaddr.NetAddr{
+						*utilsaddr.MustParseAddr("example.com:12345"),
+						*utilsaddr.MustParseAddr("example.org:12345"),
 					},
 				},
 				Auth: servicecfg.AuthConfig{
@@ -1450,9 +1451,9 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			config: servicecfg.Config{
 				Proxy: servicecfg.ProxyConfig{
 					Enabled: true,
-					PublicAddrs: []utils.NetAddr{
-						*utils.MustParseAddr("example.com:12345"),
-						*utils.MustParseAddr("example.org:12345"),
+					PublicAddrs: []utilsaddr.NetAddr{
+						*utilsaddr.MustParseAddr("example.com:12345"),
+						*utilsaddr.MustParseAddr("example.org:12345"),
 					},
 				},
 				Auth: servicecfg.AuthConfig{
@@ -1467,7 +1468,7 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			config: servicecfg.Config{
 				Proxy: servicecfg.ProxyConfig{
 					Enabled: true,
-					WebAddr: *utils.MustParseAddr("https://example.com:12345"),
+					WebAddr: *utilsaddr.MustParseAddr("https://example.com:12345"),
 				},
 				Auth: servicecfg.AuthConfig{
 					Enabled: true,

@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // networkConfigGetter is a helper interface that allows to fetch the current proxy configuration.
@@ -41,7 +41,7 @@ type proxySettings struct {
 	cfg *servicecfg.Config
 	// proxySSHAddr is the address of the proxy ssh service. It can be assigned during runtime when a user set the
 	// proxy listener address to a random port (e.g. `127.0.0.1:0`).
-	proxySSHAddr utils.NetAddr
+	proxySSHAddr utilsaddr.NetAddr
 	// accessPoint is the caching client connected to the auth server.
 	accessPoint networkConfigGetter
 }

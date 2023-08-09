@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -81,8 +81,8 @@ func testDatabaseLogin(t *testing.T) {
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
 			mySQLAddr := localListenerAddr()
-			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
-			cfg.Proxy.MySQLPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
+			cfg.Proxy.MySQLAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
+			cfg.Proxy.MySQLPublicAddrs = []utilsaddr.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -1158,8 +1158,8 @@ func testDatabaseInfo(t *testing.T) {
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
 			mySQLAddr := localListenerAddr()
-			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
-			cfg.Proxy.MySQLPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
+			cfg.Proxy.MySQLAddr = utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
+			cfg.Proxy.MySQLPublicAddrs = []utilsaddr.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = databases
 		}),

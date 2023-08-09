@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestMain(m *testing.M) {
@@ -203,7 +204,7 @@ func (t *teleportService) waitForPhaseChange(ctx context.Context) error {
 	return nil
 }
 
-func (t *teleportService) AuthAddr(testingT *testing.T) utils.NetAddr {
+func (t *teleportService) AuthAddr(testingT *testing.T) utilsaddr.NetAddr {
 	addr, err := t.process.AuthAddr()
 	require.NoError(testingT, err)
 
@@ -249,7 +250,7 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 	config.ShutdownTimeout = time.Minute
 	config.DataDir = t.TempDir()
 	config.Auth.ListenAddr.Addr = net.JoinHostPort(hostName, "0")
-	config.Auth.PublicAddrs = []utils.NetAddr{
+	config.Auth.PublicAddrs = []utilsaddr.NetAddr{
 		{
 			AddrNetwork: "tcp",
 			Addr:        hostName,
@@ -286,7 +287,7 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.
 	return config
 }
 
-func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, log utils.Logger) *servicecfg.Config {
+func newProxyConfig(ctx context.Context, t *testing.T, authAddr utilsaddr.NetAddr, log utils.Logger) *servicecfg.Config {
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
 
@@ -459,7 +460,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	require.NoError(t, err)
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		*utilsaddr.MustParseAddr(net.JoinHostPort(hostName, "0")),
 		auth1.AuthAddr(t),
 	)
 	require.NoError(t, err)
@@ -469,7 +470,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// start a proxy to make sure it can get creds at each stage of rotation
 	log.Debug("TestHSMDualAuthRotation: Starting proxy")
-	proxyConfig := newProxyConfig(ctx, t, utils.FromAddr(lb.Addr()), log)
+	proxyConfig := newProxyConfig(ctx, t, utilsaddr.FromAddr(lb.Addr()), log)
 	proxy := newTeleportService(t, proxyConfig, "proxy")
 	require.NoError(t, proxy.waitForStart(ctx), "proxy failed initial startup")
 	teleportServices = append(teleportServices, proxy)
@@ -493,9 +494,9 @@ func TestHSMDualAuthRotation(t *testing.T) {
 		require.NoError(t, err)
 		tlsConfig, err := identity.TLSConfig(nil)
 		require.NoError(t, err)
-		authAddrs := []utils.NetAddr{auth2.AuthAddr(t)}
+		authAddrs := []utilsaddr.NetAddr{auth2.AuthAddr(t)}
 		clt, err := auth.NewClient(client.Config{
-			Addrs: utils.NetAddrsToStrings(authAddrs),
+			Addrs: utilsaddr.NetAddrsToStrings(authAddrs),
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
 			},
@@ -745,7 +746,7 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, err)
 	lb, err := utils.NewLoadBalancer(
 		ctx,
-		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		*utilsaddr.MustParseAddr(net.JoinHostPort(hostName, "0")),
 		auth1.AuthAddr(t),
 		auth2.AuthAddr(t),
 	)
@@ -756,7 +757,7 @@ func TestHSMMigrate(t *testing.T) {
 
 	// start a proxy to make sure it can get creds at each stage of migration
 	log.Debug("TestHSMMigrate: Starting proxy")
-	proxyConfig := newProxyConfig(ctx, t, utils.FromAddr(lb.Addr()), log)
+	proxyConfig := newProxyConfig(ctx, t, utilsaddr.FromAddr(lb.Addr()), log)
 	proxy := newTeleportService(t, proxyConfig, "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
 
@@ -768,9 +769,9 @@ func TestHSMMigrate(t *testing.T) {
 		require.NoError(t, err)
 		tlsConfig, err := identity.TLSConfig(nil)
 		require.NoError(t, err)
-		authAddrs := []utils.NetAddr{auth2.AuthAddr(t)}
+		authAddrs := []utilsaddr.NetAddr{auth2.AuthAddr(t)}
 		clt, err := auth.NewClient(client.Config{
-			Addrs: utils.NetAddrsToStrings(authAddrs),
+			Addrs: utilsaddr.NetAddrsToStrings(authAddrs),
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
 			},

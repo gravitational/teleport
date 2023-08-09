@@ -24,7 +24,7 @@ import (
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // New creates an instance of API Server
@@ -69,8 +69,8 @@ func (s *APIServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener, error) {
-	uri, err := utils.ParseAddr(hostAddr)
+func newListener(hostAddr string, listeningC chan<- utilsaddr.NetAddr) (net.Listener, error) {
+	uri, err := utilsaddr.ParseAddr(hostAddr)
 
 	if err != nil {
 		return nil, trace.BadParameter("invalid host address: %s", hostAddr)
@@ -81,7 +81,7 @@ func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener
 		return nil, trace.Wrap(err)
 	}
 
-	addr := utils.FromAddr(lis.Addr())
+	addr := utilsaddr.FromAddr(lis.Addr())
 	sendBoundNetworkPortToStdout(addr)
 	if listeningC != nil {
 		listeningC <- addr
@@ -92,7 +92,7 @@ func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener
 	return lis, nil
 }
 
-func sendBoundNetworkPortToStdout(addr utils.NetAddr) {
+func sendBoundNetworkPortToStdout(addr utilsaddr.NetAddr) {
 	// Connect needs this message to know which port has been assigned to the server.
 	fmt.Printf("{CONNECT_GRPC_PORT: %v}\n", addr.Port(1))
 }

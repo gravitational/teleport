@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type AgentState string
@@ -69,7 +69,7 @@ type transporter interface {
 // sshDialer is an ssh dialer that returns an SSHClient
 type sshDialer interface {
 	// DialContext dials the given address and creates a new SSHClient.
-	DialContext(context.Context, utils.NetAddr) (SSHClient, error)
+	DialContext(context.Context, utilsaddr.NetAddr) (SSHClient, error)
 }
 
 // versionGetter gets the connected auth server version.
@@ -93,7 +93,7 @@ type SSHClient interface {
 // agentConfig represents an agent configuration.
 type agentConfig struct {
 	// addr is the target address to dial.
-	addr utils.NetAddr
+	addr utilsaddr.NetAddr
 	// keepAlive is the interval at which the agent will send heartbeats.
 	keepAlive time.Duration
 	// stateCallback is called each time the state changes.

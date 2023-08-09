@@ -29,8 +29,8 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // agentDialer dials an ssh server on behalf of an agent.
@@ -45,7 +45,7 @@ type agentDialer struct {
 }
 
 // DialContext creates an ssh connection to the given address.
-func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHClient, error) {
+func (d *agentDialer) DialContext(ctx context.Context, addr utilsaddr.NetAddr) (SSHClient, error) {
 	// Create a dialer (that respects HTTP proxies) and connect to remote host.
 	dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
 	pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)

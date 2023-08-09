@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestMain(m *testing.M) {
@@ -399,7 +400,7 @@ func (c *mockRemoteConnConn) Close() error {
 
 // called for logging by (*remoteConn).markInvalid()
 func (*mockRemoteConnConn) RemoteAddr() net.Addr {
-	return &utils.NetAddr{
+	return &utilsaddr.NetAddr{
 		Addr:        "localhost",
 		AddrNetwork: "tcp",
 	}
@@ -429,7 +430,7 @@ func (c *mockedSSHConn) OpenChannel(name string, data []byte) (ssh.Channel, <-ch
 }
 
 func (*mockedSSHConn) RemoteAddr() net.Addr {
-	return &utils.NetAddr{
+	return &utilsaddr.NetAddr{
 		Addr:        "localhost",
 		AddrNetwork: "tcp",
 	}

@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -389,7 +390,7 @@ func setupMockSSHNode(t *testing.T, ctx context.Context, sshListener net.Listene
 	handler := sshutils.NewChanHandlerFunc(handlerSSH)
 	sshServer, err := sshutils.NewServer(
 		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: sshListener.Addr().String()},
+		utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: sshListener.Addr().String()},
 		handler,
 		[]ssh.Signer{cert},
 		sshutils.AuthMethods{

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type Bot struct {
@@ -445,7 +446,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.Wrap(err)
 	}
 
-	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
+	authAddr, err := utilsaddr.ParseAddr(b.cfg.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -453,7 +454,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 	authClientConfig := &authclient.Config{
 		TLS:         tlsConfig,
 		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{*authAddr},
+		AuthServers: []utilsaddr.NetAddr{*authAddr},
 		Log:         b.log,
 	}
 

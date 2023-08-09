@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
@@ -70,17 +70,17 @@ type kubernetesStatus struct {
 }
 
 func getKubeProxyHostPort(authPong *proto.PingResponse, proxyPong *webclient.PingResponse) (string, int, error) {
-	addr := proxyPong.Proxy.Kube.PublicAddr
-	if addr == "" {
-		addr = authPong.ProxyPublicAddr
+	pubAddr := proxyPong.Proxy.Kube.PublicAddr
+	if pubAddr == "" {
+		pubAddr = authPong.ProxyPublicAddr
 	}
 
-	if addr == "" {
+	if pubAddr == "" {
 		return "", 0, trace.BadParameter(
 			"Teleport server reported no usable public proxy address")
 	}
 
-	parsed, err := utils.ParseAddr(addr)
+	parsed, err := utilsaddr.ParseAddr(pubAddr)
 	if err != nil {
 		return "", 0, trace.Wrap(err, "invalid proxy address")
 	}

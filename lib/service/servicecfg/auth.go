@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // AuthConfig is a configuration of the auth server
@@ -34,7 +35,7 @@ type AuthConfig struct {
 	EnableProxyProtocol bool
 
 	// ListenAddr is the listening address of the auth service
-	ListenAddr utils.NetAddr
+	ListenAddr utilsaddr.NetAddr
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
@@ -86,7 +87,7 @@ type AuthConfig struct {
 	LicenseFile string
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
-	PublicAddrs []utils.NetAddr
+	PublicAddrs []utilsaddr.NetAddr
 
 	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
 	KeyStore keystore.Config

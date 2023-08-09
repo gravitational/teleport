@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // proxyService implements the grpc ProxyService.
@@ -62,11 +63,11 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(err)
 	}
 
-	source := &utils.NetAddr{
+	source := &utilsaddr.NetAddr{
 		Addr:        dial.Source.Addr,
 		AddrNetwork: dial.Source.Network,
 	}
-	destination := &utils.NetAddr{
+	destination := &utilsaddr.NetAddr{
 		Addr:        dial.Destination.Addr,
 		AddrNetwork: dial.Destination.Network,
 	}
@@ -119,8 +120,8 @@ type ClusterDialer interface {
 }
 
 type DialParams struct {
-	From     *utils.NetAddr
-	To       *utils.NetAddr
+	From     *utilsaddr.NetAddr
+	To       *utilsaddr.NetAddr
 	ServerID string
 	ConnType types.TunnelType
 }

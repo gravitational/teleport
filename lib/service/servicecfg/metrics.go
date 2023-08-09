@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // MetricsConfig specifies configuration for the metrics service
@@ -34,7 +34,7 @@ type MetricsConfig struct {
 
 	// ListenAddr is the address to listen on for incoming metrics requests.
 	// Optional.
-	ListenAddr *utils.NetAddr
+	ListenAddr *utilsaddr.NetAddr
 
 	// MTLS turns mTLS on the metrics service on or off
 	MTLS bool

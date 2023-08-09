@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
@@ -203,7 +203,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 					Enabled:     true,
-					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3026"}},
+					PublicAddrs: []utilsaddr.NetAddr{{Addr: "proxy-from-config.example.com:3026"}},
 				}}},
 			},
 			wantAddr:  "https://proxy-from-config.example.com:3026",
@@ -220,7 +220,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
 					},
-					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}},
+					PublicAddrs: []utilsaddr.NetAddr{{Addr: "proxy-from-config.example.com:3080"}},
 				}},
 			},
 			wantAddr:  "https://proxy-from-config.example.com:3026",
@@ -299,7 +299,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					},
 					Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
-					}, PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}}},
+					}, PublicAddrs: []utilsaddr.NetAddr{{Addr: "proxy-from-config.example.com:3080"}}},
 				},
 			},
 			wantAddr:  "https://proxy-from-config.example.com:3080",

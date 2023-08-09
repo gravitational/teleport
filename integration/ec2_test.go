@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 func newSilentLogger() utils.Logger {
@@ -59,7 +60,7 @@ func newSilentLogger() utils.Logger {
 	return logger
 }
 
-func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+func newNodeConfig(t *testing.T, authAddr utilsaddr.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
@@ -75,7 +76,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	return config
 }
 
-func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+func newProxyConfig(t *testing.T, authAddr utilsaddr.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV2
 	config.SetToken(tokenName)

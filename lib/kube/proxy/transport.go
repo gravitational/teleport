@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // transportForRequest determines the transport to use for a request to a specific
@@ -386,12 +387,12 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 			// different users.
 			// IP Pinning is based on the source IP address of the connection that
 			// we transport over HTTP headers so it's not affected.
-			From: &utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
+			From: &utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
 			// Proxy uses reverse tunnel dialer to connect to Kubernetes in a leaf cluster
 			// and the targetKubernetes cluster endpoint is determined from the identity
 			// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 			// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalKubernetes},
+			To:       &utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalKubernetes},
 			ConnType: types.KubeTunnel,
 		})
 	}
@@ -471,8 +472,8 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 				// different users.
 				// IP Pinning is based on the source IP address of the connection that
 				// we transport over HTTP headers so it's not affected.
-				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: s.GetHostname()},
+				From:     &utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
+				To:       &utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: s.GetHostname()},
 				ConnType: types.KubeTunnel,
 				ServerID: serverID,
 				ProxyIDs: s.GetProxyIDs(),

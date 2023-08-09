@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 const (
@@ -200,9 +201,9 @@ type HeartbeatConfig struct {
 	// OnHeartbeat is called after each heartbeat attempt.
 	OnHeartbeat func(error)
 	// StaticHosts is an optional list of AD-connected static Windows hosts to register.
-	StaticHosts []utils.NetAddr
+	StaticHosts []utilsaddr.NetAddr
 	// NonADHosts is an optional list of static Windows hosts to register, that are not part of Active Directory.
-	NonADHosts []utils.NetAddr
+	NonADHosts []utilsaddr.NetAddr
 }
 
 func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
@@ -598,7 +599,7 @@ func (s *WindowsService) startStaticHostHeartbeats() error {
 	return nil
 }
 
-func (s *WindowsService) startStaticHostHeartbeat(host utils.NetAddr, nonAD bool) error {
+func (s *WindowsService) startStaticHostHeartbeat(host utilsaddr.NetAddr, nonAD bool) error {
 	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Context:         s.closeCtx,
 		Component:       teleport.ComponentWindowsDesktop,
@@ -1026,7 +1027,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 
 // staticHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating statically defined hosts
-func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
+func (s *WindowsService) staticHostHeartbeatInfo(netAddr utilsaddr.NetAddr,
 	getHostLabels func(string) map[string]string, nonAD bool,
 ) func() (types.Resource, error) {
 	return func() (types.Resource, error) {

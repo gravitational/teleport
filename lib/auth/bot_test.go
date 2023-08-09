@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // TestServerCreateBot ensures that the create bot RPC creates the appropriate
@@ -218,7 +218,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		ID: IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers:  []utilsaddr.NetAddr{*utilsaddr.MustParseAddr(srv.Addr().String())},
 		PublicTLSKey: tlsPublicKey,
 		PublicSSHKey: publicKey,
 	})
@@ -275,7 +275,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 		ID: IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthServers:  []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
+		AuthServers:  []utilsaddr.NetAddr{*utilsaddr.MustParseAddr(srv.Addr().String())},
 		PublicTLSKey: tlsPublicKey,
 		PublicSSHKey: publicKey,
 	})

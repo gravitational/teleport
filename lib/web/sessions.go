@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // SessionContext is a context associated with a user's
@@ -608,7 +609,7 @@ const cachedSessionLingeringThreshold = 2 * time.Minute
 type sessionCacheOptions struct {
 	proxyClient  auth.ClientI
 	accessPoint  auth.ReadProxyAccessPoint
-	servers      []utils.NetAddr
+	servers      []utilsaddr.NetAddr
 	cipherSuites []uint16
 	clock        clockwork.Clock
 	// sessionLingeringThreshold specifies the time the session will linger
@@ -657,7 +658,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 type sessionCache struct {
 	log         logrus.FieldLogger
 	proxyClient auth.ClientI
-	authServers []utils.NetAddr
+	authServers []utilsaddr.NetAddr
 	accessPoint auth.ReadProxyAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string
@@ -961,7 +962,7 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 	}
 
 	userClient, err := auth.NewClient(apiclient.Config{
-		Addrs:                utils.NetAddrsToStrings(s.authServers),
+		Addrs:                utilsaddr.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		PROXYHeaderGetter:    client.CreatePROXYHeaderGetter(ctx, s.proxySigner),

@@ -26,9 +26,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
-var randomLocalAddr = *MustParseAddr("127.0.0.1:0")
+var randomLocalAddr = *utilsaddr.MustParseAddr("127.0.0.1:0")
 
 func TestSingleBackendLB(t *testing.T) {
 	t.Parallel()
@@ -195,10 +197,10 @@ func TestDropConnections(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func urlToNetAddr(u string) NetAddr {
+func urlToNetAddr(u string) utilsaddr.NetAddr {
 	parsed, err := url.Parse(u)
 	if err != nil {
 		panic(err)
 	}
-	return *MustParseAddr(parsed.Host)
+	return *utilsaddr.MustParseAddr(parsed.Host)
 }

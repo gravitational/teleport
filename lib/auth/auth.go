@@ -103,6 +103,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -5643,15 +5644,15 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 func (a *Server) getProxyPublicAddr() string {
 	if proxies, err := a.GetProxies(); err == nil {
 		for _, p := range proxies {
-			addr := p.GetPublicAddr()
-			if addr == "" {
+			pubAddr := p.GetPublicAddr()
+			if pubAddr == "" {
 				continue
 			}
-			if _, err := utils.ParseAddr(addr); err != nil {
-				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+			if _, err := utilsaddr.ParseAddr(pubAddr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), pubAddr, err)
 				continue
 			}
-			return addr
+			return pubAddr
 		}
 	}
 	return ""

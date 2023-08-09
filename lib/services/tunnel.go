@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // ValidateReverseTunnel validates the OIDC connector and sets default values
@@ -30,8 +31,8 @@ func ValidateReverseTunnel(rt types.ReverseTunnel) error {
 	if err := rt.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	for _, addr := range rt.GetDialAddrs() {
-		if _, err := utils.ParseAddr(addr); err != nil {
+	for _, dAddr := range rt.GetDialAddrs() {
+		if _, err := utilsaddr.ParseAddr(dAddr); err != nil {
 			return trace.Wrap(err)
 		}
 	}

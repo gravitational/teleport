@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // teleportTestUser is additional user used for tests
@@ -272,13 +272,13 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	nodeDir := t.TempDir()
 	srv, err := regular.New(
 		ctx,
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
 		nodeDir,
 		"",
-		utils.NetAddr{},
+		utilsaddr.NetAddr{},
 		s.nodeClient,
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),

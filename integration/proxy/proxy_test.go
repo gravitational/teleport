@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
@@ -485,7 +486,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPath
-			config.Kube.ListenAddr = utils.MustParseAddr(
+			config.Kube.ListenAddr = utilsaddr.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withRootClusterRoles(kubeRole),
@@ -551,7 +552,7 @@ func TestKubeIPPinning(t *testing.T) {
 
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPathRoot
-			config.Kube.ListenAddr = utils.MustParseAddr(
+			config.Kube.ListenAddr = utilsaddr.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *servicecfg.Config) {
@@ -560,7 +561,7 @@ func TestKubeIPPinning(t *testing.T) {
 
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPathLeaf
-			config.Kube.ListenAddr = utils.MustParseAddr(
+			config.Kube.ListenAddr = utilsaddr.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withRootClusterRoles(kubeRole),
@@ -1540,7 +1541,7 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 	// Test register through Proxy behind a L7 load balancer.
 	t.Run("ALPN conn upgrade", func(t *testing.T) {
 		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
-		albAddr, err := utils.ParseAddr(albProxy.Addr().String())
+		albAddr, err := utilsaddr.ParseAddr(albProxy.Addr().String())
 		require.NoError(t, err)
 
 		mustRegisterUsingIAMMethod(t, *albAddr, provisionToken.GetName(), nodeCredentials)
@@ -1585,7 +1586,7 @@ func TestALPNSNIProxyGRPCSecure(t *testing.T) {
 			config.Version = defaults.TeleportConfigVersionV3
 			config.Kube.Enabled = true
 			config.Kube.KubeconfigPath = kubeConfigPath
-			config.Kube.ListenAddr = utils.MustParseAddr(
+			config.Kube.ListenAddr = utilsaddr.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),

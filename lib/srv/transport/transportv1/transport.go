@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // Dialer is the interface that groups basic dialing methods.
@@ -290,7 +291,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		hostConn.Close()
 	}()
 
-	targetAddr, err := utils.ParseAddr(req.DialTarget.HostPort)
+	targetAddr, err := utilsaddr.ParseAddr(req.DialTarget.HostPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}

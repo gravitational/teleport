@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 type accessPointMock struct{}
@@ -96,7 +96,7 @@ func Test_proxySettings_GetProxySettings(t *testing.T) {
 
 			p := &proxySettings{
 				cfg:          tt.cfgFn(),
-				proxySSHAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3080"},
+				proxySSHAddr: utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3080"},
 				accessPoint:  &accessPointMock{},
 			}
 
