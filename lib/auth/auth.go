@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -414,6 +415,7 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.AccessLists
+	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
@@ -441,6 +443,11 @@ func (r *Services) OktaClient() services.Okta {
 
 // AccessListClient returns the access list client.
 func (r *Services) AccessListClient() services.AccessLists {
+	return r
+}
+
+// UserLoginStateClient returns the user login state client.
+func (r *Services) UserLoginStateClient() services.UserLoginStates {
 	return r
 }
 
@@ -685,7 +692,7 @@ type Server struct {
 	embeddingsRetriever *ai.SimpleRetriever
 
 	// embedder is an embedder client used to generate embeddings.
-	embedder ai.Embedder
+	embedder embedding.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
