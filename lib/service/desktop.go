@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
@@ -246,7 +248,30 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			log.Infof("Starting Windows desktop service on %v.", listener.Addr())
 		}
 		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
-		err := srv.Serve(listener)
+
+		muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+			return accessPoint.GetCertAuthority(ctx, id, loadKeys)
+		}
+
+		mux, err := multiplexer.New(multiplexer.Config{
+			Context:                     process.ExitContext(),
+			Listener:                    listener,
+			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			ID:                          teleport.Component(teleport.ComponentWindowsDesktop),
+			CertAuthorityGetter:         muxCAGetter,
+			LocalClusterName:            clusterName,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		go func() {
+			if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+				mux.Entry.WithError(err).Error("mux encountered err serving")
+			}
+		}()
+
+		err = srv.Serve(mux.TLS())
 		if err != nil {
 			if err == http.ErrServerClosed {
 				return nil
