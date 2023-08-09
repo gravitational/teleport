@@ -153,7 +153,9 @@ func (w *Watcher) fetchAndSend() {
 
 				// Set the origin label to provide information where resource comes from
 				staticLabels[types.OriginLabel] = w.cfg.Origin
-				staticLabels[types.CloudLabel] = lFetcher.Cloud()
+				if c := lFetcher.Cloud(); c != "" {
+					staticLabels[types.CloudLabel] = c
+				}
 
 				r.SetStaticLabels(staticLabels)
 			}
