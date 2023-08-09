@@ -432,7 +432,7 @@
             },
             {
               "title": "Opsgenie",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-opsgenie/",
+              "slug": "/access-controls/access-request-plugins/opsgenie/",
               "forScopes": ["cloud"]
             },
             {
@@ -455,11 +455,6 @@
               "slug": "/access-controls/access-request-plugins/ssh-approval-discord/",
               "forScopes": ["enterprise", "cloud"]
             },
-            {
-              "title": "Opsgenie",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-opsgenie/",
-              "forScopes": ["cloud"]
-            }
           ]
         },
         {

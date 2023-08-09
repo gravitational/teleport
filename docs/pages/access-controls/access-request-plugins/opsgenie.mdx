@@ -25,7 +25,7 @@ Opsgenie.
 - An Opsgenie account with the ability to create API keys with the 'read' and
   'create and update' access rights.
 
-- The Opsgenie integration is currently only available in Teleport Enterprise Cloud.
+- The Opsgenie integration is currently only available in Teleport Cloud.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -102,7 +102,7 @@ At this point, you have generated credentials that the Opsgenie plugin will use
 to connect to the Opsgenie API. To configure the plugin to use this API key navigate
 to Management -> Integrations -> Enroll New Integration.
 
-![Integrations page](../../../img/enterprise/plugins/opsgenie/opsgenie-integration-page.png)
+![Integrations page](../../../img/enterprise/plugins/opsgenie/opsgenie-integrations-menu.png)
 
 Then select the Opsgenie integration.
 
@@ -118,8 +118,7 @@ As the Teleport user `myuser`, create an Access Request for the `editor` role:
 
 In Opsgenie, you will see a new alert containing information about the
 Access Request in either the default schedule specified when enrolling the plugin,
-or if annotations were set to override this then the alert will appear where specified
-there instead.
+or to the schedules specified by `opsgenie_notify_services` annotation in the requester's role.
 
 ### Resolve the request
 
