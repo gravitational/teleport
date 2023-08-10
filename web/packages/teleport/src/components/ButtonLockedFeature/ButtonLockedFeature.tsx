@@ -20,6 +20,8 @@ import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
+import { getSalesURL } from 'teleport/services/sales';
+
 import { CtaEvent, userEventService } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
 
@@ -29,8 +31,6 @@ export type Props = {
   event?: CtaEvent;
   [index: string]: any;
 };
-
-const SALES_URL = 'https://goteleport.com/r/upgrade-team';
 
 export function ButtonLockedFeature({
   children,
@@ -50,7 +50,7 @@ export function ButtonLockedFeature({
     <ButtonPrimary
       as="a"
       target="blank"
-      href={`${SALES_URL}?${getParams(version, isEnterprise, event)}`}
+      href={getSalesURL(version, isEnterprise, event)}
       onClick={handleClick}
       py="12px"
       width="100%"
@@ -64,16 +64,6 @@ export function ButtonLockedFeature({
       </Flex>
     </ButtonPrimary>
   );
-}
-
-function getParams(
-  version: string,
-  isEnterprise: boolean,
-  event: CtaEvent
-): string {
-  return `${isEnterprise ? 'e_' : ''}${version}&utm_campaign=${
-    CtaEvent[event]
-  }`;
 }
 
 const UnlockIcon = styled(Unlock)`

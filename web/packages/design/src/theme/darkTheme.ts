@@ -16,7 +16,7 @@ limitations under the License.
 
 import { fonts } from './fonts';
 import { getContrastRatio, lighten } from './utils/colorManipulator';
-import { blueGrey, lightBlue, yellow } from './palette';
+import { blue, blueGrey, lightBlue, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
 
@@ -167,6 +167,10 @@ const colors = {
     main: '#FFAB00',
     hover: '#FFBC33',
     active: '#FFCD66',
+  },
+
+  notice: {
+    background: '#344179', // elevated
   },
 
   action: {
