@@ -14,7 +14,7 @@ import (
 const mainTemplate = `
 {{- define "events" -}}
 // Events is a map containing the description and schema for all Teleport events
-var Events = map[string]*Event{
+var events = map[string]*Event{
     {{- range $name, $schema := .Roots }}
     {{- include "event" (dict "name" $name "event" $schema) | nindent 4 }}
     {{- end }}

@@ -577,3 +577,18 @@ build-multiarch:
 		--build-arg GID=$(shell id -g) \
 		--tag $(BUILDBOX) \
 		--file Dockerfile-multiarch .
+
+.PHONY:generate-eventschema
+generate-eventschema:
+	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
+	
+	cd tooling && go build -o ./bin/protoc-gen-eventschema ./cmd/protoc-gen-eventschema/
+
+	protoc \
+		-I ../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=./tooling/bin/protoc-gen-eventschema \
+		--eventschema_out="../gen/go/eventschema" \
+		"teleport/legacy/types/events/events.proto";
+
+	cd tooling && go run ./cmd/eventtype-mapping ../../lib/events/api.go > "../../gen/go/eventschema/eventtype.go"

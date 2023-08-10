@@ -19,8 +19,8 @@ import (
 	"github.com/gogo/protobuf/vanity/command"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/integrations/protogen/pkg/eventschema"
-	"github.com/gravitational/teleport/integrations/protogen/pkg/tree"
+	"github.com/gravitational/teleport/build.assets/tooling/lib/eventschema"
+	"github.com/gravitational/teleport/build.assets/tooling/lib/tree"
 )
 
 func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {

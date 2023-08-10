@@ -22,10 +22,16 @@ import (
 	"github.com/gravitational/trace"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
-	"github.com/gravitational/teleport/integrations/protogen/pkg/tree"
+	"github.com/gravitational/teleport/build.assets/tooling/lib/tree"
 )
 
-const k8sKindPrefix = "Teleport"
+// TODO
+// index by event type (static mapping for now)
+// how can I know which event has a view? -> maintain a list of ignored events -> check ignore logic
+// AST or protobuf?
+// get the schema from API ?
+// hide metadata
+// use hardcoded event_date event_time and other fields
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
 type SchemaGenerator struct {
@@ -104,22 +110,29 @@ func (generator *SchemaGenerator) traverseInner(message *tree.Message) (*Schema,
 			continue
 		}
 
-		jsonName := field.JSONName()
-		if jsonName == "" {
-			// What to do here?
-			// - Unpack on the parent?
-			// - Use the field name?
-			// - Use the field message name?
-			jsonName = strings.ToLower(field.Name())
-		}
-		if jsonName == "-" {
-			continue
-		}
-
-		var err error
-		schema.Properties[jsonName], err = generator.prop(field)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		switch jsonName := field.JSONName(); jsonName {
+		case "-":
+			// We skip this field
+		case "":
+			// The field is an embedded message, we traverse it and copy its
+			// properties to the parent
+			if !field.IsMessage() {
+				return nil, trace.BadParameter("Embedded field is not a message")
+			}
+			embeddedSchema, err := generator.traverseInner(field.TypeMessage())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for propName, prop := range embeddedSchema.Properties {
+				schema.Properties[propName] = prop
+			}
+		default:
+			// This is a regular non-embedded field
+			var err error
+			schema.Properties[jsonName], err = generator.prop(field)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 	schema.built = true
