@@ -132,6 +132,9 @@ type Database interface {
 	SupportsAutoUsers() bool
 	// GetEndpointType returns the endpoint type of the database, if available.
 	GetEndpointType() string
+	// GetCloud gets the cloud this database is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -472,6 +475,21 @@ func (d *DatabaseV3) IsAWSHosted() bool {
 // Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
+}
+
+// GetCloud gets the cloud this database is running on, or an empty string if it
+// isn't running on a cloud provider.
+func (d *DatabaseV3) GetCloud() string {
+	switch {
+	case d.IsAWSHosted():
+		return CloudAWS
+	case d.IsCloudSQL():
+		return CloudGCP
+	case d.IsAzure():
+		return CloudAzure
+	default:
+		return ""
+	}
 }
 
 // getAWSType returns the database type.

@@ -22,10 +22,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+const databaseEventPrefix = "db/"
 
 func (s *Server) startDatabaseWatchers() error {
 	if len(s.databaseFetchers) == 0 {
@@ -115,7 +118,24 @@ func (s *Server) onDatabaseCreate(ctx context.Context, resource types.ResourceWi
 	if trace.IsAlreadyExists(err) {
 		return trace.Wrap(s.onDatabaseUpdate(ctx, resource))
 	}
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+		databaseEventPrefix + database.GetName(): {
+			ResourceType:   types.DiscoveredResourceDatabase,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  database.GetCloud(),
+			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
+				DbType:     database.GetType(),
+				DbProtocol: database.GetProtocol(),
+			},
+		},
+	})
+	if err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) onDatabaseUpdate(ctx context.Context, resource types.ResourceWithLabels) error {

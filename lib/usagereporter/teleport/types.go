@@ -111,11 +111,20 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 type ResourceCreateEvent prehogv1a.ResourceCreateEvent
 
 func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	event := &prehogv1a.ResourceCreateEvent{
+		ResourceType:   u.ResourceType,
+		ResourceOrigin: u.ResourceOrigin,
+		CloudProvider:  u.CloudProvider,
+	}
+	if db := u.Database; db != nil {
+		event.Database = &prehogv1a.DiscoveredDatabaseMetadata{
+			DbType:     db.DbType,
+			DbProtocol: db.DbProtocol,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_ResourceCreate{
-			ResourceCreate: &prehogv1a.ResourceCreateEvent{
-				ResourceType: u.ResourceType,
-			},
+			ResourceCreate: event,
 		},
 	}
 }
@@ -980,6 +989,19 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			UserName:                    userMD.Username,
 			Feature:                     prehogv1a.Feature(e.FeatureRecommendationEvent.Feature),
 			FeatureRecommendationStatus: prehogv1a.FeatureRecommendationStatus(e.FeatureRecommendationEvent.FeatureRecommendationStatus),
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_ResourceCreateEvent:
+		ret := &ResourceCreateEvent{
+			ResourceType:   e.ResourceCreateEvent.ResourceType,
+			ResourceOrigin: e.ResourceCreateEvent.ResourceOrigin,
+			CloudProvider:  e.ResourceCreateEvent.CloudProvider,
+		}
+		if db := e.ResourceCreateEvent.Database; db != nil {
+			ret.Database = &prehogv1a.DiscoveredDatabaseMetadata{
+				DbType:     db.DbType,
+				DbProtocol: db.DbProtocol,
+			}
 		}
 		return ret, nil
 	default:
