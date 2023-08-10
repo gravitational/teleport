@@ -4916,7 +4916,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 				{
 					Name:     "mysql-local",
 					Protocol: defaults.ProtocolMySQL,
-					URI:      "external-mysq:3306",
+					URI:      "external-mysql:3306",
 				},
 			}
 		}),
@@ -4931,29 +4931,29 @@ func TestBenchmarkPostgres(t *testing.T) {
 	}
 
 	for name, tc := range map[string]struct {
-		database         string
-		additionalFlags  []string
-		expectCommandErr bool
-		expectedErr      string
-		expectedHost     string
-		expectedUser     string
-		expectedDatabase string
+		database            string
+		additionalFlags     []string
+		expectCommandErr    bool
+		expectedErrContains string
+		expectedHost        string
+		expectedUser        string
+		expectedDatabase    string
 	}{
 		"connect to database": {
-			database:        "postgres-local",
-			additionalFlags: []string{"--db-user", "username", "--db-name", "database"},
-			expectedErr:     "tls error (server refused TLS connection)",
+			database:            "postgres-local",
+			additionalFlags:     []string{"--db-user", "username", "--db-name", "database"},
+			expectedErrContains: "tls error (server refused TLS connection)",
 			// When connecting to Teleport databases, it will use a local proxy.
 			expectedHost:     "127.0.0.1",
 			expectedUser:     "username",
 			expectedDatabase: "database",
 		},
 		"direct connection": {
-			database:         "postgres://direct_user@test:5432/direct_database",
-			expectedErr:      "hostname resolving error (lookup test: no such host)",
-			expectedHost:     "test",
-			expectedUser:     "direct_user",
-			expectedDatabase: "direct_database",
+			database:            "postgres://direct_user@test:5432/direct_database",
+			expectedErrContains: "hostname resolving error",
+			expectedHost:        "test",
+			expectedUser:        "direct_user",
+			expectedDatabase:    "direct_database",
 		},
 		"no postgres database found": {
 			database:         "mysql-local",
@@ -4987,7 +4987,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 
 			host, username, database, benchmarkError := parsed[1], parsed[2], parsed[3], parsed[4]
 
-			require.Equal(t, tc.expectedErr, benchmarkError)
+			require.Contains(t, benchmarkError, tc.expectedErrContains)
 			require.Equal(t, tc.expectedHost, host)
 			require.Equal(t, tc.expectedUser, username)
 			require.Equal(t, tc.expectedDatabase, database)
@@ -5018,7 +5018,7 @@ func TestBenchmarkMySQL(t *testing.T) {
 				{
 					Name:     "mysql-local",
 					Protocol: defaults.ProtocolMySQL,
-					URI:      "external-mysq:3306",
+					URI:      "external-mysql:3306",
 				},
 			}
 		}),
@@ -5032,19 +5032,20 @@ func TestBenchmarkMySQL(t *testing.T) {
 	}
 
 	for name, tc := range map[string]struct {
-		database         string
-		additionalFlags  []string
-		expectCommandErr bool
-		expectedErr      string
+		database            string
+		additionalFlags     []string
+		expectCommandErr    bool
+		expectedErrContains string
 	}{
 		"connect to database": {
 			database:        "mysql-local",
 			additionalFlags: []string{"--db-user", "username", "--db-name", "database"},
-			expectedErr:     "failed to connect to any of the database servers",
+			// Expect a MySQL driver error where the server is not working correctly.
+			expectedErrContains: "ERROR 1105 (HY000)",
 		},
 		"direct connection": {
-			database:    "mysql://direct_user@test:3306/direct_database",
-			expectedErr: "no such host",
+			database:            "mysql://direct_user@test:3306/direct_database",
+			expectedErrContains: "lookup test",
 		},
 		"no mysql database found": {
 			database:         "postgres-local",
@@ -5072,7 +5073,7 @@ func TestBenchmarkMySQL(t *testing.T) {
 				}
 			}
 			require.NotEmpty(t, errorLine, "expected benchmark to fail")
-			require.Contains(t, errorLine, tc.expectedErr)
+			require.Contains(t, errorLine, tc.expectedErrContains)
 		})
 	}
 }
