@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/google/go-cmp/cmp"
@@ -31,14 +32,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func stringPointer(s string) *string {
-	return &s
-}
-
 type mockListDatabasesClient struct {
-	pageSize    int
-	dbInstances []rdsTypes.DBInstance
-	dbClusters  []rdsTypes.DBCluster
+	pageSize              int
+	dbInstances           []rdsTypes.DBInstance
+	dbClusters            []rdsTypes.DBCluster
+	regionHasAuroraEngine bool
 }
 
 // Returns information about provisioned RDS instances.
@@ -68,15 +66,32 @@ func (m mockListDatabasesClient) DescribeDBInstances(ctx context.Context, params
 
 	if sliceEnd < totalInstances {
 		nextToken := fmt.Sprintf("%d", requestedPage+1)
-		ret.Marker = stringPointer(nextToken)
+		ret.Marker = aws.String(nextToken)
 	}
 
 	return ret, nil
 }
 
+func hasAuroraEngineFilter(filters []rdsTypes.Filter) bool {
+	for _, filter := range filters {
+		if *filter.Name == filterEngine {
+			for _, engine := range filter.Values {
+				if engine == "aurora" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // Returns information about Amazon Aurora DB clusters and Multi-AZ DB clusters.
 // This API supports pagination
 func (m mockListDatabasesClient) DescribeDBClusters(ctx context.Context, params *rds.DescribeDBClustersInput, optFns ...func(*rds.Options)) (*rds.DescribeDBClustersOutput, error) {
+	if !m.regionHasAuroraEngine && hasAuroraEngineFilter(params.Filters) {
+		return nil, fmt.Errorf("Unrecognized engine name: aurora")
+	}
+
 	return &rds.DescribeDBClustersOutput{
 		DBClusters: m.dbClusters,
 	}, nil
@@ -98,13 +113,13 @@ func TestListDatabases(t *testing.T) {
 		allInstances := make([]rdsTypes.DBInstance, 0, totalDBs)
 		for i := 0; i < totalDBs; i++ {
 			allInstances = append(allInstances, rdsTypes.DBInstance{
-				DBInstanceStatus:     stringPointer("available"),
-				DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", i)),
-				DbiResourceId:        stringPointer("db-123"),
-				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
-				Engine:               stringPointer("postgres"),
+				DBInstanceStatus:     aws.String("available"),
+				DBInstanceIdentifier: aws.String(fmt.Sprintf("db-%v", i)),
+				DbiResourceId:        aws.String("db-123"),
+				DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
+				Engine:               aws.String("postgres"),
 				Endpoint: &rdsTypes.Endpoint{
-					Address: stringPointer("endpoint.amazonaws.com"),
+					Address: aws.String("endpoint.amazonaws.com"),
 					Port:    5432,
 				},
 			})
@@ -151,6 +166,33 @@ func TestListDatabases(t *testing.T) {
 		require.Len(t, resp.Databases, 3)
 	})
 
+	t.Run("aurora is not a valid engine name in the given region", func(t *testing.T) {
+		mockListClient := mockListDatabasesClient{
+			regionHasAuroraEngine: false,
+			dbClusters: []rdsTypes.DBCluster{{
+				Status:              aws.String("available"),
+				DBClusterIdentifier: aws.String("my-dbc"),
+				DbClusterResourceId: aws.String("db-123"),
+				Engine:              aws.String("aurora-postgresql"),
+				Endpoint:            aws.String("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+				Port:                &clusterPort,
+				DBClusterArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
+			}},
+		}
+
+		resp, err := ListDatabases(ctx, mockListClient, ListDatabasesRequest{
+			Region:    "us-east-1",
+			RDSType:   "cluster",
+			Engines:   []string{"aurora-postgresql", "aurora"},
+			NextToken: "",
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.NextToken)
+		require.Len(t, resp.Databases, 1)
+		returnedDB := resp.Databases[0]
+		require.Equal(t, "my-dbc", returnedDB.GetName())
+	})
+
 	for _, tt := range []struct {
 		name          string
 		req           ListDatabasesRequest
@@ -168,13 +210,13 @@ func TestListDatabases(t *testing.T) {
 				NextToken: "",
 			},
 			mockInstances: []rdsTypes.DBInstance{{
-				DBInstanceStatus:     stringPointer("available"),
-				DBInstanceIdentifier: stringPointer("my-db"),
-				Engine:               stringPointer("postgres"),
-				DbiResourceId:        stringPointer("db-123"),
-				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+				DBInstanceStatus:     aws.String("available"),
+				DBInstanceIdentifier: aws.String("my-db"),
+				Engine:               aws.String("postgres"),
+				DbiResourceId:        aws.String("db-123"),
+				DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
 				Endpoint: &rdsTypes.Endpoint{
-					Address: stringPointer("endpoint.amazonaws.com"),
+					Address: aws.String("endpoint.amazonaws.com"),
 					Port:    5432,
 				},
 			},
@@ -224,22 +266,22 @@ func TestListDatabases(t *testing.T) {
 			},
 			mockInstances: []rdsTypes.DBInstance{
 				{
-					DBInstanceStatus:     stringPointer("available"),
-					DBInstanceIdentifier: stringPointer("my-db"),
-					Engine:               stringPointer("postgres"),
-					DbiResourceId:        stringPointer("db-123"),
-					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+					DBInstanceStatus:     aws.String("available"),
+					DBInstanceIdentifier: aws.String("my-db"),
+					Engine:               aws.String("postgres"),
+					DbiResourceId:        aws.String("db-123"),
+					DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
 					Endpoint: &rdsTypes.Endpoint{
-						Address: stringPointer("endpoint.amazonaws.com"),
+						Address: aws.String("endpoint.amazonaws.com"),
 						Port:    5432,
 					},
 				},
 				{
-					DBInstanceStatus:     stringPointer("creating"),
-					DBInstanceIdentifier: stringPointer("db-without-endpoint"),
-					Engine:               stringPointer("postgres"),
-					DbiResourceId:        stringPointer("db-123"),
-					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+					DBInstanceStatus:     aws.String("creating"),
+					DBInstanceIdentifier: aws.String("db-without-endpoint"),
+					Engine:               aws.String("postgres"),
+					DbiResourceId:        aws.String("db-123"),
+					DBInstanceArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
 					Endpoint:             nil,
 				},
 			},
@@ -287,13 +329,13 @@ func TestListDatabases(t *testing.T) {
 				NextToken: "",
 			},
 			mockClusters: []rdsTypes.DBCluster{{
-				Status:              stringPointer("available"),
-				DBClusterIdentifier: stringPointer("my-dbc"),
-				DbClusterResourceId: stringPointer("db-123"),
-				Engine:              stringPointer("aurora-postgresql"),
-				Endpoint:            stringPointer("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+				Status:              aws.String("available"),
+				DBClusterIdentifier: aws.String("my-dbc"),
+				DbClusterResourceId: aws.String("db-123"),
+				Engine:              aws.String("aurora-postgresql"),
+				Endpoint:            aws.String("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
 				Port:                &clusterPort,
-				DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+				DBClusterArn:        aws.String("arn:aws:iam::123456789012:role/MyARN"),
 			}},
 			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
 				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))

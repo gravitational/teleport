@@ -18,6 +18,7 @@ package awsoidc
 
 import (
 	"context"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -102,6 +103,48 @@ func NewListDatabasesClient(ctx context.Context, req *AWSClientRequest) (ListDat
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html
 // It returns a list of Databases and an optional NextToken that can be used to fetch the next page
 func ListDatabases(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
+	ret, err := listDBs(ctx, clt, req)
+	if isUnrecognizedAWSEngineNameAuroraError(err) {
+		// Aurora engine is not a valid engine name in some Regions.
+		// When we try to list Databases in a region where `aurora` is not a valid engine we get the following error:
+		// > Unrecognized engine name: aurora
+		// If we receive that specific error, we remove `aurora` from the engines filter.
+		// Related:
+		// https://github.com/gravitational/teleport/pull/18328
+		// https://github.com/aws/aws-toolkit-jetbrains/pull/3644
+		var enginesWithoutAurora []string
+		for _, e := range req.Engines {
+			if e == services.RDSEngineAurora {
+				continue
+			}
+			enginesWithoutAurora = append(enginesWithoutAurora, e)
+		}
+		// If no other engine is present, return the error
+		if len(enginesWithoutAurora) == 0 {
+			return nil, trace.Wrap(err)
+		}
+
+		// Retry the API call without the offending engine name.
+		req.Engines = enginesWithoutAurora
+		ret, err = listDBs(ctx, clt, req)
+	}
+
+	return ret, trace.Wrap(err)
+}
+
+// isUnrecognizedAWSEngineNameAuroraError checks if the err contains an error indicating that
+// the aurora engine name is not recognized.
+// Some regions do not accept aurora as a valid engine name, while others do.
+func isUnrecognizedAWSEngineNameAuroraError(err error) bool {
+	if err == nil {
+		return false
+	}
+	// AWS Go SDK V1 error message has the first letter in lowercase: unrecognized engine name: aurora
+	// AWS Go SDK V2 error message has the first letter in uppercase: Unrecognized engine name: aurora
+	return strings.Contains(strings.ToLower(err.Error()), "nrecognized engine name: aurora")
+}
+
+func listDBs(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -141,10 +142,10 @@ func TestDeployServiceRequest(t *testing.T) {
 				Region:               "r",
 				SubnetIDs:            []string{"1"},
 				TaskRoleARN:          "arn",
-				ClusterName:          stringPointer("mycluster-teleport"),
-				ServiceName:          stringPointer("mycluster-teleport-database-service"),
-				TaskName:             stringPointer("mycluster-teleport-database-service"),
-				TeleportIAMTokenName: stringPointer("discover-aws-oidc-iam-token"),
+				ClusterName:          aws.String("mycluster-teleport"),
+				ServiceName:          aws.String("mycluster-teleport-database-service"),
+				TaskName:             aws.String("mycluster-teleport-database-service"),
+				TeleportIAMTokenName: aws.String("discover-aws-oidc-iam-token"),
 				IntegrationName:      "teleportdev",
 				ProxyServerHostPort:  "proxy.example.com:3080",
 				ResourceCreationTags: awsTags{
