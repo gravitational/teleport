@@ -23,6 +23,8 @@ import Flex from 'design/Flex';
 import { CtaEvent, userEventService } from 'teleport/services/userEvent';
 import useTeleport from 'teleport/useTeleport';
 
+import cfg from 'teleport/config';
+
 export type Props = {
   children: React.ReactNode;
   noIcon?: boolean;
@@ -30,7 +32,8 @@ export type Props = {
   [index: string]: any;
 };
 
-const SALES_URL = 'https://goteleport.com/r/upgrade-team';
+const UPGRADE_TEAM_URL = 'https://goteleport.com/r/upgrade-team';
+const UPGRADE_COMMUNITY_URL = 'https://goteleport.com/r/upgrade-community';
 
 export function ButtonLockedFeature({
   children,
@@ -50,7 +53,9 @@ export function ButtonLockedFeature({
     <ButtonPrimary
       as="a"
       target="blank"
-      href={`${SALES_URL}?${getParams(version, isEnterprise, event)}`}
+      href={`${
+        cfg.isUsageBasedBilling ? UPGRADE_TEAM_URL : UPGRADE_COMMUNITY_URL
+      }?${getParams(version, isEnterprise, event)}`}
       onClick={handleClick}
       py="12px"
       width="100%"
