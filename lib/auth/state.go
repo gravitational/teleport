@@ -41,12 +41,6 @@ type stateBackend interface {
 	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
 	Get(ctx context.Context, key []byte) (*backend.Item, error)
-	// PutRange receives multiple items and upserts them into the Kubernetes Secret.
-	// This function is only used when the Agent's Secret does not exist, but local SQLite database
-	// has identity credentials.
-	// TODO(tigrato): remove this once the compatibility layer between local storage and
-	// Kube secret storage is no longer required!
-	PutRange(ctx context.Context, items []backend.Item) error
 }
 
 // ProcessStorage is a backend for local process state,

@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
-	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -70,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -415,6 +415,7 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.AccessLists
+	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
@@ -442,6 +443,11 @@ func (r *Services) OktaClient() services.Okta {
 
 // AccessListClient returns the access list client.
 func (r *Services) AccessListClient() services.AccessLists {
+	return r
+}
+
+// UserLoginStateClient returns the user login state client.
+func (r *Services) UserLoginStateClient() services.UserLoginStates {
 	return r
 }
 
@@ -686,7 +692,7 @@ type Server struct {
 	embeddingsRetriever *ai.SimpleRetriever
 
 	// embedder is an embedder client used to generate embeddings.
-	embedder ai.Embedder
+	embedder embedding.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1747,6 +1753,8 @@ type AppTestCertRequest struct {
 	GCPServiceAccount string
 	// PinnedIP is optional IP to pin certificate to.
 	PinnedIP string
+	// LoginTrait is the login to include in the cert
+	LoginTrait string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1769,6 +1777,12 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
+
+	login := req.LoginTrait
+	if login == "" {
+		login = uuid.New().String()
+	}
+
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1778,7 +1792,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			constants.TraitLogins: {uuid.New().String()},
+			constants.TraitLogins: {login},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
@@ -3183,7 +3197,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	if req.ReloadUser {
 		// We don't call from the cache layer because we want to
-		// retrieve the recently updated user. Otherwise the cache
+		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
 		user, err := a.Identity.GetUser(req.User, false)
 		if err != nil {
@@ -3211,9 +3225,11 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 			allowedResourceIDs = accessRequest.GetRequestedResourceIDs()
 		}
 
-		// Let session expire with the shortest expiry time.
-		if expiresAt.After(accessRequest.GetAccessExpiry()) {
-			expiresAt = accessRequest.GetAccessExpiry()
+		webSessionTTL := a.getWebSessionTTL(accessRequest)
+
+		// Let the session expire with the shortest expiry time.
+		if expiresAt.After(webSessionTTL) {
+			expiresAt = webSessionTTL
 		}
 	} else if req.Switchback {
 		if prevSession.GetLoginTime().IsZero() {
@@ -3267,6 +3283,27 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	}
 
 	return sess, nil
+}
+
+// getWebSessionTTL returns the earliest expiration time of allowed in the access request.
+func (a *Server) getWebSessionTTL(accessRequest types.AccessRequest) time.Time {
+	webSessionTTL := accessRequest.GetAccessExpiry()
+	sessionTTL := accessRequest.GetSessionTLL()
+	if sessionTTL.IsZero() {
+		return webSessionTTL
+	}
+
+	// Session TTL contains the time when the session should end.
+	// We need to subtract it from the creation time to get the
+	// session duration.
+	sessionDuration := sessionTTL.Sub(accessRequest.GetCreationTime())
+	// Calculate the adjusted session TTL.
+	adjustedSessionTTL := a.clock.Now().UTC().Add(sessionDuration)
+	// Adjusted TTL can't exceed webSessionTTL.
+	if adjustedSessionTTL.Before(webSessionTTL) {
+		return adjustedSessionTTL
+	}
+	return webSessionTTL
 }
 
 func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.Identity, user string, accessRequestID string) (types.AccessRequest, error) {
@@ -5383,17 +5420,6 @@ func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assis
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
-}
-
-// GetUserPreferences returns the user preferences for a given user.
-func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
-	resp, err := a.Services.GetUserPreferences(ctx, request)
-	return resp, trace.Wrap(err)
-}
-
-// UpsertUserPreferences creates or updates user preferences for a given username.
-func (a *Server) UpsertUserPreferences(ctx context.Context, request *userpreferencesv1.UpsertUserPreferencesRequest) error {
-	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, request))
 }
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it

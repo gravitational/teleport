@@ -314,9 +314,6 @@ const (
 )
 
 const (
-	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
-	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
 )
@@ -384,6 +381,14 @@ const (
 	// TraitGCPServiceAccounts is the name of the role variable used to store
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
+
+	// TraitHostUserUID is the name of the variable used to specify
+	// the UID to create host user account with.
+	TraitHostUserUID = "host_user_uid"
+
+	// TraitHostUserGID is the name of the variable used to specify
+	// the GID to create host user account with.
+	TraitHostUserGID = "host_user_gid"
 )
 
 const (

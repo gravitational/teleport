@@ -73,7 +73,7 @@ type makeCredentialRequest struct {
 }
 
 // Login implements Login for Windows Webauthn API.
-func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+func Login(_ context.Context, origin string, assertion *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 	if origin == "" {
 		return nil, "", trace.BadParameter("origin required")
 	}
@@ -112,10 +112,7 @@ func Login(ctx context.Context, origin string, assertion *wanlib.CredentialAsser
 }
 
 // Register implements Register for Windows Webauthn API.
-func Register(
-	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation,
-) (*proto.MFARegisterResponse, error) {
+func Register(_ context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	if origin == "" {
 		return nil, trace.BadParameter("origin required")
 	}
@@ -163,12 +160,20 @@ func Register(
 	}, nil
 }
 
+const defaultPromptMessage = "Using platform authenticator, follow the OS dialogs"
+
 var (
-	// PromptPlatformMessage is the message shown before Touch ID prompts.
-	PromptPlatformMessage = "Using platform authenticator, follow the OS dialogs"
+	// PromptPlatformMessage is the message shown before system prompts.
+	PromptPlatformMessage = defaultPromptMessage
+
 	// PromptWriter is the writer used for prompt messages.
 	PromptWriter io.Writer = os.Stderr
 )
+
+// ResetPromptPlatformMessage resets [PromptPlatformMessage] to its original state.
+func ResetPromptPlatformMessage() {
+	PromptPlatformMessage = defaultPromptMessage
+}
 
 func promptPlatform() {
 	if PromptPlatformMessage != "" {
@@ -210,7 +215,7 @@ type DiagResult struct {
 
 // Diag runs a few diagnostic commands and returns the result.
 // User interaction is required.
-func Diag(ctx context.Context, promptOut io.Writer) (*DiagResult, error) {
+func Diag(ctx context.Context) (*DiagResult, error) {
 	res := &DiagResult{}
 	if !IsAvailable() {
 		return res, nil
@@ -220,22 +225,22 @@ func Diag(ctx context.Context, promptOut io.Writer) (*DiagResult, error) {
 	// Attempt registration.
 	const origin = "localhost"
 	cc := &wanlib.CredentialCreation{
-		Response: protocol.PublicKeyCredentialCreationOptions{
+		Response: wanlib.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: protocol.RelyingPartyEntity{
+			RelyingParty: wanlib.RelyingPartyEntity{
 				ID: "localhost",
-				CredentialEntity: protocol.CredentialEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "test RP",
 				},
 			},
-			User: protocol.UserEntity{
-				CredentialEntity: protocol.CredentialEntity{
+			User: wanlib.UserEntity{
+				CredentialEntity: wanlib.CredentialEntity{
 					Name: "test",
 				},
 				ID:          []byte("test"),
 				DisplayName: "test",
 			},
-			Parameters: []protocol.CredentialParameter{
+			Parameters: []wanlib.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
@@ -256,10 +261,10 @@ func Diag(ctx context.Context, promptOut io.Writer) (*DiagResult, error) {
 
 	// Attempt login.
 	assertion := &wanlib.CredentialAssertion{
-		Response: protocol.PublicKeyCredentialRequestOptions{
+		Response: wanlib.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: cc.Response.RelyingParty.ID,
-			AllowedCredentials: []protocol.CredentialDescriptor{
+			AllowedCredentials: []wanlib.CredentialDescriptor{
 				{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: ccr.GetWebauthn().GetRawId(),

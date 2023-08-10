@@ -119,7 +119,9 @@ func NewMockEventsProcess(ctx context.Context, t *testing.T, config Config, fn E
 		assert.NoError(t, process.Shutdown(ctx))
 		process.Close()
 	})
-	process.eventsJob = NewJobWithEvents(&process.Events, config, fn)
+	var err error
+	process.eventsJob, err = NewJobWithEvents(&process.Events, config, fn)
+	require.NoError(t, err)
 	process.SpawnCriticalJob(process.eventsJob)
 	require.NoError(t, process.Events.WaitSomeWatchers(ctx))
 	process.Events.Fire(types.Event{Type: types.OpInit})

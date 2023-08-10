@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
@@ -47,16 +48,56 @@ const (
 )
 
 // NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
-func NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string) *Agent {
-	return &Agent{
-		tools: []Tool{
-			&commandExecutionTool{},
-			&embeddingRetrievalTool{
-				assistClient: assistClient,
-				currentUser:  username,
-			},
-		},
+func NewAgent(username string, config ToolsConfig) (*Agent, error) {
+	err := config.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	tools := []Tool{&commandExecutionTool{}}
+
+	if !config.DisableEmbeddingsTool {
+		tools = append(tools,
+			&embeddingRetrievalTool{
+				assistClient:      config.EmbeddingsClient,
+				currentUser:       username,
+				nodeClient:        config.NodeClient,
+				userAccessChecker: config.AccessChecker,
+			})
+	}
+
+	return &Agent{
+		tools: tools,
+	}, nil
+}
+
+// ToolsConfig contains all the tool configuration and clients the tools
+// can potentially leverage to interact with Teleport. Such clients can be used
+// to list resources or check RBAC rules for example.
+type ToolsConfig struct {
+	// DisableEmbeddingsTool disables the embedding retrieval tool, useful in tests.
+	DisableEmbeddingsTool bool
+	// EmbeddingsClient is required when the embeddings tool is enabled.
+	EmbeddingsClient assist.AssistEmbeddingServiceClient
+	// AccessChecker is required when NodeClient is set
+	AccessChecker services.AccessChecker
+	// NodeClient is optional, when set, the tools might attempt to search for
+	// nodes directly from cache on small clusters.
+	NodeClient *services.NodeWatcher
+}
+
+// CheckAndSetDefaults checks if the ToolsConfig is valid and sets defaults
+// when needed.
+func (a *ToolsConfig) CheckAndSetDefaults() error {
+	if !a.DisableEmbeddingsTool {
+		if a.EmbeddingsClient == nil {
+			return trace.BadParameter("Embeddings client is mandatory when embedding tool is enabled")
+		}
+		if a.NodeClient != nil && a.AccessChecker == nil {
+			return trace.BadParameter("AccessChecker is required when NodeClient is set")
+		}
+	}
+	return nil
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.

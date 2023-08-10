@@ -1027,7 +1027,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Create a fake client XServer listener which echos
 	// back whatever it receives.
-	fakeClientDisplay, err := net.Listen("tcp", ":0")
+	fakeClientDisplay, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	go func() {
 		for {
