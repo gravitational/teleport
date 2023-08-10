@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -183,21 +184,58 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 
 // lookupDesktop does a DNS lookup for the provided hostname.
 // It checks using the default system resolver first, and falls
-// back to making a DNS query of the configured LDAP server
-// if the system resolver fails.
-func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (addrs []string, err error) {
-	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+// back to the configured LDAP server if the system resolver fails.
+func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]string, error) {
+	stringAddrs := func(addrs []netip.Addr) []string {
+		result := make([]string, 0, len(addrs))
+		for _, addr := range addrs {
+			result = append(result, addr.String())
+		}
+		return result
+	}
 
-	addrs, err = net.DefaultResolver.LookupHost(tctx, hostname)
-	if err == nil && len(addrs) > 0 {
-		return addrs, nil
+	const queryTimeout = 5 * time.Second
+
+	queryResolver := func(resolver *net.Resolver, resolverName string) chan []netip.Addr {
+		ch := make(chan []netip.Addr, 1)
+		if resolver != nil {
+			go func() {
+				tctx, cancel := context.WithTimeout(ctx, queryTimeout)
+				defer cancel()
+
+				addrs, err := resolver.LookupNetIP(tctx, "ip4", hostname)
+				if err != nil {
+					s.cfg.Log.Debugf("DNS lookup for %v failed with %s resolver: %v",
+						hostname, resolverName, err)
+				}
+				if len(addrs) > 0 {
+					ch <- addrs
+				}
+			}()
+		}
+		return ch
 	}
-	if s.dnsResolver == nil {
-		return nil, trace.NewAggregate(err, trace.Errorf("DNS lookup for %q failed and there's no LDAP server to fallback to", hostname))
+
+	// kick off both DNS queries in parallel
+	defaultResult := queryResolver(net.DefaultResolver, "default")
+	ldapResult := queryResolver(s.dnsResolver, "LDAP")
+
+	// wait 5 seconds for the default resolver to return
+	select {
+	case addrs := <-defaultResult:
+		return stringAddrs(addrs), nil
+	case <-s.cfg.Clock.After(5 * time.Second):
 	}
-	s.cfg.Log.WithError(err).Debugf("DNS lookup for %q failed, falling back to LDAP server", hostname)
-	return s.dnsResolver.LookupHost(ctx, hostname)
+
+	// If we didn't get a result from the default resolver,
+	// the result from the LDAP resolver is either available
+	// now or we're done. There's no more waiting.
+	select {
+	case addrs := <-ldapResult:
+		return stringAddrs(addrs), nil
+	default:
+		return nil, trace.Errorf("could not resolve %v in time", hostname)
+	}
 }
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
@@ -237,6 +275,9 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		return nil, trace.Wrap(err)
 	}
 
-	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
+	// We use a longer TTL for discovered desktops, because the reconciler will manually
+	// purge them if they stop being detected, and discovery of large Windows fleets can
+	// take a long time.
+	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL * 3))
 	return desktop, nil
 }
