@@ -280,6 +280,24 @@ Additionally, the `{{internal.jwt}}` template variable will be replaced with
 a JWT token signed by Teleport that contains user identity information. See
 [Integrating with JWTs](../jwt/introduction.mdx) for more details.
 
+The JWT token can be optionally configured to exclude traits/roles:
+
+```yaml
+- name: "dashboard"
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  rewrite:
+    # Specify whether to include roles or traits
+    # Options:
+    # - roles-and-traits: include both roles and traits
+    # - roles: include only roles
+    # - none: exclude both roles and traits from the JWT token
+    jwt_claims: roles-and-traits
+    headers:
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
 ## View applications in Teleport
 
 Teleport provides a UI for quickly launching connected applications.
