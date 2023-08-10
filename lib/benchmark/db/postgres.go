@@ -66,6 +66,7 @@ func (p *PostgresBenchmark) CheckAndSetDefaults() error {
 	return nil
 }
 
+// BenchBuilder returns a WorkloadFunc for the given benchmark suite.
 func (p *PostgresBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClient) (benchmark.WorkloadFunc, error) {
 	if err := p.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

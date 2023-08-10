@@ -60,13 +60,14 @@ func (p *MySQLBenchmark) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if p.DBUser == "" || p.DBName == "" {
-		return trace.BadParameter("must provide and database name and user")
+	if p.DBUser == "" {
+		return trace.BadParameter("must provide database user")
 	}
 
 	return nil
 }
 
+// BenchBuilder returns a WorkloadFunc for the given benchmark suite.
 func (p *MySQLBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClient) (benchmark.WorkloadFunc, error) {
 	if err := p.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
