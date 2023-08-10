@@ -28,6 +28,14 @@ import (
 
 func (c *urlChecker) checkAzure(ctx context.Context, database types.Database) error {
 	// TODO check by fetching the resources from Azure and compare the URLs.
+	if err := c.checkIsAzureEndpoint(ctx, database); err != nil {
+		return trace.Wrap(err)
+	}
+	c.log.Debugf("Azure database %q URL validated.", database.GetName())
+	return nil
+}
+
+func (c *urlChecker) checkIsAzureEndpoint(ctx context.Context, database types.Database) error {
 	switch database.GetProtocol() {
 	case defaults.ProtocolRedis:
 		return trace.Wrap(requireDatabaseIsEndpoint(ctx, database, azure.IsCacheForRedisEndpoint))

@@ -45,14 +45,14 @@ func (c *urlChecker) checkAWS(describeCheck, basicEndpointCheck checkDatabaseFun
 			if err := basicEndpointCheck(ctx, database); err != nil {
 				return trace.Wrap(err)
 			}
-			c.log.Debugf("Database %v URL validated by basic endpoint check.", database.GetName())
+			c.log.Debugf("AWS database %q URL validated by basic endpoint check.", database.GetName())
 			return nil
 		}
 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.log.Debugf("Database %v URL validated by describe check.", database.GetName())
+		c.log.Debugf("AWS database %q URL validated by describe check.", database.GetName())
 		return nil
 	}
 }
@@ -129,6 +129,7 @@ func (c *urlChecker) checkRDSProxyPrimaryEndpoint(ctx context.Context, database 
 	// just validate the host domain.
 	return requireDatabaseHost(database, aws.StringValue(rdsProxy.Endpoint))
 }
+
 func (c *urlChecker) checkRDSProxyCustomEndpoint(ctx context.Context, database types.Database, rdsClient rdsiface.RDSAPI, proxyEndpointName string) error {
 	_, err := describeRDSProxyCustomEndpointAndFindURI(ctx, rdsClient, proxyEndpointName, database.GetURI())
 	return trace.Wrap(err)
