@@ -76,7 +76,7 @@ func (m mockListEC2Client) DescribeInstances(ctx context.Context, params *ec2.De
 
 	if sliceEnd < totalInstances {
 		nextToken := strconv.Itoa(requestedPage + 1)
-		ret.NextToken = stringPointer(nextToken)
+		ret.NextToken = aws.String(nextToken)
 	}
 
 	return ret, nil

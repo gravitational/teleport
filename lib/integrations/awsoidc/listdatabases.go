@@ -139,9 +139,7 @@ func isUnrecognizedAWSEngineNameAuroraError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// AWS Go SDK V1 error message has the first letter in lowercase: unrecognized engine name: aurora
-	// AWS Go SDK V2 error message has the first letter in uppercase: Unrecognized engine name: aurora
-	return strings.Contains(strings.ToLower(err.Error()), "nrecognized engine name: aurora")
+	return strings.Contains(strings.ToLower(err.Error()), "unrecognized engine name: aurora")
 }
 
 func listDBs(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest) (*ListDatabasesResponse, error) {

@@ -166,6 +166,19 @@ func TestListDatabases(t *testing.T) {
 		require.Len(t, resp.Databases, 3)
 	})
 
+	t.Run("aurora is not a valid engine name in the given region but was the only provided engine", func(t *testing.T) {
+		mockListClient := mockListDatabasesClient{}
+
+		_, err := ListDatabases(ctx, mockListClient, ListDatabasesRequest{
+			Region:    "us-east-1",
+			RDSType:   "cluster",
+			Engines:   []string{"aurora"},
+			NextToken: "",
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "Unrecognized engine name: aurora")
+	})
+
 	t.Run("aurora is not a valid engine name in the given region", func(t *testing.T) {
 		mockListClient := mockListDatabasesClient{
 			regionHasAuroraEngine: false,
