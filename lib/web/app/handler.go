@@ -248,10 +248,10 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 		if redirectInsteadOfForward(appServer) {
 			needsRedirect = true
 			redirectURI = appServer.GetApp().GetURI()
-			return true
+			return false
 		}
 
-		return false
+		return true
 	})
 
 	if needsRedirect {
