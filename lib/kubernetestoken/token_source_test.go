@@ -60,21 +60,21 @@ func TestGetIDToken(t *testing.T) {
 		assertError require.ErrorAssertionFunc
 	}{
 		{
-			name:        "default-name-no-var",
+			name:        "default-token-no-var",
 			getEnv:      fakeGetEnv(""),
 			readFile:    fakeReadFile("foobarbizz", kubernetesDefaultTokenPath),
 			wantString:  "foobarbizz",
 			assertError: require.NoError,
 		},
 		{
-			name:        "custom-name-with-var",
+			name:        "custom-token-with-var",
 			getEnv:      fakeGetEnv("/custom"),
 			readFile:    fakeReadFile("foobarbizz", "/custom"),
 			wantString:  "foobarbizz",
 			assertError: require.NoError,
 		},
 		{
-			name:     "no-name-no-var",
+			name:     "no-token-no-var",
 			getEnv:   fakeGetEnv(""),
 			readFile: fakeReadFile("foobarbizz", "/custom"),
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
@@ -82,7 +82,7 @@ func TestGetIDToken(t *testing.T) {
 			},
 		},
 		{
-			name:     "no-name-with-var",
+			name:     "no-token-with-var",
 			getEnv:   fakeGetEnv("/custom"),
 			readFile: fakeReadFile("foobarbizz", kubernetesDefaultTokenPath),
 			assertError: func(t require.TestingT, err error, i ...interface{}) {

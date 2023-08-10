@@ -194,7 +194,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
-			expectedError: trace.BadParameter("name user is not a service account: eve@example.com"),
+			expectedError: trace.BadParameter("token user is not a service account: eve@example.com"),
 		},
 		{
 			name: "valid-but-not-serviceaccount-group",
@@ -213,7 +213,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
-			expectedError: trace.BadParameter("name user 'system:serviceaccount:namespace:my-service-account' does not belong to the 'system:serviceaccounts' group"),
+			expectedError: trace.BadParameter("token user 'system:serviceaccount:namespace:my-service-account' does not belong to the 'system:serviceaccounts' group"),
 		},
 		{
 			name: "invalid-expired",
@@ -223,11 +223,11 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: false,
-					Error:         "[invalid bearer name, Token has been invalidated, unknown]",
+					Error:         "[invalid bearer token, Token has been invalidated, unknown]",
 				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
-			expectedError: trace.AccessDenied("kubernetes failed to validate name: [invalid bearer name, Token has been invalidated, unknown]"),
+			expectedError: trace.AccessDenied("kubernetes failed to validate token: [invalid bearer token, Token has been invalidated, unknown]"),
 		},
 	}
 
