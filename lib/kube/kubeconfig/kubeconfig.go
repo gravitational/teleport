@@ -255,9 +255,11 @@ func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth, 
 	if newContext.Extensions == nil {
 		newContext.Extensions = make(map[string]runtime.Object)
 	}
-	newContext.Extensions[teleportKubeClusterNameExtension] = &runtime.Unknown{
-		// We need to wrap the kubeName in quotes to make sure it is parsed as a string.
-		Raw: []byte(fmt.Sprintf("%q", kubeName)),
+	if kubeName != "" {
+		newContext.Extensions[teleportKubeClusterNameExtension] = &runtime.Unknown{
+			// We need to wrap the kubeName in quotes to make sure it is parsed as a string.
+			Raw: []byte(fmt.Sprintf("%q", kubeName)),
+		}
 	}
 
 	// If a user specifies the default namespace we should override it.
@@ -420,7 +422,7 @@ func KubeClusterFromContext(contextName string, ctx *clientcmdapi.Context, telep
 		// tsh using --set-context-override flag.
 	case ctx != nil && ctx.Cluster == teleportCluster:
 		if v, ok := ctx.Extensions[teleportKubeClusterNameExtension]; ok {
-			if raw, ok := v.(*runtime.Unknown); ok {
+			if raw, ok := v.(*runtime.Unknown); ok && trimQuotes(string(raw.Raw)) != "" {
 				// The value is a JSON string, so we need to trim the quotes.
 				return trimQuotes(string(raw.Raw))
 			}

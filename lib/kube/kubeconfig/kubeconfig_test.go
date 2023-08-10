@@ -319,8 +319,13 @@ func TestUpdateWithExec(t *testing.T) {
 				Cluster:          clusterName,
 				AuthInfo:         authInfoName,
 				LocationOfOrigin: kubeconfigPath,
-				Extensions:       map[string]runtime.Object{},
-				Namespace:        tt.namespace,
+				Extensions: map[string]runtime.Object{
+					teleportKubeClusterNameExtension: &runtime.Unknown{
+						Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
+						ContentType: "application/json",
+					},
+				},
+				Namespace: tt.namespace,
 			}
 			config, err := Load(kubeconfigPath)
 			require.NoError(t, err)
@@ -386,7 +391,12 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		Cluster:          clusterName,
 		AuthInfo:         contextName,
 		LocationOfOrigin: kubeconfigPath,
-		Extensions:       map[string]runtime.Object{},
+		Extensions: map[string]runtime.Object{
+			teleportKubeClusterNameExtension: &runtime.Unknown{
+				Raw:         []byte(fmt.Sprintf("%q", kubeCluster)),
+				ContentType: "application/json",
+			},
+		},
 	}
 
 	config, err := Load(kubeconfigPath)
