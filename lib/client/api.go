@@ -3532,7 +3532,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				}, nil
 			}
 			return nil, trace.BadParameter("" +
-				"Headless login is disabled for this command. " +
+				"Headless login is not supported for this command. " +
 				"Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported.")
 		case constants.LocalConnector, "":
 			// if passwordless is enabled and there are passwordless credentials
