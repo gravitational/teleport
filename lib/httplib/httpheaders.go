@@ -120,7 +120,8 @@ func getContentSecurityPolicyString(cspMaps ...cspMap) string {
 	for _, k := range keys {
 		cspStringBuilder.WriteString(k)
 		for _, v := range combined[k] {
-			cspStringBuilder.WriteString(" " + v)
+			cspStringBuilder.WriteString(" ")
+			cspStringBuilder.WriteString(v)
 		}
 		cspStringBuilder.WriteString("; ")
 	}
