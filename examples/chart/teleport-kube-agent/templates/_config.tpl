@@ -1,5 +1,7 @@
 {{- define "teleport-kube-agent.config" -}}
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
+{{- $discoveryEnabled := contains "discovery" (.Values.roles | toString) -}}
+{{- $appDiscoveryEnabled := and (contains "app" (.Values.roles | toString)) ($discoveryEnabled) -}}
 {{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
 version: v3
 {{- end }}
@@ -33,12 +35,13 @@ kubernetes_service:
   enabled: false
   {{- end }}
 
+{{- if and (or (.Values.apps) (.Values.appResources)) (not (contains "app" (.Values.roles | toString)))}}
+  {{- fail "app role should be enabled if one of 'apps' or 'appResources' is set, see README" }}
+{{- end }}
+
 app_service:
-  {{- if contains "app" (.Values.roles | toString) }}
+  {{- if and (contains "app" (.Values.roles | toString)) (or (.Values.apps) (.Values.appResources) ($appDiscoveryEnabled)) }}
   enabled: true
-  {{- if not (or (.Values.apps) (.Values.appResources)) }}
-    {{- fail "at least one of 'apps' and 'appResources' is required in chart values when app role is enabled, see README" }}
-  {{- end }}
   {{- if .Values.apps }}
     {{- range $app := .Values.apps }}
       {{- if not (hasKey $app "name") }}
@@ -51,9 +54,14 @@ app_service:
   apps:
     {{- toYaml .Values.apps | nindent 8 }}
   {{- end }}
-  {{- if .Values.appResources }}
   resources:
+  {{- if .Values.appResources }}
     {{- toYaml .Values.appResources | nindent 8 }}
+  {{- end }}
+  {{- if $appDiscoveryEnabled }}
+  - labels:
+      "teleport.dev/kubernetes-cluster": "{{ required "kubeClusterName is required in chart values when kube or discovery role is enabled, see README" .Values.kubeClusterName }}"
+      "teleport.dev/origin": "discovery-kubernetes"
   {{- end }}
   {{- else }}
   enabled: false
@@ -103,6 +111,23 @@ db_service:
   resources:
     {{- toYaml .Values.databaseResources | nindent 6 }}
   {{- end }}
+{{- else }}
+  enabled: false
+{{- end }}
+
+discovery_service:
+{{- if $discoveryEnabled }}
+  enabled: true
+  discovery_group: {{ required "kubeClusterName is required in chart values when kube or discovery role is enabled, see README" .Values.kubeClusterName }}
+  {{- range $matcher := .Values.kubernetesDiscovery }}
+    {{- if not (hasKey $matcher "namespaces") }}
+      {{- fail "'namespaces' is required for all 'kubernetesDiscovery' items in chart values when discovery role is enabled, see README" }}
+    {{- end }}
+    {{- if not (hasKey $matcher "labels") }}
+      {{- fail "'labels' is required for all 'kubernetesDiscovery' items in chart values when discovery role is enabled, see README" }}
+    {{- end }}
+  {{- end }}
+  kubernetes: {{- toYaml .Values.kubernetesDiscovery | nindent 6 }}
 {{- else }}
   enabled: false
 {{- end }}
