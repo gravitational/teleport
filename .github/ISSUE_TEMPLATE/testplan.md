@@ -924,6 +924,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
+  Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
       - [ ] Can detect and register RDS instances.
         - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
@@ -934,6 +935,7 @@ tsh bench web sessions --max=5000 --web user ls
       - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
+      - [ ] Can detect and register OpenSearch domains.
     - [ ] Azure
       - [ ] Can detect and register MySQL and Postgres single-server instances.
       - [ ] Can detect and register MySQL and Postgres flexible-server instances.
