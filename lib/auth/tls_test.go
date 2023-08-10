@@ -1838,6 +1838,107 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
 }
 
+func TestExtendWebSessionWithMaxDuration(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testSrv := newTestTLSServer(t)
+	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+
+	adminClient, err := testSrv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	const user = "user2"
+	const testRequestRole = "test-request-role"
+	pass := []byte("abc123")
+
+	newUser, err := CreateUserRoleAndRequestable(adminClient, user, testRequestRole)
+	require.NoError(t, err)
+	require.Len(t, newUser.GetRoles(), 1)
+
+	require.Len(t, newUser.GetRoles(), 1)
+	require.Empty(t, cmp.Diff(newUser.GetRoles(), []string{"user:user2"}))
+
+	proxyRoleClient, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	// Create a user to create a web session for.
+	req := AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	}
+
+	err = testSrv.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+
+	webSession, err := proxyRoleClient.AuthenticateWebUser(ctx, req)
+	require.NoError(t, err)
+
+	userClient, err := testSrv.NewClientFromWebSession(webSession)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		desc            string
+		maxDurationRole time.Duration
+		expectedExpiry  time.Duration
+	}{
+		{
+			desc:            "default",
+			maxDurationRole: 0,
+			expectedExpiry:  apidefaults.CertDuration,
+		},
+		{
+			desc:            "max duration is set",
+			maxDurationRole: 5 * time.Hour,
+			expectedExpiry:  5 * time.Hour,
+		},
+		{
+			desc:            "max duration greater than default",
+			maxDurationRole: 24 * time.Hour,
+			expectedExpiry:  apidefaults.CertDuration,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			requestableRole, err := adminClient.GetRole(ctx, newUser.GetRoles()[0])
+			require.NoError(t, err)
+
+			// Set max duration on the role.
+			requestableRole.SetAccessRequestConditions(types.Allow, types.AccessRequestConditions{
+				Roles:       []string{testRequestRole},
+				MaxDuration: types.Duration(tc.maxDurationRole),
+			})
+			err = adminClient.UpsertRole(ctx, requestableRole)
+			require.NoError(t, err)
+
+			// Create an approved access request.
+			accessReq, err := services.NewAccessRequest(user, []string{testRequestRole}...)
+			require.NoError(t, err)
+
+			// Set max duration higher than the role max duration. It will be capped.
+			accessReq.SetMaxDuration(clock.Now().Add(48 * time.Hour))
+			err = accessReq.SetState(types.RequestState_APPROVED)
+			require.NoError(t, err)
+
+			err = adminClient.CreateAccessRequest(ctx, accessReq)
+			require.NoError(t, err)
+
+			sess1, err := userClient.ExtendWebSession(ctx, WebSessionReq{
+				User:            user,
+				PrevSessionID:   webSession.GetName(),
+				AccessRequestID: accessReq.GetMetadata().Name,
+			})
+			require.NoError(t, err)
+
+			// Check the expiry is capped to the max allowed duration.
+			require.WithinDuration(t, clock.Now().Add(tc.expectedExpiry), sess1.Expiry(), time.Second)
+		})
+	}
+}
+
 // TestGetCertAuthority tests certificate authority permissions
 func TestGetCertAuthority(t *testing.T) {
 	t.Parallel()
