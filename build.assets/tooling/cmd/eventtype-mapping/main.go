@@ -17,13 +17,14 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/Masterminds/sprig/v3"
-	"github.com/gravitational/trace"
 	"io"
 	"log"
 	"os"
 	"regexp"
 	"text/template"
+
+	"github.com/Masterminds/sprig/v3"
+	"github.com/gravitational/trace"
 )
 
 var ignoredEventTypes = map[string]struct{}{
