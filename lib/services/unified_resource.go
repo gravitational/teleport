@@ -108,7 +108,7 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Put stores the value into backend (creates if it does not
+// put stores the value into backend (creates if it does not
 // exist, updates it otherwise)
 func (c *UnifiedResourceCache) put(ctx context.Context, i item) error {
 	if len(i.Key) == 0 {
@@ -120,7 +120,7 @@ func (c *UnifiedResourceCache) put(ctx context.Context, i item) error {
 	})
 }
 
-func putResources[T resource](ctx context.Context, c *UnifiedResourceCache, resources []T) error {
+func putResources(ctx context.Context, c *UnifiedResourceCache, resources []resource) error {
 	return c.read(ctx, func(tree *btree.BTreeG[*item]) error {
 		for _, resource := range resources {
 			tree.ReplaceOrInsert(&item{Key: resourceKey(resource), Value: resource})
@@ -129,7 +129,7 @@ func putResources[T resource](ctx context.Context, c *UnifiedResourceCache, reso
 	})
 }
 
-// Delete deletes item by key, returns NotFound error
+// delete removes the item by key, returns NotFound error
 // if item does not exist
 func (c *UnifiedResourceCache) delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
@@ -220,8 +220,9 @@ func resourceKey(resource types.Resource) []byte {
 
 func (c *UnifiedResourceCache) clear(ctx context.Context) {
 	c.read(ctx, func(tree *btree.BTreeG[*item]) error {
-		// we don't add the nodes to the feeList and just delete immediately, allowing
-		// garbage collection to remove the old nodes
+		// passing false means we do NOT add the nodes to a "freelist" as it clears the tree
+		// and instead, just dereferences every item and leaves it to the garbage collector to deal with.
+		// because we clear on cache create (and re-init), this was chosen to speed up the process as it's O(1)
 		tree.Clear(false)
 		return nil
 	})
@@ -229,36 +230,44 @@ func (c *UnifiedResourceCache) clear(ctx context.Context) {
 
 func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	c.clear(ctx)
-	err := c.getAndUpdateNodes(ctx)
+	newNodes, err := c.getAndUpdateNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	newResources := make([]resource, len(newNodes))
+	newResources = append(newResources, newNodes...)
 
-	err = c.getAndUpdateDatabases(ctx)
+	newDbs, err := c.getAndUpdateDatabases(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	newResources = append(newResources, newDbs...)
 
-	err = c.getAndUpdateKubes(ctx)
+	newKubes, err := c.getAndUpdateKubes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	newResources = append(newResources, newKubes...)
 
-	err = c.getAndUpdateApps(ctx)
+	newApps, err := c.getAndUpdateApps(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	newResources = append(newResources, newApps...)
 
-	err = c.getAndUpdateSAMLApps(ctx)
+	newSAMLApps, err := c.getAndUpdateSAMLApps(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	newResources = append(newResources, newSAMLApps...)
 
-	err = c.getAndUpdateDesktops(ctx)
+	newDesktops, err := c.getAndUpdateDesktops(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	newResources = append(newResources, newDesktops...)
 
+	putResources(ctx, c, newResources)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.stale = false
@@ -266,24 +275,101 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	return nil
 }
 
-// getAndUpdateNodes will get nodes and update the current tree with each Node
-func (c *UnifiedResourceCache) getAndUpdateNodes(ctx context.Context) error {
+// getAndUpdateNodes will get nodes and return them as a resources
+func (c *UnifiedResourceCache) getAndUpdateNodes(ctx context.Context) ([]resource, error) {
 	newNodes, err := c.ResourceGetter.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
-		return trace.Wrap(err, "getting nodes for unified resource watcher")
+		return nil, trace.Wrap(err, "getting nodes for unified resource watcher")
+	}
+	resources := make([]resource, len(newNodes))
+	for _, node := range newNodes {
+		resources = append(resources, node)
 	}
 
-	return trace.Wrap(putResources[types.Server](ctx, c, newNodes))
+	return resources, err
 }
 
-// getAndUpdateDatabases will get database servers and update the current tree with each DatabaseServer
-func (c *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) error {
+// getAndUpdateDatabases will get database servers and return them as a resources
+func (c *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) ([]resource, error) {
 	newDbs, err := c.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
-		return trace.Wrap(err, "getting databases for unified resource watcher")
+		return nil, trace.Wrap(err, "getting databases for unified resource watcher")
+	}
+	resources := make([]resource, len(newDbs))
+	for _, db := range newDbs {
+		resources = append(resources, db)
 	}
 
-	return trace.Wrap(putResources[types.DatabaseServer](ctx, c, newDbs))
+	return resources, nil
+}
+
+// getAndUpdateKubes will get kube clusters and return them as a resources
+func (c *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) ([]resource, error) {
+	newKubes, err := c.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting kubes for unified resource watcher")
+	}
+	resources := make([]resource, len(newKubes))
+	for _, kube := range newKubes {
+		resources = append(resources, kube)
+	}
+
+	return resources, nil
+}
+
+// getAndUpdateApps will get application servers and return them as a resources
+func (c *UnifiedResourceCache) getAndUpdateApps(ctx context.Context) ([]resource, error) {
+	newApps, err := c.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting apps for unified resource watcher")
+	}
+	resources := make([]resource, len(newApps))
+	for _, app := range newApps {
+		resources = append(resources, app)
+	}
+
+	return resources, nil
+}
+
+// getAndUpdateDesktops will get windows desktops and return them as a resources
+func (c *UnifiedResourceCache) getAndUpdateDesktops(ctx context.Context) ([]resource, error) {
+	newDesktops, err := c.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	if err != nil {
+		return nil, trace.Wrap(err, "getting desktops for unified resource watcher")
+	}
+	resources := make([]resource, len(newDesktops))
+	for _, desktop := range newDesktops {
+		resources = append(resources, desktop)
+	}
+
+	return resources, nil
+}
+
+// getAndUpdateSAMLApps will get SAML Idp Service Providers servers and return them as a resources
+func (c *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) ([]resource, error) {
+	var newSAMLApps []types.SAMLIdPServiceProvider
+	startKey := ""
+
+	for {
+		resp, nextKey, err := c.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
+
+		if err != nil {
+			return nil, trace.Wrap(err, "getting SAML apps for unified resource watcher")
+		}
+		newSAMLApps = append(newSAMLApps, resp...)
+
+		if nextKey == "" {
+			break
+		}
+
+		startKey = nextKey
+	}
+	resources := make([]resource, len(newSAMLApps))
+	for _, app := range newSAMLApps {
+		resources = append(resources, app)
+	}
+
+	return resources, nil
 }
 
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
@@ -332,59 +418,6 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(tree *btree.BTr
 	return nil
 }
 
-// getAndUpdateKubes will get kube clusters and update the current tree with each KubeCluster
-func (c *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) error {
-	newKubes, err := c.GetKubernetesServers(ctx)
-	if err != nil {
-		return trace.Wrap(err, "getting kubes for unified resource watcher")
-	}
-
-	return trace.Wrap(putResources[types.KubeServer](ctx, c, newKubes))
-}
-
-// getAndUpdateApps will get application servers and update the current tree with each AppServer
-func (c *UnifiedResourceCache) getAndUpdateApps(ctx context.Context) error {
-	newApps, err := c.GetApplicationServers(ctx, apidefaults.Namespace)
-	if err != nil {
-		return trace.Wrap(err, "getting apps for unified resource watcher")
-	}
-
-	return trace.Wrap(putResources[types.AppServer](ctx, c, newApps))
-}
-
-// getAndUpdateSAMLApps will get SAML Idp Service Providers servers and update the current tree with each SAMLIdpServiceProvider
-func (c *UnifiedResourceCache) getAndUpdateSAMLApps(ctx context.Context) error {
-	var newSAMLApps []types.SAMLIdPServiceProvider
-	startKey := ""
-
-	for {
-		resp, nextKey, err := c.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
-
-		if err != nil {
-			return trace.Wrap(err, "getting SAML apps for unified resource watcher")
-		}
-		newSAMLApps = append(newSAMLApps, resp...)
-
-		if nextKey == "" {
-			break
-		}
-
-		startKey = nextKey
-	}
-
-	return trace.Wrap(putResources[types.SAMLIdPServiceProvider](ctx, c, newSAMLApps))
-}
-
-// getAndUpdateDesktops will get windows desktops and update the current tree with each Desktop
-func (c *UnifiedResourceCache) getAndUpdateDesktops(ctx context.Context) error {
-	newDesktops, err := c.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
-	if err != nil {
-		return trace.Wrap(err, "getting desktops for unified resource watcher")
-	}
-
-	return trace.Wrap(putResources[types.WindowsDesktop](ctx, c, newDesktops))
-}
-
 func (c *UnifiedResourceCache) notifyStale() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -395,6 +428,8 @@ func (c *UnifiedResourceCache) initializationChan() <-chan struct{} {
 	return c.initializationC
 }
 
+// IsInitialized is used to check that the cache has done its initial
+// sync
 func (c *UnifiedResourceCache) IsInitialized() bool {
 	select {
 	case <-c.initializationC:
