@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -386,7 +387,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	// If KubeCluster not provided try to read it from kubeconfig.
 	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName, getKubeConfigPath(cf, ""))
+		cf.KubernetesCluster, _ = kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), tc.SiteName)
 	}
 	if slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind) && cf.KubernetesCluster == "" {
 		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
