@@ -3913,6 +3913,9 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 // NewWebSession creates and returns a new web session for the specified request
 func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	userState, err := a.getUserOrLoginState(ctx, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if req.LoginIP == "" {
 		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
 		log.Debug("Creating new web session without login IP specified.")
