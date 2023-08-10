@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
@@ -34,6 +35,8 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -139,6 +142,7 @@ kubernetes matchers are present.`)
 	if c.protocolChecker == nil {
 		c.protocolChecker = fetchers.NewProtoChecker(false)
 	}
+
 	if c.PollInterval == 0 {
 		c.PollInterval = 5 * time.Minute
 	}
@@ -184,6 +188,11 @@ type Server struct {
 	// reconciler periodically reconciles the labels of discovered instances
 	// with the auth server.
 	reconciler *labelReconciler
+
+	mu sync.Mutex
+	// usageEventCache keeps track of which instances the server has emitted
+	// usage events for.
+	usageEventCache map[string]struct{}
 }
 
 // New initializes a discovery Server
@@ -194,9 +203,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
-		Config:   cfg,
-		ctx:      localCtx,
-		cancelfn: cancelfn,
+		Config:          cfg,
+		ctx:             localCtx,
+		cancelfn:        cancelfn,
+		usageEventCache: make(map[string]struct{}),
 	}
 
 	if err := s.initAWSWatchers(cfg.Matchers.AWS); err != nil {
@@ -541,7 +551,13 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 		Region:       instances.Region,
 		AccountID:    instances.AccountID,
 	}
-	return trace.Wrap(s.ec2Installer.Run(s.ctx, req))
+	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) logHandleInstancesErr(err error) {
@@ -701,7 +717,13 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
 	}
-	return trace.Wrap(s.azureInstaller.Run(s.ctx, req))
+	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) handleAzureDiscovery() {
@@ -780,7 +802,13 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
 	}
-	return trace.Wrap(s.gcpInstaller.Run(s.ctx, req))
+	if err := s.gcpInstaller.Run(s.ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) handleGCPDiscovery() {
@@ -808,6 +836,27 @@ func (s *Server) handleGCPDiscovery() {
 			return
 		}
 	}
+}
+
+func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreateEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for name, event := range events {
+		if _, exists := s.usageEventCache[name]; exists {
+			continue
+		}
+		s.usageEventCache[name] = struct{}{}
+		if err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
+			Event: &usageeventsv1.UsageEventOneOf{
+				Event: &usageeventsv1.UsageEventOneOf_ResourceCreateEvent{
+					ResourceCreateEvent: event,
+				},
+			},
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // Start starts the discovery service.
