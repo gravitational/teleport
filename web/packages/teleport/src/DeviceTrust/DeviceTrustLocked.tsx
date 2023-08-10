@@ -64,55 +64,49 @@ export function DeviceTrustLocked() {
       <FeatureHeader>
         <FeatureHeaderTitle>Trusted Devices</FeatureHeaderTitle>
       </FeatureHeader>
-      <Box position="relative">
-        <Box
-          width="100%"
-          mr="6"
-          mb="4"
-          style={{
-            filter: 'blur(2px)',
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        >
-          <FakeDeviceList
-            items={generateFakeItems(15)}
-            fetchData={() => null}
-            fetchStatus={''}
-          />
-        </Box>
-        <StyledMessageContainer>
-          <Box
-            bgColor={theme.colors.spotBackground[0]}
-            p="3"
-            borderRadius="50%"
-          >
-            <IconCircle Icon={LockIcon} size={64} />
-          </Box>
-          <Text fontSize="2" textAlign="center">
-            Device Trust enables trusted and authenticated device access. When
-            resources are configured with the Device Trust mode “required”,
-            Teleport will authenticate the Trusted Device, in addition to
-            establishing the user's identity and enforcing the necessary roles,
-            and leaves an audit trail with device information. For more details,
-            please view{' '}
-            <Link
-              href={
-                'https://goteleport.com/docs/access-controls/device-trust/guide/'
-              }
-              target="_blank"
-            >
-              Device Trust documentation
-            </Link>
-            .
-          </Text>
-          <Box width="400px">
-            <ButtonLockedFeature event={CtaEvent.CTA_TRUSTED_DEVICES}>
-              Unlock Device Trust with Teleport Enterprise
-            </ButtonLockedFeature>
-          </Box>
-        </StyledMessageContainer>
+      <Box
+        mr="6"
+        mb="4"
+        style={{
+          filter: 'blur(2px)',
+          pointerEvents: 'none',
+          userSelect: 'none',
+          height: '100px',
+        }}
+      >
+        <FakeDeviceList
+          items={generateFakeItems(15)}
+          fetchData={() => null}
+          fetchStatus={''}
+        />
       </Box>
+      <StyledMessageContainer>
+        <Box bgColor={theme.colors.spotBackground[0]} p="3" borderRadius="50%">
+          <IconCircle Icon={LockIcon} size={64} />
+        </Box>
+        <Text fontSize="2" textAlign="center">
+          Device Trust enables trusted and authenticated device access. When
+          resources are configured with the Device Trust mode “required”,
+          Teleport will authenticate the Trusted Device, in addition to
+          establishing the user's identity and enforcing the necessary roles,
+          and leaves an audit trail with device information. For more details,
+          please view{' '}
+          <Link
+            href={
+              'https://goteleport.com/docs/access-controls/device-trust/guide/'
+            }
+            target="_blank"
+          >
+            Device Trust documentation
+          </Link>
+          .
+        </Text>
+        <Box>
+          <ButtonLockedFeature event={CtaEvent.CTA_TRUSTED_DEVICES}>
+            Unlock Device Trust with Teleport Enterprise
+          </ButtonLockedFeature>
+        </Box>
+      </StyledMessageContainer>
     </FeatureBox>
   );
 }
@@ -168,10 +162,9 @@ const IconCell = ({ osType }) => {
 };
 
 const StyledMessageContainer = styled(Flex)`
-  flex-direction: row;
-  position: absolute;
-  top: 50%;
-  left: 55%;
+  position: relative;
+  top: 30%;
+  left: 50%;
   transform: translate(-50%, -50%);
   background-color: ${({ theme }) => theme.colors.levels.elevated};
   flex-direction: column;
