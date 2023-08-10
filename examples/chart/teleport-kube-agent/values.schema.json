@@ -50,7 +50,7 @@
         "roles": {
             "$id": "#/properties/roles",
             "type": "string",
-            "default": "kube,app,discovery"
+            "default": "kube"
         },
         "joinParams": {
             "$id": "#/properties/joinParams",
