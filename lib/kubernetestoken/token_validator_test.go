@@ -88,17 +88,37 @@ func (c *fakeClientSet) Discovery() discovery.DiscoveryInterface {
 }
 
 func TestIDTokenValidator_Validate(t *testing.T) {
+	_, signer := testSigner(t)
+	claims := &ServiceAccountClaims{
+		Claims: jwt.Claims{
+			Subject: "system:serviceaccount:default:my-service-account",
+		},
+		Kubernetes: &KubernetesSubClaim{
+			ServiceAccount: &ServiceAccountSubClaim{
+				Name: "my-service-account",
+				UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
+			},
+			Pod: &PodSubClaim{
+				Name: "my-pod-797959fdf-wptbj",
+				UID:  "413b22ca-4833-48d9-b6db-76219d583173",
+			},
+			Namespace: "default",
+		},
+	}
+	token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	require.NoError(t, err)
+
 	tests := []struct {
-		token         string
+		name          string
 		review        *v1.TokenReview
 		kubeVersion   *version.Info
 		expectedError error
 	}{
 		{
-			token: "valid",
+			name: "valid",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: "valid",
+					Token: token,
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -117,10 +137,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			token: "valid-not-bound",
+			name: "valid-not-bound",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: "valid-not-bound",
+					Token: token,
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -136,10 +156,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			token: "valid-not-bound-on-modern-version",
+			name: "valid-not-bound-on-modern-version",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: "valid-not-bound-on-modern-version",
+					Token: token,
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -158,10 +178,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			),
 		},
 		{
-			token: "valid-but-not-serviceaccount",
+			name: "valid-but-not-serviceaccount",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: "valid-but-not-serviceaccount",
+					Token: token,
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -174,13 +194,13 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
-			expectedError: trace.BadParameter("token user is not a service account: eve@example.com"),
+			expectedError: trace.BadParameter("name user is not a service account: eve@example.com"),
 		},
 		{
-			token: "valid-but-not-serviceaccount-group",
+			name: "valid-but-not-serviceaccount-group",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: "valid-but-not-serviceaccount-group",
+					Token: token,
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -193,39 +213,39 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
-			expectedError: trace.BadParameter("token user 'system:serviceaccount:namespace:my-service-account' does not belong to the 'system:serviceaccounts' group"),
+			expectedError: trace.BadParameter("name user 'system:serviceaccount:namespace:my-service-account' does not belong to the 'system:serviceaccounts' group"),
 		},
 		{
-			token: "invalid-expired",
+			name: "invalid-expired",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: "invalid-expired",
+					Token: token,
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: false,
-					Error:         "[invalid bearer token, Token has been invalidated, unknown]",
+					Error:         "[invalid bearer name, Token has been invalidated, unknown]",
 				},
 			},
 			kubeVersion:   &boundTokenKubernetesVersion,
-			expectedError: trace.AccessDenied("kubernetes failed to validate token: [invalid bearer token, Token has been invalidated, unknown]"),
+			expectedError: trace.AccessDenied("kubernetes failed to validate name: [invalid bearer name, Token has been invalidated, unknown]"),
 		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
-		t.Run(tt.token, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			client := newFakeClientset(tt.kubeVersion)
 			client.AddReactor("create", "tokenreviews", tokenReviewMock(t, tt.review))
 			v := TokenReviewValidator{
 				client: client,
 			}
-			claims, err := v.Validate(context.Background(), tt.token)
+			gotClaims, err := v.Validate(context.Background(), tt.review.Spec.Token)
 			if tt.expectedError != nil {
 				require.ErrorIs(t, err, tt.expectedError)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.review.Status.User, *claims)
+			require.Equal(t, claims, gotClaims)
 		})
 	}
 }
@@ -238,7 +258,7 @@ func Test_kubernetesSupportsBoundTokens(t *testing.T) {
 		expectErr         assert.ErrorAssertionFunc
 	}{
 		{
-			name:              "No token support",
+			name:              "No name support",
 			gitVersion:        legacyTokenKubernetesVersion.String(),
 			supportBoundToken: false,
 			expectErr:         assert.NoError,
@@ -352,7 +372,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 				},
 			},
-			wantErr: "token is expired",
+			wantErr: "name is expired",
 		},
 		{
 			name:   "wrong audience",

@@ -74,7 +74,7 @@ func (v *TokenReviewValidator) getClient() (kubernetes.Interface, error) {
 	return client, nil
 }
 
-// Validate uses the Kubernetes TokenReview API to validate a token and return its UserInfo
+// Validate uses the Kubernetes TokenReview API to validate a name and return its UserInfo
 func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*ServiceAccountClaims, error) {
 	client, err := v.getClient()
 	if err != nil {
@@ -94,21 +94,21 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*Ser
 	}
 
 	if !reviewResult.Status.Authenticated {
-		return nil, trace.AccessDenied("kubernetes failed to validate token: %s", reviewResult.Status.Error)
+		return nil, trace.AccessDenied("kubernetes failed to validate name: %s", reviewResult.Status.Error)
 	}
 
 	// Check the Username is a service account.
-	// A user token would not match rules anyway, but we can produce a more relevant error message here.
+	// A user name would not match rules anyway, but we can produce a more relevant error message here.
 	if !strings.HasPrefix(reviewResult.Status.User.Username, ServiceAccountNamePrefix) {
-		return nil, trace.BadParameter("token user is not a service account: %s", reviewResult.Status.User.Username)
+		return nil, trace.BadParameter("name user is not a service account: %s", reviewResult.Status.User.Username)
 	}
 
 	if !slices.Contains(reviewResult.Status.User.Groups, serviceAccountGroup) {
-		return nil, trace.BadParameter("token user '%s' does not belong to the '%s' group", reviewResult.Status.User.Username, serviceAccountGroup)
+		return nil, trace.BadParameter("name user '%s' does not belong to the '%s' group", reviewResult.Status.User.Username, serviceAccountGroup)
 	}
 
 	// Legacy tokens are long-lived and not bound to pods. We should not accept them if the cluster supports
-	// bound tokens. Bound token support is GA since 1.20 and volume projection is beta since 1.21.
+	// bound tokens. Bound name support is GA since 1.20 and volume projection is beta since 1.21.
 	// We can expect any 1.21+ cluster to use bound tokens.
 	kubeVersion, err := client.Discovery().ServerVersion()
 	if err != nil {
@@ -120,8 +120,8 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*Ser
 		return nil, trace.Wrap(err)
 	}
 
-	// We know if the token is bound to a pod if its name is in the Extra userInfo.
-	// If the token is not bound while Kubernetes supports bound tokens we abort.
+	// We know if the name is bound to a pod if its name is in the Extra userInfo.
+	// If the name is not bound while Kubernetes supports bound tokens we abort.
 	if _, ok := reviewResult.Status.User.Extra[extraDataPodNameField]; !ok && boundTokenSupport {
 		return nil, trace.BadParameter(
 			"legacy SA tokens are not accepted as kubernetes version %s supports bound tokens",
@@ -129,7 +129,7 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*Ser
 		)
 	}
 
-	// Now we've validated the token with TokenReview, we can just unmarshal
+	// Now we've validated the name with TokenReview, we can just unmarshal
 	// the jwt claims. This lets us return something that's consistent with what
 	// is returned by the JWKS based method.
 	jwt, err := josejwt.ParseSigned(token)
@@ -184,7 +184,7 @@ func ValidateTokenWithJWKS(
 	leeway := time.Second * 10
 	err = claims.ValidateWithLeeway(josejwt.Expected{
 		// We don't need to check the subject or other claims here.
-		// Anything related to matching the token against ProvisionToken
+		// Anything related to matching the name against ProvisionToken
 		// allow rules is left to the discretion of `lib/auth`.
 		Audience: []string{
 			clusterName,
