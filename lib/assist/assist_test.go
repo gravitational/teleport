@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ai/model"
 	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/auth"
 )
@@ -71,7 +72,10 @@ func TestChatComplete(t *testing.T) {
 	require.NoError(t, err)
 
 	// When a chat is created.
-	chat, err := client.NewChat(ctx, authSrv.AuthServer, nil, conversationResp.Id, testUser)
+	toolsConfig := model.ToolsConfig{
+		DisableEmbeddingsTool: true,
+	}
+	chat, err := client.NewChat(ctx, authSrv.AuthServer, conversationResp.Id, testUser, toolsConfig)
 	require.NoError(t, err)
 
 	t.Run("new conversation is new", func(t *testing.T) {

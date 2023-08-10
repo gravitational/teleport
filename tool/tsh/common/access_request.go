@@ -473,7 +473,7 @@ func onRequestSearch(cf *CLIConf) error {
 			resourceIDs = append(resourceIDs, resourceID)
 
 			row = []string{
-				resource.GetName(),
+				common.FormatResourceName(resource, cf.Verbose),
 				r.Spec.Namespace,
 				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,
@@ -495,7 +495,7 @@ func onRequestSearch(cf *CLIConf) error {
 				hostName = r.GetHostname()
 			}
 			row = []string{
-				resource.GetName(),
+				common.FormatResourceName(resource, cf.Verbose),
 				hostName,
 				common.FormatLabels(resource.GetAllLabels(), cf.Verbose),
 				resourceID,

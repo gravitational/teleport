@@ -61,6 +61,7 @@ func (s *Server) startDatabaseWatchers() error {
 		Log:            s.Log.WithField("kind", types.KindDatabase),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
+		Origin:         types.OriginCloud,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -140,7 +141,7 @@ func (s *Server) onDatabaseDelete(ctx context.Context, resource types.ResourceWi
 func filterResources[T types.ResourceWithLabels, S ~[]T](all S, wantOrigin, wantResourceGroup string) (filtered S) {
 	for _, resource := range all {
 		resourceDiscoveryGroup, _ := resource.GetLabel(types.TeleportInternalDiscoveryGroupName)
-		if resource.Origin() != wantOrigin || resourceDiscoveryGroup != wantResourceGroup {
+		if (wantOrigin != "" && resource.Origin() != wantOrigin) || resourceDiscoveryGroup != wantResourceGroup {
 			continue
 		}
 		filtered = append(filtered, resource)

@@ -696,6 +696,11 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// GetApps returns all application resources.
+	GetApps(context.Context) ([]types.Application, error)
+	// GetApp returns the specified application resource.
+	GetApp(ctx context.Context, name string) (types.Application, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -722,6 +727,13 @@ type DiscoveryAccessPoint interface {
 	DeleteDatabase(ctx context.Context, name string) error
 	// UpsertServerInfo upserts a server info resource.
 	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+
+	// CreateApp creates a new application resource.
+	CreateApp(context.Context, types.Application) error
+	// UpdateApp updates an existing application resource.
+	UpdateApp(context.Context, types.Application) error
+	// DeleteApp removes the specified application resource.
+	DeleteApp(ctx context.Context, name string) error
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1182,6 +1194,18 @@ func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoi
 		accessPoint:              base,
 		ReadDiscoveryAccessPoint: cache,
 	}
+}
+
+func (w *DiscoveryWrapper) CreateApp(ctx context.Context, app types.Application) error {
+	return w.NoCache.CreateApp(ctx, app)
+}
+
+func (w *DiscoveryWrapper) UpdateApp(ctx context.Context, app types.Application) error {
+	return w.NoCache.UpdateApp(ctx, app)
+}
+
+func (w *DiscoveryWrapper) DeleteApp(ctx context.Context, name string) error {
+	return w.NoCache.DeleteApp(ctx, name)
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.

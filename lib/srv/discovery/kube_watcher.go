@@ -68,6 +68,7 @@ func (s *Server) startKubeWatchers() error {
 		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
+		Origin:         types.OriginCloud,
 	})
 	if err != nil {
 		return trace.Wrap(err)

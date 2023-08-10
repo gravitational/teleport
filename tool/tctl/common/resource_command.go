@@ -129,6 +129,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindOktaImportRule:           rc.createOktaImportRule,
 		types.KindIntegration:              rc.createIntegration,
 		types.KindWindowsDesktop:           rc.createWindowsDesktop,
+		types.KindAccessList:               rc.createAccessList,
 	}
 	rc.config = config
 
@@ -959,6 +960,30 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 	return nil
 }
 
+func (rc *ResourceCommand) createAccessList(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	accessList, err := services.UnmarshalAccessList(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = client.AccessListClient().GetAccessList(ctx, accessList.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+
+	if exists && !rc.IsForced() {
+		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
+	}
+
+	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.IsForced()))
+
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -1272,6 +1297,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Proxy %q has been deleted\n", rc.ref.Name)
+	case types.KindAccessList:
+		if err := client.AccessListClient().DeleteAccessList(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Access list %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}

@@ -179,7 +179,7 @@ type CLIConf struct {
 	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
-	// SiteName specifies remote site go login to
+	// SiteName specifies remote site to login to.
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
@@ -189,6 +189,9 @@ type CLIConf struct {
 	DaemonCertsDir string
 	// DaemonPrehogAddr is the URL where prehog events should be submitted.
 	DaemonPrehogAddr string
+	// DaemonKubeconfigsDir is the directory "Directory containing kubeconfig
+	// for Kubernetes Access.
+	DaemonKubeconfigsDir string
 	// DaemonPid is the PID to be stopped
 	DaemonPid int
 	// DatabaseService specifies the database proxy server to log into.
@@ -722,6 +725,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
+	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -2827,23 +2831,15 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDiscoveredName(r types.ResourceWithLabels) (string, bool) {
-	name, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
-	return name, ok
-}
-
 func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
 	name := database.GetName()
-	printName := name
-	if d, ok := getDiscoveredName(database); ok && !verbose && d != name {
-		printName = d
-	}
+	displayName := common.FormatResourceName(database, verbose)
 	var connect string
 	for _, a := range active {
 		if a.ServiceName == name {
-			a.ServiceName = printName
-			// format the db name with the print name
-			printName = formatActiveDB(a)
+			a.ServiceName = displayName
+			// format the db name with the display name
+			displayName = formatActiveDB(a)
 			// then revert it for connect string
 			a.ServiceName = name
 			switch a.Protocol {
@@ -2865,7 +2861,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	labels := common.FormatLabels(database.GetAllLabels(), verbose)
 	if verbose {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			database.GetProtocol(),
 			database.GetType(),
@@ -2876,7 +2872,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		)
 	} else {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			formatUsersForDB(database, accessChecker),
 			labels,

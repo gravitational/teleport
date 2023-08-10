@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -130,12 +131,15 @@ type Uploader struct {
 
 	eventsCh chan events.UploadEvent
 	closeC   chan struct{}
+	wg       sync.WaitGroup
 
 	eventPreparer *events.NoOpPreparer
 }
 
 func (u *Uploader) Close() {
 	close(u.closeC)
+	// wait for all uploads to finish
+	u.wg.Wait()
 }
 
 func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
@@ -163,6 +167,8 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve(ctx context.Context) error {
+	u.wg.Add(1)
+	defer u.wg.Done()
 	u.log.Infof("uploader will scan %v every %v", u.cfg.ScanDir, u.cfg.ScanPeriod.String())
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
@@ -427,7 +433,9 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 	if time.Since(start) > 500*time.Millisecond {
 		u.log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
 	}
+	u.wg.Add(1)
 	go func() {
+		defer u.wg.Done()
 		if err := u.upload(ctx, upload); err != nil {
 			u.log.WithError(err).Warningf("Upload failed.")
 			u.emitEvent(events.UploadEvent{
@@ -505,7 +513,11 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go u.monitorStreamStatus(ctx, up, stream, cancel)
+	u.wg.Add(1)
+	go func() {
+		defer u.wg.Done()
+		u.monitorStreamStatus(ctx, up, stream, cancel)
+	}()
 
 	for {
 		event, err := up.reader.Read(ctx)
