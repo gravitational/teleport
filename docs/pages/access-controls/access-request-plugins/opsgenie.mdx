@@ -45,21 +45,11 @@ API.
 
 ### Create a requester role
 
-```
-kind: role
-version: v5
-metadata:
-  name: requester
-spec:
-  allow:
-    request:
-      roles: ['editor']
-      thresholds:
-        - approve: 1
-          deny: 1
-      annotations:
-        opsgenie_notify_services: ['teleport-access-request-notifications']
-```
+To create a user first navigate to Management -> Access -> Roles
+
+Then select 'Create New Role' and create the requester role.
+
+![Add user one](../../../img/enterprise/plugins/opsgenie/add-requester-role.png)
 
 The `opsgenie_notify_services` annotation specifies the schedule the alert will be be created for.
 
