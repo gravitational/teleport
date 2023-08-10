@@ -320,6 +320,10 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	defaultProxy := l.makeHTTPReverseProxy(l.getCerts())
 
 	server := &http.Server{
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		Handler: http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 				return
@@ -340,10 +344,6 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 
 			proxy.ServeHTTP(rw, req)
 		}),
-		ReadTimeout:       apidefaults.DefaultIOTimeout,
-		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-		WriteTimeout:      apidefaults.DefaultIOTimeout,
-		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 	}
 
 	// Shut down the server when the context is done
