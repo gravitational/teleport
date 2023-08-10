@@ -3885,6 +3885,22 @@ message OIDCConnectorSpecV3 {
   bool AllowUnverifiedEmail = 15 [(gogoproto.jsontag) = "allow_unverified_email,omitempty"];
   // UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.
   string UsernameClaim = 16 [(gogoproto.jsontag) = "username_claim,omitempty"];
+  // MaxAge is the amount of time that user logins are
+  // valid for. If a user logs in, but then does not login again
+  // within this time period, they will be forced to re-authenticate.
+  MaxAge MaxAge = 17 [
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+}
+
+// MaxAge allows the max_age parameter to be nullable to preserve backwards
+// compatibility. The duration is stored as nanoseconds.
+message MaxAge {
+  int64 Value = 1 [
+    (gogoproto.jsontag) = "max_age",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC

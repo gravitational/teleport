@@ -41,7 +41,7 @@ type kube struct {
 // connect to the local proxy.
 func (k *kube) KubeconfigPath() string {
 	return keypaths.KubeConfigPath(
-		k.cfg.ProfileDir,
+		k.cfg.KubeconfigsDir,
 		k.cfg.TargetURI.GetProfileName(),
 		k.cfg.Username,
 		k.cfg.ClusterName,
@@ -80,11 +80,6 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 	if err := k.writeKubeconfig(key, cas); err != nil {
 		return nil, trace.NewAggregate(err, k.Close())
 	}
-	// make sure kubeconfig is written again on new cert as a relogin may
-	// cleanup profile dir.
-	k.onNewCertFuncs = append(k.onNewCertFuncs, func(_ tls.Certificate) error {
-		return trace.Wrap(k.writeKubeconfig(key, cas))
-	})
 	return k, nil
 }
 

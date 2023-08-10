@@ -564,6 +564,10 @@ const (
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
 
+	// OriginDiscoveryKubernetes indicates that the resource was imported
+	// from kubernetes cluster by discovery service.
+	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
+
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
 
@@ -657,6 +661,15 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// DiscoveredResourceNode identifies a discovered SSH node.
+	DiscoveredResourceNode = "node"
+	// DiscoveredResourceDatabase identifies a discovered database.
+	DiscoveredResourceDatabase = "db"
+	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
+	DiscoveredResourceKubernetes = "k8s"
+	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
+	DiscoveredResourceAgentlessNode = "node.openssh"
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace

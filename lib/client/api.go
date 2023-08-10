@@ -2818,19 +2818,16 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
-		ProxyAddress:       cfg.proxyAddress,
-		TLSRoutingEnabled:  tc.TLSRoutingEnabled,
-		TLSConfig:          tlsConfig,
-		DialOpts:           tc.Config.DialOpts,
-		UnaryInterceptors:  []grpc.UnaryClientInterceptor{utils.GRPCClientUnaryErrorInterceptor},
-		StreamInterceptors: []grpc.StreamClientInterceptor{utils.GRPCClientStreamErrorInterceptor},
-		SSHDialer: proxyclient.SSHDialerFunc(func(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-			clt, err := makeProxySSHClient(ctx, tc, config)
-			return clt, trace.Wrap(err)
-		}),
+		ProxyAddress:            cfg.proxyAddress,
+		TLSRoutingEnabled:       tc.TLSRoutingEnabled,
+		TLSConfig:               tlsConfig,
+		DialOpts:                tc.Config.DialOpts,
+		UnaryInterceptors:       []grpc.UnaryClientInterceptor{utils.GRPCClientUnaryErrorInterceptor},
+		StreamInterceptors:      []grpc.StreamClientInterceptor{utils.GRPCClientStreamErrorInterceptor},
 		SSHConfig:               cfg.ClientConfig,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      tc.InsecureSkipVerify,
+		ViaJumpHost:             len(tc.JumpHosts) > 0,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3534,8 +3531,9 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 					return tc.headlessLogin(ctx, priv)
 				}, nil
 			}
-			log.Debug("Headless login is disabled for this command. Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported. Defaulting to local authentication methods.")
-			fallthrough
+			return nil, trace.BadParameter("" +
+				"Headless login is not supported for this command. " +
+				"Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported.")
 		case constants.LocalConnector, "":
 			// if passwordless is enabled and there are passwordless credentials
 			// registered, we can try to go with passwordless login even though
