@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -193,7 +192,7 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 }
 
 // LoginHook creates a login hook from the Generator and the user login state service.
-func (g *Generator) LoginHook(ulsService *local.UserLoginStateService) func(context.Context, types.User) error {
+func (g *Generator) LoginHook(ulsService services.UserLoginStates) func(context.Context, types.User) error {
 	return func(ctx context.Context, user types.User) error {
 		uls, err := g.Generate(ctx, user)
 		if err != nil {

@@ -173,7 +173,7 @@ func TestAccessLists(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			svc, backendSvc := initSvc(t)
+			svc, backendSvc := initGeneratorSvc(t)
 
 			for _, accessList := range test.accessLists {
 				_, err = backendSvc.UpsertAccessList(ctx, accessList)
@@ -201,7 +201,7 @@ type svc struct {
 	services.Access
 }
 
-func initSvc(t *testing.T) (*Generator, *svc) {
+func initGeneratorSvc(t *testing.T) (*Generator, *svc) {
 	t.Helper()
 
 	clock := clockwork.NewFakeClock()

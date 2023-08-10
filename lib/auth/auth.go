@@ -314,7 +314,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
 		AccessLists:             cfg.AccessLists,
-		UserLoginStateService:   cfg.UserLoginState,
+		UserLoginStates:         cfg.UserLoginState,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
@@ -418,7 +418,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	as.RegisterLoginHook(ulsGenerator.LoginHook(services.UserLoginStateService))
+	as.RegisterLoginHook(ulsGenerator.LoginHook(services.UserLoginStates))
 
 	return &as, nil
 }
@@ -445,11 +445,7 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.AccessLists
-<<<<<<< HEAD
 	services.UserLoginStates
-=======
-	*local.UserLoginStateService
->>>>>>> 22d5a7da96 (Generate user login state from access lists and integrate into certificates.)
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
