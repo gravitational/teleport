@@ -5,7 +5,7 @@ with an existing Teleport cluster:
 - Teleport Kubernetes access
 - Teleport Application access
 - Teleport Database access
-- Teleport Kubernetes Discovery
+- Teleport Kubernetes App Discovery
 
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
@@ -233,7 +233,7 @@ You can add multiple databases using `databases[1].name`, `databases[1].uri`, `d
 
 After installing, the new database should show up in `tsh db ls` after a few minutes.
 
-## Kubernetes discovery
+## Kubernetes App Discovery
 
 Teleport can be used to automatically discover apps based on services found in the Kubernetes cluster.
 To run Teleport discovery you will need to enabled roles `discovery` and `app` and also provide token that allows access for these roles.
