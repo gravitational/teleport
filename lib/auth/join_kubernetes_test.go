@@ -18,38 +18,38 @@ package auth
 
 import (
 	"context"
+	"github.com/gravitational/teleport/lib/kubernetestoken"
+	josejwt "gopkg.in/square/go-jose.v2/jwt"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/authentication/v1"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 type mockKubernetesTokenValidator struct {
-	tokens map[string]v1.UserInfo
+	tokens map[string]*kubernetestoken.ServiceAccountClaims
 }
 
-func (m *mockKubernetesTokenValidator) Validate(_ context.Context, token string) (*v1.UserInfo, error) {
-	userInfo, ok := m.tokens[token]
+func (m *mockKubernetesTokenValidator) Validate(_ context.Context, token string) (*kubernetestoken.ServiceAccountClaims, error) {
+	claims, ok := m.tokens[token]
 	if !ok {
 		return nil, errMockInvalidToken
 	}
 
-	return &userInfo, nil
+	return claims, nil
 }
 
 func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 	// Test setup
 
 	// Creating an auth server with mock Kubernetes token validator
-	tokens := map[string]v1.UserInfo{
-		"matching-first-rule-token1":  {Username: "system:serviceaccount:namespace1:service-account1"},
-		"matching-second-rule-token2": {Username: "system:serviceaccount:namespace2:service-account2"},
-		"user-token":                  {Username: "namespace1:service-account1"},
+	tokens := map[string]*kubernetestoken.ServiceAccountClaims{
+		"matching-first-rule-token1":  {Claims: josejwt.Claims{Subject: "system:serviceaccount:namespace1:service-account1"}},
+		"matching-second-rule-token2": {Claims: josejwt.Claims{Subject: "system:serviceaccount:namespace2:service-account2"}},
+		"user-token":                  {Claims: josejwt.Claims{Subject: "namespace1:service-account1"}},
 	}
 
 	var withTokenValidator ServerOption = func(server *Server) error {

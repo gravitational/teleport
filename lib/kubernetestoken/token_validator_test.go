@@ -18,7 +18,13 @@ package kubernetestoken
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -213,13 +219,13 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			v := TokenReviewValidator{
 				client: client,
 			}
-			userInfo, err := v.Validate(context.Background(), tt.token)
-			if tt.expectedError == nil {
-				require.NoError(t, err)
-				require.Equal(t, tt.review.Status.User, *userInfo)
-			} else {
+			claims, err := v.Validate(context.Background(), tt.token)
+			if tt.expectedError != nil {
 				require.ErrorIs(t, err, tt.expectedError)
+				return
 			}
+			require.NoError(t, err)
+			require.Equal(t, tt.review.Status.User, *claims)
 		})
 	}
 }
@@ -255,6 +261,128 @@ func Test_kubernetesSupportsBoundTokens(t *testing.T) {
 			result, err := kubernetesSupportsBoundTokens(tt.gitVersion)
 			tt.expectErr(t, err)
 			require.Equal(t, tt.supportBoundToken, result)
+		})
+	}
+}
+
+func testSigner(t *testing.T) ([]byte, jose.Signer) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: key},
+		(&jose.SignerOptions{}).
+			WithType("JWT").
+			WithHeader("kid", "foo"),
+	)
+	require.NoError(t, err)
+
+	jwks := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
+		{
+			Key:       key.Public(),
+			Use:       "sig",
+			Algorithm: string(jose.RS256),
+			KeyID:     "foo",
+		},
+	}}
+	jwksData, err := json.Marshal(jwks)
+	require.NoError(t, err)
+	return jwksData, signer
+}
+
+func TestValidateTokenWithJWKS(t *testing.T) {
+	jwks, signer := testSigner(t)
+	// match kid of right key
+	_, wrongSigner := testSigner(t)
+
+	now := time.Now()
+	clusterName := "example.teleport.sh"
+	tests := []struct {
+		name    string
+		signer  jose.Signer
+		claims  *ServiceAccountClaims
+		wantErr string
+	}{
+		{
+			name:   "valid",
+			signer: signer,
+			claims: &ServiceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Second)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Second)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Second)),
+				},
+				Kubernetes: &KubernetesSubClaim{
+					ServiceAccount: &ServiceAccountSubClaim{
+						Name: "my-service-account",
+						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
+					},
+					Pod: &PodSubClaim{
+						Name: "my-pod-797959fdf-wptbj",
+						UID:  "413b22ca-4833-48d9-b6db-76219d583173",
+					},
+					Namespace: "default",
+				},
+			},
+		},
+		{
+			name:   "signed by unknown key",
+			signer: wrongSigner,
+			claims: &ServiceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Second)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Second)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Second)),
+				},
+			},
+			wantErr: "error in cryptographic primitive",
+		},
+		{
+			name:   "expired",
+			signer: signer,
+			claims: &ServiceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-2 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+				},
+			},
+			wantErr: "token is expired",
+		},
+		{
+			name:   "wrong audience",
+			signer: signer,
+			claims: &ServiceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{"wrong.audience"},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-2 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+				},
+			},
+			wantErr: "invalid audience claim",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token, err := jwt.Signed(tt.signer).Claims(tt.claims).CompactSerialize()
+			require.NoError(t, err)
+
+			claims, err := ValidateTokenWithJWKS(
+				now, jwks, clusterName, token,
+			)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.claims, claims)
 		})
 	}
 }

@@ -181,6 +181,7 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
 
+	leeway := time.Second * 10
 	err = claims.ValidateWithLeeway(josejwt.Expected{
 		// We don't need to check the subject or other claims here.
 		// Anything related to matching the token against ProvisionToken
@@ -189,7 +190,7 @@ func ValidateTokenWithJWKS(
 			clusterName,
 		},
 		Time: now,
-	}, time.Minute)
+	}, leeway)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating jwt claims")
 	}
