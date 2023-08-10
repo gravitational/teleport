@@ -26,7 +26,7 @@ since it must execute these commands in order to create transient users:
   - `visudo`
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/2. Configure a role
+## Step 1/3. Configure a role
 
 First, create a role with `create_host_user_mode` set to `drop` or `keep`.
 
@@ -132,7 +132,43 @@ ssh_service:
 
 (!docs/pages/includes/add-role-to-user.mdx role="auto-users"!)
 
-## Step 2/2 Test host user creation
+## Step 2/3. [Optional] Configure the UID and GID for the created users
+
+If the user has the `host_user_uid` and `host_user_gid` traits
+specified, when the host user is being created the UID and GID will be
+set to those values.
+
+These values can either be set manually when creating or updating the
+user through `tctl`, or it can be set via SSO attributes of the same
+name.
+
+If a group with the specified GID does not already exist, a group will
+be created with the same login name as the user being created.
+
+```yaml
+kind: user
+metadata:
+  name: some_teleport_user
+spec:
+  ...
+  traits:
+    logins:
+    - root
+    - alex
+    host_user_gid:
+    # gid and uid values must be quoted.
+    - "1234"
+    host_user_uid:
+    - "5678"
+```
+
+<Admonition type="warning">
+
+If multiple entries are specified in the `host_user_uid` or `host_user_gid` only the first entry will be used.
+
+</Admonition>
+
+## Step 3/3 Test host user creation
 
 When you connect to a remote Node via `tsh`, and host user creation is enabled, the
 Teleport SSH Service will automatically create a user on the host:

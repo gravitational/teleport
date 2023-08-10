@@ -26,14 +26,14 @@ import (
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/ai"
+	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
 var (
-	embedding1 = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0}, sha256.Sum256([]byte("test1")))
-	embedding2 = ai.NewEmbedding(types.KindNode, "bar", ai.Vector64{1, 1, 1}, sha256.Sum256([]byte("test2")))
-	embedding3 = ai.NewEmbedding(types.KindDatabase, "bar", ai.Vector64{2}, sha256.Sum256([]byte("test3")))
+	embedding1 = embeddinglib.NewEmbedding(types.KindNode, "foo", embeddinglib.Vector64{0, 0}, sha256.Sum256([]byte("test1")))
+	embedding2 = embeddinglib.NewEmbedding(types.KindNode, "bar", embeddinglib.Vector64{1, 1, 1}, sha256.Sum256([]byte("test2")))
+	embedding3 = embeddinglib.NewEmbedding(types.KindDatabase, "bar", embeddinglib.Vector64{2}, sha256.Sum256([]byte("test3")))
 )
 
 func errorIsNotFound(t require.TestingT, err error, msgAndArgs ...interface{}) {
@@ -45,7 +45,7 @@ func TestGetEmbedding(t *testing.T) {
 	// Test setup: create the backend, the service, and load all fixtures
 	ctx := context.Background()
 
-	fixtures := []*ai.Embedding{embedding1, embedding2, embedding3}
+	fixtures := []*embeddinglib.Embedding{embedding1, embedding2, embedding3}
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -66,7 +66,7 @@ func TestGetEmbedding(t *testing.T) {
 		kind      string
 		id        string
 		assertErr require.ErrorAssertionFunc
-		expected  *ai.Embedding
+		expected  *embeddinglib.Embedding
 	}{
 		{
 			name:      "Simple get",
@@ -107,7 +107,7 @@ func TestGetEmbeddings(t *testing.T) {
 	// Test setup: create the backend, the service, and load all fixtures
 	ctx := context.Background()
 
-	fixtures := []*ai.Embedding{embedding1, embedding2, embedding3}
+	fixtures := []*embeddinglib.Embedding{embedding1, embedding2, embedding3}
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -184,7 +184,7 @@ func TestUpsertEmbedding(t *testing.T) {
 	errorIsNotFound(t, err)
 
 	// Test: add an element in the backend and check if we can retrieve it
-	embedding := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0}, sha256.Sum256([]byte("test")))
+	embedding := embeddinglib.NewEmbedding(types.KindNode, "foo", embeddinglib.Vector64{0, 0}, sha256.Sum256([]byte("test")))
 	embedding, err = service.UpsertEmbedding(ctx, embedding)
 	require.NoError(t, err)
 	result, err := service.GetEmbedding(ctx, types.KindNode, "foo")
@@ -192,7 +192,7 @@ func TestUpsertEmbedding(t *testing.T) {
 	requireEmbeddingsEqual(t, embedding, result)
 
 	// Test: update the embedding and check we now retrieve the new version
-	embedding = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{1, 1, 1, 1, 1}, sha256.Sum256([]byte("test2")))
+	embedding = embeddinglib.NewEmbedding(types.KindNode, "foo", embeddinglib.Vector64{1, 1, 1, 1, 1}, sha256.Sum256([]byte("test2")))
 	embedding, err = service.UpsertEmbedding(ctx, embedding)
 	require.NoError(t, err)
 	result, err = service.GetEmbedding(ctx, types.KindNode, "foo")
@@ -200,9 +200,9 @@ func TestUpsertEmbedding(t *testing.T) {
 	requireEmbeddingsEqual(t, embedding, result)
 }
 
-// sortableEmbeddings is an ai.Embedding list that can be sorted. This is used
+// sortableEmbeddings is an embedding.Embedding list that can be sorted. This is used
 // in tests to compare two lists and their content.
-type sortableEmbeddings []*ai.Embedding
+type sortableEmbeddings []*embeddinglib.Embedding
 
 func (s sortableEmbeddings) Len() int {
 	return len(s)
@@ -220,7 +220,7 @@ func (s sortableEmbeddings) Swap(i, j int) {
 // This is required because equivalent ai.Embedding might differ depending on
 // how they have been created (marshaling/unmarshalling protobuf messages set
 // some internal fields that a freshly created ai.Embedding doesn't have).
-func requireEmbeddingsEqual(t require.TestingT, expected, actual *ai.Embedding) {
+func requireEmbeddingsEqual(t require.TestingT, expected, actual *embeddinglib.Embedding) {
 	if expected == nil {
 		require.Nil(t, actual)
 		return

@@ -111,11 +111,20 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 type ResourceCreateEvent prehogv1a.ResourceCreateEvent
 
 func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	event := &prehogv1a.ResourceCreateEvent{
+		ResourceType:   u.ResourceType,
+		ResourceOrigin: u.ResourceOrigin,
+		CloudProvider:  u.CloudProvider,
+	}
+	if db := u.Database; db != nil {
+		event.Database = &prehogv1a.DiscoveredDatabaseMetadata{
+			DbType:     db.DbType,
+			DbProtocol: db.DbProtocol,
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_ResourceCreate{
-			ResourceCreate: &prehogv1a.ResourceCreateEvent{
-				ResourceType: u.ResourceType,
-			},
+			ResourceCreate: event,
 		},
 	}
 }
@@ -579,12 +588,57 @@ func (e *EditorChangeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 	}
 }
 
+type AssistExecutionEvent prehogv1a.AssistExecutionEvent
+
+func (e *AssistExecutionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistExecution{
+			AssistExecution: &prehogv1a.AssistExecutionEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				ConversationId:   e.ConversationId,
+				NodeCount:        e.NodeCount,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
+type AssistNewConversationEvent prehogv1a.AssistNewConversationEvent
+
+func (e *AssistNewConversationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistNewConversation{
+			AssistNewConversation: &prehogv1a.AssistNewConversationEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Category: e.Category,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
 	Username string
 	// IsSSO indicates if the user was created by an SSO provider.
 	IsSSO bool
+}
+
+// DeviceAuthenticateEvent event is emitted after successful device authentication ceremony.
+type DeviceAuthenticateEvent prehogv1a.DeviceAuthenticateEvent
+
+func (d *DeviceAuthenticateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DeviceAuthenticateEvent{
+			DeviceAuthenticateEvent: &prehogv1a.DeviceAuthenticateEvent{
+				DeviceId:     a.AnonymizeString(d.DeviceId),
+				UserName:     a.AnonymizeString(d.UserName),
+				DeviceOsType: d.DeviceOsType,
+			},
+		},
+	}
 }
 
 // ConvertUsageEvent converts a usage event from an API object into an
@@ -844,6 +898,35 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			TotalTokens:      e.AssistCompletion.TotalTokens,
 			PromptTokens:     e.AssistCompletion.PromptTokens,
 			CompletionTokens: e.AssistCompletion.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistExecution:
+		ret := &AssistExecutionEvent{
+			UserName:         userMD.Username,
+			ConversationId:   e.AssistExecution.ConversationId,
+			NodeCount:        e.AssistExecution.NodeCount,
+			TotalTokens:      e.AssistExecution.TotalTokens,
+			PromptTokens:     e.AssistExecution.PromptTokens,
+			CompletionTokens: e.AssistExecution.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistNewConversation:
+		ret := &AssistNewConversationEvent{
+			UserName: userMD.Username,
+			Category: e.AssistNewConversation.Category,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_ResourceCreateEvent:
+		ret := &ResourceCreateEvent{
+			ResourceType:   e.ResourceCreateEvent.ResourceType,
+			ResourceOrigin: e.ResourceCreateEvent.ResourceOrigin,
+			CloudProvider:  e.ResourceCreateEvent.CloudProvider,
+		}
+		if db := e.ResourceCreateEvent.Database; db != nil {
+			ret.Database = &prehogv1a.DiscoveredDatabaseMetadata{
+				DbType:     db.DbType,
+				DbProtocol: db.DbProtocol,
+			}
 		}
 		return ret, nil
 	default:

@@ -275,7 +275,21 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(trail.FromGRPC(err))
+		err = trail.FromGRPC(err)
+		// If connecting to a host in a leaf cluster and MFA failed check to see
+		// if the leaf cluster requires MFA. If it doesn't return an error indicating
+		// that MFA was not required instead of the error received from the root cluster.
+		if c.cluster != clt.cluster {
+			check, err := c.AuthClient.IsMFARequired(ctx, params.isMFARequiredRequest(clt.tc.HostLogin))
+			if err != nil {
+				return nil, trace.Wrap(MFARequiredUnknown(err))
+			}
+			if !check.Required {
+				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			}
+		}
+
+		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()
 	if mfaChal == nil {

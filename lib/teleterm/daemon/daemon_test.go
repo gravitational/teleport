@@ -19,15 +19,19 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -38,8 +42,9 @@ import (
 )
 
 type mockGatewayCreator struct {
-	t         *testing.T
-	callCount int
+	t                *testing.T
+	callCount        int
+	tcpPortAllocator gateway.TCPPortAllocator
 }
 
 func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (gateway.Gateway, error) {
@@ -51,20 +56,21 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 	})
 
 	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
-		Username: params.TargetUser,
+		Username: "user",
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
 			ServiceName: params.TargetURI.GetDbName(),
 			Protocol:    defaults.ProtocolPostgres,
 			Username:    params.TargetUser,
 		},
+		KubernetesCluster: params.TargetURI.GetKubeName(),
 	})
 
 	gateway, err := gateway.New(gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName(),
+		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
 		CertPath:              keyPairPaths.CertPath,
@@ -72,7 +78,8 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
 		CLICommandProvider:    params.CLICommandProvider,
-		TCPPortAllocator:      params.TCPPortAllocator,
+		TCPPortAllocator:      m.tcpPortAllocator,
+		KubeconfigsDir:        m.t.TempDir(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,16 +102,18 @@ type gatewayCRUDTestContext struct {
 func TestGatewayCRUD(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name                 string
-		gatewayNamesToCreate []string
+		name                   string
+		gatewayNamesToCreate   []string
+		appendGatewayTargetURI func(name string) uri.ResourceURI
 		// tcpPortAllocator is an optional field which lets us provide a custom
 		// gatewaytest.MockTCPPortAllocator with some ports already in use.
 		tcpPortAllocator *gatewaytest.MockTCPPortAllocator
 		testFunc         func(*testing.T, *gatewayCRUDTestContext, *Service)
 	}{
 		{
-			name:                 "create then find",
-			gatewayNamesToCreate: []string{"gateway"},
+			name:                   "create then find",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
 				foundGateway, err := daemon.findGateway(createdGateway.URI().String())
@@ -113,8 +122,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "ListGateways",
-			gatewayNamesToCreate: []string{"gateway1", "gateway2"},
+			name:                   "ListGateways",
+			gatewayNamesToCreate:   []string{"gateway1", "gateway2"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateways := daemon.ListGateways()
 				gatewayURIs := map[uri.ResourceURI]struct{}{}
@@ -129,8 +139,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "RemoveGateway",
-			gatewayNamesToCreate: []string{"gatewayToRemove", "gatewayToKeep"},
+			name:                   "RemoveGateway",
+			gatewayNamesToCreate:   []string{"gatewayToRemove", "gatewayToKeep"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gatewayToRemove := c.nameToGateway["gatewayToRemove"]
 				gatewayToKeep := c.nameToGateway["gatewayToKeep"]
@@ -145,8 +156,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort closes previous gateway if new port is free",
-			gatewayNamesToCreate: []string{"gateway"},
+			name:                   "SetGatewayLocalPort closes previous gateway if new port is free",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				oldGateway := c.nameToGateway["gateway"]
 				oldListener := c.mockTCPPortAllocator.RecentListener()
@@ -171,9 +183,10 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
-			gatewayNamesToCreate: []string{"gateway"},
-			tcpPortAllocator:     &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
+			name:                   "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			tcpPortAllocator:       &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
@@ -190,8 +203,9 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "SetGatewayLocalPort is a noop if new port is equal to old port",
-			gatewayNamesToCreate: []string{"gateway"},
+			name:                   "SetGatewayLocalPort is a noop if new port is equal to old port",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateway := c.nameToGateway["gateway"]
 				localPort := gateway.LocalPort()
@@ -201,6 +215,19 @@ func TestGatewayCRUD(t *testing.T) {
 				require.NoError(t, err)
 
 				require.Equal(t, 1, c.mockTCPPortAllocator.CallCount)
+			},
+		},
+		{
+			name:                   "CreateGateway returns existing kube gateway if targetURI is the same",
+			gatewayNamesToCreate:   []string{"kube-gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendKube,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				wantGateway := c.nameToGateway["kube-gateway"]
+				actualGateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI: wantGateway.TargetURI().String(),
+				})
+				require.NoError(t, err)
+				require.Equal(t, wantGateway, actualGateway)
 			},
 		},
 	}
@@ -215,7 +242,10 @@ func TestGatewayCRUD(t *testing.T) {
 			}
 
 			homeDir := t.TempDir()
-			mockGatewayCreator := &mockGatewayCreator{t: t}
+			mockGatewayCreator := &mockGatewayCreator{
+				t:                t,
+				tcpPortAllocator: tt.tcpPortAllocator,
+			}
 
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                homeDir,
@@ -224,9 +254,9 @@ func TestGatewayCRUD(t *testing.T) {
 			require.NoError(t, err)
 
 			daemon, err := New(Config{
-				Storage:          storage,
-				GatewayCreator:   mockGatewayCreator,
-				TCPPortAllocator: tt.tcpPortAllocator,
+				Storage:        storage,
+				GatewayCreator: mockGatewayCreator,
+				KubeconfigsDir: t.TempDir(),
 			})
 			require.NoError(t, err)
 
@@ -235,7 +265,7 @@ func TestGatewayCRUD(t *testing.T) {
 			for _, gatewayName := range tt.gatewayNamesToCreate {
 				gatewayName := gatewayName
 				gateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
-					TargetURI:             uri.NewClusterURI("foo").AppendDB(gatewayName).String(),
+					TargetURI:             tt.appendGatewayTargetURI(gatewayName).String(),
 					TargetUser:            "alice",
 					TargetSubresourceName: "",
 					LocalPort:             "",
@@ -272,6 +302,7 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 	daemon, err := New(Config{
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+		KubeconfigsDir:                  t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -302,6 +333,7 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 	daemon, err := New(Config{
 		Storage:                         storage,
 		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
+		KubeconfigsDir:                  t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -399,6 +431,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 					return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 				},
+				KubeconfigsDir: t.TempDir(),
 			})
 			require.NoError(t, err)
 
@@ -426,24 +459,121 @@ func TestRetryWithRelogin(t *testing.T) {
 			}
 			require.Equal(t, tt.wantFnCalls, fnCallCount,
 				"Unexpected number of calls to fn")
-			require.Equal(t, tt.wantReloginCalls, service.callCounts["Relogin"],
+			require.EqualValues(t, tt.wantReloginCalls, service.reloginCount.Load(),
 				"Unexpected number of calls to service.Relogin")
 		})
 	}
 }
 
+func TestImportantModalSemaphore(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                t.TempDir(),
+		InsecureSkipVerify: true,
+	})
+	require.NoError(t, err)
+
+	daemon, err := New(Config{
+		Storage: storage,
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+		KubeconfigsDir: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	service, addr := newMockTSHDEventsServiceServer(t)
+	err = daemon.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
+
+	// Claim the important modal semaphore.
+
+	customWaitDuration := 10 * time.Millisecond
+	daemon.importantModalSemaphore.waitDuration = customWaitDuration
+	err = daemon.importantModalSemaphore.Acquire(ctx)
+	require.NoError(t, err)
+
+	// relogin and sending pending headless authentications should be blocked.
+
+	reloginErrC := make(chan error)
+	go func() {
+		reloginErrC <- daemon.relogin(ctx, &api.ReloginRequest{})
+	}()
+
+	sphaErrC := make(chan error)
+	go func() {
+		sphaErrC <- daemon.sendPendingHeadlessAuthentication(ctx, &types.HeadlessAuthentication{}, "")
+	}()
+
+	select {
+	case <-reloginErrC:
+		t.Error("relogin completed successfully without acquiring the important modal semaphore")
+	case <-sphaErrC:
+		t.Error("sendPendingHeadlessAuthentication completed successfully without acquiring the important modal semaphore")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	// if the request's ctx is canceled, they will unblock and return an error instead.
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	err = daemon.relogin(cancelCtx, &api.ReloginRequest{})
+	require.Error(t, err)
+	err = daemon.sendPendingHeadlessAuthentication(cancelCtx, &types.HeadlessAuthentication{}, "")
+	require.Error(t, err)
+
+	// Release the semaphore. relogin and sending pending headless authentication should
+	// complete successfully after a short delay between each semaphore release.
+
+	releaseTime := time.Now()
+	daemon.importantModalSemaphore.Release()
+
+	var otherC chan error
+	select {
+	case err := <-reloginErrC:
+		require.NoError(t, err)
+		otherC = sphaErrC
+	case err := <-sphaErrC:
+		require.NoError(t, err)
+		otherC = reloginErrC
+	case <-time.After(time.Second):
+		t.Error("important modal operations failed to acquire unclaimed semaphore")
+	}
+
+	if time.Since(releaseTime) < customWaitDuration {
+		t.Error("important modal semaphore should not be acquired before waiting the specified duration")
+	}
+
+	select {
+	case err := <-otherC:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Error("important modal operations failed to acquire unclaimed semaphore")
+	}
+
+	if time.Since(releaseTime) < 2*customWaitDuration {
+		t.Error("important modal semaphore should not be acquired before waiting the specified duration")
+	}
+
+	require.EqualValues(t, 1, service.reloginCount.Load(), "Unexpected number of calls to service.Relogin")
+	require.EqualValues(t, 1, service.sendPendingHeadlessAuthenticationCount.Load(), "Unexpected number of calls to service.SendPendingHeadlessAuthentication")
+}
+
 type mockTSHDEventsService struct {
 	*api.UnimplementedTshdEventsServiceServer
-	callCounts map[string]int
-	reloginErr error
+	reloginErr                             error
+	reloginCount                           atomic.Uint32
+	sendNotificationCount                  atomic.Uint32
+	sendPendingHeadlessAuthenticationCount atomic.Uint32
 }
 
 func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
 	t.Helper()
 
-	tshdEventsService := &mockTSHDEventsService{
-		callCounts: make(map[string]int),
-	}
+	tshdEventsService := &mockTSHDEventsService{}
 
 	ls, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -455,6 +585,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 	go func() {
 		serveErr <- grpcServer.Serve(ls)
 	}()
+
 	t.Cleanup(func() {
 		grpcServer.GracefulStop()
 
@@ -462,8 +593,8 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 		// before grpcServer.Serve is called and grpcServer.Serve will return
 		// grpc.ErrServerStopped.
 		err := <-serveErr
-		if len(tshdEventsService.callCounts) > 0 || err != grpc.ErrServerStopped {
-			require.NoError(t, err)
+		if err != grpc.ErrServerStopped {
+			assert.NoError(t, err)
 		}
 	})
 
@@ -471,7 +602,7 @@ func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsServic
 }
 
 func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*api.ReloginResponse, error) {
-	c.callCounts["Relogin"]++
+	c.reloginCount.Add(1)
 	if c.reloginErr != nil {
 		return nil, c.reloginErr
 	}
@@ -479,6 +610,11 @@ func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*
 }
 
 func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
-	c.callCounts["SendNotification"]++
+	c.sendNotificationCount.Add(1)
 	return &api.SendNotificationResponse{}, nil
+}
+
+func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
+	c.sendPendingHeadlessAuthenticationCount.Add(1)
+	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
 }

@@ -81,6 +81,19 @@ type ClientConfig struct {
 	ClusterName string
 }
 
+func (cfg *ClientConfig) CheckAndSetDefaults() error {
+	if cfg.APIKey == "" {
+		return trace.BadParameter("missing required value APIKey")
+	}
+	if cfg.APIEndpoint == "" {
+		return trace.BadParameter("missing required value APIEndpoint")
+	}
+	if cfg.WebProxyURL == nil {
+		return trace.BadParameter("missing required value WebProxyURL")
+	}
+	return nil
+}
+
 // NewClient creates a new Opsgenie client for managing alerts.
 func NewClient(conf ClientConfig) (*Client, error) {
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
@@ -123,7 +136,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 		SetContext(ctx).
 		SetBody(body).
 		SetResult(&result).
-		Post("alerts")
+		Post("v2/alerts")
 
 	if err != nil {
 		return OpsgenieData{}, trace.Wrap(err)
@@ -139,7 +152,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 
 func (og Client) getResponders(reqData RequestData) []Responder {
 	schedules := og.DefaultSchedules
-	if reqSchedules, ok := reqData.ResolveAnnotations[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
+	if reqSchedules, ok := reqData.SystemAnnotations[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 		schedules = reqSchedules
 	}
 	responders := make([]Responder, 0, len(schedules))
@@ -166,7 +179,7 @@ func (og Client) PostReviewNote(ctx context.Context, alertID string, review type
 		SetBody(body).
 		SetPathParams(map[string]string{"alertID": alertID}).
 		SetQueryParams(map[string]string{"identifierType": "id"}).
-		Post("alerts/{alertID}/notes")
+		Post("v2/alerts/{alertID}/notes")
 
 	if err != nil {
 		return trace.Wrap(err)
@@ -192,7 +205,7 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 		SetBody(body).
 		SetPathParams(map[string]string{"alertID": alertID}).
 		SetQueryParams(map[string]string{"identifierType": "id"}).
-		Post("alerts/{alertID}/close")
+		Post("v2/alerts/{alertID}/close")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,7 +228,7 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 			"flat": "true",
 		}).
 		SetResult(&result).
-		Post("schedules/{scheduleName}/on-calls")
+		Post("v2/schedules/{scheduleName}/on-calls")
 	if err != nil {
 		return RespondersResult{}, trace.Wrap(err)
 	}
@@ -232,7 +245,7 @@ func (og Client) CheckHealth(ctx context.Context) error {
 	resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetPathParams(map[string]string{"heartbeat": heartbeatName}).
-		Get("heartbeats/{heatbeat}/ping")
+		Get("v2/heartbeats/teleport-access-heartbeat/ping")
 
 	if err != nil {
 		return trace.Wrap(err)

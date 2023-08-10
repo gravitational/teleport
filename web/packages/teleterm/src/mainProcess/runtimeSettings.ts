@@ -57,6 +57,9 @@ function getRuntimeSettings(): RuntimeSettings {
     tshdEvents: tshdEventsAddress,
   } = requestGrpcServerAddresses();
   const { binDir, tshBinPath } = getBinaryPaths();
+  const { username } = os.userInfo();
+  const hostname = os.hostname();
+  const kubeConfigsDir = getKubeConfigsDir();
 
   const tshd = {
     insecure: isInsecure,
@@ -71,6 +74,7 @@ function getRuntimeSettings(): RuntimeSettings {
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
       `--prehog-addr=${staticConfig.prehogAddress}`,
+      `--kubeconfigs-dir=${kubeConfigsDir}`,
     ],
   };
   const sharedProcess = {
@@ -79,6 +83,15 @@ function getRuntimeSettings(): RuntimeSettings {
   const tshdEvents = {
     requestedNetworkAddress: tshdEventsAddress,
   };
+
+  // To start the app in dev mode, we run `electron path_to_main.js`. It means
+  //  that the app is run without package.json context, so it can not read the version
+  // from it.
+  // The way we run Electron can be changed (`electron .`), but it has one major
+  // drawback - dev app and bundled app will use the same app data directory.
+  //
+  // A workaround is to read the version from `process.env.npm_package_version`.
+  const appVersion = dev ? process.env.npm_package_version : app.getVersion();
 
   if (isInsecure) {
     tshd.flags.unshift('--debug');
@@ -97,21 +110,17 @@ function getRuntimeSettings(): RuntimeSettings {
     agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
-    kubeConfigsDir: getKubeConfigsDir(),
+    kubeConfigsDir,
     platform: process.platform,
     installationId: loadInstallationId(
       path.resolve(app.getPath('userData'), 'installation_id')
     ),
     arch: os.arch(),
     osVersion: os.release(),
-    // To start the app in dev mode we run `electron path_to_main.js`. It means
-    // that app is run without package.json context, so it can not read the version
-    // from it.
-    // The way we run Electron can be changed (`electron .`), but it has one major
-    // drawback - dev app and bundled app will use the same app data directory.
-    //
-    // A workaround is to read the version from `process.env.npm_package_version`.
-    appVersion: dev ? process.env.npm_package_version : app.getVersion(),
+    appVersion,
+    isLocalBuild: appVersion === '1.0.0-dev',
+    username,
+    hostname,
   };
 }
 

@@ -24,11 +24,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gravitational/trace"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+const azureEventPrefix = "azure/"
 
 // AzureInstances contains information about discovered Azure virtual machines.
 type AzureInstances struct {
@@ -48,6 +52,23 @@ type AzureInstances struct {
 	Parameters []string
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
+}
+
+// MakeEvents generates MakeEvents for these instances.
+func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
+	resourceType := types.DiscoveredResourceNode
+	if instances.ScriptName == installers.InstallerScriptNameAgentless {
+		resourceType = types.DiscoveredResourceAgentlessNode
+	}
+	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+	for _, inst := range instances.Instances {
+		events[azureEventPrefix+aws.StringValue(inst.ID)] = &usageeventsv1.ResourceCreateEvent{
+			ResourceType:   resourceType,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  types.CloudAzure,
+		}
+	}
+	return events
 }
 
 // NewAzureWatcher creates a new Azure watcher instance.
@@ -153,7 +174,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 	var instances []Instances
 	for region, vms := range instancesByRegion {
 		if len(vms) > 0 {
-			instances = append(instances, Instances{AzureInstances: &AzureInstances{
+			instances = append(instances, Instances{Azure: &AzureInstances{
 				SubscriptionID:  f.Subscription,
 				Region:          region,
 				ResourceGroup:   f.ResourceGroup,

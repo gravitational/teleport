@@ -89,13 +89,13 @@ export function AuthConnectors(props: State) {
                 style={{ flexShrink: 0 }}
               >
                 <Text typography="h6" mb={3} caps>
-                  Authentication Connectors
+                  Auth Connectors
                 </Text>
                 <Text typography="subtitle1" mb={3}>
-                  Authentication connectors allow Teleport to authenticate users
-                  via an external identity source such as Okta, Active
-                  Directory, GitHub, etc. This authentication method is
-                  frequently called single sign-on (SSO).
+                  Auth connectors allow Teleport to authenticate users via an
+                  external identity source such as Okta, Active Directory,
+                  GitHub, etc. This authentication method is commonly known as
+                  single sign-on (SSO).
                 </Text>
                 <Text typography="subtitle1" mb={2}>
                   Please{' '}

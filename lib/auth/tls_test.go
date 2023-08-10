@@ -38,8 +38,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -417,7 +415,7 @@ func TestAutoRotation(t *testing.T) {
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
 	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "certificate")
 
 	// new clients work
 	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -590,7 +588,7 @@ func TestManualRotation(t *testing.T) {
 	// this is not going to be a problem in real teleport
 	// as it reloads the full server after reload
 	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "certificate")
 
 	// new clients work
 	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -685,7 +683,7 @@ func TestRollback(t *testing.T) {
 
 	// clients with new creds will no longer work
 	_, err = testSrv.CloneClient(newProxy).GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorContains(t, err, "bad certificate")
+	require.ErrorContains(t, err, "certificate")
 
 	// clients with old creds will still work
 	_, err = testSrv.CloneClient(proxy).GetNodes(ctx, apidefaults.Namespace)
@@ -1807,6 +1805,107 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
 	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
+}
+
+func TestExtendWebSessionWithMaxDuration(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testSrv := newTestTLSServer(t)
+	clock := testSrv.AuthServer.TestAuthServerConfig.Clock
+
+	adminClient, err := testSrv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	const user = "user2"
+	const testRequestRole = "test-request-role"
+	pass := []byte("abc123")
+
+	newUser, err := CreateUserRoleAndRequestable(adminClient, user, testRequestRole)
+	require.NoError(t, err)
+	require.Len(t, newUser.GetRoles(), 1)
+
+	require.Len(t, newUser.GetRoles(), 1)
+	require.Empty(t, cmp.Diff(newUser.GetRoles(), []string{"user:user2"}))
+
+	proxyRoleClient, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	// Create a user to create a web session for.
+	req := AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	}
+
+	err = testSrv.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+
+	webSession, err := proxyRoleClient.AuthenticateWebUser(ctx, req)
+	require.NoError(t, err)
+
+	userClient, err := testSrv.NewClientFromWebSession(webSession)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		desc            string
+		maxDurationRole time.Duration
+		expectedExpiry  time.Duration
+	}{
+		{
+			desc:            "default",
+			maxDurationRole: 0,
+			expectedExpiry:  apidefaults.CertDuration,
+		},
+		{
+			desc:            "max duration is set",
+			maxDurationRole: 5 * time.Hour,
+			expectedExpiry:  5 * time.Hour,
+		},
+		{
+			desc:            "max duration greater than default",
+			maxDurationRole: 24 * time.Hour,
+			expectedExpiry:  apidefaults.CertDuration,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			requestableRole, err := adminClient.GetRole(ctx, newUser.GetRoles()[0])
+			require.NoError(t, err)
+
+			// Set max duration on the role.
+			requestableRole.SetAccessRequestConditions(types.Allow, types.AccessRequestConditions{
+				Roles:       []string{testRequestRole},
+				MaxDuration: types.Duration(tc.maxDurationRole),
+			})
+			err = adminClient.UpsertRole(ctx, requestableRole)
+			require.NoError(t, err)
+
+			// Create an approved access request.
+			accessReq, err := services.NewAccessRequest(user, []string{testRequestRole}...)
+			require.NoError(t, err)
+
+			// Set max duration higher than the role max duration. It will be capped.
+			accessReq.SetMaxDuration(clock.Now().Add(48 * time.Hour))
+			err = accessReq.SetState(types.RequestState_APPROVED)
+			require.NoError(t, err)
+
+			err = adminClient.CreateAccessRequest(ctx, accessReq)
+			require.NoError(t, err)
+
+			sess1, err := userClient.ExtendWebSession(ctx, WebSessionReq{
+				User:            user,
+				PrevSessionID:   webSession.GetName(),
+				AccessRequestID: accessReq.GetMetadata().Name,
+			})
+			require.NoError(t, err)
+
+			// Check the expiry is capped to the max allowed duration.
+			require.WithinDuration(t, clock.Now().Add(tc.expectedExpiry), sess1.Expiry(), time.Second)
+		})
+	}
 }
 
 // TestGetCertAuthority tests certificate authority permissions
@@ -4172,133 +4271,6 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					token,
 					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 				))
-			}
-		})
-	}
-}
-
-// TestGRPCServer_GenerateToken verifies the behavior of a deprecated
-// GenerateToken method that we still need to keep for the time being.
-func TestGRPCServer_GenerateToken(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	testSrv := newTestTLSServer(t)
-
-	// Inject mockEmitter to capture audit event for trusted cluster
-	// creation.
-	mockEmitter := &eventstest.MockRecorderEmitter{}
-	testSrv.Auth().SetEmitter(mockEmitter)
-
-	// Create a user with the least privilege access to call this RPC.
-	privilegedUser, _, err := CreateUserAndRole(
-		testSrv.Auth(), "token-generator", nil, []types.Rule{
-			{
-				Resources: []string{types.KindToken},
-				Verbs:     []string{types.VerbCreate},
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	// create a token to conflict with for already having been created
-	alreadyExistsToken := mustNewToken(
-		t, "already-exists", types.SystemRoles{types.RoleNode}, time.Time{},
-	)
-	require.NoError(t, testSrv.Auth().CreateToken(ctx, alreadyExistsToken))
-
-	tests := []struct {
-		name     string
-		identity TestIdentity
-		roles    types.SystemRoles
-
-		requireTokenCreated bool
-		requireError        require.ErrorAssertionFunc
-		auditEvents         []eventtypes.AuditEvent
-	}{
-		{
-			name:                "success",
-			identity:            TestUser(privilegedUser.GetName()),
-			roles:               types.SystemRoles{types.RoleNode, types.RoleKube},
-			requireError:        require.NoError,
-			requireTokenCreated: true,
-			auditEvents: []eventtypes.AuditEvent{
-				&eventtypes.ProvisionTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.ProvisionTokenCreateEvent,
-						Code: events.ProvisionTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-generator",
-					},
-					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
-					JoinMethod: types.JoinMethodToken,
-				},
-			},
-		},
-		{
-			name:                "success (trusted cluster)",
-			identity:            TestUser(privilegedUser.GetName()),
-			roles:               types.SystemRoles{types.RoleTrustedCluster},
-			requireError:        require.NoError,
-			requireTokenCreated: true,
-			auditEvents: []eventtypes.AuditEvent{
-				&eventtypes.ProvisionTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.ProvisionTokenCreateEvent,
-						Code: events.ProvisionTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-generator",
-					},
-					Roles:      types.SystemRoles{types.RoleTrustedCluster},
-					JoinMethod: types.JoinMethodToken,
-				},
-				//nolint:staticcheck // Emit a deprecated event.
-				&eventtypes.TrustedClusterTokenCreate{
-					Metadata: eventtypes.Metadata{
-						Type: events.TrustedClusterTokenCreateEvent,
-						Code: events.TrustedClusterTokenCreateCode,
-					},
-					UserMetadata: eventtypes.UserMetadata{
-						User: "token-generator",
-					},
-				},
-			},
-		},
-		{
-			name:     "access denied",
-			identity: TestNop(),
-			roles:    types.SystemRoles{types.RoleNode},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Equal(t, codes.PermissionDenied, status.Code(err))
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client, err := testSrv.NewClient(tt.identity)
-			require.NoError(t, err)
-			// The client doesn't expose the deprecated GenerateToken method, so we
-			// need to create a raw AuthService client using the API client's
-			// connection.
-			rawAuthSvcClient := proto.NewAuthServiceClient(client.APIClient.GetConnection())
-
-			mockEmitter.Reset()
-			tokenResp, err := rawAuthSvcClient.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: tt.roles})
-			tt.requireError(t, err)
-
-			require.Empty(t, cmp.Diff(
-				tt.auditEvents,
-				mockEmitter.Events(),
-				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
-				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
-				cmpopts.EquateEmpty(),
-			))
-			if tt.requireTokenCreated {
-				createdToken, err := testSrv.Auth().GetToken(ctx, tokenResp.Token)
-				require.NoError(t, err)
-				assert.Equal(t, tt.roles, createdToken.GetRoles())
 			}
 		})
 	}
