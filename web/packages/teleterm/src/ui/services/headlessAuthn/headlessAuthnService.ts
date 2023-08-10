@@ -26,14 +26,14 @@ export class HeadlessAuthenticationService {
     private mainProcessClient: MainProcessClient,
     private modalsService: ModalsService,
     private tshClient: types.TshClient,
-    private configService: ConfigService,
+    private configService: ConfigService
   ) {}
 
   sendPendingHeadlessAuthentication(
     request: SendPendingHeadlessAuthenticationRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
-    const skipConfirm = this.configService.get('feature.headlessSkipConfirm').value
+    const skipConfirm = this.configService.get('headless.skipConfirm').value;
 
     // If the user wants to skip the confirmation step, then don't force the window.
     // Instead, they can just tap their blinking yubikey with the window in the background.
@@ -47,7 +47,7 @@ export class HeadlessAuthenticationService {
         rootClusterUri: request.rootClusterUri,
         headlessAuthenticationId: request.headlessAuthenticationId,
         headlessAuthenticationClientIp: request.headlessAuthenticationClientIp,
-        skipConfirm:  skipConfirm,
+        skipConfirm: skipConfirm,
         onSuccess: () => resolve(),
         onCancel: () => resolve(),
       });

@@ -52,13 +52,9 @@ export function HeadlessPrompt({
   updateHeadlessStateAttempt,
   onCancel,
 }: HeadlessPromptProps) {
-  const [waitForMfa, setWaitForMfa] = useState(false);
-
-  // skip to MFA confirmation step.
-  if (skipConfirm) {
-    setWaitForMfa(true);
-    onApprove();
-  }
+  // skipConfirm automatically attempts to approve a headless auth attempt,
+  // so let's show waitForMfa from the very beginning in that case.
+  const [waitForMfa, setWaitForMfa] = useState(skipConfirm);
 
   return (
     <DialogConfirmation

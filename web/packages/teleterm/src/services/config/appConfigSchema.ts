@@ -114,10 +114,12 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Enables sharing the computer.'),
-    'feature.headlessSkipConfirm': z
+    'headless.skipConfirm': z
       .boolean()
       .default(false)
-      .describe('Skips the confirmation tab for headless login approval.'),
+      .describe(
+        'Skips the confirmation prompt for headless login approval and instead prompts for WebAuthn immediately.'
+      ),
   });
 };
 

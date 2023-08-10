@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -68,6 +68,12 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
       props.onSuccess();
     }
   }
+
+  useEffect(() => {
+    if (props.skipConfirm && updateHeadlessStateAttempt.status === '') {
+      handleHeadlessApprove();
+    }
+  }, []);
 
   return (
     <HeadlessPrompt
