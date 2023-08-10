@@ -172,6 +172,7 @@ export class AgentRunner {
         agent.pid?.toString(),
         process.pid.toString(),
         rootClusterUri,
+        this.settings.userDataDir + '/logs',
       ]);
 
       // The cleanup daemon terminates the agent only when the parent (this process) gets

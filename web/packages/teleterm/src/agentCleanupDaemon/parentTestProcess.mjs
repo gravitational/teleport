@@ -20,11 +20,18 @@ import { setTimeout } from 'node:timers/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const logsDir = process.argv[2];
 // sendPidsImmediately controls whether this process is going to report children PIDs to its parent
 // immediately or only after children report being ready.
-const sendPidsImmediately = process.argv[2] === 'sendPidsImmediately';
+const sendPidsImmediately = process.argv[3] === 'sendPidsImmediately';
 // ignoreSigterm controls whether the agent process ignores SIGTERM or not.
-const ignoreSigterm = process.argv[3] === 'ignoreSigterm';
+const ignoreSigterm = process.argv[4] === 'ignoreSigterm';
+
+if (!logsDir) {
+  throw new Error(
+    'Logs directory must be passed over argv as the first argument'
+  );
+}
 
 // Workaround for the lack of __dirname in ESM modules.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -38,7 +45,7 @@ const agentCleanupDaemon = childProcess.fork(
   path.join(__dirname, 'agentCleanupDaemon.js'),
   // Use a shorter timeout in tests. Each test needs to wait for the cleanup daemon to terminate,
   // so we don't want to spend full 5s on that.
-  [agent.pid, process.pid, '/clusters/foo', 50 /* timeToSigkill */],
+  [agent.pid, process.pid, '/clusters/foo', logsDir, 50 /* timeToSigkill */],
   { stdio: 'inherit' }
 );
 

@@ -32,13 +32,17 @@
 
 const { setTimeout } = require('node:timers/promises');
 
+const { format, createLogger, transports } = require('winston');
+
 const agentPid = parseInt(process.argv[2], 10);
 // Pass ppid over argv rather than reading process.ppid, as ppid can change when the cleanup deamon
 // gets orphaned.
 const parentPid = parseInt(process.argv[3], 10);
-// For debugging purposes only.
+// rootClusterUri is for debugging purposes only. It lets us more easily tie logs to specific
+// cluster agents.
 const rootClusterUri = process.argv[4];
-const timeToSigkill = parseInt(process.argv[5], 10) || 5_000;
+const logsDir = process.argv[5];
+const timeToSigkill = parseInt(process.argv[6], 10) || 5_000;
 
 if (!agentPid) {
   throw new Error('Agent PID must be passed over argv as the first argument');
@@ -51,6 +55,11 @@ if (!rootClusterUri) {
     'Root cluster URI must be passed over argv as the third argument'
   );
 }
+if (!logsDir) {
+  throw new Error(
+    'Logs directory must be passed over argv as the fourth argument'
+  );
+}
 if (!process.send) {
   // https://nodejs.org/docs/latest-v18.x/api/child_process.html#optionsstdio
   // https://nodejs.org/docs/latest-v18.x/api/process.html#processsendmessage-sendhandle-options-callback
@@ -59,13 +68,36 @@ if (!process.send) {
   );
 }
 
-const logLine = `parent=${parentPid} agent=${agentPid} self=${process.pid} cluster=${rootClusterUri}`;
+const logger = createLogger({
+  level: 'info',
+  exitOnError: false,
+  format: format.combine(
+    format.timestamp({
+      format: 'DD-MM-YY HH:mm:ss',
+    }),
+    format.simple()
+  ),
+  transports: [
+    new transports.Console(),
+    new transports.File({
+      maxsize: 4194304, // 4 MB - max size of a single file
+      maxFiles: 5,
+      dirname: logsDir,
+      filename: `cleanup.log`,
+    }),
+  ],
+}).child({
+  parent: parentPid,
+  agent: agentPid,
+  self: process.pid,
+  cluster: rootClusterUri,
+});
 
 // disconnect will be emitted when the IPC channel between the cleanup daemon and the parent gets
 // closed. Since we don't explicitly close the channel at any point, this means that the parent got
 // unexpectedly terminated.
 process.on('disconnect', async () => {
-  log(`Disconnected from the parent.`);
+  logger.info(`Disconnected from the parent.`);
   await terminateAgent();
 });
 
@@ -79,7 +111,7 @@ process.send(null, undefined, undefined, () => {
   // We handle the IPC channel being closed below with process.connected.
 });
 
-log(`Spawned and ready.`);
+logger.info(`Spawned and ready.`);
 
 postLaunchChecks();
 
@@ -90,14 +122,14 @@ async function postLaunchChecks() {
   // In that scenario, the 'disconnect' event will never be fired and the event loop will no longer
   // have any work to perform.
   if (!process.connected) {
-    logError(`The parent got terminated during setup.`);
+    logger.error(`The parent got terminated during setup.`);
     await terminateAgent();
     process.exitCode = 41;
     return;
   }
 
   if (!isRunning(agentPid)) {
-    logError(`The agent got terminated during setup, exiting.`);
+    logger.error(`The agent got terminated during setup, exiting.`);
     process.removeAllListeners('disconnect');
     process.exitCode = 42;
     return;
@@ -106,22 +138,22 @@ async function postLaunchChecks() {
 
 async function terminateAgent() {
   try {
-    log(`Sending SIGTERM to the agent.`);
+    logger.info(`Sending SIGTERM to the agent.`);
     // SIGTERM should cause a fast shutdown of the agent.
     process.kill(agentPid, 'SIGTERM');
 
     await setTimeout(timeToSigkill);
     if (!isRunning(agentPid)) {
-      log('The agent was gracefully terminated with SIGTERM.');
+      logger.info('The agent was gracefully terminated with SIGTERM.');
       return;
     }
 
     // Follow up with SIGKILL in case the agent is still running after receiving SIGTERM.
-    log(`Sending SIGKILL to the agent.`);
+    logger.info(`Sending SIGKILL to the agent.`);
     process.kill(agentPid, 'SIGKILL');
   } catch (error) {
     if (error.code === 'ESRCH') {
-      logError(`No agent process found.`);
+      logger.error(`No agent process found.`);
       return;
     }
     throw error;
@@ -144,12 +176,4 @@ function isRunning(pid) {
 
     throw error;
   }
-}
-
-function log(...args) {
-  console.log(...args, logLine);
-}
-
-function logError(...args) {
-  console.error(...args, logLine);
 }

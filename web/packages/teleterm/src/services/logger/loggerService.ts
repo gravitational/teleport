@@ -80,6 +80,7 @@ export function createFileLoggerService(
       new transports.File({
         maxsize: 4194304, // 4 MB - max size of a single file
         maxFiles: 5,
+        // When changing this path, remember to change the equivalent path in agent cleanup daemon.
         dirname: opts.dir + '/logs',
         filename: `${opts.name}.log`,
       }),

@@ -16,6 +16,8 @@ limitations under the License.
 
 import path from 'node:path';
 import childProcess, { ChildProcess } from 'node:child_process';
+import fs from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 import Logger, { NullService } from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -24,6 +26,17 @@ import { makeRuntimeSettings } from '../fixtures/mocks';
 import { AgentProcessState } from '../types';
 
 import { AgentRunner } from './agentRunner';
+
+beforeAll(async () => {
+  // Create a temp dir for user data dir. The cleanup daemon is going to store logs there.
+  userDataDir = await fs.mkdtemp(
+    path.join(tmpdir(), 'agent-cleanup-daemon-test-logs')
+  );
+});
+
+afterAll(async () => {
+  await fs.rm(userDataDir, { recursive: true, force: true });
+});
 
 beforeEach(() => {
   Logger.init(new NullService());
@@ -34,7 +47,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-const userDataDir = '/Users/test/Application Data/Teleport Connect';
+let userDataDir: string;
 const agentBinaryPath = path.join(__dirname, 'agentTestProcess.mjs');
 const agentCleanupDaemonPath = path.join(
   __dirname,
@@ -75,6 +88,7 @@ test('agent process and cleanup daemon start with correct arguments', async () =
       agentProcess.pid.toString(),
       process.pid.toString(),
       rootClusterUri,
+      `${userDataDir}/logs`,
     ]);
   } finally {
     await agentRunner.killAll();

@@ -17,10 +17,24 @@
 import childProcess from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
+import fs from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 // inheritStdio makes it so that processes spawned during the test will inherit stdio of the process
 // running the tests. Useful for debugging.
 const inheritStdio = false;
+
+let logsDir: string;
+
+beforeAll(async () => {
+  logsDir = await fs.mkdtemp(
+    path.join(tmpdir(), 'agent-cleanup-daemon-test-logs')
+  );
+});
+
+afterAll(async () => {
+  await fs.rm(logsDir, { recursive: true, force: true });
+});
 
 describe('agentCleanupDaemon', () => {
   test.each([
@@ -40,7 +54,7 @@ describe('agentCleanupDaemon', () => {
     await cleanupPids(async addPidToCleanup => {
       const parent = childProcess.fork(
         path.join(__dirname, 'parentTestProcess.mjs'),
-        parentArgs,
+        [logsDir, ...parentArgs],
         { stdio: (inheritStdio && 'inherit') || 'pipe' }
       );
       addPidToCleanup(parent.pid);
@@ -76,7 +90,7 @@ describe('agentCleanupDaemon', () => {
     await cleanupPids(async addPidToCleanup => {
       const parent = childProcess.fork(
         path.join(__dirname, 'parentTestProcess.mjs'),
-        ['sendPidsImmediately'],
+        [logsDir, 'sendPidsImmediately'],
         { stdio: (inheritStdio && 'inherit') || 'pipe' }
       );
       addPidToCleanup(parent.pid);
@@ -105,7 +119,7 @@ describe('agentCleanupDaemon', () => {
     await cleanupPids(async addPidToCleanup => {
       const parent = childProcess.fork(
         path.join(__dirname, 'parentTestProcess.mjs'),
-        [],
+        [logsDir],
         { stdio: (inheritStdio && 'inherit') || 'pipe' }
       );
       addPidToCleanup(parent.pid);
