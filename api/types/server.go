@@ -377,13 +377,13 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	if s.Spec.Addr == "" {
-		return trace.BadParameter(`addr must be set when server SubKind is "openssh"`)
+		return trace.BadParameter("addr must be set when server SubKind is %q", s.GetSubKind())
 	}
 	if len(s.GetPublicAddrs()) != 0 {
-		return trace.BadParameter(`publicAddrs must not be set when server SubKind is "openssh"`)
+		return trace.BadParameter("publicAddrs must not be set when server SubKind is %q", s.GetSubKind())
 	}
 	if s.Spec.Hostname == "" {
-		return trace.BadParameter(`hostname must be set when server SubKind is "openssh"`)
+		return trace.BadParameter("hostname must be set when server SubKind is %q", s.GetSubKind())
 	}
 
 	_, _, err := net.SplitHostPort(s.Spec.Addr)
