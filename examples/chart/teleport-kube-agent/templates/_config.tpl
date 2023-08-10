@@ -41,7 +41,7 @@ kubernetes_service:
 {{- end }}
 
 app_service:
-  {{- if and ($appRolePresent) }}
+  {{- if $appRolePresent }}
     {{- if not (or (.Values.apps) (.Values.appResources) ($appDiscoveryEnabled)) }}
       {{- fail "app discovery should be enabled or at least one of 'apps'/'appResources' is required in chart values when app role is enabled, see README" }}
     {{- end }}
