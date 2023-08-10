@@ -1,7 +1,8 @@
 {{- define "teleport-kube-agent.config" -}}
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
+{{- $appRolePresent := contains "app" (.Values.roles | toString) -}}
 {{- $discoveryEnabled := contains "discovery" (.Values.roles | toString) -}}
-{{- $appDiscoveryEnabled := and (contains "app" (.Values.roles | toString)) ($discoveryEnabled) -}}
+{{- $appDiscoveryEnabled := and ($appRolePresent) ($discoveryEnabled) -}}
 {{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
 version: v3
 {{- end }}
@@ -35,12 +36,15 @@ kubernetes_service:
   enabled: false
   {{- end }}
 
-{{- if and (or (.Values.apps) (.Values.appResources)) (not (contains "app" (.Values.roles | toString)))}}
+{{- if and (or (.Values.apps) (.Values.appResources)) (not ($appRolePresent)) }}
   {{- fail "app role should be enabled if one of 'apps' or 'appResources' is set, see README" }}
 {{- end }}
 
 app_service:
-  {{- if and (contains "app" (.Values.roles | toString)) (or (.Values.apps) (.Values.appResources) ($appDiscoveryEnabled)) }}
+  {{- if and ($appRolePresent) }}
+    {{- if not (or (.Values.apps) (.Values.appResources) ($appDiscoveryEnabled)) }}
+      {{- fail "app discovery should be enabled or at least one of 'apps'/'appResources' is required in chart values when app role is enabled, see README" }}
+    {{- end }}
   enabled: true
   {{- if .Values.apps }}
     {{- range $app := .Values.apps }}
@@ -53,16 +57,16 @@ app_service:
     {{- end }}
   apps:
     {{- toYaml .Values.apps | nindent 8 }}
-  {{- end }}
+    {{- end }}
   resources:
-  {{- if .Values.appResources }}
-    {{- toYaml .Values.appResources | nindent 8 }}
-  {{- end }}
-  {{- if $appDiscoveryEnabled }}
+    {{- if .Values.appResources }}
+      {{- toYaml .Values.appResources | nindent 8 }}
+    {{- end }}
+    {{- if $appDiscoveryEnabled }}
   - labels:
       "teleport.dev/kubernetes-cluster": "{{ required "kubeClusterName is required in chart values when kube or discovery role is enabled, see README" .Values.kubeClusterName }}"
       "teleport.dev/origin": "discovery-kubernetes"
-  {{- end }}
+    {{- end }}
   {{- else }}
   enabled: false
   {{- end }}
