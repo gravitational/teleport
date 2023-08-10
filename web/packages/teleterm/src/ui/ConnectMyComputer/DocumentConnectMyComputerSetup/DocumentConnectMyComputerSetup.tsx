@@ -30,6 +30,7 @@ import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
 import Logger from 'teleterm/logger';
 
 import { useAgentProperties } from '../useAgentProperties';
+import { StackTrace } from '../StackTrace';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -98,7 +99,7 @@ function Information(props: { onSetUpAgentClick(): void }) {
 function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
   const ctx = useAppContext();
   const { rootClusterUri, documentsService } = useWorkspaceContext();
-  const { runAgentAndWaitForNodeToJoin, markAgentAsConfigured } =
+  const { startAgent, markAgentAsConfigured, agentState, downloadAgent } =
     useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
@@ -136,10 +137,12 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
     runDownloadAgentAttempt,
     setDownloadAgentAttempt,
   ] = useAsync(
-    useCallback(
-      () => ctx.connectMyComputerService.downloadAgent(),
-      [ctx.connectMyComputerService]
-    )
+    useCallback(async () => {
+      const [, error] = await downloadAgent();
+      if (error) {
+        throw error;
+      }
+    }, [downloadAgent])
   );
   const [
     generateConfigFileAttempt,
@@ -159,7 +162,10 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
         if (!nodeToken.current) {
           throw new Error('Node token is empty');
         }
-        await runAgentAndWaitForNodeToJoin();
+        const [, error] = await startAgent();
+        if (error) {
+          throw error;
+        }
         try {
           await ctx.connectMyComputerService.deleteToken(
             cluster.uri,
@@ -172,11 +178,7 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
           }
           throw error;
         }
-      }, [
-        runAgentAndWaitForNodeToJoin,
-        ctx.connectMyComputerService,
-        cluster.uri,
-      ])
+      }, [startAgent, ctx.connectMyComputerService, cluster.uri])
     );
 
   const steps = [
@@ -195,6 +197,35 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
     {
       name: 'Joining the cluster',
       attempt: joinClusterAttempt,
+      customError: () => {
+        if (
+          agentState.status === 'join-error' ||
+          agentState.status === 'process-error'
+        ) {
+          return <StandardError error={agentState.message} />;
+        }
+
+        if (agentState.status === 'process-exited') {
+          const { code, signal } = agentState;
+          const codeOrSignal = [
+            // code can be 0, so we cannot just check it the same way as the signal.
+            code != null && `code ${code}`,
+            signal && `signal ${signal}`,
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          return (
+            <>
+              <StandardError
+                error={`Agent process exited with ${codeOrSignal}.`}
+                mb={1}
+              />
+              <StackTrace lines={agentState.stackTrace} />
+            </>
+          );
+        }
+      },
     },
   ];
 
@@ -294,14 +325,11 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
             <li>
               {step.name}
               {step.attempt.status === 'error' && (
-                <Alerts.Danger
-                  mb={0}
-                  css={`
-                    white-space: pre-wrap;
-                  `}
-                >
-                  {step.attempt.statusText}
-                </Alerts.Danger>
+                <>
+                  {step.customError?.() || (
+                    <StandardError error={step.attempt.statusText} />
+                  )}
+                </>
               )}
             </li>
           </Flex>
@@ -312,6 +340,22 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
         <ButtonPrimary onClick={runSteps}>Retry</ButtonPrimary>
       )}
     </>
+  );
+}
+
+function StandardError(props: {
+  error: string;
+  mb?: number | string;
+}): JSX.Element {
+  return (
+    <Alerts.Danger
+      mb={props.mb || 0}
+      css={`
+        white-space: pre-wrap;
+      `}
+    >
+      {props.error}
+    </Alerts.Danger>
   );
 }
 

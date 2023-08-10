@@ -25,12 +25,7 @@ import React, {
 
 import { wait } from 'shared/utils/wait';
 
-import {
-  Attempt,
-  makeEmptyAttempt,
-  makeSuccessAttempt,
-  useAsync,
-} from 'shared/hooks/useAsync';
+import { Attempt, makeSuccessAttempt, useAsync } from 'shared/hooks/useAsync';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -43,20 +38,58 @@ import type {
 } from 'teleterm/mainProcess/types';
 
 export type AgentState =
-  | AgentProcessState
+  | {
+      status: 'process-not-started';
+    }
+  | {
+      status: 'process-running';
+    }
+  | {
+      status: 'process-exited';
+      code: number | null;
+      signal: NodeJS.Signals | null;
+      exitedSuccessfully: boolean;
+      /** Fragment of a stack trace when the process did not exit successfully. */
+      stackTrace?: string;
+    }
+  | {
+      status: 'process-error';
+      message: string;
+    }
+  | {
+      status: 'downloading';
+    }
+  | {
+      status: 'download-error';
+      message: string;
+    }
   | {
       status: 'starting';
     }
   | {
-      status: 'stopping';
+      status: 'join-error';
+      message: string;
+    }
+  | {
+      status: 'killing';
+    }
+  | {
+      status: 'kill-error';
+      message: string;
+    }
+  | {
+      status: '';
     };
+
+type CurrentAttempt = 'download' | 'start' | 'process' | 'kill';
 
 export interface ConnectMyComputerContext {
   agentState: AgentState;
-  agentNode: Server;
-  runAgentAndWaitForNodeToJoin(): Promise<void>;
-  runWithPreparation(): Promise<[void, Error]>;
-  kill(): Promise<[void, Error]>;
+  agentNode: Server | undefined;
+  startAgent(): Promise<[Server, Error]>;
+  downloadAgent(): Promise<[void, Error]>;
+  downloadAndStartAgent(): Promise<void>;
+  killAgent(): Promise<[void, Error]>;
   isAgentConfiguredAttempt: Attempt<boolean>;
   markAgentAsConfigured(): void;
 }
@@ -67,6 +100,7 @@ export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
 }> = props => {
   const { mainProcessClient, connectMyComputerService } = useAppContext();
+
   const [
     isAgentConfiguredAttempt,
     checkIfAgentIsConfigured,
@@ -79,6 +113,13 @@ export const ConnectMyComputerContextProvider: FC<{
     )
   );
 
+  const markAgentAsConfigured = useCallback(() => {
+    setAgentConfiguredAttempt(makeSuccessAttempt(true));
+  }, [setAgentConfiguredAttempt]);
+
+  const [currentAttempt, setCurrentAttempt] =
+    useState<CurrentAttempt>('process');
+
   const [agentProcessState, setAgentProcessState] = useState<AgentProcessState>(
     () =>
       mainProcessClient.getAgentState({
@@ -88,55 +129,68 @@ export const ConnectMyComputerContextProvider: FC<{
       }
   );
 
-  const [agentNode, setAgentNode] = useState<Server>();
-
-  const runAgentAndWaitForNodeToJoin = useCallback(async () => {
-    await connectMyComputerService.runAgent(props.rootClusterUri);
-
-    const waitForNodeToJoin = async () => {
-      const node = await connectMyComputerService.waitForNodeToJoin(
-        props.rootClusterUri
-      );
-      setAgentNode(node);
-    };
-
-    try {
-      await Promise.race([
-        waitForNodeToJoin(),
-        waitForAgentProcessErrors(mainProcessClient, props.rootClusterUri),
-      ]);
-    } catch (error) {
-      // in case of any error kill the agent
-      await connectMyComputerService.killAgent(props.rootClusterUri);
-      throw error;
-    }
-  }, [connectMyComputerService, mainProcessClient, props.rootClusterUri]);
-
-  const [
-    runWithPreparationAttempt,
-    runWithPreparation,
-    setRunWithPreparationAttempt,
-  ] = useAsync(
+  const [downloadAgentAttempt, downloadAgent] = useAsync(
     useCallback(async () => {
+      setCurrentAttempt('download');
       await connectMyComputerService.downloadAgent();
-      await runAgentAndWaitForNodeToJoin();
-    }, [connectMyComputerService, runAgentAndWaitForNodeToJoin])
+    }, [connectMyComputerService])
   );
 
-  const [killAttempt, kill, setKillAttempt] = useAsync(
+  const [startAgentAttempt, startAgent] = useAsync(
     useCallback(async () => {
+      setCurrentAttempt('start');
+      await connectMyComputerService.runAgent(props.rootClusterUri);
+
+      const abortController = new AbortController();
+      try {
+        const server = await Promise.race([
+          connectMyComputerService.waitForNodeToJoin(
+            props.rootClusterUri,
+            abortController.signal
+          ),
+          throwOnAgentProcessErrors(
+            mainProcessClient,
+            props.rootClusterUri,
+            abortController.signal
+          ),
+          wait(20_000, abortController.signal).then(() => {
+            throw new Error(
+              'The agent did not manage to join the cluster within 20 seconds.'
+            );
+          }),
+        ]);
+        setCurrentAttempt('process');
+        return server;
+      } catch (error) {
+        // in case of any error kill the agent
+        await connectMyComputerService.killAgent(props.rootClusterUri);
+        throw error;
+      } finally {
+        abortController.abort();
+      }
+    }, [connectMyComputerService, mainProcessClient, props.rootClusterUri])
+  );
+
+  const downloadAndStartAgent = async () => {
+    const [, error] = await downloadAgent();
+    if (error) {
+      return;
+    }
+    await startAgent();
+  };
+
+  const [killAgentAttempt, killAgent] = useAsync(
+    useCallback(async () => {
+      setCurrentAttempt('kill');
       await connectMyComputerService.killAgent(props.rootClusterUri);
+      setCurrentAttempt('process');
     }, [connectMyComputerService, props.rootClusterUri])
   );
-
-  const markAgentAsConfigured = useCallback(() => {
-    setAgentConfiguredAttempt(makeSuccessAttempt(true));
-  }, [setAgentConfiguredAttempt]);
 
   useEffect(() => {
     const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
       props.rootClusterUri,
-      state => setAgentProcessState(state)
+      setAgentProcessState
     );
     return cleanup;
   }, [mainProcessClient, props.rootClusterUri]);
@@ -145,28 +199,23 @@ export const ConnectMyComputerContextProvider: FC<{
     checkIfAgentIsConfigured();
   }, [checkIfAgentIsConfigured]);
 
-  const computedState = computeAgentState(
-    agentProcessState,
-    runWithPreparationAttempt,
-    killAttempt
-  );
+  const computedAgentState = computeAgentState({
+    currentAttempt,
+    downloadAgentAttempt,
+    startAgentAttempt,
+    agentProcessStateAttempt: makeSuccessAttempt(agentProcessState),
+    killAgentAttempt,
+  });
 
   return (
     <ConnectMyComputerContext.Provider
       value={{
-        agentState: computedState,
-        runAgentAndWaitForNodeToJoin,
-        agentNode,
-        kill: () => {
-          setRunWithPreparationAttempt(makeEmptyAttempt());
-          setKillAttempt(makeEmptyAttempt());
-          return kill();
-        },
-        runWithPreparation: () => {
-          setRunWithPreparationAttempt(makeEmptyAttempt());
-          setKillAttempt(makeEmptyAttempt());
-          return runWithPreparation();
-        },
+        agentState: computedAgentState,
+        agentNode: startAgentAttempt.data,
+        killAgent,
+        startAgent,
+        downloadAgent,
+        downloadAndStartAgent,
         markAgentAsConfigured,
         isAgentConfiguredAttempt,
       }}
@@ -188,99 +237,158 @@ export const useConnectMyComputerContext = () => {
 };
 
 /**
- * Waits for `error` and `exit` events from the agent process.
- * If none of them happen within 20 seconds, the promise resolves.
+ * Returns agent state based on multiple sources.
+ * Not all possible cases are handled, for example `download.success` -
+ * it is expected that the next state that the user should see is `start.processing`.
  */
-async function waitForAgentProcessErrors(
-  mainProcessClient: MainProcessClient,
-  rootClusterUri: RootClusterUri
-) {
-  let cleanupFn: () => void;
-
-  try {
-    const errorPromise = new Promise((_, reject) => {
-      const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
-        rootClusterUri,
-        agentProcessState => {
-          const error = isProcessInErrorOrExitState(agentProcessState);
-          if (error) {
-            reject(error);
+function computeAgentState({
+  currentAttempt,
+  downloadAgentAttempt,
+  startAgentAttempt,
+  agentProcessStateAttempt,
+  killAgentAttempt,
+}: {
+  currentAttempt: CurrentAttempt;
+  downloadAgentAttempt: Attempt<void>;
+  startAgentAttempt: Attempt<Server>;
+  agentProcessStateAttempt: Attempt<AgentProcessState>;
+  killAgentAttempt: Attempt<void>;
+}): AgentState {
+  const agentProcessState = agentProcessStateAttempt.data;
+  switch (currentAttempt) {
+    case 'download': {
+      switch (downloadAgentAttempt.status) {
+        case 'processing': {
+          return { status: 'downloading' };
+        }
+        case 'error': {
+          return {
+            status: 'download-error',
+            message: downloadAgentAttempt.statusText,
+          };
+        }
+      }
+      break;
+    }
+    case 'start': {
+      switch (startAgentAttempt.status) {
+        case 'processing': {
+          return { status: 'starting' };
+        }
+        case 'error': {
+          if (startAgentAttempt.statusText === AgentProcessError.name) {
+            if (agentProcessState.status === 'exited') {
+              return {
+                ...agentProcessState,
+                status: 'process-exited',
+              };
+            }
+            if (agentProcessState.status === 'error') {
+              return {
+                ...agentProcessState,
+                status: 'process-error',
+              };
+            }
+          }
+          return {
+            status: 'join-error',
+            message: startAgentAttempt.statusText,
+          };
+        }
+      }
+      break;
+    }
+    case 'process': {
+      switch (agentProcessStateAttempt.status) {
+        case 'success': {
+          if (agentProcessState.status === 'exited') {
+            return {
+              ...agentProcessState,
+              status: 'process-exited',
+            };
+          }
+          if (agentProcessState.status === 'error') {
+            return {
+              ...agentProcessState,
+              status: 'process-error',
+            };
+          }
+          if (agentProcessState.status === 'running') {
+            return {
+              ...agentProcessState,
+              status: 'process-running',
+            };
+          }
+          if (agentProcessState.status === 'not-started') {
+            return {
+              ...agentProcessState,
+              status: 'process-not-started',
+            };
           }
         }
-      );
-
-      // the state may have changed before we started listening, we have to check the current state
-      const agentProcessState = mainProcessClient.getAgentState({
-        rootClusterUri,
-      });
-      const error = isProcessInErrorOrExitState(agentProcessState);
-      if (error) {
-        reject(error);
       }
-
-      cleanupFn = cleanup;
-    });
-    await Promise.race([errorPromise, wait(20_000)]);
-  } finally {
-    cleanupFn();
+      break;
+    }
+    case 'kill': {
+      switch (killAgentAttempt.status) {
+        case 'processing': {
+          return { status: 'killing' };
+        }
+        case 'error': {
+          return {
+            status: 'kill-error',
+            message: killAgentAttempt.statusText,
+          };
+        }
+      }
+      break;
+    }
   }
+  return { status: '' };
 }
 
-function isProcessInErrorOrExitState(
-  agentProcessState: AgentProcessState
-): Error | undefined {
-  if (agentProcessState.status === 'exited') {
-    const { code, signal } = agentProcessState;
-    const codeOrSignal = [
-      // code can be 0, so we cannot just check it the same way as the signal.
-      code != null && `code ${code}`,
-      signal && `signal ${signal}`,
-    ]
-      .filter(Boolean)
-      .join(' ');
+/**
+ * Waits for `error` and `exit` events from the agent process and throws when they occur.
+ */
+function throwOnAgentProcessErrors(
+  mainProcessClient: MainProcessClient,
+  rootClusterUri: RootClusterUri,
+  abortSignal: AbortSignal
+): Promise<never> {
+  return new Promise((_, reject) => {
+    const rejectOnError = (agentProcessState: AgentProcessState) => {
+      if (
+        agentProcessState.status === 'exited' ||
+        agentProcessState.status === 'error'
+      ) {
+        reject(new AgentProcessError());
+        cleanup();
+      }
+    };
 
-    return new Error(
-      [
-        `Agent process failed to start - the process exited with ${codeOrSignal}.`,
-        agentProcessState.stackTrace,
-      ]
-        .filter(Boolean)
-        .join('\n')
+    const { cleanup } = mainProcessClient.subscribeToAgentUpdate(
+      rootClusterUri,
+      rejectOnError
     );
-  }
-  if (agentProcessState.status === 'error') {
-    return new Error(
-      ['Agent process failed to start.', agentProcessState.message].join('\n')
+    abortSignal.onabort = () => {
+      cleanup();
+      reject(
+        new DOMException('throwOnAgentProcessErrors was aborted', 'AbortError')
+      );
+    };
+
+    // the state may have changed before we started listening, we have to check the current state
+    rejectOnError(
+      mainProcessClient.getAgentState({
+        rootClusterUri,
+      })
     );
-  }
+  });
 }
 
-function computeAgentState(
-  agentState: AgentProcessState,
-  runWithPreparationAttempt: Attempt<void>,
-  killAttempt: Attempt<void>
-): AgentState {
-  if (runWithPreparationAttempt.status === 'processing') {
-    return { status: 'starting' };
+export class AgentProcessError extends Error {
+  constructor() {
+    super('AgentProcessError');
+    this.name = 'AgentProcessError';
   }
-
-  if (runWithPreparationAttempt.status === 'error') {
-    return {
-      status: 'error',
-      message: runWithPreparationAttempt.statusText,
-    };
-  }
-
-  if (killAttempt.status === 'processing') {
-    return { status: 'stopping' };
-  }
-
-  if (killAttempt.status === 'error') {
-    return {
-      status: 'error',
-      message: runWithPreparationAttempt.statusText,
-    };
-  }
-
-  return agentState;
 }

@@ -42,6 +42,8 @@ import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { useAgentProperties } from '../useAgentProperties';
 
+import { StackTrace } from '../StackTrace';
+
 import type * as tsh from 'teleterm/services/tshd/types';
 
 interface DocumentConnectMyComputerStatusProps {
@@ -55,8 +57,8 @@ export function DocumentConnectMyComputerStatus(
   const {
     agentState,
     agentNode,
-    runWithPreparation,
-    kill,
+    downloadAndStartAgent,
+    killAgent,
     isAgentConfiguredAttempt,
   } = useConnectMyComputerContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
@@ -138,7 +140,7 @@ export function DocumentConnectMyComputerStatus(
             </LabelsContainer>
           )}
         </Transition>
-        <Flex mt={3} mb={3} display="flex" alignItems="center">
+        <Flex mt={3} mb={2} display="flex" alignItems="center">
           {prettyAgentState.title}
         </Flex>
         {prettyAgentState.error && (
@@ -150,24 +152,31 @@ export function DocumentConnectMyComputerStatus(
             {prettyAgentState.error}
           </Alert>
         )}
-        <Text mb={4}>
+        {prettyAgentState.stackTrace && (
+          <StackTrace lines={prettyAgentState.stackTrace} />
+        )}
+        <Text mb={4} mt={1}>
           Connecting your computer will allow any cluster user with the role{' '}
           <strong>{roleName}</strong> to access it as an SSH resource with the
           user <strong>{systemUsername}</strong>.
         </Text>
-        {agentState.status === 'running' || agentState.status === 'stopping' ? (
+        {agentState.status === 'process-running' ||
+        agentState.status === 'killing' ? (
           <ButtonPrimary
             block
-            disabled={agentState.status === 'stopping'}
-            onClick={kill}
+            disabled={agentState.status === 'killing'}
+            onClick={killAgent}
           >
             Disconnect
           </ButtonPrimary>
         ) : (
           <ButtonPrimary
             block
-            disabled={agentState.status === 'starting'}
-            onClick={runWithPreparation}
+            disabled={
+              agentState.status === 'downloading' ||
+              agentState.status === 'starting'
+            }
+            onClick={downloadAndStartAgent}
           >
             Connect
           </ButtonPrimary>
@@ -189,19 +198,24 @@ function renderLabels(labelsList: tsh.Label[]): JSX.Element[] {
 function prettifyAgentState(agentState: AgentState): {
   title: string;
   error?: string;
+  stackTrace?: string;
 } {
   switch (agentState.status) {
+    case 'downloading': {
+      //TODO(gzdunek) add progress
+      return { title: '🔄 Verifying binary' };
+    }
     case 'starting':
       return { title: '🔄 Starting' };
-    case 'stopping':
+    case 'killing':
       return { title: '🔄 Stopping' };
-    case 'not-started': {
+    case 'process-not-started': {
       return { title: '🔘 Agent not running' };
     }
-    case 'running': {
+    case 'process-running': {
       return { title: '🟢 Agent running' };
     }
-    case 'exited': {
+    case 'process-exited': {
       const { code, signal, exitedSuccessfully } = agentState;
       const codeOrSignal = [
         // code can be 0, so we cannot just check it the same way as the signal.
@@ -214,15 +228,38 @@ function prettifyAgentState(agentState: AgentState): {
       return {
         title: [
           exitedSuccessfully ? '🔘' : '🔴',
-          `Agent process exited with ${codeOrSignal}.`,
+          `Agent process exited with ${codeOrSignal}`,
         ].join('\n'),
-        error: agentState.stackTrace,
+        stackTrace: agentState.stackTrace,
       };
     }
-    case 'error': {
+    case 'download-error': {
+      return {
+        title: '🔴 Failed to download agent',
+        error: agentState.message,
+      };
+    }
+    case 'kill-error': {
+      return {
+        title: '🔴 Failed to kill agent',
+        error: agentState.message,
+      };
+    }
+    case 'join-error': {
+      return {
+        title: '🔴 Failed to join cluster',
+        error: agentState.message,
+      };
+    }
+    case 'process-error': {
       return {
         title: '🔴 An error occurred to the agent process.',
         error: agentState.message,
+      };
+    }
+    default: {
+      return {
+        title: '',
       };
     }
   }

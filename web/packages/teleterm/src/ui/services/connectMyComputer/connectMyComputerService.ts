@@ -81,9 +81,12 @@ export class ConnectMyComputerService {
     return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
   }
 
-  async waitForNodeToJoin(rootClusterUri: uri.RootClusterUri): Promise<Server> {
+  async waitForNodeToJoin(
+    rootClusterUri: uri.RootClusterUri,
+    abortSignal: AbortSignal
+  ): Promise<Server> {
     // TODO(gzdunek): Replace with waiting for the node to join.
-    await wait(1_000);
+    await wait(1_000, abortSignal);
     return {
       uri: `${rootClusterUri}/servers/178ef081-259b-4aa5-a018-449b5ea7e694`,
       tunnel: false,

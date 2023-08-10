@@ -162,8 +162,9 @@ function getStateIndicator(
     return <StyledStatus bg="error.main" />;
   }
   switch (agentState.status) {
+    case 'downloading':
     case 'starting':
-    case 'stopping': {
+    case 'killing': {
       return (
         <StyledStatus
           bg="success"
@@ -185,7 +186,7 @@ function getStateIndicator(
         />
       );
     }
-    case 'running': {
+    case 'process-running': {
       return <StyledStatus bg="success" />;
     }
   }
@@ -199,10 +200,13 @@ function isInErrorState(
     return true;
   }
   switch (agentState.status) {
-    case 'error': {
+    case 'kill-error':
+    case 'join-error':
+    case 'download-error':
+    case 'process-error': {
       return true;
     }
-    case 'exited': {
+    case 'process-exited': {
       if (!agentState.exitedSuccessfully) {
         return true;
       }
