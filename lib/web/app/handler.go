@@ -235,7 +235,8 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 // handleHttp forwards the request to the application service or redirects
 // to the application directly.
 func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
-	redirected := false
+	needsRedirect := false
+	var redirectURI string
 	session.tr.servers.Range(func(serverID, appServerInterface any) bool {
 		appServer, ok := appServerInterface.(types.AppServer)
 		if !ok {
@@ -245,15 +246,16 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 
 		// If encounter an app server that is to be redirected to, stop iterating.
 		if redirectInsteadOfForward(appServer) {
-			redirected = true
-			http.Redirect(w, r, appServer.GetApp().GetURI(), http.StatusFound)
+			needsRedirect = true
+			redirectURI = appServer.GetApp().GetURI()
 			return true
 		}
 
 		return false
 	})
 
-	if redirected {
+	if needsRedirect {
+		http.Redirect(w, r, redirectURI, http.StatusFound)
 		return nil
 	}
 
