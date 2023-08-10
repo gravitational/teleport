@@ -17,13 +17,23 @@ Jira tickets.
 
 ## Step 1/6. Create a user and role for access
 
+<ScopedBlock scope={["enterprise", "oss"]}>
 (!docs/pages/includes/plugins/rbac-update.mdx!)
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+This step is not necessary for Cloud-Hosted plugins.
+</ScopedBlock>
 
 ## Step 2/6. Export the access-plugin certificate
 
+<ScopedBlock scope={["enterprise", "oss"]}>
 (!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
 
 We'll reference these files later when configuring the plugin.
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+This step is not necessary for Cloud-Hosted plugins.
+</ScopedBlock>
 
 ## Step 3/6. Set up your Jira project
 
@@ -49,6 +59,7 @@ If you're using Jira Cloud, navigate to [Account Settings → Security → API T
 
 For Jira Server, the URL of the API tokens page will be different depending on your installation.
 
+<ScopedBlock scope={["enterprise", "oss"]}>
 ### Set up Jira webhooks
 
 Go to Settings → General → System → Webhooks and create a new webhook for Jira to tell the Teleport plugin about updates.
@@ -67,9 +78,11 @@ The webhook needs to be notified only about new issues being created, issues bei
 </Admonition>
 
 In the webhook settings page, make sure that the webhook will only send Issue Updated updates. It's not critical if anything else gets sent, since the plugin will just ignore everything else.
+</ScopedBlock>
 
 ## Step 4/6. Install the plugin
 
+<ScopedBlock scope={["enterprise", "oss"]}>
 We recommend installing Teleport plugins alongside the Teleport Proxy. This is an ideal
 location as plugins have a low memory footprint, and will require both public internet access
 and Teleport Auth Service access.
@@ -103,9 +116,14 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 </TabItem>
 </Tabs>
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+The Jira plugin is automatically installed in your cluster.
+</ScopedBlock>
 
 ## Step 5/6. Configure the plugin
 
+<ScopedBlock scope={["enterprise", "oss"]}>
 Depending on whether you are running the plugin as an executable in a
 non-containerized environment or on Kubernetes, follow the appropriate
 instructions for your environment to configure the plugin: 
@@ -167,11 +185,31 @@ The `[http]` setting block describes how the plugin's HTTP server works. The HTT
 
 You must provide an address the server should listen on, and a certificate to use. It's possible to
 run the Jira plugin on the same server as the Teleport Proxy, so you can use the same TLS certificate.
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+### Enroll Jira Integration
+Navigate to <em>Enroll New Integration</em> in the Teleport cluster management UI,
+and select Jira from the list of No-Code Integrations.
+
+![Enroll Jira](../../../img/access-controls/access-request-plugins/jira/1-enroll.png)
+
+### Configure the Plugin
+
+Configure the plugin to use your Jira server, and the Jira project board and API key generated in step 3.
+
+![Configure Jira](../../../img/access-controls/access-request-plugins/jira/2-configure.png)
+
+### Connect
+
+Once you have supplied all of the required parameters, click the <em>Connect Jira</em> button and 
+Teleport will automatically integrate with your Jira instance.
+
+</ScopedBlock>
 
 ## Step 6/6. Test the plugin
 
+<ScopedBlock scope={["enterprise", "oss"]}>
 You should be able to run the Teleport plugin now!
-
 <Tabs>
 <TabItem label="Executable" scopes={["oss", "enterprise", "cloud"]}>
 ```code
@@ -188,6 +226,7 @@ $ helm install teleport-plugin-jira teleport/teleport-plugin-jira \
 </Tabs>
 
 The log output should look familiar to what Teleport service logs. You should see that it connected to Teleport, and is listening for new Teleport requests and Jira webhooks.
+</ScopedBlock>
 
 Go ahead and test it:
 
@@ -197,6 +236,7 @@ $ tsh login --request-roles=admin
 
 That should create a new permission request on Teleport (you can test if it did with `tctl request ls`), and you should see a new task on your Jira project board.
 
+<ScopedBlock scope={["enterprise", "oss"]}>
 ### Set up systemd
 
 In production, we recommend starting the Teleport plugin daemon via an init system like systemd.
@@ -207,6 +247,7 @@ Here's the recommended Teleport plugin service unit file for systemd:
 ```
 
 Save this as `teleport-jira.service`. Make sure the `teleport-jira start` command includes a `--config` flag that refers to the configuration file you created earlier.
+</ScopedBlock>
 
 ## Audit log
 
@@ -217,8 +258,10 @@ important to review Teleport's audit log.
 
 If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).
 
+<ScopedBlock scope={["enterprise", "oss"]}>
 ## Next steps
 
 To see all of the options available to you when using the Helm chart for the
 Teleport Jira plugin, consult our [reference
 guide](../../reference/helm-reference/teleport-plugin-jira.mdx).
+</ScopedBlock>
