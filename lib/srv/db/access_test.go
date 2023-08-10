@@ -2318,12 +2318,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		NewAudit: func(common.AuditConfig) (common.Audit, error) {
+		NewAudit: func(cfg common.AuditConfig) (common.Audit, error) {
 			// Use the same audit logger implementation but substitute the
 			// underlying emitter so events can be tracked in tests.
 			return common.NewAudit(common.AuditConfig{
 				Emitter:  c.emitter,
 				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
+				Database: cfg.Database,
 			})
 		},
 		CADownloader:             p.CADownloader,
@@ -2998,14 +2999,16 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 }
 
 type fakeDiscoveryResourceChecker struct {
-	errorsByName map[string]error
+	byName map[string]func(context.Context, types.Database) error
 }
 
-func (f *fakeDiscoveryResourceChecker) Check(_ context.Context, database types.Database) error {
-	if len(f.errorsByName) == 0 {
-		return nil
+func (f *fakeDiscoveryResourceChecker) Check(ctx context.Context, database types.Database) error {
+	if len(f.byName) > 0 {
+		if check := f.byName[database.GetName()]; check != nil {
+			return trace.Wrap(check(ctx, database))
+		}
 	}
-	return trace.Wrap(f.errorsByName[database.GetName()])
+	return nil
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{

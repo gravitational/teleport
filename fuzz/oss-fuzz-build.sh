@@ -101,9 +101,6 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
     FuzzMSSQLRPCClientPartialLength fuzz_mssql_rpc_client_partial_length
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
-    FuzzMongoRead fuzz_mongo_read
-
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/opensearch \
     FuzzPathToMatcher fuzz_opensearch_path_to_matcher
 

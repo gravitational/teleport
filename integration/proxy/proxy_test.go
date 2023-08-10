@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/appaccess"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
@@ -338,7 +339,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 // SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
@@ -390,7 +391,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+	require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
 
 	// Simulate how tsh uses a kube local proxy to send kube requests to
 	// Teleport Proxy with a L7 LB in front.
@@ -434,7 +435,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		mustGetKubePod(t, k8Client, kubePodName)
+		mustGetKubePod(t, k8Client)
 	})
 }
 
@@ -445,7 +446,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)
@@ -505,7 +506,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mustGetKubePod(t, k8Client, kubePodName)
+	mustGetKubePod(t, k8Client)
 }
 
 func TestKubeIPPinning(t *testing.T) {
@@ -513,7 +514,7 @@ func TestKubeIPPinning(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		kubeCluster = "kube.teleport.cluster.local"
+		kubeCluster = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User      = "alice@example.com"
 		k8RoleName  = "kubemaster"
 	)
@@ -628,7 +629,7 @@ func TestKubeIPPinning(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+			require.Equal(t, 3, len(resp.Items), "pods item length mismatch")
 		})
 	}
 }
@@ -1553,7 +1554,7 @@ func TestALPNSNIProxyGRPCSecure(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	const (
-		localK8SNI = "kube.teleport.cluster.local"
+		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"
 		k8RoleName = "kubemaster"
 	)

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -350,6 +351,16 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		if authChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_ExistingMFAChallenge", resp.Response)
 		}
+
+		// Tweak Windows platform messages so it's clear we whether we are prompting
+		// for the *registered* or *new* device.
+		// We do it here, preemptively, because it's the simpler solution (instead
+		// of finding out whether it is a Windows prompt or not).
+		const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
+		const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
+		defer webauthnwin.ResetPromptPlatformMessage()
+		webauthnwin.PromptPlatformMessage = registeredMsg
+
 		authResp, err := tc.PromptMFAChallenge(ctx, "" /* proxyAddr */, authChallenge, func(opts *client.PromptMFAChallengeOpts) {
 			opts.PromptDevicePrefix = "*registered* "
 		})
@@ -371,6 +382,8 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		if regChallenge == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_NewMFARegisterChallenge", resp.Response)
 		}
+
+		webauthnwin.PromptPlatformMessage = newMsg
 		regResp, regCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, regChallenge)
 		if err != nil {
 			return trace.Wrap(err)
