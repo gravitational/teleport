@@ -978,7 +978,9 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	selectedCluster := selectedKubeCluster(currentTeleportCluster, getKubeConfigPath(cf, ""))
+	// Ignore errors from fetching the current cluster, since it's not
+	// mandatory to have a cluster selected or even to have a kubeconfig file.
+	selectedCluster, _ := kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), currentTeleportCluster)
 	err = c.showKubeClusters(cf.Stdout(), kubeClusters, selectedCluster)
 	return trace.Wrap(err)
 }
@@ -1160,16 +1162,6 @@ func serializeKubeListings(kubeListings []kubeListing, format string) (string, e
 		out, err = yaml.Marshal(kubeListings)
 	}
 	return string(out), trace.Wrap(err)
-}
-
-// selectedKubeCluster determines which kube cluster, if any, is selected.
-func selectedKubeCluster(currentTeleportCluster string, kubeconfgPath string) string {
-	kc, err := kubeconfig.Load(kubeconfgPath)
-	if err != nil {
-		log.WithError(err).Warning("Failed parsing existing kubeconfig")
-		return ""
-	}
-	return kubeconfig.KubeClusterFromContext(kc.CurrentContext, currentTeleportCluster)
 }
 
 type kubeLoginCommand struct {
