@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -75,13 +76,13 @@ func hasAuditEventCount(want int) eventCheckFn {
 // TestAuthPOST tests the handler of POST /x-teleport-auth.
 func TestAuthPOST(t *testing.T) {
 	const (
-		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
+		stateValue  = "012ac605867e5a7d693cd6f49c7ff0fb"
+		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b"
 	)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
 	clusterName := "test-cluster"
-	publicAddr := "proxy.goteleport.com:443"
-
+	publicAddr := "app.example.com"
 	// Generate CA TLS key and cert with the cluster and application DNS.
 	key, cert, err := tlsca.GenerateSelfSignedCA(
 		pkix.Name{CommonName: clusterName},
@@ -89,56 +90,39 @@ func TestAuthPOST(t *testing.T) {
 		defaults.CATTL,
 	)
 	require.NoError(t, err)
-
 	appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
 
 	tests := []struct {
-		desc               string
-		headers            map[string]string
-		sessionError       error
-		outStatusCode      int
-		eventChecks        []eventCheckFn
-		proxyAddrs         []utils.NetAddr
-		cookieValue        string
-		subjectCookieValue string
+		desc             string
+		stateInRequest   string
+		stateInCookie    string
+		subjectInRequest string
+		sessionError     error
+		outStatusCode    int
+		eventChecks      []eventCheckFn
 	}{
 		{
-			desc: "success",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com",
-				"X-Cookie-Value":         cookieValue,
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			outStatusCode: http.StatusOK,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-			cookieValue:        cookieValue,
-			subjectCookieValue: appSession.GetBearerToken(),
+			desc:             "success",
+			stateInRequest:   stateValue,
+			stateInCookie:    stateValue,
+			subjectInRequest: appSession.GetBearerToken(),
+			outStatusCode:    http.StatusOK,
+			eventChecks:      []eventCheckFn{hasAuditEventCount(0)},
 		},
 		{
-			desc: "success - proxy addr with custom port",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com:3080",
-				"X-Cookie-Value":         cookieValue,
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			outStatusCode: http.StatusOK,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr("proxy.goteleport.com:3080"),
-			},
-			cookieValue:        cookieValue,
-			subjectCookieValue: appSession.GetBearerToken(),
+			desc:             "missing state token in request",
+			stateInRequest:   "",
+			stateInCookie:    stateValue,
+			subjectInRequest: appSession.GetBearerToken(),
+			outStatusCode:    http.StatusForbidden,
+			eventChecks:      []eventCheckFn{hasAuditEventCount(0)},
 		},
 		{
-			desc: "missing subject session token in request",
-			headers: map[string]string{
-				"Origin":         "https://proxy.goteleport.com",
-				"X-Cookie-Value": cookieValue,
-			},
-			outStatusCode: http.StatusForbidden,
+			desc:             "missing subject session token in request",
+			stateInRequest:   stateValue,
+			stateInCookie:    stateValue,
+			subjectInRequest: "",
+			outStatusCode:    http.StatusForbidden,
 			eventChecks: []eventCheckFn{
 				hasAuditEventCount(1),
 				hasAuditEvent(0, &apievents.AuthAttempt{
@@ -156,18 +140,13 @@ func TestAuthPOST(t *testing.T) {
 					},
 				}),
 			},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
 		},
 		{
-			desc: "subject session token in request does not match",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com",
-				"X-Cookie-Value":         cookieValue,
-				"X-Subject-Cookie-Value": "foobar",
-			},
-			outStatusCode: http.StatusForbidden,
+			desc:             "subject session token in request does not match",
+			stateInRequest:   stateValue,
+			stateInCookie:    stateValue,
+			subjectInRequest: "foobar",
+			outStatusCode:    http.StatusForbidden,
 			eventChecks: []eventCheckFn{
 				hasAuditEventCount(1),
 				hasAuditEvent(0, &apievents.AuthAttempt{
@@ -185,84 +164,39 @@ func TestAuthPOST(t *testing.T) {
 					},
 				}),
 			},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
 		},
 		{
-			desc: "invalid session",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com",
-				"X-Cookie-Value":         "foobar",
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			sessionError:  trace.NotFound("invalid session"),
-			outStatusCode: http.StatusForbidden,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-		},
-		{
-			desc: "incorrect origin",
-			headers: map[string]string{
-				"Origin":                 "https://incorrect.origin.com",
-				"X-Cookie-Value":         "foobar",
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			outStatusCode: http.StatusForbidden,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
-		},
-		{
-			desc: "incorrect origin port",
-			headers: map[string]string{
-				"Origin":                 "https://proxy.goteleport.com:3080",
-				"X-Cookie-Value":         "foobar",
-				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
-			},
-			outStatusCode: http.StatusForbidden,
-			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
-			proxyAddrs: []utils.NetAddr{
-				*utils.MustParseAddr(publicAddr),
-			},
+			desc:             "invalid session",
+			stateInRequest:   stateValue,
+			stateInCookie:    stateValue,
+			subjectInRequest: appSession.GetBearerToken(),
+			sessionError:     trace.NotFound("invalid session"),
+			outStatusCode:    http.StatusForbidden,
+			eventChecks:      []eventCheckFn{hasAuditEventCount(0)},
 		},
 	}
-
 	for _, test := range tests {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
-
 			authClient := &mockAuthClient{
 				sessionError: test.sessionError,
 				appSession:   appSession,
 			}
+			p := setup(t, fakeClock, authClient, nil)
 
-			p := setup(t, fakeClock, authClient, nil, test.proxyAddrs)
+			req, err := json.Marshal(fragmentRequest{
+				StateValue:         test.stateInRequest,
+				CookieValue:        cookieValue,
+				SubjectCookieValue: test.subjectInRequest,
+			})
+			require.NoError(t, err)
 
-			res := p.makeRequestWithHeaders(t, "/x-teleport-auth", test.headers)
-
-			require.NoError(t, res.Body.Close())
-			require.Equal(t, test.outStatusCode, res.StatusCode)
-
-			var cookieValue string
-			var subjectCookieValue string
-			for _, cookie := range res.Cookies() {
-				if cookie.Name == CookieName {
-					cookieValue = cookie.Value
-				}
-
-				if cookie.Name == SubjectCookieName {
-					subjectCookieValue = cookie.Value
-				}
-			}
-
-			require.Equal(t, subjectCookieValue, test.subjectCookieValue)
-			require.Equal(t, cookieValue, test.cookieValue)
-
+			status, _ := p.makeRequest(t, "POST", "/x-teleport-auth", req, []http.Cookie{{
+				Name:  AuthStateCookieName,
+				Value: test.stateInCookie,
+			}})
+			require.Equal(t, test.outStatusCode, status)
 			for _, check := range test.eventChecks {
 				check(t, authClient.emittedEvents)
 			}
@@ -380,7 +314,7 @@ func TestMatchApplicationServers(t *testing.T) {
 		server.Close()
 	})
 
-	p := setup(t, fakeClock, authClient, tunnel, nil)
+	p := setup(t, fakeClock, authClient, tunnel)
 	status, content := p.makeRequest(t, "GET", "/", []byte{}, []http.Cookie{
 		{
 			Name:  CookieName,
@@ -502,14 +436,13 @@ type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
+func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnelclient.Tunnel) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
-		Clock:            clock,
-		AuthClient:       authClient,
-		AccessPoint:      authClient,
-		ProxyClient:      proxyClient,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		ProxyPublicAddrs: proxyPublicAddrs,
+		Clock:        clock,
+		AuthClient:   authClient,
+		AccessPoint:  authClient,
+		ProxyClient:  proxyClient,
+		CipherSuites: utils.DefaultCipherSuites(),
 	})
 	require.NoError(t, err)
 
@@ -796,7 +729,7 @@ func TestMakeAppRedirectURL(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
 			require.NoError(t, err)
 
-			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost")
+			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost", launcherURLParams{})
 			require.Equal(t, test.expectedURL, urlStr)
 		})
 	}

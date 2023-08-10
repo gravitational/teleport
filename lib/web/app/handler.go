@@ -130,8 +130,8 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(h.handleAuth)))
-	h.router.OPTIONS("/x-teleport-auth", makeRouterHandler(h.withCustomCORS(nil)))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleFragment))
+	h.router.GET("/x-teleport-auth", makeRouterHandler(h.handleFragment))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
@@ -293,7 +293,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 	// done to have a consistent UX to when launching an application.
 	session, err := h.renewSession(req)
 	if err != nil {
-		if redirectErr := h.redirectToLauncher(w, req); redirectErr == nil {
+		if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
 			return
 		}
 
@@ -561,6 +561,10 @@ const (
 
 	// SubjectCookieName is the name of the application session subject cookie.
 	SubjectCookieName = "__Host-grv_app_session_subject"
+
+	// AuthStateCookieName is the name of the state cookie used during the
+	// initial authentication flow.
+	AuthStateCookieName = "__Host-grv_app_auth_state"
 )
 
 // makeAppRedirectURL constructs a URL that will redirect the user to the
