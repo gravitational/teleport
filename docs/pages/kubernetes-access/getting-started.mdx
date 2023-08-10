@@ -61,7 +61,7 @@ join token from the Teleport Auth Service:
 
 ```code
 # Create a join token for the Teleport Kubernetes Service to authenticate
-$ TOKEN=$(tctl tokens add --type=kube --ttl=1h --format=text)
+$ TOKEN=$(tctl tokens add --type=kube,app,discovery --ttl=1h --format=text)
 $ echo $TOKEN
 ```
 
@@ -90,7 +90,7 @@ $ CLUSTER=cookie
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
 proxyAddr: "${PROXY_ADDR}"
-roles: "kube"
+roles: "kube,app,discovery"
 joinParams:
   method: "token"
   tokenName: "${TOKEN}"
@@ -118,7 +118,7 @@ $ CLUSTER=cookie
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
 proxyAddr: "${PROXY_ADDR}"
-roles: "kube"
+roles: "kube,app,discovery"
 joinParams:
   method: "token"
   tokenName: "${TOKEN}"
@@ -148,7 +148,7 @@ $ CLUSTER=cookie
 $ cat > values.yaml << EOF
 authToken: "${TOKEN}"
 proxyAddr: "${PROXY_ADDR}"
-roles: "kube"
+roles: "kube,app,discovery"
 joinParams:
   method: "token"
   tokenName: "${TOKEN}"

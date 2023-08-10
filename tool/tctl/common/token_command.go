@@ -257,11 +257,13 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		if len(proxies) == 0 {
 			return trace.NotFound("cluster has no proxies")
 		}
+		setRoles := strings.ToLower(strings.Join(roles.StringSlice(), "\\,"))
 		return kubeMessageTemplate.Execute(c.stdout,
 			map[string]interface{}{
 				"auth_server": proxies[0].GetPublicAddr(),
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
+				"set_roles":   setRoles,
 			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
