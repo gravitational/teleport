@@ -139,9 +139,11 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		}
 		joinAttributeSrc = claims
 	case types.JoinMethodKubernetes:
-		if err := a.checkKubernetesJoinRequest(ctx, req); err != nil {
+		claims, err := a.checkKubernetesJoinRequest(ctx, req)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		joinAttributeSrc = claims
 	case types.JoinMethodGCP:
 		claims, err := a.checkGCPJoinRequest(ctx, req)
 		if err != nil {

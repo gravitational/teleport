@@ -75,7 +75,7 @@ func (v *TokenReviewValidator) getClient() (kubernetes.Interface, error) {
 }
 
 // Validate uses the Kubernetes TokenReview API to validate a token and return its UserInfo
-func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*v1.UserInfo, error) {
+func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*ServiceAccountClaims, error) {
 	client, err := v.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -129,7 +129,19 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*v1.
 		)
 	}
 
-	return &reviewResult.Status.User, nil
+	// Now we've validated the token with TokenReview, we can just unmarshal
+	// the jwt claims. This lets us return something that's consistent with what
+	// is returned by the JWKS based method.
+	jwt, err := josejwt.ParseSigned(token)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing jwt")
+	}
+	claims := ServiceAccountClaims{}
+	if err := jwt.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return nil, trace.Wrap(err, "unmarshaling jwt signature")
+	}
+
+	return &claims, nil
 }
 
 func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
@@ -151,9 +163,9 @@ func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
 func ValidateTokenWithJWKS(
 	now time.Time,
 	jwksData []byte,
-	expectAudience string,
+	clusterName string,
 	token string,
-) (*ServiceAccountTokenClaims, error) {
+) (*ServiceAccountClaims, error) {
 	jwt, err := josejwt.ParseSigned(token)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing jwt")
@@ -164,7 +176,7 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	claims := ServiceAccountTokenClaims{}
+	claims := ServiceAccountClaims{}
 	if err := jwt.Claims(jwks, &claims); err != nil {
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
@@ -174,7 +186,7 @@ func ValidateTokenWithJWKS(
 		// Anything related to matching the token against ProvisionToken
 		// allow rules is left to the discretion of `lib/auth`.
 		Audience: []string{
-			expectAudience,
+			clusterName,
 		},
 		Time: now,
 	}, time.Minute)
@@ -201,20 +213,19 @@ type KubernetesSubClaim struct {
 	Pod            *PodSubClaim            `json:"pod"`
 }
 
-type ServiceAccountTokenClaims struct {
+type ServiceAccountClaims struct {
 	josejwt.Claims
-	Sub        string              `json:"sub"`
-	Issuer     string              `json:"issuer"`
 	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
 }
 
 // JoinAuditAttributes returns a series of attributes that can be inserted into
 // audit events related to a specific join.
-func (c *ServiceAccountTokenClaims) JoinAuditAttributes() (map[string]interface{}, error) {
+func (c *ServiceAccountClaims) JoinAuditAttributes() (map[string]interface{}, error) {
 	res := map[string]interface{}{}
 	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		TagName: "json",
 		Result:  &res,
+		Squash:  true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
