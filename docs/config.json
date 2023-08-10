@@ -1305,7 +1305,11 @@
             {
               "title": "Telemetry",
               "slug": "/machine-id/reference/telemetry/"
-            }
+            },
+	    {
+	    	"title": "Upgrading to v14",
+	    	"slug": "/machine-id/reference/v14-upgrade-guide/"
+	    }
           ]
         },
         {
