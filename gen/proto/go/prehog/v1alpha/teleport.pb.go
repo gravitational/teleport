@@ -4742,7 +4742,6 @@ type SubmitEventRequest_AssistNewConversation struct {
 }
 
 type SubmitEventRequest_DeviceAuthenticateEvent struct {
-	// Device Trust
 	DeviceAuthenticateEvent *DeviceAuthenticateEvent `protobuf:"bytes,52,opt,name=device_authenticate_event,json=deviceAuthenticateEvent,proto3,oneof"`
 }
 
