@@ -221,7 +221,7 @@ func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 	return true
 }
 
-// WindowsDesktops represents a list of windows desktops.
+// WindowsDesktops represents a list of Windows desktops.
 type WindowsDesktops []WindowsDesktop
 
 // Len returns the slice length.
