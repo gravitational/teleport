@@ -308,7 +308,7 @@ func (c *Chat) RecordMesssage(ctx context.Context, kind MessageType, payload str
 			return trace.Wrap(err)
 		}
 	default:
-		return trace.BadParameter("unsupported market message kind: %v", kind)
+		return trace.BadParameter("unsupported marker message kind: %v", kind)
 	}
 
 	return nil

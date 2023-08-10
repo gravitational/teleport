@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 const (
@@ -50,6 +51,20 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 // so that the AI can use it to personalize the conversation.
 // embeddingServiceClient is used to get the embeddings from the Auth Server.
 func (client *Client) NewChat(toolContext *model.ToolContext) *Chat {
+	tools := []model.Tool{
+		&model.CommandExecutionTool{},
+		&model.EmbeddingRetrievalTool{},
+	}
+
+	// The following tools are only available in the enterprise build. They will fail
+	// if included in OSS due to the lack of the required backend APIs.
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		tools = append(tools, &model.AccessRequestCreateTool{},
+			&model.AccessRequestsListTool{},
+			&model.AccessRequestListRequestableRolesTool{},
+			&model.AccessRequestListRequestableResourcesTool{})
+	}
+
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{

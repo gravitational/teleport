@@ -27,7 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -41,15 +41,16 @@ const (
 	// in the proxy cache. We always do embedding lookups if the cluster is larger than this number.
 	proxyLookupClusterMaxSize = 100
 	maxEmbeddingsPerLookup    = 10
-)
 
-// TODO(joel): remove/change when migrating to embeddings
-const maxShownRequestableItems = 50
+	// TODO(joel): remove/change when migrating to embeddings
+	maxShownRequestableItems = 50
+)
 
 // *ToolContext contains various "data" which is commonly needed by various tools.
 type ToolContext struct {
 	assist.AssistEmbeddingServiceClient
 	AccessRequestClient
+	AccessPoint
 	services.AccessChecker
 	NodeWatcher NodeWatcher
 	User        string
@@ -65,11 +66,15 @@ type NodeWatcher interface {
 	NodeCount() int
 }
 
+// AccessPoint allows reading resources from proxy cache.
+type AccessPoint interface {
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
 // AccessRequestClient abstracts away the access request client for testing purposes.
 type AccessRequestClient interface {
 	CreateAccessRequest(ctx context.Context, req types.AccessRequest) error
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // Tool is an interface that allows the agent to interact with the outside world.
@@ -183,12 +188,12 @@ This includes nodes via SSH access.`
 
 func (a *AccessRequestListRequestableResourcesTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
 	foundResources := make(chan promptResource, 0)
-	workersAlive := new(int32)
-	*workersAlive = 5
+	var workersAlive atomic.Int32
+	workersAlive.Store(5)
 
 	searchAndAppend := func(resourceType string, convert func(types.Resource) (promptResource, error)) error {
 		defer func() {
-			if atomic.AddInt32(workersAlive, -1) == 0 {
+			if workersAlive.Add(-1) == 0 {
 				close(foundResources)
 			}
 		}()
@@ -385,7 +390,7 @@ func (*AccessRequestsListTool) Run(ctx context.Context, toolCtx *ToolContext, in
 			SuggestedReviewers: request.GetSuggestedReviewers(),
 			State:              request.GetState().String(),
 			ResolveReason:      request.GetResolveReason(),
-			Created:            request.GetCreationTime().Format(time.RFC1123),
+			Created:            request.GetCreationTime().Format(time.RFC3339),
 		})
 	}
 
