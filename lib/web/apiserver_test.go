@@ -1300,7 +1300,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Len(t, res.Items, 15)
 	require.NotEqual(t, "", res.StartKey)
 
-	// // should return second page and have no third page
+	// should return second page and have no third page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
 	query.Add("startKey", res.StartKey)
 	re, err = pack.clt.Get(context.Background(), endpoint, query)

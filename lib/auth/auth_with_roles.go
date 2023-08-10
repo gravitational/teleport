@@ -1517,6 +1517,8 @@ func unifiedNameCompare(a types.ResourceWithLabels, b types.ResourceWithLabels, 
 	return stringCompare(nameA, nameB, isDesc)
 }
 
+// MakePaginatedResources converts a list of ResourceWithLabels to a PaginatedResource used in
+// grpc responses.
 func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
 	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
 	for _, resource := range resources {
@@ -1625,10 +1627,12 @@ func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources [
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
 	// Fetch full list of resources in the backend.
-	var elapsedFetch time.Duration
-	var elapsedFilter time.Duration
-	var unifiedResources []types.ResourceWithLabels
-	var filteredResources []types.ResourceWithLabels
+	var (
+		elapsedFetch      time.Duration
+		elapsedFilter     time.Duration
+		unifiedResources  []types.ResourceWithLabels
+		filteredResources []types.ResourceWithLabels
+	)
 
 	defer func() {
 		log.WithFields(logrus.Fields{
@@ -1648,7 +1652,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	elapsedFetch = time.Since(startFetch)
 
-	filteredResources = make([]types.ResourceWithLabels, 0)
 	startFilter := time.Now()
 	for _, resource := range unifiedResources {
 		switch r := resource.(type) {
@@ -1726,11 +1729,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		isDesc := req.SortBy.IsDesc
 		switch req.SortBy.Field {
 		case types.ResourceMetadataName:
-			sort.Slice(filteredResources, func(i, j int) bool {
+			sort.SliceStable(filteredResources, func(i, j int) bool {
 				return unifiedNameCompare(filteredResources[i], filteredResources[j], isDesc)
 			})
 		case types.ResourceSpecType:
-			sort.Slice(filteredResources, func(i, j int) bool {
+			sort.SliceStable(filteredResources, func(i, j int) bool {
 				return stringCompare(filteredResources[i].GetKind(), filteredResources[j].GetKind(), isDesc)
 			})
 		default:
