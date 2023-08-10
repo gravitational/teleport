@@ -258,7 +258,7 @@ func Test_kubernetesSupportsBoundTokens(t *testing.T) {
 		expectErr         assert.ErrorAssertionFunc
 	}{
 		{
-			name:              "No name support",
+			name:              "No token support",
 			gitVersion:        legacyTokenKubernetesVersion.String(),
 			supportBoundToken: false,
 			expectErr:         assert.NoError,

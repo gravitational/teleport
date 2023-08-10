@@ -120,7 +120,7 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*Ser
 		return nil, trace.Wrap(err)
 	}
 
-	// We know if the token is bound to a pod if its token is in the Extra userInfo.
+	// We know if the token is bound to a pod if its name is in the Extra userInfo.
 	// If the token is not bound while Kubernetes supports bound tokens we abort.
 	if _, ok := reviewResult.Status.User.Extra[extraDataPodNameField]; !ok && boundTokenSupport {
 		return nil, trace.BadParameter(
