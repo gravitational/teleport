@@ -33,7 +33,7 @@
     "init_hook": [
       "export TELEPORT_DEVBOX=1",
       "export PATH=\"$HOME/.cargo/bin:$PATH\"",
-      "unset GOROOT"
+      "type unset 2>/dev/null && unset GOROOT"
     ]
   },
   "nixpkgs": {
