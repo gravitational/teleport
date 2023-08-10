@@ -5283,6 +5283,8 @@ message PluginSpecV1 {
     PluginMattermostSettings mattermost = 7;
     // Settings for the JIRA plugin
     PluginJiraSettings jira = 8;
+    // Settings for the Discord plugin
+    PluginDiscordSettings discord = 9;
   }
 }
 
@@ -5369,6 +5371,22 @@ message PluginOktaSettings {
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+}
+
+// Defines a set of discord channel IDs
+message DiscordChannels {
+  option (gogoproto.equal) = true;
+  repeated string channel_ids = 1;
+}
+
+// Defines settings for the discord plugin
+message PluginDiscordSettings {
+  option (gogoproto.equal) = true;
+
+  // RoleToRecipients maps Teleport roles (by name) to the set of Discord
+  // channel IDs that will receive notifications and requests regarding that
+  // that Role.
+  map<string, DiscordChannels> role_to_recipients = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
