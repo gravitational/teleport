@@ -267,7 +267,10 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	}
 	newResources = append(newResources, newDesktops...)
 
-	putResources(ctx, c, newResources)
+	err = putResources(ctx, c, newResources)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.stale = false
