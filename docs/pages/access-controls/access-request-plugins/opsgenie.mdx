@@ -61,7 +61,7 @@ spec:
         opsgenie_notify_services: ['teleport-access-request-notifications']
 ```
 
-The 'opsgenie_notify_services' annotation specifies the service the alert will be be created for.
+The `opsgenie_notify_services` annotation specifies the schedule the alert will be be created for.
 
 ### Create a user who will request access
 
@@ -93,10 +93,6 @@ At this point, you have generated credentials that the Opsgenie plugin will use
 to connect to the Opsgenie API. To configure the plugin to use this API key navigate
 to Management -> Integrations -> Enroll New Integration.
 
-![Integrations menu](../../../img/enterprise/plugins/opsgenie/opsgenie-integrations-menu.png)
-
-Then select the Opsgenie integration.
-
 ![Integrations page](../../../img/enterprise/plugins/opsgenie/opsgenie-integration-page.png)
 
 ## Step 5/5. Test the Opsgenie plugin
@@ -109,7 +105,7 @@ As the Teleport user `myuser`, create an Access Request for the `editor` role:
 
 In Opsgenie, you will see a new alert containing information about the
 Access Request in either the default schedule specified when enrolling the plugin,
-or to the schedules specified by `opsgenie_notify_services` annotation in the requester's role.
+or in the schedules specified by `opsgenie_notify_services` annotation in the requester's role.
 
 ### Resolve the request
 
