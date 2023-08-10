@@ -252,6 +252,10 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session 
 		defer originalBody.Close()
 		r.Body = io.NopCloser(originalBody)
 	}
+	session.tr.servers.Range(func(key, value any) bool {
+		h.log.Infof("Handleforward: %v:%v", key, value)
+		return true
+	})
 	session.fwd.ServeHTTP(w, r)
 	return nil
 }

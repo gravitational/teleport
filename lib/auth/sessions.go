@@ -269,7 +269,12 @@ func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, pu
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	accessInfo := services.AccessInfoFromUserState(s.getUserOrLoginState(ctx, user))
+	userState, err := s.getUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

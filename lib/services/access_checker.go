@@ -1108,11 +1108,23 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap
 
 // UserState is a representation of a user's current state.
 type UserState interface {
+	// GetName returns the username associated with the user state.
+	GetName() string
+
 	// GetRoles returns the roles associated with the user's current state.
 	GetRoles() []string
 
 	// GetTraits returns the traits associated with the user's current sate.
 	GetTraits() map[string][]string
+
+	// GetUserType returns the user type for the user login state.
+	GetUserType() types.UserType
+
+	// IsBot returns true if the user belongs to a bot.
+	IsBot() bool
+
+	// BotGenerationLabel returns the bot generation label for the user.
+	BotGenerationLabel() string
 }
 
 // AccessInfoFromUser return a new AccessInfo populated from the roles and

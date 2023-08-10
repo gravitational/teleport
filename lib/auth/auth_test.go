@@ -1970,7 +1970,9 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 
 	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
-	accessInfo := services.AccessInfoFromUserState(p.a.getUserOrLoginState(ctx, user))
+	userState, err := p.a.getUserOrLoginState(ctx, user.GetName())
+	require.NoError(t, err)
+	accessInfo := services.AccessInfoFromUserState(userState)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 	keygen := testauthority.New()
@@ -2027,7 +2029,9 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	require.NoError(t, p.a.UpsertRole(ctx, ulsRole1))
 	require.NoError(t, p.a.UpsertRole(ctx, ulsRole2))
 
-	accessInfo = services.AccessInfoFromUserState(p.a.getUserOrLoginState(ctx, user))
+	userState, err = p.a.getUserOrLoginState(ctx, user.GetName())
+	require.NoError(t, err)
+	accessInfo = services.AccessInfoFromUserState(userState)
 	accessChecker, err = services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
