@@ -99,10 +99,34 @@ function Information(props: { onSetUpAgentClick(): void }) {
 function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
   const ctx = useAppContext();
   const { rootClusterUri, documentsService } = useWorkspaceContext();
-  const { startAgent, markAgentAsConfigured, agentState, downloadAgent } =
-    useConnectMyComputerContext();
+  const {
+    startAgent,
+    markAgentAsConfigured,
+    isAgentConfiguredAttempt,
+    agentState,
+    downloadAgent,
+  } = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
+
+  const shouldRedirectToStatusDocument =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
+
+  useEffect(() => {
+    if (shouldRedirectToStatusDocument) {
+      const statusDocument =
+        documentsService.createConnectMyComputerStatusDocument({
+          rootClusterUri,
+        });
+      documentsService.replace(props.doc.uri, statusDocument);
+    }
+  }, [
+    documentsService,
+    shouldRedirectToStatusDocument,
+    props.doc.uri,
+    rootClusterUri,
+  ]);
 
   const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
     useAsync(
@@ -249,11 +273,6 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
     }
     await wait(500);
     markAgentAsConfigured();
-    const statusDocument =
-      documentsService.createConnectMyComputerStatusDocument({
-        rootClusterUri,
-      });
-    documentsService.replace(props.doc.uri, statusDocument);
   }, [
     setCreateRoleAttempt,
     setDownloadAgentAttempt,
@@ -264,9 +283,6 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
     runGenerateConfigFileAttempt,
     runJoinClusterAttempt,
     markAgentAsConfigured,
-    documentsService,
-    rootClusterUri,
-    props.doc.uri,
   ]);
 
   useEffect(() => {

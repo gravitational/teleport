@@ -326,6 +326,13 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
             origin: 'reopened_session',
           };
         }
+
+        if (d.kind === 'doc.connect_my_computer_status') {
+          return {
+            ...d,
+            kind: 'doc.connect_my_computer_setup',
+          };
+        }
         return d;
       });
       workspace.location = workspace.previous.location;
