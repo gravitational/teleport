@@ -17,7 +17,8 @@
 import React from 'react';
 
 import { render } from 'design/utils/testing';
-import cfg from 'e-teleport/config';
+
+import cfg from 'teleport/config';
 
 import {
   SupportOSS,
@@ -42,7 +43,7 @@ test('support Enterprise', () => {
 });
 
 test('support Enterprise with CTA', () => {
-  cfg.oss.isUsageBasedBilling = true;
+  cfg.isUsageBasedBilling = true;
   const { container } = render(<SupportWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });

@@ -16,7 +16,8 @@ limitations under the License.
 
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
-import cfg from 'e-teleport/config';
+
+import cfg from 'teleport/config';
 
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -48,7 +49,7 @@ describe('buttonLockedFeature', () => {
 
   test('it has upgrade-team href for Team Plan', () => {
     const version = ctx.storeUser.state.cluster.authVersion;
-    cfg.oss.isUsageBasedBilling = true;
+    cfg.isUsageBasedBilling = true;
 
     renderWithContext(
       <ButtonLockedFeature noIcon={true}>text</ButtonLockedFeature>
@@ -73,7 +74,7 @@ describe('buttonLockedFeature', () => {
 
   test('it has upgrade-community href for community edition', () => {
     const version = ctx.storeUser.state.cluster.authVersion;
-    cfg.oss.isUsageBasedBilling = false;
+    cfg.isUsageBasedBilling = false;
     renderWithContext(
       <ButtonLockedFeature noIcon={true}>text</ButtonLockedFeature>
     );

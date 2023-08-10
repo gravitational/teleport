@@ -17,7 +17,8 @@ limitations under the License.
 import React from 'react';
 
 import { render } from 'design/utils/testing';
-import cfg from 'e-teleport/config';
+
+import cfg from 'teleport/config';
 
 import { Loaded, LoadedWithCTA } from './Sessions.story';
 
@@ -27,7 +28,7 @@ test('loaded', () => {
 });
 
 test('loaded with CTA', () => {
-  cfg.oss.isUsageBasedBilling = true;
+  cfg.isUsageBasedBilling = true;
   const { container } = render(<LoadedWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });
