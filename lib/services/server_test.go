@@ -30,7 +30,7 @@ import (
 )
 
 func TestNewAWSNodeFromEC2Instance(t *testing.T) {
-	isBadParameterErr := func(tt require.TestingT, err error, i ...interface{}) {
+	isBadParameterErr := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
