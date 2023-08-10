@@ -21,8 +21,8 @@ export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
     if (abortSignal) {
       abortSignal.onabort = () => {
         clearTimeout(timeout);
-        reject(new DOMException("Wait was aborted.", "AbortError"));
-      }
+        reject(new DOMException('Wait was aborted.', 'AbortError'));
+      };
     }
   });
 }
