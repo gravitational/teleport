@@ -46,8 +46,6 @@ type Database interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the database.
 	String() string
 	// GetDescription returns the database description.
@@ -255,11 +253,6 @@ func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
 	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
-}
-
-// LabelsString returns all database labels as a string.
-func (d *DatabaseV3) LabelsString() string {
-	return LabelsAsString(d.Metadata.Labels, d.Spec.DynamicLabels)
 }
 
 // GetDescription returns the database description.

@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -46,16 +48,30 @@ import (
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
+// Matchers contains all matchers used by discovery service
+type Matchers struct {
+	// AWS is a list of AWS EC2 matchers.
+	AWS []types.AWSMatcher
+	// Azure is a list of Azure matchers to discover resources.
+	Azure []types.AzureMatcher
+	// GCP is a list of GCP matchers to discover resources.
+	GCP []types.GCPMatcher
+	// Kubernetes is a list of Kubernetes matchers to discovery resources.
+	Kubernetes []types.KubernetesMatcher
+}
+
+func (m Matchers) IsEmpty() bool {
+	return len(m.GCP) == 0 && len(m.AWS) == 0 && len(m.Azure) == 0 && len(m.Kubernetes) == 0
+}
+
 // Config provides configuration for the discovery server.
 type Config struct {
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
-	// AWSMatchers is a list of AWS EC2 matchers.
-	AWSMatchers []types.AWSMatcher
-	// AzureMatchers is a list of Azure matchers to discover resources.
-	AzureMatchers []types.AzureMatcher
-	// GCPMatchers is a list of GCP matchers to discover resources.
-	GCPMatchers []types.GCPMatcher
+	// CloudClients is an interface for retrieving cloud clients.
+	CloudClients cloud.Clients
+	// KubernetesClient is the Kubernetes client interface
+	KubernetesClient kubernetes.Interface
+	// Matchers stores all types of matchers to discover resources
+	Matchers Matchers
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 	// AccessPoint is a discovery access point
@@ -64,6 +80,8 @@ type Config struct {
 	Log logrus.FieldLogger
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
+	// protocolChecker is used by Kubernetes fetchers to check port's protocol if needed.
+	protocolChecker fetchers.ProtocolChecker
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -80,14 +98,7 @@ type Config struct {
 }
 
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
-	}
-	if len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0 && len(c.GCPMatchers) == 0 {
+	if c.Matchers.IsEmpty() {
 		return trace.BadParameter("no matchers configured for discovery")
 	}
 	if c.Emitter == nil {
@@ -96,16 +107,44 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("no AccessPoint configured for discovery")
 	}
+
+	if len(c.Matchers.Kubernetes) > 0 && c.DiscoveryGroup == "" {
+		return trace.BadParameter(`the DiscoveryGroup name should be set for discovery server if
+kubernetes matchers are present.`)
+	}
+	if c.CloudClients == nil {
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err, "unable to create cloud clients")
+		}
+		c.CloudClients = cloudClients
+	}
+	if c.KubernetesClient == nil && len(c.Matchers.Kubernetes) > 0 {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			return trace.Wrap(err,
+				"the Kubernetes App Discovery requires a Teleport Kube Agent running on a Kubernetes cluster")
+		}
+		kubeClient, err := kubernetes.NewForConfig(cfg)
+		if err != nil {
+			return trace.Wrap(err, "unable to create Kubernetes client")
+		}
+
+		c.KubernetesClient = kubeClient
+	}
+
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
-
+	if c.protocolChecker == nil {
+		c.protocolChecker = fetchers.NewProtoChecker(false)
+	}
 	if c.PollInterval == 0 {
 		c.PollInterval = 5 * time.Minute
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
-	c.AzureMatchers = services.SimplifyAzureMatchers(c.AzureMatchers)
+	c.Matchers.Azure = services.SimplifyAzureMatchers(c.Matchers.Azure)
 	return nil
 }
 
@@ -136,6 +175,8 @@ type Server struct {
 	gcpInstaller *server.GCPInstaller
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []common.Fetcher
+	// kubeAppsFetchers holds all kubernetes fetchers for apps.
+	kubeAppsFetchers []common.Fetcher
 	// databaseFetchers holds all database fetchers.
 	databaseFetchers []common.Fetcher
 	// caRotationCh receives nodes that need to have their CAs rotated.
@@ -158,15 +199,15 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		cancelfn: cancelfn,
 	}
 
-	if err := s.initAWSWatchers(cfg.AWSMatchers); err != nil {
+	if err := s.initAWSWatchers(cfg.Matchers.AWS); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initAzureWatchers(ctx, cfg.AzureMatchers); err != nil {
+	if err := s.initAzureWatchers(ctx, cfg.Matchers.Azure); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initGCPWatchers(ctx, cfg.GCPMatchers); err != nil {
+	if err := s.initGCPWatchers(ctx, cfg.Matchers.GCP); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -174,6 +215,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		if err := s.initTeleportNodeWatcher(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if err := s.initKubeAppWatchers(cfg.Matchers.Kubernetes); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return s, nil
@@ -189,7 +234,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	var err error
 	if len(ec2Matchers) > 0 {
 		s.caRotationCh = make(chan []types.Server)
-		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients, s.caRotationCh, server.WithPollInterval(s.PollInterval))
+		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.CloudClients, s.caRotationCh, server.WithPollInterval(s.PollInterval))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -210,7 +255,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	// Add database fetchers.
 	databaseMatchers, otherMatchers := splitMatchers(otherMatchers, db.IsAWSMatcherType)
 	if len(databaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.Clients, databaseMatchers)
+		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.CloudClients, databaseMatchers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -228,7 +273,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 			for _, region := range matcher.Regions {
 				switch t {
 				case services.AWSMatcherEKS:
-					client, err := s.Clients.GetAWSEKSClient(
+					client, err := s.CloudClients.GetAWSEKSClient(
 						s.ctx,
 						region,
 						cloud.WithAssumeRole(
@@ -259,6 +304,37 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	return nil
 }
 
+func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
+	if len(matchers) == 0 {
+		return nil
+	}
+
+	kubeClient := s.KubernetesClient
+	if kubeClient == nil {
+		return trace.BadParameter("Kubernetes client is not present")
+	}
+
+	for _, matcher := range matchers {
+		if !slices.Contains(matcher.Types, services.KubernetesMatchersApp) {
+			continue
+		}
+
+		fetcher, err := fetchers.NewKubeAppsFetcher(fetchers.KubeAppsFetcherConfig{
+			KubernetesClient: kubeClient,
+			FilterLabels:     matcher.Labels,
+			Namespaces:       matcher.Namespaces,
+			Log:              s.Log,
+			ClusterName:      s.DiscoveryGroup,
+			ProtocolChecker:  s.Config.protocolChecker,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.kubeAppsFetchers = append(s.kubeAppsFetchers, fetcher)
+	}
+	return nil
+}
+
 // initAzureWatchers starts Azure resource watchers based on types provided.
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
@@ -268,7 +344,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	// VM watcher.
 	if len(vmMatchers) > 0 {
 		var err error
-		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients, server.WithPollInterval(s.PollInterval))
+		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.CloudClients, server.WithPollInterval(s.PollInterval))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -280,7 +356,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	// Add database fetchers.
 	databaseMatchers, otherMatchers := splitMatchers(otherMatchers, db.IsAzureMatcherType)
 	if len(databaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAzureFetchers(s.Clients, databaseMatchers)
+		databaseFetchers, err := db.MakeAzureFetchers(s.CloudClients, databaseMatchers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -297,7 +373,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 			for _, t := range matcher.Types {
 				switch t {
 				case services.AzureMatcherKubernetes:
-					kubeClient, err := s.Clients.GetAzureKubernetesClient(subscription)
+					kubeClient, err := s.CloudClients.GetAzureKubernetesClient(subscription)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -334,7 +410,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	// VM watcher.
 	if len(vmMatchers) > 0 {
 		var err error
-		s.gcpWatcher, err = server.NewGCPWatcher(s.ctx, vmMatchers, s.Clients)
+		s.gcpWatcher, err = server.NewGCPWatcher(s.ctx, vmMatchers, s.CloudClients)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -343,7 +419,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		}
 	}
 
-	kubeClient, err := s.Clients.GetGCPGKEClient(ctx)
+	kubeClient, err := s.CloudClients.GetGCPGKEClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -433,7 +509,7 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// TODO(gavin): support assume_role_arn for ec2.
-	ec2Client, err := s.Clients.GetAWSSSMClient(s.ctx, instances.Region)
+	ec2Client, err := s.CloudClients.GetAWSSSMClient(s.ctx, instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -604,7 +680,7 @@ outer:
 }
 
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
-	client, err := s.Clients.GetAzureRunCommandClient(instances.SubscriptionID)
+	client, err := s.CloudClients.GetAzureRunCommandClient(instances.SubscriptionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -683,7 +759,7 @@ outer:
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
-	client, err := s.Clients.GetGCPInstancesClient(s.ctx)
+	client, err := s.CloudClients.GetGCPInstancesClient(s.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -749,6 +825,9 @@ func (s *Server) Start() error {
 	if err := s.startKubeWatchers(); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := s.startKubeAppsWatchers(); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := s.startDatabaseWatchers(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -781,7 +860,7 @@ func (s *Server) Wait() error {
 func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]string, error) {
 	subscriptionIds := subs
 	if slices.Contains(subs, types.Wildcard) {
-		subsClient, err := s.Clients.GetAzureSubscriptionClient()
+		subsClient, err := s.CloudClients.GetAzureSubscriptionClient()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

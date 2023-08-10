@@ -1168,6 +1168,20 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	}
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
@@ -1216,11 +1230,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 	// Register a database.
+
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: "db-a",
 	}, types.DatabaseServerSpecV3{
-		Protocol: "postgres",
-		URI:      "localhost",
+		Database: mustCreateDatabase(t, "db-a", "postgres", "localhost"),
 		Hostname: "localhost",
 		HostID:   "localhost",
 	})
@@ -2665,7 +2679,6 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all apps.
-	app2.SetOrigin(types.OriginDynamic)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
@@ -3234,8 +3247,7 @@ func TestListResources(t *testing.T) {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432"),
 					Hostname: "localhost",
 					HostID:   uuid.New().String(),
 				})

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -59,6 +60,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -1208,34 +1210,6 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	}
 
 	return resp.GetSession(), nil
-}
-
-// GetAppSessions gets all application web sessions.
-func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	var (
-		nextToken string
-		sessions  []types.WebSession
-	)
-
-	// Leverages ListAppSessions instead of GetAppSessions to prevent
-	// the server from having to send all sessions in a single message.
-	// If there are enough sessions it can cause the max message size to be
-	// exceeded.
-	for {
-		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
-		if err != nil {
-			return nil, trail.FromGRPC(err)
-		}
-
-		sessions = append(sessions, webSessions...)
-		if token == "" {
-			break
-		}
-
-		nextToken = token
-	}
-
-	return sessions, nil
 }
 
 // ListAppSessions gets a paginated list of application web sessions.
@@ -3871,6 +3845,14 @@ func (c *Client) OktaClient() *okta.Client {
 // (as per the default gRPC behavior).
 func (c *Client) AccessListClient() *accesslist.Client {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+}
+
+// UserLoginStateClient returns a user login state client.
+// Clients connecting to  older Teleport versions, still get a user login state client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) UserLoginStateClient() *userloginstate.Client {
+	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

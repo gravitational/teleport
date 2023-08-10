@@ -50,6 +50,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -60,6 +61,7 @@ import (
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
@@ -69,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/joinserver"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1358,34 +1361,6 @@ func (g *GRPCServer) GetAppSession(ctx context.Context, req *authpb.GetAppSessio
 
 	return &authpb.GetAppSessionResponse{
 		Session: sess,
-	}, nil
-}
-
-// GetAppSessions gets all application web sessions.
-// DEPRECATED: ListAppSessions should be used instead to avoid retrieving all sessions at once.
-// TODO(tross): DELETE IN 13.0
-func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *emptypb.Empty) (*authpb.GetAppSessionsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions, err := auth.GetAppSessions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out := make([]*types.WebSessionV2, 0, len(sessions))
-	for _, sess := range sessions {
-		s, ok := sess.(*types.WebSessionV2)
-		if !ok {
-			return nil, trace.BadParameter("unexpected type %T", sess)
-		}
-		out = append(out, s)
-	}
-
-	return &authpb.GetAppSessionsResponse{
-		Sessions: out,
 	}, nil
 }
 
@@ -3804,7 +3779,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	app.SetOrigin(types.OriginDynamic)
+	if app.Origin() == "" {
+		app.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3817,7 +3794,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	app.SetOrigin(types.OriginDynamic)
+	if app.Origin() == "" {
+		app.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4445,7 +4424,8 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 								AppServer: appOrSP,
 							},
 						},
-					}}
+					},
+				}
 			case *types.SAMLIdPServiceProviderV1:
 				protoResource = &authpb.PaginatedResource{
 					Resource: &authpb.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
@@ -4454,7 +4434,8 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 								SAMLIdPServiceProvider: appOrSP,
 							},
 						},
-					}}
+					},
+				}
 			default:
 				return nil, trace.BadParameter("expected types.SAMLIdPServiceProviderV1 or types.AppServerV3, got %T", resource)
 			}
@@ -5427,6 +5408,21 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userpreferencespb.RegisterUserPreferencesServiceServer(server, userPreferencesSrv)
+
+	// Initialize and register the user login state service.
+	userLoginState, err := local.NewUserLoginStateService(cfg.AuthServer.bk)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userLoginStateServer, err := userloginstate.NewService(userloginstate.ServiceConfig{
+		Authorizer:      cfg.Authorizer,
+		UserLoginStates: userLoginState,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
 	return authServer, nil
 }

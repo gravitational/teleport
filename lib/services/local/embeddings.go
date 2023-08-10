@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -42,7 +43,7 @@ const (
 )
 
 // GetEmbedding looks up a single embedding by its name in the backend.
-func (e EmbeddingsService) GetEmbedding(ctx context.Context, kind, resourceID string) (*ai.Embedding, error) {
+func (e EmbeddingsService) GetEmbedding(ctx context.Context, kind, resourceID string) (*embedding.Embedding, error) {
 	result, err := e.Get(ctx, backend.Key(embeddingsPrefix, kind, resourceID))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -51,10 +52,10 @@ func (e EmbeddingsService) GetEmbedding(ctx context.Context, kind, resourceID st
 }
 
 // GetEmbeddings returns a stream of embeddings for a given kind.
-func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) stream.Stream[*ai.Embedding] {
+func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) stream.Stream[*embedding.Embedding] {
 	startKey := backend.ExactKey(embeddingsPrefix, kind)
 	items := backend.StreamRange(ctx, e, startKey, backend.RangeEnd(startKey), 50)
-	return stream.FilterMap(items, func(item backend.Item) (*ai.Embedding, bool) {
+	return stream.FilterMap(items, func(item backend.Item) (*embedding.Embedding, bool) {
 		embedding, err := ai.UnmarshalEmbedding(item.Value)
 		if err != nil {
 			e.log.Warnf("Skipping embedding at %s, failed to unmarshal: %v", item.Key, err)
@@ -65,7 +66,7 @@ func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) strea
 }
 
 // UpsertEmbedding creates or update a single ai.Embedding in the backend.
-func (e EmbeddingsService) UpsertEmbedding(ctx context.Context, embedding *ai.Embedding) (*ai.Embedding, error) {
+func (e EmbeddingsService) UpsertEmbedding(ctx context.Context, embedding *embedding.Embedding) (*embedding.Embedding, error) {
 	value, err := ai.MarshalEmbedding(embedding)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,6 +93,6 @@ func NewEmbeddingsService(b backend.Backend) *EmbeddingsService {
 }
 
 // embeddingItemKey builds the backend item key for a given ai.Embedding.
-func embeddingItemKey(embedding *ai.Embedding) []byte {
+func embeddingItemKey(embedding *embedding.Embedding) []byte {
 	return backend.Key(embeddingsPrefix, embedding.GetName())
 }

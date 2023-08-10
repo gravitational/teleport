@@ -158,6 +158,11 @@ func TestParseShortcut(t *testing.T) {
 		"oktaassignment":   {expectedOutput: types.KindOktaAssignment},
 		"oktaassignments":  {expectedOutput: types.KindOktaAssignment},
 
+		"access_list":  {expectedOutput: types.KindAccessList},
+		"access_lists": {expectedOutput: types.KindAccessList},
+		"accesslist":   {expectedOutput: types.KindAccessList},
+		"accesslists":  {expectedOutput: types.KindAccessList},
+
 		"SamL_IDP_sERVICe_proVidER": {expectedOutput: types.KindSAMLIdPServiceProvider},
 
 		"unknown_type": {expectedErr: true},

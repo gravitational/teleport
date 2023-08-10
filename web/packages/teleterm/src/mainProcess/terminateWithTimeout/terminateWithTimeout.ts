@@ -39,23 +39,30 @@ export async function terminateWithTimeout(
     return;
   }
 
+  const controller = new AbortController();
   const processExit = promisifyProcessExit(process);
 
-  async function startKillingSequence(): Promise<void> {
-    gracefullyKill(process);
+  gracefullyKill(process);
 
-    await setTimeout(timeout);
+  // Wait for either exit or timeout.
+  const hasExited = await Promise.race([
+    processExit.then(() => controller.abort()).then(() => true),
+    setTimeout(timeout, false, { signal: controller.signal }),
+  ]);
 
-    if (isProcessRunning(process)) {
-      const timeoutInSeconds = timeout / 1_000;
-      logger.error(
-        `Process ${process.spawnfile} did not exit within ${timeoutInSeconds} seconds. Sending SIGKILL.`
-      );
-      process.kill('SIGKILL');
-    }
+  if (hasExited) {
+    return;
   }
 
-  startKillingSequence();
+  const timeoutInSeconds = timeout / 1_000;
+  logger.error(
+    `Process ${process.spawnfile} did not exit within ${timeoutInSeconds} seconds. Sending SIGKILL.`
+  );
+  const killSucceeded = process.kill('SIGKILL');
+
+  if (!killSucceeded) {
+    throw new Error(`Sending SIGKILL to ${process.spawnfile} has failed`);
+  }
 
   await processExit;
 }

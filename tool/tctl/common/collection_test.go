@@ -22,11 +22,13 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 var (
@@ -131,10 +133,10 @@ func testKubeServerCollection_writeText(t *testing.T) {
 		types.DiscoveredNameLabel: "cluster3",
 	}
 	kubeServers := []types.KubeServer{
-		mustCreateNewKubeServer(t, "cluster1", nil),
-		mustCreateNewKubeServer(t, "cluster2", longLabelFixture),
-		mustCreateNewKubeServer(t, "afirstCluster", longLabelFixture),
-		mustCreateNewKubeServer(t, "cluster3-eks-us-west-1-123456789012", eksDiscoveredNameLabel),
+		mustCreateNewKubeServer(t, "cluster1", "_", nil),
+		mustCreateNewKubeServer(t, "cluster2", "_", longLabelFixture),
+		mustCreateNewKubeServer(t, "afirstCluster", "_", longLabelFixture),
+		mustCreateNewKubeServer(t, "cluster3-eks-us-west-1-123456789012", "_", eksDiscoveredNameLabel),
 	}
 	test := writeTextTest{
 		collection: &kubeServerCollection{servers: kubeServers},
@@ -306,10 +308,10 @@ func mustCreateNewKubeCluster(t *testing.T, name string, extraStaticLabels map[s
 	return cluster
 }
 
-func mustCreateNewKubeServer(t *testing.T, name string, extraStaticLabels map[string]string) types.KubeServer {
+func mustCreateNewKubeServer(t *testing.T, name, hostname string, extraStaticLabels map[string]string) *types.KubernetesServerV3 {
 	t.Helper()
 	cluster := mustCreateNewKubeCluster(t, name, extraStaticLabels)
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, "some-host", "some-hostid")
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, hostname, uuid.New().String())
 	require.NoError(t, err)
 	return kubeServer
 }
@@ -325,7 +327,7 @@ func formatTestLabels(l1, l2 map[string]string, verbose bool) string {
 	for key, value := range l2 {
 		labels[key] = value
 	}
-	return stripInternalTeleportLabels(verbose, labels)
+	return common.FormatLabels(labels, verbose)
 }
 
 func makeTestLabels(extraStaticLabels map[string]string) map[string]string {

@@ -313,7 +313,7 @@ RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
 # Keep the version below synced with devbox.json
-RUN go install github.com/daixiang0/gci@v0.9.1
+RUN go install github.com/daixiang0/gci@v0.11.0
 
 # Install gotestsum.
 # Keep the version below synced with devbox.json
@@ -321,7 +321,7 @@ RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
 # Keep the version below synced with devbox.json
-RUN TAG='v1.53.3' && \
+RUN TAG='v1.54.0' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
