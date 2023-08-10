@@ -82,15 +82,15 @@ endif
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build
-build: buildbox-centos7
+build: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release
+		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release-unix-preserving-webassets
 
 #
 # Build 'teleport' release inside a docker container
 #
 .PHONY:build-binaries
-build-binaries: buildbox-centos7
+build-binaries: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
 
@@ -98,7 +98,7 @@ build-binaries: buildbox-centos7
 # Build 'teleport' Enterprise release inside a docker container
 #
 .PHONY:build-enterprise-binaries
-build-enterprise-binaries: buildbox-centos7
+build-enterprise-binaries: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) clean full
 
@@ -231,6 +231,16 @@ teleterm: buildbox-connect
 ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
 		bash -c "cd ../teleport && yarn install --frozen-lockfile && yarn build-ui"
+
+# Builds webassets inside the standard Ubuntu buildbox container via the
+# Makefile (instead of calling yarn directly as the ui target above does)
+# as that computes a SHA to prevent unnecessary rebuilds. This is used by
+# the CentOS 7 build that does not have a new enough version of node.js
+# to build webassets.
+.PHONY: webassets
+webassets: buildbox
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
+		/usr/bin/make ensure-webassets ensure-webassets-e
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
@@ -424,18 +434,20 @@ release-fips: buildbox-centos7-fips
 
 #
 # Create a Teleport package for CentOS 7 using the build container.
+# We depend on webassets to pre-build them in the standard Ubuntu buildbox
+# as the version of node.js on CentOS 7 is too old.
 #
 .PHONY:release-centos7
-release-centos7: buildbox-centos7
+release-centos7: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
-		/usr/bin/scl enable $(DEVTOOLSET) 'make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+		/usr/bin/scl enable $(DEVTOOLSET) 'make release-unix-preserving-webassets -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
 # This only builds and packages enterprise FIPS binaries, no OSS.
 #
 .PHONY:release-centos7-fips
-release-centos7-fips:
+release-centos7-fips: webassets
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 
