@@ -20,11 +20,15 @@ Before you get started, verify the following:
   As a best practice, you should set up a separate account that requires multifactor 
   authentication to perform administrative actions. In most cases, you should avoid 
   granting your own sign-in user account elevated administrative privileges.
+
 - You can sign up for Google Cloud and create a Google Cloud project. 
   Note that this guide doesn't require using any paid Google Cloud services.
+
 - You can set up Google Workspace groups.
+
 - You have a Teleport role with permission to maintain `oidc` resources. 
   This permission is available in the preset `editor` role.
+
 - You have a Teleport cluster, Enterprise edition, and command-line tools.
    
    (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -272,7 +276,6 @@ To configure delegation:
    
    - For direct groups only, add:
       `https://www.googleapis.com/auth/admin.directory.group.readonly`
-
    - For direct and transitive group membership support, add:
       `https://www.googleapis.com/auth/cloud-identity.groups.readonly`
 
