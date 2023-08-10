@@ -284,6 +284,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
 		OnExpiredCert:         s.reissueGatewayCerts,
+		KubeconfigsDir:        s.cfg.KubeconfigsDir,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)

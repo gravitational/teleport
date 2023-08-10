@@ -1367,7 +1367,25 @@
         },
         {
           "title": "Command Line",
-          "slug": "/reference/cli/"
+          "slug": "/reference/cli/",
+          "entries": [
+	      {
+	      	  "title": "teleport",
+	      	  "slug": "/reference/cli/teleport/"
+	      },
+	      {
+	      	  "title": "tsh",
+	      	  "slug": "/reference/cli/tsh/"
+	      },
+	      {
+	      	  "title": "tctl",
+	      	  "slug": "/reference/cli/tctl/"
+	      },
+	      {
+	      	  "title": "tbot",
+	      	  "slug": "/reference/cli/tbot/"
+	      }
+	  ]
         },
         {
           "title": "Metrics",
@@ -1577,7 +1595,7 @@
     "teleport": {
       "major_version": "14",
       "version": "14.0.0-dev",
-      "golang": "1.20",
+      "golang": "1.21",
       "plugin": {
         "version": "12.1.1"
       },

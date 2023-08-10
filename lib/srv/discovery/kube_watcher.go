@@ -68,6 +68,7 @@ func (s *Server) startKubeWatchers() error {
 		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
+		Origin:         types.OriginCloud,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -107,7 +108,7 @@ func (s *Server) onKubeCreate(ctx context.Context, rwl types.ResourceWithLabels)
 	// In this case, we need to update the resource with the
 	// discovery group label to ensure the user doesn't have to manually delete
 	// the resource.
-	// TODO(tigrato): DELETE on 14.0.0
+	// TODO(tigrato): DELETE on 15.0.0
 	if trace.IsAlreadyExists(err) {
 		return trace.Wrap(s.onKubeUpdate(ctx, rwl))
 	}

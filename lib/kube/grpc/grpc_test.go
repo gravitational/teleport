@@ -77,6 +77,13 @@ func TestListKubernetesResources(t *testing.T) {
 			Name:       usernameWithFullAccess,
 			KubeUsers:  kubeUsers,
 			KubeGroups: kubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				// override the role to allow access to all kube resources.
+				r.SetKubeResources(
+					types.Allow,
+					[]types.KubernetesResource{{Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}},
+				)
+			},
 		},
 	)
 

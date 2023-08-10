@@ -44,6 +44,8 @@ func Commands() []CLICommand {
 		&EditCommand{},
 		&LoadtestCommand{},
 		&DevicesCommand{},
+		&SAMLCommand{},
+		&ACLCommand{},
 	}
 }
 
