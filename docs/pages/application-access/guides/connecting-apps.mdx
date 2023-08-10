@@ -280,18 +280,23 @@ Additionally, the `{{internal.jwt}}` template variable will be replaced with
 a JWT token signed by Teleport that contains user identity information. See
 [Integrating with JWTs](../jwt/introduction.mdx) for more details.
 
-The JWT token can be optionally configured to exclude traits/roles:
+### Configuring the JWT token
+
+You can optionally configure the JWT token to exclude Teleport traits
+and/or roles. This may be useful if is issue connecting to an app due
+to a "header too large" error.
 
 ```yaml
 - name: "dashboard"
   uri: https://localhost:4321
   public_addr: dashboard.example.com
   rewrite:
-    # Specify whether to include roles or traits
+    # Specify whether to include roles or traits in the JWT.
     # Options:
     # - roles-and-traits: include both roles and traits
     # - roles: include only roles
-    # - none: exclude both roles and traits from the JWT token
+    # - none :exclude both roles and traits from the JWT token
+	# Default: roles-and-traits
     jwt_claims: roles-and-traits
     headers:
     # Inject header with Teleport-signed JWT token.
