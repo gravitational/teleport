@@ -285,12 +285,12 @@ func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, pu
 	}
 
 	certs, err := s.generateUserCert(certRequest{
-		user:                 user,
+		user:                 userState,
 		ttl:                  sessionTTL,
 		publicKey:            publicKey,
 		compatibility:        compatibility,
 		checker:              checker,
-		traits:               checker.Traits(),
+		traits:               userState.GetTraits(),
 		routeToCluster:       routeToCluster,
 		kubernetesCluster:    kubernetesCluster,
 		attestationStatement: attestationReq,

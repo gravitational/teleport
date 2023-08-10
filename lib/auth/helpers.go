@@ -427,12 +427,12 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 		return nil, trace.Wrap(err)
 	}
 	certs, err := a.AuthServer.generateUserCert(certRequest{
-		user:          user,
+		user:          userState,
 		ttl:           ttl,
 		compatibility: compatibility,
 		publicKey:     key,
 		checker:       checker,
-		traits:        checker.Traits(),
+		traits:        userState.GetTraits(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -494,12 +494,12 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 
 		certs, err := authServer.generateUserCert(certRequest{
 			publicKey:        pub,
-			user:             user,
+			user:             userState,
 			ttl:              identity.TTL,
 			usage:            identity.AcceptedUsage,
 			routeToCluster:   identity.RouteToCluster,
 			checker:          checker,
-			traits:           checker.Traits(),
+			traits:           userState.GetTraits(),
 			renewable:        identity.Renewable,
 			generation:       identity.Generation,
 			deviceExtensions: DeviceExtensions(id.Identity.DeviceExtensions),

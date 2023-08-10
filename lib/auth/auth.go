@@ -76,7 +76,6 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -249,15 +248,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
 	if cfg.UserLoginState == nil {
-		// The user login state will use an in memory cache as opposed to using the
-		// backend directly.
-		mem, err := memory.New(memory.Config{
-			Clock: cfg.Clock,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cfg.UserLoginState, err = local.NewUserLoginStateService(mem)
+		cfg.UserLoginState, err = local.NewUserLoginStateService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1724,7 +1715,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
 		ttl:             time.Duration(req.TTL),
-		traits:          checker.Traits(),
+		traits:          userState.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
 	})
@@ -1770,7 +1761,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		publicKey:      req.Key,
 		routeToCluster: req.RouteToCluster,
 		checker:        checker,
-		traits:         checker.Traits(),
+		traits:         userState.GetTraits(),
 		loginIP:        req.PinnedIP,
 		pinIP:          req.PinnedIP != "",
 		mfaVerified:    req.MFAVerified,
