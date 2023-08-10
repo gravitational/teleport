@@ -138,7 +138,7 @@ const (
 	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
 	SubKindOpenSSHNode = "openssh"
 
-	// SubKindOpenSSHEC2InstanceConnectEndpointNode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
+	// SubKindOpenSSHEICENode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
 	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
 	//
 	// For Amazon EC2 Instances, it uploads the key using:
@@ -146,7 +146,7 @@ const (
 	// This Key is valid for 60 seconds.
 	//
 	// It uses the private key created above to SSH into the host.
-	SubKindOpenSSHEC2InstanceConnectEndpointNode = "openssh-ec2-ice"
+	SubKindOpenSSHEICENode = "openssh-ec2-ice"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -564,6 +564,10 @@ const (
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
 
+	// OriginDiscoveryKubernetes indicates that the resource was imported
+	// from kubernetes cluster by discovery service.
+	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
+
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
 
@@ -648,6 +652,8 @@ const (
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
+	// ReqAnnotationNotifyServicesLabel is the request annotation key at which notify services are stored for access plugins.
+	ReqAnnotationNotifyServicesLabel = "/notify-services"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -655,6 +661,15 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// DiscoveredResourceNode identifies a discovered SSH node.
+	DiscoveredResourceNode = "node"
+	// DiscoveredResourceDatabase identifies a discovered database.
+	DiscoveredResourceDatabase = "db"
+	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
+	DiscoveredResourceKubernetes = "k8s"
+	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
+	DiscoveredResourceAgentlessNode = "node.openssh"
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
@@ -1054,4 +1069,13 @@ const (
 	// teleport automated user provisioning system get added to so
 	// already existing users are not deleted
 	TeleportServiceGroup = "teleport-system"
+)
+
+const (
+	// JWTClaimsRewriteRolesAndTraits includes both roles and traits in the JWT token.
+	JWTClaimsRewriteRolesAndTraits = "roles-and-traits"
+	// JWTClaimsRewriteRoles includes only the roles in the JWT token.
+	JWTClaimsRewriteRoles = "roles"
+	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
+	JWTClaimsRewriteNone = "none"
 )

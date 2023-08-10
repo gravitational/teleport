@@ -48,7 +48,7 @@ test('kills a process using SIGKILL when a graceful kill did not work', async ()
   // wait for the process to start and register callbacks
   await new Promise(resolve => process.stdout.once('data', resolve));
 
-  await terminateWithTimeout(process, 1_000);
+  await terminateWithTimeout(process, 50);
 
   expect(process.killed).toBeTruthy();
   expect(process.signalCode).toBe('SIGKILL');

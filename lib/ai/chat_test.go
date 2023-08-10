@@ -51,7 +51,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hello",
 				},
 			},
-			want: 721,
+			want: 610,
 		},
 		{
 			name: "system and user messages",
@@ -65,7 +65,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hi LLM.",
 				},
 			},
-			want: 729,
+			want: 618,
 		},
 		{
 			name: "tokenize our prompt",
@@ -79,7 +79,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Show me free disk space on localhost node.",
 				},
 			},
-			want: 932,
+			want: 821,
 		},
 	}
 
@@ -108,7 +108,10 @@ func TestChat_PromptTokens(t *testing.T) {
 			cfg.BaseURL = server.URL + "/v1"
 
 			client := NewClientFromConfig(cfg)
-			chat := client.NewChat(nil, "Bob")
+
+			toolsConfig := model.ToolsConfig{DisableEmbeddingsTool: true}
+			chat, err := client.NewChat("Bob", toolsConfig)
+			require.NoError(t, err)
 
 			for _, message := range tt.messages {
 				chat.Insert(message.Role, message.Content)
@@ -149,10 +152,12 @@ func TestChat_Complete(t *testing.T) {
 	cfg.BaseURL = server.URL + "/v1"
 	client := NewClientFromConfig(cfg)
 
-	chat := client.NewChat(nil, "Bob")
+	toolsConfig := model.ToolsConfig{DisableEmbeddingsTool: true}
+	chat, err := client.NewChat("Bob", toolsConfig)
+	require.NoError(t, err)
 
 	ctx := context.Background()
-	_, _, err := chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
+	_, _, err = chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
 	require.NoError(t, err)
 
 	chat.Insert(openai.ChatMessageRoleUser, "Show me free disk space on localhost node.")

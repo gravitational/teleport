@@ -124,8 +124,6 @@ type WindowsDesktop interface {
 	ResourceWithLabels
 	// GetAddr returns the network address of this host.
 	GetAddr() string
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// GetDomain returns the ActiveDirectory domain of this host.
 	GetDomain() string
 	// GetHostID returns the ID of the Windows Desktop Service reporting the desktop.
@@ -189,11 +187,6 @@ func (d *WindowsDesktopV3) GetAddr() string {
 // GetHostID returns the HostID for the associated desktop service.
 func (d *WindowsDesktopV3) GetHostID() string {
 	return d.Spec.HostID
-}
-
-// LabelsString returns all desktop labels as a string.
-func (d *WindowsDesktopV3) LabelsString() string {
-	return LabelsAsString(d.Metadata.Labels, nil)
 }
 
 // GetDomain returns the Active Directory domain of this host.

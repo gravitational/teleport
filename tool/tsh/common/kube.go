@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 type kubeCommands struct {
@@ -958,18 +959,6 @@ func (l kubeListings) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-func formatKubeLabels(cluster types.KubeCluster) string {
-	labels := make([]string, 0, len(cluster.GetStaticLabels())+len(cluster.GetDynamicLabels()))
-	for key, value := range cluster.GetStaticLabels() {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-	}
-	for key, value := range cluster.GetDynamicLabels() {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value.GetResult()))
-	}
-	sort.Strings(labels)
-	return strings.Join(labels, " ")
-}
-
 func (c *kubeLSCommand) run(cf *CLIConf) error {
 	cf.SearchKeywords = c.searchKeywords
 	cf.Labels = c.labels
@@ -989,46 +978,72 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	selectedCluster := selectedKubeCluster(currentTeleportCluster)
+	// Ignore errors from fetching the current cluster, since it's not
+	// mandatory to have a cluster selected or even to have a kubeconfig file.
+	selectedCluster, _ := kubeconfig.SelectedKubeCluster(getKubeConfigPath(cf, ""), currentTeleportCluster)
+	err = c.showKubeClusters(cf.Stdout(), kubeClusters, selectedCluster)
+	return trace.Wrap(err)
+}
+
+func (c *kubeLSCommand) showKubeClusters(w io.Writer, kubeClusters types.KubeClusters, selectedCluster string) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		var (
-			t       asciitable.Table
-			columns = []string{"Kube Cluster Name", "Labels", "Selected"}
-			rows    [][]string
-		)
-
-		for _, cluster := range kubeClusters {
-			var selectedMark string
-			if cluster.GetName() == selectedCluster {
-				selectedMark = "*"
-			}
-			rows = append(rows, []string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
-		}
-
-		if c.quiet {
-			t = asciitable.MakeHeadlessTable(2)
-			for _, row := range rows {
-				t.AddRow(row[:2])
-			}
-		} else if c.verbose {
-			t = asciitable.MakeTable(columns, rows...)
-		} else {
-			t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
-		}
-		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
+		out := formatKubeClustersAsText(kubeClusters, selectedCluster, c.quiet, c.verbose)
+		fmt.Fprintln(w, out)
 	case teleport.JSON, teleport.YAML:
+		sort.Sort(kubeClusters)
 		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Fprintln(cf.Stdout(), out)
+		fmt.Fprintln(w, out)
 	default:
-		return trace.BadParameter("unsupported format %q", cf.Format)
+		return trace.BadParameter("unsupported format %q", c.format)
+	}
+	return nil
+}
+
+func getKubeClusterTextRow(kc types.KubeCluster, selectedCluster string, verbose bool) []string {
+	var selectedMark string
+	var row []string
+	if selectedCluster != "" && kc.GetName() == selectedCluster {
+		selectedMark = "*"
+	}
+	displayName := common.FormatResourceName(kc, verbose)
+	labels := common.FormatLabels(kc.GetAllLabels(), verbose)
+	row = append(row, displayName, labels, selectedMark)
+	return row
+}
+
+func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster string, quiet, verbose bool) string {
+	var (
+		columns = []string{"Kube Cluster Name", "Labels", "Selected"}
+		t       asciitable.Table
+		rows    [][]string
+	)
+
+	for _, cluster := range kubeClusters {
+		r := getKubeClusterTextRow(cluster, selectedCluster, verbose)
+		rows = append(rows, r)
 	}
 
-	return nil
+	switch {
+	case quiet:
+		// no column headers and only include the cluster name and labels.
+		t = asciitable.MakeHeadlessTable(2)
+		for _, row := range rows {
+			t.AddRow(row)
+		}
+	case verbose:
+		t = asciitable.MakeTable(columns, rows...)
+	default:
+		t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
+	}
+
+	// stable sort by kube cluster name.
+	t.SortRowsBy([]int{0}, true)
+	return t.AsBuffer().String()
 }
 
 func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, format string) (string, error) {
@@ -1039,11 +1054,10 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
-		labels := cl.GetStaticLabels()
-		for key, value := range cl.GetDynamicLabels() {
-			labels[key] = value.GetResult()
+		labels := cl.GetAllLabels()
+		if len(labels) == 0 {
+			labels = nil
 		}
-
 		clusterInfo = append(clusterInfo, cluster{
 			KubeClusterName: cl.GetName(),
 			Labels:          labels,
@@ -1089,22 +1103,13 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	sort.Sort(listings)
-
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(3)
-		} else {
-			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"})
-		}
-		for _, listing := range listings {
-			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster.GetName(), formatKubeLabels(listing.KubeCluster)})
-		}
-		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
+		out := formatKubeListingsAsText(listings, c.quiet, c.verbose)
+		fmt.Fprintln(cf.Stdout(), out)
 	case teleport.JSON, teleport.YAML:
+		sort.Sort(listings)
 		out, err := serializeKubeListings(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1117,6 +1122,37 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 	return nil
 }
 
+func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string {
+	var (
+		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"}
+		t       asciitable.Table
+		rows    [][]string
+	)
+	for _, listing := range listings {
+		r := append([]string{
+			listing.Proxy,
+			listing.Cluster,
+		}, getKubeClusterTextRow(listing.KubeCluster, "", verbose)...)
+		rows = append(rows, r)
+	}
+
+	switch {
+	case quiet:
+		// quiet, so no column headers.
+		t = asciitable.MakeHeadlessTable(4)
+		for _, row := range rows {
+			t.AddRow(row)
+		}
+	case verbose:
+		t = asciitable.MakeTable(columns, rows...)
+	default:
+		t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
+	}
+	// stable sort by proxy, then cluster, then kube cluster name.
+	t.SortRowsBy([]int{0, 1, 2}, true)
+	return t.AsBuffer().String()
+}
+
 func serializeKubeListings(kubeListings []kubeListing, format string) (string, error) {
 	var out []byte
 	var err error
@@ -1126,15 +1162,6 @@ func serializeKubeListings(kubeListings []kubeListing, format string) (string, e
 		out, err = yaml.Marshal(kubeListings)
 	}
 	return string(out), trace.Wrap(err)
-}
-
-func selectedKubeCluster(currentTeleportCluster string) string {
-	kc, err := kubeconfig.Load("")
-	if err != nil {
-		log.WithError(err).Warning("Failed parsing existing kubeconfig")
-		return ""
-	}
-	return kubeconfig.KubeClusterFromContext(kc.CurrentContext, currentTeleportCluster)
 }
 
 type kubeLoginCommand struct {
@@ -1161,9 +1188,14 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
-	c.Flag("set-context-name", "Define a custom context name.").StringVar(&c.overrideContextName)
+	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
+		// Use the default context name template if --set-context-name is not set.
+		// This works as an hint to the user that the context name can be customized.
+		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
+		StringVar(&c.overrideContextName)
 	c.Flag("request-reason", "Reason for requesting access").StringVar(&c.requestReason)
 	c.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&c.disableAccessRequest)
+
 	return c
 }
 
@@ -1171,8 +1203,10 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if c.kubeCluster == "" && !c.all {
 		return trace.BadParameter("kube-cluster name is required. Check 'tsh kube ls' for a list of available clusters.")
 	}
-	if c.all && c.overrideContextName != "" {
-		return trace.BadParameter("cannot use --set-context-name with --all")
+	// If --all and --set-context-name are set, ensure that the template is valid
+	// and can produce distinct context names for each cluster before proceeding.
+	if err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName); err != nil && c.all {
+		return trace.Wrap(err)
 	}
 
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
@@ -1255,19 +1289,27 @@ func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClie
 func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
 	switch {
 	case c.kubeCluster != "":
-		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q. Start the local proxy:
-  tsh proxy kube -p 8443
-
-Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
-`, c.kubeCluster)
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
 
 	default:
-		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available. Start the local proxy:
+		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+	}
+
+	fmt.Fprintf(cf.Stdout(), `
+
+Your Teleport cluster runs behind a layer 7 load balancer or reverse proxy.
+
+To access the cluster, use "tsh kubectl" which is a fully featured "kubectl"
+command that works when the Teleport cluster is behind layer 7 load balancer or
+reverse proxy. To run the Kubernetes client, use:
+  tsh kubectl version
+
+Or, start a local proxy with "tsh proxy kube" and use the kubeconfig
+provided by the local proxy with your native Kubernetes clients:
   tsh proxy kube -p 8443
 
-Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
+Learn more at https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview
 `)
-	}
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {

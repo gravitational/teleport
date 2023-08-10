@@ -52,6 +52,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 		name      string
 		namespace string
 		kind      string
+		apiGroup  string
 		resources []types.KubernetesResource
 	}
 
@@ -65,7 +66,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			args: args{
 				name:      "",
 				namespace: "",
-				kind:      types.KindKubePod,
+				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -82,7 +83,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			args: args{
 				name:      "pod-1",
 				namespace: "namespace-1",
-				kind:      types.KindKubePod,
+				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -99,7 +100,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			args: args{
 				name:      "pod-1",
 				namespace: "",
-				kind:      types.KindKubePod,
+				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -116,7 +117,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			args: args{
 				name:      "pod-1",
 				namespace: "namespace-1",
-				kind:      types.KindKubePod,
+				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -133,7 +134,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			args: args{
 				name:      "pod-1",
 				namespace: "namespace-1",
-				kind:      types.KindKubePod,
+				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -156,7 +157,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			args: args{
 				name:      "",
 				namespace: "namespace-1",
-				kind:      types.KindKubePod,
+				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -173,13 +174,154 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			args: args{
 				name:      "",
 				namespace: "namespace-2",
-				kind:      types.KindKubePod,
+				kind:      "pods",
 				resources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
 						Name:      "pod-2",
 						Namespace: "namespace-1",
 						Verbs:     []string{types.Wildcard},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "user with namespace access to namespace=namespace-2",
+			args: args{
+				name: "namespace-2",
+				kind: "namespaces",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "user without namespace access to namespace=namespace-2",
+			args: args{
+				name: "namespace-2",
+				kind: "namespaces",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "user with namespace access to pods in namespace=namespace-2",
+			args: args{
+				namespace: "namespace-2",
+				kind:      "pods",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "user with namespace access to custom resource in namespace=namespace-2",
+			args: args{
+				namespace: "namespace-2",
+				kind:      "teleportroles",
+				apiGroup:  "resources.teleport.dev",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "user without namespace access to custom resource in namespace=namespace",
+			args: args{
+				namespace: "namespace",
+				kind:      "teleportroles",
+				apiGroup:  "resources.teleport.dev",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "user without clusterrole access",
+			args: args{
+				name:     "role",
+				kind:     "clusterroles",
+				apiGroup: "rbac.authorization.k8s.io",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeNamespace,
+						Name:  "namespace-2",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "user with clusterrole access",
+			args: args{
+				name:     "role",
+				kind:     "clusterroles",
+				apiGroup: "rbac.authorization.k8s.io",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeClusterRole,
+						Name:  "role",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "user check clusterrole access with empty role name",
+			args: args{
+				name:     "",
+				kind:     "clusterroles",
+				apiGroup: "rbac.authorization.k8s.io",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeClusterRole,
+						Name:  "role",
+						Verbs: []string{types.Wildcard},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "user misses the role",
+			args: args{
+				name:     "",
+				kind:     "clusterroles",
+				apiGroup: "rbac.authorization.k8s.io",
+				resources: []types.KubernetesResource{
+					{
+						Kind:  types.KindKubeClusterRole,
+						Name:  "role",
+						Verbs: []string{"get"},
 					},
 				},
 			},
@@ -214,14 +356,14 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				user.GetName(),
 				kubeCluster,
 			)
-			resource, apiGroup := getKubeResourceAndAPIGroupFromType(tt.args.kind)
+
 			rsp, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
 				context.TODO(),
 				&authv1.SelfSubjectAccessReview{
 					Spec: authv1.SelfSubjectAccessReviewSpec{
 						ResourceAttributes: &authv1.ResourceAttributes{
-							Resource:  resource,
-							Group:     apiGroup,
+							Resource:  tt.args.kind,
+							Group:     tt.args.apiGroup,
 							Name:      tt.args.name,
 							Namespace: tt.args.namespace,
 							Verb:      "list",

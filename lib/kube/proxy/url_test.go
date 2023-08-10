@@ -211,7 +211,10 @@ func Test_getResourceFromRequest(t *testing.T) {
 			if tt.body != nil {
 				verb = http.MethodPost
 			}
-			got, _, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body})
+			got, _, err := getResourceFromRequest(&http.Request{Method: verb, URL: &url.URL{Path: tt.path}, Body: tt.body}, &kubeDetails{
+				kubeCodecs:         globalKubeCodecs,
+				rbacSupportedTypes: defaultRBACResources,
+			})
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got, "parsing path %q", tt.path)
 		})
