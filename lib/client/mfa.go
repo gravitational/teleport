@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -117,38 +116,6 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...func(*mfa.Prompt)) PromptMFAFunc 
 // Use [NewMFAPrompt] to create a prompt with customizable settings.
 func (tc *TeleportClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	return tc.NewMFAPrompt()(ctx, chal)
-}
-
-// PromptMFAChallenge prompts the user to complete MFA authentication
-// challenges.
-// If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
-// See client.PromptMFAChallenge.
-func (tc *TeleportClient) PromptMFAChallenge(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge, applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/PromptMFAChallenge",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("cluster", tc.SiteName),
-			attribute.Bool("prefer_otp", tc.PreferOTP),
-		),
-	)
-	defer span.End()
-
-	addr := proxyAddr
-	if addr == "" {
-		addr = tc.WebProxyAddr
-	}
-
-	opts := &PromptMFAChallengeOpts{
-		AuthenticatorAttachment: tc.AuthenticatorAttachment,
-		PreferOTP:               tc.PreferOTP,
-	}
-	if applyOpts != nil {
-		applyOpts(opts)
-	}
-
-	return promptMFAStandalone(ctx, c, addr, opts)
 }
 
 // PromptMFAChallenge prompts the user to complete MFA authentication

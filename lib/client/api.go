@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -1334,11 +1335,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	key, err := proxyClient.IssueUserCertsWithMFA(
-		ctx, params,
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, proxyAddr, c, applyOpts)
-		})
+	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params, tc.PromptMFA)
 	return key, trace.Wrap(err)
 }
 
@@ -1935,12 +1932,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-					resp, err := tc.PromptMFAChallenge(ctx, proxyAddr, c, func(opts *PromptMFAChallengeOpts) {
-						opts.Quiet = true
-					})
-					return resp, trace.Wrap(err)
-				})
+				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFAPrompt(func(p *mfa.Prompt) {
+					p.Quiet = true
+				}))
 			}
 		}
 	}
@@ -5146,7 +5140,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	resp, err := tc.PromptMFAChallenge(ctx, tc.WebProxyAddr, chall, nil)
+	resp, err := tc.PromptMFA(ctx, chall)
 	if err != nil {
 		return trace.Wrap(err)
 	}
