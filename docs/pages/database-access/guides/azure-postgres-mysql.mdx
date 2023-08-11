@@ -15,8 +15,7 @@ Teleport `12.0`.
 
 </Details>
 
-This guide will help you to set up secure access and connect through Teleport
-to Azure PostgreSQL and MySQL servers.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure PostgreSQL or MySQL" dbConfigure="Azure PostgreSQL or MySQL database with IAM authentication" dbName="Azure PostgreSQL or MySQL" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access Azure PostgreSQL/MySQL Self-Hosted](../../../img/database-access/guides/azure_selfhosted.png)
@@ -65,6 +64,7 @@ Create the Database Service configuration.
 <TabItem label="MySQL">
 
 - Specify the region for your database(s) in `--azure-mysql-discovery`.
+
 - Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
   URI (e.g. `mytenant.teleport.sh:443`):
 

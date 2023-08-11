@@ -68,10 +68,12 @@ export function ConversationHistory(props: ConversationHistoryProps) {
     useAssist();
 
   const [deleting, setDeleting] = useState(false);
-  const [deleteErrorMessage, setDeleteErrorMessage] =
-    useState<string | null>(null);
-  const [conversationIdToDelete, setConversationIdToDelete] =
-    useState<string | null>(null);
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState<string | null>(
+    null
+  );
+  const [conversationIdToDelete, setConversationIdToDelete] = useState<
+    string | null
+  >(null);
 
   async function handleSelectConversation(id: string) {
     try {

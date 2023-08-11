@@ -29,5 +29,7 @@ type Client interface {
 	plugindata.Client
 	types.Events
 	Ping(context.Context) (proto.PingResponse, error)
+	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
+	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 }

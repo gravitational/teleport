@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -120,7 +120,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 // appServerMatcher returns a Matcher function used to find which AppServer can
 // handle the application requests.
-func appServerMatcher(proxyClient reversetunnel.Tunnel, publicAddr string, clusterName string) Matcher {
+func appServerMatcher(proxyClient reversetunnelclient.Tunnel, publicAddr string, clusterName string) Matcher {
 	// Match healthy and PublicAddr servers. Having a list of only healthy
 	// servers helps the transport fail before the request is forwarded to a
 	// server (in cases where there are no healthy servers). This process might

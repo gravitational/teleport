@@ -19,7 +19,6 @@ package web
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,10 +42,12 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai/testutils"
 	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -60,13 +61,23 @@ func TestExecuteCommand(t *testing.T) {
 	t.Parallel()
 	openAIMock := mockOpenAISummary(t)
 	openAIConfig := openai.DefaultConfig("test-token")
-	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	openAIConfig.BaseURL = openAIMock.URL
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
 	})
 
-	ws, _, err := s.makeCommand(t, s.authPack(t, testUser), uuid.New())
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	ws, _, err := s.makeCommand(t, s.authPack(t, testUser, assistRole.GetName()), uuid.New())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -80,12 +91,23 @@ func TestExecuteCommandHistory(t *testing.T) {
 
 	openAIMock := mockOpenAISummary(t)
 	openAIConfig := openai.DefaultConfig("test-token")
-	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	openAIConfig.BaseURL = openAIMock.URL
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
 	})
-	authPack := s.authPack(t, testUser)
+
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	authPack := s.authPack(t, testUser, assistRole.GetName())
 
 	ctx := context.Background()
 	clt, err := s.server.NewClient(auth.TestUser(testUser))
@@ -116,7 +138,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 
 	// Then command execution history is saved
 	var messages *assist.GetAssistantMessagesResponse
-	// Command execution history is saved in asynchronusly, so we need to wait for it.
+	// Command execution history is saved in asynchronously, so we need to wait for it.
 	require.Eventually(t, func() bool {
 		messages, err = clt.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
 			ConversationId: conversationID.String(),
@@ -148,12 +170,23 @@ func TestExecuteCommandSummary(t *testing.T) {
 
 	openAIMock := mockOpenAISummary(t)
 	openAIConfig := openai.DefaultConfig("test-token")
-	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	openAIConfig.BaseURL = openAIMock.URL
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
 	})
-	authPack := s.authPack(t, testUser)
+
+	assistRole, err := types.NewRole("assist-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindAssistant, services.RW()),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, assistRole))
+
+	authPack := s.authPack(t, testUser, assistRole.GetName())
 
 	ctx := context.Background()
 	clt, err := s.server.NewClient(auth.TestUser(testUser))
@@ -180,12 +213,20 @@ func TestExecuteCommandSummary(t *testing.T) {
 	// Wait for command execution to complete
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
-	var env Envelope
 	dec := json.NewDecoder(stream)
+
+	// Consume the close message
+	var sessionMetadata sessionEndEvent
+	err = dec.Decode(&sessionMetadata)
+	require.NoError(t, err)
+	require.Equal(t, "node", sessionMetadata.NodeID)
+
+	// Consume the summary message
+	var env outEnvelope
 	err = dec.Decode(&env)
 	require.NoError(t, err)
-	require.Equal(t, envelopeTypeSummary, env.GetType())
-	require.NotEmpty(t, env.GetPayload())
+	require.Equal(t, envelopeTypeSummary, env.Type)
+	require.NotEmpty(t, env.Payload)
 
 	// Wait for the command execution history to be saved
 	var messages *assist.GetAssistantMessagesResponse
@@ -292,18 +333,13 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 		default:
 		}
 
-		var env Envelope
+		var env outEnvelope
 		dec := json.NewDecoder(stream)
 		if err := dec.Decode(&env); err != nil {
 			return trace.Wrap(err, "decoding envelope JSON from stream")
 		}
 
-		d, err := base64.StdEncoding.DecodeString(env.Payload)
-		if err != nil {
-			return trace.Wrap(err, "decoding b64 payload")
-		}
-
-		data := removeSpace(string(d))
+		data := removeSpace(string(env.Payload))
 		if strings.Contains(data, substr) {
 			return nil
 		}
@@ -314,6 +350,7 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 // The commands should run in parallel, but we don't have a deterministic way to
 // test that (sleep with checking the execution time in not deterministic).
 func Test_runCommands(t *testing.T) {
+	const numWorkers = 30
 	counter := atomic.Int32{}
 
 	runCmd := func(host *hostInfo) error {
@@ -331,7 +368,7 @@ func Test_runCommands(t *testing.T) {
 	logger := logrus.New()
 	logger.Out = io.Discard
 
-	runCommands(hosts, runCmd, logger)
+	runCommands(hosts, runCmd, numWorkers, logger)
 
 	require.Equal(t, int32(100), counter.Load())
 }

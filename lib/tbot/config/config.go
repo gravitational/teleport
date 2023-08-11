@@ -47,6 +47,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
 	string(types.JoinMethodAzure),
 	string(types.JoinMethodCircleCI),
+	string(types.JoinMethodGCP),
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
@@ -291,27 +292,30 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	}
 
 	destinationPaths := map[string]int{}
+	addDestinationToKnownPaths := func(d bot.Destination) {
+		switch d := d.(type) {
+		case *DestinationDirectory:
+			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
+		case *DestinationKubernetesSecret:
+			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
+		}
+	}
 	for _, output := range conf.Outputs {
 		if err := output.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-
-		// This check currently only handles directory destinations, but we'll
-		// need to create a more polymorphic way of doing this when we introduce
-		// more destination types.
-		directoryDestination, ok := output.GetDestination().(*DestinationDirectory)
-		if ok {
-			destinationPaths[directoryDestination.Path]++
-		}
+		addDestinationToKnownPaths(output.GetDestination())
 	}
-	// Check for outputs reusing the same destination. This is a deeply
+
+	// Check for identical destinations being used. This is a deeply
 	// uncharted/unknown behavior area. For now we'll emit a heavy warning,
 	// in 15+ this will be an explicit area as outputs writing over one another
 	// is too complex to support.
+	addDestinationToKnownPaths(conf.Storage.Destination)
 	for path, count := range destinationPaths {
 		if count > 1 {
 			log.WithField("path", path).Error(
-				"Multiple outputs reusing the same destination path. This can produce unusable results. In Teleport 15.0, this will be a fatal error.",
+				"Identical destinations used within config. This can produce unusable results. In Teleport 15.0, this will be a fatal error.",
 			)
 		}
 	}
@@ -420,6 +424,12 @@ func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 		return v, nil
 	case DestinationDirectoryType:
 		v := &DestinationDirectory{}
+		if err := node.Decode(v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return v, nil
+	case DestinationKubernetesSecretType:
+		v := &DestinationKubernetesSecret{}
 		if err := node.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}

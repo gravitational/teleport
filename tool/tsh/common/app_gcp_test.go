@@ -27,6 +27,8 @@ import (
 )
 
 func Test_getGCPServiceAccountFromFlags(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                    string
 		requestedServiceAccount string
@@ -139,6 +141,8 @@ func Test_getGCPServiceAccountFromFlags(t *testing.T) {
 }
 
 func Test_formatGCPServiceAccounts(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		accounts []string

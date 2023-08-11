@@ -28,7 +28,7 @@ WebAuthn is disabled by default. To enable WebAuthn support, update your
 Teleport configuration as below:
 
 <Tabs>
-  <TabItem label="Dynamic resources" scope={["oss", "enterprise", "cloud"]}>
+  <TabItem label="Dynamic resources" scope={["team", "cloud"]}>
 
   Edit the `cluster_auth_preference` resource:
 
@@ -172,7 +172,7 @@ fallback to a weaker second factor, like OTP, using `tsh mfa add
 --mfa-mode=otp`.
 
 See the possible `--mfa-mode` values in the [Teleport CLI
-Reference](../../reference/cli.mdx#tsh-global-flags) page.
+Reference](../../reference/cli/tsh.mdx#tsh-global-flags) page.
 </Admonition>
 
 ## Step 3/3. Log in using WebAuthn

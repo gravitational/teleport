@@ -33,8 +33,10 @@ import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import {
   ExecutionEnvelopeType,
+  ExecutionTeleportErrorType,
   RawPayload,
   ServerMessageType,
+  SessionEndData,
 } from 'teleport/Assist/types';
 
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
@@ -45,15 +47,17 @@ import {
 } from 'teleport/services/auth';
 
 import * as service from '../service';
-
-import { resolveServerCommandMessage, resolveServerMessage } from '../service';
+import {
+  resolveServerAssistThoughtMessage,
+  resolveServerCommandMessage,
+  resolveServerMessage,
+} from '../service';
 
 import type {
   ConversationMessage,
   ResolvedServerMessage,
   ServerMessage,
 } from 'teleport/Assist/types';
-
 import type { AssistState } from 'teleport/Assist/context/state';
 
 interface AssistContextValue {
@@ -76,6 +80,7 @@ const TEN_MINUTES = 10 * 60 * 1000;
 
 export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   const activeWebSocket = useRef<WebSocket>(null);
+  // TODO(ryan): this should be removed once https://github.com/gravitational/teleport.e/pull/1609 is implemented
   const executeCommandWebSocket = useRef<WebSocket>(null);
   const refreshWebSocketTimeout = useRef<number | null>(null);
 
@@ -138,7 +143,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     };
 
     activeWebSocket.current.onclose = () => {
-      dispatch({ type: AssistStateActionType.SetStreaming, streaming: false });
+      dispatch({
+        type: AssistStateActionType.SetStreaming,
+        streaming: false,
+      });
     };
 
     activeWebSocket.current.onmessage = async event => {
@@ -169,19 +177,26 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case ServerMessageType.AssistPartialMessage: {
-          const payload = JSON.parse(data.payload);
-
           dispatch({
             type: AssistStateActionType.AddPartialMessage,
-            message: payload.content,
+            message: data.payload,
             conversationId,
           });
 
           break;
         }
 
+        case ServerMessageType.AssistThought:
+          const message = resolveServerAssistThoughtMessage(data);
+          dispatch({
+            type: AssistStateActionType.AddThought,
+            message: message.message,
+            conversationId,
+          });
+
+          break;
         case ServerMessageType.Command: {
-          const message = await resolveServerCommandMessage(data);
+          const message = resolveServerCommandMessage(data);
 
           dispatch({
             type: AssistStateActionType.AddExecuteRemoteCommand,
@@ -304,7 +319,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     const messages = state.messages.data.get(state.conversations.selectedId);
 
-    dispatch({ type: AssistStateActionType.SetStreaming, streaming: true });
+    dispatch({
+      type: AssistStateActionType.SetStreaming,
+      streaming: true,
+    });
 
     const data = JSON.stringify({ payload: message });
 
@@ -413,11 +431,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     );
 
     const proto = new Protobuf();
-
     executeCommandWebSocket.current = new WebSocket(url);
     executeCommandWebSocket.current.binaryType = 'arraybuffer';
-
-    let sessionsEnded = 0;
 
     executeCommandWebSocket.current.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
@@ -425,27 +440,42 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       const msg = proto.decode(uintArray);
 
       switch (msg.type) {
-        case MessageTypeEnum.RAW:
+        case MessageTypeEnum.RAW: {
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
 
-          if (data.type === ExecutionEnvelopeType) {
-            dispatch({
-              type: AssistStateActionType.AddCommandResultSummary,
-              conversationId: state.conversations.selectedId,
-              summary: payload,
-              executionId: execParams.execution_id,
-              command: execParams.command,
-            });
-          } else {
-            dispatch({
-              type: AssistStateActionType.UpdateCommandResult,
-              conversationId: state.conversations.selectedId,
-              commandResultId: nodeIdToResultId.get(data.node_id),
-              output: payload,
-            });
+          switch (data.type) {
+            case ExecutionTeleportErrorType:
+              dispatch({
+                type: AssistStateActionType.FinishCommandResult,
+                conversationId: state.conversations.selectedId,
+                commandResultId: nodeIdToResultId.get(data.node_id),
+              });
+
+              nodeIdToResultId.delete(data.node_id);
+              break;
+
+            case ExecutionEnvelopeType:
+              dispatch({
+                type: AssistStateActionType.AddCommandResultSummary,
+                conversationId: state.conversations.selectedId,
+                summary: payload,
+                executionId: execParams.execution_id,
+                command: execParams.command,
+              });
+              break;
+
+            default:
+              dispatch({
+                type: AssistStateActionType.UpdateCommandResult,
+                conversationId: state.conversations.selectedId,
+                commandResultId: nodeIdToResultId.get(data.node_id),
+                output: payload,
+              });
           }
+
           break;
+        }
 
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
           const challenge = JSON.parse(msg.payload);
@@ -465,30 +495,19 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
           break;
 
-        case MessageTypeEnum.SESSION_END:
-          // we don't know the nodeId of the session that ended, so we have to
-          // count the finished sessions and then mark them all as done once
-          // they've all finished
-          sessionsEnded += 1;
+        case MessageTypeEnum.SESSION_END: {
+          const data = JSON.parse(msg.payload) as SessionEndData;
 
-          if (sessionsEnded === nodeIdToResultId.size) {
-            const message = proto.encodeCloseMessage();
-            const bytearray = new Uint8Array(message);
+          dispatch({
+            type: AssistStateActionType.FinishCommandResult,
+            conversationId: state.conversations.selectedId,
+            commandResultId: nodeIdToResultId.get(data.node_id),
+          });
 
-            for (const nodeId of nodeIdToResultId.keys()) {
-              dispatch({
-                type: AssistStateActionType.FinishCommandResult,
-                conversationId: state.conversations.selectedId,
-                commandResultId: nodeIdToResultId.get(nodeId),
-              });
-
-              executeCommandWebSocket.current.send(bytearray.buffer);
-            }
-
-            nodeIdToResultId.clear();
-          }
+          nodeIdToResultId.delete(data.node_id);
 
           break;
+        }
       }
     };
 
@@ -534,6 +553,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
   useEffect(() => {
     loadConversations();
+
+    return () => {
+      window.clearTimeout(refreshWebSocketTimeout.current);
+    };
   }, []);
 
   const selectedConversationMessages = useMemo(

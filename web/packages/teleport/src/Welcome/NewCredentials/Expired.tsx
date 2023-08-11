@@ -51,7 +51,7 @@ const GithubLink = styled.a.attrs({
   href: 'https://github.com/gravitational/teleport/issues/new',
 })`
   color: ${props => props.theme.colors.buttons.link.default};
-  &:visted {
+  &:visited {
     color: ${props => props.theme.colors.buttons.link.default};
   }
 `;

@@ -15,14 +15,14 @@ when gradually transitioning large server fleets to Teleport.
   ![Teleport OpenSSH Recording Proxy](../../../img/server-access/openssh-proxy.svg)
 </Figure>
 
-<ScopedBlock scope={["cloud"]}>
+<Notice type="warning">
 
 Teleport Cloud only supports session recording at the Node level. If you are
 interested in setting up session recording, read our
 [Server Access Getting Started Guide](../getting-started.mdx) so you can start
 replacing your OpenSSH servers with Teleport Nodes.
 
-</ScopedBlock>
+</Notice>
 
 We consider Recording Proxy Mode to be less secure than recording at the Node
 level for two reasons:
@@ -34,7 +34,7 @@ The Teleport Proxy Service should be available to clients and set up with TLS.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/self-hosted-prereqs-tabs.mdx!)
 
 - A host where you will run an OpenSSH server.
 - (!docs/pages/includes/tctl.mdx!)

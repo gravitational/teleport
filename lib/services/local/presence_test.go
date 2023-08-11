@@ -287,6 +287,20 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 func TestDatabaseServersCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -304,8 +318,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	server, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: "foo",
 	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
+		Database: mustCreateDatabase(t, "foo", defaults.ProtocolPostgres, "localhost:5432"),
 		Hostname: "localhost",
 		HostID:   uuid.New().String(),
 	})
@@ -471,12 +484,13 @@ func TestListResources(t *testing.T) {
 		"DatabaseServers": {
 			resourceType: types.KindDatabaseServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
+				db.SetStaticLabels(labels)
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name:   name,
 					Labels: labels,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: db,
 					Hostname: "localhost",
 					HostID:   uuid.New().String(),
 				})
@@ -495,12 +509,13 @@ func TestListResources(t *testing.T) {
 		"DatabaseServersSameHost": {
 			resourceType: types.KindDatabaseServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				db := mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432")
+				db.SetStaticLabels(labels)
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name:   name,
 					Labels: labels,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: db,
 					Hostname: "localhost",
 					HostID:   "some-host",
 				})
@@ -1329,23 +1344,15 @@ func TestServerInfoCRUD(t *testing.T) {
 			"a": "b",
 			"c": "d",
 		},
-	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "abcd",
-			InstanceID: "1234",
-		},
-	})
+	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
+	serverInfoA.SetSubKind(types.SubKindCloudInfo)
 
 	serverInfoB, err := types.NewServerInfo(types.Metadata{
 		Name: "server2",
-	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "efgh",
-			InstanceID: "5678",
-		},
-	})
+	}, types.ServerInfoSpecV1{})
 	require.NoError(t, err)
+	serverInfoB.SetSubKind(types.SubKindCloudInfo)
 
 	// No infos present initially.
 	out, err := stream.Collect(presence.GetServerInfos(ctx))
@@ -1365,6 +1372,10 @@ func TestServerInfoCRUD(t *testing.T) {
 	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	outInfo, err = presence.GetServerInfo(ctx, serverInfoB.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoB, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	_, err = presence.GetServerInfo(ctx, "nonexistant")
 	require.True(t, trace.IsNotFound(err))

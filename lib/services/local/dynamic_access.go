@@ -43,20 +43,27 @@ func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 
 // CreateAccessRequest stores a new access request.
 func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req types.AccessRequest) error {
+	_, err := s.CreateAccessRequestV2(ctx, req)
+	return trace.Wrap(err)
+}
+
+// CreateAccessRequestV2 stores a new access request.
+func (s *DynamicAccessService) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	if err := services.ValidateAccessRequest(req); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if req.GetDryRun() {
-		return trace.BadParameter("dry run access request made it to DynamicAccessService, this is a bug")
+		return nil, trace.BadParameter("dry run access request made it to DynamicAccessService, this is a bug")
 	}
 	item, err := itemFromAccessRequest(req)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if _, err := s.Create(ctx, item); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+
+	return req, nil
 }
 
 // SetAccessRequestState updates the state of an existing access request.

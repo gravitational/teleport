@@ -197,6 +197,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindClusterMaintenanceConfig, nil
 	case types.KindIntegration, types.KindIntegration + "s":
 		return types.KindIntegration, nil
+	case types.KindAccessList, types.KindAccessList + "s", "accesslist", "accesslists":
+		return types.KindAccessList, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -637,4 +639,23 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	u.ResourceHeader = h
 	copy(u.Raw, raw)
 	return nil
+}
+
+// setResourceName modifies the types.Metadata argument in place, setting the resource name.
+// The name is calculated based on nameParts arguments which are joined by hyphens "-".
+// If a name override label is present, it will replace the *first* name part.
+func setResourceName(overrideLabels []string, meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
+	nameParts := append([]string{firstNamePart}, extraNameParts...)
+
+	// apply override
+	for _, overrideLabel := range overrideLabels {
+		if override, found := meta.Labels[overrideLabel]; found && override != "" {
+			nameParts[0] = override
+			break
+		}
+	}
+
+	meta.Name = strings.Join(nameParts, "-")
+
+	return meta
 }

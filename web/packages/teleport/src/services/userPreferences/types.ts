@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { DeprecatedThemeOption } from 'design/theme';
+
 import type { AssistUserPreferences } from 'teleport/Assist/types';
 
 export enum ThemePreference {
@@ -21,10 +23,35 @@ export enum ThemePreference {
   Dark = 2,
 }
 
+export enum ClusterResource {
+  RESOURCE_UNSPECIFIED = 0,
+  RESOURCE_WINDOWS_DESKTOPS = 1,
+  RESOURCE_SERVER_SSH = 2,
+  RESOURCE_DATABASES = 3,
+  RESOURCE_KUBERNETES = 4,
+  RESOURCE_WEB_APPLICATIONS = 5,
+}
+
+export type OnboardUserPreferences = {
+  preferredResources: ClusterResource[];
+};
+
 export interface UserPreferences {
   theme: ThemePreference;
   assist: AssistUserPreferences;
+  onboard: OnboardUserPreferences;
 }
 
 export type UserPreferencesSubset = Subset<UserPreferences>;
 export type GetUserPreferencesResponse = UserPreferences;
+
+export function deprecatedThemeToThemePreference(
+  theme: DeprecatedThemeOption
+): ThemePreference {
+  switch (theme) {
+    case 'light':
+      return ThemePreference.Light;
+    case 'dark':
+      return ThemePreference.Dark;
+  }
+}

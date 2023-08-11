@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -76,14 +76,14 @@ type transport struct {
 	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
-	reverseTunnelServer Server
+	reverseTunnelServer reversetunnelclient.Server
 
 	// server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
 	server ServerHandler
 
-	// emitter is an audit stream emitter.
-	emitter events.StreamEmitter
+	// emitter is an audit event emitter.
+	emitter apievents.Emitter
 
 	// proxySigner is used to sign PROXY headers and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
@@ -272,8 +272,7 @@ func (p *transport) start() {
 		clientDst = dst
 	}
 	var signedHeader []byte
-	isKubeOrAuth := dreq.ConnType == types.KubeTunnel || dreq.Address == reversetunnelclient.RemoteAuthServer
-	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, !isKubeOrAuth, clientSrc, clientDst) {
+	if shouldSendSignedPROXYHeader(p.proxySigner, useTunnel, dreq.IsAgentlessNode, clientSrc, clientDst) {
 		signedHeader, err = p.proxySigner.SignPROXYHeader(clientSrc, clientDst)
 		if err != nil {
 			errorMessage := fmt.Sprintf("connection rejected - could not create signed PROXY header: %v", err)
@@ -377,11 +376,11 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoApplicationTunnel)
 		case types.OktaTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoOktaTunnel)
 		case types.DatabaseTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoDatabaseTunnel)
 		}
 
 		errTun := err

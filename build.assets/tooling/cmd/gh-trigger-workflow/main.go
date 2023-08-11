@@ -50,6 +50,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -188,10 +189,19 @@ func getIncompleteWorkflowRunID(ctx context.Context, gh *ghapi.Client, args args
 		return nil, trace.Wrap(err, "failed to get a list of current workflow runs")
 	}
 
+	regex, err := regexp.Compile(args.seriesRunFilter)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to compile series run regex %q", args.seriesRunFilter)
+	}
+
 	for _, recentRun := range recentRuns {
 		runStatus := recentRun.GetStatus()
 		if runStatus == "" {
 			return nil, trace.Errorf("failed to get status for run ID %q", recentRun.GetID())
+		}
+
+		if !regex.MatchString(*recentRun.Name) {
+			continue
 		}
 
 		if runStatus != "completed" {
@@ -224,7 +234,7 @@ func waitForActiveWorkflowRuns(ctx context.Context, gh *ghapi.Client, args args)
 
 func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag string, baselineTime time.Time, existingRuns github.RunIDSet) (*ghapi.WorkflowRun, error) {
 	// Now we need to wait and see if a new workflow is spawned
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {

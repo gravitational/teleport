@@ -32,10 +32,15 @@ type AssistUserPreferencesResponse struct {
 	ViewMode        userpreferencesv1.AssistViewMode `json:"viewMode"`
 }
 
+type OnboardUserPreferencesResponse struct {
+	PreferredResources []userpreferencesv1.Resource `json:"preferredResources"`
+}
+
 // UserPreferencesResponse is the JSON response for the user preferences.
 type UserPreferencesResponse struct {
-	Assist AssistUserPreferencesResponse `json:"assist"`
-	Theme  userpreferencesv1.Theme       `json:"theme"`
+	Assist  AssistUserPreferencesResponse  `json:"assist"`
+	Theme   userpreferencesv1.Theme        `json:"theme"`
+	Onboard OnboardUserPreferencesResponse `json:"onboard"`
 }
 
 // getUserPreferences is a handler for GET /webapi/user/preferences
@@ -45,9 +50,7 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := authClient.GetUserPreferences(r.Context(), &userpreferencesv1.GetUserPreferencesRequest{
-		Username: sctx.GetUser(),
-	})
+	resp, err := authClient.GetUserPreferences(r.Context(), &userpreferencesv1.GetUserPreferencesRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,12 +72,14 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 	}
 
 	preferences := &userpreferencesv1.UpsertUserPreferencesRequest{
-		Username: sctx.GetUser(),
 		Preferences: &userpreferencesv1.UserPreferences{
 			Theme: req.Theme,
 			Assist: &userpreferencesv1.AssistUserPreferences{
 				PreferredLogins: req.Assist.PreferredLogins,
 				ViewMode:        req.Assist.ViewMode,
+			},
+			Onboard: &userpreferencesv1.OnboardUserPreferences{
+				PreferredResources: req.Onboard.PreferredResources,
 			},
 		},
 	}
@@ -89,8 +94,9 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request, 
 // userPreferencesResponse creates a JSON response for the user preferences.
 func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPreferencesResponse {
 	jsonResp := &UserPreferencesResponse{
-		Assist: assistUserPreferencesResponse(resp.Assist),
-		Theme:  resp.Theme,
+		Assist:  assistUserPreferencesResponse(resp.Assist),
+		Theme:   resp.Theme,
+		Onboard: onboardUserPreferencesResponse(resp.Onboard),
 	}
 
 	return jsonResp
@@ -104,6 +110,17 @@ func assistUserPreferencesResponse(resp *userpreferencesv1.AssistUserPreferences
 	}
 
 	jsonResp.PreferredLogins = append(jsonResp.PreferredLogins, resp.PreferredLogins...)
+
+	return jsonResp
+}
+
+// onboardUserPreferencesResponse creates a JSON response for the onboard user preferences.
+func onboardUserPreferencesResponse(resp *userpreferencesv1.OnboardUserPreferences) OnboardUserPreferencesResponse {
+	jsonResp := OnboardUserPreferencesResponse{
+		PreferredResources: make([]userpreferencesv1.Resource, 0, len(resp.PreferredResources)),
+	}
+
+	jsonResp.PreferredResources = append(jsonResp.PreferredResources, resp.PreferredResources...)
 
 	return jsonResp
 }

@@ -42,8 +42,10 @@ func TestDeployDBService(t *testing.T) {
 	awsOIDCToken := "x.y.z"
 
 	awsRegion := "us-east-1"
-	awsOIDCRoleARN := "arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider"
+	awsAccountID := "278576220453"
+	awsOIDCRoleARN := "arn:aws:iam::" + awsAccountID + ":role/MarcoTestRoleOIDCProvider"
 	integrationName := "teleportdev"
+	taskRole := "MarcoEC2Role"
 
 	removeKeysRegex, err := regexp.Compile(`(?s)(<AccessKeyId>).*(</AccessKeyId>).*(<SecretAccessKey>).*(</SecretAccessKey>).*(<SessionToken>).*(</SessionToken>)`)
 	require.NoError(t, err)
@@ -75,7 +77,8 @@ func TestDeployDBService(t *testing.T) {
 
 	deployServiceReqFunc := func(clusterName string) DeployServiceRequest {
 		return DeployServiceRequest{
-			Region: awsRegion,
+			Region:    awsRegion,
+			AccountID: awsAccountID,
 			SubnetIDs: []string{
 				"subnet-0b7ab67161173748b",
 				"subnet-0dda93c8621eb2e99",
@@ -84,9 +87,9 @@ func TestDeployDBService(t *testing.T) {
 				"subnet-0ef025345dd791986",
 				"subnet-099632749366c2c56",
 			},
-			TaskRoleARN:         "MarcoEC2Role",
+			TaskRoleARN:         taskRole,
 			TeleportClusterName: clusterName,
-			IntegrationName:     "teleportdev",
+			IntegrationName:     integrationName,
 			DeploymentMode:      DatabaseServiceDeploymentMode,
 			ProxyServerHostPort: "marcodinis.teleportdemo.net:443",
 			DatabaseResourceMatcherLabels: types.Labels{
@@ -106,15 +109,36 @@ func TestDeployDBService(t *testing.T) {
 		return r
 	}
 
+	rule := &types.TokenRule{
+		AWSAccount: "123456789012",
+		AWSRegions: []string{awsRegion},
+		AWSRole:    taskRole,
+	}
+
+	iamJoinToken := &types.ProvisionTokenV2{
+		Metadata: types.Metadata{
+			Name: defaultTeleportIAMTokenName,
+		},
+		Spec: types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodIAM,
+			Roles:      types.SystemRoles{types.RoleDatabase},
+			Allow:      []*types.TokenRule{rule},
+		},
+	}
+
+	tokenStore := mockGetUpsertToken{
+		token: iamJoinToken,
+	}
+
 	t.Run("nothing exists in aws account", func(t *testing.T) {
 		r := mustRecordUsing(t, "fixtures/emptyaccount")
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("cluster1002"))
+		resp, err := DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
 		require.NoError(t, err)
 
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/cluster1002-teleport", resp.ClusterARN)
@@ -128,10 +152,10 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("cluster1002"))
+		resp, err := DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
 		require.NoError(t, err)
 
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/cluster1002-teleport", resp.ClusterARN)
@@ -145,10 +169,10 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
 		require.NoError(t, err)
 
-		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("cluster1002"))
+		_, err = DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
 		require.ErrorContains(t, err, "ECS Service is draining, please retry in a couple of minutes")
 	})
 
@@ -157,10 +181,10 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("cluster1002"))
+		resp, err := DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
 		require.NoError(t, err)
 
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/cluster1002-teleport", resp.ClusterARN)
@@ -174,10 +198,10 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("cluster1002"))
+		resp, err := DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
 		require.NoError(t, err)
 
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/cluster1002-teleport", resp.ClusterARN)
@@ -191,10 +215,10 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
 		require.NoError(t, err)
 
-		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("cluster1002"))
+		_, err = DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
 		require.ErrorContains(t, err, `ECS Cluster "cluster1002-teleport" already exists but is not managed by Teleport. Add the following tags to allow Teleport to manage this cluster:`)
 	})
 
@@ -203,10 +227,10 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
 		require.NoError(t, err)
 
-		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("cluster1002"))
+		_, err = DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
 		require.ErrorContains(t, err, `ECS Service "cluster1002-teleport-database-service" already exists but is not managed by Teleport. Add the following tags to allow Teleport to manage this service:`)
 	})
 
@@ -215,15 +239,34 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("tenant-a.teleport.sh"))
+		resp, err := DeployService(ctx, clt, deployServiceReqFunc("tenant-a.teleport.sh"))
 		require.NoError(t, err)
 
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/tenant-a_teleport_sh-teleport", resp.ClusterARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/tenant-a_teleport_sh-teleport/tenant-a_teleport_sh-teleport-database-service", resp.ServiceARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/tenant-a_teleport_sh-teleport-database-service:1", resp.TaskDefinitionARN)
 		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/tenant-a_teleport_sh-teleport/services/tenant-a_teleport_sh-teleport-database-service", resp.ServiceDashboardURL)
+	})
+
+	t.Run("deploying without providing an AccountID", func(t *testing.T) {
+		r := mustRecordUsing(t, "fixtures/without_account_id")
+		defer r.Stop()
+
+		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		require.NoError(t, err)
+
+		deployReq := deployServiceReqFunc("marco-test.teleport.sh")
+		deployReq.AccountID = ""
+		resp, err := DeployService(ctx, clt, deployReq)
+		require.NoError(t, err)
+
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/marco-test_teleport_sh-teleport", resp.ClusterARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/marco-test_teleport_sh-teleport/marco-test_teleport_sh-teleport-database-service", resp.ServiceARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/marco-test_teleport_sh-teleport-database-service:1", resp.TaskDefinitionARN)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/marco-test_teleport_sh-teleport/services/marco-test_teleport_sh-teleport-database-service", resp.ServiceDashboardURL)
 	})
 }

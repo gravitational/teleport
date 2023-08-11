@@ -33,8 +33,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	TshdEventsService_Relogin_FullMethodName          = "/teleport.lib.teleterm.v1.TshdEventsService/Relogin"
-	TshdEventsService_SendNotification_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
+	TshdEventsService_Relogin_FullMethodName                           = "/teleport.lib.teleterm.v1.TshdEventsService/Relogin"
+	TshdEventsService_SendNotification_FullMethodName                  = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
+	TshdEventsService_SendPendingHeadlessAuthentication_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendPendingHeadlessAuthentication"
 )
 
 // TshdEventsServiceClient is the client API for TshdEventsService service.
@@ -48,6 +49,9 @@ type TshdEventsServiceClient interface {
 	// accepts a specific message rather than a generic string so that the Electron is in control as
 	// to what message is displayed and how exactly it looks.
 	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
+	// SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
+	// which it can use to initiate headless authentication resolution in the UI.
+	SendPendingHeadlessAuthentication(ctx context.Context, in *SendPendingHeadlessAuthenticationRequest, opts ...grpc.CallOption) (*SendPendingHeadlessAuthenticationResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -76,6 +80,15 @@ func (c *tshdEventsServiceClient) SendNotification(ctx context.Context, in *Send
 	return out, nil
 }
 
+func (c *tshdEventsServiceClient) SendPendingHeadlessAuthentication(ctx context.Context, in *SendPendingHeadlessAuthenticationRequest, opts ...grpc.CallOption) (*SendPendingHeadlessAuthenticationResponse, error) {
+	out := new(SendPendingHeadlessAuthenticationResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_SendPendingHeadlessAuthentication_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility
@@ -87,6 +100,9 @@ type TshdEventsServiceServer interface {
 	// accepts a specific message rather than a generic string so that the Electron is in control as
 	// to what message is displayed and how exactly it looks.
 	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)
+	// SendPendingHeadlessAuthentication notifies the Electron app of a pending headless authentication,
+	// which it can use to initiate headless authentication resolution in the UI.
+	SendPendingHeadlessAuthentication(context.Context, *SendPendingHeadlessAuthenticationRequest) (*SendPendingHeadlessAuthenticationResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -99,6 +115,9 @@ func (UnimplementedTshdEventsServiceServer) Relogin(context.Context, *ReloginReq
 }
 func (UnimplementedTshdEventsServiceServer) SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendNotification not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) SendPendingHeadlessAuthentication(context.Context, *SendPendingHeadlessAuthenticationRequest) (*SendPendingHeadlessAuthenticationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendPendingHeadlessAuthentication not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
@@ -149,6 +168,24 @@ func _TshdEventsService_SendNotification_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TshdEventsService_SendPendingHeadlessAuthentication_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendPendingHeadlessAuthenticationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).SendPendingHeadlessAuthentication(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_SendPendingHeadlessAuthentication_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).SendPendingHeadlessAuthentication(ctx, req.(*SendPendingHeadlessAuthenticationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TshdEventsService_ServiceDesc is the grpc.ServiceDesc for TshdEventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -163,6 +200,10 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendNotification",
 			Handler:    _TshdEventsService_SendNotification_Handler,
+		},
+		{
+			MethodName: "SendPendingHeadlessAuthentication",
+			Handler:    _TshdEventsService_SendPendingHeadlessAuthentication_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

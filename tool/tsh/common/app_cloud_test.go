@@ -23,6 +23,8 @@ import (
 )
 
 func Test_filterApps(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		matchRouteToApp func(tlsca.RouteToApp) bool

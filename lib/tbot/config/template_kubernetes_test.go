@@ -32,39 +32,59 @@ import (
 // TestTemplateKubernetesRender renders a Kubernetes template and compares it
 // to the saved golden result.
 func TestTemplateKubernetesRender(t *testing.T) {
-	dir := t.TempDir()
-
 	cfg, err := newTestConfig("example.com")
 	require.NoError(t, err)
-
 	k8sCluster := "example"
 	mockBot := newMockProvider(cfg)
-	tmpl := templateKubernetes{
-		clusterName:          k8sCluster,
-		executablePathGetter: fakeGetExecutablePath,
+
+	tests := []struct {
+		name            string
+		useRelativePath bool
+	}{
+		{
+			name: "absolute path",
+		},
+		{
+			name:            "relative path",
+			useRelativePath: true,
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
 
-	dest := &DestinationDirectory{
-		Path:     dir,
-		Symlinks: botfs.SymlinksInsecure,
-		ACLs:     botfs.ACLOff,
+			tmpl := templateKubernetes{
+				clusterName:          k8sCluster,
+				executablePathGetter: fakeGetExecutablePath,
+			}
+			dest := &DestinationDirectory{
+				Path:     dir,
+				Symlinks: botfs.SymlinksInsecure,
+				ACLs:     botfs.ACLOff,
+			}
+			if tt.useRelativePath {
+				wd, err := os.Getwd()
+				require.NoError(t, err)
+				relativePath, err := filepath.Rel(wd, dir)
+				require.NoError(t, err)
+				dest.Path = relativePath
+			}
+
+			ident := getTestIdent(t, "bot-test", kubernetesRequest(k8sCluster))
+
+			err = tmpl.render(context.Background(), mockBot, ident, dest)
+			require.NoError(t, err)
+
+			kubeconfigBytes, err := os.ReadFile(filepath.Join(dir, defaultKubeconfigPath))
+			require.NoError(t, err)
+			kubeconfigBytes = bytes.ReplaceAll(kubeconfigBytes, []byte(dir), []byte("/test/dir"))
+
+			if golden.ShouldSet() {
+				golden.SetNamed(t, "kubeconfig.yaml", kubeconfigBytes)
+			}
+			require.Equal(
+				t, string(golden.GetNamed(t, "kubeconfig.yaml")), string(kubeconfigBytes),
+			)
+		})
 	}
-
-	ident := getTestIdent(t, "bot-test", kubernetesRequest(k8sCluster))
-
-	err = tmpl.render(context.Background(), mockBot, ident, dest)
-	require.NoError(t, err)
-
-	kubeconfigBytes, err := os.ReadFile(filepath.Join(dir, defaultKubeconfigPath))
-	require.NoError(t, err)
-
-	kubeconfigBytes = bytes.ReplaceAll(kubeconfigBytes, []byte(dir), []byte("/test/dir"))
-
-	if golden.ShouldSet() {
-		golden.SetNamed(t, "kubeconfig.yaml", kubeconfigBytes)
-	}
-
-	require.Equal(
-		t, string(golden.GetNamed(t, "kubeconfig.yaml")), string(kubeconfigBytes),
-	)
 }
