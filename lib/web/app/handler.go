@@ -131,8 +131,8 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
-	h.router.GET("/x-teleport-auth", makeRouterHandler(h.handleFragment))  // beginAuthExchange
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleFragment)) // finishAuthExchange
+	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
