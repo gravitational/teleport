@@ -17,13 +17,7 @@
 import React from 'react';
 import styled, { useTheme } from 'styled-components';
 
-import Box from 'design/Box';
-
-import Text from 'design/Text';
-
-import Flex from 'design/Flex';
-
-import Link from 'design/Link';
+import { Box, Text, Flex, Link } from 'design';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
@@ -32,6 +26,11 @@ import { Windows, Linux, Apple } from 'design/Icon';
 import { LockIcon } from 'design/SVGIcon';
 
 import Table, { Cell } from 'design/DataTable';
+
+import {
+  DeviceListProps,
+  TrustedDeviceOSType,
+} from 'teleport/DeviceTrust/types';
 
 import {
   FeatureBox,
@@ -116,7 +115,7 @@ const FakeDeviceList = ({
   pageSize = 20,
   fetchStatus = '',
   fetchData,
-}: any) => {
+}: DeviceListProps) => {
   return (
     <Table
       data={items}
@@ -142,7 +141,7 @@ const FakeDeviceList = ({
   );
 };
 
-const IconCell = ({ osType }) => {
+export const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
   let icon;
   switch (osType) {
     case 'Windows':

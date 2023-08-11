@@ -45,6 +45,15 @@ export function ButtonLockedFeature({
   const version = ctx.storeUser.state.cluster.authVersion;
   const isEnterprise = ctx.isEnterprise;
 
+  const upgradeURL = cfg.isUsageBasedBilling
+    ? UPGRADE_TEAM_URL
+    : UPGRADE_COMMUNITY_URL;
+  const upgradeURLWithParams = `${upgradeURL}?${getParams(
+    version,
+    isEnterprise,
+    event
+  )}`;
+
   function handleClick() {
     userEventService.captureCtaEvent(event);
   }
@@ -53,9 +62,7 @@ export function ButtonLockedFeature({
     <ButtonPrimary
       as="a"
       target="blank"
-      href={`${
-        cfg.isUsageBasedBilling ? UPGRADE_TEAM_URL : UPGRADE_COMMUNITY_URL
-      }?${getParams(version, isEnterprise, event)}`}
+      href={`${upgradeURLWithParams}`}
       onClick={handleClick}
       py="12px"
       width="100%"
