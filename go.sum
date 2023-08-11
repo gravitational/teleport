@@ -339,6 +339,8 @@ github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx2
 github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
 github.com/boombuler/barcode v1.0.1 h1:NDBbPmhS+EqABEs5Kg3n/5ZNjy73Pz7SIV+KCeqyXcs=
 github.com/boombuler/barcode v1.0.1/go.mod h1:paBWMcWSl3LHKBqUq+rly7CNSldXjb2rDl3JlRe0mD8=
+github.com/bsm/ginkgo/v2 v2.5.0 h1:aOAnND1T40wEdAtkGSkvSICWeQ8L3UASX7YVCqQx+eQ=
+github.com/bsm/gomega v1.20.0 h1:JhAwLmtRzXFTx2AkALSLa8ijZafntmhSoU63Ok18Uq8=
 github.com/bufbuild/connect-go v1.10.0 h1:QAJ3G9A1OYQW2Jbk3DeoJbkCxuKArrvZgDt47mjdTbg=
 github.com/bufbuild/connect-go v1.10.0/go.mod h1:CAIePUgkDR5pAFaylSMtNK45ANQjp9JvpluG20rhpV8=
 github.com/buger/jsonparser v1.1.1/go.mod h1:6RYKKt7H4d4+iWqouImQ9R2FZql3VbhNgx27UK13J/0=
@@ -807,8 +809,8 @@ github.com/gravitational/predicate v1.3.1 h1:f1uGg2FF6z5wZbcafYpLZJ1gl+82I0MlSd0
 github.com/gravitational/predicate v1.3.1/go.mod h1:H5e9dUW7zb/cuKkkhfnyT9SsI/WHWJ8Ra011La16DTY=
 github.com/gravitational/protobuf v1.3.2-teleport.1 h1:h5mh+UOKPurqDxn1hRVcr1WzSkmBi+D9qkXpaXA9PFM=
 github.com/gravitational/protobuf v1.3.2-teleport.1/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
-github.com/gravitational/redis/v9 v9.0.0-teleport.3 h1:Eg/j3jiNUZ558KDXOqzF682EFmf97vxAFFnMgZ0YHns=
-github.com/gravitational/redis/v9 v9.0.0-teleport.3/go.mod h1:8et+z03j0l8N+DvsVnclzjf3Dl/pFHgRk+2Ct1qw66A=
+github.com/gravitational/redis/v9 v9.0.2-teleport.1 h1:BYrMUySxKFOkZ/4XjKEIvkDYqBBBeRGs3eVLLS9btrA=
+github.com/gravitational/redis/v9 v9.0.2-teleport.1/go.mod h1:/xDTe9EF1LM61hek62Poq2nzQSGj0xSrEtEHbBQevps=
 github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyPBTBROQ5c=
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
 github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf h1:aXnqDSit8L1qhI0+QdbJh+MTUFKXG7qbkZXnfr7L96A=
