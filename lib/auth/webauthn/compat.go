@@ -18,8 +18,21 @@ import wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 
 // TODO(codingllama): Delete aliases and vars below once e/ is updated.
 
+type CredentialAssertion = wantypes.CredentialAssertion
 type CredentialAssertionResponse = wantypes.CredentialAssertionResponse
+type CredentialCreation = wantypes.CredentialCreation
 type CredentialCreationResponse = wantypes.CredentialCreationResponse
 
-var CredentialAssertionResponseToProto = wantypes.CredentialAssertionResponseToProto
-var CredentialCreationResponseToProto = wantypes.CredentialCreationResponseToProto
+var (
+	CredentialAssertionFromProto         = wantypes.CredentialAssertionFromProto
+	CredentialAssertionToProto           = wantypes.CredentialAssertionToProto
+	CredentialAssertionResponseFromProto = wantypes.CredentialAssertionResponseFromProto
+	CredentialAssertionResponseToProto   = wantypes.CredentialAssertionResponseToProto
+)
+
+var (
+	CredentialCreationFromProto         = wantypes.CredentialCreationFromProto
+	CredentialCreationToProto           = wantypes.CredentialCreationToProto
+	CredentialCreationResponseFromProto = wantypes.CredentialCreationResponseFromProto
+	CredentialCreationResponseToProto   = wantypes.CredentialCreationResponseToProto
+)
