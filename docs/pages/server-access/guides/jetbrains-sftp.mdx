@@ -69,23 +69,11 @@ $ ssh user@[server name].[cluster name]
   See the [OpenSSH guide](./openssh.mdx) for more information.
   Example connecting to a OpenSSH server:
 
-    ```code
+  ```code
   $ ssh -p 22 user@[server name].[cluster name]
   ```
-  
-  Teleport's certificates expire fairly quickly, after which SSH
-  attempts will fail with an error like the following:
-
-  ```txt
-  alice@proxy.foo.example.com: Permission denied (publickey).
-  ERROR: exit status 255
-
-  kex_exchange_identification: Connection closed by remote host
-  ```
-
-  When you see this error, re-run `tsh login` to refresh your local certificate.
 </Admonition>
-
+  
 ## Step 2/3. Configure your JetBrains IDE
 
 After opening your IDE go to `Tools` -> `Deployment` -> `Browse Remote Host`.
@@ -120,6 +108,20 @@ Next, you can click `Test Connection`.
 After closing the SSH configuration window, you should see `Remote Host` menu in your IDE.
 
 ![Browse window](../../../img/jetbrains-sftp/browse-window.png)
+
+<Admonition type="note">
+  Teleport's certificates expire fairly quickly, after which SSH
+  attempts will fail with an error like the following:
+
+  ```txt
+  alice@proxy.foo.example.com: Permission denied (publickey).
+  ERROR: exit status 255
+
+  kex_exchange_identification: Connection closed by remote host
+  ```
+
+  When you see this error, re-run `tsh login` to refresh your local certificate.
+</Admonition>
 
 ## Next steps
 
