@@ -477,11 +477,6 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	}
 	resourceKind := resource.GetKind()
 
-	for _, kind := range kinds {
-		if kind == resourceKind {
-			return true
-		}
-	}
 	return slices.Contains(kinds, resourceKind)
 }
 
