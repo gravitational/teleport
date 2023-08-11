@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -49,23 +49,51 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 	switch r.Method {
 	case http.MethodGet:
 		q := r.URL.Query()
-		// If the state query parameter is not set, generate a new state token,
-		// store it in a cookie and redirect back to the app launcher.
+		// The "state" query param is empty on the initial launch of an application.
+		//
+		// We use the "double submit cookie" technique to prevent CSRF where we create
+		// a crypto safe random token and send it back as part of a "state" query param
+		// in the redirection URL as well as in a cookie with attributes that
+		// makes it unaccessible and hard to tamper with.
+		//
+		// For subsequent requests, the server will expect both the "state" query param
+		// and the cookie (which the browser will automatically send).
 		if q.Get("state") == "" {
-			stateToken, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+
+			// secretToken is the token we will look for in both the cookie
+			// and in the request "state" query param.
+			secretToken, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 			if err != nil {
 				h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
 				return trace.AccessDenied("access denied")
 			}
-			h.setAuthStateCookie(w, stateToken)
-			urlParams := launcherURLParams{
+
+			// cookieIdentifier is used to uniquely identify this cookie
+			// that will be used to store this secret token.
+			//
+			// This prevents a race condition (state token mismatch error)
+			// where we can overwrite existing cookie (with the same name) with a
+			// different token value eg: launch app in multiple tabs in quick succession
+			cookieIdentifier, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+			if err != nil {
+				h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
+				return trace.AccessDenied("access denied")
+			}
+
+			h.setAuthStateCookie(w, secretToken, cookieIdentifier)
+
+			webLauncherURLParams := launcherURLParams{
 				clusterName: q.Get("cluster"),
 				publicAddr:  q.Get("addr"),
-				awsRole:     q.Get("awsrole"),
+				arn:         q.Get("arn"),
 				path:        q.Get("path"),
-				stateToken:  stateToken,
+				// The state token concats both the secret token and the cookie ID.
+				// The server will break this token to its individual parts:
+				//   - secretToken to compare against the one stored in cookie
+				//   - cookieIdentifier to look up cookie sent by browser.
+				stateToken: fmt.Sprintf("%s_%s", secretToken, cookieIdentifier),
 			}
-			return h.redirectToLauncher(w, r, urlParams)
+			return h.redirectToLauncher(w, r, webLauncherURLParams)
 		}
 
 		nonce, err := utils.CryptoRandomHex(auth.TokenLenBytes)
@@ -74,7 +102,10 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 			return trace.AccessDenied("access denied")
 		}
 		SetRedirectPageHeaders(w.Header(), nonce)
-		fmt.Fprintf(w, js, nonce)
+
+		// Serve an empty HTML page with an inline JS.
+		fmt.Fprintf(w, appRedirectionJs, nonce)
+
 		return nil
 
 	case http.MethodPost:
@@ -84,19 +115,27 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 			return trace.Wrap(err)
 		}
 
+		tokens := strings.Split(req.StateValue, "_")
+		if len(tokens) != 2 {
+			h.log.Warn("Request failed: request state token is not in the expected format")
+			return trace.AccessDenied("access denied")
+		}
+		secretToken := tokens[0]
+		cookieID := tokens[1]
+
 		// Validate that the caller-provided state token matches the stored state token.
-		stateCookie, err := r.Cookie(AuthStateCookieName)
+		stateCookie, err := r.Cookie(getAuthStateCookieName(cookieID))
 		if err != nil || stateCookie.Value == "" {
 			h.log.Warn("Request failed: state cookie is not set.")
 			return trace.AccessDenied("access denied")
 		}
-		if subtle.ConstantTimeCompare([]byte(req.StateValue), []byte(stateCookie.Value)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(secretToken), []byte(stateCookie.Value)) != 1 {
 			h.log.Warn("Request failed: state token does not match.")
 			return trace.AccessDenied("access denied")
 		}
 
 		// Prevent reuse of the same state token.
-		h.setAuthStateCookie(w, "")
+		clearAuthStateCookie(w, cookieID)
 
 		// Validate that the caller is asking for a session that exists and that they have the secret
 		// session token for.
@@ -168,14 +207,30 @@ func checkSubjectToken(subjectCookieValue string, ws types.WebSession) error {
 	return nil
 }
 
-func (h *Handler) setAuthStateCookie(w http.ResponseWriter, value string) {
+func (h *Handler) setAuthStateCookie(w http.ResponseWriter, cookieValue string, cookieID string) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     AuthStateCookieName,
-		Value:    value,
+		Name:     getAuthStateCookieName(cookieID),
+		Value:    cookieValue,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-		Expires:  h.c.Clock.Now().UTC().Add(1 * time.Minute),
+		MaxAge:   60, // Expire in 1 minute.
 	})
+}
+
+func clearAuthStateCookie(w http.ResponseWriter, cookieID string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     getAuthStateCookieName(cookieID),
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+		MaxAge:   -1,
+	})
+}
+
+func getAuthStateCookieName(cookieID string) string {
+	return fmt.Sprintf("%s_%s", AuthStateCookieName, cookieID)
 }

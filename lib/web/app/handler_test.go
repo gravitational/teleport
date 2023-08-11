@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -53,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 type eventCheckFn func(t *testing.T, events []apievents.AuditEvent)
@@ -75,10 +75,10 @@ func hasAuditEventCount(want int) eventCheckFn {
 
 // TestAuthPOST tests the handler of POST /x-teleport-auth.
 func TestAuthPOST(t *testing.T) {
-	const (
-		stateValue  = "012ac605867e5a7d693cd6f49c7ff0fb"
-		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b"
-	)
+	secretToken := "012ac605867e5a7d693cd6f49c7ff0fb"
+	cookieID := "cookie-name"
+	stateValue := fmt.Sprintf("%s_%s", secretToken, cookieID)
+	appCookieValue := "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b"
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
 	clusterName := "test-cluster"
@@ -104,7 +104,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc:             "success",
 			stateInRequest:   stateValue,
-			stateInCookie:    stateValue,
+			stateInCookie:    secretToken,
 			subjectInRequest: appSession.GetBearerToken(),
 			outStatusCode:    http.StatusOK,
 			eventChecks:      []eventCheckFn{hasAuditEventCount(0)},
@@ -112,7 +112,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc:             "missing state token in request",
 			stateInRequest:   "",
-			stateInCookie:    stateValue,
+			stateInCookie:    secretToken,
 			subjectInRequest: appSession.GetBearerToken(),
 			outStatusCode:    http.StatusForbidden,
 			eventChecks:      []eventCheckFn{hasAuditEventCount(0)},
@@ -120,7 +120,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc:             "missing subject session token in request",
 			stateInRequest:   stateValue,
-			stateInCookie:    stateValue,
+			stateInCookie:    secretToken,
 			subjectInRequest: "",
 			outStatusCode:    http.StatusForbidden,
 			eventChecks: []eventCheckFn{
@@ -144,7 +144,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc:             "subject session token in request does not match",
 			stateInRequest:   stateValue,
-			stateInCookie:    stateValue,
+			stateInCookie:    secretToken,
 			subjectInRequest: "foobar",
 			outStatusCode:    http.StatusForbidden,
 			eventChecks: []eventCheckFn{
@@ -168,7 +168,7 @@ func TestAuthPOST(t *testing.T) {
 		{
 			desc:             "invalid session",
 			stateInRequest:   stateValue,
-			stateInCookie:    stateValue,
+			stateInCookie:    secretToken,
 			subjectInRequest: appSession.GetBearerToken(),
 			sessionError:     trace.NotFound("invalid session"),
 			outStatusCode:    http.StatusForbidden,
@@ -187,16 +187,16 @@ func TestAuthPOST(t *testing.T) {
 
 			req, err := json.Marshal(fragmentRequest{
 				StateValue:         test.stateInRequest,
-				CookieValue:        cookieValue,
+				CookieValue:        appCookieValue,
 				SubjectCookieValue: test.subjectInRequest,
 			})
 			require.NoError(t, err)
 
 			status, _ := p.makeRequest(t, "POST", "/x-teleport-auth", req, []http.Cookie{{
-				Name:  AuthStateCookieName,
+				Name:  fmt.Sprintf("%s_%s", AuthStateCookieName, cookieID),
 				Value: test.stateInCookie,
 			}})
-			require.Equal(t, test.outStatusCode, status)
+			require.Equal(t, status, test.outStatusCode)
 			for _, check := range test.eventChecks {
 				check(t, authClient.emittedEvents)
 			}
@@ -675,10 +675,12 @@ func createAppServer(t *testing.T, publicAddr string) types.AppServer {
 
 func TestMakeAppRedirectURL(t *testing.T) {
 	for _, test := range []struct {
-		name        string
-		reqURL      string
-		expectedURL string
+		name             string
+		reqURL           string
+		expectedURL      string
+		launderURLParams launcherURLParams
 	}{
+		// with launcherURLParams empty (will be empty if user did not launch app from our web UI)
 		{
 			name:        "OK - no path",
 			reqURL:      "https://grafana.localhost",
@@ -724,12 +726,44 @@ func TestMakeAppRedirectURL(t *testing.T) {
 			reqURL:      "https://grafana.localhost/alerting /list?search=state:inactive type:alerting health:nodata",
 			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting+%2Flist&query=search%3Dstate%3Ainactive+type%3Aalerting+health%3Anodata",
 		},
+
+		// with launcherURLParams (defined if user used the "launcher" button from our web UI)
+		{
+			name: "OK - with clusterId and publicAddr",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?state=abc123&path=",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, and arn",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?state=abc123&path=",
+		},
+		{
+			name: "OK - with clusterId, publicAddr, arn and path",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				arn:         "arn:aws:iam::123456789012:role%2Frole-name",
+				path:        "/foo/bar?qux=qex",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%252Frole-name?state=abc123&path=%2Ffoo%2Fbar%3Fqux%3Dqex",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
 			require.NoError(t, err)
 
-			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost", launcherURLParams{})
+			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost", test.launderURLParams)
 			require.Equal(t, test.expectedURL, urlStr)
 		})
 	}

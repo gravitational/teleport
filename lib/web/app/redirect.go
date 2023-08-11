@@ -49,7 +49,9 @@ func SetRedirectPageHeaders(h http.Header, nonce string) {
 	// Set content security policy flags
 	scriptSrc := "none"
 	if nonce != "" {
-		// Should match the <script> tab nonce (random value).
+		// Sets a rule where script can only be ran if the
+		// <script> tag contains the same nonce (a random value)
+		// we set here.
 		scriptSrc = fmt.Sprintf("nonce-%v", nonce)
 	}
 	httplib.SetRedirectPageContentSecurityPolicy(h, scriptSrc)
@@ -61,7 +63,7 @@ func MetaRedirect(w http.ResponseWriter, redirectURL string) error {
 	return trace.Wrap(metaRedirectTemplate.Execute(w, redirectURL))
 }
 
-const js = `
+const appRedirectionJs = `
 <!DOCTYPE html>
 <html lang="en">
   <head>

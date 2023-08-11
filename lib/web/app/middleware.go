@@ -67,7 +67,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	// The application launcher can only generate browser sessions (based on
 	// Cookies). Given this, we should only redirect to it when this format is
 	// already in use.
-	if !HasSession(r) {
+	if p.stateToken == "" && !HasSession(r) {
 		return trace.BadParameter("redirecting to launcher when using client certificate is not valid")
 	}
 
@@ -127,6 +127,6 @@ type launcherURLParams struct {
 	clusterName string
 	publicAddr  string
 	stateToken  string
-	awsRole     string
+	arn         string
 	path        string
 }
