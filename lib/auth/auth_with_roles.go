@@ -1766,7 +1766,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 }
 
 func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-
 	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
