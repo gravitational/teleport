@@ -1046,7 +1046,27 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 // depending on what was specified in the config.
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
-func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, error) {
+func (process *TeleportProcess) newClient(identity *auth.Identity) (ctl *auth.Client, err error) {
+	/*if identity.ID.Role != types.RoleInstance {
+		start := time.Now()
+		fmt.Printf("---> Waiting for instance client role=%s, allRoles=%+v\n", identity.ID.Role, process.getInstanceRoles())
+		clt, ok := process.waitForInstanceClient()
+		if !ok {
+			return nil, trace.Errorf("failed to get instance client for identity %q", identity.ID.Role)
+		}
+
+		fmt.Printf("---> Got instance client role=%s, allRoles=%+v, delay=%v\n", identity.ID.Role, process.getInstanceRoles(), time.Now().Sub(start))
+		return clt, nil
+	}
+	fmt.Printf("---> Acquiring instance client... allRoles=%+v\n", process.getInstanceRoles())
+	defer func() {
+		if err != nil {
+			fmt.Printf("---> Failed to acquire instance client: %v (allRoles=%+v)\n", err, process.getInstanceRoles())
+			return
+		}
+		fmt.Printf("---> Successfully acquired instance client. allRoles=%+v\n", process.getInstanceRoles())
+	}()*/
+
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
