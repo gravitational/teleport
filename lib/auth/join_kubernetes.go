@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -30,6 +31,8 @@ import (
 type k8sTokenReviewValidator interface {
 	Validate(context.Context, string) (*kubernetestoken.ValidationResult, error)
 }
+
+type k8sJWKSValidator func(now time.Time, jwksData []byte, clusterName string, token string) (*kubernetestoken.ValidationResult, error)
 
 func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*kubernetestoken.ValidationResult, error) {
 	if req.IDToken == "" {
@@ -55,7 +58,7 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		result, err = kubernetestoken.ValidateTokenWithJWKS(
+		result, err = a.k8sJWKSValidator(
 			a.clock.Now(),
 			[]byte(token.Spec.Kubernetes.StaticJWKS.JWKS),
 			clusterName,

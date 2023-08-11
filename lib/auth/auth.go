@@ -380,6 +380,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if as.k8sTokenReviewValidator == nil {
 		as.k8sTokenReviewValidator = &kubernetestoken.TokenReviewValidator{}
 	}
+	if as.k8sJWKSValidator == nil {
+		as.k8sJWKSValidator = kubernetestoken.ValidateTokenWithJWKS
+	}
 
 	if as.gcpIDTokenValidator == nil {
 		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
@@ -662,8 +665,13 @@ type Server struct {
 	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
 
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
-	// by the auth server. It can be overridden for the purpose of tests.
+	// by the auth server using k8s Token Review API. It can be overridden for
+	// the purpose of tests.
 	k8sTokenReviewValidator k8sTokenReviewValidator
+	// k8sJWKSValidator allows tokens from Kubernetes to be validated
+	// by the auth server using a known JWKS. It can be overridden for the
+	// purpose of tests.
+	k8sJWKSValidator k8sJWKSValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
