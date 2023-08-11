@@ -1747,6 +1747,8 @@ type AppTestCertRequest struct {
 	GCPServiceAccount string
 	// PinnedIP is optional IP to pin certificate to.
 	PinnedIP string
+	// LoginTrait is the login to include in the cert
+	LoginTrait string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1769,6 +1771,12 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
+
+	login := req.LoginTrait
+	if login == "" {
+		login = uuid.New().String()
+	}
+
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
@@ -1778,7 +1786,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			constants.TraitLogins: {uuid.New().String()},
+			constants.TraitLogins: {login},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
