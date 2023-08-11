@@ -1105,6 +1105,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, 2, res.TotalCount)
 	require.ElementsMatch(t, res.Items, []ui.Server{
 		{
+			Kind:        types.KindNode,
 			ClusterName: clusterName,
 			Name:        server1.GetName(),
 			Hostname:    server1.GetHostname(),
@@ -1114,6 +1115,7 @@ func TestClusterNodesGet(t *testing.T) {
 			SSHLogins:   []string{pack.login},
 		},
 		{
+			Kind:        types.KindNode,
 			ClusterName: clusterName,
 			Name:        "server2",
 			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
@@ -1130,6 +1132,182 @@ func TestClusterNodesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res2))
 	require.Len(t, res.Items, 2)
 	require.Equal(t, res, res2)
+}
+
+func TestUnifiedResourcesGet_WithSort(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{SAML: true, Kubernetes: true},
+	})
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+	// Add nodes
+	for i := 0; i < 20; i++ {
+		name := fmt.Sprintf("server-%d", i)
+		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+			Hostname: name,
+		})
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertNode(context.Background(), node)
+		require.NoError(t, err)
+	}
+
+	// Get nodes from endpoint.
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	// add kubes
+	cluster2, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "test-kube2",
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+	server2, err := types.NewKubernetesServerV3FromCluster(
+		cluster2,
+		"test-kube2-hostname",
+		"test-kube2-hostid",
+	)
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
+	require.NoError(t, err)
+
+	// add db
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbdb",
+		Labels: map[string]string{
+			"env": "prod",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "dddb1",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "dddb1",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+	require.NoError(t, err)
+
+	// should return ascending sorted types
+	query := url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
+
+	// should return descending sorted types
+	query = url.Values{"sort": []string{"type:desc"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindNode, res.Items[0].Kind)
+}
+
+func TestUnifiedResourcesGet_WithNoAccess(t *testing.T) {
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
+	require.NoError(t, err)
+	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
+
+	clusterName := env.server.ClusterName()
+	endpoint := noAccessPack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	// shouldnt get any results with no access
+	query := url.Values{"sort": []string{"name"}, "limit": []string{"1"}}
+	re, err := noAccessPack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 0)
+}
+
+func TestUnifiedResourcesGet_WithPages(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{SAML: true, Kubernetes: true},
+	})
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+	// Add nodes
+	for i := 0; i < 20; i++ {
+		name := fmt.Sprintf("server-%d", i)
+		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+			Hostname: name,
+		})
+		require.NoError(t, err)
+		_, err = env.server.Auth().UpsertNode(context.Background(), node)
+		require.NoError(t, err)
+	}
+
+	// Get nodes from endpoint.
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	// add db
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbdb",
+		Labels: map[string]string{
+			"env": "prod",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "dddb1",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "dddb1",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+	require.NoError(t, err)
+
+	// add windows desktop
+	win, err := types.NewWindowsDesktopV3(
+		"zzzz9",
+		nil,
+		types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
+	)
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
+	require.NoError(t, err)
+
+	// should return first page and have a second page
+	query := url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 15)
+	require.NotEqual(t, "", res.StartKey)
+
+	// should return second page and have no third page
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	query.Add("startKey", res.StartKey)
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 8)
+	require.Equal(t, "", res.StartKey)
 }
 
 type clusterAlertsGetResponse struct {
@@ -3759,9 +3937,7 @@ func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, exp
 	}
 }
 
-func TestClusterDatabasesGet(t *testing.T) {
-	t.Parallel()
-
+func TestClusterDatabasesGet_NoRole(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
@@ -3770,18 +3946,62 @@ func TestClusterDatabasesGet(t *testing.T) {
 
 	query := url.Values{"sort": []string{"name"}}
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
 
 	type testResponse struct {
 		Items      []ui.Database `json:"items"`
 		TotalCount int           `json:"totalCount"`
 	}
 
-	// No db registered.
+	// add db
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbdb",
+		Labels: map[string]string{
+			"env": "prod",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri:1234",
+	})
+	require.NoError(t, err)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "dddb1",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "dddb1",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+	require.NoError(t, err)
+
+	// Test without defined database names or users in role.
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 0)
+	require.Len(t, resp.Items, 1)
+	require.ElementsMatch(t, resp.Items, []ui.Database{{
+		Kind:     types.KindDatabase,
+		Name:     "dbdb",
+		Type:     types.DatabaseTypeSelfHosted,
+		Labels:   []ui.Label{{Name: "env", Value: "prod"}},
+		Protocol: "test-protocol",
+		Hostname: "test-uri",
+		URI:      "test-uri:1234",
+	}})
+}
+
+func TestClusterDatabasesGet_WithRole(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+
+	type testResponse struct {
+		Items      []ui.Database `json:"items"`
+		TotalCount int           `json:"totalCount"`
+	}
 
 	// Register databases.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -3793,71 +4013,18 @@ func TestClusterDatabasesGet(t *testing.T) {
 			Metadata: types.Metadata{
 				Name:        "db1",
 				Description: "test-description",
-				Labels:      map[string]string{"test-field": "test-value"},
 			},
 			Spec: types.DatabaseSpecV3{
 				Protocol: "test-protocol",
 				URI:      "test-uri:1234",
-				AWS: types.AWS{
-					IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
-					Region:          "us-west-2",
-				},
 			},
 		},
 	})
 	require.NoError(t, err)
-	db2, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "dbServer2",
-	}, types.DatabaseServerSpecV3{
-		Hostname: "test-hostname",
-		HostID:   "test-hostID",
-		Database: &types.DatabaseV3{
-			Metadata: types.Metadata{
-				Name: "db2",
-			},
-			Spec: types.DatabaseSpecV3{
-				Protocol: "test-protocol",
-				URI:      "test-uri:1234",
-			},
-		},
-	})
 	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db2)
-	require.NoError(t, err)
-
-	// Test without defined database names or users in role.
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-
-	resp = testResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.Database{{
-		Name:     "db1",
-		Desc:     "test-description",
-		Protocol: "test-protocol",
-		Type:     types.DatabaseTypeRDS,
-		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
-		Hostname: "test-uri",
-		URI:      "test-uri:1234",
-		AWS: &ui.AWS{
-			AWS: types.AWS{
-				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
-				Region:          "us-west-2",
-			},
-		},
-	}, {
-		Name:     "db2",
-		Type:     types.DatabaseTypeSelfHosted,
-		Labels:   []ui.Label{},
-		Protocol: "test-protocol",
-		Hostname: "test-uri",
-		URI:      "test-uri:1234",
-	}})
 
 	// Test with a role that defines database names and users.
 	extraRole := &types.RoleV6{
@@ -3873,215 +4040,15 @@ func TestClusterDatabasesGet(t *testing.T) {
 		},
 	}
 
-	pack = proxy.authPack(t, "test-user2@example.com", services.NewRoleSet(extraRole))
-	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	query := url.Values{"sort": []string{"name"}}
+	pack := proxy.authPack(t, "test-user2@example.com", services.NewRoleSet(extraRole))
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
-	resp = testResponse{}
+	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
-	require.ElementsMatch(t, resp.Items, []ui.Database{{
-		Name:          "db1",
-		Desc:          "test-description",
-		Protocol:      "test-protocol",
-		Type:          types.DatabaseTypeRDS,
-		Labels:        []ui.Label{{Name: "test-field", Value: "test-value"}},
-		Hostname:      "test-uri",
-		DatabaseUsers: []string{"user1"},
-		DatabaseNames: []string{"name1"},
-		URI:           "test-uri:1234",
-		AWS: &ui.AWS{
-			AWS: types.AWS{
-				IAMPolicyStatus: types.IAMPolicyStatus_IAM_POLICY_STATUS_SUCCESS,
-				Region:          "us-west-2",
-			},
-		},
-	}, {
-		Name:          "db2",
-		Type:          types.DatabaseTypeSelfHosted,
-		Labels:        []ui.Label{},
-		Protocol:      "test-protocol",
-		Hostname:      "test-uri",
-		DatabaseUsers: []string{"user1"},
-		DatabaseNames: []string{"name1"},
-		URI:           "test-uri:1234",
-	}})
-}
-
-func TestClusterDatabaseGet(t *testing.T) {
-	env := newWebPack(t, 1)
-	ctx := context.Background()
-
-	proxy := env.proxies[0]
-
-	dbNames := []string{"db1", "db2"}
-	dbUsers := []string{"user1", "user2"}
-
-	for _, tt := range []struct {
-		name            string
-		preRegisterDB   bool
-		databaseName    string
-		userRoles       func(*testing.T) []types.Role
-		expectedDBUsers []string
-		expectedDBNames []string
-		requireError    require.ErrorAssertionFunc
-	}{
-		{
-			name:          "valid",
-			preRegisterDB: true,
-			databaseName:  "valid",
-			requireError:  require.NoError,
-		},
-		{
-			name:          "notfound",
-			preRegisterDB: true,
-			databaseName:  "otherdb",
-			requireError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
-			},
-		},
-		{
-			name:          "notauthorized",
-			preRegisterDB: true,
-			databaseName:  "notauthorized",
-			userRoles: func(tt *testing.T) []types.Role {
-				role, err := types.NewRole(
-					"myrole",
-					types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							DatabaseLabels: types.Labels{
-								"env": apiutils.Strings{"staging"},
-							},
-						},
-					},
-				)
-				require.NoError(tt, err)
-				return []types.Role{role}
-			},
-			requireError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
-			},
-		},
-		{
-			name:          "nodb",
-			preRegisterDB: false,
-			databaseName:  "nodb",
-			userRoles: func(tt *testing.T) []types.Role {
-				roleWithDBName, err := types.NewRole(
-					"myroleWithDBName",
-					types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							DatabaseLabels: types.Labels{
-								"env": apiutils.Strings{"prod"},
-							},
-							DatabaseNames: dbNames,
-						},
-					},
-				)
-				require.NoError(tt, err)
-
-				return []types.Role{roleWithDBName}
-			},
-			expectedDBNames: dbNames,
-			expectedDBUsers: dbUsers,
-			requireError: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsNotFound(err), "expected a not found error, got %v", err)
-			},
-		},
-		{
-			name:          "authorizedDBNamesUsers",
-			preRegisterDB: true,
-			databaseName:  "authorizedDBNamesUsers",
-			userRoles: func(tt *testing.T) []types.Role {
-				roleWithDBName, err := types.NewRole(
-					"myroleWithDBName",
-					types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							DatabaseLabels: types.Labels{
-								"env": apiutils.Strings{"prod"},
-							},
-							DatabaseNames: dbNames,
-						},
-					},
-				)
-				require.NoError(tt, err)
-
-				roleWithDBUser, err := types.NewRole(
-					"myroleWithDBUser",
-					types.RoleSpecV6{
-						Allow: types.RoleConditions{
-							DatabaseLabels: types.Labels{
-								"env": apiutils.Strings{"prod"},
-							},
-							DatabaseUsers: dbUsers,
-						},
-					},
-				)
-				require.NoError(tt, err)
-
-				return []types.Role{roleWithDBUser, roleWithDBName}
-			},
-			expectedDBNames: dbNames,
-			expectedDBUsers: dbUsers,
-			requireError:    require.NoError,
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Create default pre-registerDB
-			if tt.preRegisterDB {
-				db, err := types.NewDatabaseV3(types.Metadata{
-					Name: tt.name,
-					Labels: map[string]string{
-						"env": "prod",
-					},
-				}, types.DatabaseSpecV3{
-					Protocol: "test-protocol",
-					URI:      "test-uri",
-				})
-				require.NoError(t, err)
-
-				dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-					Name: tt.name,
-				}, types.DatabaseServerSpecV3{
-					Hostname: tt.name,
-					HostID:   uuid.NewString(),
-					Database: db,
-				})
-				require.NoError(t, err)
-
-				_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
-				require.NoError(t, err)
-			}
-
-			var roles []types.Role
-			if tt.userRoles != nil {
-				roles = tt.userRoles(t)
-			}
-
-			pack := proxy.authPack(t, tt.name+"_user@example.com", roles)
-
-			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", tt.databaseName)
-			re, err := pack.clt.Get(ctx, endpoint, nil)
-			tt.requireError(t, err)
-			if err != nil {
-				return
-			}
-
-			resp := ui.Database{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-
-			require.Equal(t, tt.databaseName, resp.Name, "database name")
-			require.Equal(t, types.DatabaseTypeSelfHosted, resp.Type, "database type")
-			require.EqualValues(t, []ui.Label{{Name: "env", Value: "prod"}}, resp.Labels)
-			require.ElementsMatch(t, tt.expectedDBUsers, resp.DatabaseUsers)
-			require.ElementsMatch(t, tt.expectedDBNames, resp.DatabaseNames)
-		})
-	}
+	require.Len(t, resp.Items, 1)
 }
 
 func TestClusterKubesGet(t *testing.T) {
@@ -4383,6 +4350,7 @@ func TestClusterAppsGet(t *testing.T) {
 	require.Len(t, resp.Items, 3)
 	require.Equal(t, 3, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
+		Kind:        types.KindAppServer,
 		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -4393,6 +4361,7 @@ func TestClusterAppsGet(t *testing.T) {
 		AWSConsole:  true,
 		UserGroups:  []ui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
 	}, {
+		Kind:       types.KindAppServer,
 		Name:       "app2",
 		URI:        "uri",
 		Labels:     []ui.Label{},
@@ -4401,6 +4370,7 @@ func TestClusterAppsGet(t *testing.T) {
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
 	}, {
+		Kind:        types.KindSAMLIdPServiceProvider,
 		Name:        "test-saml-app",
 		Description: "SAML Application",
 		URI:         "",
@@ -5822,12 +5792,14 @@ func TestClusterDesktopsGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.Desktop{{
+		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop1",
 		Addr:   "addr",
 		Labels: []ui.Label{{Name: "test-field", Value: "test-value"}},
 		HostID: "host",
 	}, {
+		Kind:   types.KindWindowsDesktop,
 		OS:     constants.WindowsOS,
 		Name:   "desktop2",
 		Addr:   "addr",
@@ -6940,6 +6912,7 @@ func TestCreateDatabase(t *testing.T) {
 			result := ui.Database{}
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &result))
 			require.Equal(t, result, ui.Database{
+				Kind:          types.KindDatabase,
 				Name:          tt.req.Name,
 				Protocol:      tt.req.Protocol,
 				Type:          types.DatabaseTypeSelfHosted,
@@ -7104,6 +7077,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				CACert: &fakeValidTLSCert,
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "self-hosted",
@@ -7118,6 +7092,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				URI: "something-else:3306",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "self-hosted",
@@ -7140,6 +7115,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7168,6 +7144,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",
@@ -7200,6 +7177,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				ResourceID: "db-0000",
 			},
 			expectedFields: ui.Database{
+				Kind:     types.KindDatabase,
 				Name:     databaseName,
 				Protocol: dbProtocol,
 				Type:     "rds",

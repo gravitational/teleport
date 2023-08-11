@@ -90,7 +90,6 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 		ResourceGetter: clt,
 	})
 	require.NoError(t, err)
-	require.False(t, w.IsInitialized())
 	// node and db expected initially
 	res, err := w.GetUnifiedResources(ctx)
 	require.NoError(t, err)
