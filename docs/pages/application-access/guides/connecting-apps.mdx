@@ -277,9 +277,11 @@ a JWT token signed by Teleport that contains user identity information. See
 
 ### Configuring the JWT token
 
-You can optionally configure the JWT token to exclude Teleport traits
-and/or roles. This may be useful if is issue connecting to an app due
-to a "header too large" error.
+By default, Teleport includes a user's roles and traits in the JWT
+generated for application access. If your application doesn't care
+about these values, or you are encountering an error due to exceeding
+the size limit of HTTP headers, you can configure Teleport to omit
+this information from the token.
 
 ```yaml
 - name: "dashboard"
@@ -291,7 +293,7 @@ to a "header too large" error.
     # - roles-and-traits: include both roles and traits
     # - roles: include only roles
     # - none :exclude both roles and traits from the JWT token
-	# Default: roles-and-traits
+    # Default: roles-and-traits
     jwt_claims: roles-and-traits
     headers:
     # Inject header with Teleport-signed JWT token.
