@@ -42,6 +42,9 @@
   # Source variables about OS version
   $ source /etc/os-release
   # Add the Teleport yum repository for cloud.
+  # First, get the major version from $VERSION_ID so this fetches the correct
+  # package version.
+  $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   # Use the dnf config manager plugin to add the teleport RPM repo
   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
   
