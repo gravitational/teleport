@@ -36,11 +36,9 @@ import (
 // See api_login_test.go and/or TeleportClient tests for more general
 // authentication tests.
 func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
-	oldPromptWebauthn := *client.PromptWebauthn
 	oldHasPlatformSupport := *client.HasPlatformSupport
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() {
-		*client.PromptWebauthn = oldPromptWebauthn
 		*client.HasPlatformSupport = oldHasPlatformSupport
 		prompt.SetStdin(oldStdin)
 	})
@@ -89,6 +87,9 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			test := test
+			t.Parallel()
+
 			// Set a timeout so the test won't block forever.
 			// We don't expect to hit the timeout for any of the test cases.
 			ctx, cancel := context.WithTimeout(ctx, 1*time.Second)

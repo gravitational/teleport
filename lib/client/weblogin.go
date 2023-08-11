@@ -279,6 +279,10 @@ type SSHLoginMFA struct {
 type SSHLoginPasswordless struct {
 	SSHLogin
 
+	// WebauthnLogin is a customizable webauthn login function.
+	// Defaults to [wancli.Login]
+	WebauthnLogin WebauthnLoginFunc
+
 	// StderrOverride will override the default os.Stderr if provided.
 	StderrOverride io.Writer
 
@@ -543,13 +547,12 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
 
-	// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
-	webauthnLogin := wancli.Login
-	if promptWebauthn != nil {
-		webauthnLogin = promptWebauthn
+	promptWebauthn := login.WebauthnLogin
+	if promptWebauthn == nil {
+		promptWebauthn = wancli.Login
 	}
 
-	mfaResp, _, err := webauthnLogin(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
 		User:                    login.User,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})
@@ -882,13 +885,12 @@ func SSHAgentPasswordlessLoginWeb(ctx context.Context, login SSHLoginPasswordles
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
 
-	// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
-	webauthnLogin := wancli.Login
-	if promptWebauthn != nil {
-		webauthnLogin = promptWebauthn
+	promptWebauthn := login.WebauthnLogin
+	if promptWebauthn == nil {
+		promptWebauthn = wancli.Login
 	}
 
-	mfaResp, _, err := webauthnLogin(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
 		User:                    login.User,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})
