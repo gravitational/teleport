@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -35,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -260,12 +258,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 			serverAddr = reversetunnelclient.LocalNode
 		}
 	} else {
-		if port == "" || port == "0" {
-			port = strconv.Itoa(defaults.SSHServerListenPort)
-		}
-
-		serverAddr = net.JoinHostPort(host, port)
-		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
+		return nil, trace.NotImplemented("direct dialing to nodes not found in inventory is not supported")
 	}
 
 	// if the node is a registered openssh node, create a signer for auth
