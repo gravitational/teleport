@@ -125,7 +125,7 @@ func TestUsers(t *testing.T) {
 		users.setupDatabaseAndRotatePasswords(ctx, newDB6)
 
 		// Make sure no users are cached for "db6".
-		_, err := users.GetPassword(context.TODO(), db6, "alice")
+		_, err := users.GetPassword(context.Background(), db6, "alice")
 		require.Error(t, err)
 	})
 }
@@ -135,7 +135,7 @@ func requireDatabaseWithManagedUsers(t *testing.T, users *Users, db types.Databa
 	for _, username := range managedUsers {
 		// Usually a copy of the proxied database is passed to the engine
 		// instead of the same object.
-		password, err := users.GetPassword(context.TODO(), db.Copy(), username)
+		password, err := users.GetPassword(context.Background(), db.Copy(), username)
 		require.NoError(t, err)
 		require.NotEmpty(t, password)
 	}
