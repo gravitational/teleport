@@ -29,45 +29,6 @@ import (
 // promptWebauthn provides indirection for tests.
 var promptWebauthn func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 
-// mfaPrompt implements wancli.LoginPrompt for MFA logins.
-// In most cases authenticators shouldn't require PINs or additional touches for
-// MFA, but the implementation exists in case we find some unusual
-// authenticators out there.
-type mfaPrompt struct {
-	wancli.LoginPrompt
-	otpCancelAndWait func()
-}
-
-func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.otpCancelAndWait()
-	return p.LoginPrompt.PromptPIN()
-}
-
-// PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
-type PromptMFAChallengeOpts struct {
-	// HintBeforePrompt is an optional hint message to print before an MFA prompt.
-	// It is used to provide context about why the user is being prompted where it may
-	// not be obvious.
-	HintBeforePrompt string
-	// PromptDevicePrefix is an optional prefix printed before "security key" or
-	// "device". It is used to emphasize between different kinds of devices, like
-	// registered vs new.
-	PromptDevicePrefix string
-	// Quiet suppresses users prompts.
-	Quiet bool
-	// AllowStdinHijack allows stdin hijack during MFA prompts.
-	// Stdin hijack provides a better login UX, but it can be difficult to reason
-	// about and is often a source of bugs.
-	// Do not set this options unless you deeply understand what you are doing.
-	// If false then only the strongest auth method is prompted.
-	AllowStdinHijack bool
-	// AuthenticatorAttachment specifies the desired authenticator attachment.
-	AuthenticatorAttachment wancli.AuthenticatorAttachment
-	// PreferOTP favors OTP challenges, if applicable.
-	// Takes precedence over AuthenticatorAttachment settings.
-	PreferOTP bool
-}
-
 // hasPlatformSupport is used to mock wancli.HasPlatformSupport for tests.
 var hasPlatformSupport = wancli.HasPlatformSupport
 

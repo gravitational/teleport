@@ -317,7 +317,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 					Database:    dbInfo.Database,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
-			}, nil /*applyOpts*/)
+			})
 			return trace.Wrap(err)
 		}); err != nil {
 			return trace.Wrap(err)
