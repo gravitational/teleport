@@ -1687,12 +1687,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 
 	// add implicit roles to the set and build a checker
-	userState, err := a.getUserOrLoginState(ctx, req.User.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessInfo := services.AccessInfoFromUserState(userState)
+	accessInfo := services.AccessInfoFromUserState(req.User)
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
 		var err error
@@ -1715,7 +1710,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		compatibility:   constants.CertificateFormatStandard,
 		checker:         checker,
 		ttl:             time.Duration(req.TTL),
-		traits:          userState.GetTraits(),
+		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
 	})
