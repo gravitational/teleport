@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -36,6 +37,7 @@ const discordMaxConns = 100
 const discordHTTPTimeout = 10 * time.Second
 const discordRedColor = 13771309  // Green OxD2222D
 const discordGreenColor = 2328611 // Red 0x2328611
+const discordStatusUpdateTimeout = 10 * time.Second
 
 // DiscordBot is a discord client that works with AccessRequest.
 // It's responsible for formatting and posting a message on Discord when an
@@ -47,22 +49,50 @@ type DiscordBot struct {
 	webProxyURL *url.URL
 }
 
-// onAfterResponseDiscord resty error function for Discord
-func onAfterResponseDiscord(_ *resty.Client, resp *resty.Response) error {
-	if resp.IsSuccess() {
-		return nil
-	}
+// onAfterResponseDiscord creates and configures a post-response
+// handler for Discord Requests. Handles routing status updates
+// through to the status sink (if supplied).
+func onAfterResponseDiscord(statusSink common.StatusSink) resty.ResponseMiddleware {
+	return func(_ *resty.Client, resp *resty.Response) error {
+		if statusSink != nil {
+			emitStatusUpdate(resp, statusSink)
+		}
 
-	var result DiscordResponse
-	if err := json.Unmarshal(resp.Body(), &result); err != nil {
-		return trace.Wrap(err)
-	}
+		if resp.IsSuccess() {
+			return nil
+		}
 
-	if result.Message != "" {
-		return trace.Errorf("%s (code: %v, status: %d)", result.Message, result.Code, resp.StatusCode())
-	}
+		var result DiscordResponse
+		if err := json.Unmarshal(resp.Body(), &result); err != nil {
+			return trace.Wrap(err)
+		}
 
-	return trace.Errorf("Discord API returned error: %s (status: %d)", string(resp.Body()), resp.StatusCode())
+		if result.Message != "" {
+			return trace.Errorf("%s (code: %v, status: %d)", result.Message, result.Code, resp.StatusCode())
+		}
+
+		return trace.Errorf("Discord API returned error: %s (status: %d)", string(resp.Body()), resp.StatusCode())
+	}
+}
+
+func emitStatusUpdate(resp *resty.Response, statusSink common.StatusSink) {
+	status := common.StatusFromStatusCode(resp.StatusCode())
+
+	// There is sensible context in scope for us to use when emitting the
+	// status update. We can't use the context from the Resty response,
+	// as that could already be canceled, which would block us from emitting
+	// a status update showing that the plugin is currently broken.
+	//
+	// Using the background context with a reasonable timeout seems the
+	// least-bad option.
+	ctx, cancel := context.WithTimeout(context.Background(), discordStatusUpdateTimeout)
+	defer cancel()
+
+	if err := statusSink.Emit(ctx, status); err != nil {
+		logger.Get(resp.Request.Context()).
+			WithError(err).
+			Errorf("Error while emitting Discord plugin status: %v", err)
+	}
 }
 
 func (b DiscordBot) CheckHealth(ctx context.Context) error {
