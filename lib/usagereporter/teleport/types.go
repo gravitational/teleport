@@ -626,6 +626,21 @@ type UserMetadata struct {
 	IsSSO bool
 }
 
+// DeviceAuthenticateEvent event is emitted after successful device authentication ceremony.
+type DeviceAuthenticateEvent prehogv1a.DeviceAuthenticateEvent
+
+func (d *DeviceAuthenticateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DeviceAuthenticateEvent{
+			DeviceAuthenticateEvent: &prehogv1a.DeviceAuthenticateEvent{
+				DeviceId:     a.AnonymizeString(d.DeviceId),
+				UserName:     a.AnonymizeString(d.UserName),
+				DeviceOsType: d.DeviceOsType,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.

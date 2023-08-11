@@ -727,6 +727,24 @@ enum EditorChangeStatus {
   EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
 }
 
+// Device authentication event
+message DeviceAuthenticateEvent {
+  // anonymized device ID, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.device_id
+  string device_id = 1;
+
+  // anonymized username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // device OS type
+  //
+  // PostHog property: tp.device_os_type
+  string device_os_type = 3;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -811,6 +829,8 @@ message SubmitEventRequest {
 
     AssistExecutionEvent assist_execution = 50;
     AssistNewConversationEvent assist_new_conversation = 51;
+
+    DeviceAuthenticateEvent device_authenticate_event = 52;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
