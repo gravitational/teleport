@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -28,40 +27,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	eventstest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
-
-type mockAuditLogSessionStreamer struct {
-	events.DiscardAuditLog
-	t      *testing.T
-	events []apievents.AuditEvent
-}
-
-func newMockAuditLogSessionStreamer(t *testing.T, events []apievents.AuditEvent) *mockAuditLogSessionStreamer {
-	return &mockAuditLogSessionStreamer{
-		t:      t,
-		events: events,
-	}
-}
-
-// SearchEvents implements events.AuditLogSessionStreamer
-func (m *mockAuditLogSessionStreamer) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	if !slices.Equal([]string{events.AccessRequestCreateEvent}, req.EventTypes) {
-		return nil, "", trace.BadParameter("expected AccessRequestCreateEvent only, got %v", req.EventTypes)
-	}
-	var results []apievents.AuditEvent
-	for _, ev := range m.events {
-		if !req.From.IsZero() && ev.GetTime().Before(req.From) {
-			continue
-		}
-		if !req.To.IsZero() && ev.GetTime().After(req.To) {
-			continue
-		}
-		results = append(results, ev)
-	}
-	return results, "", nil
-}
 
 func TestAccessRequestLimit(t *testing.T) {
 	const monthlyLimit = 3
@@ -127,7 +97,12 @@ func TestAccessRequestLimit(t *testing.T) {
 		makeEvent(events.AccessRequestCreateEvent, "eee", august.AddDate(0, 0, -1)),
 	}
 
-	al := newMockAuditLogSessionStreamer(t, mockEvents)
+	al := eventstest.NewMockAuditLogSessionStreamer(mockEvents, func(req events.SearchEventsRequest) error {
+		if !slices.Equal([]string{events.AccessRequestCreateEvent}, req.EventTypes) {
+			return trace.BadParameter("expected AccessRequestCreateEvent only, got %v", req.EventTypes)
+		}
+		return nil
+	})
 	p.a.SetAuditLog(al)
 
 	// Check July
