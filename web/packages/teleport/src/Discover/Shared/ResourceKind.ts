@@ -22,6 +22,7 @@ export enum ResourceKind {
   Desktop,
   Kubernetes,
   Server,
+  SamlApplication,
 }
 
 export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {

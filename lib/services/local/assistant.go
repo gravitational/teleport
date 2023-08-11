@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/etcdbk"
 )
 
 // Conversation is a conversation entry in the backend.
@@ -90,6 +89,7 @@ func (s *AssistService) CreateAssistantConversation(ctx context.Context,
 	return &assist.CreateAssistantConversationResponse{Id: conversationID}, nil
 }
 
+// getConversation returns a conversation from the backend.
 func (s *AssistService) getConversation(ctx context.Context, username, conversationID string) (*Conversation, error) {
 	item, err := s.Get(ctx, backend.Key(assistantConversationPrefix, username, conversationID))
 	if err != nil {
@@ -102,6 +102,39 @@ func (s *AssistService) getConversation(ctx context.Context, username, conversat
 	}
 
 	return &conversation, nil
+}
+
+// DeleteAssistantConversation deletes a conversation from the backend.
+func (s *AssistService) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
+	if req.Username == "" {
+		return trace.BadParameter("missing parameter username")
+	}
+	if req.ConversationId == "" {
+		return trace.BadParameter("missing parameter conversation ID")
+	}
+
+	// Delete all messages in the conversation first, so that if the delete
+	// fails, the conversation is still there. Client can retry the deleting.
+	if err := s.deleteAllMessages(ctx, req.Username, req.ConversationId); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete the conversation.
+	if err := s.Delete(ctx, backend.Key(assistantConversationPrefix, req.Username, req.ConversationId)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// deleteAllMessages deletes all messages in a conversation.
+func (s *AssistService) deleteAllMessages(ctx context.Context, username, conversationID string) error {
+	startKey := backend.Key(assistantMessagePrefix, username, conversationID)
+	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // UpdateAssistantConversationInfo updates the conversation title.
@@ -219,6 +252,15 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 		return trace.BadParameter("missing conversation ID")
 	}
 
+	// Check if the conversation exists.
+	conversationKey := backend.Key(assistantConversationPrefix, req.Username, req.ConversationId)
+	if _, err := s.Get(ctx, conversationKey); err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("conversation %q not found", req.ConversationId)
+		}
+		return trace.Wrap(err)
+	}
+
 	msg := req.GetMessage()
 	value, err := json.Marshal(msg)
 	if err != nil {
@@ -237,17 +279,6 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
-func (a *AssistService) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
-	reporter, ok := a.Backend.(*backend.Reporter)
-	if !ok {
-		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
-	}
-
-	sanitizer, ok := reporter.Backend.(*backend.Sanitizer)
-	if !ok {
-		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
-	}
-
-	_, ok = sanitizer.Inner().(*etcdbk.EtcdBackend)
-	return &assist.IsAssistEnabledResponse{Enabled: !ok}, nil
+func (s *AssistService) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	return &assist.IsAssistEnabledResponse{Enabled: s.Backend.GetName() != "etcd"}, nil
 }

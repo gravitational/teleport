@@ -163,7 +163,7 @@ func (s *PresenceService) GetServerInfo(ctx context.Context, name string) (types
 	if name == "" {
 		return nil, trace.BadParameter("missing server info name")
 	}
-	item, err := s.Get(ctx, backend.Key(serverInfoPrefix, name))
+	item, err := s.Get(ctx, serverInfoKey(types.SubKindCloudInfo, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("server info %q is not found", name)
@@ -192,7 +192,7 @@ func (s *PresenceService) UpsertServerInfo(ctx context.Context, si types.ServerI
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(serverInfoPrefix, si.GetName()),
+		Key:     serverInfoKey(si.GetSubKind(), si.GetName()),
 		Value:   value,
 		Expires: si.Expiry(),
 		ID:      si.GetResourceID(),
@@ -207,7 +207,7 @@ func (s *PresenceService) DeleteServerInfo(ctx context.Context, name string) err
 	if name == "" {
 		return trace.BadParameter("missing server info name")
 	}
-	err := s.Delete(ctx, backend.Key(serverInfoPrefix, name))
+	err := s.Delete(ctx, serverInfoKey(types.SubKindCloudInfo, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("server info %q is not found", name)
@@ -215,6 +215,15 @@ func (s *PresenceService) DeleteServerInfo(ctx context.Context, name string) err
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func serverInfoKey(subkind, name string) []byte {
+	switch subkind {
+	case types.SubKindCloudInfo:
+		return backend.Key(serverInfoPrefix, cloudLabelsPrefix, name)
+	default:
+		return backend.Key(serverInfoPrefix, name)
+	}
 }
 
 func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]types.Server, error) {
@@ -317,6 +326,20 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 	return servers, nil
 }
 
+// GetNodeStream returns a stream of nodes in a namespace.
+func (s *PresenceService) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	startKey := backend.ExactKey(nodesPrefix, namespace)
+	items := backend.StreamRange(ctx, s, startKey, backend.RangeEnd(startKey), 50)
+	return stream.FilterMap(items, func(item backend.Item) (types.Server, bool) {
+		embedding, err := services.UnmarshalServer(item.Value, types.KindNode)
+		if err != nil {
+			s.log.Warnf("Skipping node at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return embedding, true
+	})
+}
+
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
@@ -350,6 +373,26 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
+// StreamNodes streams a list of registered servers.
+func (s *PresenceService) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	startKey := backend.Key(nodesPrefix, namespace)
+	endKey := backend.RangeEnd(startKey)
+	items := backend.StreamRange(ctx, s, startKey, endKey, apidefaults.DefaultChunkSize)
+	return stream.FilterMap(items, func(item backend.Item) (types.Server, bool) {
+		server, err := services.UnmarshalServer(
+			item.Value,
+			types.KindNode,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			s.log.Warnf("Skipping server at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return server, true
+	})
+}
+
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
@@ -357,8 +400,8 @@ func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertAuthServer(server types.Server) error {
-	return s.upsertServer(context.TODO(), authServersPrefix, server)
+func (s *PresenceService) UpsertAuthServer(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, authServersPrefix, server)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -375,8 +418,8 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(server types.Server) error {
-	return s.upsertServer(context.TODO(), proxiesPrefix, server)
+func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies
@@ -391,9 +434,9 @@ func (s *PresenceService) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy
-func (s *PresenceService) DeleteProxy(name string) error {
+func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 	key := backend.Key(proxiesPrefix, name)
-	return s.Delete(context.TODO(), key)
+	return s.Delete(ctx, key)
 }
 
 // DeleteAllReverseTunnels deletes all reverse tunnels
@@ -1820,4 +1863,5 @@ const (
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
 	loginTimePrefix              = "hostuser_interaction_time"
 	serverInfoPrefix             = "serverInfos"
+	cloudLabelsPrefix            = "cloudLabels"
 )

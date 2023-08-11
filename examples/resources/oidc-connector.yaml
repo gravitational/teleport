@@ -1,20 +1,18 @@
-#
-# Example resource for an OIDC connector
-# We recommend using OIDC for G Suite, Auth0 and Keycloak
-#
 kind: oidc
-version: v2
 metadata:
-  name: new_oidc_connector
+  name: oidc_connector
 spec:
-  redirect_url: "https://<cluster-url>/v1/webapi/oidc/callback"
-  client_id: <client id>
-  # connector display name that will be appended to the title of "Login with"
-  # button on the cluster login screen so it will say "Login with Google".
-  # Teleport will provide custom CSS for 'Google'.
-  display: Google
-  client_secret: <client secret>
-  issuer_url: https://<issuer-url>
-  scope: [<scope value>]
   claims_to_roles:
-    - {claim: "hd", value: "example.com", roles: ["editor"]}
+  - claim: groups
+    roles:
+    - access
+    value: users
+  - claim: groups
+    roles:
+    - editor
+    value: admins
+  client_id: <CLIENT-NAME>
+  client_secret: <CLIENT-SECRET>
+  issuer_url: https://idp.example.com/
+  redirect_url: https://mytenant.teleport.sh:443/v1/webapi/oidc/callback
+version: v3

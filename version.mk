@@ -30,7 +30,7 @@ func init() { Gitref = \"$(GITREF)\" }\n"
 # setver updates version.go and gitref.go with VERSION and GITREF vars
 #
 .PHONY:setver
-setver: helm-version
+setver: helm-version tsh-version
 	@printf $(VERSION_GO) | gofmt > version.go
 	@printf $(API_VERSION_GO) | gofmt > ./api/version.go
 	@printf $(UPDATER_VERSION_GO) | gofmt > ./integrations/kube-agent-updater/version.go
@@ -48,3 +48,11 @@ helm-version:
 		sed -i'.bak' -e "s_^\\.version:\ .*_.version: \\&version \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
 		rm -f examples/chart/$${CHART}/Chart.yaml.bak; \
 	done
+
+TSH_APP_PLISTS := $(wildcard build.assets/macos/*/tsh.app/Contents/Info.plist)
+PLIST_FILES := $(abspath $(TSH_APP_PLISTS))
+
+# tsh-version sets CFBundleVersion and CFBundleShortVersionString in the tsh{,dev} Info.plist
+.PHONY:tsh-version
+tsh-version:
+	cd build.assets/tooling && go run ./cmd/update-plist-version $(VERSION) $(PLIST_FILES)

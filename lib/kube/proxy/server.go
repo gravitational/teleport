@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	logrus "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/net/http2"
 
@@ -96,6 +96,8 @@ type TLSServerConfig struct {
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering and to improve memory usage.
 	KubernetesServersWatcher *services.KubeServerWatcher
+	// EnableProxyProtocol enables proxy protocol support
+	EnableProxyProtocol bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -237,6 +239,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
+			ReadTimeout:       apidefaults.DefaultIOTimeout,
+			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			TLSConfig:         cfg.TLS,
 			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
@@ -272,7 +276,7 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Context:                     t.Context,
 		Listener:                    listener,
 		Clock:                       t.Clock,
-		EnableExternalProxyProtocol: true,
+		EnableExternalProxyProtocol: t.EnableProxyProtocol,
 		ID:                          t.Component,
 		CertAuthorityGetter:         caGetter,
 		LocalClusterName:            t.ClusterName,
@@ -291,10 +295,11 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 	t.mu.Lock()
 	t.listener = mux.TLS()
-	if err = http2.ConfigureServer(t.Server, &http2.Server{}); err != nil {
+	err = http2.ConfigureServer(t.Server, &http2.Server{})
+	t.mu.Unlock()
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.mu.Unlock()
 
 	// startStaticClusterHeartbeats starts the heartbeat process for static clusters.
 	// static clusters can be specified via kubeconfig or clusterName for Teleport agent
@@ -420,7 +425,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
 	if t.KubeServiceType != KubeService {
-		name += "-proxy_service"
+		name += teleport.KubeLegacyProxySuffix
 	}
 
 	srv, err := types.NewKubernetesServerV3(

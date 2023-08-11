@@ -16,7 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Box, Indicator } from 'design';
+import { Text, Box, Indicator, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import {
@@ -41,6 +41,7 @@ export type Props = {
   traitDescription: string;
   hasTraits: boolean;
   onProceed(): void;
+  onPrev(): void;
   children: React.ReactNode;
   infoContent?: React.ReactNode;
 };
@@ -55,6 +56,7 @@ export function SetupAccessWrapper({
   traitDescription,
   headerSubtitle,
   onProceed,
+  onPrev,
   children,
   infoContent,
 }: Props) {
@@ -65,10 +67,10 @@ export function SetupAccessWrapper({
     case 'failed':
       $content = (
         <>
-          <Text my={3}>
-            <Icons.Warning ml={1} mr={2} color="error.main" />
-            Encountered Error: {attempt.statusText}
-          </Text>
+          <Flex my={3}>
+            <Icons.Warning ml={1} mr={2} color="error.main" size="medium" />
+            <Text>Encountered Error: {attempt.statusText}</Text>
+          </Flex>
           <ButtonBlueText ml={1} onClick={fetchUserTraits}>
             Retry
           </ButtonBlueText>
@@ -134,6 +136,7 @@ export function SetupAccessWrapper({
       {infoContent}
       <ActionButtons
         onProceed={onProceed}
+        onPrev={onPrev}
         disableProceed={
           attempt.status === 'failed' ||
           attempt.status === 'processing' ||

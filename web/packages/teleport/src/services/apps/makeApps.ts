@@ -28,6 +28,8 @@ export default function makeApp(json: any): App {
     clusterId = '',
     fqdn = '',
     awsConsole = false,
+    samlApp = false,
+    friendlyName = '',
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -37,6 +39,7 @@ export default function makeApp(json: any): App {
   const id = `${clusterId}-${name}-${publicAddr || uri}`;
   const labels = json.labels || [];
   const awsRoles = json.awsRoles || [];
+  const userGroups = json.userGroups || [];
 
   const isTcp = uri && uri.startsWith('tcp://');
   const isCloud = uri && uri.startsWith('cloud://');
@@ -50,6 +53,11 @@ export default function makeApp(json: any): App {
     } else {
       addrWithProtocol = `https://${publicAddr}`;
     }
+  }
+
+  let samlAppSsoUrl = '';
+  if (samlApp) {
+    samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
   }
 
   return {
@@ -66,5 +74,9 @@ export default function makeApp(json: any): App {
     awsConsole,
     isCloudOrTcpEndpoint: isTcp || isCloud,
     addrWithProtocol,
+    friendlyName,
+    userGroups,
+    samlApp,
+    samlAppSsoUrl,
   };
 }

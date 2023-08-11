@@ -113,6 +113,43 @@ message IsAssistEnabledResponse {
   bool enabled = 1;
 }
 
+// DeleteAssistantConversationRequest is a request to delete the conversation.
+message DeleteAssistantConversationRequest {
+  // conversationId is a unique conversation ID.
+  string conversation_id = 1;
+  // username is a username of the user who created the conversation.
+  string username = 2;
+}
+
+// GetAssistantEmbeddingsRequest is a request to get embeddings.
+message GetAssistantEmbeddingsRequest {
+  // username is a username of the user who requested the embeddings.
+  string username = 1;
+  // query is the query used for similarity search.
+  string query = 2;
+  // limit is the number of embeddings to return (also known as k).
+  uint32 limit = 3;
+  // kind is the kind of embeddings to return (ex, node).
+  string kind = 4;
+}
+
+// EmbeddingDocument is a document with an embedding.
+message EmbeddedDocument {
+  // id is the id of the document.
+  string id = 1;
+  // content is the content of the document.
+  string content = 2;
+  // similarityScore is the similarity score of the document.
+  float similarity_score = 3;
+}
+
+// GetAssistantEmbeddingsResponse is a response from the assistant service.
+message GetAssistantEmbeddingsResponse {
+  // embeddings is the list of embeddings.
+  // The list is sorted by similarity score in descending order.
+  repeated EmbeddedDocument embeddings = 1;
+}
+
 // AssistService is a service that provides an ability to communicate with the Teleport Assist.
 service AssistService {
   // CreateNewConversation creates a new conversation and returns the UUID of it.
@@ -120,6 +157,9 @@ service AssistService {
 
   // GetAssistantConversations returns all conversations for the connected user.
   rpc GetAssistantConversations(GetAssistantConversationsRequest) returns (GetAssistantConversationsResponse);
+
+  // DeleteAssistantConversation deletes the conversation and all messages associated with it.
+  rpc DeleteAssistantConversation(DeleteAssistantConversationRequest) returns (google.protobuf.Empty);
 
   // GetAssistantMessages returns all messages associated with the given conversation ID.
   rpc GetAssistantMessages(GetAssistantMessagesRequest) returns (GetAssistantMessagesResponse);
@@ -132,4 +172,10 @@ service AssistService {
 
   // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
   rpc IsAssistEnabled(IsAssistEnabledRequest) returns (IsAssistEnabledResponse);
+}
+
+// AssistEmbeddingService is a service that provides an ability to communicate with the Assist Embedding service.
+service AssistEmbeddingService {
+  // AssistantGetEmbeddings returns the embeddings for the given query.
+  rpc GetAssistantEmbeddings(GetAssistantEmbeddingsRequest) returns (GetAssistantEmbeddingsResponse);
 }

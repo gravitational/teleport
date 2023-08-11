@@ -27,26 +27,29 @@ import {
 } from 'design';
 import FieldSelect from 'shared/components/FieldSelect';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { Option } from 'shared/components/Select';
+import { Option as BaseOption } from 'shared/components/Select';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
 
 import cfg from 'teleport/config';
 import {
+  Integration,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
 import { integrationRWEAndDbCU } from 'teleport/Discover/yamlTemplates';
 import useTeleport from 'teleport/useTeleport';
 
-import { ActionButtons, HeaderSubtitle, HeaderWithBackBtn } from '../../Shared';
+import { ActionButtons, HeaderSubtitle, Header } from '../../Shared';
 
 import {
   DbMeta,
   DiscoverUrlLocationState,
   useDiscover,
 } from '../../useDiscover';
+
+type Option = BaseOption<Integration>;
 
 export function ConnectAwsAccount() {
   const { storeUser } = useTeleport();
@@ -86,7 +89,7 @@ export function ConnectAwsAccount() {
         const options = res.items.map(i => {
           if (i.kind === 'aws-oidc') {
             return {
-              value: i.name,
+              value: i,
               label: i.name,
             };
           }
@@ -99,7 +102,7 @@ export function ConnectAwsAccount() {
   if (!hasAccess) {
     return (
       <Box maxWidth="700px">
-        <Header prevStep={prevStep} />
+        <Heading />
         <Box maxWidth="700px">
           <Text mt={4} width="100px">
             You don’t have the required permissions for integrating.
@@ -110,6 +113,7 @@ export function ConnectAwsAccount() {
           <Flex minHeight="215px" mt={3}>
             <TextEditor
               readOnly={true}
+              bg="levels.deep"
               data={[{ content: integrationRWEAndDbCU, type: 'yaml' }]}
             />
           </Flex>
@@ -121,7 +125,7 @@ export function ConnectAwsAccount() {
   if (attempt.status === 'processing') {
     return (
       <Box maxWidth="700px">
-        <Header prevStep={prevStep} />
+        <Heading />
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
@@ -132,7 +136,7 @@ export function ConnectAwsAccount() {
   if (attempt.status === 'failed') {
     return (
       <Box maxWidth="700px">
-        <Header prevStep={prevStep} />
+        <Heading />
         <Alert kind="danger" children={attempt.statusText} />
         <ButtonPrimary mt={2} onClick={fetchAwsIntegrations}>
           Retry
@@ -148,7 +152,7 @@ export function ConnectAwsAccount() {
 
     updateAgentMeta({
       ...(agentMeta as DbMeta),
-      integrationName: selectedAwsIntegration.value,
+      integration: selectedAwsIntegration.value,
     });
 
     nextStep();
@@ -172,7 +176,7 @@ export function ConnectAwsAccount() {
   };
   return (
     <Box maxWidth="700px">
-      <Header prevStep={prevStep} />
+      <Heading />
       <Box mb={3}>
         <Validation>
           {({ validator }) => (
@@ -212,6 +216,7 @@ export function ConnectAwsAccount() {
               )}
 
               <ActionButtons
+                onPrev={prevStep}
                 onProceed={() => proceedWithExistingIntegration(validator)}
                 disableProceed={!hasAwsIntegrations || !selectedAwsIntegration}
               />
@@ -223,11 +228,9 @@ export function ConnectAwsAccount() {
   );
 }
 
-const Header = ({ prevStep }: { prevStep(): void }) => (
+const Heading = () => (
   <>
-    <HeaderWithBackBtn onPrev={prevStep}>
-      Connect to your AWS Account
-    </HeaderWithBackBtn>
+    <Header>Connect to your AWS Account</Header>
     <HeaderSubtitle>
       Instead of storing long-lived static credentials, Teleport will request
       short-lived credentials from AWS to perform operations automatically.

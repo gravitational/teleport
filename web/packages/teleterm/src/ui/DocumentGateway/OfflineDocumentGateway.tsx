@@ -54,6 +54,7 @@ export function OfflineDocumentGateway(props: OfflineDocumentGatewayProps) {
         style={{ position: 'relative' }}
       >
         The database connection is {statusDescription}
+        {/* TODO(ravicious): Use doc.status instead of LinearProgress. */}
         {props.connectAttempt.status === 'processing' && <LinearProgress />}
       </Text>
       {props.connectAttempt.status === 'error' && (

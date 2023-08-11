@@ -5,9 +5,11 @@ description: How to set up Teleport's Slack plugin for privilege elevation appro
 
 This guide will explain how to set up Slack to receive Access Request messages
 from Teleport. Teleport's Slack integration notifies individuals and channels of
-Access Requests. Users can then approve and deny Access Requests from within
-Slack, making it easier to implement security best practices without
-compromising productivity.
+Access Requests. Users are then directed to log in to the Teleport cluster where
+they can approve and deny Access Requests, making it easier to implement security 
+best practices without compromising productivity.
+
+(!docs/pages/includes/plugins/diagram.mdx api="Slack" action="Listen for Access Requests" messages="Slack messages" !)
 
 Here is an example of sending an Access Request via Teleport's Slack plugin:
 
@@ -337,7 +339,7 @@ Once Teleport is running, you've created the Slack app, and the plugin is
 configured, you can now run the plugin and test the workflow.
 
 <Tabs>
-<TabItem label="Executable" scope={["oss", "enterprise"]}>
+<TabItem label="Executable">
 Start the plugin:
 
 ```code
@@ -352,7 +354,7 @@ INFO   Starting Teleport Access Slack Plugin 7.2.1: slack/app.go:80
 INFO   Plugin is ready slack/app.go:101
 ```
 </TabItem>
-<TabItem label="Helm Chart" scope={["oss", "enterprise"]}>
+<TabItem label="Helm Chart">
 Install the plugin:
 
 ```code

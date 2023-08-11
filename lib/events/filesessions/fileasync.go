@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -104,9 +105,10 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		log: log.WithFields(log.Fields{
 			trace.Component: cfg.Component,
 		}),
-		closeC:    make(chan struct{}),
-		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
-		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
+		closeC:        make(chan struct{}),
+		semaphore:     make(chan struct{}, cfg.ConcurrentUploads),
+		eventsCh:      make(chan events.UploadEvent, cfg.ConcurrentUploads),
+		eventPreparer: &events.NoOpPreparer{},
 	}
 
 	return uploader, nil
@@ -129,10 +131,15 @@ type Uploader struct {
 
 	eventsCh chan events.UploadEvent
 	closeC   chan struct{}
+	wg       sync.WaitGroup
+
+	eventPreparer *events.NoOpPreparer
 }
 
 func (u *Uploader) Close() {
 	close(u.closeC)
+	// wait for all uploads to finish
+	u.wg.Wait()
 }
 
 func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
@@ -140,7 +147,7 @@ func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
 		return trace.BadParameter("missing session ID")
 	}
 	path := u.sessionErrorFilePath(sessionID)
-	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0600))
+	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0o600))
 }
 
 func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
@@ -160,6 +167,9 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve(ctx context.Context) error {
+	u.wg.Add(1)
+	defer u.wg.Done()
+	u.log.Infof("uploader will scan %v every %v", u.cfg.ScanDir, u.cfg.ScanPeriod.String())
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,
@@ -405,7 +415,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}
-	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0600)
+	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		if err := upload.Close(); err != nil {
 			u.log.WithError(err).Warningf("Failed to close upload.")
@@ -423,7 +433,9 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 	if time.Since(start) > 500*time.Millisecond {
 		u.log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
 	}
+	u.wg.Add(1)
 	go func() {
+		defer u.wg.Done()
 		if err := u.upload(ctx, upload); err != nil {
 			u.log.WithError(err).Warningf("Upload failed.")
 			u.emitEvent(events.UploadEvent{
@@ -501,7 +513,11 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go u.monitorStreamStatus(ctx, up, stream, cancel)
+	u.wg.Add(1)
+	go func() {
+		defer u.wg.Done()
+		u.monitorStreamStatus(ctx, up, stream, cancel)
+	}()
 
 	for {
 		event, err := up.reader.Read(ctx)
@@ -515,7 +531,11 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 		if status != nil && event.GetIndex() <= status.LastEventIndex {
 			continue
 		}
-		if err := stream.EmitAuditEvent(ctx, event); err != nil {
+		// ProtoStream will only write PreparedSessionEvents, so
+		// this event doesn't need to be prepared again. Convert it
+		// with a NoOpPreparer.
+		preparedEvent, _ := u.eventPreparer.PrepareSessionEvent(event)
+		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -29,6 +29,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/utils/prompt"
@@ -117,6 +118,13 @@ func (tc *TeleportClient) PromptMFAChallenge(ctx context.Context, proxyAddr stri
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
 func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+	ctx, span := tracing.NewTracer("mfa").Start(
+		ctx,
+		"PromptMFAChallenge",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	// Is there a challenge present?
 	if c.TOTP == nil && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil

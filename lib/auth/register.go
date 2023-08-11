@@ -211,7 +211,7 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}
-		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument(ctx)
+		params.ec2IdentityDocument, err = utils.GetRawEC2IdentityDocument(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -433,7 +433,7 @@ func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientCon
 	// skip verify as the Proxy server will present its host cert which is not
 	// fully verifiable at this point since the client does not have the host
 	// CAs yet before completing registration.
-	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(getHostAddresses(params)[0], insecure)
+	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(context.TODO(), getHostAddresses(params)[0], insecure)
 	if alpnConnUpgrade && !insecure {
 		tlsConfig.InsecureSkipVerify = true
 		tlsConfig.VerifyConnection = verifyALPNUpgradedConn(params.Clock)
@@ -714,9 +714,6 @@ type ReRegisterParams struct {
 	Rotation types.Rotation
 	// SystemRoles is a set of additional system roles held by the instance.
 	SystemRoles []types.SystemRole
-	// Used by older instances to requisition a multi-role cert by individually
-	// proving which system roles are held.
-	UnstableSystemRoleAssertionID string
 }
 
 // ReRegister renews the certificates and private keys based on the client's existing identity.
@@ -730,16 +727,15 @@ func ReRegister(params ReRegisterParams) (*Identity, error) {
 	}
 	certs, err := params.Client.GenerateHostCerts(context.Background(),
 		&proto.HostCertsRequest{
-			HostID:                        params.ID.HostID(),
-			NodeName:                      params.ID.NodeName,
-			Role:                          params.ID.Role,
-			AdditionalPrincipals:          params.AdditionalPrincipals,
-			DNSNames:                      params.DNSNames,
-			PublicTLSKey:                  params.PublicTLSKey,
-			PublicSSHKey:                  params.PublicSSHKey,
-			Rotation:                      rotation,
-			SystemRoles:                   params.SystemRoles,
-			UnstableSystemRoleAssertionID: params.UnstableSystemRoleAssertionID,
+			HostID:               params.ID.HostID(),
+			NodeName:             params.ID.NodeName,
+			Role:                 params.ID.Role,
+			AdditionalPrincipals: params.AdditionalPrincipals,
+			DNSNames:             params.DNSNames,
+			PublicTLSKey:         params.PublicTLSKey,
+			PublicSSHKey:         params.PublicSSHKey,
+			Rotation:             rotation,
+			SystemRoles:          params.SystemRoles,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

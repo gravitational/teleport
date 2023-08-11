@@ -20,21 +20,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/segmentio/parquet-go"
 	log "github.com/sirupsen/logrus"
-	"github.com/xitongsys/parquet-go-source/s3v2"
-	"github.com/xitongsys/parquet-go/parquet"
-	"github.com/xitongsys/parquet-go/source"
-	"github.com/xitongsys/parquet-go/writer"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
@@ -56,6 +56,12 @@ const (
 	// maxErrorCountForLogsOnSQSReceive defines maximum number of error log messages
 	// printed on receiving error from SQS receiver loop.
 	maxErrorCountForLogsOnSQSReceive = 10
+
+	// maxUniqueDaysInSingleBatch defines how many days are allowed in single batch.
+	// Typically during normal operation there will be only one unique day,
+	// but during a migration from another events backend, there could be a lot and using over 100 can result in huge
+	// memory consumption, due to how s3 manager uploader works: https://github.com/aws/aws-sdk-go-v2/issues/1302.
+	maxUniqueDaysInSingleBatch = 100
 )
 
 // consumer is responsible for receiving messages from SQS, batching them up to
@@ -70,7 +76,7 @@ type consumer struct {
 
 	// perDateFileParquetWriter returns file writer per date.
 	// Added in config to allow testing.
-	perDateFileParquetWriter func(ctx context.Context, date string) (source.ParquetFile, error)
+	perDateFileParquetWriter func(ctx context.Context, date string) (io.WriteCloser, error)
 
 	collectConfig sqsCollectConfig
 
@@ -97,7 +103,7 @@ type s3downloader interface {
 	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
 }
 
-func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
+func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchProcessingDuration prometheus.Histogram) (*consumer, error) {
 	s3client := s3.NewFromConfig(*cfg.AWSConfig)
 	sqsClient := sqs.NewFromConfig(*cfg.AWSConfig)
 
@@ -105,12 +111,13 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
 		// TODO(tobiaszheller): use s3 manager from teleport observability.
-		payloadDownloader: manager.NewDownloader(s3client),
-		payloadBucket:     cfg.largeEventsBucket,
-		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
-		batchMaxItems:     cfg.BatchMaxItems,
-		errHandlingFn:     errHandlingFnFromSQS(cfg.LogEntry),
-		logger:            cfg.LogEntry,
+		payloadDownloader:                     manager.NewDownloader(s3client),
+		payloadBucket:                         cfg.largeEventsBucket,
+		visibilityTimeout:                     int32(cfg.BatchMaxInterval.Seconds()),
+		batchMaxItems:                         cfg.BatchMaxItems,
+		errHandlingFn:                         errHandlingFnFromSQS(cfg.LogEntry),
+		logger:                                cfg.LogEntry,
+		metricConsumerBatchProcessingDuration: metricConsumerBatchProcessingDuration,
 	}
 	err := collectCfg.CheckAndSetDefaults()
 	if err != nil {
@@ -131,11 +138,12 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		collectConfig:       collectCfg,
 		sqsDeleter:          sqsClient,
 		queueURL:            cfg.QueueURL,
-		perDateFileParquetWriter: func(ctx context.Context, date string) (source.ParquetFile, error) {
+		perDateFileParquetWriter: func(ctx context.Context, date string) (io.WriteCloser, error) {
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
-
-			// TODO(tobiaszheller): verify later acl, kms customer, object lock etc.
-			fw, err := s3v2.NewS3FileWriterWithClient(ctx, s3client, cfg.locationS3Bucket, key, nil)
+			fw, err := awsutils.NewS3V2FileWriter(ctx, s3client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
+				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
+				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -284,12 +292,9 @@ func runWithMinInterval(ctx context.Context, fn func(context.Context) bool, minI
 func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize bool, e error) {
 	start := time.Now()
 	var size int
-	// TODO(tobiaszheller): we need some metrics to track it.
-	// And that log message should be deleted.
 	defer func() {
-		if size > 0 {
-			c.logger.Debugf("Batch of %d messages processed in %s", size, time.Since(start))
-		}
+		consumerLastProcessedTimestamp.SetToCurrentTime()
+		c.collectConfig.metricConsumerBatchProcessingDuration.Observe(time.Since(start).Seconds())
 	}()
 
 	msgsCollector := newSqsMessagesCollector(c.collectConfig)
@@ -302,6 +307,7 @@ func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize boo
 	go func() {
 		msgsCollector.fromSQS(readSQSCtx)
 	}()
+
 	toDelete, err := c.writeToS3(ctx, msgsCollector.getEventsChan(), c.perDateFileParquetWriter)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -337,6 +343,8 @@ type sqsCollectConfig struct {
 
 	logger        log.FieldLogger
 	errHandlingFn func(ctx context.Context, errC chan error)
+
+	metricConsumerBatchProcessingDuration prometheus.Histogram
 }
 
 func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
@@ -380,6 +388,9 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.errHandlingFn == nil {
 		return trace.BadParameter("errHandlingFn is not specified")
+	}
+	if cfg.metricConsumerBatchProcessingDuration == nil {
+		return trace.BadParameter("metricConsumerBatchProcessingDuration is not specified")
 	}
 	return nil
 }
@@ -426,9 +437,9 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 	defer cancel()
 
 	var (
-		count   int
-		countMu sync.Mutex
-		wg      sync.WaitGroup
+		fullBatchMetadata   collectedEventsMetadata
+		fullBatchMetadataMu sync.Mutex
+		wg                  sync.WaitGroup
 	)
 
 	wg.Add(s.cfg.noOfWorkers)
@@ -446,38 +457,106 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 				if deadline, ok := wokerCtx.Deadline(); ok && time.Until(deadline) <= s.cfg.waitOnReceiveDuration {
 					return
 				}
-				noOfReceived := s.receiveMessagesAndSendOnChan(wokerCtx, eventsC, errorsC)
-				if noOfReceived == 0 {
+				singleReceiveMetadata := s.receiveMessagesAndSendOnChan(wokerCtx, eventsC, errorsC)
+				if singleReceiveMetadata.Count == 0 {
 					// no point of locking and checking for size if nothing was returned.
 					continue
 				}
-				countMu.Lock()
-				count += noOfReceived
-				if count >= s.cfg.batchMaxItems {
-					countMu.Unlock()
+
+				fullBatchMetadataMu.Lock()
+				fullBatchMetadata.Merge(singleReceiveMetadata)
+				isOverBatch := fullBatchMetadata.Count >= s.cfg.batchMaxItems
+				isOverMaximumUniqueDays := len(fullBatchMetadata.UniqueDays) > maxUniqueDaysInSingleBatch
+				if isOverBatch || isOverMaximumUniqueDays {
+					fullBatchMetadataMu.Unlock()
 					cancel()
+					s.cfg.logger.Debugf("Batcher aborting early because of maxSize: %v, or maxUniqueDays %v", isOverBatch, isOverMaximumUniqueDays)
 					return
 				}
-				countMu.Unlock()
+				fullBatchMetadataMu.Unlock()
 			}
 		}(i)
 	}
 	wg.Wait()
 	close(eventsC)
+	if fullBatchMetadata.Count > 0 {
+		consumerBatchCount.Add(float64(fullBatchMetadata.Count))
+		consumerBatchSize.Observe(float64(fullBatchMetadata.Size))
+		consumerAgeOfOldestProcessedMessage.Set(time.Since(fullBatchMetadata.OldestTimestamp).Seconds())
+	} else {
+		// When no messages were processed, clear gauge metric.
+		consumerAgeOfOldestProcessedMessage.Set(0)
+	}
 }
 
-func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context, eventsC chan<- eventAndAckID, errorsC chan<- error) (size int) {
+type collectedEventsMetadata struct {
+	// Size is total size of events.
+	Size int
+	// Count is number of events.
+	Count int
+	// OldestTimestamp is timestamp of oldest event.
+	OldestTimestamp time.Time
+	// UniqueDays tracks from how many days events are received in current batch.
+	UniqueDays map[string]struct{}
+}
+
+// Merge combines the metadata of two collectedEventsMetadata instances.
+// It updates the current instance by adding the size and count of events from another instance,
+// and sets the oldestTimestamp to the oldest timestamp between the two instances.
+func (c *collectedEventsMetadata) Merge(in collectedEventsMetadata) {
+	c.Size += in.Size
+	c.Count += in.Count
+	c.mergeUniqueDays(in.UniqueDays)
+	if c.OldestTimestamp.IsZero() || (!in.OldestTimestamp.IsZero() && c.OldestTimestamp.After(in.OldestTimestamp)) {
+		c.OldestTimestamp = in.OldestTimestamp
+	}
+}
+
+func (c *collectedEventsMetadata) mergeUniqueDays(mapToMerge map[string]struct{}) {
+	if mapToMerge == nil {
+		return
+	}
+	if c.UniqueDays == nil {
+		c.UniqueDays = mapToMerge
+		return
+	}
+	for k := range mapToMerge {
+		if _, ok := c.UniqueDays[k]; !ok {
+			c.UniqueDays[k] = struct{}{}
+		}
+	}
+}
+
+// MergeWithEvent combines collectedEventsMetadata with metadata of single event.
+func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent, publishedToQueueTimestamp time.Time) {
+	c.Merge(collectedEventsMetadata{
+		// 1 because we are merging single event
+		Count:           1,
+		Size:            in.Size(),
+		OldestTimestamp: publishedToQueueTimestamp,
+		UniqueDays: map[string]struct{}{
+			in.GetTime().Format(time.DateOnly): {},
+		},
+	})
+}
+
+// SDK defines invalid type for attribute names, let's just use const here.
+// https://github.com/aws/aws-sdk-go-v2/issues/2124
+const sentTimestampAttribute = "SentTimestamp"
+
+func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context, eventsC chan<- eventAndAckID, errorsC chan<- error) collectedEventsMetadata {
 	sqsOut, err := s.cfg.sqsReceiver.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:              aws.String(s.cfg.queueURL),
 		MaxNumberOfMessages:   maxNumberOfMessagesFromReceive,
 		WaitTimeSeconds:       s.cfg.waitOnReceiveTimeout,
 		VisibilityTimeout:     s.cfg.visibilityTimeout,
 		MessageAttributeNames: []string{payloadTypeAttr},
+		AttributeNames:        []sqsTypes.QueueAttributeName{sentTimestampAttribute},
 	})
 	if err != nil {
 		// We don't need handle canceled errors anyhow.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return 0
+			return collectedEventsMetadata{}
 		}
 		errorsC <- trace.Wrap(err)
 
@@ -485,15 +564,15 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 		// on CPU if calls are contantly failing.
 		select {
 		case <-ctx.Done():
-			return 0
+			return collectedEventsMetadata{}
 		case <-time.After(s.cfg.waitOnReceiveError):
-			return 0
+			return collectedEventsMetadata{}
 		}
 	}
 	if len(sqsOut.Messages) == 0 {
-		return 0
+		return collectedEventsMetadata{}
 	}
-	var noOfValidMessages int
+	var singleReceiveMetadata collectedEventsMetadata
 	for _, msg := range sqsOut.Messages {
 		event, err := s.auditEventFromSQSorS3(ctx, msg)
 		if err != nil {
@@ -504,9 +583,28 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 			event:         event,
 			receiptHandle: aws.ToString(msg.ReceiptHandle),
 		}
-		noOfValidMessages++
+		messageSentTimestamp, err := getMessageSentTimestamp(msg)
+		if err != nil {
+			s.cfg.logger.Debugf("Failed to get sentTimestamp: %v", err)
+		}
+		singleReceiveMetadata.MergeWithEvent(event, messageSentTimestamp)
 	}
-	return noOfValidMessages
+	return singleReceiveMetadata
+}
+
+func getMessageSentTimestamp(msg sqsTypes.Message) (time.Time, error) {
+	if msg.Attributes == nil {
+		return time.Time{}, nil
+	}
+	attribute := msg.Attributes[sentTimestampAttribute]
+	if attribute == "" {
+		return time.Time{}, nil
+	}
+	milis, err := strconv.Atoi(attribute)
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return time.UnixMilli(int64(milis)).UTC(), nil
 }
 
 // auditEventFromSQSorS3 returns events either directly from SQS message payload
@@ -575,6 +673,7 @@ func errHandlingFnFromSQS(logger log.FieldLogger) func(ctx context.Context, errC
 			if errorsCount > maxErrorCountForLogsOnSQSReceive {
 				logger.Errorf("Got %d errors from SQS collector, printed only first %d", errorsCount, maxErrorCountForLogsOnSQSReceive)
 			}
+			consumerNumberOfErrorsFromSQSCollect.Add(float64(errorsCount))
 		}()
 
 		for {
@@ -611,11 +710,16 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 
 	s.cfg.logger.Debugf("Downloading %v %v [%v].", s.cfg.payloadBucket, path, versionID)
 
+	var versionIDPtr *string
+	if versionID != "" {
+		versionIDPtr = aws.String(versionID)
+	}
+
 	buf := manager.NewWriteAtBuffer([]byte{})
 	written, err := s.cfg.payloadDownloader.Download(ctx, buf, &s3.GetObjectInput{
 		Bucket:    aws.String(s.cfg.payloadBucket),
 		Key:       aws.String(path),
-		VersionId: aws.String(versionID),
+		VersionId: versionIDPtr,
 	})
 	if err != nil {
 		return nil, awsutils.ConvertS3Error(err)
@@ -630,7 +734,7 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 // to s3 bucket. It returns receiptHandles of elements to delete from queue.
 // If error is returned, it means that messages won't be deleted from SQS,
 // and events will be retried or go to dead-letter queue.
-func (c *consumer) writeToS3(ctx context.Context, eventsCh <-chan eventAndAckID, newPerDateFileWriterFn func(ctx context.Context, date string) (source.ParquetFile, error)) ([]string, error) {
+func (c *consumer) writeToS3(ctx context.Context, eventsCh <-chan eventAndAckID, newPerDateFileWriterFn func(ctx context.Context, date string) (io.WriteCloser, error)) ([]string, error) {
 	toDelete := make([]string, 0, c.batchMaxItems)
 	// TODO(tobiaszheller): later write in goroutine, so far it's not bottleneck.
 	perDateWriter := map[string]*parquetWriter{}
@@ -645,11 +749,10 @@ eventLoop:
 			}
 			pqtEvent, err := auditEventToParquet(eventAndAckID.event)
 			if err != nil {
-				// TODO(tobiaszheller): come back and add some metrics here.
 				c.logger.WithError(err).Error("Could not convert event to parquet format")
 				continue
 			}
-			date := pqtEvent.GetDate()
+			date := pqtEvent.EventTime.Format(time.DateOnly)
 			pw := perDateWriter[date]
 			if pw == nil {
 				fw, err := newPerDateFileWriterFn(ctx, date)
@@ -685,30 +788,24 @@ eventLoop:
 			toDelete = append(toDelete, eventAndAckID.receiptHandle)
 		}
 	}
-
+	eventLoopFinishedTime := time.Now()
+	defer func() {
+		consumerS3parquetFlushDuration.Observe(time.Since(eventLoopFinishedTime).Seconds())
+	}()
 	for _, pw := range perDateWriter {
 		if err := pw.Close(); err != nil {
 			// Typically there will be data just for one date.
 			// If we are not able to close parquet file, it make sense to retrun
 			// error and retry whole batch again from SQS.
 
-			// TODO(tobiaszheller): verify if broken files are removed from s3.
 			return nil, trace.Wrap(err)
 		}
 	}
 	return toDelete, nil
 }
 
-func newParquetWriter(ctx context.Context, fw source.ParquetFile) (*parquetWriter, error) {
-	// numberOfWorkersMarshalingParquet defines number how many goroutines
-	// will do marshaling of objects. I have followed example from xitongsys/parquet-go, where they use 4.
-	const numberOfWorkersMarshalingParquet = 4
-	pw, err := writer.NewParquetWriter(fw, new(eventParquet), numberOfWorkersMarshalingParquet)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pw.CompressionType = parquet.CompressionCodec_SNAPPY
-
+func newParquetWriter(ctx context.Context, fw io.WriteCloser) (*parquetWriter, error) {
+	pw := parquet.NewGenericWriter[eventParquet](fw, parquet.Compression(&parquet.Snappy))
 	return &parquetWriter{
 		closer: fw,
 		writer: pw,
@@ -717,15 +814,16 @@ func newParquetWriter(ctx context.Context, fw source.ParquetFile) (*parquetWrite
 
 type parquetWriter struct {
 	closer io.Closer
-	writer *writer.ParquetWriter
+	writer *parquet.GenericWriter[eventParquet]
 }
 
 func (pw *parquetWriter) Write(ctx context.Context, in eventParquet) error {
-	return trace.Wrap(pw.writer.Write(in))
+	_, err := pw.writer.Write([]eventParquet{in})
+	return trace.Wrap(err)
 }
 
 func (pw *parquetWriter) Close() error {
-	if err := pw.writer.WriteStop(); err != nil {
+	if err := pw.writer.Close(); err != nil {
 		return trace.NewAggregate(err, pw.closer.Close())
 	}
 	return trace.Wrap(pw.closer.Close())
@@ -735,7 +833,10 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 	if len(handles) == 0 {
 		return nil
 	}
-
+	start := time.Now()
+	defer func() {
+		consumerDeleteMessageDuration.Observe(time.Since(start).Seconds())
+	}()
 	const (
 		// maxDeleteBatchSize defines maximum number of handles passed to deleteMessage endpoint, limited by AWS.
 		maxDeleteBatchSize = 10

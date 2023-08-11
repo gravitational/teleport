@@ -32,23 +32,16 @@ import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import {
+  IamPolicyStatus,
+  CreateDatabaseRequest,
+} from 'teleport/services/databases';
 
 import {
   useCreateDatabase,
   findActiveDatabaseSvc,
   WAITING_TIMEOUT,
 } from './useCreateDatabase';
-
-import type { CreateDatabaseRequest } from 'teleport/services/databases';
-
-const crypto = require('crypto');
-
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
 
 const dbLabels = [
   { name: 'env', value: 'prod' },
@@ -268,6 +261,7 @@ describe('registering new databases, mainly error checking', () => {
         engine: DatabaseEngine.AuroraMysql,
       },
     } as any,
+    exitFlow: () => null,
     viewConfig: null,
     indexedViews: [],
     setResourceSpec: () => null,
@@ -320,7 +314,7 @@ describe('registering new databases, mainly error checking', () => {
     jest.clearAllMocks();
   });
 
-  test('with matching service, activates polling', async () => {
+  test('polling until result returns (non aws)', async () => {
     const { result } = renderHook(() => useCreateDatabase(), {
       wrapper,
     });
@@ -346,6 +340,96 @@ describe('registering new databases, mainly error checking', () => {
 
     // Test the dynamic definition of nextStep is called with a number
     // of steps to skip.
+    result.current.nextStep();
+    expect(discoverCtx.nextStep).toHaveBeenCalledWith(2);
+  });
+
+  test('continue polling when poll result returns with iamPolicyStatus field set to "pending"', async () => {
+    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+      agents: [
+        {
+          name: 'new-db',
+          aws: { iamPolicyStatus: IamPolicyStatus.Pending },
+        } as any,
+      ],
+    });
+    const { result } = renderHook(() => useCreateDatabase(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      result.current.registerDatabase(newDatabaseReq);
+    });
+    expect(teleCtx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
+
+    // The first result will not have the aws marker we are looking for.
+    // Polling should continue.
+    await act(async () => jest.advanceTimersByTime(3000));
+    expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
+    expect(discoverCtx.updateAgentMeta).not.toHaveBeenCalled();
+
+    // Set the marker we are looking for in the next api reply.
+    jest.clearAllMocks();
+    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+      agents: [
+        {
+          name: 'new-db',
+          aws: { iamPolicyStatus: IamPolicyStatus.Success },
+        } as any,
+      ],
+    });
+
+    // The second poll result has the marker that should cancel polling.
+    await act(async () => jest.advanceTimersByTime(3000));
+    expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
+    expect(discoverCtx.updateAgentMeta).toHaveBeenCalledWith({
+      resourceName: 'db-name',
+      db: {
+        name: 'new-db',
+        aws: { iamPolicyStatus: IamPolicyStatus.Success },
+      },
+      serviceDeployedMethod: 'skipped',
+    });
+
+    result.current.nextStep();
+    // Skips both deploy service AND IAM policy step.
+    expect(discoverCtx.nextStep).toHaveBeenCalledWith(3);
+  });
+
+  test('stops polling when poll result returns with iamPolicyStatus field set to "unspecified"', async () => {
+    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+      agents: [
+        {
+          name: 'new-db',
+          aws: { iamPolicyStatus: IamPolicyStatus.Unspecified },
+        } as any,
+      ],
+    });
+    const { result } = renderHook(() => useCreateDatabase(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      result.current.registerDatabase(newDatabaseReq);
+    });
+    expect(teleCtx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
+
+    await act(async () => jest.advanceTimersByTime(3000));
+    expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
+    expect(discoverCtx.updateAgentMeta).toHaveBeenCalledWith({
+      resourceName: 'db-name',
+      db: {
+        name: 'new-db',
+        aws: { iamPolicyStatus: IamPolicyStatus.Unspecified },
+      },
+    });
+
     result.current.nextStep();
     expect(discoverCtx.nextStep).toHaveBeenCalledWith(2);
   });

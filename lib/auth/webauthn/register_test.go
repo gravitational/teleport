@@ -197,9 +197,9 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 				return bytes.Compare(got[i].CredentialID, got[j].CredentialID) == -1
 			})
 
-			want := make([]protocol.CredentialDescriptor, len(test.wantExcludeList))
+			want := make([]wanlib.CredentialDescriptor, len(test.wantExcludeList))
 			for i, id := range test.wantExcludeList {
-				want[i] = protocol.CredentialDescriptor{
+				want[i] = wanlib.CredentialDescriptor{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: id,
 				}
@@ -387,6 +387,28 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 				return resp
 			},
 			wantErr: "passwordless registration failed",
+		},
+		{
+			name:         "NOK passwordless using key without PIN",
+			user:         user,
+			deviceName:   "webauthn2",
+			passwordless: true,
+			createResp: func() *wanlib.CredentialCreationResponse {
+				cc, err := webRegistration.Begin(ctx, user, true /* passwordless */)
+				require.NoError(t, err)
+
+				// "Trick" the authenticator into signing, regardless of resident key or
+				// verification requirements.
+				// Verified on Safari 16.5 (and likely other versions too).
+				cc.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementDiscouraged
+				cc.Response.AuthenticatorSelection.RequireResidentKey = protocol.ResidentKeyNotRequired()
+				cc.Response.AuthenticatorSelection.UserVerification = protocol.VerificationDiscouraged
+
+				resp, err := key.SignCredentialCreation(webOrigin, cc)
+				require.NoError(t, err)
+				return resp
+			},
+			wantErr: "doesn't support passwordless",
 		},
 	}
 	for _, test := range tests {

@@ -25,6 +25,7 @@ import (
 	grpcbackoff "google.golang.org/grpc/backoff"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/credentials"
@@ -35,12 +36,14 @@ type PluginConfiguration interface {
 	GetTeleportClient(ctx context.Context) (teleport.Client, error)
 	GetRecipients() RawRecipientsMap
 	NewBot(clusterName string, webProxyAddr string) (MessagingBot, error)
+	GetPluginType() types.PluginType
 }
 
 type BaseConfig struct {
-	Teleport   lib.TeleportConfig
-	Recipients RawRecipientsMap `toml:"role_to_recipients"`
-	Log        logger.Config
+	Teleport   lib.TeleportConfig `toml:"teleport"`
+	Recipients RawRecipientsMap   `toml:"role_to_recipients"`
+	Log        logger.Config      `toml:"log"`
+	PluginType types.PluginType
 }
 
 func (c BaseConfig) GetRecipients() RawRecipientsMap {
@@ -66,9 +69,6 @@ func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, err
 		Credentials: c.Teleport.Credentials(),
 		DialOpts: []grpc.DialOption{
 			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-			grpc.WithDefaultCallOptions(
-				grpc.WaitForReady(true),
-			),
 			grpc.WithReturnConnectionError(),
 		},
 	})
@@ -77,6 +77,11 @@ func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, err
 	}
 
 	return clt, nil
+}
+
+// GetPluginType returns the type of plugin this config is for.
+func (c BaseConfig) GetPluginType() types.PluginType {
+	return c.PluginType
 }
 
 // GenericAPIConfig holds common configuration use by a messaging service.

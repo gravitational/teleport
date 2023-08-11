@@ -29,13 +29,14 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        cache-dependency-path: '**/go.sum'
+        cache: false
       if: ${{ matrix.language == 'go' }}
 
     - name: Initialize the CodeQL tools for scanning
       uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
+        queries: security-extended
       timeout-minutes: 5
 
     - name: Autobuild

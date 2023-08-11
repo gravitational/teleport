@@ -8,7 +8,7 @@ authToken: ""
 
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr: ""
-# Comma-separated list of roles to enable (any of: kube,db,app)
+# Comma-separated list of roles to enable (any of: kube,db,app,discovery)
 roles: "kube"
 
 ################################################################
@@ -100,6 +100,20 @@ databases: []
 databaseResources: []
 
 ################################################################
+# Values that must be provided for Kubernetes Discovery
+################################################################
+
+# kubernetesDiscovery controls configuration for discovery service if it's enabled.
+# discovery service is enabled when the agent `roles` contains "discovery".
+# Default value will try to discovery all apps, use needs to override it to limit
+# scope of the discovered apps.
+kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "*": "*"
+
+################################################################
 # Values that you may need to change.
 ################################################################
 
@@ -146,7 +160,7 @@ updater:
   # `updater.versionServer` is the URL of the version server the agent fetches
   # the target version from. The complete version endpoint is built by
   # concatenating `versionServer` and `releaseChannel`.
-  versionServer: "https://update.gravitational.io/v1/"
+  versionServer: "https://updates.releases.teleport.dev/v1/"
   # Release channel the agent subscribes to.
   releaseChannel: "stable/cloud"
   image: public.ecr.aws/gravitational/teleport-kube-agent-updater
@@ -200,6 +214,15 @@ storage:
   enabled: false
   storageClassName: ""
   requests: 128Mi
+
+# Settings for configuring an cluster admin role binding.
+# This is useful for granting cluster admin permissions to a Kubernetes Group
+# other than the default "system:masters" group.
+# GKE Autopilot clusters forbid using the "system:masters" group for impersonation
+# and require a custom group to be used instead.
+adminClusterRoleBinding:
+  create: false
+  name: "cluster-admin"
 
 ################################################################
 # Values that you shouldn't need to change.
@@ -365,6 +388,17 @@ extraVolumes: []
 extraVolumeMounts: []
 # - name: myvolume
 #   mountPath: /path/on/host
+
+# Pod Host aliases (see https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
+hostAliases: []
+# - ip: "127.0.0.1"
+#   hostnames:
+#     - "foo.local"
+#     - "bar.local"
+# - ip: "10.1.2.3"
+#   hostnames:
+#     - "foo.remote"
+#     - "bar.remote"
 
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent

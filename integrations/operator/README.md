@@ -143,7 +143,7 @@ spec:
 ```
 
 ```bash
-kubcetl apply -f roles.yaml
+kubectl apply -f roles.yaml
 ```
 
 And now check if the role was created in Teleport and K8S (`teleport-cluster` namespace).

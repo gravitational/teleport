@@ -18,8 +18,6 @@ package reversetunnel
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,103 +30,15 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/proxy"
 )
-
-// NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
-func NewTunnelAuthDialer(config TunnelAuthDialerConfig) (*TunnelAuthDialer, error) {
-	if err := config.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &TunnelAuthDialer{
-		TunnelAuthDialerConfig: config,
-	}, nil
-}
-
-// TunnelAuthDialerConfig specifies TunnelAuthDialer configuration.
-type TunnelAuthDialerConfig struct {
-	// Resolver retrieves the address of the proxy
-	Resolver Resolver
-	// ClientConfig is SSH tunnel client config
-	ClientConfig *ssh.ClientConfig
-	// Log is used for logging.
-	Log logrus.FieldLogger
-	// InsecureSkipTLSVerify is whether to skip certificate validation.
-	InsecureSkipTLSVerify bool
-	// ClusterCAs contains cluster CAs.
-	ClusterCAs *x509.CertPool
-}
-
-func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
-	if c.Resolver == nil {
-		return trace.BadParameter("missing tunnel address resolver")
-	}
-	if c.ClusterCAs == nil {
-		return trace.BadParameter("missing cluster CAs")
-	}
-	return nil
-}
-
-// TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
-type TunnelAuthDialer struct {
-	// TunnelAuthDialerConfig is the TunnelAuthDialer configuration.
-	TunnelAuthDialerConfig
-}
-
-// DialContext dials auth server via SSH tunnel
-func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
-	// Connect to the reverse tunnel server.
-	opts := []proxy.DialerOptionFunc{
-		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
-	}
-
-	addr, mode, err := t.Resolver(ctx)
-	if err != nil {
-		t.Log.Errorf("Failed to resolve tunnel address: %v", err)
-		return nil, trace.Wrap(err)
-	}
-
-	if mode == types.ProxyListenerMode_Multiplex {
-		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
-			TLSConfig: &tls.Config{
-				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
-				InsecureSkipVerify: t.InsecureSkipTLSVerify,
-			},
-			DialTimeout:             t.ClientConfig.Timeout,
-			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(addr.Addr, t.InsecureSkipTLSVerify),
-			GetClusterCAs:           client.ClusterCAsFromCertPool(t.ClusterCAs),
-		}))
-	}
-
-	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
-	sconn, err := dialer.Dial(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Build a net.Conn over the tunnel. Make this an exclusive connection:
-	// close the net.Conn as well as the channel upon close.
-	conn, _, err := sshutils.ConnectProxyTransport(
-		sconn.Conn,
-		&sshutils.DialReq{
-			Address: RemoteAuthServer,
-		},
-		true,
-	)
-	if err != nil {
-		return nil, trace.NewAggregate(err, sconn.Close())
-	}
-	return conn, nil
-}
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
 // payload.
@@ -166,14 +76,14 @@ type transport struct {
 	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
-	reverseTunnelServer Server
+	reverseTunnelServer reversetunnelclient.Server
 
 	// server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
 	server ServerHandler
 
-	// emitter is an audit stream emitter.
-	emitter events.StreamEmitter
+	// emitter is an audit event emitter.
+	emitter apievents.Emitter
 
 	// proxySigner is used to sign PROXY headers and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
@@ -247,7 +157,7 @@ func (p *transport) start() {
 	// Handle special non-resolvable addresses first.
 	switch dreq.Address {
 	// Connect to an Auth Server.
-	case RemoteAuthServer:
+	case reversetunnelclient.RemoteAuthServer:
 		if len(p.authServers) == 0 {
 			p.log.Errorf("connection rejected: no auth servers configured")
 			p.reply(req, false, []byte("no auth servers configured"))
@@ -257,7 +167,7 @@ func (p *transport) start() {
 
 		directAddress = utils.ChooseRandomString(p.authServers)
 	// Connect to the Kubernetes proxy.
-	case LocalKubernetes:
+	case reversetunnelclient.LocalKubernetes:
 		switch p.component {
 		case teleport.ComponentReverseTunnelServer:
 			p.reply(req, false, []byte("connection rejected: no remote kubernetes proxy"))
@@ -284,7 +194,7 @@ func (p *transport) start() {
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
 			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
 			if err == nil {
-				clientConn = newConnectionWithSrcAddr(clientConn, src)
+				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
 			p.server.HandleConnection(clientConn)
 			return
@@ -300,7 +210,7 @@ func (p *transport) start() {
 		}
 
 	// LocalNode requests are for the single server running in the agent pool.
-	case LocalNode, LocalWindowsDesktop:
+	case reversetunnelclient.LocalNode, reversetunnelclient.LocalWindowsDesktop:
 		// Transport is allocated with both teleport.ComponentReverseTunnelAgent
 		// and teleport.ComponentReverseTunnelServer. However, dialing to this address
 		// only makes sense when running within a teleport.ComponentReverseTunnelAgent.
@@ -327,7 +237,7 @@ func (p *transport) start() {
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
 			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
 			if err == nil {
-				clientConn = newConnectionWithSrcAddr(clientConn, src)
+				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
 			p.server.HandleConnection(clientConn)
 			return
@@ -362,8 +272,7 @@ func (p *transport) start() {
 		clientDst = dst
 	}
 	var signedHeader []byte
-	isKubeOrAuth := dreq.ConnType == types.KubeTunnel || dreq.Address == RemoteAuthServer
-	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, !isKubeOrAuth, clientSrc, clientDst) {
+	if shouldSendSignedPROXYHeader(p.proxySigner, useTunnel, dreq.IsAgentlessNode, clientSrc, clientDst) {
 		signedHeader, err = p.proxySigner.SignPROXYHeader(clientSrc, clientDst)
 		if err != nil {
 			errorMessage := fmt.Sprintf("connection rejected - could not create signed PROXY header: %v", err)
@@ -467,11 +376,11 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoApplicationTunnel)
 		case types.OktaTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoOktaTunnel)
 		case types.DatabaseTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoDatabaseTunnel)
 		}
 
 		errTun := err
@@ -540,37 +449,9 @@ func (p *transport) directDial(addr string) (net.Conn, error) {
 	return conn, nil
 }
 
-// connectionWithSrcAddr is a net.Conn wrapper that allows us to specify remote client address
-type connectionWithSrcAddr struct {
-	net.Conn
-	clientSrcAddr net.Addr
-}
-
-// RemoteAddr returns specified client source address
-func (c *connectionWithSrcAddr) RemoteAddr() net.Addr {
-	return c.clientSrcAddr
-}
-
-// NetConn returns the underlying net.Conn.
-func (c *connectionWithSrcAddr) NetConn() net.Conn {
-	return c.Conn
-}
-
-// newConnectionWithSrcAddr wraps provided connection and overrides client remote address
-func newConnectionWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *connectionWithSrcAddr {
-	var addr net.Addr
-	if clientSrcAddr != nil {
-		addr = getTCPAddr(clientSrcAddr) // SSH package requires net.TCPAddr for source-address check
-	}
-	if addr == nil {
-		addr = conn.RemoteAddr()
-	}
-	return &connectionWithSrcAddr{
-		Conn:          conn,
-		clientSrcAddr: addr,
-	}
-}
-
+// getTCPAddr converts net.Addr to *net.TCPAddr.
+//
+// SSH package requires net.TCPAddr for source-address check.
 func getTCPAddr(addr net.Addr) *net.TCPAddr {
 	ap, err := netip.ParseAddrPort(addr.String())
 	if err != nil {

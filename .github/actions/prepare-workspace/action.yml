@@ -1,10 +1,5 @@
 name: Prepare Teleport workspace
 description: Prepares Teleport workspace folder
-inputs:
-  cache_key:
-    description: Cache infix used in cache actions
-    required: false
-    default: ${{ github.workflow }}
 
 runs:
   using: "composite"
@@ -26,27 +21,3 @@ runs:
       id: go-version
       shell: bash
       run: echo "go-version=$(go version | { read _ _ v _; echo ${v#go}; })" >> $GITHUB_OUTPUT
-
-    - name: Go build cache
-      uses: actions/cache@v3
-      with:
-        path: ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-build-${{ steps.go-version.outputs.go-version }}-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-build-${{ steps.go-version.outputs.go-version }}-${{ inputs.cache_key }}-
-
-    - name: Go mod cache
-      uses: actions/cache@v3
-      with:
-        path: ${{ steps.go-cache-paths.outputs.go-mod }}
-        key: ${{ runner.os }}-go-mod-${{ steps.go-version.outputs.go-version }}-${{ inputs.cache_key }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: ${{ runner.os }}-go-mod-${{ steps.go-version.outputs.go-version }}-${{ inputs.cache_key }}-
-
-    - name: Rust cargo cache
-      uses: actions/cache@v3
-      with:
-        path: |
-          ${{ github.workspace }}/target
-          /usr/local/cargo/registry
-          /usr/local/cargo/git
-        key: ${{ runner.os }}-cargo-${{ inputs.cache_key }}-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-${{ inputs.cache_key }}-

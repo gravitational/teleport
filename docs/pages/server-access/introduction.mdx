@@ -10,23 +10,20 @@ giving complete visibility over all sessions and events.
 
 Teleport server access is designed for the following kinds of scenarios:
 
-1. When up to a vast number of clusters must be managed using the command-line (`tsh`) or programmatically (through the Teleport API) and you want to simplify your stack, security, and configuration complexity.
-2. When security team members must track and audit every user session. 
-3. When Teleport users require a complete, dedicated, and secure SSH option (Teleport Node running in SSH mode) and more than a certificate authority (Teleport Auth) with proxy (Teleport Proxy).
-4. When resource and network security must be maximized: SSH certificates over secret keys, Two-Factor Authentication (2FA), Single Sign-On (SSO), and short-lived certificates.
+- When up to a vast number of clusters must be managed using the command-line (`tsh`) or programmatically (through the Teleport API) and you want to simplify your stack, security, and configuration complexity.
+- When security team members must track and audit every user session. 
+- When Teleport users require a complete, dedicated, and secure SSH option (Teleport Node running in SSH mode) and more than a certificate authority (Teleport Auth) with proxy (Teleport Proxy).
+- When resource and network security must be maximized: SSH certificates over secret keys, Two-Factor Authentication (2FA), Single Sign-On (SSO), and short-lived certificates.
 
 ## Getting started
 
 - [Get started](getting-started.mdx): Get started using Teleport server access
   in 10 minutes. Server access for most common SSH use-cases.
-- [Integrate with OpenSSH](guides/openssh.mdx): You can use Teleport-issued
-  certificates to access legacy OpenSSH servers on hosts where there is no
-  Teleport installation.
 
 ## Guides
 
 - [Using Teleport with PAM](./guides/ssh-pam.mdx): How to configure Teleport SSH with PAM (Pluggable Authentication Modules).
-- [OpenSSH Guide](./guides/openssh.mdx): How to use Teleport on legacy systems with OpenSSH and sshd.
+- [Agentless OpenSSH Integration](./guides/openssh.mdx): How to use Teleport in agentless mode on systems with OpenSSH and `sshd`.
 - [Recording Proxy Mode](./guides/recording-proxy-mode.mdx): How to use Teleport Recording Proxy Mode to capture activity on OpenSSH servers.
 - [BPF Session Recording](./guides/bpf-session-recording.mdx): How to use BPF to record SSH session commands, modified files and network connections.
 - [Restricted Session](./guides/restricted-session.mdx): How to configure and use Restricted Session to apply security policies to SSH sessions.

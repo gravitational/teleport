@@ -33,8 +33,8 @@ to the Proxy Service.
 <Tabs>
 <TabItem scope={["oss"]} label="Open Source">
 
-- A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](/docs/getting-started) guides (skip TLS certificate setup).
+- A running Teleport cluster. For details on how to set this up, see our
+  [Getting Started](../../index.mdx) guide (skip TLS certificate setup).
 
 - A Teleport Proxy Service which does not have certificates or ACME automatic certificates configured.
 For example, this Teleport Proxy Service configuration would use self-signed certs:
@@ -48,24 +48,16 @@ For example, this Teleport Proxy Service configuration would use self-signed cer
     acme: {}
   ```
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](/docs/installation.mdx) for details.
+  See [Installation](../../installation.mdx) for details.
 
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
 - A running Teleport cluster. For details on how to set this up, see our Enterprise
-  [Getting Started](/docs/enterprise/getting-started) guide.
+  [Getting Started](../../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
 
 - A Teleport Proxy Service which does not have certificates or ACME automatic certificates configured.
 For example, this Teleport Proxy Service configuration would use self-signed certs:
@@ -79,16 +71,7 @@ For example, this Teleport Proxy Service configuration would use self-signed cer
     acme: {}
   ```
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting your [Teleport account](https://teleport.sh).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
 
 </TabItem>
 </Tabs>
@@ -169,7 +152,7 @@ running Teleport: via the `teleport` CLI, using a Helm chart, or via systemd:
     You will see output similar to the following, including the file path (`/lib/systemd/system/teleport.service`) that contains the unit file for the systemd configuration being applied:
 
     ```code
-    ● teleport.service - Teleport SSH Service
+    ● teleport.service - Teleport Service
         Loaded: loaded (/lib/systemd/system/teleport.service; disabled; vendor preset: enabled)
         Active: inactive (dead)
     ```
@@ -222,7 +205,7 @@ flag](../../connect-your-client/teleport-connect.mdx#skipping-tls-certificate-ve
 
 ## Further reading
 
-- [Configuring Teleport TLS Certs](../../get-started.mdx#configure-teleport)
+- [Configuring Teleport TLS Certs](../../index.mdx#configure-teleport)
 - [Run Teleport as a systemd Daemon](./daemon.mdx)
 - [Teleport Proxy Service](../../architecture/proxy.mdx)
 - [Teleport Authentication](../../architecture/authentication.mdx)

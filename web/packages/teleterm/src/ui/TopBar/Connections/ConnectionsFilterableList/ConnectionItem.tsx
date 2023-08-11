@@ -98,7 +98,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
             <span
               css={`
                 font-size: 10px;
-                background: rgba(255, 255, 255, 0.25);
+                background: ${props => props.theme.colors.spotBackground[2]};
                 opacity: 0.85;
                 padding: 1px 2px;
                 margin-right: 4px;
@@ -131,7 +131,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
             actionIcon.action();
           }}
         >
-          <actionIcon.Icon fontSize={13} />
+          <actionIcon.Icon size={18} />
         </ButtonIcon>
       </Flex>
     </ListItem>

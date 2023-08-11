@@ -31,12 +31,14 @@ import type {
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
-
+import type { Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  assistEnabled: false,
+  automaticUpgrades: false,
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
@@ -64,6 +66,8 @@ const cfg = {
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
     privateKeyPolicy: 'none' as PrivateKeyPolicy,
+    // motd is message of the day, displayed to users before login.
+    motd: '',
   },
 
   proxyCluster: 'localhost',
@@ -183,6 +187,9 @@ const cfg = {
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
+    deployServiceIamConfigureScriptPath:
+      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
@@ -223,6 +230,8 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
+    awsDeployTeleportServicePath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -237,6 +246,7 @@ const cfg = {
       '/v1/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
+    userPreferencesPath: '/v1/webapi/user/preferences',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -276,6 +286,10 @@ const cfg = {
 
   getPreferredMfaType() {
     return cfg.auth ? cfg.auth.preferredLocalMfa : null;
+  },
+
+  getMotd() {
+    return cfg.auth.motd;
   },
 
   getLocalAuthFlag() {
@@ -334,6 +348,15 @@ const cfg = {
 
   getNodeScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.nodeScriptPath, { token });
+  },
+
+  getDeployServiceIamConfigureScriptUrl(
+    p: UrlDeployServiceIamConfigureScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.deployServiceIamConfigureScriptPath, { ...p })
+    );
   },
 
   getDbScriptUrl(token: string) {
@@ -663,6 +686,15 @@ const cfg = {
     });
   },
 
+  getAwsDeployTeleportServiceUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsDeployTeleportServicePath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.userGroupsListPath, {
       clusterId,
@@ -820,6 +852,13 @@ export interface UrlIntegrationExecuteRequestParams {
   // action is the expected backend string value
   // used to describe what to use the integration for.
   action: 'aws-oidc/list_databases';
+}
+
+export interface UrlDeployServiceIamConfigureScriptParams {
+  integrationName: string;
+  region: Regions;
+  awsOidcRoleArn: string;
+  taskRoleArn: string;
 }
 
 export default cfg;

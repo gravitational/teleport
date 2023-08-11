@@ -16,8 +16,8 @@ limitations under the License.
 
 import React, { useState } from 'react';
 
-import { ButtonBorder, Text, Box, Menu, MenuItem } from 'design';
-import { CarrotDown, Warning } from 'design/Icon';
+import { ButtonBorder, Text, Box, Menu, MenuItem, Flex } from 'design';
+import { ChevronDown, Warning } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
@@ -35,8 +35,14 @@ export const SessionJoinBtn = ({
   participantModes: ParticipantMode[];
   showCTA: boolean;
 }) => {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
+
+  function closeMenu() {
+    setAnchorEl(null);
+  }
+
   return (
-    <JoinMenu>
+    <JoinMenu anchorEl={anchorEl} setAnchorEl={setAnchorEl}>
       {showCTA && (
         <Box mx="12px" my="3">
           <ButtonLockedFeature
@@ -56,6 +62,7 @@ export const SessionJoinBtn = ({
         participantMode="observer"
         key="observer"
         showCTA={showCTA}
+        closeMenu={closeMenu}
       />
       <JoinMenuItem
         title="As a Moderator"
@@ -65,6 +72,7 @@ export const SessionJoinBtn = ({
         participantMode="moderator"
         key="moderator"
         showCTA={showCTA}
+        closeMenu={closeMenu}
       />
       <JoinMenuItem
         title="As a Peer"
@@ -74,14 +82,21 @@ export const SessionJoinBtn = ({
         participantMode="peer"
         key="peer"
         showCTA={showCTA}
+        closeMenu={closeMenu}
       />
     </JoinMenu>
   );
 };
 
-function JoinMenu({ children }: { children: React.ReactNode }) {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
-
+function JoinMenu({
+  children,
+  anchorEl,
+  setAnchorEl,
+}: {
+  children: React.ReactNode;
+  anchorEl: HTMLElement;
+  setAnchorEl: React.Dispatch<React.SetStateAction<HTMLElement>>;
+}) {
   const handleClickListItem = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
@@ -94,7 +109,7 @@ function JoinMenu({ children }: { children: React.ReactNode }) {
     <Box textAlign="center" width="80px">
       <ButtonBorder size="small" onClick={handleClickListItem}>
         Join
-        <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
+        <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
       </ButtonBorder>
       <Menu
         anchorOrigin={{
@@ -122,6 +137,7 @@ function JoinMenuItem({
   participantMode,
   url,
   showCTA,
+  closeMenu,
 }: {
   title: string;
   description: string;
@@ -129,6 +145,7 @@ function JoinMenuItem({
   participantMode: ParticipantMode;
   url: string;
   showCTA: boolean;
+  closeMenu: () => void;
 }) {
   if (hasAccess && !showCTA) {
     return (
@@ -136,6 +153,7 @@ function JoinMenuItem({
         as="a"
         href={url}
         target="_blank"
+        onClick={closeMenu}
         css={`
           text-decoration: none;
           padding: 8px 12px;
@@ -173,10 +191,12 @@ function JoinMenuItem({
         <Text>{description}</Text>
         {!showCTA && (
           <Box color="text.main" px={1} mt={1}>
-            <Text fontSize="10px" color="text.slightlyMuted">
-              <Warning color="error.main" mr={2} />
-              {modeWarningText[participantMode]}
-            </Text>
+            <Flex>
+              <Warning color="error.main" mr={2} size="small" />
+              <Text fontSize="10px" color="text.slightlyMuted">
+                {modeWarningText[participantMode]}
+              </Text>
+            </Flex>
           </Box>
         )}
       </Box>

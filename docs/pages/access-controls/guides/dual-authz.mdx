@@ -10,20 +10,19 @@ Here are the most common scenarios:
 - Improve the security of your system and prevent one successful phishing attack from compromising your system.
 - Satisfy FedRAMP AC-3 Dual authorization control that requires approval of two authorized individuals.
 
-In this guide, we will set up Teleport's Just-in-Time Access Requests to require the approval
-of two team members for a privileged role `dbadmin`.
+In this guide, we will set up Teleport's Just-in-Time Access Requests to require
+the approval of two team members for a privileged role `dbadmin`.
 
-<ScopedBlock scope="oss">
+The steps below describe how to use Teleport with Mattermost. You can also
+[integrate with many other providers](../access-requests.mdx).
 
-  This guide requires a commercial edition of Teleport. The open source
-  edition of Teleport only supports [GitHub](../../access-controls/sso/github-sso.mdx) as
-  an SSO provider.
+<Notice type="warning">
 
-</ScopedBlock>
+This guide requires a commercial edition of Teleport. The open source edition of
+Teleport only supports [GitHub](../../access-controls/sso/github-sso.mdx) as an
+SSO provider.
 
-<Admonition title="Note" type="tip">
-  The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../access-requests.mdx).
-</Admonition>
+</Notice>
 
 ## Prerequisites
 
@@ -117,13 +116,13 @@ Alice and Ivan are reviewers. They can approve requests for assuming role
 `dbadmin`. Bob is a DevOps engineer and can assume the `dbadmin` role if two members
 of the `reviewer` role approve the request.
 
-Create the following `dbadmin`, `reviewer` and `devops` roles:
+Create the following `dbadmin`, `dbreviewer` and `devops` roles:
 
 ```yaml
 kind: role
 version: v5
 metadata:
-  name: reviewer
+  name: dbreviewer
 spec:
   allow:
     review_requests:
@@ -157,8 +156,8 @@ The commands below create the local users Bob, Alice, and Ivan.
 
 ```code
 $ tctl users add bob@example.com --roles=devops
-$ tctl users add alice@example.com --roles=reviewer
-$ tctl users add ivan@example.com --roles=reviewer
+$ tctl users add alice@example.com --roles=dbreviewer
+$ tctl users add ivan@example.com --roles=dbreviewer
 ```
 
 ### Create an Access Request
@@ -211,7 +210,7 @@ Bob can also assume granted Access Request roles using Web UI:
 
 {/* TODO: This H2 will show up in the table of contents when this section is invisible.
 We need a way to hide invisible H2s from the TOC. */}
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["enterprise"]}>
 
 ## Troubleshooting
 

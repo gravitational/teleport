@@ -33,6 +33,8 @@ import {
   ResourcesService,
   AmbiguousHostnameError,
 } from 'teleterm/ui/services/resources';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { makeLoggedInUser } from 'teleterm/services/tshd/testHelpers';
 
 import { WorkspaceContextProvider } from '../Documents';
 
@@ -88,15 +90,17 @@ const getDocTshNodeWithLoginHost: () => DocumentTshNodeWithLoginHost = () => {
   };
 };
 
-const getPtyProcessMock = () => ({
+const getPtyProcessMock = (): IPtyProcess => ({
   onOpen: jest.fn(),
   write: jest.fn(),
   resize: jest.fn(),
   dispose: jest.fn(),
   onData: jest.fn(),
   start: jest.fn(),
+  onStartError: jest.fn(),
   onExit: jest.fn(),
   getCwd: jest.fn(),
+  getPtyId: jest.fn(),
 });
 
 test('useDocumentTerminal calls TerminalsService during init', async () => {
@@ -579,16 +583,7 @@ const testSetup = (
     leaf: false,
     proxyHost: 'localhost:3080',
     authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-    loggedInUser: {
-      activeRequestsList: [],
-      assumedRequests: {},
-      name: 'admin',
-      acl: {},
-      sshLoginsList: [],
-      rolesList: [],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
-    },
+    loggedInUser: makeLoggedInUser(),
   };
   const leafCluster: tsh.Cluster = {
     uri: leafClusterUri,
@@ -597,16 +592,7 @@ const testSetup = (
     leaf: true,
     proxyHost: '',
     authClusterId: '5408fc2f-a452-4bde-bda2-b3b918c635ad',
-    loggedInUser: {
-      activeRequestsList: [],
-      assumedRequests: {},
-      name: 'admin',
-      acl: {},
-      sshLoginsList: [],
-      rolesList: [],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
-    },
+    loggedInUser: makeLoggedInUser(),
   };
   const appContext = new MockAppContext();
   appContext.clustersService.setState(draftState => {

@@ -105,6 +105,10 @@ type AuthConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// AssistAPIKey is the OpenAI API key.
+	// TODO: This key will be moved to a plugin once support for plugins is implemented.
+	AssistAPIKey string
 }
 
 // HostedPluginsConfig configures the hosted plugin runtime.

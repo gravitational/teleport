@@ -82,15 +82,7 @@ export function Cluster() {
   }
 
   return (
-    <Layout mx="auto" px={5} pt={3} height="100%">
-      <Flex justifyContent="space-between">
-        <Text typography="body1" color="text.slightlyMuted">
-          {`clusters / `}
-          <Text as="span" typography="h6" color="text.main">
-            {`${clusterCtx.state.clusterName}`}
-          </Text>
-        </Text>
-      </Flex>
+    <Layout mx="auto" px={5} pt={2} height="100%">
       <ClusterResources />
     </Layout>
   );

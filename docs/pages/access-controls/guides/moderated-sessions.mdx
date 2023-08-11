@@ -14,11 +14,11 @@ the session, and terminate the session at will.
 In addition, Teleport administrators can [define rules](#join_sessions) that allow users to join each other's
 sessions from `tsh` and the Web UI.
 
-<ScopedBlock scope="oss">
+<Notice type="warning">
 
-  Moderated Sessions requires Teleport Enterprise or Teleport Cloud.
+  Moderated Sessions requires Teleport Enterprise or Teleport Enterprise Cloud.
 
-</ScopedBlock>
+</Notice>
 
 ### Use cases
 
@@ -249,8 +249,8 @@ this policy requires.
 The `on_leave` string option in require policies is used to define what happens when a moderator leaves a session, causing a policy to no longer be satisfied.
 
 There are two possible actions to take in this scenario:
-1. Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
-2. Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
+- Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
+- Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
 
 By default, Teleport treats an empty string in this field as the same as `terminate`.
 That is, the session is terminated instantly and all participants are disconnected.
@@ -294,6 +294,24 @@ comma-separated list of usernames.
 
 This information can be picked up by a third party integration and may for
 example be used to enable notifications over some external communication system.
+
+## File transfers
+
+File transfers within moderated sessions are available via the Web UI only. When initiating a file transfer, if the
+current active session requires moderation, a file transfer request will automatically be sent to all current party members.
+
+Both the session originator and the moderator(s) must be present in the Web UI during the file transfer initiation to receive
+the file transfer request notification. Once the file transfer has been requested, all members of the party will be notified
+and prompted with an Approve/Deny dialog.
+
+![Approve/Deny Prompt](../../../img/moderated-file-transfer-dialog.png)
+
+
+If a moderator denies the file transfer request, the request is immediately removed and all party members are notified.
+
+After enough approvals have been given to satisfy the policy (the same policy to start the session), the file transfer
+will automatically begin.
+
 
 ## RFD
 

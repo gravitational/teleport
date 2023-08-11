@@ -18,7 +18,7 @@ import React, { useState } from 'react';
 
 import Text from 'design/Text';
 import Box from 'design/Box';
-import { ButtonPrimary } from 'design';
+import { ButtonPrimary, ButtonSecondary, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import FieldInput from 'shared/components/FieldInput';
@@ -31,10 +31,12 @@ import { integrationService } from 'teleport/services/integrations';
 
 import { InstructionsContainer } from './common';
 
-import type { CommonInstructionsProps } from './common';
+import type { CommonInstructionsProps, PreviousStepProps } from './common';
 
-export function SecondStageInstructions(props: CommonInstructionsProps) {
-  const [thumbprint, setThumbprint] = useState('');
+export function SecondStageInstructions(
+  props: CommonInstructionsProps & PreviousStepProps
+) {
+  const [thumbprint, setThumbprint] = useState(props.awsOidc.thumbprint);
   const { attempt, run } = useAttempt();
 
   function handleSubmit(validator: Validator) {
@@ -45,7 +47,7 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
     run(() =>
       integrationService.fetchThumbprint().then(fetchedThumbprint => {
         if (thumbprint === fetchedThumbprint) {
-          props.onNext();
+          props.onNext({ ...props.awsOidc, thumbprint });
           return;
         }
 
@@ -117,10 +119,10 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
               />
             </Box>
             {attempt.status === 'failed' && (
-              <Text color="error.main">
-                <Icons.Warning mr={2} color="error.main" />
-                Error: {attempt.statusText}
-              </Text>
+              <Flex>
+                <Icons.Warning mr={2} color="error.main" size="small" />
+                <Text color="error.main">Error: {attempt.statusText}</Text>
+              </Flex>
             )}
             <Box mt={4}>
               <ButtonPrimary
@@ -129,6 +131,13 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
               >
                 Next
               </ButtonPrimary>
+              <ButtonSecondary
+                ml={3}
+                onClick={() => props.onPrev({ ...props.awsOidc, thumbprint })}
+                disabled={attempt.status === 'processing'}
+              >
+                Back
+              </ButtonSecondary>
             </Box>
           </>
         )}

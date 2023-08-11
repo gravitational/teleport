@@ -15,8 +15,7 @@ Teleport `12.0`.
 
 </Details>
 
-This guide will help you to set up secure access and connect through Teleport
-to Azure PostgreSQL and MySQL servers.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure PostgreSQL or MySQL" dbConfigure="Azure PostgreSQL or MySQL database with IAM authentication" dbName="Azure PostgreSQL or MySQL" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access Azure PostgreSQL/MySQL Self-Hosted](../../../img/database-access/guides/azure_selfhosted.png)
@@ -65,6 +64,7 @@ Create the Database Service configuration.
 <TabItem label="MySQL">
 
 - Specify the region for your database(s) in `--azure-mysql-discovery`.
+
 - Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
   URI (e.g. `mytenant.teleport.sh:443`):
 
@@ -142,9 +142,9 @@ spec:
 
 | Flag                       | Description                                                                                                                              |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| <nobr>`--db-users`</nobr>  | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
-| <nobr>`--db-names`</nobr>  | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
-| <nobr>`--db-labels`</nobr> | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
+| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+| `--db-labels` | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
 
 Save this file and apply it to your Teleport cluster:
 

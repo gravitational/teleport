@@ -50,10 +50,11 @@ export function CreateDatabaseDialog({
   if (attempt.status === 'failed') {
     content = (
       <>
-        <Text mb={5}>
-          <Icons.Warning ml={1} mr={2} color="error.main" />
-          Register Failed: {attempt.statusText}
-        </Text>
+        <Flex mb={5} alignItems="center">
+          {' '}
+          <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
+          <Text>{attempt.statusText}</Text>
+        </Flex>
         <Flex>
           <ButtonPrimary mr={3} width="50%" onClick={retry}>
             Retry
@@ -74,7 +75,7 @@ export function CreateDatabaseDialog({
             white-space: pre;
           `}
         >
-          <Icons.Restore fontSize={4} />
+          <Icons.Clock size="medium" />
           <Timeout
             timeout={pollTimeout}
             message=""
@@ -90,8 +91,8 @@ export function CreateDatabaseDialog({
     // success
     content = (
       <>
-        <Text mb={5}>
-          <Icons.Check ml={1} mr={2} color="success" />
+        <Text mb={5} style={{ display: 'flex' }}>
+          <Icons.Check size="small" ml={1} mr={2} color="success" />
           Database "{dbName}" successfully registered
         </Text>
         <ButtonPrimary width="100%" onClick={next}>
@@ -104,7 +105,7 @@ export function CreateDatabaseDialog({
   return (
     <Dialog disableEscapeKeyDown={false} open={true}>
       <DialogContent
-        width="400px"
+        width="460px"
         alignItems="center"
         mb={0}
         textAlign="center"

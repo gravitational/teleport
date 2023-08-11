@@ -13,11 +13,7 @@ description: How to configure Teleport database access with Cassandra and Scylla
   Database access for Cassandra & ScyllaDB is available starting from Teleport `v11.0`.
 </Details>
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Set up Teleport to access your self-hosted Cassandra or ScyllaDB.
-- Connect to your database through Teleport.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Cassandra or ScyllaDB" dbConfigure="Cassandra or ScyllaDB with mutual TLS authentication" dbName="Cassandra or ScyllaDB" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access Cassandra Self-Hosted](../../../img/database-access/guides/cassandra_selfhosted.png)
@@ -145,7 +141,7 @@ databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
-  $ tsh login --proxy=teleport.example.com --user=testuser
+  $ tsh login --proxy=teleport.example.com --user=alice
   $ tsh db ls
   # Name      Description       Allowed Users Labels  Connect
   # --------- ----------------- ------------- ------- -------
@@ -156,7 +152,7 @@ databases:
 <ScopedBlock scope={["cloud"]}>
 
   ```code
-  $ tsh login --proxy=mytenant.teleport.sh --user=testuser
+  $ tsh login --proxy=mytenant.teleport.sh --user=alice
   $ tsh db ls
   # Name      Description       Allowed Users Labels  Connect
   # --------- ----------------- ------------- ------- -------

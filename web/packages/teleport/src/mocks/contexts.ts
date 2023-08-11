@@ -36,7 +36,7 @@ export const fullAccess: Access = {
   remove: true,
 };
 
-const allAccessAcl: Acl = {
+export const allAccessAcl: Acl = {
   tokens: fullAccess,
   appServers: fullAccess,
   kubeServers: fullAccess,
@@ -64,6 +64,7 @@ const allAccessAcl: Acl = {
   deviceTrust: fullAccess,
   lock: fullAccess,
   assist: fullAccess,
+  samlIdpServiceProvider: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
@@ -73,7 +74,7 @@ export function getAcl(cfg?: { noAccess: boolean }) {
   return makeAcl(allAccessAcl);
 }
 
-const baseContext = {
+export const baseContext = {
   authType: 'local',
   userName: 'llama',
   accessCapabilities: {

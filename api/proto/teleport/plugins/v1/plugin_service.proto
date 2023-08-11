@@ -43,6 +43,9 @@ message CreatePluginRequest {
   // In the scope of processing this request, these are exchanged for
   // short-lived renewable credentials, which are stored in the Plugin.
   types.PluginBootstrapCredentialsV1 bootstrap_credentials = 2;
+  // Static credentials are optional static credentials
+  // to supply to the plugin.
+  types.PluginStaticCredentialsV1 static_credentials = 3;
 }
 
 // GetPluginRequest is a request to return a plugin instance by name.
@@ -110,6 +113,22 @@ message GetAvailablePluginTypesResponse {
   repeated PluginType plugin_types = 1;
 }
 
+// SearchPluginStaticCredentialsRequest is the request type for SearchPluginStaticCredentials. The
+// labels here are attached to a plugin and search credential object at creation time. Labels can
+// be provided to the plugin credentials object and then, during plugin creation, a reference to
+// those labels augmented along with a uniquely identifying ID will ensure a unique mapping between
+// credentials and plugins.
+message SearchPluginStaticCredentialsRequest {
+  // Labels are matched against static credentials objects and returned.
+  map<string, string> labels = 1;
+}
+
+// SearchPluginStaticCredentialsResponse is the response type for SearchPluginStaticCredentials
+message SearchPluginStaticCredentialsResponse {
+  // Credentials are the list of credentials matching the requested labels.
+  repeated types.PluginStaticCredentialsV1 credentials = 1;
+}
+
 // PluginService provides CRUD operations for Plugin resources.
 service PluginService {
   // CreatePlugin creates a new plugin instance.
@@ -133,4 +152,8 @@ service PluginService {
   // GetAvailablePluginTypes returns the types of plugins
   // that the auth server supports onboarding.
   rpc GetAvailablePluginTypes(GetAvailablePluginTypesRequest) returns (GetAvailablePluginTypesResponse);
+
+  // SearchPluginStaticCredentials returns static credentials that are searched for. Only accessible by RoleAdmin and,
+  // in the case of Teleport Assist, RoleProxy.
+  rpc SearchPluginStaticCredentials(SearchPluginStaticCredentialsRequest) returns (SearchPluginStaticCredentialsResponse);
 }

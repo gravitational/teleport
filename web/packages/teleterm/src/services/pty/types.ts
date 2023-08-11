@@ -41,7 +41,15 @@ export type PtyServiceClient = {
 export type ShellCommand = PtyCommandBase & {
   kind: 'pty.shell';
   cwd?: string;
-  initCommand?: string;
+  // env is a record of additional env variables that need to be set for the shell terminal and it
+  // will be merged with process env.
+  env?: Record<string, string>;
+  // initMessage is a help message presented to the user at the beginning of
+  // the shell to provide extra context.
+  //
+  // The initMessage is rendered on the terminal UI without being written or
+  // read by the underlying PTY.
+  initMessage?: string;
 };
 
 export type TshLoginCommand = PtyCommandBase & {
@@ -63,9 +71,29 @@ export type TshKubeLoginCommand = PtyCommandBase & {
   leafClusterId?: string;
 };
 
+export type GatewayCliClientCommand = PtyCommandBase & {
+  kind: 'pty.gateway-cli-client';
+  // path is an absolute path to the CLI client. It is resolved on tshd side by GO's
+  // os.exec.LookPath.
+  //
+  // It cannot be just the command name such as `psql` because Windows fails to resolve the
+  // command name if it doesn't include the `.exe` suffix.
+  path: string;
+  // args is a Node.js-style list of arguments passed to the command, _without_ the command name as
+  // the first element.
+  args: string[];
+  // env is a record of additional env variables that need to be set for the given CLI client. It
+  // will be merged into process env before the client is started.
+  env: Record<string, string>;
+};
+
 type PtyCommandBase = {
   proxyHost: string;
   clusterName: string;
 };
 
-export type PtyCommand = ShellCommand | TshLoginCommand | TshKubeLoginCommand;
+export type PtyCommand =
+  | ShellCommand
+  | TshLoginCommand
+  | TshKubeLoginCommand
+  | GatewayCliClientCommand;

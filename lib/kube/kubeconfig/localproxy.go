@@ -131,8 +131,8 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 			continue
 		}
 
-		for contextName, context := range defaultConfig.Contexts {
-			if context.Cluster != teleportClusterName {
+		for contextName, ctx := range defaultConfig.Contexts {
+			if ctx.Cluster != teleportClusterName {
 				continue
 			}
 			auth, found := defaultConfig.AuthInfos[contextName]
@@ -142,12 +142,45 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 
 			clusters = append(clusters, LocalProxyCluster{
 				TeleportCluster:   teleportClusterName,
-				KubeCluster:       KubeClusterFromContext(contextName, teleportClusterName),
-				Namespace:         context.Namespace,
+				KubeCluster:       KubeClusterFromContext(contextName, ctx, teleportClusterName),
+				Namespace:         ctx.Namespace,
 				Impersonate:       auth.Impersonate,
 				ImpersonateGroups: auth.ImpersonateGroups,
 			})
 		}
 	}
 	return clusters
+}
+
+// FindTeleportClusterForLocalProxy finds the Teleport kube cluster based on
+// provided cluster address and context name, and prepares a LocalProxyCluster.
+//
+// When the cluster has a ProxyURL set, it means the provided kubeconfig is
+// already pointing to a local proxy through this ProxyURL and thus can be
+// skipped as there is no need to create a new local proxy.
+func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, clusterAddr, contextName string) (LocalProxyCluster, bool) {
+	if contextName == "" {
+		contextName = defaultConfig.CurrentContext
+	}
+
+	context, found := defaultConfig.Contexts[contextName]
+	if !found {
+		return LocalProxyCluster{}, false
+	}
+	cluster, found := defaultConfig.Clusters[context.Cluster]
+	if !found || cluster.Server != clusterAddr || cluster.ProxyURL != "" {
+		return LocalProxyCluster{}, false
+	}
+	auth, found := defaultConfig.AuthInfos[context.AuthInfo]
+	if !found {
+		return LocalProxyCluster{}, false
+	}
+
+	return LocalProxyCluster{
+		TeleportCluster:   context.Cluster,
+		KubeCluster:       KubeClusterFromContext(contextName, context, context.Cluster),
+		Namespace:         context.Namespace,
+		Impersonate:       auth.Impersonate,
+		ImpersonateGroups: auth.ImpersonateGroups,
+	}, true
 }

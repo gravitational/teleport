@@ -62,6 +62,18 @@ export class ResourceCreateEvent extends jspb.Message {
     getResourceType(): string;
     setResourceType(value: string): ResourceCreateEvent;
 
+    getResourceOrigin(): string;
+    setResourceOrigin(value: string): ResourceCreateEvent;
+
+    getCloudProvider(): string;
+    setCloudProvider(value: string): ResourceCreateEvent;
+
+
+    hasDatabase(): boolean;
+    clearDatabase(): void;
+    getDatabase(): DiscoveredDatabaseMetadata | undefined;
+    setDatabase(value?: DiscoveredDatabaseMetadata): ResourceCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceCreateEvent.AsObject;
@@ -76,6 +88,34 @@ export class ResourceCreateEvent extends jspb.Message {
 export namespace ResourceCreateEvent {
     export type AsObject = {
         resourceType: string,
+        resourceOrigin: string,
+        cloudProvider: string,
+        database?: DiscoveredDatabaseMetadata.AsObject,
+    }
+}
+
+export class DiscoveredDatabaseMetadata extends jspb.Message { 
+    getDbType(): string;
+    setDbType(value: string): DiscoveredDatabaseMetadata;
+
+    getDbProtocol(): string;
+    setDbProtocol(value: string): DiscoveredDatabaseMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoveredDatabaseMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoveredDatabaseMetadata): DiscoveredDatabaseMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoveredDatabaseMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoveredDatabaseMetadata;
+    static deserializeBinaryFromReader(message: DiscoveredDatabaseMetadata, reader: jspb.BinaryReader): DiscoveredDatabaseMetadata;
+}
+
+export namespace DiscoveredDatabaseMetadata {
+    export type AsObject = {
+        dbType: string,
+        dbProtocol: string,
     }
 }
 
@@ -118,6 +158,12 @@ export class SessionStartEvent extends jspb.Message {
     setSessionType(value: string): SessionStartEvent;
 
 
+    hasDatabase(): boolean;
+    clearDatabase(): void;
+    getDatabase(): SessionStartDatabaseMetadata | undefined;
+    setDatabase(value?: SessionStartDatabaseMetadata): SessionStartEvent;
+
+
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): SessionStartEvent.AsObject;
     static toObject(includeInstance: boolean, msg: SessionStartEvent): SessionStartEvent.AsObject;
@@ -132,6 +178,36 @@ export namespace SessionStartEvent {
     export type AsObject = {
         userName: string,
         sessionType: string,
+        database?: SessionStartDatabaseMetadata.AsObject,
+    }
+}
+
+export class SessionStartDatabaseMetadata extends jspb.Message { 
+    getDbType(): string;
+    setDbType(value: string): SessionStartDatabaseMetadata;
+
+    getDbProtocol(): string;
+    setDbProtocol(value: string): SessionStartDatabaseMetadata;
+
+    getDbOrigin(): string;
+    setDbOrigin(value: string): SessionStartDatabaseMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SessionStartDatabaseMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: SessionStartDatabaseMetadata): SessionStartDatabaseMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SessionStartDatabaseMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SessionStartDatabaseMetadata;
+    static deserializeBinaryFromReader(message: SessionStartDatabaseMetadata, reader: jspb.BinaryReader): SessionStartDatabaseMetadata;
+}
+
+export namespace SessionStartDatabaseMetadata {
+    export type AsObject = {
+        dbType: string,
+        dbProtocol: string,
+        dbOrigin: string,
     }
 }
 
@@ -318,6 +394,27 @@ export namespace UIOnboardRegisterChallengeSubmitEvent {
         userName: string,
         mfaType: string,
         loginFlow: string,
+    }
+}
+
+export class UIOnboardQuestionnaireSubmitEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UIOnboardQuestionnaireSubmitEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIOnboardQuestionnaireSubmitEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIOnboardQuestionnaireSubmitEvent): UIOnboardQuestionnaireSubmitEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIOnboardQuestionnaireSubmitEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIOnboardQuestionnaireSubmitEvent;
+    static deserializeBinaryFromReader(message: UIOnboardQuestionnaireSubmitEvent, reader: jspb.BinaryReader): UIOnboardQuestionnaireSubmitEvent;
+}
+
+export namespace UIOnboardQuestionnaireSubmitEvent {
+    export type AsObject = {
+        userName: string,
     }
 }
 
@@ -627,6 +724,12 @@ export class UIDiscoverDeployServiceEvent extends jspb.Message {
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDeployServiceEvent;
 
+    getDeployMethod(): UIDiscoverDeployServiceEvent.DeployMethod;
+    setDeployMethod(value: UIDiscoverDeployServiceEvent.DeployMethod): UIDiscoverDeployServiceEvent;
+
+    getDeployType(): UIDiscoverDeployServiceEvent.DeployType;
+    setDeployType(value: UIDiscoverDeployServiceEvent.DeployType): UIDiscoverDeployServiceEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDeployServiceEvent.AsObject;
@@ -643,7 +746,22 @@ export namespace UIDiscoverDeployServiceEvent {
         metadata?: DiscoverMetadata.AsObject,
         resource?: DiscoverResourceMetadata.AsObject,
         status?: DiscoverStepStatus.AsObject,
+        deployMethod: UIDiscoverDeployServiceEvent.DeployMethod,
+        deployType: UIDiscoverDeployServiceEvent.DeployType,
     }
+
+    export enum DeployMethod {
+    DEPLOY_METHOD_UNSPECIFIED = 0,
+    DEPLOY_METHOD_AUTO = 1,
+    DEPLOY_METHOD_MANUAL = 2,
+    }
+
+    export enum DeployType {
+    DEPLOY_TYPE_UNSPECIFIED = 0,
+    DEPLOY_TYPE_INSTALL_SCRIPT = 1,
+    DEPLOY_TYPE_AMAZON_ECS = 2,
+    }
+
 }
 
 export class UIDiscoverDatabaseRegisterEvent extends jspb.Message { 
@@ -1017,6 +1135,76 @@ export namespace RoleCreateEvent {
     }
 }
 
+export class BotCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): BotCreateEvent;
+
+    getBotUserName(): string;
+    setBotUserName(value: string): BotCreateEvent;
+
+    getRoleName(): string;
+    setRoleName(value: string): BotCreateEvent;
+
+    getRoleCount(): number;
+    setRoleCount(value: number): BotCreateEvent;
+
+    getJoinMethod(): string;
+    setJoinMethod(value: string): BotCreateEvent;
+
+    getBotName(): string;
+    setBotName(value: string): BotCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): BotCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: BotCreateEvent): BotCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: BotCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): BotCreateEvent;
+    static deserializeBinaryFromReader(message: BotCreateEvent, reader: jspb.BinaryReader): BotCreateEvent;
+}
+
+export namespace BotCreateEvent {
+    export type AsObject = {
+        userName: string,
+        botUserName: string,
+        roleName: string,
+        roleCount: number,
+        joinMethod: string,
+        botName: string,
+    }
+}
+
+export class BotJoinEvent extends jspb.Message { 
+    getBotName(): string;
+    setBotName(value: string): BotJoinEvent;
+
+    getJoinMethod(): string;
+    setJoinMethod(value: string): BotJoinEvent;
+
+    getJoinTokenName(): string;
+    setJoinTokenName(value: string): BotJoinEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): BotJoinEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: BotJoinEvent): BotJoinEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: BotJoinEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): BotJoinEvent;
+    static deserializeBinaryFromReader(message: BotJoinEvent, reader: jspb.BinaryReader): BotJoinEvent;
+}
+
+export namespace BotJoinEvent {
+    export type AsObject = {
+        botName: string,
+        joinMethod: string,
+        joinTokenName: string,
+    }
+}
+
 export class UICreateNewRoleClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UICreateNewRoleClickEvent;
@@ -1210,6 +1398,9 @@ export class AgentMetadataEvent extends jspb.Message {
     getCloudEnvironment(): string;
     setCloudEnvironment(value: string): AgentMetadataEvent;
 
+    getExternalUpgrader(): string;
+    setExternalUpgrader(value: string): AgentMetadataEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AgentMetadataEvent.AsObject;
@@ -1234,6 +1425,7 @@ export namespace AgentMetadataEvent {
         containerRuntime: string,
         containerOrchestrator: string,
         cloudEnvironment: string,
+        externalUpgrader: string,
     }
 }
 
@@ -1271,6 +1463,203 @@ export namespace AssistCompletionEvent {
         totalTokens: number,
         promptTokens: number,
         completionTokens: number,
+    }
+}
+
+export class AssistExecutionEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistExecutionEvent;
+
+    getConversationId(): string;
+    setConversationId(value: string): AssistExecutionEvent;
+
+    getNodeCount(): number;
+    setNodeCount(value: number): AssistExecutionEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistExecutionEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistExecutionEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistExecutionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistExecutionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistExecutionEvent): AssistExecutionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistExecutionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistExecutionEvent;
+    static deserializeBinaryFromReader(message: AssistExecutionEvent, reader: jspb.BinaryReader): AssistExecutionEvent;
+}
+
+export namespace AssistExecutionEvent {
+    export type AsObject = {
+        userName: string,
+        conversationId: string,
+        nodeCount: number,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
+export class AssistNewConversationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistNewConversationEvent;
+
+    getCategory(): string;
+    setCategory(value: string): AssistNewConversationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistNewConversationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistNewConversationEvent): AssistNewConversationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistNewConversationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistNewConversationEvent;
+    static deserializeBinaryFromReader(message: AssistNewConversationEvent, reader: jspb.BinaryReader): AssistNewConversationEvent;
+}
+
+export namespace AssistNewConversationEvent {
+    export type AsObject = {
+        userName: string,
+        category: string,
+    }
+}
+
+export class IntegrationEnrollMetadata extends jspb.Message { 
+    getId(): string;
+    setId(value: string): IntegrationEnrollMetadata;
+
+    getKind(): IntegrationEnrollKind;
+    setKind(value: IntegrationEnrollKind): IntegrationEnrollMetadata;
+
+    getUserName(): string;
+    setUserName(value: string): IntegrationEnrollMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): IntegrationEnrollMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: IntegrationEnrollMetadata): IntegrationEnrollMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: IntegrationEnrollMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): IntegrationEnrollMetadata;
+    static deserializeBinaryFromReader(message: IntegrationEnrollMetadata, reader: jspb.BinaryReader): IntegrationEnrollMetadata;
+}
+
+export namespace IntegrationEnrollMetadata {
+    export type AsObject = {
+        id: string,
+        kind: IntegrationEnrollKind,
+        userName: string,
+    }
+}
+
+export class UIIntegrationEnrollStartEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): IntegrationEnrollMetadata | undefined;
+    setMetadata(value?: IntegrationEnrollMetadata): UIIntegrationEnrollStartEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIIntegrationEnrollStartEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIIntegrationEnrollStartEvent): UIIntegrationEnrollStartEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIIntegrationEnrollStartEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIIntegrationEnrollStartEvent;
+    static deserializeBinaryFromReader(message: UIIntegrationEnrollStartEvent, reader: jspb.BinaryReader): UIIntegrationEnrollStartEvent;
+}
+
+export namespace UIIntegrationEnrollStartEvent {
+    export type AsObject = {
+        metadata?: IntegrationEnrollMetadata.AsObject,
+    }
+}
+
+export class UIIntegrationEnrollCompleteEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): IntegrationEnrollMetadata | undefined;
+    setMetadata(value?: IntegrationEnrollMetadata): UIIntegrationEnrollCompleteEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIIntegrationEnrollCompleteEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIIntegrationEnrollCompleteEvent): UIIntegrationEnrollCompleteEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIIntegrationEnrollCompleteEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIIntegrationEnrollCompleteEvent;
+    static deserializeBinaryFromReader(message: UIIntegrationEnrollCompleteEvent, reader: jspb.BinaryReader): UIIntegrationEnrollCompleteEvent;
+}
+
+export namespace UIIntegrationEnrollCompleteEvent {
+    export type AsObject = {
+        metadata?: IntegrationEnrollMetadata.AsObject,
+    }
+}
+
+export class EditorChangeEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): EditorChangeEvent;
+
+    getStatus(): EditorChangeStatus;
+    setStatus(value: EditorChangeStatus): EditorChangeEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): EditorChangeEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: EditorChangeEvent): EditorChangeEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: EditorChangeEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): EditorChangeEvent;
+    static deserializeBinaryFromReader(message: EditorChangeEvent, reader: jspb.BinaryReader): EditorChangeEvent;
+}
+
+export namespace EditorChangeEvent {
+    export type AsObject = {
+        userName: string,
+        status: EditorChangeStatus,
+    }
+}
+
+export class DeviceAuthenticateEvent extends jspb.Message { 
+    getDeviceId(): string;
+    setDeviceId(value: string): DeviceAuthenticateEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DeviceAuthenticateEvent;
+
+    getDeviceOsType(): string;
+    setDeviceOsType(value: string): DeviceAuthenticateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeviceAuthenticateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DeviceAuthenticateEvent): DeviceAuthenticateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeviceAuthenticateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeviceAuthenticateEvent;
+    static deserializeBinaryFromReader(message: DeviceAuthenticateEvent, reader: jspb.BinaryReader): DeviceAuthenticateEvent;
+}
+
+export namespace DeviceAuthenticateEvent {
+    export type AsObject = {
+        deviceId: string,
+        userName: string,
+        deviceOsType: string,
     }
 }
 
@@ -1525,6 +1914,60 @@ export class SubmitEventRequest extends jspb.Message {
     setAssistCompletion(value?: AssistCompletionEvent): SubmitEventRequest;
 
 
+    hasUiIntegrationEnrollStartEvent(): boolean;
+    clearUiIntegrationEnrollStartEvent(): void;
+    getUiIntegrationEnrollStartEvent(): UIIntegrationEnrollStartEvent | undefined;
+    setUiIntegrationEnrollStartEvent(value?: UIIntegrationEnrollStartEvent): SubmitEventRequest;
+
+
+    hasUiIntegrationEnrollCompleteEvent(): boolean;
+    clearUiIntegrationEnrollCompleteEvent(): void;
+    getUiIntegrationEnrollCompleteEvent(): UIIntegrationEnrollCompleteEvent | undefined;
+    setUiIntegrationEnrollCompleteEvent(value?: UIIntegrationEnrollCompleteEvent): SubmitEventRequest;
+
+
+    hasEditorChangeEvent(): boolean;
+    clearEditorChangeEvent(): void;
+    getEditorChangeEvent(): EditorChangeEvent | undefined;
+    setEditorChangeEvent(value?: EditorChangeEvent): SubmitEventRequest;
+
+
+    hasBotCreate(): boolean;
+    clearBotCreate(): void;
+    getBotCreate(): BotCreateEvent | undefined;
+    setBotCreate(value?: BotCreateEvent): SubmitEventRequest;
+
+
+    hasUiOnboardQuestionnaireSubmit(): boolean;
+    clearUiOnboardQuestionnaireSubmit(): void;
+    getUiOnboardQuestionnaireSubmit(): UIOnboardQuestionnaireSubmitEvent | undefined;
+    setUiOnboardQuestionnaireSubmit(value?: UIOnboardQuestionnaireSubmitEvent): SubmitEventRequest;
+
+
+    hasBotJoin(): boolean;
+    clearBotJoin(): void;
+    getBotJoin(): BotJoinEvent | undefined;
+    setBotJoin(value?: BotJoinEvent): SubmitEventRequest;
+
+
+    hasAssistExecution(): boolean;
+    clearAssistExecution(): void;
+    getAssistExecution(): AssistExecutionEvent | undefined;
+    setAssistExecution(value?: AssistExecutionEvent): SubmitEventRequest;
+
+
+    hasAssistNewConversation(): boolean;
+    clearAssistNewConversation(): void;
+    getAssistNewConversation(): AssistNewConversationEvent | undefined;
+    setAssistNewConversation(value?: AssistNewConversationEvent): SubmitEventRequest;
+
+
+    hasDeviceAuthenticateEvent(): boolean;
+    clearDeviceAuthenticateEvent(): void;
+    getDeviceAuthenticateEvent(): DeviceAuthenticateEvent | undefined;
+    setDeviceAuthenticateEvent(value?: DeviceAuthenticateEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1581,6 +2024,15 @@ export namespace SubmitEventRequest {
         uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
         uiCallToActionClickEvent?: UICallToActionClickEvent.AsObject,
         assistCompletion?: AssistCompletionEvent.AsObject,
+        uiIntegrationEnrollStartEvent?: UIIntegrationEnrollStartEvent.AsObject,
+        uiIntegrationEnrollCompleteEvent?: UIIntegrationEnrollCompleteEvent.AsObject,
+        editorChangeEvent?: EditorChangeEvent.AsObject,
+        botCreate?: BotCreateEvent.AsObject,
+        uiOnboardQuestionnaireSubmit?: UIOnboardQuestionnaireSubmitEvent.AsObject,
+        botJoin?: BotJoinEvent.AsObject,
+        assistExecution?: AssistExecutionEvent.AsObject,
+        assistNewConversation?: AssistNewConversationEvent.AsObject,
+        deviceAuthenticateEvent?: DeviceAuthenticateEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1665,6 +2117,24 @@ export namespace SubmitEventRequest {
     UI_CALL_TO_ACTION_CLICK_EVENT = 42,
 
     ASSIST_COMPLETION = 43,
+
+    UI_INTEGRATION_ENROLL_START_EVENT = 44,
+
+    UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
+
+    EDITOR_CHANGE_EVENT = 46,
+
+    BOT_CREATE = 47,
+
+    UI_ONBOARD_QUESTIONNAIRE_SUBMIT = 48,
+
+    BOT_JOIN = 49,
+
+    ASSIST_EXECUTION = 50,
+
+    ASSIST_NEW_CONVERSATION = 51,
+
+    DEVICE_AUTHENTICATE_EVENT = 52,
 
     }
 
@@ -1809,6 +2279,7 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34,
     DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
     DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
+    DISCOVER_RESOURCE_SAML_APPLICATION = 37,
 }
 
 export enum DiscoverStatus {
@@ -1827,4 +2298,32 @@ export enum CTA {
     CTA_PREMIUM_SUPPORT = 4,
     CTA_TRUSTED_DEVICES = 5,
     CTA_UPGRADE_BANNER = 6,
+    CTA_BILLING_SUMMARY = 7,
+}
+
+export enum IntegrationEnrollKind {
+    INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0,
+    INTEGRATION_ENROLL_KIND_SLACK = 1,
+    INTEGRATION_ENROLL_KIND_AWS_OIDC = 2,
+    INTEGRATION_ENROLL_KIND_PAGERDUTY = 3,
+    INTEGRATION_ENROLL_KIND_EMAIL = 4,
+    INTEGRATION_ENROLL_KIND_JIRA = 5,
+    INTEGRATION_ENROLL_KIND_DISCORD = 6,
+    INTEGRATION_ENROLL_KIND_MATTERMOST = 7,
+    INTEGRATION_ENROLL_KIND_MS_TEAMS = 8,
+    INTEGRATION_ENROLL_KIND_OPSGENIE = 9,
+    INTEGRATION_ENROLL_KIND_OKTA = 10,
+    INTEGRATION_ENROLL_KIND_JAMF = 11,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID = 12,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS = 13,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_CIRCLECI = 14,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_GITLAB = 15,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_JENKINS = 16,
+    INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17,
+}
+
+export enum EditorChangeStatus {
+    EDITOR_CHANGE_STATUS_UNSPECIFIED = 0,
+    EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1,
+    EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2,
 }

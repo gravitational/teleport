@@ -38,8 +38,8 @@ const (
 	// SSHTeleportUser is the current Teleport user that is logged in.
 	SSHTeleportUser = "SSH_TELEPORT_USER"
 
-	// SSHSessionWebproxyAddr is the address the web proxy.
-	SSHSessionWebproxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
+	// SSHSessionWebProxyAddr is the address the web proxy.
+	SSHSessionWebProxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
 
 	// SSHTeleportClusterName is the name of the cluster this node belongs to.
 	SSHTeleportClusterName = "SSH_TELEPORT_CLUSTER_NAME"
@@ -270,6 +270,9 @@ const (
 	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
+	// ComponentAssist represents Teleport Assist
+	ComponentAssist = "assist"
+
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -335,6 +338,10 @@ const (
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
 
+	// AZBlobTestURI specifies the storage account URL to use for Azure Blob
+	// Storage tests.
+	AZBlobTestURI = "TEST_AZBLOB_URI"
+
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"
 
@@ -367,6 +374,14 @@ const (
 
 	// SchemeGCS is used for Google Cloud Storage
 	SchemeGCS = "gs"
+
+	// SchemeAZBlob is the Azure Blob Storage scheme, used as the scheme in the
+	// session storage URI to identify a storage account accessed over https.
+	SchemeAZBlob = "azblob"
+
+	// SchemeAZBlobHTTP is the Azure Blob Storage scheme, used as the scheme in the
+	// session storage URI to identify a storage account accessed over http.
+	SchemeAZBlobHTTP = "azblob-http"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
@@ -572,6 +587,10 @@ const (
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
 
+	// TraitInternalDBRolesVariable is the variable used to store allowed
+	// database roles for automatic database user provisioning.
+	TraitInternalDBRolesVariable = "{{internal.db_roles}}"
+
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
@@ -608,9 +627,36 @@ const (
 	// PresetAuditorRoleName is a name of a preset role that allows
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
+
+	// PresetReviewerRoleName is a name of a preset role that allows
+	// for reviewing access requests.
+	PresetReviewerRoleName = "reviewer"
+
+	// PresetRequesterRoleName is a name of a preset role that allows
+	// for requesting access to resources.
+	PresetRequesterRoleName = "requester"
+
+	// PresetGroupAccessRoleName is a name of a preset role that allows
+	// access to all user groups.
+	PresetGroupAccessRoleName = "group-access"
+
+	// SystemAutomaticAccessApprovalRoleName names a preset role that may
+	// automatically approve any Role Access Request
+	SystemAutomaticAccessApprovalRoleName = "@teleport-access-approver"
+
+	// ConnectMyComputerRoleNamePrefix is the prefix used for roles prepared for individual users
+	// during the setup of Connect My Computer. The prefix is followed by the name of the cluster
+	// user. See [teleterm.connectmycomputer.RoleSetup].
+	ConnectMyComputerRoleNamePrefix = "connect-my-computer-"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
+const (
+	// SystemAccessApproverUserName names a Teleport user that acts as
+	// an Access Request approver for access plugins
+	SystemAccessApproverUserName = "@teleport-access-approval-bot"
+)
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
@@ -828,4 +874,10 @@ const (
 	// KubeSessionInvitedQueryParam is the query parameter used to indicate the users
 	// to invite to the session.
 	KubeSessionInvitedQueryParam = "invite"
+)
+
+const (
+	// KubeLegacyProxySuffix is the suffix used for legacy proxy services when
+	// generating their names Server names.
+	KubeLegacyProxySuffix = "-proxy_service"
 )

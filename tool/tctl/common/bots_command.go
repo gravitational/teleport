@@ -25,8 +25,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -224,12 +224,8 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	}
 
 	joinMethod := response.JoinMethod
-	// omit join method output for the token method
-	switch joinMethod {
-	case types.JoinMethodUnspecified, types.JoinMethodToken:
-		// the template will omit an empty string
-		joinMethod = ""
-	default:
+	if joinMethod == types.JoinMethodUnspecified {
+		joinMethod = types.JoinMethodToken
 	}
 
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{

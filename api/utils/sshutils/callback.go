@@ -35,7 +35,7 @@ type HostKeyCallbackConfig struct {
 	// FIPS allows to set FIPS mode which will validate algorithms.
 	FIPS bool
 	// OnCheckCert is called on SSH certificate validation.
-	OnCheckCert func(*ssh.Certificate)
+	OnCheckCert func(*ssh.Certificate) error
 	// Clock is used to set the Checker Time
 	Clock clockwork.Clock
 }

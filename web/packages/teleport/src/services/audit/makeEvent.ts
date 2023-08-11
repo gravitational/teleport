@@ -87,7 +87,7 @@ export const formatters: Formatters = {
   },
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: {
     type: 'access_request.search',
-    desc: 'Resource Access Request Search',
+    desc: 'Resource Access Search',
     format: ({ user, resource_type, search_as_roles }) =>
       `User [${user}] searched for resource type [${resource_type}] with role(s) [${search_as_roles}]`,
   },
@@ -719,6 +719,12 @@ export const formatters: Formatters = {
     format: ({ user, name }) =>
       `User [${user}] has created a trusted relationship with cluster [${name}]`,
   },
+  [eventCodes.PROVISION_TOKEN_CREATED]: {
+    type: 'join_token.create',
+    desc: 'Join Token Created',
+    format: ({ user, roles, join_method }) =>
+      `User [${user}] created a join token with role(s) [${roles}] and a join method [${join_method}]`,
+  },
   [eventCodes.TRUSTED_CLUSTER_DELETED]: {
     type: 'trusted_cluster.delete',
     desc: 'Trusted Cluster Deleted',
@@ -752,10 +758,12 @@ export const formatters: Formatters = {
   [eventCodes.DATABASE_SESSION_STARTED]: {
     type: 'db.session.start',
     desc: 'Database Session Started',
-    format: ({ user, db_service, db_name, db_user }) =>
+    format: ({ user, db_service, db_name, db_user, db_roles }) =>
       `User [${user}] has connected ${
         db_name ? `to database [${db_name}] ` : ''
-      }as [${db_user}] on [${db_service}]`,
+      }as [${db_user}] ${
+        db_roles ? `with roles [${db_roles}] ` : ''
+      }on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
     type: 'db.session.start',

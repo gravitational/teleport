@@ -24,18 +24,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TODO(tobiaszheller): pass user at some point.
 type eventParquet struct {
-	EventType string `parquet:"name=event_type, type=BYTE_ARRAY, convertedtype=UTF8"`
-	// TODO(tobiaszheller): what precision of timestamp we want. AWS supports micros, maybe we can use it instead of mili?
-	EventTime int64  `parquet:"name=event_time, type=INT64, convertedtype=TIMESTAMP_MILLIS"`
-	UID       string `parquet:"name=uid, type=BYTE_ARRAY, convertedtype=UTF8"`
-	SessionID string `parquet:"name=session_id, type=BYTE_ARRAY, convertedtype=UTF8"`
-	EventData string `parquet:"name=event_data, type=BYTE_ARRAY, convertedtype=UTF8"`
-}
-
-func (e eventParquet) GetDate() string {
-	return time.UnixMilli(e.EventTime).Format(time.DateOnly)
+	EventType string    `parquet:"event_type"`
+	EventTime time.Time `parquet:"event_time,timestamp(millisecond)"`
+	UID       string    `parquet:"uid"`
+	SessionID string    `parquet:"session_id"`
+	User      string    `parquet:"user"`
+	EventData string    `parquet:"event_data"`
 }
 
 func auditEventToParquet(event apievents.AuditEvent) (*eventParquet, error) {
@@ -46,9 +41,10 @@ func auditEventToParquet(event apievents.AuditEvent) (*eventParquet, error) {
 
 	return &eventParquet{
 		EventType: event.GetType(),
-		EventTime: event.GetTime().UnixMilli(),
+		EventTime: event.GetTime().UTC(),
 		UID:       event.GetID(),
 		SessionID: events.GetSessionID(event),
+		User:      events.GetTeleportUser(event),
 		EventData: string(jsonBlob),
 	}, nil
 }

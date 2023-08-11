@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/pem"
@@ -50,9 +49,12 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -469,7 +471,7 @@ func (d *mfaDevices) webAuthHandler(t *testing.T, challenge *proto.MFAAuthentica
 func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, origin string) mfaDevices {
 	const totpName = "totp-dev"
 	const webName = "webauthn-dev"
-	devs := mfaDevices{
+	mfaDevs := mfaDevices{
 		clock:     clock,
 		webOrigin: origin,
 		TOTPName:  totpName,
@@ -477,13 +479,13 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 	}
 
 	var err error
-	devs.WebKey, err = mocku2f.Create()
+	mfaDevs.WebKey, err = mocku2f.Create()
 	require.NoError(t, err)
-	devs.WebKey.PreferRPID = true
+	mfaDevs.WebKey.PreferRPID = true
 
-	// Add MFA devices of all kinds.
 	ctx := context.Background()
-	for _, test := range []struct {
+
+	devs := []struct {
 		name string
 		opts mfaAddTestOpts
 	}{
@@ -503,8 +505,8 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 					require.NotEmpty(t, challenge.GetTOTP())
 					require.Equal(t, challenge.GetTOTP().Algorithm, otp.AlgorithmSHA1.String())
 
-					devs.TOTPSecret = challenge.GetTOTP().Secret
-					code, err := totp.GenerateCodeCustom(devs.TOTPSecret, clock.Now(), totp.ValidateOpts{
+					mfaDevs.TOTPSecret = challenge.GetTOTP().Secret
+					code, err := totp.GenerateCodeCustom(mfaDevs.TOTPSecret, clock.Now(), totp.ValidateOpts{
 						Period:    uint(challenge.GetTOTP().PeriodSeconds),
 						Digits:    otp.Digits(challenge.GetTOTP().Digits),
 						Algorithm: otp.AlgorithmSHA1,
@@ -521,7 +523,7 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				},
 				checkRegisterErr: require.NoError,
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
-					want, err := services.NewTOTPDevice(totpName, devs.TOTPSecret, clock.Now())
+					want, err := services.NewTOTPDevice(totpName, mfaDevs.TOTPSecret, clock.Now())
 					want.Id = got.Id
 					require.NoError(t, err)
 					require.Empty(t, cmp.Diff(want, got))
@@ -535,12 +537,12 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 					DeviceName: webName,
 					DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				},
-				authHandler:  devs.totpAuthHandler,
+				authHandler:  mfaDevs.totpAuthHandler,
 				checkAuthErr: require.NoError,
 				registerHandler: func(t *testing.T, challenge *proto.MFARegisterChallenge) *proto.MFARegisterResponse {
 					require.NotNil(t, challenge.GetWebauthn())
 
-					ccr, err := devs.WebKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
+					ccr, err := mfaDevs.WebKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(challenge.GetWebauthn()))
 					require.NoError(t, err)
 					return &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
@@ -552,16 +554,17 @@ func addOneOfEachMFADevice(t *testing.T, cl *Client, clock clockwork.Clock, orig
 				assertRegisteredDev: func(t *testing.T, got *types.MFADevice) {
 					// MFADevice device asserted in its entirety by lib/auth/webauthn
 					// tests, a simple check suffices here.
-					require.Equal(t, devs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
+					require.Equal(t, mfaDevs.WebKey.KeyHandle, got.GetWebauthn().CredentialId)
 				},
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			testAddMFADevice(ctx, t, cl, test.opts)
-		})
 	}
-	return devs
+
+	for _, dev := range devs {
+		testAddMFADevice(ctx, t, cl, dev.opts)
+	}
+
+	return mfaDevs
 }
 
 type mfaAddTestOpts struct {
@@ -1165,6 +1168,20 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	}
 }
 
+func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name: name,
+		},
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+		},
+	)
+	require.NoError(t, err)
+	return database
+}
+
 func TestGenerateUserSingleUseCert(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
@@ -1213,11 +1230,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 	// Register a database.
+
 	db, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: "db-a",
 	}, types.DatabaseServerSpecV3{
-		Protocol: "postgres",
-		URI:      "localhost",
+		Database: mustCreateDatabase(t, "db-a", "postgres", "localhost"),
 		Hostname: "localhost",
 		HostID:   "localhost",
 	})
@@ -1317,9 +1334,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
-					pinnedIP, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
-					require.True(t, ok)
-					require.Equal(t, "127.0.0.1/32", pinnedIP)
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
@@ -1390,7 +1404,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-a", identity.KubernetesCluster)
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1430,7 +1443,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1547,7 +1559,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageWindowsDesktopOnly}, identity.Usage)
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1622,9 +1633,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					sshCert, err := sshutils.ParseCertificate(sshRaw)
 					require.NoError(t, err, "ParseCertificate failed")
-					pinnedIP, ok := sshCert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
-					require.True(t, ok, "missing 'source-address' critical option from SSH certificate")
-					require.Equal(t, "127.0.0.1/32", pinnedIP, "pinned IP mismatch on SSH certificate")
 
 					gotSSH := tlsca.DeviceExtensions{
 						DeviceID:     sshCert.Extensions[teleport.CertExtensionDeviceID],
@@ -1683,8 +1691,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					if diff := cmp.Diff(wantDeviceExtensions, gotTLS, protocmp.Transform()); diff != "" {
 						t.Errorf("TLS DeviceExtensions mismatch (-want +got)\n%s", diff)
 					}
-					require.Equal(t, "127.0.0.1", singleUseIdentity.PinnedIP,
-						"missing pinned IP on single use identity")
 				},
 			},
 		},
@@ -1767,7 +1773,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-b", identity.KubernetesCluster)
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1808,7 +1813,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-b")
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1842,9 +1846,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
-					pinnedIP, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
-					require.True(t, ok)
-					require.Equal(t, "127.0.0.1/32", pinnedIP)
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
@@ -2277,10 +2278,9 @@ func TestGenerateHostCerts(t *testing.T) {
 	require.NotNil(t, certs)
 }
 
-// TestInstanceCertAndControlStream attempts to generate an instance cert via the
-// assertion API and use it to handle an inventory ping via the control stream.
+// TestInstanceCertAndControlStream uses an instance cert to send an
+// inventory ping via the control stream.
 func TestInstanceCertAndControlStream(t *testing.T) {
-	const assertionID = "test-assertion"
 	const serverID = "test-server"
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -2288,68 +2288,17 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 
 	srv := newTestTLSServer(t)
 
-	roles := []types.SystemRole{
-		types.RoleNode,
-		types.RoleAuth,
-		types.RoleProxy,
-	}
-
-	clt, err := srv.NewClient(TestServerID(types.RoleNode, serverID))
+	instanceClt, err := srv.NewClient(TestIdentity{
+		I: authz.BuiltinRole{
+			Role: types.RoleInstance,
+			AdditionalSystemRoles: []types.SystemRole{
+				types.RoleNode,
+			},
+			Username: serverID,
+		},
+	})
 	require.NoError(t, err)
-	defer clt.Close()
-
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
-	require.NoError(t, err)
-
-	req := proto.HostCertsRequest{
-		HostID:       serverID,
-		Role:         types.RoleInstance,
-		PublicSSHKey: pub,
-		PublicTLSKey: pubTLS,
-		SystemRoles:  roles,
-		// assertion ID is omitted initially to test
-		// the failure case
-	}
-
-	// request should fail since clt only holds RoleNode
-	_, err = clt.GenerateHostCerts(ctx, &req)
-	require.True(t, trace.IsAccessDenied(err))
-
-	// perform assertions
-	for _, role := range roles {
-		func() {
-			clt, err := srv.NewClient(TestServerID(role, serverID))
-			require.NoError(t, err)
-			defer clt.Close()
-
-			err = clt.UnstableAssertSystemRole(ctx, proto.UnstableSystemRoleAssertion{
-				ServerID:    serverID,
-				AssertionID: assertionID,
-				SystemRole:  role,
-			})
-			require.NoError(t, err)
-		}()
-	}
-
-	// set assertion ID
-	req.UnstableSystemRoleAssertionID = assertionID
-
-	// assertion should allow us to generate certs
-	certs, err := clt.GenerateHostCerts(ctx, &req)
-	require.NoError(t, err)
-
-	// make an instance client
-	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
-	require.NoError(t, err)
-	instanceClt := srv.NewClientWithCert(instanceCert)
-
-	// instance cert can self-renew without assertions
-	req.UnstableSystemRoleAssertionID = ""
-	_, err = instanceClt.GenerateHostCerts(ctx, &req)
-	require.NoError(t, err)
+	defer instanceClt.Close()
 
 	stream, err := instanceClt.InventoryControlStream(ctx)
 	require.NoError(t, err)
@@ -2358,7 +2307,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	err = stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: roles,
+		Services: types.SystemRoles{types.RoleInstance},
 	})
 	require.NoError(t, err)
 
@@ -2730,7 +2679,6 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all apps.
-	app2.SetOrigin(types.OriginDynamic)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
@@ -3099,6 +3047,102 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
+func TestServerInfoCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	serverInfo1, err := types.NewServerInfo(types.Metadata{
+		Name: "serverInfo1",
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfo1.SetSubKind(types.SubKindCloudInfo)
+	serverInfo2, err := types.NewServerInfo(types.Metadata{
+		Name: "serverInfo2",
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfo2.SetSubKind(types.SubKindCloudInfo)
+
+	createServerInfos := func(t *testing.T) {
+		// Initially expect no server info to be returned.
+		serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+		require.NoError(t, err)
+		require.Empty(t, serverInfos)
+
+		// Create server info.
+		require.NoError(t, clt.UpsertServerInfo(ctx, serverInfo1))
+		require.NoError(t, clt.UpsertServerInfo(ctx, serverInfo2))
+	}
+
+	deleteAllServerInfos := func(t *testing.T) {
+		// Delete server infos.
+		require.NoError(t, clt.DeleteAllServerInfos(ctx))
+
+		// Expect no server infos to be returned.
+		serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+		require.NoError(t, err)
+		require.Empty(t, serverInfos)
+	}
+
+	requireResourcesEqual := func(t *testing.T, expected, actual interface{}) {
+		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	}
+
+	t.Run("ServerInfoGetters", func(t *testing.T) {
+		createServerInfos(t)
+		t.Cleanup(func() { deleteAllServerInfos(t) })
+
+		t.Run("GetServerInfos", func(t *testing.T) {
+			t.Parallel()
+			// Get all server infos.
+			serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+			require.NoError(t, err)
+			require.Len(t, serverInfos, 2)
+			requireResourcesEqual(t, []types.ServerInfo{serverInfo1, serverInfo2}, serverInfos)
+		})
+
+		t.Run("GetServerInfo", func(t *testing.T) {
+			t.Parallel()
+			// Get server info.
+			si, err := clt.GetServerInfo(ctx, serverInfo1.GetName())
+			require.NoError(t, err)
+			requireResourcesEqual(t, serverInfo1, si)
+
+			// GetServerInfo should fail if name isn't provided.
+			_, err = clt.GetServerInfo(ctx, "")
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+		})
+	})
+
+	t.Run("DeleteServerInfo", func(t *testing.T) {
+		createServerInfos(t)
+		t.Cleanup(func() { deleteAllServerInfos(t) })
+
+		// DeleteServerInfo should fail if name isn't provided.
+		err := clt.DeleteServerInfo(ctx, "")
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+
+		// Delete server info.
+		err = clt.DeleteServerInfo(ctx, serverInfo1.GetName())
+		require.NoError(t, err)
+
+		// Expect server info not found.
+		_, err = clt.GetServerInfo(ctx, serverInfo1.GetName())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+
+		// Expect other server info still exists.
+		si, err := clt.GetServerInfo(ctx, serverInfo2.GetName())
+		require.NoError(t, err)
+		requireResourcesEqual(t, serverInfo2, si)
+	})
+}
+
 // TestSAMLIdPServiceProvidersCRUD tests SAMLIdPServiceProviders resource operations.
 func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	t.Parallel()
@@ -3203,8 +3247,7 @@ func TestListResources(t *testing.T) {
 				server, err := types.NewDatabaseServerV3(types.Metadata{
 					Name: name,
 				}, types.DatabaseServerSpecV3{
-					Protocol: defaults.ProtocolPostgres,
-					URI:      "localhost:5432",
+					Database: mustCreateDatabase(t, name, defaults.ProtocolPostgres, "localhost:5432"),
 					Hostname: "localhost",
 					HostID:   uuid.New().String(),
 				})
@@ -3739,180 +3782,6 @@ func TestExport(t *testing.T) {
 	}
 }
 
-// TestGRPCServer_CreateToken tests the handler of the deprecated CreateToken
-// RPC.
-func TestGRPCServer_CreateToken(t *testing.T) {
-	ctx := context.Background()
-	server := newTestTLSServer(t)
-
-	// Allow us to directly invoke the deprecated gRPC methods with
-	// authentication.
-	user := TestAdmin()
-	ctx = authz.ContextWithUser(ctx, user.I)
-
-	// Test default expiry is applied.
-	t.Run("undefined-expiry", func(t *testing.T) {
-		tokenName := "undefined-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			time.Time{},
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-
-	// Test set expiry is applied.
-	t.Run("set-expiry", func(t *testing.T) {
-		tokenName := "set-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		ttl := time.Hour * 24
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(ttl),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		actualTTL := token.Expiry().Sub(server.Clock().Now())
-		require.LessOrEqual(t, actualTTL, ttl)
-		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
-	})
-
-	// Test expiry in past is changed to default
-	t.Run("past-expiry", func(t *testing.T) {
-		tokenName := "past-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(-1*time.Hour),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-}
-
-// TestGRPCServer_UpsertToken tests the handler of the deprecated CreateToken
-// RPC.
-func TestGRPCServer_UpsertToken(t *testing.T) {
-	ctx := context.Background()
-	server := newTestTLSServer(t)
-
-	// Allow us to directly invoke the deprecated gRPC methods with
-	// authentication.
-	user := TestAdmin()
-	ctx = authz.ContextWithUser(ctx, user.I)
-
-	// Test default expiry is applied.
-	t.Run("undefined-expiry", func(t *testing.T) {
-		tokenName := "undefined-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			time.Time{},
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-
-	// Test set expiry is applied.
-	t.Run("set-expiry", func(t *testing.T) {
-		tokenName := "set-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		ttl := time.Hour * 24
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(ttl),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		actualTTL := token.Expiry().Sub(server.Clock().Now())
-		require.LessOrEqual(t, actualTTL, ttl)
-		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
-	})
-
-	// Test expiry in past is changed to default
-	t.Run("past-expiry", func(t *testing.T) {
-		tokenName := "past-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(-1*time.Hour),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-}
-
 // TestSAMLValidation tests that SAML validation does not perform an HTTP
 // request if the calling user does not have permissions to create or update
 // a SAML connector.
@@ -4094,6 +3963,237 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			}
 
 			require.Equal(t, tc.expectedInstallers, outputInstallers)
+		})
+	}
+}
+
+func TestRoleVersions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
+
+	newRole := func(version string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion("test_rule", version, spec)
+		require.NoError(t, err)
+		return role
+	}
+
+	role := newRole(types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels:               wildcardLabels,
+			AppLabels:                wildcardLabels,
+			AppLabelsExpression:      `labels["env"] == "staging"`,
+			DatabaseLabelsExpression: `labels["env"] == "staging"`,
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+			KubernetesLabels: wildcardLabels,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			KubernetesLabels:               types.Labels{"env": {"prod"}},
+			ClusterLabels:                  types.Labels{"env": {"prod"}},
+			ClusterLabelsExpression:        `labels["env"] == "prod"`,
+			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+				},
+			},
+		},
+	})
+
+	user, err := CreateUser(srv.Auth(), "user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc             string
+		clientVersions   []string
+		expectError      bool
+		expectedRole     types.Role
+		expectDowngraded bool
+	}{
+		{
+			desc: "up to date",
+			clientVersions: []string{
+				"14.0.0-alpha.1", "15.1.2", api.Version, "",
+			},
+			expectedRole: role,
+		},
+		{
+			desc: "downgrade role to v6 but supports label expressions",
+			clientVersions: []string{
+				minSupportedLabelExpressionVersion.String(), "13.3.0",
+			},
+			expectedRole: newRole(types.V6, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					NodeLabels:               wildcardLabels,
+					AppLabels:                wildcardLabels,
+					AppLabelsExpression:      `labels["env"] == "staging"`,
+					DatabaseLabelsExpression: `labels["env"] == "staging"`,
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels:               wildcardLabels,
+					ClusterLabels:                  types.Labels{"env": {"prod"}},
+					ClusterLabelsExpression:        `labels["env"] == "prod"`,
+					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc:           "bad client versions",
+			clientVersions: []string{"Not a version", "13", "13.1"},
+			expectError:    true,
+		},
+		{
+			desc:           "label expressions downgraded",
+			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
+			expectedRole: newRole(types.V6,
+				types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						// None of the allow labels change
+						NodeLabels:               wildcardLabels,
+						AppLabels:                wildcardLabels,
+						AppLabelsExpression:      `labels["env"] == "staging"`,
+						DatabaseLabelsExpression: `labels["env"] == "staging"`,
+						Rules: []types.Rule{
+							types.NewRule(types.KindRole, services.RW()),
+						},
+					},
+					Deny: types.RoleConditions{
+						// These fields don't change
+						KubernetesLabels:               wildcardLabels,
+						ClusterLabelsExpression:        `labels["env"] == "prod"`,
+						WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+						// These all get set to wildcard deny because there is
+						// either an allow or deny label expression for them.
+						AppLabels:            wildcardLabels,
+						DatabaseLabels:       wildcardLabels,
+						ClusterLabels:        wildcardLabels,
+						WindowsDesktopLabels: wildcardLabels,
+					},
+				}),
+			expectDowngraded: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			for _, clientVersion := range tc.clientVersions {
+				t.Run(clientVersion, func(t *testing.T) {
+					// setup client metadata
+					ctx := context.Background()
+					if clientVersion == "" {
+						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
+					} else {
+						ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+							metadata.VersionKey: clientVersion,
+						})
+					}
+
+					checkRole := func(gotRole types.Role) {
+						t.Helper()
+						if tc.expectError {
+							return
+						}
+						require.Empty(t, cmp.Diff(tc.expectedRole, gotRole,
+							cmpopts.IgnoreFields(types.RoleV6{}, "Metadata.ID", "Metadata.Labels")))
+						// The downgraded label value won't match exactly because it
+						// includes the client version, so just check it's not empty
+						// and ignore it in the role diff.
+						if tc.expectDowngraded {
+							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+						}
+					}
+					checkErr := func(err error) {
+						t.Helper()
+						if tc.expectError {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+						}
+					}
+
+					// Test GetRole
+					gotRole, err := client.GetRole(ctx, role.GetName())
+					checkErr(err)
+					checkRole(gotRole)
+
+					// Test GetRoles
+					gotRoles, err := client.GetRoles(ctx)
+					checkErr(err)
+					if !tc.expectError {
+						foundTestRole := false
+						for _, gotRole := range gotRoles {
+							if gotRole.GetName() != role.GetName() {
+								continue
+							}
+							checkRole(gotRole)
+							foundTestRole = true
+							break
+						}
+						require.True(t, foundTestRole, "GetRoles result does not include expected role")
+					}
+
+					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+
+					// Test WatchEvents
+					watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
+					require.NoError(t, err)
+					defer watcher.Close()
+
+					// Swallow the init event
+					e := <-watcher.Events()
+					require.Equal(t, types.OpInit, e.Type)
+
+					// Re-upsert the role so that the watcher sees it, do this
+					// on the auth server directly to avoid the
+					// TeleportDowngradedLabel check in ServerWithRoles
+					require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+					gotRole, err = func() (types.Role, error) {
+						for {
+							select {
+							case <-watcher.Done():
+								return nil, watcher.Error()
+							case e := <-watcher.Events():
+								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == role.GetName() {
+									return gotRole, nil
+								}
+							}
+						}
+					}()
+					checkErr(err)
+					checkRole(gotRole)
+
+					if !tc.expectError {
+						// Try to re-upsert the role we got. If it was
+						// downgraded, it should be rejected due to the
+						// TeleportDowngradedLabel
+						err = client.UpsertRole(ctx, gotRole)
+						if tc.expectDowngraded {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+						}
+					}
+				})
+			}
 		})
 	}
 }

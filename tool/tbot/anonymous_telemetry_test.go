@@ -59,38 +59,21 @@ func TestSendTelemetry(t *testing.T) {
 		}
 		cfg := &config.BotConfig{
 			Oneshot: true,
-			Onboarding: &config.OnboardingConfig{
+			Onboarding: config.OnboardingConfig{
 				JoinMethod: types.JoinMethodGitHub,
 			},
-			Destinations: []*config.DestinationConfig{
-				{
-					DestinationMixin: config.DestinationMixin{
-						Directory: &config.DestinationDirectory{},
-					},
+			Outputs: []config.Output{
+				&config.IdentityOutput{
+					Destination: &config.DestinationDirectory{},
 				},
-				{
-					DestinationMixin: config.DestinationMixin{
-						Directory: &config.DestinationDirectory{},
-					},
-					KubernetesCluster: &config.KubernetesCluster{
-						ClusterName: "foo",
-					},
+				&config.KubernetesOutput{
+					Destination: &config.DestinationDirectory{},
 				},
-				{
-					DestinationMixin: config.DestinationMixin{
-						Directory: &config.DestinationDirectory{},
-					},
-					App: &config.App{
-						App: "bar",
-					},
+				&config.ApplicationOutput{
+					Destination: &config.DestinationDirectory{},
 				},
-				{
-					DestinationMixin: config.DestinationMixin{
-						Directory: &config.DestinationDirectory{},
-					},
-					Database: &config.Database{
-						Database: "biz",
-					},
+				&config.DatabaseOutput{
+					Destination: &config.DestinationDirectory{},
 				},
 			},
 		}

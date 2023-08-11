@@ -87,7 +87,7 @@ func ValidateJoinMethod(method JoinMethod) error {
 
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
-	Resource
+	ResourceWithOrigin
 	// SetMetadata sets resource metatada
 	SetMetadata(meta Metadata)
 	// GetRoles returns a list of teleport roles
@@ -98,6 +98,8 @@ type ProvisionToken interface {
 	SetRoles(SystemRoles)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
+	// SetAllowRules sets the allow rules
+	SetAllowRules([]*TokenRule)
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -327,6 +329,11 @@ func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
 	return p.Spec.Allow
 }
 
+// SetAllowRules sets the allow rules.
+func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
+	p.Spec.Allow = rules
+}
+
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
@@ -375,6 +382,16 @@ func (p *ProvisionTokenV2) GetMetadata() Metadata {
 // SetMetadata sets resource metatada
 func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 	p.Metadata = meta
+}
+
+// Origin returns the origin value of the resource.
+func (p *ProvisionTokenV2) Origin() string {
+	return p.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (p *ProvisionTokenV2) SetOrigin(origin string) {
+	p.Metadata.SetOrigin(origin)
 }
 
 // GetSuggestedLabels returns the labels the resource should set when using this token

@@ -63,6 +63,10 @@ type WebConfig struct {
 	IsDashboard bool `json:"isDashboard,omitempty"`
 	// IsUsageBasedBilling determines if the cloud user subscription is usage-based (pay-as-you-go).
 	IsUsageBasedBilling bool `json:"isUsageBasedBilling,omitempty"`
+	// AutomaticUpgrades describes whether agents should automatically upgrade.
+	AutomaticUpgrades bool `json:"automaticUpgrades"`
+	// AssistEnabled is true when Teleport Assist is enabled.
+	AssistEnabled bool `json:"assistEnabled"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
@@ -103,4 +107,6 @@ type WebConfigAuthSettings struct {
 	LocalConnectorName string `json:"localConnectorName,omitempty"`
 	// PrivateKeyPolicy is the configured private key policy for the cluster.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"privateKeyPolicy,omitempty"`
+	// MOTD is message of the day. MOTD is displayed to users before login.
+	MOTD string `json:"motd"`
 }

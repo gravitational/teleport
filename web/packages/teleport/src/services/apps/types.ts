@@ -32,9 +32,20 @@ export interface App {
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
+  friendlyName?: string;
+  userGroups: UserGroupAndDescription[];
+  // samlApp is whether the application is a SAML Application (Service Provider).
+  samlApp: boolean;
+  // samlAppSsoUrl is the URL that triggers IdP-initiated SSO for SAML Application;
+  samlAppSsoUrl?: string;
 }
 
 export type AwsRole = {
   arn: string;
   display: string;
+};
+
+export type UserGroupAndDescription = {
+  name: string;
+  description: string;
 };

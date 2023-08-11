@@ -19,15 +19,6 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20.4
-
-NODE_VERSION ?= 16.18.1
-
-# run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.68.0
-LIBBPF_VERSION ?= 1.0.1
-LIBPCSCLITE_VERSION ?= 1.9.9-teleport
-
 UID := $$(id -u)
 GID := $$(id -g)
 
@@ -38,18 +29,15 @@ RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
-PROTOC_VER ?= 3.20.3
-# Keep in sync with api/proto/buf.yaml (and buf.lock)
-GOGO_PROTO_TAG ?= v1.3.2
-
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
 include images.mk
+include grpcbox.mk
+include versions.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
 # make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
 BUILDBOX_NAME=$(BUILDBOX)
-BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
 DOCSBOX=ghcr.io/gravitational/docs
 
@@ -62,9 +50,17 @@ ifeq ("$(DRONE)","true")
 CI := true
 endif
 ifeq ("$(CI)","true")
+# The UID/GID of the runner user on ARC runners is 1001, not 1000
+# This var is currently only set for ARC runners via https://github.com/gravitational/cloud-terraform/pull/2473
+ifeq ("$(CI_SYSTEM)","ARC")
+UID := 1001
+GID := 1001
+NOROOT := -u 1001:1001
+else
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
+endif
 # if running in CI and the GOCACHE environment variable is not set, set it to a sensible default
 ifeq ("$(GOCACHE)",)
 GOCACHE := /go/cache
@@ -131,9 +127,12 @@ buildbox:
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg PROTOC_VER=$(PROTOC_VER) \
-			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--build-arg BUF_VERSION=$(BUF_VERSION) \
+			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
+			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
+			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
+			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -141,20 +140,7 @@ buildbox:
 # Builds a Docker buildbox for FIPS
 #
 .PHONY:buildbox-fips
-buildbox-fips:
-	if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
-		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_FIPS) || true; fi; \
-		docker build \
-			--build-arg UID=$(UID) \
-			--build-arg GID=$(GID) \
-			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg RUST_VERSION=$(RUST_VERSION) \
-			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-			--cache-from $(BUILDBOX_FIPS) \
-			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
-	fi
+buildbox-fips: buildbox-centos7-fips
 
 #
 # Builds a Docker buildbox for CentOS 7 builds
@@ -170,7 +156,6 @@ buildbox-centos7:
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7) \
@@ -207,31 +192,29 @@ buildbox-arm: buildbox
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
-#
-# Builds a Docker buildbox for ARMv7/ARM64 FIPS builds
-# ARM buildboxes use a regular Teleport buildbox as a base which already has a user
-# with the correct UID and GID created, so those arguments are not needed here.
-#
-.PHONY:buildbox-arm-fips
-buildbox-arm-fips: buildbox-fips
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
-	docker build \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX_FIPS) \
-		--cache-from $(BUILDBOX_ARM_FIPS) \
-		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
-
 CONNECT_VERSION ?= $(VERSION)
 ifeq ($(CONNECT_VERSION),)
 CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
 endif
 
 #
+# Builds a Docker buildbox for Linux Connect builds
+#
+.PHONY:buildbox-connect
+buildbox-connect:
+	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CONNECT) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CONNECT) || true; fi; \
+	DOCKER_BUILDKIT=1 docker build \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-from $(BUILDBOX_CONNECT) \
+		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect . ;
+
+#
 # Builds Teleport Connect inside the buildbox container.
 #
 .PHONY:teleterm
-teleterm: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+teleterm: buildbox-connect
+	# Always run this image as user 1000, as the Node base image assumes that.
+	docker run $(DOCKERFLAGS) -u 1000:1000 $(BUILDBOX_CONNECT) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
@@ -242,17 +225,13 @@ ui: buildbox
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
-grpc: buildbox
-	docker run \
-		$(DOCKERFLAGS) -u $(UID):$(GID) -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport grpc/host
+grpc: grpcbox
+	$(GRPCBOX_RUN) make grpc/host
 
 # protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
 .PHONY: protos-up-to-date
-protos-up-to-date: buildbox
-	docker run \
-		$(DOCKERFLAGS) -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport protos-up-to-date/host
+protos-up-to-date: grpcbox
+	$(GRPCBOX_RUN) make protos-up-to-date/host
 
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports
@@ -333,6 +312,11 @@ integration-kube: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
 
+.PHONY:e2e-aws
+e2e-aws: buildbox
+	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' e2e-aws"
+
 #
 # Runs linters on new changes inside a build container.
 #
@@ -379,6 +363,13 @@ enter-root/centos7: buildbox-centos7
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
 
 #
+# Starts a shell inside the grpcbox.
+#
+.PHONY: enter/grpcbox
+enter/grpcbox: grpcbox
+	$(GRPCBOX_RUN)
+
+#
 # Create a Teleport package using the build container.
 # Don't use this target directly; call named Makefile targets like release-amd64.
 #
@@ -394,8 +385,7 @@ release-amd64:
 	$(MAKE) release ARCH=amd64 FIDO2=yes
 
 .PHONY: release-amd64-fips
-release-amd64-fips:
-	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
+release-amd64-fips: release-amd64-centos7-fips
 
 .PHONY: release-386
 release-386:
@@ -429,9 +419,9 @@ release-arm64: buildbox-arm
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY:release-fips
-release-fips: buildbox-fips
+release-fips: buildbox-centos7-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #

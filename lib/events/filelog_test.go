@@ -28,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 )
@@ -82,12 +81,23 @@ func TestFileLogPagination(t *testing.T) {
 
 	from := clock.Now().Add(-time.Hour).UTC()
 	to := clock.Now().Add(time.Hour).UTC()
-	eventArr, checkpoint, err := log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, types.EventOrderAscending, "")
+	eventArr, checkpoint, err := log.SearchEvents(ctx, SearchEventsRequest{
+		From:  from,
+		To:    to,
+		Limit: 2,
+		Order: types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, eventArr, 2)
 	require.NotEmpty(t, checkpoint)
 
-	eventArr, checkpoint, err = log.SearchEvents(from, to, apidefaults.Namespace, nil, 2, types.EventOrderAscending, checkpoint)
+	eventArr, checkpoint, err = log.SearchEvents(ctx, SearchEventsRequest{
+		From:     from,
+		To:       to,
+		Limit:    2,
+		Order:    types.EventOrderAscending,
+		StartKey: checkpoint,
+	})
 	require.Nil(t, err)
 	require.Len(t, eventArr, 1)
 	require.Empty(t, checkpoint)
@@ -115,7 +125,12 @@ func TestSearchSessionEvents(t *testing.T) {
 	}))
 	clock.Advance(1 * time.Minute)
 
-	result, _, err := log.SearchSessionEvents(start, clock.Now(), 10, types.EventOrderAscending, "", nil, "")
+	result, _, err := log.SearchSessionEvents(ctx, SearchSessionEventsRequest{
+		From:  start,
+		To:    clock.Now(),
+		Limit: 10,
+		Order: types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, result[0].GetType(), SessionEndEvent)
@@ -131,7 +146,12 @@ func TestSearchSessionEvents(t *testing.T) {
 	}))
 	clock.Advance(1 * time.Minute)
 
-	result, _, err = log.SearchSessionEvents(start, clock.Now(), 10, types.EventOrderAscending, "", nil, "")
+	result, _, err = log.SearchSessionEvents(ctx, SearchSessionEventsRequest{
+		From:  start,
+		To:    clock.Now(),
+		Limit: 10,
+		Order: types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Equal(t, result[0].GetType(), SessionEndEvent)
@@ -147,7 +167,12 @@ func TestSearchSessionEvents(t *testing.T) {
 	}))
 	clock.Advance(1 * time.Minute)
 
-	result, _, err = log.SearchSessionEvents(start, clock.Now(), 10, types.EventOrderAscending, "", nil, "")
+	result, _, err = log.SearchSessionEvents(ctx, SearchSessionEventsRequest{
+		From:  start,
+		To:    clock.Now(),
+		Limit: 10,
+		Order: types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 	require.Equal(t, result[0].GetType(), SessionEndEvent)
@@ -270,6 +295,7 @@ func makeQueryEvent(id string, query string) *events.DatabaseSessionQuery {
 		DatabaseQuery: query,
 	}
 }
+
 func makeAccessRequestEvent(id string, in string) *events.AccessRequestDelete {
 	return &events.AccessRequestDelete{
 		Metadata: events.Metadata{
@@ -281,15 +307,13 @@ func makeAccessRequestEvent(id string, in string) *events.AccessRequestDelete {
 }
 
 func mustSearchEvent(t *testing.T, log *FileLog, start time.Time) []events.AuditEvent {
-	result, _, err := log.SearchEvents(
-		start,
-		start.Add(time.Hour),
-		"",
-		[]string{},
-		100,
-		types.EventOrderAscending,
-		"",
-	)
+	ctx := context.TODO()
+	result, _, err := log.SearchEvents(ctx, SearchEventsRequest{
+		From:  start,
+		To:    start.Add(time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	return result
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -33,8 +34,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -265,7 +268,7 @@ func TestModeratedSessions(t *testing.T) {
 			}
 			req, err := generateExecRequest(
 				generateExecRequestConfig{
-					addr:          testCtx.KubeServiceAddress(),
+					addr:          testCtx.KubeProxyAddress(),
 					podName:       podName,
 					podNamespace:  podNamespace,
 					containerName: podContainerName,
@@ -476,4 +479,194 @@ func validateSessionTracker(testCtx *TestContext, sessionID string, reason strin
 		return trace.BadParameter("expected invited %q, got %q", invited, sessionTracker.GetInvited())
 	}
 	return nil
+}
+
+// TestInteractiveSessionsNoAuth tests the interactive sessions when auth server
+// is down or the connection is not available.
+// This test complements github.com/gravitational/teleport/integration.TestKube/ExecWithNoAuth
+// which tests sessions that require and do not require moderation. This test exists
+// to test the scenario where the user has a role that defines the LockingMode to
+// "strict" and the user has no access to the auth server. This scenario is not
+// covered by the integration test mentioned above because we need to fake the
+// Lock watcher connection to be stale and it takes ~5 minutes to happen.
+func TestInteractiveSessionsNoAuth(t *testing.T) {
+	// enable enterprise features to have access to ModeratedSessions.
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{Kubernetes: true}})
+	const (
+		moderatorUsername       = "moderator_user"
+		moderatorRoleName       = "mod_role"
+		userRequiringModeration = "user_wmod"
+		roleRequiringModeration = "role_wmod"
+		userStrictLocking       = "user_strict"
+		roleStrictLocking       = "role_strict"
+		stdinPayload            = "sessionPayload"
+		discardPayload          = "discardPayload"
+		exitKeyword             = "exit"
+	)
+
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	// close tests
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// create a user with access to kubernetes that does not require any moderator.
+	// but his role defines strict locking.
+	userWithStrictLock, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		userStrictLocking,
+		RoleSpec{
+			Name:       roleStrictLocking,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(role types.Role) {
+				// set session lock to strict
+				opts := role.GetOptions()
+				opts.Lock = constants.LockingModeStrict
+				role.SetOptions(opts)
+			},
+		})
+
+	// create a adminUser user with access to kubernetes
+	// (kubernetes_user and kubernetes_groups specified)
+	adminUser, modRole := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		moderatorUsername,
+		RoleSpec{
+			Name:       moderatorRoleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			// sessionJoin:
+			SessionJoin: []*types.SessionJoinPolicy{
+				{
+					Name:  "Auditor oversight",
+					Roles: []string{"*"},
+					Kinds: []string{"k8s"},
+					Modes: []string{string(types.SessionModeratorMode)},
+				},
+			},
+		})
+
+	// create a userRequiringModerator with access to kubernetes thar requires
+	// one moderator to join the session.
+	userRequiringModerator, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		userRequiringModeration,
+		RoleSpec{
+			Name:       roleRequiringModeration,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SessionRequire: []*types.SessionRequirePolicy{
+				{
+					Name:   "Auditor oversight",
+					Filter: fmt.Sprintf("contains(user.spec.roles, %q)", modRole.GetName()),
+					Kinds:  []string{"k8s"},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  1,
+				},
+			},
+		})
+
+	// generate a kube client with user certs for auth
+	_, userStrictLockingConfig := testCtx.GenTestKubeClientTLSCert(
+		t,
+		userWithStrictLock.GetName(),
+		kubeCluster,
+	)
+
+	_, moderatorConfig := testCtx.GenTestKubeClientTLSCert(
+		t,
+		adminUser.GetName(),
+		kubeCluster,
+	)
+
+	_, userRequiringModeratorConfig := testCtx.GenTestKubeClientTLSCert(
+		t,
+		userRequiringModerator.GetName(),
+		kubeCluster,
+	)
+
+	// Mark the lock as stale so that the session with strict locking is denied.
+	close(testCtx.lockWatcher.StaleC)
+	// force the auth client to return an error when trying to create a session.
+	close(testCtx.closeSessionTrackers)
+
+	require.Eventually(t, func() bool {
+		return testCtx.lockWatcher.IsStale()
+	}, 3*time.Second, time.Millisecond*100, "lock watcher should be stale")
+	tests := []struct {
+		name      string
+		config    *rest.Config
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			// this session does not require moderation and should be created without any issues.
+			name:      "create session for user without moderation",
+			assertErr: require.NoError,
+			config:    moderatorConfig,
+		},
+		{
+			// this session is denied because moderator sessions are not allowed when no auth connection is available.
+			name:      "create session requiring moderation",
+			assertErr: require.Error,
+			config:    userRequiringModeratorConfig,
+		},
+		{
+			// this session is denied because strict locking sessions are not allowed when no auth connection is available and the connector is expired.
+			name:      "create session with strict locking",
+			assertErr: require.Error,
+			config:    userStrictLockingConfig,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a user session.
+			var (
+				stdinReader   = bytes.NewReader([]byte("ls"))
+				stdoutWritter = &bytes.Buffer{}
+			)
+			streamOpts := remotecommand.StreamOptions{
+				Stdin:  stdinReader,
+				Stdout: stdoutWritter,
+				// when Tty is enabled, Stderr must be nil.
+				Stderr: nil,
+				Tty:    true,
+			}
+			req, err := generateExecRequest(
+				generateExecRequestConfig{
+					addr:          testCtx.KubeProxyAddress(),
+					podName:       podName,
+					podNamespace:  podNamespace,
+					containerName: podContainerName,
+					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+					options:       streamOpts,
+				},
+			)
+			require.NoError(t, err)
+
+			exec, err := remotecommand.NewSPDYExecutor(tt.config, http.MethodPost, req.URL())
+			require.NoError(t, err)
+			err = exec.StreamWithContext(context.TODO(), streamOpts)
+			tt.assertErr(t, err)
+		})
+	}
 }

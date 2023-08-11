@@ -184,6 +184,18 @@ func main() {
 		setupLog.Info("Login Rules are only available in Teleport Enterprise edition. TeleportLoginRule resources won't be reconciled")
 	}
 
+	if err = resources.NewProvisionTokenReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportProvisionToken")
+		os.Exit(1)
+	}
+
+	if err = resources.NewOktaImportRuleReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportOktaImportRule")
+		os.Exit(1)
+	}
+
 	//+kubebuilder:scaffold:builder
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

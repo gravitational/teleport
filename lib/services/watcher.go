@@ -117,7 +117,7 @@ func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg Re
 		cancel:                cancel,
 		retry:                 retry,
 		LoopC:                 make(chan struct{}),
-		StaleC:                make(chan struct{}, 1),
+		StaleC:                make(chan struct{}),
 	}
 	go p.runWatchLoop()
 	return p, nil
@@ -242,6 +242,11 @@ func (p *resourceWatcher) runWatchLoop() {
 		case <-p.ctx.Done():
 			p.Log.Debug("Closed, returning from watch loop.")
 			return
+		case <-p.StaleC:
+			// Used for testing that the watch routine is waiting for the
+			// next restart attempt. We don't want to wait for the full
+			// retry period in tests so we trigger the restart immediately.
+			p.Log.Debug("Stale view, continue watch loop.")
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
@@ -281,6 +286,8 @@ func (p *resourceWatcher) watch() error {
 		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
+	case <-p.StaleC:
+		return trace.ConnectionProblem(nil, "stale view")
 	case event := <-watcher.Events():
 		if event.Type != types.OpInit {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
@@ -303,6 +310,8 @@ func (p *resourceWatcher) watch() error {
 			p.collector.processEventAndUpdateCurrent(p.ctx, event)
 		case p.LoopC <- struct{}{}:
 			// Used in tests to detect the watch loop is running.
+		case <-p.StaleC:
+			return trace.ConnectionProblem(nil, "stale view")
 		}
 	}
 }
@@ -550,6 +559,14 @@ type lockCollector struct {
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
+}
+
+// IsStale is used to check whether the lock watcher is stale.
+// Used in tests.
+func (p *lockCollector) IsStale() bool {
+	p.currentRW.RLock()
+	defer p.currentRW.RUnlock()
+	return p.isStale
 }
 
 // Subscribe is used to subscribe to the lock updates.

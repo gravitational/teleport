@@ -241,7 +241,7 @@ scope={["enterprise"]}>either modify your Auth Service configuration file
 or </ScopedBlock>create a `cluster_auth_preference` resource.
 
 <Tabs>
-  <TabItem label="Static Config (Self-Hosted)" scope={["enterprise"]}>
+  <TabItem label="Static Config (Self-Hosted)" scope={["enterprise","oss"]}>
  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
   ```yaml
   auth_service:
@@ -252,7 +252,7 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
 
   (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
-  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
+  <TabItem scope={["cloud","team"]} label="Dynamic Resources (All Editions)">
   Create a file called `cap.yaml`:
   ```yaml
   kind: cluster_auth_preference
@@ -453,7 +453,7 @@ flow. These provider-specific changes can be enabled by setting the
 values to match your identity provider:
 
 - `adfs` (SAML): Required for compatibility with Active Directory (ADFS); refer
-  to the full [ADFS guide](./sso/adfs.mdx#create-teleport-roles) for details.
+  to the full [ADFS guide](./sso/adfs.mdx#step-23-create-teleport-roles) for details.
 - `netiq` (OIDC): Used to enable NetIQ-specific ACR value processing; refer to
   the [OIDC guide](./sso/oidc.mdx#optional-acr-values) for details.
 - `ping` (SAML and OIDC): Required for compatibility with Ping Identity (including

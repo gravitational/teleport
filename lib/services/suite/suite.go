@@ -404,7 +404,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Equal(t, len(out), 0)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
-	require.NoError(t, s.PresenceS.UpsertProxy(proxy))
+	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
@@ -412,7 +412,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	proxy.SetResourceID(out[0].GetResourceID())
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}))
 
-	err = s.PresenceS.DeleteProxy(proxy.GetName())
+	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	out, err = s.PresenceS.GetProxies()
@@ -425,7 +425,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Equal(t, len(out), 0)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
-	require.NoError(t, s.PresenceS.UpsertAuthServer(auth))
+	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
@@ -1509,7 +1509,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				err := s.PresenceS.UpsertProxy(srv)
+				err := s.PresenceS.UpsertProxy(ctx, srv)
 				require.NoError(t, err)
 
 				out, err := s.PresenceS.GetProxies()

@@ -40,7 +40,7 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
       env:
         WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
@@ -84,4 +84,4 @@ jobs:
       - name: Run tests
         timeout-minutes: 40
         run: |
-          runuser -u ci -g ci make rdpclient integration-kube
+          runuser -u ci -g ci make integration-kube RDPCLIENT_SKIP_BUILD=1

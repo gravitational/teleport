@@ -45,8 +45,57 @@ Infrastructure components include:
   credential provisioner will need to manage DNS records to demonstrate control
   over your domain name.
 
-![Diagram of a high-availability Teleport
-architecture](../../img/deploy-a-cluster/teleport-ha-architecture.png)
+{/*
+The block of &nbsp is there to push the subgraph label out of the way of the
+diagram lines. This is a hacky solution to https://github.com/mermaid-js/mermaid/issues/1209
+*/}
+
+```mermaid
+flowchart
+   subgraph public[Public Network]
+     Developers
+   end
+
+   subgraph private[Private Network]
+     server1[Teleport Service]
+     server2[Teleport Service]
+     server3[Teleport Service]
+   end
+
+   Developers & server1 & server2 & server3 --> lb1[Load Balancer]
+   lb1 --> proxies
+
+   subgraph teleport[Private Network &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp]
+     subgraph proxies[Proxy Service Pool]
+       tp1[Teleport Proxy Service]
+       tp2[Teleport Proxy Service]
+     end
+
+     proxies --> lb2[Load Balancer]
+
+     subgraph auth[Auth Service Pool]
+       ta1[Teleport Auth Service]
+       ta2[Teleport Auth Service]
+    end
+
+    lb2-->auth
+
+    auth-->kv[Key/Value Store]
+    auth-->os[Object Store]
+   end
+
+classDef teleportColor fill:#844cff,color:#fff
+classDef nestedSub fill:#fff
+class proxies nestedSub
+class auth nestedSub
+class server1 teleportColor
+class server2 teleportColor
+class server3 teleportColor
+class tp1 teleportColor
+class tp2 teleportColor
+class ta1 teleportColor
+class ta2 teleportColor
+```
 
 ## Layer 4 load balancers
 
@@ -112,7 +161,7 @@ These ports are required:
 
 | Load Balancer Port | Proxy Service Port | Description |
 | - | - | - |
-| <nobr>`3023`</nobr> | <nobr>`3023`</nobr> | SSH port for clients connect to. |
+| `3023` | `3023` | SSH port for clients connect to. |
 | `3024` | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
 | `443` | `3080` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 
@@ -124,6 +173,7 @@ services:
 | `3026` | HTTPS Kubernetes proxy |
 | `3036` | MySQL port |
 | `5432` | Postgres port |
+| `27017` | Mongo port |
 
 </TabItem>
 </Tabs>
@@ -133,7 +183,7 @@ services:
 The Auth Service load balancer must forward traffic to the Auth Service's gRPC
 port. In this guide, we are assuming that you have configured the Auth Service
 load balancer to forward traffic from port `3025` to port `3025` on an available
-Auth Service instance. 
+Auth Service instance.
 
 ## Cluster state backend
 
@@ -447,7 +497,7 @@ Ensure that, on each Auth Service instance, the following ports are open:
 
 | Port | Description |
 | - | - |
-| <nobr>`3025`</nobr> | gRPC port to open to Proxy Service instances.|
+| `3025` | gRPC port to open to Proxy Service instances.|
 
 #### License file
 
@@ -457,7 +507,7 @@ and make it available to your Teleport Auth Service instances.
 (!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
 The license file must be available to each Teleport Auth Service instance at
-`/var/lib/teleport/license.pem`. 
+`/var/lib/teleport/license.pem`.
 
 #### Configuration
 
@@ -466,9 +516,9 @@ instances at `/etc/teleport.yaml`. We will explain the required configuration
 fields for a high-availability Teleport deployment below. These are the minimum
 requirements, and when planning your high-availability deployment, you will want
 to follow a more specific [deployment guide](introduction.mdx) for your
-environment. 
+environment.
 
-#### `storage` 
+#### `storage`
 
 The first configuration section to write is the `storage` section, which
 configures the cluster state backend and session recording backend for the Auth

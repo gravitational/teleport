@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -258,8 +260,15 @@ func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 	if err != nil {
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
+	ctx := context.Background()
 	for {
-		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, types.EventOrderAscending, "")
+		events, _, err := cli.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       startTime,
+			To:         time.Now().Add(time.Hour),
+			EventTypes: []string{eventType},
+			Limit:      100,
+			Order:      types.EventOrderAscending,
+		})
 		if err != nil {
 			t.Fatalf("failed to call SearchEvents: %v", err)
 		}
@@ -447,4 +456,31 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	return db
+}
+
+// MustCreateListener creates a tcp listener at 127.0.0.1 with random port.
+func MustCreateListener(t *testing.T) net.Listener {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
+func FindNodeWithLabel(t *testing.T, ctx context.Context, cl services.ResourceLister, key, value string) func() bool {
+	t.Helper()
+	return func() bool {
+		servers, err := cl.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    apidefaults.Namespace,
+			Labels:       map[string]string{key: value},
+			Limit:        1,
+		})
+		assert.NoError(t, err)
+		return len(servers.Resources) >= 1
+	}
 }

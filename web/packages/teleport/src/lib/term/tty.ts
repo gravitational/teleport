@@ -78,7 +78,9 @@ class Tty extends EventEmitterWebAuthnSender {
   }
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
-    this.send(JSON.stringify(data));
+    const encoded = this._proto.encodeChallengeResponse(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
   }
 
   _sendFileTransferRequest(message: string) {

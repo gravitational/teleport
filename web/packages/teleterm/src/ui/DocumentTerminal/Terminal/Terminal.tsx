@@ -14,17 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import React, { useEffect, useRef, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
 import { Box, Flex } from 'design';
 import { debounce } from 'shared/utils/highbar';
+import {
+  Attempt,
+  makeEmptyAttempt,
+  makeErrorAttempt,
+  makeSuccessAttempt,
+} from 'shared/hooks/useAsync';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
+
+import { Reconnect } from '../Reconnect';
 
 import XTermCtrl from './ctrl';
 
 type TerminalProps = {
+  docKind: DocumentTerminal['kind'];
   ptyProcess: IPtyProcess;
+  reconnect: () => void;
   visible: boolean;
   /**
    * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
@@ -40,13 +51,29 @@ type TerminalProps = {
 export function Terminal(props: TerminalProps) {
   const refElement = useRef<HTMLElement>();
   const refCtrl = useRef<XTermCtrl>();
+  const [startPtyProcessAttempt, setStartPtyProcessAttempt] = useState<
+    Attempt<void>
+  >(makeEmptyAttempt());
+  const theme = useTheme();
 
   useEffect(() => {
+    const removeOnStartErrorListener = props.ptyProcess.onStartError(
+      message => {
+        setStartPtyProcessAttempt(makeErrorAttempt(message));
+      }
+    );
+
+    const removeOnOpenListener = props.ptyProcess.onOpen(() => {
+      setStartPtyProcessAttempt(makeSuccessAttempt(undefined));
+    });
+
     const ctrl = new XTermCtrl(props.ptyProcess, {
       el: refElement.current,
       fontSize: props.fontSize,
+      theme: theme.colors.terminal,
     });
 
+    // Start the PTY process.
     ctrl.open();
 
     ctrl.term.onKey(event => {
@@ -62,6 +89,8 @@ export function Terminal(props: TerminalProps) {
     }, 100);
 
     return () => {
+      removeOnStartErrorListener();
+      removeOnOpenListener();
       handleEnterPress.cancel();
       ctrl.destroy();
     };
@@ -76,6 +105,12 @@ export function Terminal(props: TerminalProps) {
     refCtrl.current.requestResize();
   }, [props.visible]);
 
+  useEffect(() => {
+    if (refCtrl.current) {
+      refCtrl.current.term.options.theme = theme.colors.terminal;
+    }
+  }, [theme]);
+
   return (
     <Flex
       flexDirection="column"
@@ -83,9 +118,20 @@ export function Terminal(props: TerminalProps) {
       width="100%"
       style={{ overflow: 'hidden' }}
     >
+      {startPtyProcessAttempt.status === 'error' && (
+        <Reconnect
+          docKind={props.docKind}
+          attempt={startPtyProcessAttempt}
+          reconnect={props.reconnect}
+        />
+      )}
       <StyledXterm
         ref={refElement}
-        style={{ fontFamily: props.unsanitizedFontFamily }}
+        style={{
+          fontFamily: props.unsanitizedFontFamily,
+          // Always render the Xterm element so that refElement is not undefined on startError.
+          display: startPtyProcessAttempt.status === 'error' ? 'none' : 'block',
+        }}
       />
     </Flex>
   );

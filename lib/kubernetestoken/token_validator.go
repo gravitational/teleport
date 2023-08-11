@@ -22,12 +22,12 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/strings/slices"
 )
 
 const (
