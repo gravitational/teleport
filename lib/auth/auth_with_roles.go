@@ -1496,63 +1496,63 @@ func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources [
 		case types.KindDatabaseServer:
 			database, ok := resource.(*types.DatabaseServerV3)
 			if !ok {
-				return nil, trace.BadParameter("database server has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
 		case types.KindDatabaseService:
 			databaseService, ok := resource.(*types.DatabaseServiceV1)
 			if !ok {
-				return nil, trace.BadParameter("database service has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
 		case types.KindAppServer:
 			app, ok := resource.(*types.AppServerV3)
 			if !ok {
-				return nil, trace.BadParameter("application server has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}}
 		case types.KindNode:
 			srv, ok := resource.(*types.ServerV2)
 			if !ok {
-				return nil, trace.BadParameter("node has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
 		case types.KindKubeServer:
 			srv, ok := resource.(*types.KubernetesServerV3)
 			if !ok {
-				return nil, trace.BadParameter("kubernetes server has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
 		case types.KindWindowsDesktop:
 			desktop, ok := resource.(*types.WindowsDesktopV3)
 			if !ok {
-				return nil, trace.BadParameter("windows desktop has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
 		case types.KindWindowsDesktopService:
 			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
 			if !ok {
-				return nil, trace.BadParameter("windows desktop service has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
 		case types.KindKubernetesCluster:
 			cluster, ok := resource.(*types.KubernetesClusterV3)
 			if !ok {
-				return nil, trace.BadParameter("kubernetes cluster has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
 		case types.KindUserGroup:
 			userGroup, ok := resource.(*types.UserGroupV1)
 			if !ok {
-				return nil, trace.BadParameter("user group has invalid type %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
@@ -1577,7 +1577,7 @@ func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources [
 						},
 					}}
 			default:
-				return nil, trace.BadParameter("expected types.SAMLIdPServiceProviderV1 or types.AppServerV3, got %T", resource)
+				return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 			}
 
 		default:

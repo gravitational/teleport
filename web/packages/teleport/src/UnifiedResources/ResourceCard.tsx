@@ -70,7 +70,7 @@ export const ResourceCard = ({ resource, onLabelClick }: Props) => {
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
   // than the height of a single label row, we show a "+x more" button.
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!labelsInnerContainer.current) return;
 
     const observer = new ResizeObserver(entries => {
@@ -117,11 +117,6 @@ export const ResourceCard = ({ resource, onLabelClick }: Props) => {
         alignItems="start"
         showAllLabels={showAllLabels}
         onMouseLeave={() => setShowAllLabels(false)}
-        // Class name needed to properly propagate hover state to child
-        // components. If we don't do it, there's no way to sync the background
-        // of the "more" button, since it's opaque and the background is
-        // animated.
-        className="grv-unified-resource-card"
       >
         <ResourceIcon
           name={resIcon}
@@ -173,12 +168,12 @@ export const ResourceCard = ({ resource, onLabelClick }: Props) => {
               >
                 + {numMoreLabels} more
               </MoreLabelsButton>
-              {resource.labels.map(label => {
+              {resource.labels.map((label, i) => {
                 const { name, value } = label;
                 const labelText = `${name}: ${value}`;
                 return (
                   <ResourceLabel
-                    key={labelText}
+                    key={JSON.stringify([name, value, i])}
                     title={labelText}
                     onClick={() => onLabelClick?.(label)}
                     kind="secondary"
@@ -363,7 +358,7 @@ const MoreLabelsButton = styled(ButtonLink)`
   transition: visibility 0s;
   transition: background 150ms;
 
-  .grv-unified-resource-card:hover & {
+  ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.elevated};
   }
 `;

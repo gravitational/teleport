@@ -488,8 +488,7 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 			return true
 		}
 	}
-
-	return false
+	return slices.Contains(kinds, resourceKind)
 }
 
 // IsValidLabelKey checks if the supplied string matches the
@@ -588,11 +587,11 @@ func (r ResourcesWithLabels) SortByCustom(by SortBy) error {
 	isDesc := by.IsDesc
 	switch by.Field {
 	case ResourceMetadataName:
-		sort.SliceStable(r, func(i, j int) bool {
+		sort.Slice(r, func(i, j int) bool {
 			return unifiedNameCompare(r[i], r[j], isDesc)
 		})
 	case ResourceKind:
-		sort.SliceStable(r, func(i, j int) bool {
+		sort.Slice(r, func(i, j int) bool {
 			return unifiedKindCompare(r[i], r[j], isDesc)
 		})
 	default:

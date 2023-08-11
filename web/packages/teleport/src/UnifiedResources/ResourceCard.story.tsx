@@ -58,6 +58,13 @@ const additionalResources = [
       { name: 'day3', value: 'three French hens' },
       { name: 'day4', value: 'four calling birds' },
       { name: 'day5', value: 'five gold rings' },
+      { name: 'day6', value: 'six geese a-laying' },
+      { name: 'day7', value: 'seven swans a-swimming' },
+      { name: 'day8', value: 'eight maids a-milking' },
+      { name: 'day9', value: 'nine ladies dancing' },
+      { name: 'day10', value: 'ten lords a-leaping' },
+      { name: 'day11', value: 'eleven pipers piping' },
+      { name: 'day12', value: 'twelve drummers drumming' },
     ],
   }),
 ];
