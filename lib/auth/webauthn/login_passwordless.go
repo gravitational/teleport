@@ -20,7 +20,7 @@ import (
 	"errors"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // PasswordlessIdentity represents the subset of Identity methods used by
@@ -29,8 +29,8 @@ type PasswordlessIdentity interface {
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
-	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
-	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error)
 	DeleteGlobalWebauthnSessionData(ctx context.Context, scope, id string) error
 	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)
 }
@@ -79,12 +79,12 @@ func (p passwordlessIdentity) GetWebauthnLocalAuth(ctx context.Context, user str
 
 type globalSessionStorage PasswordlessFlow
 
-func (g *globalSessionStorage) Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error {
+func (g *globalSessionStorage) Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error {
 	id := base64.RawURLEncoding.EncodeToString(sd.Challenge)
 	return g.Identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id, sd)
 }
 
-func (g *globalSessionStorage) Get(ctx context.Context, user string, challenge string) (*wantypes.SessionData, error) {
+func (g *globalSessionStorage) Get(ctx context.Context, user string, challenge string) (*wanpb.SessionData, error) {
 	return g.Identity.GetGlobalWebauthnSessionData(ctx, scopeLogin, challenge)
 }
 

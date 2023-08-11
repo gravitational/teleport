@@ -31,7 +31,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // loginIdentity contains the subset of services.Identity methods used by
@@ -50,8 +50,8 @@ type loginIdentity interface {
 // * Passwordless uses global variants
 // (services.Identity.Update/Get/DeleteGlobalWebauthnSessionData methods).
 type sessionIdentity interface {
-	Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error
-	Get(ctx context.Context, user string, challenge string) (*wantypes.SessionData, error)
+	Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error
+	Get(ctx context.Context, user string, challenge string) (*wanpb.SessionData, error)
 	Delete(ctx context.Context, user string, challenge string) error
 }
 

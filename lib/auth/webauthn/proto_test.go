@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -43,23 +43,23 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialAssertion empty",
 			fn: func() {
-				wanlib.CredentialAssertionFromProto(&wantypes.CredentialAssertion{})
+				wanlib.CredentialAssertionFromProto(&wanpb.CredentialAssertion{})
 			},
 		},
 		{
 			name: "CredentialAssertion.PublicKey empty",
 			fn: func() {
-				wanlib.CredentialAssertionFromProto(&wantypes.CredentialAssertion{
-					PublicKey: &wantypes.PublicKeyCredentialRequestOptions{},
+				wanlib.CredentialAssertionFromProto(&wanpb.CredentialAssertion{
+					PublicKey: &wanpb.PublicKeyCredentialRequestOptions{},
 				})
 			},
 		},
 		{
 			name: "CredentialAssertion.PublicKey slice elements nil",
 			fn: func() {
-				wanlib.CredentialAssertionFromProto(&wantypes.CredentialAssertion{
-					PublicKey: &wantypes.PublicKeyCredentialRequestOptions{
-						AllowCredentials: []*wantypes.CredentialDescriptor{
+				wanlib.CredentialAssertionFromProto(&wanpb.CredentialAssertion{
+					PublicKey: &wanpb.PublicKeyCredentialRequestOptions{
+						AllowCredentials: []*wanpb.CredentialDescriptor{
 							{}, nil, {},
 						},
 					},
@@ -75,14 +75,14 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialAssertionResponse empty",
 			fn: func() {
-				wanlib.CredentialAssertionResponseFromProto(&wantypes.CredentialAssertionResponse{})
+				wanlib.CredentialAssertionResponseFromProto(&wanpb.CredentialAssertionResponse{})
 			},
 		},
 		{
 			name: "CredentialAssertionResponse.Response empty",
 			fn: func() {
-				wanlib.CredentialAssertionResponseFromProto(&wantypes.CredentialAssertionResponse{
-					Response: &wantypes.AuthenticatorAssertionResponse{},
+				wanlib.CredentialAssertionResponseFromProto(&wanpb.CredentialAssertionResponse{
+					Response: &wanpb.AuthenticatorAssertionResponse{},
 				})
 			},
 		},
@@ -95,26 +95,26 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialCreation empty",
 			fn: func() {
-				wanlib.CredentialCreationFromProto(&wantypes.CredentialCreation{})
+				wanlib.CredentialCreationFromProto(&wanpb.CredentialCreation{})
 			},
 		},
 		{
 			name: "CredentialCreation.PublicKey empty",
 			fn: func() {
-				wanlib.CredentialCreationFromProto(&wantypes.CredentialCreation{
-					PublicKey: &wantypes.PublicKeyCredentialCreationOptions{},
+				wanlib.CredentialCreationFromProto(&wanpb.CredentialCreation{
+					PublicKey: &wanpb.PublicKeyCredentialCreationOptions{},
 				})
 			},
 		},
 		{
 			name: "CredentialCreation.PublicKey slice elements nil",
 			fn: func() {
-				wanlib.CredentialCreationFromProto(&wantypes.CredentialCreation{
-					PublicKey: &wantypes.PublicKeyCredentialCreationOptions{
-						CredentialParameters: []*wantypes.CredentialParameter{
+				wanlib.CredentialCreationFromProto(&wanpb.CredentialCreation{
+					PublicKey: &wanpb.PublicKeyCredentialCreationOptions{
+						CredentialParameters: []*wanpb.CredentialParameter{
 							{}, nil, {},
 						},
-						ExcludeCredentials: []*wantypes.CredentialDescriptor{
+						ExcludeCredentials: []*wanpb.CredentialDescriptor{
 							{}, nil, {},
 						},
 					},
@@ -130,14 +130,14 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialCreationResponse empty",
 			fn: func() {
-				wanlib.CredentialCreationResponseFromProto(&wantypes.CredentialCreationResponse{})
+				wanlib.CredentialCreationResponseFromProto(&wanpb.CredentialCreationResponse{})
 			},
 		},
 		{
 			name: "CredentialCreationResponse.Response empty",
 			fn: func() {
-				wanlib.CredentialCreationResponseFromProto(&wantypes.CredentialCreationResponse{
-					Response: &wantypes.AuthenticatorAttestationResponse{},
+				wanlib.CredentialCreationResponseFromProto(&wanpb.CredentialCreationResponse{
+					Response: &wanpb.AuthenticatorAttestationResponse{},
 				})
 			},
 		},

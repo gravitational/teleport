@@ -30,7 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // RegistrationIdentity represents the subset of Identity methods used by
@@ -42,8 +42,8 @@ type RegistrationIdentity interface {
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
@@ -52,7 +52,7 @@ type RegistrationIdentity interface {
 func WithInMemorySessionData(identity RegistrationIdentity) RegistrationIdentity {
 	return &inMemoryIdentity{
 		RegistrationIdentity: identity,
-		sessionData:          make(map[string]*wantypes.SessionData),
+		sessionData:          make(map[string]*wanpb.SessionData),
 	}
 }
 
@@ -63,17 +63,17 @@ type inMemoryIdentity struct {
 	// We don't foresee concurrent use for inMemoryIdentity, but it's easy enough
 	// to play it safe.
 	mu          sync.RWMutex
-	sessionData map[string]*wantypes.SessionData
+	sessionData map[string]*wanpb.SessionData
 }
 
-func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
 	identity.mu.Lock()
 	defer identity.mu.Unlock()
 	identity.sessionData[sessionDataKey(user, sessionID)] = sd
 	return nil
 }
 
-func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
 	identity.mu.RLock()
 	defer identity.mu.RUnlock()
 	sd, ok := identity.sessionData[sessionDataKey(user, sessionID)]
