@@ -128,7 +128,7 @@ jobs:
           ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
         # This must be ran as root because the directories are owned by root
         run: |
-          PACKAGE_NAME="teleport-ent-updater-${ARTIFACT_VERSION#v}.${{ matrix.architecture }}.${{ matrix.package.file-extension }}"
+          PACKAGE_NAME="teleport-ent-updater-${ARTIFACT_VERSION#v}.${{ matrix.architecture }}.${{ matrix.package.manager }}.${{ matrix.package.file-extension }}"
           sudo fpm \
             --output-type "${{ matrix.package.file-extension }}" \
             --architecture "${{ matrix.architecture }}" \
