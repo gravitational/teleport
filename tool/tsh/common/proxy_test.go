@@ -1184,11 +1184,11 @@ Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default:
+  * default: 
 
   $ echo "hello world"
 
-  * alternative:
+  * alternative: 
 
   $ echo "goodbye world"
 
@@ -1243,11 +1243,11 @@ Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default:
+  * default: 
 
   $ echo "hello world"
 
-  * alternative:
+  * alternative: 
 
   $ echo "goodbye world"
 
