@@ -132,7 +132,7 @@ func (client *Client) CommandSummary(ctx context.Context, messages []openai.Chat
 	resp, err := client.svc.CreateChatCompletion(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT4, // change to 32k if needed
+			Model:    openai.GPT4,
 			Messages: messages,
 		},
 	)
