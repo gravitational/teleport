@@ -97,5 +97,5 @@ func checkKubernetesAllowRules(pt *types.ProvisionTokenV2, got *kubernetestoken.
 		return nil
 	}
 
-	return trace.AccessDenied("kubernetes token user info did not match any allow rules")
+	return trace.AccessDenied("kubernetes token did not match any allow rules")
 }

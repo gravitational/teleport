@@ -19,7 +19,6 @@ package kubernetestoken
 import (
 	"context"
 	"encoding/json"
-	"github.com/gravitational/teleport/api/types"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +33,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (
