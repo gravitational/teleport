@@ -19,6 +19,7 @@ package model
 import (
 	"context"
 	"fmt"
+
 	"github.com/gravitational/trace"
 )
 

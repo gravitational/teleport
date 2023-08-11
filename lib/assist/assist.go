@@ -466,7 +466,7 @@ func (c *LightweightChat) ProcessComplete(ctx context.Context, onMessage onMessa
 			return nil, trace.Wrap(err)
 		}
 	case *model.StreamingMessage:
-		err = func() error {
+		if err := func() error {
 			var text strings.Builder
 			defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())
 			for part := range message.Parts {
@@ -478,7 +478,9 @@ func (c *LightweightChat) ProcessComplete(ctx context.Context, onMessage onMessa
 			}
 			c.chat.Insert(openai.ChatMessageRoleAssistant, text.String())
 			return nil
-		}()
+		}(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.Errorf("Unexpected message type: %T", message)
 	}
