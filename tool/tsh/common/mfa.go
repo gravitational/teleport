@@ -21,7 +21,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"image/png"
 	"os"
 	"os/exec"
@@ -441,7 +441,7 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr, devType string, c *
 		if !strings.HasPrefix(proxyAddr, "https://") {
 			origin = "https://" + origin
 		}
-		cc := webauthntypes.CredentialCreationFromProto(c.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(c.GetWebauthn())
 
 		if devType == touchIDDeviceType {
 			return promptTouchIDRegisterChallenge(origin, cc)
@@ -531,7 +531,7 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	}}, nil
 }
 
-func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *webauthntypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
 
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
@@ -543,7 +543,7 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *web
 	return resp, trace.Wrap(err)
 }
 
-func promptTouchIDRegisterChallenge(origin string, cc *webauthntypes.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
+func promptTouchIDRegisterChallenge(origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
 	log.Debugf("Touch ID: prompting registration with origin %q", origin)
 
 	reg, err := touchid.Register(origin, cc)
@@ -552,7 +552,7 @@ func promptTouchIDRegisterChallenge(origin string, cc *webauthntypes.CredentialC
 	}
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: webauthntypes.CredentialCreationResponseToProto(reg.CCR),
+			Webauthn: wantypes.CredentialCreationResponseToProto(reg.CCR),
 		},
 	}, reg, nil
 }

@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // loginIdentity contains the subset of services.Identity methods used by
@@ -65,7 +65,7 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*webauthntypes.CredentialAssertion, error) {
+func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialAssertion, error) {
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -135,7 +135,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if f.U2F != nil && f.U2F.AppID != "" {
 		// See https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
 		opts = append(opts, wan.WithAssertionExtensions(protocol.AuthenticationExtensions{
-			webauthntypes.AppIDExtension: f.U2F.AppID,
+			wantypes.AppIDExtension: f.U2F.AppID,
 		}))
 	}
 
@@ -169,7 +169,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		return nil, trace.Wrap(err)
 	}
 
-	return webauthntypes.CredentialAssertionFromProtocol(assertion), nil
+	return wantypes.CredentialAssertionFromProtocol(assertion), nil
 }
 
 func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
@@ -183,7 +183,7 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *webauthntypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
 	switch {
 	case user == "" && !passwordless:
 		return nil, "", trace.BadParameter("user required")
@@ -319,7 +319,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *webauthntypes
 	return dev, user, nil
 }
 
-func parseCredentialResponse(resp *webauthntypes.CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
+func parseCredentialResponse(resp *wantypes.CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
 	// Do not pass extensions on to duo-labs/webauthn, they won't go past JSON
 	// unmarshal.
 	exts := resp.Extensions

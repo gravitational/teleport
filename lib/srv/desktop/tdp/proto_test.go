@@ -32,7 +32,7 @@ import (
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -125,12 +125,12 @@ func TestMFA(t *testing.T) {
 	mfaWant := &MFA{
 		Type: defaults.WebsocketWebauthnChallenge[0],
 		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
-			WebauthnChallenge: &webauthntypes.CredentialAssertion{
-				Response: webauthntypes.PublicKeyCredentialRequestOptions{
+			WebauthnChallenge: &wantypes.CredentialAssertion{
+				Response: wantypes.PublicKeyCredentialRequestOptions{
 					Challenge:      []byte("challenge"),
 					Timeout:        10,
 					RelyingPartyID: "teleport",
-					AllowedCredentials: []webauthntypes.CredentialDescriptor{
+					AllowedCredentials: []wantypes.CredentialDescriptor{
 						{
 							Type:         "public-key",
 							CredentialID: []byte("credential id"),
@@ -138,7 +138,7 @@ func TestMFA(t *testing.T) {
 						},
 					},
 					UserVerification: "discouraged",
-					Extensions: webauthntypes.AuthenticationExtensions{
+					Extensions: wantypes.AuthenticationExtensions{
 						"ext1": "value1",
 					},
 				},

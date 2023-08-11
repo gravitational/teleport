@@ -36,13 +36,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // U2FRegister implements Register for U2F/CTAP1 devices.
 // The implementation is backed exclusively by Go code, making it useful in
 // scenarios where libfido2 is unavailable.
-func U2FRegister(ctx context.Context, origin string, cc *webauthntypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func U2FRegister(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	// Preliminary checks, more below.
 	switch {
 	case origin == "":
@@ -89,7 +89,7 @@ func U2FRegister(ctx context.Context, origin string, cc *webauthntypes.Credentia
 	rpIDHash := sha256.Sum256([]byte(cc.Response.RelyingParty.ID))
 
 	var appIDHash []byte
-	if value, ok := cc.Response.Extensions[webauthntypes.AppIDExtension]; ok {
+	if value, ok := cc.Response.Extensions[wantypes.AppIDExtension]; ok {
 		appID := fmt.Sprint(value)
 		h := sha256.Sum256([]byte(appID))
 		appIDHash = h[:]
@@ -145,7 +145,7 @@ func U2FRegister(ctx context.Context, origin string, cc *webauthntypes.Credentia
 
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: webauthntypes.CredentialCreationResponseToProto(ccr),
+			Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 		},
 	}, nil
 }
@@ -224,7 +224,7 @@ func parseU2FRegistrationResponse(resp []byte) (*u2fRegistrationResponse, error)
 	}, nil
 }
 
-func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationResponse) (*webauthntypes.CredentialCreationResponse, error) {
+func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationResponse) (*wantypes.CredentialCreationResponse, error) {
 	// Reference:
 	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#fig-u2f-compat-makeCredential
 
@@ -259,16 +259,16 @@ func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationR
 		return nil, trace.Wrap(err)
 	}
 
-	return &webauthntypes.CredentialCreationResponse{
-		PublicKeyCredential: webauthntypes.PublicKeyCredential{
-			Credential: webauthntypes.Credential{
+	return &wantypes.CredentialCreationResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(resp.KeyHandle),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: resp.KeyHandle,
 		},
-		AttestationResponse: webauthntypes.AuthenticatorAttestationResponse{
-			AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
+		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: ccdJSON,
 			},
 			AttestationObject: attestationObj,

@@ -20,7 +20,7 @@ package webauthnwin
 import (
 	"errors"
 
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 var native nativeWebauthn = noopNative{}
@@ -35,10 +35,10 @@ func (n noopNative) CheckSupport() CheckSupportResult {
 	}
 }
 
-func (n noopNative) GetAssertion(origin string, in *getAssertionRequest) (*webauthntypes.CredentialAssertionResponse, error) {
+func (n noopNative) GetAssertion(origin string, in *getAssertionRequest) (*wantypes.CredentialAssertionResponse, error) {
 	return nil, errUnavailable
 }
 
-func (n noopNative) MakeCredential(origin string, in *makeCredentialRequest) (*webauthntypes.CredentialCreationResponse, error) {
+func (n noopNative) MakeCredential(origin string, in *makeCredentialRequest) (*wantypes.CredentialCreationResponse, error) {
 	return nil, errUnavailable
 }

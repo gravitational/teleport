@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestLogin(t *testing.T) {
@@ -156,7 +156,7 @@ func TestLogin(t *testing.T) {
 			require.NotNil(t, mfaResp.GetWebauthn())
 			require.Equal(t, test.wantRawID, mfaResp.GetWebauthn().RawId)
 
-			_, err = loginFlow.Finish(ctx, username, webauthntypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
+			_, err = loginFlow.Finish(ctx, username, wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
 			require.NoError(t, err)
 		})
 	}
@@ -185,33 +185,33 @@ func TestLogin_errors(t *testing.T) {
 	tests := []struct {
 		name         string
 		origin       string
-		getAssertion func() *webauthntypes.CredentialAssertion
+		getAssertion func() *wantypes.CredentialAssertion
 	}{
 		{
 			name:   "NOK origin empty",
 			origin: "",
-			getAssertion: func() *webauthntypes.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				return okAssertion
 			},
 		},
 		{
 			name:   "NOK assertion nil",
 			origin: origin,
-			getAssertion: func() *webauthntypes.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				return nil
 			},
 		},
 		{
 			name:   "NOK assertion empty",
 			origin: origin,
-			getAssertion: func() *webauthntypes.CredentialAssertion {
-				return &webauthntypes.CredentialAssertion{}
+			getAssertion: func() *wantypes.CredentialAssertion {
+				return &wantypes.CredentialAssertion{}
 			},
 		},
 		{
 			name:   "NOK assertion missing challenge",
 			origin: origin,
-			getAssertion: func() *webauthntypes.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.Challenge = nil
@@ -221,7 +221,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion missing RPID",
 			origin: origin,
-			getAssertion: func() *webauthntypes.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = ""
@@ -231,7 +231,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion missing credentials",
 			origin: origin,
-			getAssertion: func() *webauthntypes.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.AllowedCredentials = nil
@@ -241,7 +241,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion invalid user verification requirement",
 			origin: origin,
-			getAssertion: func() *webauthntypes.CredentialAssertion {
+			getAssertion: func() *wantypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.UserVerification = protocol.VerificationRequired

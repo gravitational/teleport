@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/darwin"
 )
 
@@ -185,7 +185,7 @@ func Diag() (*DiagResult, error) {
 // Confirm may replace equivalent keys with the new key, at the implementation's
 // discretion.
 type Registration struct {
-	CCR *webauthntypes.CredentialCreationResponse
+	CCR *wantypes.CredentialCreationResponse
 
 	credentialID string
 
@@ -217,7 +217,7 @@ func (r *Registration) Rollback() error {
 // Callers are encouraged to either explicitly Confirm or Rollback the returned
 // registration.
 // See Registration.
-func Register(origin string, cc *webauthntypes.CredentialCreation) (*Registration, error) {
+func Register(origin string, cc *wantypes.CredentialCreation) (*Registration, error) {
 	if !IsAvailable() {
 		return nil, ErrNotAvailable
 	}
@@ -319,16 +319,16 @@ func Register(origin string, cc *webauthntypes.CredentialCreation) (*Registratio
 		return nil, trace.Wrap(err)
 	}
 
-	ccr := &webauthntypes.CredentialCreationResponse{
-		PublicKeyCredential: webauthntypes.PublicKeyCredential{
-			Credential: webauthntypes.Credential{
+	ccr := &wantypes.CredentialCreationResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   credentialID,
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: []byte(credentialID),
 		},
-		AttestationResponse: webauthntypes.AuthenticatorAttestationResponse{
-			AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
+		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: attData.ccdJSON,
 			},
 			AttestationObject: attObj,
@@ -433,7 +433,7 @@ type CredentialPicker interface {
 // Login authenticates using a Secure Enclave-backed biometric credential.
 // It returns the assertion response and the user that owns the credential to
 // sign it.
-func Login(origin, user string, assertion *webauthntypes.CredentialAssertion, picker CredentialPicker) (*webauthntypes.CredentialAssertionResponse, string, error) {
+func Login(origin, user string, assertion *wantypes.CredentialAssertion, picker CredentialPicker) (*wantypes.CredentialAssertionResponse, string, error) {
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
 	}
@@ -503,16 +503,16 @@ func Login(origin, user string, assertion *webauthntypes.CredentialAssertion, pi
 		return nil, "", trace.Wrap(err)
 	}
 
-	return &webauthntypes.CredentialAssertionResponse{
-		PublicKeyCredential: webauthntypes.PublicKeyCredential{
-			Credential: webauthntypes.Credential{
+	return &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   cred.CredentialID,
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: []byte(cred.CredentialID),
 		},
-		AssertionResponse: webauthntypes.AuthenticatorAssertionResponse{
-			AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: attData.ccdJSON,
 			},
 			AuthenticatorData: attData.rawAuthData,
@@ -524,7 +524,7 @@ func Login(origin, user string, assertion *webauthntypes.CredentialAssertion, pi
 
 func pickCredential(
 	actx AuthContext,
-	infos []CredentialInfo, allowedCredentials []webauthntypes.CredentialDescriptor,
+	infos []CredentialInfo, allowedCredentials []wantypes.CredentialDescriptor,
 	picker CredentialPicker, promptOnce func(), userRequested bool,
 ) (*CredentialInfo, error) {
 	// Handle early exits.

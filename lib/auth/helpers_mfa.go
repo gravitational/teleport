@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // TestDevice is a test MFA device.
@@ -178,13 +178,13 @@ func (d *TestDevice) solveAuthnKey(c *proto.MFAAuthenticateChallenge) (*proto.MF
 	if c.WebauthnChallenge == nil {
 		return nil, trace.BadParameter("key-based challenge not present")
 	}
-	resp, err := d.Key.SignAssertion(d.Origin(), webauthntypes.CredentialAssertionFromProto(c.WebauthnChallenge))
+	resp, err := d.Key.SignAssertion(d.Origin(), wantypes.CredentialAssertionFromProto(c.WebauthnChallenge))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: webauthntypes.CredentialAssertionResponseToProto(resp),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(resp),
 		},
 	}, nil
 }
@@ -238,13 +238,13 @@ func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*prot
 		d.Key.SetUV = true
 	}
 
-	resp, err := d.Key.SignCredentialCreation(d.Origin(), webauthntypes.CredentialCreationFromProto(c.GetWebauthn()))
+	resp, err := d.Key.SignCredentialCreation(d.Origin(), wantypes.CredentialCreationFromProto(c.GetWebauthn()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: webauthntypes.CredentialCreationResponseToProto(resp),
+			Webauthn: wantypes.CredentialCreationResponseToProto(resp),
 		},
 	}, nil
 }

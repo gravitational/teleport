@@ -30,12 +30,12 @@ import (
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // SignAssertion signs a WebAuthn assertion following the
 // U2F-compat-getAssertion algorithm.
-func (muk *Key) SignAssertion(origin string, assertion *webauthntypes.CredentialAssertion) (*webauthntypes.CredentialAssertionResponse, error) {
+func (muk *Key) SignAssertion(origin string, assertion *wantypes.CredentialAssertion) (*wantypes.CredentialAssertionResponse, error) {
 	// Reference:
 	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#u2f-authenticatorGetAssertion-interoperability
 
@@ -53,7 +53,7 @@ func (muk *Key) SignAssertion(origin string, assertion *webauthntypes.Credential
 
 	// Use RPID or App ID?
 	appID := assertion.Response.RelyingPartyID
-	if value, ok := assertion.Response.Extensions[webauthntypes.AppIDExtension]; !muk.PreferRPID && ok {
+	if value, ok := assertion.Response.Extensions[wantypes.AppIDExtension]; !muk.PreferRPID && ok {
 		if appID, ok = value.(string); !ok {
 			return nil, trace.BadParameter("u2f app ID has unexpected type: %T", value)
 		}
@@ -77,9 +77,9 @@ func (muk *Key) SignAssertion(origin string, assertion *webauthntypes.Credential
 		return nil, trace.Wrap(err)
 	}
 
-	return &webauthntypes.CredentialAssertionResponse{
-		PublicKeyCredential: webauthntypes.PublicKeyCredential{
-			Credential: webauthntypes.Credential{
+	return &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(muk.KeyHandle),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
@@ -87,8 +87,8 @@ func (muk *Key) SignAssertion(origin string, assertion *webauthntypes.Credential
 			// Mimic browsers and don't set the output AppID extension, even if we
 			// used it.
 		},
-		AssertionResponse: webauthntypes.AuthenticatorAssertionResponse{
-			AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: ccd,
 			},
 			AuthenticatorData: res.AuthData,
@@ -100,7 +100,7 @@ func (muk *Key) SignAssertion(origin string, assertion *webauthntypes.Credential
 
 // SignCredentialCreation signs a WebAuthn credential creation request following
 // the U2F-compat-makeCredential algorithm.
-func (muk *Key) SignCredentialCreation(origin string, cc *webauthntypes.CredentialCreation) (*webauthntypes.CredentialCreationResponse, error) {
+func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCreation) (*wantypes.CredentialCreationResponse, error) {
 	// Reference:
 	// https: // fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#fig-u2f-compat-makeCredential
 
@@ -182,16 +182,16 @@ func (muk *Key) SignCredentialCreation(origin string, cc *webauthntypes.Credenti
 		return nil, trace.Wrap(err)
 	}
 
-	return &webauthntypes.CredentialCreationResponse{
-		PublicKeyCredential: webauthntypes.PublicKeyCredential{
-			Credential: webauthntypes.Credential{
+	return &wantypes.CredentialCreationResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(muk.KeyHandle),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: muk.KeyHandle,
 		},
-		AttestationResponse: webauthntypes.AuthenticatorAttestationResponse{
-			AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
+		AttestationResponse: wantypes.AuthenticatorAttestationResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: ccd,
 			},
 			AttestationObject: attObj,

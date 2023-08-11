@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
@@ -258,7 +258,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				otpWait.Wait()
 			}}
 
-			resp, _, err := promptWebauthn(ctx, origin, webauthntypes.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
+			resp, _, err := promptWebauthn(ctx, origin, wantypes.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
 				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
@@ -294,7 +294,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 type MFAAuthenticateChallenge struct {
 	// WebauthnChallenge contains a WebAuthn credential assertion used for
 	// login/authentication ceremonies.
-	WebauthnChallenge *webauthntypes.CredentialAssertion `json:"webauthn_challenge"`
+	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
 	TOTPChallenge bool `json:"totp_challenge"`
 }
@@ -305,7 +305,7 @@ func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *MFAAu
 		TOTPChallenge: protoChal.GetTOTP() != nil,
 	}
 	if protoChal.GetWebauthnChallenge() != nil {
-		chal.WebauthnChallenge = webauthntypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
 	}
 	return chal
 }
@@ -317,7 +317,7 @@ type TOTPRegisterChallenge struct {
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
 	// Webauthn contains webauthn challenge.
-	Webauthn *webauthntypes.CredentialCreation `json:"webauthn"`
+	Webauthn *wantypes.CredentialCreation `json:"webauthn"`
 	// TOTP contains TOTP challenge.
 	TOTP *TOTPRegisterChallenge `json:"totp"`
 }
@@ -333,7 +333,7 @@ func MakeRegisterChallenge(protoChal *proto.MFARegisterChallenge) *MFARegisterCh
 		}
 	case *proto.MFARegisterChallenge_Webauthn:
 		return &MFARegisterChallenge{
-			Webauthn: webauthntypes.CredentialCreationFromProto(protoChal.GetWebauthn()),
+			Webauthn: wantypes.CredentialCreationFromProto(protoChal.GetWebauthn()),
 		}
 	}
 	return nil

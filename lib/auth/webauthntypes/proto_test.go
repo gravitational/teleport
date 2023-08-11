@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestConversionFromProto_nils(t *testing.T) {
@@ -37,19 +37,19 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialAssertion nil",
 			fn: func() {
-				webauthntypes.CredentialAssertionFromProto(nil)
+				wantypes.CredentialAssertionFromProto(nil)
 			},
 		},
 		{
 			name: "CredentialAssertion empty",
 			fn: func() {
-				webauthntypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{})
+				wantypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{})
 			},
 		},
 		{
 			name: "CredentialAssertion.PublicKey empty",
 			fn: func() {
-				webauthntypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{
+				wantypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{
 					PublicKey: &wanpb.PublicKeyCredentialRequestOptions{},
 				})
 			},
@@ -57,7 +57,7 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialAssertion.PublicKey slice elements nil",
 			fn: func() {
-				webauthntypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{
+				wantypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{
 					PublicKey: &wanpb.PublicKeyCredentialRequestOptions{
 						AllowCredentials: []*wanpb.CredentialDescriptor{
 							{}, nil, {},
@@ -69,19 +69,19 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialAssertionResponse nil",
 			fn: func() {
-				webauthntypes.CredentialAssertionResponseFromProto(nil)
+				wantypes.CredentialAssertionResponseFromProto(nil)
 			},
 		},
 		{
 			name: "CredentialAssertionResponse empty",
 			fn: func() {
-				webauthntypes.CredentialAssertionResponseFromProto(&wanpb.CredentialAssertionResponse{})
+				wantypes.CredentialAssertionResponseFromProto(&wanpb.CredentialAssertionResponse{})
 			},
 		},
 		{
 			name: "CredentialAssertionResponse.Response empty",
 			fn: func() {
-				webauthntypes.CredentialAssertionResponseFromProto(&wanpb.CredentialAssertionResponse{
+				wantypes.CredentialAssertionResponseFromProto(&wanpb.CredentialAssertionResponse{
 					Response: &wanpb.AuthenticatorAssertionResponse{},
 				})
 			},
@@ -89,19 +89,19 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialCreation nil",
 			fn: func() {
-				webauthntypes.CredentialCreationFromProto(nil)
+				wantypes.CredentialCreationFromProto(nil)
 			},
 		},
 		{
 			name: "CredentialCreation empty",
 			fn: func() {
-				webauthntypes.CredentialCreationFromProto(&wanpb.CredentialCreation{})
+				wantypes.CredentialCreationFromProto(&wanpb.CredentialCreation{})
 			},
 		},
 		{
 			name: "CredentialCreation.PublicKey empty",
 			fn: func() {
-				webauthntypes.CredentialCreationFromProto(&wanpb.CredentialCreation{
+				wantypes.CredentialCreationFromProto(&wanpb.CredentialCreation{
 					PublicKey: &wanpb.PublicKeyCredentialCreationOptions{},
 				})
 			},
@@ -109,7 +109,7 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialCreation.PublicKey slice elements nil",
 			fn: func() {
-				webauthntypes.CredentialCreationFromProto(&wanpb.CredentialCreation{
+				wantypes.CredentialCreationFromProto(&wanpb.CredentialCreation{
 					PublicKey: &wanpb.PublicKeyCredentialCreationOptions{
 						CredentialParameters: []*wanpb.CredentialParameter{
 							{}, nil, {},
@@ -124,19 +124,19 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialCreationResponse nil",
 			fn: func() {
-				webauthntypes.CredentialCreationResponseFromProto(nil)
+				wantypes.CredentialCreationResponseFromProto(nil)
 			},
 		},
 		{
 			name: "CredentialCreationResponse empty",
 			fn: func() {
-				webauthntypes.CredentialCreationResponseFromProto(&wanpb.CredentialCreationResponse{})
+				wantypes.CredentialCreationResponseFromProto(&wanpb.CredentialCreationResponse{})
 			},
 		},
 		{
 			name: "CredentialCreationResponse.Response empty",
 			fn: func() {
-				webauthntypes.CredentialCreationResponseFromProto(&wanpb.CredentialCreationResponse{
+				wantypes.CredentialCreationResponseFromProto(&wanpb.CredentialCreationResponse{
 					Response: &wanpb.AuthenticatorAttestationResponse{},
 				})
 			},

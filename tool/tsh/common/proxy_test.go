@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -341,7 +341,7 @@ func TestWithRsync(t *testing.T) {
 					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 				})
 				require.NoError(t, err)
-				cc := webauthntypes.CredentialCreationFromProto(res.GetWebauthn())
+				cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 				device, err := mocku2f.Create()
 				require.NoError(t, err)
@@ -354,7 +354,7 @@ func TestWithRsync(t *testing.T) {
 					NewPassword: []byte(mockHeadlessPassword),
 					NewMFARegisterResponse: &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: webauthntypes.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					},
 				})

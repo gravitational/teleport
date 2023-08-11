@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestRegistrationFlow_BeginFinish(t *testing.T) {
@@ -198,9 +198,9 @@ func TestRegistrationFlow_Begin_excludeList(t *testing.T) {
 				return bytes.Compare(got[i].CredentialID, got[j].CredentialID) == -1
 			})
 
-			want := make([]webauthntypes.CredentialDescriptor, len(test.wantExcludeList))
+			want := make([]wantypes.CredentialDescriptor, len(test.wantExcludeList))
 			for i, id := range test.wantExcludeList {
-				want[i] = webauthntypes.CredentialDescriptor{
+				want[i] = wantypes.CredentialDescriptor{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: id,
 				}
@@ -307,7 +307,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 	tests := []struct {
 		name             string
 		user, deviceName string
-		createResp       func() *webauthntypes.CredentialCreationResponse
+		createResp       func() *wantypes.CredentialCreationResponse
 		wantErr          string
 		passwordless     bool
 	}{
@@ -315,28 +315,28 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			name:       "NOK user empty",
 			user:       "",
 			deviceName: "webauthn2",
-			createResp: func() *webauthntypes.CredentialCreationResponse { return okCCR },
+			createResp: func() *wantypes.CredentialCreationResponse { return okCCR },
 			wantErr:    "user required",
 		},
 		{
 			name:       "NOK device name empty",
 			user:       user,
 			deviceName: "",
-			createResp: func() *webauthntypes.CredentialCreationResponse { return okCCR },
+			createResp: func() *wantypes.CredentialCreationResponse { return okCCR },
 			wantErr:    "device name required",
 		},
 		{
 			name:       "NOK credential response nil",
 			user:       user,
 			deviceName: "webauthn2",
-			createResp: func() *webauthntypes.CredentialCreationResponse { return nil },
+			createResp: func() *wantypes.CredentialCreationResponse { return nil },
 			wantErr:    "response required",
 		},
 		{
 			name:       "NOK credential with bad origin",
 			user:       user,
 			deviceName: "webauthn2",
-			createResp: func() *webauthntypes.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				resp, err := key.SignCredentialCreation("https://alpacasarerad.com" /* origin */, cc)
 				require.NoError(t, err)
 				return resp
@@ -347,7 +347,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			name:       "NOK credential with bad RPID",
 			user:       user,
 			deviceName: "webauthn2",
-			createResp: func() *webauthntypes.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 				require.NoError(t, err)
 				cc.Response.RelyingParty.ID = "badrpid.com"
@@ -362,7 +362,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			name:       "NOK credential with invalid signature",
 			user:       user,
 			deviceName: "webauthn2",
-			createResp: func() *webauthntypes.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
@@ -380,7 +380,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			user:         user,
 			deviceName:   "webauthn2",
 			passwordless: true,
-			createResp: func() *webauthntypes.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				cc, err := webRegistration.Begin(ctx, user, false /* passwordless */)
 				require.NoError(t, err)
 				resp, err := key.SignCredentialCreation(webOrigin, cc)
@@ -394,7 +394,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			user:         user,
 			deviceName:   "webauthn2",
 			passwordless: true,
-			createResp: func() *webauthntypes.CredentialCreationResponse {
+			createResp: func() *wantypes.CredentialCreationResponse {
 				cc, err := webRegistration.Begin(ctx, user, true /* passwordless */)
 				require.NoError(t, err)
 

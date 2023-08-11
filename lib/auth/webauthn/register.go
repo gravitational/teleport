@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // RegistrationIdentity represents the subset of Identity methods used by
@@ -127,7 +127,7 @@ type RegistrationFlow struct {
 // resident key.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
-func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless bool) (*webauthntypes.CredentialCreation, error) {
+func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialCreation, error) {
 	if user == "" {
 		return nil, trace.BadParameter("user required")
 	}
@@ -193,7 +193,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		return nil, trace.Wrap(err)
 	}
 
-	return webauthntypes.CredentialCreationFromProtocol(cc), nil
+	return wantypes.CredentialCreationFromProtocol(cc), nil
 }
 
 func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIdentity) ([]byte, error) {
@@ -234,7 +234,7 @@ type RegisterResponse struct {
 	// DeviceName is the name for the new device.
 	DeviceName string
 	// CreationResponse is the response from the new device.
-	CreationResponse *webauthntypes.CredentialCreationResponse
+	CreationResponse *wantypes.CredentialCreationResponse
 	// Passwordless is true if this is expected to be a passwordless registration.
 	// Callers may make certain concessions when processing passwordless
 	// registration (such as skipping password validation), this flag reflects that.
@@ -350,7 +350,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	return newDevice, nil
 }
 
-func parseCredentialCreationResponse(resp *webauthntypes.CredentialCreationResponse) (*protocol.ParsedCredentialCreationData, error) {
+func parseCredentialCreationResponse(resp *wantypes.CredentialCreationResponse) (*protocol.ParsedCredentialCreationData, error) {
 	// Remove extensions before marshaling, duo-labs/webauthn isn't expecting it.
 	exts := resp.Extensions
 	resp.Extensions = nil

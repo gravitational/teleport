@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // PasswordlessIdentity represents the subset of Identity methods used by
@@ -45,7 +45,7 @@ type PasswordlessFlow struct {
 // Begin is the first step of the passwordless login flow.
 // It works similarly to LoginFlow.Begin, but it doesn't require a Teleport
 // username nor implies a previous password-validation step.
-func (f *PasswordlessFlow) Begin(ctx context.Context) (*webauthntypes.CredentialAssertion, error) {
+func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAssertion, error) {
 	lf := &loginFlow{
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},
@@ -57,7 +57,7 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*webauthntypes.Credential
 // Finish is the last step of the passwordless login flow.
 // It works similarly to LoginFlow.Finish, but the user identity is established
 // via the response UserHandle, instead of an explicit Teleport username.
-func (f *PasswordlessFlow) Finish(ctx context.Context, resp *webauthntypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
+func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
 	lf := &loginFlow{
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},

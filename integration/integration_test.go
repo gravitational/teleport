@@ -77,7 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -8534,14 +8534,14 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 	device.SetPasswordless()
 
 	prompt.SetStdin(inputReader)
-	*client.PromptWebauthn = func(ctx context.Context, realOrigin string, assertion *webauthntypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	*client.PromptWebauthn = func(ctx context.Context, realOrigin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		car, err := device.SignAssertion("https://127.0.0.1", assertion) // use the fake origin to prevent a mismatch
 		if err != nil {
 			return nil, "", err
 		}
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: webauthntypes.CredentialAssertionResponseToProto(car),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
 			},
 		}, "", nil
 	}
@@ -8612,7 +8612,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 		})
 		require.NoError(t, err)
-		cc := webauthntypes.CredentialCreationFromProto(res.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		ccr, err := device.SignCredentialCreation("https://127.0.0.1", cc)
 		require.NoError(t, err)
@@ -8621,7 +8621,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			NewPassword: []byte(password),
 			NewMFARegisterResponse: &proto.MFARegisterResponse{
 				Response: &proto.MFARegisterResponse_Webauthn{
-					Webauthn: webauthntypes.CredentialCreationResponseToProto(ccr),
+					Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 				},
 			},
 		})
