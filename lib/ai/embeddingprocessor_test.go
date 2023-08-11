@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,11 +43,15 @@ import (
 // MockEmbedder returns embeddings based on the sha256 hash function. Those
 // embeddings have no semantic meaning but ensure different embedded content
 // provides different embeddings.
-type MockEmbedder struct{}
+type MockEmbedder struct {
+	timesCalled map[string]int
+}
 
-func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]embedding.Vector64, error) {
+func (m *MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]embedding.Vector64, error) {
 	result := make([]embedding.Vector64, len(input))
 	for i, text := range input {
+		name := strings.Split(text, "\n")[0]
+		m.timesCalled[name]++
 		hash := sha256.Sum256([]byte(text))
 		vector := make(embedding.Vector64, len(hash))
 		for j, x := range hash {
@@ -73,7 +78,9 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	embedder := MockEmbedder{}
+	embedder := MockEmbedder{
+		timesCalled: make(map[string]int),
+	}
 	presence := local.NewPresenceService(bk)
 	embeddings := local.NewEmbeddingsService(bk)
 
@@ -97,14 +104,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	const numNodes = 5
 	nodes := make([]types.Server, 0, numNodes)
 	for i := 0; i < numNodes; i++ {
-		node, _ := types.NewServer(fmt.Sprintf("node%d", i), types.KindNode, types.ServerSpecV2{
-			Addr:     "127.0.0.1:1234",
-			Hostname: fmt.Sprintf("node%d", i),
-			CmdLabels: map[string]types.CommandLabelV2{
-				"version":  {Result: "v8"},
-				"hostname": {Result: fmt.Sprintf("node%d.example.com", i)},
-			},
-		})
+		node := makeNode(i + 1)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
 		nodes = append(nodes, node)
@@ -123,6 +123,28 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	validateEmbeddings(t,
 		presence.GetNodeStream(ctx, defaults.Namespace),
 		embeddings.GetEmbeddings(ctx, types.KindNode))
+
+	for k, v := range embedder.timesCalled {
+		require.Equal(t, 1, v, "expected %v to be computed once, was %d", k, v)
+	}
+
+	// Run once more and verify that only changed nodes get their embeddings recalculated
+	node1 := nodes[0]
+	node1.GetMetadata().Labels["foo"] = "bar"
+	_, err = presence.UpsertNode(ctx, node1)
+	require.NoError(t, err)
+
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	processor.Process(ctx)
+
+	for k, v := range embedder.timesCalled {
+		expected := 1
+		if strings.Contains(k, "node1") {
+			expected = 2
+		}
+		require.Equal(t, expected, v, "expected embedding for %q to be computed %d times, got computed %d times", k, expected, v)
+	}
 }
 
 func TestMarshallUnmarshallEmbedding(t *testing.T) {
@@ -139,6 +161,18 @@ func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	require.Equal(t, initial.EmbeddedKind, final.EmbeddedKind)
 	require.Equal(t, initial.EmbeddedHash, final.EmbeddedHash)
 	require.Equal(t, initial.Vector, final.Vector)
+}
+
+func makeNode(index int) types.Server {
+	node, _ := types.NewServer(fmt.Sprintf("node%d", index), types.KindNode, types.ServerSpecV2{
+		Addr:     "127.0.0.1:1234",
+		Hostname: fmt.Sprintf("node%d", index),
+		CmdLabels: map[string]types.CommandLabelV2{
+			"version":  {Result: "v8"},
+			"hostname": {Result: fmt.Sprintf("node%d.example.com", index)},
+		},
+	})
+	return node
 }
 
 func waitForDone(t *testing.T, done chan struct{}, errMsg string) {
