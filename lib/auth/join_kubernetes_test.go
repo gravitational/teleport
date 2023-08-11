@@ -28,11 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockKubernetesTokenValidator struct {
+type mockK8STokenReviewValidator struct {
 	tokens map[string]*kubernetestoken.ValidationResult
 }
 
-func (m *mockKubernetesTokenValidator) Validate(_ context.Context, token string) (*kubernetestoken.ValidationResult, error) {
+func (m *mockK8STokenReviewValidator) Validate(_ context.Context, token string) (*kubernetestoken.ValidationResult, error) {
 	claims, ok := m.tokens[token]
 	if !ok {
 		return nil, errMockInvalidToken
@@ -51,13 +51,13 @@ func TestAuth_RegisterUsingToken_Kubernetes(t *testing.T) {
 		"user-token":                  {Username: "namespace1:service-account1"},
 	}
 
-	var withTokenValidator ServerOption = func(server *Server) error {
-		server.k8sTokenReviewValidator = &mockKubernetesTokenValidator{tokens: tokens}
+	var withK8STokenReviewValidator ServerOption = func(server *Server) error {
+		server.k8sTokenReviewValidator = &mockK8STokenReviewValidator{tokens: tokens}
 		return nil
 	}
 
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir(), withTokenValidator)
+	p, err := newTestPack(ctx, t.TempDir(), withK8STokenReviewValidator)
 	require.NoError(t, err)
 	auth := p.a
 
