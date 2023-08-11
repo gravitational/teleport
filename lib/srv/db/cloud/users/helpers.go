@@ -106,21 +106,12 @@ func (m *lookupMap) removeUnusedDatabases(activeDatabases types.Databases) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for database := range m.byName {
-		if isActive := findDatabase(activeDatabases, database); !isActive {
-			delete(m.byName, database)
+	activeDatabasesMap := activeDatabases.ToMap()
+	for databaseName := range m.byName {
+		if _, isActive := activeDatabasesMap[databaseName]; !isActive {
+			delete(m.byName, databaseName)
 		}
 	}
-}
-
-// findDatabase finds the database object in provided list of databases.
-func findDatabase(databases types.Databases, database string) bool {
-	for i := range databases {
-		if databases[i].GetName() == database {
-			return true
-		}
-	}
-	return false
 }
 
 // usersByID returns a map of users by their IDs.
