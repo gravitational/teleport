@@ -606,7 +606,7 @@ image: "public.ecr.aws/gravitational/teleport"
 
 For debugging purposes, a "debug" image is available and contains BusyBox,
 which includes a shell and most common POSIX executables:
-`public.ecr.aws/gravitational/teleport-distroless`.
+`public.ecr.aws/gravitational/teleport-distroless-debug`.
 
 ## 12.3.0 (05/01/23)
 

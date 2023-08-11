@@ -19,11 +19,13 @@ package aws
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/gravitational/trace"
 )
 
@@ -47,6 +49,12 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 		return trace.AlreadyExists(requestErr.Error())
 	case http.StatusNotFound:
 		return trace.NotFound(requestErr.Error())
+	case http.StatusBadRequest:
+		// Some services like memorydb, redshiftserverless may return 400 with
+		// "AccessDeniedException" instead of 403.
+		if strings.Contains(requestErr.Error(), redshiftserverless.ErrCodeAccessDeniedException) {
+			return trace.AccessDenied(requestErr.Error())
+		}
 	}
 
 	return requestErr // Return unmodified.

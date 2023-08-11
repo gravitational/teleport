@@ -783,6 +783,12 @@ const (
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 )
 
+const (
+	// InstallMethodAWSOIDCDeployServiceEnvVar is the env var used to detect if the agent was installed
+	// using the DeployService action of the AWS OIDC integration.
+	InstallMethodAWSOIDCDeployServiceEnvVar = "TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE"
+)
+
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
 const CloudHostnameTag = "TeleportHostname"
 
@@ -899,4 +905,13 @@ const (
 	// teleport automated user provisioning system get added to so
 	// already existing users are not deleted
 	TeleportServiceGroup = "teleport-system"
+)
+
+const (
+	// JWTClaimsRewriteRolesAndTraits includes both roles and traits in the JWT token.
+	JWTClaimsRewriteRolesAndTraits = "roles-and-traits"
+	// JWTClaimsRewriteRoles includes only the roles in the JWT token.
+	JWTClaimsRewriteRoles = "roles"
+	// JWTClaimsRewriteNone include neither traits nor roles in the JWT token.
+	JWTClaimsRewriteNone = "none"
 )
