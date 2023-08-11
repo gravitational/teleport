@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package webauthn
+package webauthntypes
 
 // AppIDExtension is the key for the appid extension.
 // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.

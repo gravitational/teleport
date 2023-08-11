@@ -194,7 +194,7 @@ func inputExtensionsToProto(exts webauthntypes.AuthenticationExtensions) *wanpb.
 		return nil
 	}
 	res := &wanpb.AuthenticationExtensionsClientInputs{}
-	if value, ok := exts[AppIDExtension]; ok {
+	if value, ok := exts[webauthntypes.AppIDExtension]; ok {
 		// Type should always be string, since we are the ones setting it, but let's
 		// play it safe and check anyway.
 		if appID, ok := value.(string); ok {
@@ -300,7 +300,7 @@ func inputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientInputs) 
 	}
 	res := make(map[string]interface{})
 	if exts.AppId != "" {
-		res[AppIDExtension] = exts.AppId
+		res[webauthntypes.AppIDExtension] = exts.AppId
 	}
 	return res
 }

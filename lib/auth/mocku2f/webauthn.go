@@ -53,7 +53,7 @@ func (muk *Key) SignAssertion(origin string, assertion *webauthntypes.Credential
 
 	// Use RPID or App ID?
 	appID := assertion.Response.RelyingPartyID
-	if value, ok := assertion.Response.Extensions[wanlib.AppIDExtension]; !muk.PreferRPID && ok {
+	if value, ok := assertion.Response.Extensions[webauthntypes.AppIDExtension]; !muk.PreferRPID && ok {
 		if appID, ok = value.(string); !ok {
 			return nil, trace.BadParameter("u2f app ID has unexpected type: %T", value)
 		}

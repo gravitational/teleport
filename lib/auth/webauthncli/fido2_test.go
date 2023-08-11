@@ -325,7 +325,7 @@ func TestFIDO2Login(t *testing.T) {
 					{CredentialID: legacy1.credentialID()},
 				}
 				cp.Response.Extensions = webauthntypes.AuthenticationExtensions{
-					wanlib.AppIDExtension: appID,
+					webauthntypes.AppIDExtension: appID,
 				}
 				return &cp
 			},
@@ -351,7 +351,7 @@ func TestFIDO2Login(t *testing.T) {
 					{CredentialID: legacy1.credentialID()},
 				}
 				cp.Response.Extensions = webauthntypes.AuthenticationExtensions{
-					wanlib.AppIDExtension: appID,
+					webauthntypes.AppIDExtension: appID,
 				}
 				return &cp
 			},
@@ -376,7 +376,7 @@ func TestFIDO2Login(t *testing.T) {
 					{CredentialID: legacy1.credentialID()},
 				}
 				cp.Response.Extensions = webauthntypes.AuthenticationExtensions{
-					wanlib.AppIDExtension: "https://badexample.com",
+					webauthntypes.AppIDExtension: "https://badexample.com",
 				}
 				return &cp
 			},

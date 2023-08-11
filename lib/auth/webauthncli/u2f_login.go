@@ -73,7 +73,7 @@ func U2FLogin(ctx context.Context, origin string, assertion *webauthntypes.Crede
 	// Did we get the App ID extension?
 	var appID string
 	var appIDHash [32]byte
-	if value, ok := assertion.Response.Extensions[wanlib.AppIDExtension]; ok {
+	if value, ok := assertion.Response.Extensions[webauthntypes.AppIDExtension]; ok {
 		appID = fmt.Sprint(value)
 		appIDHash = sha256.Sum256([]byte(appID))
 	}

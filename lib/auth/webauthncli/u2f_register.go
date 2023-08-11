@@ -89,7 +89,7 @@ func U2FRegister(ctx context.Context, origin string, cc *webauthntypes.Credentia
 	rpIDHash := sha256.Sum256([]byte(cc.Response.RelyingParty.ID))
 
 	var appIDHash []byte
-	if value, ok := cc.Response.Extensions[wanlib.AppIDExtension]; ok {
+	if value, ok := cc.Response.Extensions[webauthntypes.AppIDExtension]; ok {
 		appID := fmt.Sprint(value)
 		h := sha256.Sum256([]byte(appID))
 		appIDHash = h[:]

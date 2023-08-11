@@ -37,7 +37,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -132,7 +131,7 @@ func fido2Login(
 
 	rpID := assertion.Response.RelyingPartyID
 	var appID string
-	if val, ok := assertion.Response.Extensions[wanlib.AppIDExtension]; ok {
+	if val, ok := assertion.Response.Extensions[webauthntypes.AppIDExtension]; ok {
 		appID = fmt.Sprint(val)
 	}
 

@@ -135,7 +135,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 	if f.U2F != nil && f.U2F.AppID != "" {
 		// See https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
 		opts = append(opts, wan.WithAssertionExtensions(protocol.AuthenticationExtensions{
-			AppIDExtension: f.U2F.AppID,
+			webauthntypes.AppIDExtension: f.U2F.AppID,
 		}))
 	}
 
