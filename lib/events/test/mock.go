@@ -3,9 +3,10 @@ package test
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/trace"
 )
 
 type MockAuditLogSessionStreamer struct {

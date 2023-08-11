@@ -19,13 +19,14 @@ import (
 	"testing"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
-	eventstest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
+	eventstest "github.com/gravitational/teleport/lib/events/test"
 )
 
 func TestGetAccessRequestMonthlyUsage(t *testing.T) {
