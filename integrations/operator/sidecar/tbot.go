@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 const (
@@ -148,7 +148,7 @@ func (c clientCredentials) Dialer(client.Config) (client.ContextDialer, error) {
 }
 
 func (c clientCredentials) TLSConfig() (*tls.Config, error) {
-	return c.id.TLSConfig(utils.DefaultCipherSuites())
+	return c.id.TLSConfig(utilstls.DefaultCipherSuites())
 }
 
 func (c clientCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {

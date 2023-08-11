@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -197,7 +198,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	ciphers := utils.DefaultCipherSuites()
+	ciphers := utilstls.DefaultCipherSuites()
 	tlsConfig, err := k.KubeClientTLSConfig(ciphers, kubeCluster)
 	if err != nil {
 		return trace.Wrap(err)

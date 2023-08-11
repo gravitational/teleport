@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 const (
@@ -275,7 +276,7 @@ func (conf *BotConfig) CipherSuites() []uint16 {
 	if conf.FIPS {
 		return defaults.FIPSCipherSuites
 	}
-	return utils.DefaultCipherSuites()
+	return utilstls.DefaultCipherSuites()
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {

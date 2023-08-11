@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // Proxy proxies connections from Postgres clients to database services
@@ -74,7 +75,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 
 // handleConnection dials database service, sends the postgres startup
 // message, and begins proxying the connection.
-func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, startupMessage pgproto3.FrontendMessage) error {
+func (p *Proxy) handleConnection(ctx context.Context, clientConn utilstls.TLSConn, startupMessage pgproto3.FrontendMessage) error {
 	clientIP, err := utils.ClientIPFromConn(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -123,7 +124,7 @@ func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, 
 //
 // Returns the startup message that contains initial connect parameters and
 // the upgraded TLS connection.
-func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (pgproto3.FrontendMessage, utils.TLSConn, *pgproto3.Backend, error) {
+func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (pgproto3.FrontendMessage, utilstls.TLSConn, *pgproto3.Backend, error) {
 	receivedSSLRequest := false
 	receivedGSSEncRequest := false
 	for {
@@ -138,7 +139,7 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (pgproto
 		// this case separately.
 		if m, ok := startupMessage.(*pgproto3.CancelRequest); ok {
 			p.Log.Debugf("Received cancel request for pid: %v.", m.ProcessID)
-			tlsConn, ok := clientConn.(utils.TLSConn)
+			tlsConn, ok := clientConn.(utilstls.TLSConn)
 			if !ok {
 				return nil, nil, nil, trace.BadParameter(
 					"expected tls connection, got %T", clientConn)
@@ -201,7 +202,7 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (pgproto
 		case *pgproto3.StartupMessage:
 			// TLS connection between the client and this proxy has been
 			// established, just return the startup message.
-			tlsConn, ok := clientConn.(utils.TLSConn)
+			tlsConn, ok := clientConn.(utilstls.TLSConn)
 			if !ok {
 				return nil, nil, nil, trace.BadParameter(
 					"expected tls connection, got %T", clientConn)

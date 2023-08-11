@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
@@ -629,7 +630,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		// Clone the transport to not modify the global instance.
 		tr := defaultTransport.Clone()
 		// Disable certificate checking while in debug mode.
-		tlsConfig := utils.TLSConfig(a.cipherSuites)
+		tlsConfig := utilstls.TLSConfig(a.cipherSuites)
 		tlsConfig.InsecureSkipVerify = true
 		tr.TLSClientConfig = tlsConfig
 

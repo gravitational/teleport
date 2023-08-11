@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -370,7 +371,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
 	// algorithms.
 	if len(fc.CipherSuites) > 0 {
-		cipherSuites, err := utils.CipherSuiteMapping(fc.CipherSuites)
+		cipherSuites, err := utilstls.CipherSuiteMapping(fc.CipherSuites)
 		if err != nil {
 			return trace.Wrap(err)
 		}

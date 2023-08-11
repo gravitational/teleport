@@ -27,7 +27,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 func Test_transport_rewriteRedirect(t *testing.T) {
@@ -64,7 +64,7 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			identity:    identity,
 			servers:     []types.AppServer{server},
 
-			cipherSuites: utils.DefaultCipherSuites(),
+			cipherSuites: utilstls.DefaultCipherSuites(),
 			proxyClient:  &mockProxyClient{},
 			accessPoint: &mockAuthClient{
 				caKey:       caKey,

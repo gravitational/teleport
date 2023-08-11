@@ -129,6 +129,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -453,7 +454,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
 		ProxyClient:                     s.proxyClient,
-		CipherSuites:                    utils.DefaultCipherSuites(),
+		CipherSuites:                    utilstls.DefaultCipherSuites(),
 		AccessPoint:                     s.proxyClient,
 		Context:                         s.ctx,
 		HostUUID:                        proxyID,
@@ -7800,7 +7801,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	})
 	require.NoError(t, err)
 
-	tlscfg, err := authServer.Identity.TLSConfig(utils.DefaultCipherSuites())
+	tlscfg, err := authServer.Identity.TLSConfig(utilstls.DefaultCipherSuites())
 	require.NoError(t, err)
 	tlscfg.ClientAuth = tls.RequireAndVerifyClientCert
 	if lib.IsInsecureDevMode() {
@@ -7905,7 +7906,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		DomainName:       authServer.ClusterName(),
 		ProxyClient:      client,
 		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
-		CipherSuites:     utils.DefaultCipherSuites(),
+		CipherSuites:     utilstls.DefaultCipherSuites(),
 		AccessPoint:      client,
 		Context:          ctx,
 		HostUUID:         proxyID,

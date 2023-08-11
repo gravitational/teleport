@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // SessionContext is a context associated with a user's
@@ -374,7 +375,7 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 		}
 	}
 
-	tlsConfig := utils.TLSConfig(c.cfg.Parent.cipherSuites)
+	tlsConfig := utilstls.TLSConfig(c.cfg.Parent.cipherSuites)
 	tlsCert, err := tls.X509KeyPair(c.cfg.Session.GetTLSCert(), c.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
@@ -1008,7 +1009,7 @@ func (s *sessionCache) tlsConfig(ctx context.Context, cert, privKey []byte) (*tl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig := utils.TLSConfig(s.cipherSuites)
+	tlsConfig := utilstls.TLSConfig(s.cipherSuites)
 	tlsCert, err := tls.X509KeyPair(cert, privKey)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS certificate and key")

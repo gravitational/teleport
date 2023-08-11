@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // KeyIndex helps to identify a key in the store.
@@ -237,7 +237,7 @@ func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte, clusters
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig := utils.TLSConfig(cipherSuites)
+	tlsConfig := utilstls.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = pool
 	tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
 	// Use Issuer CN from the certificate to populate the correct SNI in

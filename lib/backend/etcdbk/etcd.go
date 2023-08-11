@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 const (
@@ -385,7 +386,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	}
 	b.clients.items = nil
 
-	tlsConfig := utils.TLSConfig(nil)
+	tlsConfig := utilstls.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
 		clientCertPEM, err := os.ReadFile(b.cfg.TLSCertFile)

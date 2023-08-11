@@ -51,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -94,7 +94,7 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewFakeClock()
 	}
 	if len(cfg.CipherSuites) == 0 {
-		cfg.CipherSuites = utils.DefaultCipherSuites()
+		cfg.CipherSuites = utilstls.DefaultCipherSuites()
 	}
 	if cfg.AuthPreferenceSpec == nil {
 		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
@@ -622,7 +622,7 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
 func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*Client, error) {
-	tlsConfig := utils.TLSConfig(a.CipherSuites)
+	tlsConfig := utilstls.TLSConfig(a.CipherSuites)
 	cert, err := a.NewCertificate(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)

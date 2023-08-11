@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // transportConfig is configuration for a rewriting transport.
@@ -271,7 +272,7 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 // configureTLS creates and configures a *tls.Config that will be used for
 // mutual authentication.
 func configureTLS(c *transportConfig) (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(c.cipherSuites)
+	tlsConfig := utilstls.TLSConfig(c.cipherSuites)
 
 	// Don't verify the server's certificate if Teleport was started with
 	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in

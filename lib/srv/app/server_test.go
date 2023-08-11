@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 func TestMain(m *testing.M) {
@@ -333,7 +334,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		AccessPoint:       s.authClient,
 		AuthClient:        s.authClient,
 		TLSConfig:         tlsConfig,
-		CipherSuites:      utils.DefaultCipherSuites(),
+		CipherSuites:      utilstls.DefaultCipherSuites(),
 		HostID:            s.hostUUID,
 		Hostname:          "test",
 		Authorizer:        authorizer,

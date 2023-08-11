@@ -86,6 +86,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 func TestMain(m *testing.M) {
@@ -1996,7 +1997,7 @@ func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
 	require.NoError(t, err)
-	conf := utils.TLSConfig(nil)
+	conf := utilstls.TLSConfig(nil)
 	conf.Certificates = append(conf.Certificates, cert)
 	conf.ClientAuth = tls.VerifyClientCertIfGiven
 	conf.ClientCAs, _, err = auth.DefaultClientCertPool(c.authServer, c.clusterName)

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -495,7 +496,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
 	cfg.Console = os.Stdout
-	cfg.CipherSuites = utils.DefaultCipherSuites()
+	cfg.CipherSuites = utilstls.DefaultCipherSuites()
 	cfg.Ciphers = sc.Ciphers
 	cfg.KEXAlgorithms = kex
 	cfg.MACAlgorithms = macs

@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -413,7 +414,7 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
 func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientConn, error) {
-	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig := utilstls.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	// set NextProtos for TLS routing, the actual protocol will be h2
 	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPCInsecure), http2.NextProtoTLS}
@@ -480,7 +481,7 @@ func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) err
 // CA on disk. If no CA is found on disk, Teleport will not verify the Auth
 // Server it is connecting to.
 func insecureRegisterClient(params RegisterParams) (*Client, error) {
-	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig := utilstls.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 
 	cert, err := readCA(params.CAPath)
@@ -542,7 +543,7 @@ func readCA(path string) (*x509.Certificate, error) {
 func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// Build a insecure client to the Auth Server. This is safe because even if
 	// an attacker were to MITM this connection the CA pin will not match below.
-	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig := utilstls.TLSConfig(params.CipherSuites)
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.Time = params.Clock.Now
 	authClient, err := NewClient(client.Config{
@@ -588,7 +589,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
-	tlsConfig = utils.TLSConfig(params.CipherSuites)
+	tlsConfig = utilstls.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	certPool := x509.NewCertPool()
 	for _, cert := range certs {

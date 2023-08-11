@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -443,7 +444,7 @@ func checkCertIPPinning(tlsConn *tls.Conn) error {
 }
 
 // handlePingConnection starts the server ping routine and returns `pingConn`.
-func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) utils.TLSConn {
+func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) utilstls.TLSConn {
 	pingConn := pingconn.NewTLS(conn)
 
 	// Start ping routine. It will continuously send pings in a defined

@@ -31,7 +31,7 @@ import (
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 func NewInsecureWebClient() *http.Client {
@@ -47,7 +47,7 @@ func newClient(insecure bool, pool *x509.CertPool, extraHeaders map[string]strin
 func httpTransport(insecure bool, pool *x509.CertPool) *http.Transport {
 	// Because Teleport clients can't be configured (yet), they take the default
 	// list of cipher suites from Go.
-	tlsConfig := utils.TLSConfig(nil)
+	tlsConfig := utilstls.TLSConfig(nil)
 	tlsConfig.InsecureSkipVerify = insecure
 	tlsConfig.RootCAs = pool
 

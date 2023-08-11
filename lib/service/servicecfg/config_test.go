@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -50,7 +51,7 @@ func TestDefaultConfig(t *testing.T) {
 	}
 
 	// crypto settings
-	require.Equal(t, config.CipherSuites, utils.DefaultCipherSuites())
+	require.Equal(t, config.CipherSuites, utilstls.DefaultCipherSuites())
 	// Unfortunately, the below algos don't have exported constants in
 	// golang.org/x/crypto/ssh for us to use.
 	require.ElementsMatch(t, config.Ciphers, []string{

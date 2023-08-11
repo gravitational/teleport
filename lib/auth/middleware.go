@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 const (
@@ -698,7 +699,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // WrapContextWithUser enriches the provided context with the identity information
 // extracted from the provided TLS connection.
-func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn) (context.Context, error) {
+func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utilstls.TLSConn) (context.Context, error) {
 	// Perform the handshake if it hasn't been already. Before the handshake we
 	// won't have client certs available.
 	if !conn.ConnectionState().HandshakeComplete {

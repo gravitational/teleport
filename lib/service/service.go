@@ -133,6 +133,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 )
@@ -4699,7 +4700,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 				acme.ALPNProto, // enable tls-alpn ACME challenges
 			},
 		}
-		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
+		utilstls.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 	} else {
 		certReloader := NewCertReloader(CertReloaderConfig{
 			KeyPairs:               process.Config.Proxy.KeyPairs,
@@ -4709,7 +4710,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 			return nil, trace.Wrap(err)
 		}
 
-		tlsConfig = utils.TLSConfig(cfg.CipherSuites)
+		tlsConfig = utilstls.TLSConfig(cfg.CipherSuites)
 		tlsConfig.GetCertificate = certReloader.GetCertificate
 	}
 
@@ -4753,7 +4754,7 @@ func setupTLSConfigClientCAsForCluster(tlsConfig *tls.Config, accessPoint auth.R
 }
 
 func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) *tls.Config {
-	tlsConfig := utils.TLSConfig(process.Config.CipherSuites)
+	tlsConfig := utilstls.TLSConfig(process.Config.CipherSuites)
 	tlsConfig.Certificates = serverTLSConfig.Certificates
 
 	setupTLSConfigALPNProtocols(tlsConfig)

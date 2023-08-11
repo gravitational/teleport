@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // transportConfig is configuration for a rewriting transport.
@@ -311,7 +312,7 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, 
 // configureTLS creates and configures a *tls.Config that will be used for
 // mutual authentication.
 func configureTLS(c *transportConfig) (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(c.cipherSuites)
+	tlsConfig := utilstls.TLSConfig(c.cipherSuites)
 
 	// Configure the pool of certificates that will be used to verify the
 	// identity of the server. This allows the client to verify the identity of

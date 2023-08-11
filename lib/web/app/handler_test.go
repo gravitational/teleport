@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 type eventCheckFn func(t *testing.T, events []apievents.AuditEvent)
@@ -485,7 +486,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 				AuthClient:   authClient,
 				AccessPoint:  authClient,
 				ProxyClient:  tunnel,
-				CipherSuites: utils.DefaultCipherSuites(),
+				CipherSuites: utilstls.DefaultCipherSuites(),
 			})
 			require.NoError(t, err)
 
@@ -506,7 +507,7 @@ func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, pro
 		AuthClient:       authClient,
 		AccessPoint:      authClient,
 		ProxyClient:      proxyClient,
-		CipherSuites:     utils.DefaultCipherSuites(),
+		CipherSuites:     utilstls.DefaultCipherSuites(),
 		ProxyPublicAddrs: proxyPublicAddrs,
 	})
 	require.NoError(t, err)

@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilstls"
 )
 
 // HandlerConfig is the configuration for an application handler.
@@ -143,7 +144,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // HandleConnection handles connections from plain TCP applications.
 func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) error {
-	tlsConn, ok := clientConn.(utils.TLSConn)
+	tlsConn, ok := clientConn.(utilstls.TLSConn)
 	if !ok {
 		return trace.BadParameter("expected *tls.Conn, got: %T", clientConn)
 	}
