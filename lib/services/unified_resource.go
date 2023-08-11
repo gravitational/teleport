@@ -123,6 +123,9 @@ func (c *UnifiedResourceCache) put(ctx context.Context, i item) error {
 func putResources(ctx context.Context, c *UnifiedResourceCache, resources []resource) error {
 	return c.read(ctx, func(tree *btree.BTreeG[*item]) error {
 		for _, resource := range resources {
+			if resource == nil {
+				continue
+			}
 			tree.ReplaceOrInsert(&item{Key: resourceKey(resource), Value: resource})
 		}
 		return nil
