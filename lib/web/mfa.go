@@ -24,7 +24,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -111,7 +110,7 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 		}}
 	case req.WebauthnRegisterResponse != nil:
 		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: webauthn.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+			Webauthn: webauthntypes.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
 		}}
 	default:
 		return nil, trace.BadParameter("missing new mfa credentials")

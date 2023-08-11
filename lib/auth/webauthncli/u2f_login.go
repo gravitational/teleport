@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -153,7 +152,7 @@ func U2FLogin(ctx context.Context, origin string, assertion *webauthntypes.Crede
 	}
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+			Webauthn: webauthntypes.CredentialAssertionResponseToProto(resp),
 		},
 	}, nil
 }

@@ -156,7 +156,7 @@ func TestLogin(t *testing.T) {
 			require.NotNil(t, mfaResp.GetWebauthn())
 			require.Equal(t, test.wantRawID, mfaResp.GetWebauthn().RawId)
 
-			_, err = loginFlow.Finish(ctx, username, wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
+			_, err = loginFlow.Finish(ctx, username, webauthntypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()))
 			require.NoError(t, err)
 		})
 	}

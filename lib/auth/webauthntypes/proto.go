@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package webauthn
+package webauthntypes
 
 import (
 	"encoding/base64"
@@ -21,12 +21,11 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // CredentialAssertionToProto converts a CredentialAssertion to its proto
 // counterpart.
-func CredentialAssertionToProto(assertion *webauthntypes.CredentialAssertion) *wanpb.CredentialAssertion {
+func CredentialAssertionToProto(assertion *CredentialAssertion) *wanpb.CredentialAssertion {
 	if assertion == nil {
 		return nil
 	}
@@ -44,7 +43,7 @@ func CredentialAssertionToProto(assertion *webauthntypes.CredentialAssertion) *w
 
 // CredentialAssertionResponseToProto converts a CredentialAssertionResponse to
 // its proto counterpart.
-func CredentialAssertionResponseToProto(car *webauthntypes.CredentialAssertionResponse) *wanpb.CredentialAssertionResponse {
+func CredentialAssertionResponseToProto(car *CredentialAssertionResponse) *wanpb.CredentialAssertionResponse {
 	if car == nil {
 		return nil
 	}
@@ -63,7 +62,7 @@ func CredentialAssertionResponseToProto(car *webauthntypes.CredentialAssertionRe
 
 // CredentialCreationToProto converts a CredentialCreation to its proto
 // counterpart.
-func CredentialCreationToProto(cc *webauthntypes.CredentialCreation) *wanpb.CredentialCreation {
+func CredentialCreationToProto(cc *CredentialCreation) *wanpb.CredentialCreation {
 	if cc == nil {
 		return nil
 	}
@@ -84,7 +83,7 @@ func CredentialCreationToProto(cc *webauthntypes.CredentialCreation) *wanpb.Cred
 
 // CredentialCreationResponseToProto converts a CredentialCreationResponse to
 // its proto counterpart.
-func CredentialCreationResponseToProto(ccr *webauthntypes.CredentialCreationResponse) *wanpb.CredentialCreationResponse {
+func CredentialCreationResponseToProto(ccr *CredentialCreationResponse) *wanpb.CredentialCreationResponse {
 	if ccr == nil {
 		return nil
 	}
@@ -101,24 +100,24 @@ func CredentialCreationResponseToProto(ccr *webauthntypes.CredentialCreationResp
 
 // CredentialAssertionFromProto converts a CredentialAssertion proto to its lib
 // counterpart.
-func CredentialAssertionFromProto(assertion *wanpb.CredentialAssertion) *webauthntypes.CredentialAssertion {
+func CredentialAssertionFromProto(assertion *wanpb.CredentialAssertion) *CredentialAssertion {
 	if assertion == nil {
 		return nil
 	}
-	return &webauthntypes.CredentialAssertion{
+	return &CredentialAssertion{
 		Response: publicKeyCredentialRequestOptionsFromProto(assertion.PublicKey),
 	}
 }
 
 // CredentialAssertionResponseFromProto converts a CredentialAssertionResponse
 // proto to its lib counterpart.
-func CredentialAssertionResponseFromProto(car *wanpb.CredentialAssertionResponse) *webauthntypes.CredentialAssertionResponse {
+func CredentialAssertionResponseFromProto(car *wanpb.CredentialAssertionResponse) *CredentialAssertionResponse {
 	if car == nil {
 		return nil
 	}
-	return &webauthntypes.CredentialAssertionResponse{
-		PublicKeyCredential: webauthntypes.PublicKeyCredential{
-			Credential: webauthntypes.Credential{
+	return &CredentialAssertionResponse{
+		PublicKeyCredential: PublicKeyCredential{
+			Credential: Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(car.RawId),
 				Type: car.Type,
 			},
@@ -131,24 +130,24 @@ func CredentialAssertionResponseFromProto(car *wanpb.CredentialAssertionResponse
 
 // CredentialCreationFromProto converts a CredentialCreation proto to its lib
 // counterpart.
-func CredentialCreationFromProto(cc *wanpb.CredentialCreation) *webauthntypes.CredentialCreation {
+func CredentialCreationFromProto(cc *wanpb.CredentialCreation) *CredentialCreation {
 	if cc == nil {
 		return nil
 	}
-	return &webauthntypes.CredentialCreation{
+	return &CredentialCreation{
 		Response: publicKeyCredentialCreationOptionsFromProto(cc.PublicKey),
 	}
 }
 
 // CredentialCreationResponseFromProto converts a CredentialCreationResponse
 // proto to its lib counterpart.
-func CredentialCreationResponseFromProto(ccr *wanpb.CredentialCreationResponse) *webauthntypes.CredentialCreationResponse {
+func CredentialCreationResponseFromProto(ccr *wanpb.CredentialCreationResponse) *CredentialCreationResponse {
 	if ccr == nil {
 		return nil
 	}
-	return &webauthntypes.CredentialCreationResponse{
-		PublicKeyCredential: webauthntypes.PublicKeyCredential{
-			Credential: webauthntypes.Credential{
+	return &CredentialCreationResponse{
+		PublicKeyCredential: PublicKeyCredential{
+			Credential: Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(ccr.RawId),
 				Type: ccr.Type,
 			},
@@ -159,7 +158,7 @@ func CredentialCreationResponseFromProto(ccr *wanpb.CredentialCreationResponse) 
 	}
 }
 
-func authenticatorSelectionToProto(a webauthntypes.AuthenticatorSelection) *wanpb.AuthenticatorSelection {
+func authenticatorSelectionToProto(a AuthenticatorSelection) *wanpb.AuthenticatorSelection {
 	return &wanpb.AuthenticatorSelection{
 		AuthenticatorAttachment: string(a.AuthenticatorAttachment),
 		RequireResidentKey:      a.RequireResidentKey != nil && *a.RequireResidentKey,
@@ -167,7 +166,7 @@ func authenticatorSelectionToProto(a webauthntypes.AuthenticatorSelection) *wanp
 	}
 }
 
-func credentialDescriptorsToProto(creds []webauthntypes.CredentialDescriptor) []*wanpb.CredentialDescriptor {
+func credentialDescriptorsToProto(creds []CredentialDescriptor) []*wanpb.CredentialDescriptor {
 	res := make([]*wanpb.CredentialDescriptor, len(creds))
 	for i, cred := range creds {
 		res[i] = &wanpb.CredentialDescriptor{
@@ -178,7 +177,7 @@ func credentialDescriptorsToProto(creds []webauthntypes.CredentialDescriptor) []
 	return res
 }
 
-func credentialParametersToProto(params []webauthntypes.CredentialParameter) []*wanpb.CredentialParameter {
+func credentialParametersToProto(params []CredentialParameter) []*wanpb.CredentialParameter {
 	res := make([]*wanpb.CredentialParameter, len(params))
 	for i, p := range params {
 		res[i] = &wanpb.CredentialParameter{
@@ -189,12 +188,12 @@ func credentialParametersToProto(params []webauthntypes.CredentialParameter) []*
 	return res
 }
 
-func inputExtensionsToProto(exts webauthntypes.AuthenticationExtensions) *wanpb.AuthenticationExtensionsClientInputs {
+func inputExtensionsToProto(exts AuthenticationExtensions) *wanpb.AuthenticationExtensionsClientInputs {
 	if len(exts) == 0 {
 		return nil
 	}
 	res := &wanpb.AuthenticationExtensionsClientInputs{}
-	if value, ok := exts[webauthntypes.AppIDExtension]; ok {
+	if value, ok := exts[AppIDExtension]; ok {
 		// Type should always be string, since we are the ones setting it, but let's
 		// play it safe and check anyway.
 		if appID, ok := value.(string); ok {
@@ -204,7 +203,7 @@ func inputExtensionsToProto(exts webauthntypes.AuthenticationExtensions) *wanpb.
 	return res
 }
 
-func outputExtensionsToProto(exts *webauthntypes.AuthenticationExtensionsClientOutputs) *wanpb.AuthenticationExtensionsClientOutputs {
+func outputExtensionsToProto(exts *AuthenticationExtensionsClientOutputs) *wanpb.AuthenticationExtensionsClientOutputs {
 	if exts == nil {
 		return nil
 	}
@@ -213,14 +212,14 @@ func outputExtensionsToProto(exts *webauthntypes.AuthenticationExtensionsClientO
 	}
 }
 
-func rpEntityToProto(rp webauthntypes.RelyingPartyEntity) *wanpb.RelyingPartyEntity {
+func rpEntityToProto(rp RelyingPartyEntity) *wanpb.RelyingPartyEntity {
 	return &wanpb.RelyingPartyEntity{
 		Id:   rp.ID,
 		Name: rp.Name,
 	}
 }
 
-func userEntityToProto(user webauthntypes.UserEntity) *wanpb.UserEntity {
+func userEntityToProto(user UserEntity) *wanpb.UserEntity {
 	return &wanpb.UserEntity{
 		Id:          user.ID,
 		Name:        user.Name,
@@ -228,12 +227,12 @@ func userEntityToProto(user webauthntypes.UserEntity) *wanpb.UserEntity {
 	}
 }
 
-func authenticatorAssertionResponseFromProto(resp *wanpb.AuthenticatorAssertionResponse) webauthntypes.AuthenticatorAssertionResponse {
+func authenticatorAssertionResponseFromProto(resp *wanpb.AuthenticatorAssertionResponse) AuthenticatorAssertionResponse {
 	if resp == nil {
-		return webauthntypes.AuthenticatorAssertionResponse{}
+		return AuthenticatorAssertionResponse{}
 	}
-	return webauthntypes.AuthenticatorAssertionResponse{
-		AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
+	return AuthenticatorAssertionResponse{
+		AuthenticatorResponse: AuthenticatorResponse{
 			ClientDataJSON: resp.ClientDataJson,
 		},
 		AuthenticatorData: resp.AuthenticatorData,
@@ -242,37 +241,37 @@ func authenticatorAssertionResponseFromProto(resp *wanpb.AuthenticatorAssertionR
 	}
 }
 
-func authenticatorAttestationResponseFromProto(resp *wanpb.AuthenticatorAttestationResponse) webauthntypes.AuthenticatorAttestationResponse {
+func authenticatorAttestationResponseFromProto(resp *wanpb.AuthenticatorAttestationResponse) AuthenticatorAttestationResponse {
 	if resp == nil {
-		return webauthntypes.AuthenticatorAttestationResponse{}
+		return AuthenticatorAttestationResponse{}
 	}
-	return webauthntypes.AuthenticatorAttestationResponse{
-		AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
+	return AuthenticatorAttestationResponse{
+		AuthenticatorResponse: AuthenticatorResponse{
 			ClientDataJSON: resp.ClientDataJson,
 		},
 		AttestationObject: resp.AttestationObject,
 	}
 }
 
-func authenticatorSelectionFromProto(a *wanpb.AuthenticatorSelection) webauthntypes.AuthenticatorSelection {
+func authenticatorSelectionFromProto(a *wanpb.AuthenticatorSelection) AuthenticatorSelection {
 	if a == nil {
-		return webauthntypes.AuthenticatorSelection{}
+		return AuthenticatorSelection{}
 	}
 	rrk := a.RequireResidentKey
-	return webauthntypes.AuthenticatorSelection{
+	return AuthenticatorSelection{
 		AuthenticatorAttachment: protocol.AuthenticatorAttachment(a.AuthenticatorAttachment),
 		RequireResidentKey:      &rrk,
 		UserVerification:        protocol.UserVerificationRequirement(a.UserVerification),
 	}
 }
 
-func credentialDescriptorsFromProto(creds []*wanpb.CredentialDescriptor) []webauthntypes.CredentialDescriptor {
-	var res []webauthntypes.CredentialDescriptor
+func credentialDescriptorsFromProto(creds []*wanpb.CredentialDescriptor) []CredentialDescriptor {
+	var res []CredentialDescriptor
 	for _, cred := range creds {
 		if cred == nil {
 			continue
 		}
-		res = append(res, webauthntypes.CredentialDescriptor{
+		res = append(res, CredentialDescriptor{
 			Type:         protocol.CredentialType(cred.Type),
 			CredentialID: cred.Id,
 		})
@@ -280,13 +279,13 @@ func credentialDescriptorsFromProto(creds []*wanpb.CredentialDescriptor) []webau
 	return res
 }
 
-func credentialParametersFromProto(params []*wanpb.CredentialParameter) []webauthntypes.CredentialParameter {
-	var res []webauthntypes.CredentialParameter
+func credentialParametersFromProto(params []*wanpb.CredentialParameter) []CredentialParameter {
+	var res []CredentialParameter
 	for _, p := range params {
 		if p == nil {
 			continue
 		}
-		res = append(res, webauthntypes.CredentialParameter{
+		res = append(res, CredentialParameter{
 			Type:      protocol.CredentialType(p.Type),
 			Algorithm: webauthncose.COSEAlgorithmIdentifier(p.Alg),
 		})
@@ -294,31 +293,31 @@ func credentialParametersFromProto(params []*wanpb.CredentialParameter) []webaut
 	return res
 }
 
-func inputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientInputs) webauthntypes.AuthenticationExtensions {
+func inputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientInputs) AuthenticationExtensions {
 	if exts == nil {
 		return nil
 	}
 	res := make(map[string]interface{})
 	if exts.AppId != "" {
-		res[webauthntypes.AppIDExtension] = exts.AppId
+		res[AppIDExtension] = exts.AppId
 	}
 	return res
 }
 
-func outputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientOutputs) *webauthntypes.AuthenticationExtensionsClientOutputs {
+func outputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientOutputs) *AuthenticationExtensionsClientOutputs {
 	if exts == nil {
 		return nil
 	}
-	return &webauthntypes.AuthenticationExtensionsClientOutputs{
+	return &AuthenticationExtensionsClientOutputs{
 		AppID: exts.AppId,
 	}
 }
 
-func publicKeyCredentialCreationOptionsFromProto(pubKey *wanpb.PublicKeyCredentialCreationOptions) webauthntypes.PublicKeyCredentialCreationOptions {
+func publicKeyCredentialCreationOptionsFromProto(pubKey *wanpb.PublicKeyCredentialCreationOptions) PublicKeyCredentialCreationOptions {
 	if pubKey == nil {
-		return webauthntypes.PublicKeyCredentialCreationOptions{}
+		return PublicKeyCredentialCreationOptions{}
 	}
-	return webauthntypes.PublicKeyCredentialCreationOptions{
+	return PublicKeyCredentialCreationOptions{
 		Challenge:              pubKey.Challenge,
 		RelyingParty:           rpEntityFromProto(pubKey.Rp),
 		User:                   userEntityFromProto(pubKey.User),
@@ -331,11 +330,11 @@ func publicKeyCredentialCreationOptionsFromProto(pubKey *wanpb.PublicKeyCredenti
 	}
 }
 
-func publicKeyCredentialRequestOptionsFromProto(pubKey *wanpb.PublicKeyCredentialRequestOptions) webauthntypes.PublicKeyCredentialRequestOptions {
+func publicKeyCredentialRequestOptionsFromProto(pubKey *wanpb.PublicKeyCredentialRequestOptions) PublicKeyCredentialRequestOptions {
 	if pubKey == nil {
-		return webauthntypes.PublicKeyCredentialRequestOptions{}
+		return PublicKeyCredentialRequestOptions{}
 	}
-	return webauthntypes.PublicKeyCredentialRequestOptions{
+	return PublicKeyCredentialRequestOptions{
 		Challenge:          pubKey.Challenge,
 		Timeout:            int(pubKey.TimeoutMs),
 		RelyingPartyID:     pubKey.RpId,
@@ -345,24 +344,24 @@ func publicKeyCredentialRequestOptionsFromProto(pubKey *wanpb.PublicKeyCredentia
 	}
 }
 
-func rpEntityFromProto(rp *wanpb.RelyingPartyEntity) webauthntypes.RelyingPartyEntity {
+func rpEntityFromProto(rp *wanpb.RelyingPartyEntity) RelyingPartyEntity {
 	if rp == nil {
-		return webauthntypes.RelyingPartyEntity{}
+		return RelyingPartyEntity{}
 	}
-	return webauthntypes.RelyingPartyEntity{
-		CredentialEntity: webauthntypes.CredentialEntity{
+	return RelyingPartyEntity{
+		CredentialEntity: CredentialEntity{
 			Name: rp.Name,
 		},
 		ID: rp.Id,
 	}
 }
 
-func userEntityFromProto(user *wanpb.UserEntity) webauthntypes.UserEntity {
+func userEntityFromProto(user *wanpb.UserEntity) UserEntity {
 	if user == nil {
-		return webauthntypes.UserEntity{}
+		return UserEntity{}
 	}
-	return webauthntypes.UserEntity{
-		CredentialEntity: webauthntypes.CredentialEntity{
+	return UserEntity{
+		CredentialEntity: CredentialEntity{
 			Name: user.Name,
 		},
 		DisplayName: user.DisplayName,

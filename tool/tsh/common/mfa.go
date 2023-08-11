@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/client"
@@ -442,7 +441,7 @@ func promptRegisterChallenge(ctx context.Context, proxyAddr, devType string, c *
 		if !strings.HasPrefix(proxyAddr, "https://") {
 			origin = "https://" + origin
 		}
-		cc := wanlib.CredentialCreationFromProto(c.GetWebauthn())
+		cc := webauthntypes.CredentialCreationFromProto(c.GetWebauthn())
 
 		if devType == touchIDDeviceType {
 			return promptTouchIDRegisterChallenge(origin, cc)
@@ -553,7 +552,7 @@ func promptTouchIDRegisterChallenge(origin string, cc *webauthntypes.CredentialC
 	}
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: wanlib.CredentialCreationResponseToProto(reg.CCR),
+			Webauthn: webauthntypes.CredentialCreationResponseToProto(reg.CCR),
 		},
 	}, reg, nil
 }

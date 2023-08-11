@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
@@ -259,7 +258,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				otpWait.Wait()
 			}}
 
-			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
+			resp, _, err := promptWebauthn(ctx, origin, webauthntypes.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
 				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
@@ -306,7 +305,7 @@ func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *MFAAu
 		TOTPChallenge: protoChal.GetTOTP() != nil,
 	}
 	if protoChal.GetWebauthnChallenge() != nil {
-		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+		chal.WebauthnChallenge = webauthntypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
 	}
 	return chal
 }
@@ -334,7 +333,7 @@ func MakeRegisterChallenge(protoChal *proto.MFARegisterChallenge) *MFARegisterCh
 		}
 	case *proto.MFARegisterChallenge_Webauthn:
 		return &MFARegisterChallenge{
-			Webauthn: wanlib.CredentialCreationFromProto(protoChal.GetWebauthn()),
+			Webauthn: webauthntypes.CredentialCreationFromProto(protoChal.GetWebauthn()),
 		}
 	}
 	return nil

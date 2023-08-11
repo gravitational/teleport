@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -454,7 +453,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 
 				switch {
 				case resp.GetWebauthn() != nil:
-					authReq.Webauthn = wanlib.CredentialAssertionResponseFromProto(resp.GetWebauthn())
+					authReq.Webauthn = webauthntypes.CredentialAssertionResponseFromProto(resp.GetWebauthn())
 				case resp.GetTOTP() != nil:
 					authReq.OTP = &OTPCreds{
 						Password: []byte(password),
@@ -538,14 +537,14 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	require.NoError(t, err)
 	pwdKey.SetPasswordless()
 	const origin = "https://localhost"
-	ccr, err := pwdKey.SignCredentialCreation(origin, wanlib.CredentialCreationFromProto(registerChallenge.GetWebauthn()))
+	ccr, err := pwdKey.SignCredentialCreation(origin, webauthntypes.CredentialCreationFromProto(registerChallenge.GetWebauthn()))
 	require.NoError(t, err)
 	_, err = userClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
 		TokenID:       token.GetName(),
 		NewDeviceName: "pwdless1",
 		NewMFAResponse: &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				Webauthn: webauthntypes.CredentialCreationResponseToProto(ccr),
 			},
 		},
 	})
@@ -661,7 +660,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			require.NoError(t, err, "Failed to create passwordless challenge")
 
 			// Sign challenge (mocks user interaction).
-			assertionResp, err := pwdKey.SignAssertion(origin, wanlib.CredentialAssertionFromProto(mfaChallenge.GetWebauthnChallenge()))
+			assertionResp, err := pwdKey.SignAssertion(origin, webauthntypes.CredentialAssertionFromProto(mfaChallenge.GetWebauthnChallenge()))
 			require.NoError(t, err)
 			assertionResp.AssertionResponse.UserHandle = userWebID // identify user, a real device would set this
 
@@ -728,7 +727,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			}
 			switch {
 			case mfaResp.GetWebauthn() != nil:
-				req.Webauthn = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
+				req.Webauthn = webauthntypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
 			case mfaResp.GetTOTP() != nil:
 				req.OTP = &OTPCreds{
 					Password: []byte(password),

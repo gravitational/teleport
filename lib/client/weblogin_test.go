@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
@@ -147,7 +146,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 		}
 		resp := &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+				Webauthn: webauthntypes.CredentialAssertionResponseToProto(car),
 			},
 		}
 		resp.GetWebauthn().Response.UserHandle = webID

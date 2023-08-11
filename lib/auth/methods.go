@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -235,7 +234,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		authenticateFn = func() (*types.MFADevice, error) {
 			mfaResponse := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(req.Webauthn),
+					Webauthn: webauthntypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
 			dev, _, err := s.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
@@ -329,7 +328,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
 	mfaResponse := &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(req.Webauthn),
+			Webauthn: webauthntypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
 	dev, user, err := s.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)

@@ -31,7 +31,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -107,7 +106,7 @@ func Login(_ context.Context, origin string, assertion *webauthntypes.Credential
 
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(resp),
+			Webauthn: webauthntypes.CredentialAssertionResponseToProto(resp),
 		},
 	}, "", nil
 }
@@ -156,7 +155,7 @@ func Register(_ context.Context, origin string, cc *webauthntypes.CredentialCrea
 
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: wanlib.CredentialCreationResponseToProto(resp),
+			Webauthn: webauthntypes.CredentialCreationResponseToProto(resp),
 		},
 	}, nil
 }

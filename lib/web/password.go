@@ -23,7 +23,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -58,7 +57,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		OldPassword:       req.OldPassword,
 		NewPassword:       req.NewPassword,
 		SecondFactorToken: req.SecondFactorToken,
-		Webauthn: wanlib.CredentialAssertionResponseToProto(
+		Webauthn: webauthntypes.CredentialAssertionResponseToProto(
 			req.WebauthnAssertionResponse,
 		),
 	}

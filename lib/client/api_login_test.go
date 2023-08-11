@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
@@ -115,7 +114,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		}
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+				Webauthn: webauthntypes.CredentialAssertionResponseToProto(car),
 			},
 		}, nil
 	}
@@ -671,7 +670,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	require.NoError(t, err)
-	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+	cc := webauthntypes.CredentialCreationFromProto(res.GetWebauthn())
 	webID := cc.Response.User.ID
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
@@ -684,7 +683,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		NewPassword: []byte(password),
 		NewMFARegisterResponse: &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				Webauthn: webauthntypes.CredentialCreationResponseToProto(ccr),
 			},
 		},
 	})

@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1186,7 +1185,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 		})
 		require.NoError(t, err)
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+		cc := webauthntypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		ccr, err := device.SignCredentialCreation(origin(cluster), cc)
 		require.NoError(t, err)
@@ -1195,7 +1194,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			NewPassword: []byte(password),
 			NewMFARegisterResponse: &proto.MFARegisterResponse{
 				Response: &proto.MFARegisterResponse_Webauthn{
-					Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+					Webauthn: webauthntypes.CredentialCreationResponseToProto(ccr),
 				},
 			},
 		})
@@ -1214,7 +1213,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}
 			return &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+					Webauthn: webauthntypes.CredentialAssertionResponseToProto(car),
 				},
 			}, "", nil
 		}
@@ -1226,7 +1225,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			if err != nil {
 				return nil, "", err
 			}
-			carProto := wanlib.CredentialAssertionResponseToProto(car)
+			carProto := webauthntypes.CredentialAssertionResponseToProto(car)
 			carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
 
 			return &proto.MFAAuthenticateResponse{

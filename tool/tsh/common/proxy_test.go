@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -341,7 +341,7 @@ func TestWithRsync(t *testing.T) {
 					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 				})
 				require.NoError(t, err)
-				cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+				cc := webauthntypes.CredentialCreationFromProto(res.GetWebauthn())
 
 				device, err := mocku2f.Create()
 				require.NoError(t, err)
@@ -354,7 +354,7 @@ func TestWithRsync(t *testing.T) {
 					NewPassword: []byte(mockHeadlessPassword),
 					NewMFARegisterResponse: &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: webauthntypes.CredentialCreationResponseToProto(ccr),
 						},
 					},
 				})
@@ -1184,11 +1184,11 @@ Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 
@@ -1243,11 +1243,11 @@ Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 

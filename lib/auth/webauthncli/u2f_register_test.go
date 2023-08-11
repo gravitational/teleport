@@ -114,7 +114,7 @@ func TestRegister(t *testing.T) {
 			_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
 				User:             user,
 				DeviceName:       u2fKey.name,
-				CreationResponse: wanlib.CredentialCreationResponseFromProto(resp.GetWebauthn()),
+				CreationResponse: webauthntypes.CredentialCreationResponseFromProto(resp.GetWebauthn()),
 			})
 			require.NoError(t, err, "server-side registration failed")
 		})

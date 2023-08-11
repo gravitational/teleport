@@ -145,7 +145,7 @@ func U2FRegister(ctx context.Context, origin string, cc *webauthntypes.Credentia
 
 	return &proto.MFARegisterResponse{
 		Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+			Webauthn: webauthntypes.CredentialCreationResponseToProto(ccr),
 		},
 	}, nil
 }
