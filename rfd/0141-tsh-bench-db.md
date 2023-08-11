@@ -239,47 +239,6 @@ without using any Teleport certificate.
 $ tsh bench postgres "postgres://hello@localhost:5432"
 ```
 
-### Implementation
-The suite will use an interface (`DatabaseClient`) to interact with databases.
-Decoupling it from the suites will increase reusability and also make it quicker
-to enable more database protocols to the benchmark tests.
-
-This interface is returned after connecting to the database. Each protocol will
-define its connection flow respecting the `ConnectFunc`.
-
-```go
-// DatabaseConnectionConfig contains all information necessary to establish a
-// new database connection.
-type DatabaseConnectionConfig struct {
-	// URI direct database connection URI.
-	URI string
-	// Username database username the connection should use.
-	Username string
-	// Database database name where the connection should point to.
-	Database string
-	// ProxyAddress Teleport database proxy address.
-	ProxyAddress string
-	// TLSConfig TLS configuration containing Teleport CA and database
-	// certificates.
-	TLSConfig *tls.Config
-}
-
-// ConnectFunc is a function that establishes a database connection and returns
-// the DatabaseClient.
-type ConnectFunc func(ctx context.Context, config *DatabaseConnectionConfig) (DatabaseClient, error)
-
-// DatabaseClient represents a database connection.
-type DatabaseClient interface {
-	// Ping runs a command on the database to ensure the connection is alive.
-	Ping(ctx context.Context) error
-	// Close closes the connection.
-	Close(ctx context.Context) error
-}
-```
-
-The logic to generate certificates and start the local proxy will be shared
-across the database subcommands.
-
 ## Security
 
 ### Bypass MFA or access checker
