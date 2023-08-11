@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"github.com/gravitational/teleport/api/types"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 	"testing"
@@ -88,37 +89,18 @@ func (c *fakeClientSet) Discovery() discovery.DiscoveryInterface {
 }
 
 func TestIDTokenValidator_Validate(t *testing.T) {
-	_, signer := testSigner(t)
-	claims := &ServiceAccountClaims{
-		Claims: jwt.Claims{
-			Subject: "system:serviceaccount:default:my-service-account",
-		},
-		Kubernetes: &KubernetesSubClaim{
-			ServiceAccount: &ServiceAccountSubClaim{
-				Name: "my-service-account",
-				UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
-			},
-			Pod: &PodSubClaim{
-				Name: "my-pod-797959fdf-wptbj",
-				UID:  "413b22ca-4833-48d9-b6db-76219d583173",
-			},
-			Namespace: "default",
-		},
-	}
-	token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
-	require.NoError(t, err)
-
 	tests := []struct {
-		name          string
+		token         string
 		review        *v1.TokenReview
 		kubeVersion   *version.Info
+		wantResult    *ValidationResult
 		expectedError error
 	}{
 		{
-			name: "valid",
+			token: "valid",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: token,
+					Token: "valid",
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -133,14 +115,19 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 					},
 				},
 			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeInCluster,
+				Username: "system:serviceaccount:namespace:my-service-account",
+				// Raw will be filled in during test run to value of review
+			},
 			kubeVersion:   &boundTokenKubernetesVersion,
 			expectedError: nil,
 		},
 		{
-			name: "valid-not-bound",
+			token: "valid-not-bound",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: token,
+					Token: "valid-not-bound",
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -152,14 +139,19 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 					},
 				},
 			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeInCluster,
+				Username: "system:serviceaccount:namespace:my-service-account",
+				// Raw will be filled in during test run to value of review
+			},
 			kubeVersion:   &legacyTokenKubernetesVersion,
 			expectedError: nil,
 		},
 		{
-			name: "valid-not-bound-on-modern-version",
+			token: "valid-not-bound-on-modern-version",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: token,
+					Token: "valid-not-bound-on-modern-version",
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -178,10 +170,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			),
 		},
 		{
-			name: "valid-but-not-serviceaccount",
+			token: "valid-but-not-serviceaccount",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: token,
+					Token: "valid-but-not-serviceaccount",
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -197,10 +189,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			expectedError: trace.BadParameter("token user is not a service account: eve@example.com"),
 		},
 		{
-			name: "valid-but-not-serviceaccount-group",
+			token: "valid-but-not-serviceaccount-group",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: token,
+					Token: "valid-but-not-serviceaccount-group",
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: true,
@@ -216,10 +208,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			expectedError: trace.BadParameter("token user 'system:serviceaccount:namespace:my-service-account' does not belong to the 'system:serviceaccounts' group"),
 		},
 		{
-			name: "invalid-expired",
+			token: "invalid-expired",
 			review: &v1.TokenReview{
 				Spec: v1.TokenReviewSpec{
-					Token: token,
+					Token: "invalid-expired",
 				},
 				Status: v1.TokenReviewStatus{
 					Authenticated: false,
@@ -233,19 +225,24 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.token, func(t *testing.T) {
+			// Fill value of raw to avoid duplication in test table
+			if tt.wantResult != nil {
+				tt.wantResult.Raw = tt.review.Status
+			}
+
 			client := newFakeClientset(tt.kubeVersion)
 			client.AddReactor("create", "tokenreviews", tokenReviewMock(t, tt.review))
 			v := TokenReviewValidator{
 				client: client,
 			}
-			gotClaims, err := v.Validate(context.Background(), tt.review.Spec.Token)
+			result, err := v.Validate(context.Background(), tt.token)
 			if tt.expectedError != nil {
 				require.ErrorIs(t, err, tt.expectedError)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, claims, gotClaims)
+			require.Equal(t, tt.wantResult, result)
 		})
 	}
 }
@@ -317,15 +314,17 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 	now := time.Now()
 	clusterName := "example.teleport.sh"
 	tests := []struct {
-		name    string
-		signer  jose.Signer
-		claims  *ServiceAccountClaims
-		wantErr string
+		name   string
+		signer jose.Signer
+		claims serviceAccountClaims
+
+		wantResult *ValidationResult
+		wantErr    string
 	}{
 		{
 			name:   "valid",
 			signer: signer,
-			claims: &ServiceAccountClaims{
+			claims: serviceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -333,23 +332,27 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Second)),
 					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Second)),
 				},
-				Kubernetes: &KubernetesSubClaim{
-					ServiceAccount: &ServiceAccountSubClaim{
+				Kubernetes: &kubernetesSubClaim{
+					ServiceAccount: &serviceAccountSubClaim{
 						Name: "my-service-account",
 						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
 					},
-					Pod: &PodSubClaim{
+					Pod: &podSubClaim{
 						Name: "my-pod-797959fdf-wptbj",
 						UID:  "413b22ca-4833-48d9-b6db-76219d583173",
 					},
 					Namespace: "default",
 				},
 			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeStaticJWKS,
+				Username: "system:serviceaccount:default:my-service-account",
+			},
 		},
 		{
 			name:   "signed by unknown key",
 			signer: wrongSigner,
-			claims: &ServiceAccountClaims{
+			claims: serviceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -363,7 +366,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "expired",
 			signer: signer,
-			claims: &ServiceAccountClaims{
+			claims: serviceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -372,12 +375,26 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 				},
 			},
-			wantErr: "name is expired",
+			wantErr: "token is expired",
+		},
+		{
+			name:   "not yet valid",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(2 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(2 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(4 * time.Minute)),
+				},
+			},
+			wantErr: "token is expired",
 		},
 		{
 			name:   "wrong audience",
 			signer: signer,
-			claims: &ServiceAccountClaims{
+			claims: serviceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{"wrong.audience"},
@@ -386,15 +403,20 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 				},
 			},
-			wantErr: "invalid audience claim",
+			wantErr: "token not valid yet",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Fill value of raw to avoid duplication in test table
+			if tt.wantResult != nil {
+				tt.wantResult.Raw = tt.claims
+			}
+
 			token, err := jwt.Signed(tt.signer).Claims(tt.claims).CompactSerialize()
 			require.NoError(t, err)
 
-			claims, err := ValidateTokenWithJWKS(
+			result, err := ValidateTokenWithJWKS(
 				now, jwks, clusterName, token,
 			)
 			if tt.wantErr != "" {
@@ -402,7 +424,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.claims, claims)
+			require.Equal(t, tt.wantResult, result)
 		})
 	}
 }

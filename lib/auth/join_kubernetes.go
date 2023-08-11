@@ -27,11 +27,11 @@ import (
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 )
 
-type kubernetesTokenValidator interface {
-	Validate(context.Context, string) (*kubernetestoken.ServiceAccountClaims, error)
+type k8sTokenReviewValidator interface {
+	Validate(context.Context, string) (*kubernetestoken.ValidationResult, error)
 }
 
-func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*kubernetestoken.ServiceAccountClaims, error) {
+func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*kubernetestoken.ValidationResult, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("IDToken not provided for Kubernetes join request")
 	}
@@ -48,14 +48,14 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 	}
 
 	// Switch to join method subtype token validation.
-	var claims *kubernetestoken.ServiceAccountClaims
+	var result *kubernetestoken.ValidationResult
 	switch token.Spec.Kubernetes.Type {
 	case types.KubernetesJoinTypeStaticJWKS:
 		clusterName, err := a.GetDomainName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		claims, err = kubernetestoken.ValidateTokenWithJWKS(
+		result, err = kubernetestoken.ValidateTokenWithJWKS(
 			a.clock.Now(),
 			[]byte(token.Spec.Kubernetes.StaticJWKS.JWKS),
 			clusterName,
@@ -65,7 +65,7 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with static_jwks")
 		}
 	case types.KubernetesJoinTypeInCluster, types.KubernetesJoinTypeUnspecified:
-		claims, err = a.kubernetesTokenValidator.Validate(ctx, req.IDToken)
+		result, err = a.k8sTokenReviewValidator.Validate(ctx, req.IDToken)
 		if err != nil {
 			return nil, trace.WrapWithMessage(err, "reviewing kubernetes token with in_cluster")
 		}
@@ -77,18 +77,18 @@ func (a *Server) checkKubernetesJoinRequest(ctx context.Context, req *types.Regi
 	}
 
 	log.WithFields(logrus.Fields{
-		"claims": claims,
-		"token":  token.GetName(),
+		"validated_identity": result,
+		"token":              token.GetName(),
 	}).Info("Kubernetes workload trying to join cluster")
 
-	return claims, trace.Wrap(checkKubernetesAllowRules(token, claims))
+	return result, trace.Wrap(checkKubernetesAllowRules(token, result))
 }
 
-func checkKubernetesAllowRules(pt *types.ProvisionTokenV2, got *kubernetestoken.ServiceAccountClaims) error {
+func checkKubernetesAllowRules(pt *types.ProvisionTokenV2, got *kubernetestoken.ValidationResult) error {
 	// If a single rule passes, accept the token
 	for _, rule := range pt.Spec.Kubernetes.Allow {
-		wantSubject := fmt.Sprintf("%s:%s", kubernetestoken.ServiceAccountNamePrefix, rule.ServiceAccount)
-		if wantSubject != got.Subject {
+		wantUsername := fmt.Sprintf("%s:%s", kubernetestoken.ServiceAccountNamePrefix, rule.ServiceAccount)
+		if wantUsername != got.Username {
 			continue
 		}
 		return nil

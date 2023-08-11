@@ -19,6 +19,7 @@ package kubernetestoken
 import (
 	"context"
 	"encoding/json"
+	"github.com/gravitational/teleport/api/types"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +44,37 @@ const (
 	// but we can have an apiserver running 1.21 and kubelets running 1.19.
 	kubernetesBoundTokenSupportVersion = "1.22.0"
 )
+
+type ValidationResult struct {
+	// Raw contains the underlying information retrieved during the validation
+	// process. This lets us ensure all pertinent information is presented in
+	// audit logs.
+	Raw any `json:"raw"`
+	// Type indicates which form of validation was performed on the token.
+	Type types.KubernetesJoinType `json:"type"`
+	// Username is the Kubernetes username extracted from the identity.
+	// This will be prepended with `system:serviceaccount:` for service
+	// accounts.
+	Username string `json:"username"`
+}
+
+// JoinAuditAttributes returns a series of attributes that can be inserted into
+// audit events related to a specific join.
+func (c *ValidationResult) JoinAuditAttributes() (map[string]interface{}, error) {
+	res := map[string]interface{}{}
+	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  &res,
+		Squash:  true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := d.Decode(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
+}
 
 // TokenReviewValidator validates a Kubernetes Service Account JWT using the
 // Kubernetes TokenRequest API endpoint.
@@ -75,7 +107,7 @@ func (v *TokenReviewValidator) getClient() (kubernetes.Interface, error) {
 }
 
 // Validate uses the Kubernetes TokenReview API to validate a token and return its UserInfo
-func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*ServiceAccountClaims, error) {
+func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*ValidationResult, error) {
 	client, err := v.getClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -129,19 +161,11 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token string) (*Ser
 		)
 	}
 
-	// Now we've validated the token with TokenReview, we can just unmarshal
-	// the jwt claims. This lets us return something that's consistent with what
-	// is returned by the JWKS based method.
-	jwt, err := josejwt.ParseSigned(token)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing jwt")
-	}
-	claims := ServiceAccountClaims{}
-	if err := jwt.UnsafeClaimsWithoutVerification(&claims); err != nil {
-		return nil, trace.Wrap(err, "unmarshaling jwt signature")
-	}
-
-	return &claims, nil
+	return &ValidationResult{
+		Raw:      reviewResult.Status,
+		Type:     types.KubernetesJoinTypeInCluster,
+		Username: reviewResult.Status.User.Username,
+	}, nil
 }
 
 func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
@@ -158,6 +182,27 @@ func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
 	return kubeVersion.AtLeast(minKubeVersion), nil
 }
 
+type podSubClaim struct {
+	Name string `json:"name"`
+	UID  string `json:"uid"`
+}
+
+type serviceAccountSubClaim struct {
+	Name string `json:"name"`
+	UID  string `json:"uid"`
+}
+
+type kubernetesSubClaim struct {
+	Namespace      string                  `json:"namespace"`
+	ServiceAccount *serviceAccountSubClaim `json:"serviceaccount"`
+	Pod            *podSubClaim            `json:"pod"`
+}
+
+type serviceAccountClaims struct {
+	josejwt.Claims
+	Kubernetes *kubernetesSubClaim `json:"kubernetes.io"`
+}
+
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
 // configured JWKS.
 func ValidateTokenWithJWKS(
@@ -165,7 +210,7 @@ func ValidateTokenWithJWKS(
 	jwksData []byte,
 	clusterName string,
 	token string,
-) (*ServiceAccountClaims, error) {
+) (*ValidationResult, error) {
 	jwt, err := josejwt.ParseSigned(token)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing jwt")
@@ -176,7 +221,7 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	claims := ServiceAccountClaims{}
+	claims := serviceAccountClaims{}
 	if err := jwt.Claims(jwks, &claims); err != nil {
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
@@ -199,44 +244,9 @@ func ValidateTokenWithJWKS(
 		return nil, trace.BadParameter("static_jwks joining requires the use of projected pod bound service account token")
 	}
 
-	return &claims, nil
-}
-
-type PodSubClaim struct {
-	Name string `json:"name"`
-	UID  string `json:"uid"`
-}
-
-type ServiceAccountSubClaim struct {
-	Name string `json:"name"`
-	UID  string `json:"uid"`
-}
-
-type KubernetesSubClaim struct {
-	Namespace      string                  `json:"namespace"`
-	ServiceAccount *ServiceAccountSubClaim `json:"serviceaccount"`
-	Pod            *PodSubClaim            `json:"pod"`
-}
-
-type ServiceAccountClaims struct {
-	josejwt.Claims
-	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
-}
-
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *ServiceAccountClaims) JoinAuditAttributes() (map[string]interface{}, error) {
-	res := map[string]interface{}{}
-	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &res,
-		Squash:  true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := d.Decode(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
+	return &ValidationResult{
+		Raw:      claims,
+		Type:     types.KubernetesJoinTypeStaticJWKS,
+		Username: claims.Subject,
+	}, nil
 }
