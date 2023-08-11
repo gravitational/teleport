@@ -16,7 +16,7 @@ limitations under the License.
 
 import { fonts } from './fonts';
 import { getContrastRatio, lighten } from './utils/colorManipulator';
-import { blue, blueGrey, lightBlue, yellow } from './palette';
+import { blueGrey, lightBlue, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
 
