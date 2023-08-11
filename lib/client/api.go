@@ -3687,12 +3687,10 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, priv *keys.Priva
 	}
 
 	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
-		SSHLogin:                sshLogin,
-		User:                    tc.Username,
-		Password:                password,
-		AuthenticatorAttachment: tc.AuthenticatorAttachment,
-		PreferOTP:               tc.PreferOTP,
-		AllowStdinHijack:        tc.AllowStdinHijack,
+		SSHLogin:  sshLogin,
+		User:      tc.Username,
+		Password:  password,
+		PromptMFA: tc.PromptMFA,
 	})
 	return clt, session, trace.Wrap(err)
 }
@@ -3993,12 +3991,10 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 	}
 
 	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin:                sshLogin,
-		User:                    tc.Username,
-		Password:                password,
-		AuthenticatorAttachment: tc.AuthenticatorAttachment,
-		PreferOTP:               tc.PreferOTP,
-		AllowStdinHijack:        tc.AllowStdinHijack,
+		SSHLogin:  sshLogin,
+		User:      tc.Username,
+		Password:  password,
+		PromptMFA: tc.PromptMFA,
 	})
 
 	return response, trace.Wrap(err)

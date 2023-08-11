@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -265,18 +266,13 @@ type SSHLoginDirect struct {
 // SSHLoginMFA contains SSH login parameters for MFA login.
 type SSHLoginMFA struct {
 	SSHLogin
+	// PromptMFA is a customizable MFA prompt function.
+	// Defaults to [mfa.NewPrompt().Run]
+	PromptMFA PromptMFAFunc
 	// User is the login username.
 	User string
 	// Password is the login password.
 	Password string
-
-	// AllowStdinHijack allows stdin hijack during MFA prompts.
-	// Do not set this options unless you deeply understand what you are doing.
-	AllowStdinHijack bool
-	// AuthenticatorAttachment is the authenticator attachment for MFA prompts.
-	AuthenticatorAttachment wancli.AuthenticatorAttachment
-	// PreferOTP prefers OTP in favor of other MFA methods.
-	PreferOTP bool
 }
 
 // SSHLoginPasswordless contains SSH login parameters for passwordless login.
@@ -586,19 +582,20 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	// Convert to auth gRPC proto challenge.
-	challengePB := &proto.MFAAuthenticateChallenge{}
+	chal := &proto.MFAAuthenticateChallenge{}
 	if challenge.TOTPChallenge {
-		challengePB.TOTP = &proto.TOTPChallenge{}
+		chal.TOTP = &proto.TOTPChallenge{}
 	}
 	if challenge.WebauthnChallenge != nil {
-		challengePB.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
+		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
-	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
-		AllowStdinHijack:        login.AllowStdinHijack,
-		AuthenticatorAttachment: login.AuthenticatorAttachment,
-		PreferOTP:               login.PreferOTP,
-	})
+	promptMFA := login.PromptMFA
+	if promptMFA == nil {
+		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+	}
+
+	respPB, err := promptMFA(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -783,19 +780,20 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	}
 
 	// Convert to auth gRPC proto challenge.
-	challengePB := &proto.MFAAuthenticateChallenge{}
+	chal := &proto.MFAAuthenticateChallenge{}
 	if challenge.TOTPChallenge {
-		challengePB.TOTP = &proto.TOTPChallenge{}
+		chal.TOTP = &proto.TOTPChallenge{}
 	}
 	if challenge.WebauthnChallenge != nil {
-		challengePB.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
+		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
-	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
-		AllowStdinHijack:        login.AllowStdinHijack,
-		AuthenticatorAttachment: login.AuthenticatorAttachment,
-		PreferOTP:               login.PreferOTP,
-	})
+	promptMFA := login.PromptMFA
+	if promptMFA == nil {
+		promptMFA = mfa.NewPrompt(login.ProxyAddr).Run
+	}
+
+	respPB, err := promptMFA(ctx, chal)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
