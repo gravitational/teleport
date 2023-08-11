@@ -73,6 +73,8 @@ jobs:
             manager: apt
           - file-extension: rpm
             manager: yum
+          - file-extension: rpm
+            manager: zypper
           - file-extension: tar
             manager: tarball
         architecture:
