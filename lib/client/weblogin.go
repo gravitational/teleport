@@ -303,6 +303,29 @@ type SSHLoginHeadless struct {
 	HeadlessAuthenticationID string
 }
 
+// MFAAuthenticateChallenge is an MFA authentication challenge sent on user
+// login / authentication ceremonies.
+type MFAAuthenticateChallenge struct {
+	// WebauthnChallenge contains a WebAuthn credential assertion used for
+	// login/authentication ceremonies.
+	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
+	// TOTPChallenge specifies whether TOTP is supported for this user.
+	TOTPChallenge bool `json:"totp_challenge"`
+}
+
+// MFARegisterChallenge is an MFA register challenge sent on new MFA register.
+type MFARegisterChallenge struct {
+	// Webauthn contains webauthn challenge.
+	Webauthn *wantypes.CredentialCreation `json:"webauthn"`
+	// TOTP contains TOTP challenge.
+	TOTP *TOTPRegisterChallenge `json:"totp"`
+}
+
+// TOTPRegisterChallenge contains a TOTP challenge.
+type TOTPRegisterChallenge struct {
+	QRCode []byte `json:"qrCode"`
+}
+
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
