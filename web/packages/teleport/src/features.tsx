@@ -93,6 +93,8 @@ export class FeatureNodes implements TeleportFeature {
     },
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   category = NavigationCategory.Resources;
 
   hasAccess(flags: FeatureFlags) {
@@ -117,6 +119,8 @@ export class FeatureUnifiedResources implements TeleportFeature {
     },
   };
 
+  hideFromNavigation = !localStorage.areUnifiedResourcesEnabled();
+
   category = NavigationCategory.Resources;
 
   hasAccess() {
@@ -133,6 +137,8 @@ export class FeatureApps implements TeleportFeature {
     exact: true,
     component: Applications,
   };
+
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.applications;
@@ -158,6 +164,8 @@ export class FeatureKubes implements TeleportFeature {
     component: Kubes,
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   hasAccess(flags: FeatureFlags) {
     return flags.kubernetes;
   }
@@ -182,6 +190,8 @@ export class FeatureDatabases implements TeleportFeature {
     component: Databases,
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   hasAccess(flags: FeatureFlags) {
     return flags.databases;
   }
@@ -205,6 +215,8 @@ export class FeatureDesktops implements TeleportFeature {
     exact: true,
     component: Desktops,
   };
+
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.desktops;
@@ -604,13 +616,9 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 }
 
 export function getOSSFeatures(): TeleportFeature[] {
-  const unifiedResources = localStorage.areUnifiedResourcesEnabled()
-    ? [new FeatureUnifiedResources()]
-    : [];
-
   return [
     // Resources
-    ...unifiedResources,
+    new FeatureUnifiedResources(),
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),
