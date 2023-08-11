@@ -298,9 +298,17 @@ func (c *UnifiedResourceCache) getAndUpdateDatabases(ctx context.Context) ([]res
 	if err != nil {
 		return nil, trace.Wrap(err, "getting databases for unified resource watcher")
 	}
+	// because it's possible to have multiple replicas of a database server serving the same database
+	// we only want to store one based on it's internal database resource
+	unique := map[string]struct{}{}
 	resources := make([]resource, len(newDbs))
-	for _, db := range newDbs {
-		resources = append(resources, db)
+	for _, dbServer := range newDbs {
+		db := dbServer.GetDatabase()
+		if _, ok := unique[db.GetName()]; ok {
+			continue
+		}
+		unique[db.GetName()] = struct{}{}
+		resources = append(resources, dbServer)
 	}
 
 	return resources, nil
@@ -312,9 +320,15 @@ func (c *UnifiedResourceCache) getAndUpdateKubes(ctx context.Context) ([]resourc
 	if err != nil {
 		return nil, trace.Wrap(err, "getting kubes for unified resource watcher")
 	}
+	unique := map[string]struct{}{}
 	resources := make([]resource, len(newKubes))
-	for _, kube := range newKubes {
-		resources = append(resources, kube)
+	for _, kubeServer := range newKubes {
+		cluster := kubeServer.GetCluster()
+		if _, ok := unique[cluster.GetName()]; ok {
+			continue
+		}
+		unique[cluster.GetName()] = struct{}{}
+		resources = append(resources, kubeServer)
 	}
 
 	return resources, nil
@@ -326,9 +340,15 @@ func (c *UnifiedResourceCache) getAndUpdateApps(ctx context.Context) ([]resource
 	if err != nil {
 		return nil, trace.Wrap(err, "getting apps for unified resource watcher")
 	}
+	unique := map[string]struct{}{}
 	resources := make([]resource, len(newApps))
-	for _, app := range newApps {
-		resources = append(resources, app)
+	for _, appServer := range newApps {
+		app := appServer.GetApp()
+		if _, ok := unique[app.GetName()]; ok {
+			continue
+		}
+		unique[app.GetName()] = struct{}{}
+		resources = append(resources, appServer)
 	}
 
 	return resources, nil
