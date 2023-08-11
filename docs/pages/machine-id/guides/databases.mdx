@@ -71,21 +71,24 @@ $ tctl create -f role.yaml
 
 With the role created, create a new bot and allow it to assume the new role.
 
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 On your client machine, log in to Teleport using `tsh` before using `tctl` to
 create the bot:
 
 ```code
 $ tctl bots add app --roles=machine-id-db
 ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
+</TabItem>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 Connect to the Teleport Auth Server and use `tctl` to create the bot:
 
 ```code
 $ tctl bots add app --roles=machine-id-db
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Step 2/3. Configure and start Machine ID
 
@@ -267,3 +270,4 @@ access controls.
 ## Next steps
 
 [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+
