@@ -31,8 +31,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -43,7 +43,7 @@ var log = logrus.WithFields(logrus.Fields{
 // Prompt is an MFA prompt.
 type Prompt struct {
 	// WebauthnLogin performs client-side Webauthn login.
-	WebauthnLogin func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+	WebauthnLogin func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 	// ProxyAddress is the address of the authenticating proxy. required.
 	ProxyAddress string
 	// HintBeforePrompt is an optional hint message to print before an MFA prompt.
@@ -214,7 +214,7 @@ func (p *Prompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) 
 				otpWait.Wait()
 			}}
 
-			resp, _, err := p.WebauthnLogin(ctx, origin, wanlib.CredentialAssertionFromProto(chal.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
+			resp, _, err := p.WebauthnLogin(ctx, origin, wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
 				AuthenticatorAttachment: p.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}

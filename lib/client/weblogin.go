@@ -524,7 +524,13 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
 
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
+	webauthnLogin := wancli.Login
+	if promptWebauthn != nil {
+		webauthnLogin = promptWebauthn
+	}
+
+	mfaResp, _, err := webauthnLogin(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
 		User:                    login.User,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})
@@ -855,7 +861,13 @@ func SSHAgentPasswordlessLoginWeb(ctx context.Context, login SSHLoginPasswordles
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
 
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
+	webauthnLogin := wancli.Login
+	if promptWebauthn != nil {
+		webauthnLogin = promptWebauthn
+	}
+
+	mfaResp, _, err := webauthnLogin(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
 		User:                    login.User,
 		AuthenticatorAttachment: login.AuthenticatorAttachment,
 	})

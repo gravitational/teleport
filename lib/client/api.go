@@ -442,7 +442,7 @@ type Config struct {
 
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
-	// Defaults to [dtauthn.NewCeremony().Run].
+	// Defaults to [dtauthn.RunCeremony].
 	DTAuthnRunCeremony DTAuthnRunCeremonyFunc
 
 	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
@@ -454,6 +454,10 @@ type Config struct {
 	// function.
 	// Defaults to [dtenroll.AutoEnroll].
 	dtAutoEnroll dtAutoEnrollFunc
+
+	// MFAPrompt allows tests to override the default MFA prompt function.
+	// Defaults to [mfa.NewPrompt().Run].
+	PromptMFAFunc PromptMFAFunc
 }
 
 // CachePolicy defines cache policy for local clients
@@ -988,7 +992,7 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 	}
 }
 
-// DTAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
+// DTAuthnRunCeremonyFunc matches the signature of [dtauthn.NewCeremony().Run].
 type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
 
 // dtAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].

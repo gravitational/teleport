@@ -33,11 +33,13 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
+// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
 // promptWebauthn provides indirection for tests.
-var promptWebauthn = wancli.Login
+var promptWebauthn func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 
 // mfaPrompt implements wancli.LoginPrompt for MFA logins.
 // In most cases authenticators shouldn't require PINs or additional touches for
@@ -83,6 +85,39 @@ var promptMFAStandalone = PromptMFAChallenge
 
 // hasPlatformSupport is used to mock wancli.HasPlatformSupport for tests.
 var hasPlatformSupport = wancli.HasPlatformSupport
+
+// PromptMFAFunc matches the signature of [mfa.NewPrompt().Run].
+type PromptMFAFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+
+// NewMFAPrompt creates a new MFA prompt from client settings.
+func (tc *TeleportClient) NewMFAPrompt(opts ...func(*mfa.Prompt)) PromptMFAFunc {
+	if tc.PromptMFAFunc != nil {
+		return tc.PromptMFAFunc
+	}
+
+	prompt := mfa.NewPrompt(tc.WebProxyAddr)
+	prompt.AuthenticatorAttachment = tc.AuthenticatorAttachment
+	prompt.PreferOTP = tc.PreferOTP
+	prompt.AllowStdinHijack = tc.AllowStdinHijack
+
+	// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
+	if promptWebauthn != nil {
+		prompt.WebauthnLogin = promptWebauthn
+		prompt.WebauthnSupported = true
+	}
+
+	for _, opt := range opts {
+		opt(prompt)
+	}
+
+	return prompt.Run
+}
+
+// PromptMFA prompts for MFA for the given challenge using the clients standard settings.
+// Use [NewMFAPrompt] to create a prompt with customizable settings.
+func (tc *TeleportClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	return tc.NewMFAPrompt()(ctx, chal)
+}
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
@@ -258,7 +293,13 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				otpWait.Wait()
 			}}
 
-			resp, _, err := promptWebauthn(ctx, origin, wantypes.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
+			// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
+			webauthnLogin := wancli.Login
+			if promptWebauthn != nil {
+				webauthnLogin = promptWebauthn
+			}
+
+			resp, _, err := webauthnLogin(ctx, origin, wantypes.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
 				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
