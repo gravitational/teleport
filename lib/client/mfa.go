@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
@@ -294,7 +295,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 type MFAAuthenticateChallenge struct {
 	// WebauthnChallenge contains a WebAuthn credential assertion used for
 	// login/authentication ceremonies.
-	WebauthnChallenge *wanlib.CredentialAssertion `json:"webauthn_challenge"`
+	WebauthnChallenge *webauthntypes.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
 	TOTPChallenge bool `json:"totp_challenge"`
 }
@@ -317,7 +318,7 @@ type TOTPRegisterChallenge struct {
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
 	// Webauthn contains webauthn challenge.
-	Webauthn *wanlib.CredentialCreation `json:"webauthn"`
+	Webauthn *webauthntypes.CredentialCreation `json:"webauthn"`
 	// TOTP contains TOTP challenge.
 	TOTP *TOTPRegisterChallenge `json:"totp"`
 }

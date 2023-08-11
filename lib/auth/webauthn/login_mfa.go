@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // ErrInvalidCredentials is a special kind of credential "NotFound" error, where
@@ -89,7 +90,7 @@ type LoginFlow struct {
 // assertion.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
-func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertion, error) {
+func (f *LoginFlow) Begin(ctx context.Context, user string) (*webauthntypes.CredentialAssertion, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,
@@ -103,7 +104,7 @@ func (f *LoginFlow) Begin(ctx context.Context, user string) (*CredentialAssertio
 // It returns the MFADevice used to solve the challenge. If login is successful,
 // Finish has the side effect of updating the counter and last used timestamp of
 // the returned device.
-func (f *LoginFlow) Finish(ctx context.Context, user string, resp *CredentialAssertionResponse) (*types.MFADevice, error) {
+func (f *LoginFlow) Finish(ctx context.Context, user string, resp *webauthntypes.CredentialAssertionResponse) (*types.MFADevice, error) {
 	lf := &loginFlow{
 		U2F:         f.U2F,
 		Webauthn:    f.Webauthn,

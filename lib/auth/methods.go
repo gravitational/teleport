@@ -32,6 +32,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,7 +59,7 @@ type AuthenticateUserRequest struct {
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
-	Webauthn *wanlib.CredentialAssertionResponse `json:"webauthn,omitempty"`
+	Webauthn *webauthntypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions

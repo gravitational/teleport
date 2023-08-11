@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // LoginOpts groups non-mandatory options for Login.
@@ -52,8 +53,8 @@ const (
 // Implementors must provide a global variable called `native`.
 type nativeWebauthn interface {
 	CheckSupport() CheckSupportResult
-	GetAssertion(origin string, in *getAssertionRequest) (*wanlib.CredentialAssertionResponse, error)
-	MakeCredential(origin string, in *makeCredentialRequest) (*wanlib.CredentialCreationResponse, error)
+	GetAssertion(origin string, in *getAssertionRequest) (*webauthntypes.CredentialAssertionResponse, error)
+	MakeCredential(origin string, in *makeCredentialRequest) (*webauthntypes.CredentialCreationResponse, error)
 }
 
 type getAssertionRequest struct {
@@ -73,7 +74,7 @@ type makeCredentialRequest struct {
 }
 
 // Login implements Login for Windows Webauthn API.
-func Login(_ context.Context, origin string, assertion *wanlib.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+func Login(_ context.Context, origin string, assertion *webauthntypes.CredentialAssertion, loginOpts *LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 	if origin == "" {
 		return nil, "", trace.BadParameter("origin required")
 	}
@@ -112,7 +113,7 @@ func Login(_ context.Context, origin string, assertion *wanlib.CredentialAsserti
 }
 
 // Register implements Register for Windows Webauthn API.
-func Register(_ context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func Register(_ context.Context, origin string, cc *webauthntypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	if origin == "" {
 		return nil, trace.BadParameter("origin required")
 	}
@@ -224,23 +225,23 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 
 	// Attempt registration.
 	const origin = "localhost"
-	cc := &wanlib.CredentialCreation{
-		Response: wanlib.PublicKeyCredentialCreationOptions{
+	cc := &webauthntypes.CredentialCreation{
+		Response: webauthntypes.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: wanlib.RelyingPartyEntity{
+			RelyingParty: webauthntypes.RelyingPartyEntity{
 				ID: "localhost",
-				CredentialEntity: wanlib.CredentialEntity{
+				CredentialEntity: webauthntypes.CredentialEntity{
 					Name: "test RP",
 				},
 			},
-			User: wanlib.UserEntity{
-				CredentialEntity: wanlib.CredentialEntity{
+			User: webauthntypes.UserEntity{
+				CredentialEntity: webauthntypes.CredentialEntity{
 					Name: "test",
 				},
 				ID:          []byte("test"),
 				DisplayName: "test",
 			},
-			Parameters: []wanlib.CredentialParameter{
+			Parameters: []webauthntypes.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
@@ -260,11 +261,11 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 	res.RegisterSuccessful = true
 
 	// Attempt login.
-	assertion := &wanlib.CredentialAssertion{
-		Response: wanlib.PublicKeyCredentialRequestOptions{
+	assertion := &webauthntypes.CredentialAssertion{
+		Response: webauthntypes.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: cc.Response.RelyingParty.ID,
-			AllowedCredentials: []wanlib.CredentialDescriptor{
+			AllowedCredentials: []webauthntypes.CredentialDescriptor{
 				{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: ccr.GetWebauthn().GetRawId(),

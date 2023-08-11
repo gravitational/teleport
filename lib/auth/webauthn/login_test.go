@@ -34,6 +34,7 @@ import (
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestLoginFlow_BeginFinish(t *testing.T) {
@@ -265,27 +266,27 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	tests := []struct {
 		name       string
 		user       string
-		createResp func() *wanlib.CredentialAssertionResponse
+		createResp func() *webauthntypes.CredentialAssertionResponse
 	}{
 		{
 			name:       "NOK empty user",
 			user:       "",
-			createResp: func() *wanlib.CredentialAssertionResponse { return okResp },
+			createResp: func() *webauthntypes.CredentialAssertionResponse { return okResp },
 		},
 		{
 			name:       "NOK nil resp",
 			user:       user,
-			createResp: func() *wanlib.CredentialAssertionResponse { return nil },
+			createResp: func() *webauthntypes.CredentialAssertionResponse { return nil },
 		},
 		{
 			name:       "NOK empty resp",
 			user:       user,
-			createResp: func() *wanlib.CredentialAssertionResponse { return &wanlib.CredentialAssertionResponse{} },
+			createResp: func() *webauthntypes.CredentialAssertionResponse { return &webauthntypes.CredentialAssertionResponse{} },
 		},
 		{
 			name: "NOK assertion with bad origin",
 			user: user,
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *webauthntypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, user)
 				require.NoError(t, err)
 				resp, err := key.SignAssertion("https://badorigin.com", assertion)
@@ -296,7 +297,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		{
 			name: "NOK assertion with bad RPID",
 			user: user,
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *webauthntypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = "badrpid.com"
@@ -309,7 +310,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		{
 			name: "NOK assertion signed by unknown device",
 			user: user,
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *webauthntypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, user)
 				require.NoError(t, err)
 
@@ -326,7 +327,7 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		{
 			name: "NOK assertion with invalid signature",
 			user: user,
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *webauthntypes.CredentialAssertionResponse {
 				assertion, err := webLogin.Begin(ctx, user)
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
@@ -471,13 +472,13 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		createResp    func() *wanlib.CredentialAssertionResponse
+		createResp    func() *webauthntypes.CredentialAssertionResponse
 		assertErrType func(error) bool
 		wantErrMsg    string
 	}{
 		{
 			name: "NOK response without UserID",
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *webauthntypes.CredentialAssertionResponse {
 				// UserHandle is already nil on assertionResp
 				return assertionResp
 			},
@@ -486,7 +487,7 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 		},
 		{
 			name: "NOK unknown user handle",
-			createResp: func() *wanlib.CredentialAssertionResponse {
+			createResp: func() *webauthntypes.CredentialAssertionResponse {
 				unknownHandle := make([]byte, 10 /* arbitrary */)
 				cp := *assertionResp
 				cp.AssertionResponse.UserHandle = unknownHandle

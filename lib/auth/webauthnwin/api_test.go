@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func init() {
@@ -38,27 +38,27 @@ func TestRegister(t *testing.T) {
 	resetNativeAfterTests(t)
 
 	const origin = "https://example.com"
-	okCC := &wanlib.CredentialCreation{
-		Response: wanlib.PublicKeyCredentialCreationOptions{
+	okCC := &webauthntypes.CredentialCreation{
+		Response: webauthntypes.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: wanlib.RelyingPartyEntity{
+			RelyingParty: webauthntypes.RelyingPartyEntity{
 				ID: "example.com",
-				CredentialEntity: wanlib.CredentialEntity{
+				CredentialEntity: webauthntypes.CredentialEntity{
 					Name: "Teleport",
 				},
 			},
-			User: wanlib.UserEntity{
+			User: webauthntypes.UserEntity{
 				ID:          []byte{1, 2, 3, 4},
 				DisplayName: "display name",
-				CredentialEntity: wanlib.CredentialEntity{
+				CredentialEntity: webauthntypes.CredentialEntity{
 					Name: "user name",
 				},
 			},
-			Parameters: []wanlib.CredentialParameter{
+			Parameters: []webauthntypes.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgRS256},
 			},
-			AuthenticatorSelection: wanlib.AuthenticatorSelection{
+			AuthenticatorSelection: webauthntypes.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
 			},
 			Attestation: protocol.PreferNoAttestation,
@@ -68,13 +68,13 @@ func TestRegister(t *testing.T) {
 	tests := []struct {
 		name     string
 		origin   string
-		createCC func() *wanlib.CredentialCreation
+		createCC func() *webauthntypes.CredentialCreation
 		assertFn func(t *testing.T, ccr *wanpb.CredentialCreationResponse, req *makeCredentialRequest)
 	}{
 		{
 			name:     "flow with auto attachment and discouraged UV",
 			origin:   origin,
-			createCC: func() *wanlib.CredentialCreation { return okCC },
+			createCC: func() *webauthntypes.CredentialCreation { return okCC },
 			assertFn: func(t *testing.T, ccr *wanpb.CredentialCreationResponse, req *makeCredentialRequest) {
 				assert.Equal(t, webauthnAttachmentAny, req.opts.dwAuthenticatorAttachment)
 
@@ -86,7 +86,7 @@ func TestRegister(t *testing.T) {
 		{
 			name:   "with UV required and cross-platform and RRK",
 			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *webauthntypes.CredentialCreation {
 				cc := *okCC
 				cc.Response.User.DisplayName = "display name"
 				cc.Response.AuthenticatorSelection.UserVerification = protocol.VerificationRequired
@@ -105,7 +105,7 @@ func TestRegister(t *testing.T) {
 		{
 			name:   "with UV preferred and platform",
 			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *webauthntypes.CredentialCreation {
 				cc := *okCC
 				cc.Response.AuthenticatorSelection.UserVerification = protocol.VerificationPreferred
 				cc.Response.AuthenticatorSelection.AuthenticatorAttachment = protocol.Platform
@@ -120,7 +120,7 @@ func TestRegister(t *testing.T) {
 		{
 			name:   "with UV discouraged and platform",
 			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *webauthntypes.CredentialCreation {
 				cc := *okCC
 				cc.Response.AuthenticatorSelection.UserVerification = protocol.VerificationDiscouraged
 				return &cc
@@ -132,7 +132,7 @@ func TestRegister(t *testing.T) {
 		{
 			name:   "RRK from RequireResidentKey if is empty ResidentKey",
 			origin: origin,
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *webauthntypes.CredentialCreation {
 				cc := *okCC
 				cc.Response.AuthenticatorSelection.RequireResidentKey = protocol.ResidentKeyRequired()
 				return &cc
@@ -163,11 +163,11 @@ func TestLogin(t *testing.T) {
 	resetNativeAfterTests(t)
 
 	const origin = "https://example.com"
-	okAssertion := &wanlib.CredentialAssertion{
-		Response: wanlib.PublicKeyCredentialRequestOptions{
+	okAssertion := &webauthntypes.CredentialAssertion{
+		Response: webauthntypes.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: "example.com",
-			AllowedCredentials: []wanlib.CredentialDescriptor{
+			AllowedCredentials: []webauthntypes.CredentialDescriptor{
 				{Type: protocol.PublicKeyCredentialType, CredentialID: []byte{1, 2, 3, 4, 5}},
 			},
 			UserVerification: protocol.VerificationDiscouraged,
@@ -177,7 +177,7 @@ func TestLogin(t *testing.T) {
 	tests := []struct {
 		name        string
 		origin      string
-		assertionIn func() *wanlib.CredentialAssertion
+		assertionIn func() *webauthntypes.CredentialAssertion
 		opts        LoginOpts
 		wantErr     string
 		assertFn    func(t *testing.T, car *wanpb.CredentialAssertionResponse, req *getAssertionRequest)
@@ -185,7 +185,7 @@ func TestLogin(t *testing.T) {
 		{
 			name:        "uv discouraged, attachment auto",
 			origin:      origin,
-			assertionIn: func() *wanlib.CredentialAssertion { return okAssertion },
+			assertionIn: func() *webauthntypes.CredentialAssertion { return okAssertion },
 			assertFn: func(t *testing.T, car *wanpb.CredentialAssertionResponse, req *getAssertionRequest) {
 				assert.Equal(t, uint32(6), req.opts.dwVersion)
 
@@ -197,7 +197,7 @@ func TestLogin(t *testing.T) {
 		{
 			name:   "uv required, attachment platform",
 			origin: origin,
-			assertionIn: func() *wanlib.CredentialAssertion {
+			assertionIn: func() *webauthntypes.CredentialAssertion {
 				out := *okAssertion
 				out.Response.UserVerification = protocol.VerificationRequired
 				return &out
@@ -214,7 +214,7 @@ func TestLogin(t *testing.T) {
 		{
 			name:   "uv preferred, attachment cross-platform",
 			origin: origin,
-			assertionIn: func() *wanlib.CredentialAssertion {
+			assertionIn: func() *webauthntypes.CredentialAssertion {
 				out := *okAssertion
 				out.Response.UserVerification = protocol.VerificationPreferred
 				return &out
@@ -231,7 +231,7 @@ func TestLogin(t *testing.T) {
 		{
 			name:   "uv discouraged",
 			origin: origin,
-			assertionIn: func() *wanlib.CredentialAssertion {
+			assertionIn: func() *webauthntypes.CredentialAssertion {
 				out := *okAssertion
 				out.Response.UserVerification = protocol.VerificationDiscouraged
 				return &out
@@ -280,12 +280,12 @@ func (m *mockNative) CheckSupport() CheckSupportResult {
 	}
 }
 
-func (m *mockNative) GetAssertion(origin string, in *getAssertionRequest) (*wanlib.CredentialAssertionResponse, error) {
+func (m *mockNative) GetAssertion(origin string, in *getAssertionRequest) (*webauthntypes.CredentialAssertionResponse, error) {
 	m.getAssersionReq = in
-	return &wanlib.CredentialAssertionResponse{}, nil
+	return &webauthntypes.CredentialAssertionResponse{}, nil
 }
 
-func (m *mockNative) MakeCredential(origin string, in *makeCredentialRequest) (*wanlib.CredentialCreationResponse, error) {
+func (m *mockNative) MakeCredential(origin string, in *makeCredentialRequest) (*webauthntypes.CredentialCreationResponse, error) {
 	m.makeCredentialReq = in
-	return &wanlib.CredentialCreationResponse{}, nil
+	return &webauthntypes.CredentialCreationResponse{}, nil
 }

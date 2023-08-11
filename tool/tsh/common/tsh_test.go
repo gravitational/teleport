@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -1205,8 +1206,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	setupUser("leafcluster", "alice", true, leafAuth.GetAuthServer())
 	setupUser("localhost", "bob", false, rootAuth.GetAuthServer())
 
-	successfulChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-		return func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	successfulChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *webauthntypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		return func(ctx context.Context, realOrigin string, assertion *webauthntypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 			car, err := device.SignAssertion(origin(cluster), assertion) // use the fake origin to prevent a mismatch
 			if err != nil {
 				return nil, "", err
@@ -1219,8 +1220,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		}
 	}
 
-	failedChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-		return func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	failedChallenge := func(cluster string) func(ctx context.Context, realOrigin string, assertion *webauthntypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		return func(ctx context.Context, realOrigin string, assertion *webauthntypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 			car, err := device.SignAssertion(origin(cluster), assertion) // use the fake origin to prevent a mismatch
 			if err != nil {
 				return nil, "", err
@@ -1236,7 +1237,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		}
 	}
 
-	type mfaPrompt = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+	type mfaPrompt = func(ctx context.Context, origin string, assertion *webauthntypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 	setupChallengeSolver := func(mfaPrompt mfaPrompt) func(t *testing.T) {
 		return func(t *testing.T) {
 			inputReader := prompt.NewFakeReader().

@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // loginIdentity contains the subset of services.Identity methods used by
@@ -64,7 +65,7 @@ type loginFlow struct {
 	sessionData sessionIdentity
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*CredentialAssertion, error) {
+func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (*webauthntypes.CredentialAssertion, error) {
 	if user == "" && !passwordless {
 		return nil, trace.BadParameter("user required")
 	}
@@ -168,7 +169,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		return nil, trace.Wrap(err)
 	}
 
-	return CredentialAssertionFromProtocol(assertion), nil
+	return webauthntypes.CredentialAssertionFromProtocol(assertion), nil
 }
 
 func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
@@ -182,7 +183,7 @@ func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {
 	return wla.UserID, nil
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
+func (f *loginFlow) finish(ctx context.Context, user string, resp *webauthntypes.CredentialAssertionResponse, passwordless bool) (*types.MFADevice, string, error) {
 	switch {
 	case user == "" && !passwordless:
 		return nil, "", trace.BadParameter("user required")
@@ -318,7 +319,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 	return dev, user, nil
 }
 
-func parseCredentialResponse(resp *CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
+func parseCredentialResponse(resp *webauthntypes.CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {
 	// Do not pass extensions on to duo-labs/webauthn, they won't go past JSON
 	// unmarshal.
 	exts := resp.Extensions

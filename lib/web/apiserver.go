@@ -68,6 +68,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -2084,7 +2085,7 @@ type changeUserAuthenticationRequest struct {
 	// Password is user password string converted to bytes.
 	Password []byte `json:"password"`
 	// WebauthnCreationResponse is the signed credential creation response.
-	WebauthnCreationResponse *wanlib.CredentialCreationResponse `json:"webauthnCreationResponse"`
+	WebauthnCreationResponse *webauthntypes.CredentialCreationResponse `json:"webauthnCreationResponse"`
 }
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

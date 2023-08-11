@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -206,7 +207,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 
 type mfaRequest struct {
 	// WebauthnResponse is the response from authenticators.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnAssertionResponse *webauthntypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // issueSingleUseCert will take an assertion response sent from a solved challenge in the web UI

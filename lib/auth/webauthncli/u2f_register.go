@@ -36,12 +36,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // U2FRegister implements Register for U2F/CTAP1 devices.
 // The implementation is backed exclusively by Go code, making it useful in
 // scenarios where libfido2 is unavailable.
-func U2FRegister(ctx context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func U2FRegister(ctx context.Context, origin string, cc *webauthntypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	// Preliminary checks, more below.
 	switch {
 	case origin == "":
@@ -223,7 +224,7 @@ func parseU2FRegistrationResponse(resp []byte) (*u2fRegistrationResponse, error)
 	}, nil
 }
 
-func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationResponse) (*wanlib.CredentialCreationResponse, error) {
+func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationResponse) (*webauthntypes.CredentialCreationResponse, error) {
 	// Reference:
 	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#fig-u2f-compat-makeCredential
 
@@ -258,16 +259,16 @@ func credentialResponseFromU2F(ccdJSON, appIDHash []byte, resp *u2fRegistrationR
 		return nil, trace.Wrap(err)
 	}
 
-	return &wanlib.CredentialCreationResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
-			Credential: wanlib.Credential{
+	return &webauthntypes.CredentialCreationResponse{
+		PublicKeyCredential: webauthntypes.PublicKeyCredential{
+			Credential: webauthntypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(resp.KeyHandle),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID: resp.KeyHandle,
 		},
-		AttestationResponse: wanlib.AuthenticatorAttestationResponse{
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
+		AttestationResponse: webauthntypes.AuthenticatorAttestationResponse{
+			AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
 				ClientDataJSON: ccdJSON,
 			},
 			AttestationObject: attestationObj,

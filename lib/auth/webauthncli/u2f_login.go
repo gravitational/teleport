@@ -28,12 +28,13 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // U2FLogin implements Login for U2F/CTAP1 devices.
 // The implementation is backed exclusively by Go code, making it useful in
 // scenarios where libfido2 is unavailable.
-func U2FLogin(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+func U2FLogin(ctx context.Context, origin string, assertion *webauthntypes.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
 	switch {
 	case origin == "":
 		return nil, trace.BadParameter("origin required")
@@ -78,10 +79,10 @@ func U2FLogin(ctx context.Context, origin string, assertion *wanlib.CredentialAs
 	}
 
 	// Variables below are filled by the callback on success.
-	var authCred wanlib.CredentialDescriptor
+	var authCred webauthntypes.CredentialDescriptor
 	var authResp *u2ftoken.AuthenticateResponse
 	var usedAppID bool
-	makeAuthU2F := func(cred wanlib.CredentialDescriptor, req u2ftoken.AuthenticateRequest, appID bool) func(Token) error {
+	makeAuthU2F := func(cred webauthntypes.CredentialDescriptor, req u2ftoken.AuthenticateRequest, appID bool) func(Token) error {
 		return func(token Token) error {
 			if err := token.CheckAuthenticate(req); err != nil {
 				return err // don't wrap, inspected by RunOnU2FDevices
@@ -118,9 +119,9 @@ func U2FLogin(ctx context.Context, origin string, assertion *wanlib.CredentialAs
 	}
 
 	// Assemble extensions.
-	var exts *wanlib.AuthenticationExtensionsClientOutputs
+	var exts *webauthntypes.AuthenticationExtensionsClientOutputs
 	if usedAppID {
-		exts = &wanlib.AuthenticationExtensionsClientOutputs{AppID: true}
+		exts = &webauthntypes.AuthenticationExtensionsClientOutputs{AppID: true}
 	}
 
 	// Assemble authenticator data.
@@ -133,17 +134,17 @@ func U2FLogin(ctx context.Context, origin string, assertion *wanlib.CredentialAs
 	}
 	authData.Write(authResp.RawResponse[:5]) // User Presence (1) + Counter (4)
 
-	resp := &wanlib.CredentialAssertionResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
-			Credential: wanlib.Credential{
+	resp := &webauthntypes.CredentialAssertionResponse{
+		PublicKeyCredential: webauthntypes.PublicKeyCredential{
+			Credential: webauthntypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString(authCred.CredentialID),
 				Type: string(protocol.PublicKeyCredentialType),
 			},
 			RawID:      authCred.CredentialID,
 			Extensions: exts,
 		},
-		AssertionResponse: wanlib.AuthenticatorAssertionResponse{
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
+		AssertionResponse: webauthntypes.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: webauthntypes.AuthenticatorResponse{
 				ClientDataJSON: ccdJSON,
 			},
 			AuthenticatorData: authData.Bytes(),

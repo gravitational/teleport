@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestRegister(t *testing.T) {
@@ -136,33 +137,33 @@ func TestRegister_errors(t *testing.T) {
 	tests := []struct {
 		name    string
 		origin  string
-		makeCC  func() *wanlib.CredentialCreation
+		makeCC  func() *webauthntypes.CredentialCreation
 		wantErr string
 	}{
 		{
 			name:    "NOK empty origin",
 			origin:  "",
-			makeCC:  func() *wanlib.CredentialCreation { return okCC },
+			makeCC:  func() *webauthntypes.CredentialCreation { return okCC },
 			wantErr: "origin",
 		},
 		{
 			name:    "NOK nil credential creation",
 			origin:  origin,
-			makeCC:  func() *wanlib.CredentialCreation { return nil },
+			makeCC:  func() *webauthntypes.CredentialCreation { return nil },
 			wantErr: "credential creation required",
 		},
 		{
 			name:    "NOK nil empty creation",
 			origin:  origin,
-			makeCC:  func() *wanlib.CredentialCreation { return &wanlib.CredentialCreation{} },
+			makeCC:  func() *webauthntypes.CredentialCreation { return &webauthntypes.CredentialCreation{} },
 			wantErr: "relying party",
 		},
 		{
 			name:   "NOK ES256 algorithm not allowed",
 			origin: origin,
-			makeCC: func() *wanlib.CredentialCreation {
+			makeCC: func() *webauthntypes.CredentialCreation {
 				cp := *okCC
-				var params []wanlib.CredentialParameter
+				var params []webauthntypes.CredentialParameter
 				for _, p := range cp.Response.Parameters {
 					if p.Algorithm == webauthncose.AlgES256 {
 						continue
@@ -177,7 +178,7 @@ func TestRegister_errors(t *testing.T) {
 		{
 			name:   "NOK platform attachment required",
 			origin: origin,
-			makeCC: func() *wanlib.CredentialCreation {
+			makeCC: func() *webauthntypes.CredentialCreation {
 				cp := *okCC
 				cp.Response.AuthenticatorSelection.AuthenticatorAttachment = protocol.Platform
 				return &cp
@@ -187,7 +188,7 @@ func TestRegister_errors(t *testing.T) {
 		{
 			name:   "NOK resident key required",
 			origin: origin,
-			makeCC: func() *wanlib.CredentialCreation {
+			makeCC: func() *webauthntypes.CredentialCreation {
 				cp := *okCC
 				rrk := true
 				cp.Response.AuthenticatorSelection.RequireResidentKey = &rrk
@@ -198,7 +199,7 @@ func TestRegister_errors(t *testing.T) {
 		{
 			name:   "NOK user verification required",
 			origin: origin,
-			makeCC: func() *wanlib.CredentialCreation {
+			makeCC: func() *webauthntypes.CredentialCreation {
 				cp := *okCC
 				cp.Response.AuthenticatorSelection.UserVerification = protocol.VerificationRequired
 				return &cp

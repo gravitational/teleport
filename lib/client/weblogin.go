@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -111,7 +112,7 @@ type MFAChallengeResponse struct {
 	// TOTPCode is a code for a otp device.
 	TOTPCode string `json:"totp_code,omitempty"`
 	// WebauthnResponse is a response from a webauthn device.
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
+	WebauthnResponse *webauthntypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 }
 
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
@@ -174,7 +175,7 @@ type AuthenticateSSHUserRequest struct {
 	// performed.
 	Password string `json:"password"`
 	// WebauthnChallengeResponse is a signed WebAuthn credential assertion.
-	WebauthnChallengeResponse *wanlib.CredentialAssertionResponse `json:"webauthn_challenge_response"`
+	WebauthnChallengeResponse *webauthntypes.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
 	// PubKey is a public key user wishes to sign
@@ -198,14 +199,14 @@ type AuthenticateWebUserRequest struct {
 	// User is a teleport username.
 	User string `json:"user"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+	WebauthnAssertionResponse *webauthntypes.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
 type HeadlessRequest struct {
 	// Actions can be either accept or deny.
 	Action string `json:"action"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+	WebauthnAssertionResponse *webauthntypes.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
 // SSHLogin contains common SSH login parameters.

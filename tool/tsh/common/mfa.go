@@ -21,6 +21,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"image/png"
 	"os"
 	"os/exec"
@@ -531,7 +532,7 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	}}, nil
 }
 
-func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, error) {
+func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *webauthntypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
 	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
 
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
@@ -543,7 +544,7 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 	return resp, trace.Wrap(err)
 }
 
-func promptTouchIDRegisterChallenge(origin string, cc *wanlib.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
+func promptTouchIDRegisterChallenge(origin string, cc *webauthntypes.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
 	log.Debugf("Touch ID: prompting registration with origin %q", origin)
 
 	reg, err := touchid.Register(origin, cc)

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -567,11 +568,11 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	tests := []struct {
 		name         string
 		loginHooks   []LoginHook
-		authenticate func(t *testing.T, resp *wanlib.CredentialAssertionResponse)
+		authenticate func(t *testing.T, resp *webauthntypes.CredentialAssertionResponse)
 	}{
 		{
 			name: "ssh",
-			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+			authenticate: func(t *testing.T, resp *webauthntypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
 						Webauthn:  resp,
@@ -591,7 +592,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 				loginHook,
 				loginHook,
 			},
-			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+			authenticate: func(t *testing.T, resp *webauthntypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
 						Webauthn:  resp,
@@ -607,7 +608,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 		},
 		{
 			name: "web",
-			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+			authenticate: func(t *testing.T, resp *webauthntypes.CredentialAssertionResponse) {
 				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 					Webauthn: resp,
 				})
@@ -620,7 +621,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			loginHooks: []LoginHook{
 				loginHook,
 			},
-			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+			authenticate: func(t *testing.T, resp *webauthntypes.CredentialAssertionResponse) {
 				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 					Webauthn: resp,
 				})
@@ -641,7 +642,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					Username:  user,
-					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					Webauthn:  &webauthntypes.CredentialAssertionResponse{}, // bad response
 					PublicKey: []byte(sshPubKey),
 				},
 				TTL: 24 * time.Hour,
@@ -813,7 +814,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					Username:  username,
-					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					Webauthn:  &webauthntypes.CredentialAssertionResponse{}, // bad response
 					PublicKey: []byte(sshPubKey),
 				},
 				TTL: 24 * time.Hour,
@@ -857,7 +858,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
-					Webauthn:                 &wanlib.CredentialAssertionResponse{},
+					Webauthn:                 &webauthntypes.CredentialAssertionResponse{},
 					OTP:                      &OTPCreds{},
 					Username:                 username,
 					PublicKey:                []byte(sshPubKey),

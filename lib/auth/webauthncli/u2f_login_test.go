@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestLogin(t *testing.T) {
@@ -184,33 +185,33 @@ func TestLogin_errors(t *testing.T) {
 	tests := []struct {
 		name         string
 		origin       string
-		getAssertion func() *wanlib.CredentialAssertion
+		getAssertion func() *webauthntypes.CredentialAssertion
 	}{
 		{
 			name:   "NOK origin empty",
 			origin: "",
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *webauthntypes.CredentialAssertion {
 				return okAssertion
 			},
 		},
 		{
 			name:   "NOK assertion nil",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *webauthntypes.CredentialAssertion {
 				return nil
 			},
 		},
 		{
 			name:   "NOK assertion empty",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
-				return &wanlib.CredentialAssertion{}
+			getAssertion: func() *webauthntypes.CredentialAssertion {
+				return &webauthntypes.CredentialAssertion{}
 			},
 		},
 		{
 			name:   "NOK assertion missing challenge",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *webauthntypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.Challenge = nil
@@ -220,7 +221,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion missing RPID",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *webauthntypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = ""
@@ -230,7 +231,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion missing credentials",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *webauthntypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.AllowedCredentials = nil
@@ -240,7 +241,7 @@ func TestLogin_errors(t *testing.T) {
 		{
 			name:   "NOK assertion invalid user verification requirement",
 			origin: origin,
-			getAssertion: func() *wanlib.CredentialAssertion {
+			getAssertion: func() *webauthntypes.CredentialAssertion {
 				assertion, err := loginFlow.Begin(ctx, user)
 				require.NoError(t, err)
 				assertion.Response.UserVerification = protocol.VerificationRequired

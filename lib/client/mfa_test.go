@@ -24,8 +24,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
@@ -45,7 +45,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	})
 
 	// User always picks a non-registered device.
-	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *webauthntypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		return nil, "", wancli.ErrUsingNonRegisteredDevice
 	}
 	// Support always enabled.

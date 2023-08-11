@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -225,7 +226,7 @@ type privilegeTokenRequest struct {
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnResponse is the response from authenticators.
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnResponse *webauthntypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // createPrivilegeTokenHandle creates and returns a privilege token.

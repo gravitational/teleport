@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
@@ -119,7 +120,7 @@ type LoginOpts struct {
 // authentication and connected devices.
 func Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *webauthntypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	ctx, span := tracing.NewTracer("mfa").Start(
 		ctx,
@@ -174,7 +175,7 @@ func Login(
 
 func crossPlatformLogin(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *webauthntypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	if isLibfido2Enabled() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
@@ -198,7 +199,7 @@ func crossPlatformLogin(
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+func platformLogin(origin, user string, assertion *webauthntypes.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
 	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err
@@ -234,7 +235,7 @@ type RegisterPrompt interface {
 // type of authentication and connected devices.
 func Register(
 	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
+	origin string, cc *webauthntypes.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
 	if webauthnwin.IsAvailable() {
 		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
 		return webauthnwin.Register(ctx, origin, cc)

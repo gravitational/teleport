@@ -99,6 +99,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -4712,7 +4713,7 @@ func TestAddMFADevice(t *testing.T) {
 		name            string
 		deviceName      string
 		getTOTPCode     func() string
-		getWebauthnResp func() *wanlib.CredentialCreationResponse
+		getWebauthnResp func() *webauthntypes.CredentialCreationResponse
 	}{
 		{
 			name:       "new TOTP device",
@@ -4734,7 +4735,7 @@ func TestAddMFADevice(t *testing.T) {
 		{
 			name:       "new Webauthn device",
 			deviceName: "new-webauthn",
-			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
+			getWebauthnResp: func() *webauthntypes.CredentialCreationResponse {
 				// Get webauthn register challenge.
 				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
@@ -4755,7 +4756,7 @@ func TestAddMFADevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var totpCode string
-			var webauthnRegResp *wanlib.CredentialCreationResponse
+			var webauthnRegResp *webauthntypes.CredentialCreationResponse
 
 			if tc.getWebauthnResp != nil {
 				webauthnRegResp = tc.getWebauthnResp()

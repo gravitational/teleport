@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // User-friendly device filter errors.
@@ -95,7 +96,7 @@ func isLibfido2Enabled() bool {
 // fido2Login implements FIDO2Login.
 func fido2Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *webauthntypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	switch {
 	case origin == "":
@@ -330,7 +331,7 @@ func pickAssertion(
 // fido2Register implements FIDO2Register.
 func fido2Register(
 	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
+	origin string, cc *webauthntypes.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
 	switch {
 	case origin == "":

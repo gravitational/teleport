@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -78,7 +79,7 @@ type addMFADeviceRequest struct {
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnRegisterResponse is a WebAuthn registration challenge response.
-	WebauthnRegisterResponse *webauthn.CredentialCreationResponse `json:"webauthnRegisterResponse"`
+	WebauthnRegisterResponse *webauthntypes.CredentialCreationResponse `json:"webauthnRegisterResponse"`
 	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
 	// It mimics the proto.DeviceUsage enum.
 	// Defaults to MFA.

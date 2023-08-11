@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // FIDO2PollInterval is the poll interval used to check for new FIDO2 devices.
@@ -41,7 +41,7 @@ var FIDO2PollInterval = 200 * time.Millisecond
 // IsFIDO2Available.
 func FIDO2Login(
 	ctx context.Context,
-	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
+	origin string, assertion *webauthntypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	return fido2Login(ctx, origin, assertion, prompt, opts)
 }
@@ -53,7 +53,7 @@ func FIDO2Login(
 // IsFIDO2Available.
 func FIDO2Register(
 	ctx context.Context,
-	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt,
+	origin string, cc *webauthntypes.CredentialCreation, prompt RegisterPrompt,
 ) (*proto.MFARegisterResponse, error) {
 	return fido2Register(ctx, origin, cc, prompt)
 }
@@ -74,23 +74,23 @@ func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, erro
 
 	// Attempt registration.
 	const origin = "localhost"
-	cc := &wanlib.CredentialCreation{
-		Response: wanlib.PublicKeyCredentialCreationOptions{
+	cc := &webauthntypes.CredentialCreation{
+		Response: webauthntypes.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: wanlib.RelyingPartyEntity{
-				CredentialEntity: wanlib.CredentialEntity{
+			RelyingParty: webauthntypes.RelyingPartyEntity{
+				CredentialEntity: webauthntypes.CredentialEntity{
 					Name: "localhost",
 				},
 				ID: "localhost",
 			},
-			User: wanlib.UserEntity{
-				CredentialEntity: wanlib.CredentialEntity{
+			User: webauthntypes.UserEntity{
+				CredentialEntity: webauthntypes.CredentialEntity{
 					Name: "test",
 				},
 				DisplayName: "test",
 				ID:          []byte("test"),
 			},
-			Parameters: []wanlib.CredentialParameter{
+			Parameters: []webauthntypes.CredentialParameter{
 				{
 					Type:      protocol.PublicKeyCredentialType,
 					Algorithm: webauthncose.AlgES256,
@@ -107,11 +107,11 @@ func FIDO2Diag(ctx context.Context, promptOut io.Writer) (*FIDO2DiagResult, erro
 	res.RegisterSuccessful = true
 
 	// Attempt login.
-	assertion := &wanlib.CredentialAssertion{
-		Response: wanlib.PublicKeyCredentialRequestOptions{
+	assertion := &webauthntypes.CredentialAssertion{
+		Response: webauthntypes.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: cc.Response.RelyingParty.ID,
-			AllowedCredentials: []wanlib.CredentialDescriptor{
+			AllowedCredentials: []webauthntypes.CredentialDescriptor{
 				{
 					Type:         protocol.PublicKeyCredentialType,
 					CredentialID: ccr.GetWebauthn().GetRawId(),

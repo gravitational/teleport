@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 )
@@ -37,7 +38,7 @@ type changePasswordReq struct {
 	// SecondFactorToken is user 2nd factor token
 	SecondFactorToken string `json:"second_factor_token"`
 	// WebauthnAssertionResponse is a Webauthn response
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnAssertionResponse *webauthntypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // changePassword updates users password based on the old password.
