@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
 // ErrUsingNonRegisteredDevice is returned from Login when the user attempts to
@@ -146,10 +146,10 @@ func Login(
 		user = opts.User
 	}
 
-	if webauthnwin.IsAvailable() {
+	if wanwin.IsAvailable() {
 		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
-		return webauthnwin.Login(ctx, origin, assertion, &webauthnwin.LoginOpts{
-			AuthenticatorAttachment: webauthnwin.AuthenticatorAttachment(attachment),
+		return wanwin.Login(ctx, origin, assertion, &wanwin.LoginOpts{
+			AuthenticatorAttachment: wanwin.AuthenticatorAttachment(attachment),
 		})
 	}
 
@@ -235,9 +235,9 @@ type RegisterPrompt interface {
 func Register(
 	ctx context.Context,
 	origin string, cc *wantypes.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
-	if webauthnwin.IsAvailable() {
+	if wanwin.IsAvailable() {
 		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
-		return webauthnwin.Register(ctx, origin, cc)
+		return wanwin.Register(ctx, origin, cc)
 	}
 
 	if isLibfido2Enabled() {
@@ -267,5 +267,5 @@ func HasPlatformSupport() bool {
 // IsFIDO2Available returns true if FIDO2 is implemented either via native
 // libfido2 library or Windows WebAuthn API.
 func IsFIDO2Available() bool {
-	return isLibfido2Enabled() || webauthnwin.IsAvailable()
+	return isLibfido2Enabled() || wanwin.IsAvailable()
 }

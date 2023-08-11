@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -358,8 +358,8 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		// of finding out whether it is a Windows prompt or not).
 		const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
 		const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
-		defer webauthnwin.ResetPromptPlatformMessage()
-		webauthnwin.PromptPlatformMessage = registeredMsg
+		defer wanwin.ResetPromptPlatformMessage()
+		wanwin.PromptPlatformMessage = registeredMsg
 
 		authResp, err := tc.PromptMFAChallenge(ctx, "" /* proxyAddr */, authChallenge, func(opts *client.PromptMFAChallengeOpts) {
 			opts.PromptDevicePrefix = "*registered* "
@@ -383,7 +383,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 			return trace.BadParameter("server bug: server sent %T when client expected AddMFADeviceResponse_NewMFARegisterChallenge", resp.Response)
 		}
 
-		webauthnwin.PromptPlatformMessage = newMsg
+		wanwin.PromptPlatformMessage = newMsg
 		regResp, regCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, regChallenge)
 		if err != nil {
 			return trace.Wrap(err)
