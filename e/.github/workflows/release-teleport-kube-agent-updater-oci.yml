@@ -81,16 +81,17 @@ jobs:
           VERSION=${TAG#v}
           echo teleport_version=$VERSION >> $GITHUB_OUTPUT
       - name: Checkout OSS Teleport
-        uses: actions/checkout@v3
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
         with:
-          repository: ${{ inputs.oss-teleport-repo }}
-          ref: ${{ inputs.oss-teleport-ref }}
-          token: ${{ github.token }}
-          path: ./teleport
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
       - name: Get buildbox image ref
         id: get-buildbox
         run: |
-          BUILDBOX="$(make -s -C ./teleport/build.assets/ show-buildbox-base-image)"
+          BUILDBOX="$(make -s -C ./build.assets/ show-buildbox-base-image)"
           echo "buildbox: $BUILDBOX"
           echo "buildbox=$BUILDBOX" >> $GITHUB_OUTPUT
 
