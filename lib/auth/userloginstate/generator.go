@@ -102,8 +102,9 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 		header.Metadata{
 			Name: user.GetName(),
 		}, userloginstate.Spec{
-			Roles:  utils.CopyStrings(user.GetRoles()),
-			Traits: traits,
+			Roles:    utils.CopyStrings(user.GetRoles()),
+			Traits:   traits,
+			UserType: user.GetUserType(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -134,6 +135,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		Username: user.GetName(),
 		Groups:   user.GetRoles(),
 		Traits:   user.GetTraits(),
+		UserType: user.GetUserType(),
 	}
 
 	for _, accessList := range accessLists {

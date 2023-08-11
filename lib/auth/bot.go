@@ -384,7 +384,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, userState services
 	if label != "" {
 		currentUserGeneration, err = strconv.ParseUint(label, 10, 64)
 		if err != nil {
-			return trace.BadParameter("user has invalid value for label %q: %v", types.BotGenerationLabel, label)
+			return trace.BadParameter("user has invalid value for label %q", types.BotGenerationLabel)
 		}
 	}
 
