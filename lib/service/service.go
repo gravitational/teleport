@@ -1168,7 +1168,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	// initInstance initializes the pseudo-service "Instance" that is active for all teleport
-	// instances. We active this last because it cares about which other services are active.
+	// instances. We activate this last because it cares about which other services are active.
 	if err := process.initInstance(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2252,7 +2252,7 @@ func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName
 	return auth.NewAppsWrapper(clt, cache), nil
 }
 
-// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
+// newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
 func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {

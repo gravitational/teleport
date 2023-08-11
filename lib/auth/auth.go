@@ -31,6 +31,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
 	insecurerand "math/rand"
@@ -117,6 +118,16 @@ const (
 
 	// mfaDeviceNameMaxLen is the maximum length of a device name.
 	mfaDeviceNameMaxLen = 30
+)
+
+const (
+	OSSDesktopsCheckPeriod  = 5 * time.Minute
+	OSSDesktopsAlertID      = "oss-desktops"
+	OSSDesktopsAlertMessage = "Your cluster is beyond its allocation of 5 non-Active Directory Windows desktops. " +
+		"Reach out for unlimited desktops with Teleport Enterprise."
+
+	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
+	OSSDesktopsLimit    = 5
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -932,6 +943,17 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer instancePeriodics.Stop()
 
+	var ossDesktopsCheck <-chan time.Time
+	if modules.GetModules().BuildType() == modules.BuildOSS {
+		ossDesktopsCheck = interval.New(interval.Config{
+			Duration:      OSSDesktopsCheckPeriod,
+			FirstDuration: utils.HalfJitter(time.Second * 10),
+			Jitter:        retryutils.NewHalfJitter(),
+		}).Next()
+	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
+		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
+	}
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -992,6 +1014,8 @@ func (a *Server) runPeriodicOperations() {
 			// instance periodics are rate-limited and may be time-consuming in large
 			// clusters, so launch them in the background.
 			go a.doInstancePeriodics(ctx)
+		case <-ossDesktopsCheck:
+			a.syncDesktopsLimitAlert(ctx)
 		}
 	}
 }
@@ -4313,6 +4337,16 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 	return lease, nil
 }
 
+func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
+	if err := a.Services.DeleteWindowsDesktop(ctx, hostID, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := a.desktopsLimitExceeded(ctx); err != nil {
+		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+	}
+	return nil
+}
+
 // CreateWindowsDesktop implements [services.WindowsDesktops] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
@@ -4359,6 +4393,70 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	})
 
 	return nil
+}
+
+func (a *Server) streamWindowsDesktops(ctx context.Context, startKey string) stream.Stream[types.WindowsDesktop] {
+	var done bool
+	return stream.PageFunc(func() ([]types.WindowsDesktop, error) {
+		if done {
+			return nil, io.EOF
+		}
+		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			Limit:    50,
+			StartKey: startKey,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		startKey = resp.NextKey
+		done = startKey == ""
+		return resp.Desktops, nil
+	})
+}
+
+func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
+	exceeded, err := a.desktopsLimitExceeded(ctx)
+	if err != nil {
+		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+	}
+	if !exceeded {
+		return
+	}
+	alert, err := types.NewClusterAlert(OSSDesktopsAlertID, OSSDesktopsAlertMessage,
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertPermitAll, "yes"),
+		types.WithAlertLabel(types.AlertLink, OSSDesktopAlertLink),
+		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
+	if err != nil {
+		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)
+	}
+	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+		log.Warnf("Can't upsert OSS non-AD desktops limit alert: %v", err)
+	}
+}
+
+// desktopsLimitExceeded checks if number of non-AD desktops exceeds limit for OSS distribution. Returns always false for Enterprise.
+func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
+	if modules.GetModules().BuildType() != modules.BuildOSS {
+		return false, nil
+	}
+
+	desktops := stream.FilterMap(
+		a.streamWindowsDesktops(ctx, ""),
+		func(d types.WindowsDesktop) (struct{}, bool) {
+			return struct{}{}, d.NonAD()
+		},
+	)
+	count := 0
+	for desktops.Next() {
+		count++
+		if count > OSSDesktopsLimit {
+			desktops.Done()
+			return true, nil
+		}
+	}
+	return false, trace.Wrap(desktops.Done())
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
