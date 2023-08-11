@@ -1261,16 +1261,26 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, err)
 
 	// add db
-	db, err := types.NewDatabaseServerV3(
-		types.Metadata{Name: "aaaa1"},
-		types.DatabaseServerSpecV3{
-			Protocol: "postgres",
-			Hostname: "localhost",
-			HostID:   "db1-host-id",
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dbdb",
+		Labels: map[string]string{
+			"env": "prod",
 		},
-	)
+	}, types.DatabaseSpecV3{
+		Protocol: "test-protocol",
+		URI:      "test-uri",
+	})
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "dddb1",
+	}, types.DatabaseServerSpecV3{
+		Hostname: "dddb1",
+		HostID:   uuid.NewString(),
+		Database: db,
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
 
 	// add windows desktop
