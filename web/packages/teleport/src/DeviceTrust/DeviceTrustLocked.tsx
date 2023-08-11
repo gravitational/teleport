@@ -141,7 +141,7 @@ const FakeDeviceList = ({
   );
 };
 
-export const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
+const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
   let icon;
   switch (osType) {
     case 'Windows':
