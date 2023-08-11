@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
@@ -666,6 +667,7 @@ func createLocalProxyListener(addr string, route tlsca.RouteToDatabase, profile 
 		l, err := tls.Listen("tcp", addr, &tls.Config{
 			Certificates: []tls.Certificate{localCert},
 			ServerName:   "localhost",
+			MinVersion:   apidefaults.MinTLSVersion,
 		})
 		return l, trace.Wrap(err)
 	}

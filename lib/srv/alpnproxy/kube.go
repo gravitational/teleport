@@ -38,6 +38,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -259,6 +260,7 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 			Certificates: []tls.Certificate{ca},
 			ClientAuth:   tls.RequireAndVerifyClientCert,
 			ClientCAs:    clientCAs,
+			MinVersion:   apidefaults.MinTLSVersion,
 		}
 	}
 	listener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
@@ -269,6 +271,7 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 			}
 			return config, nil
 		},
+		MinVersion: apidefaults.MinTLSVersion,
 	})
 	return listener, trace.Wrap(err)
 }

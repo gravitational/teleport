@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
 // TLSConfig returns default TLS configuration strong defaults.
@@ -41,7 +43,7 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 		config.CipherSuites = cipherSuites
 	}
 
-	config.MinVersion = tls.VersionTLS12
+	config.MinVersion = apidefaults.MinTLSVersion
 	config.SessionTicketsDisabled = false
 	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
 }

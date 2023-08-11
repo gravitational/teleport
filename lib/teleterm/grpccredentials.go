@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
@@ -45,6 +46,7 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPath strin
 	config := &tls.Config{
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		Certificates: []tls.Certificate{serverKeyPair},
+		MinVersion:   apidefaults.MinTLSVersion,
 	}
 
 	config.GetConfigForClient = func(_ *tls.ClientHelloInfo) (*tls.Config, error) {

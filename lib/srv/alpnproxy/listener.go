@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -186,6 +187,7 @@ func NewCertGenListener(config CertGenListenerConfig) (*CertGenListener, error) 
 
 	r.Listener, err = tls.Listen("tcp", r.cfg.ListenAddr, &tls.Config{
 		GetCertificate: r.GetCertificate,
+		MinVersion:     apidefaults.MinTLSVersion,
 	})
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)

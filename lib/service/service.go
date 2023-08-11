@@ -2833,7 +2833,9 @@ func (process *TeleportProcess) initMetricsService() error {
 	}
 	warnOnErr(process.closeImportedDescriptors(teleport.ComponentMetrics), log)
 
-	tlsConfig := &tls.Config{}
+	tlsConfig := &tls.Config{
+		MinVersion: apidefaults.MinTLSVersion,
+	}
 	if process.Config.Metrics.MTLS {
 		for _, pair := range process.Config.Metrics.KeyPairs {
 			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)

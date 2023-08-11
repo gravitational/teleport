@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -86,7 +87,9 @@ func (t TracingConfig) Config(attrs ...attribute.KeyValue) (*tracing.Config, err
 		SamplingRate: t.SamplingRate,
 	}
 
-	tlsConfig := &tls.Config{}
+	tlsConfig := &tls.Config{
+		MinVersion: apidefaults.MinTLSVersion,
+	}
 	// if a custom CA is specified, use a custom cert pool
 	if len(t.CACerts) > 0 {
 		pool := x509.NewCertPool()

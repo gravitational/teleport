@@ -18,6 +18,7 @@ limitations under the License.
 package defaults
 
 import (
+	"crypto/tls"
 	"sync"
 	"time"
 
@@ -33,6 +34,9 @@ const (
 
 	// DefaultIdleTimeout is a default idle connection timeout.
 	DefaultIdleTimeout = 30 * time.Second
+
+	// MinTLSVersion is the minimum TLS version the server will accept.
+	MinTLSVersion = tls.VersionTLS12
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is
