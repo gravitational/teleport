@@ -346,6 +346,12 @@ type TeleportProcess struct {
 	// and may not exist for some time if cert migrations are necessary.
 	instanceClient *auth.Client
 
+	// instanceClientReady is closed when the isntance client becomes available.
+	instanceClientReady chan struct{}
+
+	// instanceClientReadyOnce protects instanceClientReady from double-close.
+	instanceClientReadyOnce sync.Once
+
 	// instanceRoles is the collection of enabled service roles (excludes things like "admin"
 	// and "instance" which aren't true user-facing services). The values in this mapping are
 	// the names of the associated identity events for these roles.
@@ -919,6 +925,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
+		instanceClientReady: make(chan struct{}),
 		instanceRoles:       make(map[types.SystemRole]string),
 		Identities:          make(map[types.SystemRole]*auth.Identity),
 		connectors:          make(map[types.SystemRole]*Connector),
@@ -1078,6 +1085,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth), process.log)
 	}
 
+	// initInstance initializes the pseudo-service "Instance" that is active for all teleport
+	// instances. All other services inherit their auth client from the "Instance" service, so
+	// we initialize it immediately after auth in order to ensure timely client availability.
+	if err := process.initInstance(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if cfg.SSH.Enabled {
 		if err := process.initSSH(); err != nil {
 			return nil, err
@@ -1167,12 +1181,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.BadParameter("all services failed to start")
 	}
 
-	// initInstance initializes the pseudo-service "Instance" that is active for all teleport
-	// instances. We activate this last because it cares about which other services are active.
-	if err := process.initInstance(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
 		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
@@ -1244,14 +1252,30 @@ func (process *TeleportProcess) getLocalAuth() *auth.Server {
 
 func (process *TeleportProcess) setInstanceClient(clt *auth.Client) {
 	process.Lock()
-	defer process.Unlock()
 	process.instanceClient = clt
+	process.Unlock()
+	process.instanceClientReadyOnce.Do(func() {
+		close(process.instanceClientReady)
+	})
 }
 
 func (process *TeleportProcess) getInstanceClient() *auth.Client {
 	process.Lock()
 	defer process.Unlock()
 	return process.instanceClient
+}
+
+// waitForInstanceClient waits for the instance client to become available. Instance client is only available if at least
+// one non-auth service is registered.  Auth-only instances cannot use the instance client because auth servers need to
+// be able to fully initialize without a valid CA in order to support HSMs.
+func (process *TeleportProcess) waitForInstanceClient() (clt *auth.Client, ok bool) {
+	select {
+	case <-process.instanceClientReady:
+		clt = process.getInstanceClient()
+		return clt, clt != nil
+	case <-process.ExitContext().Done():
+		return nil, false
+	}
 }
 
 // makeInventoryControlStreamWhenReady is the same as makeInventoryControlStream except that it blocks until
@@ -2332,8 +2356,16 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 
 // initInstance initializes the pseudo-service "Instance" that is active on all teleport instances.
 func (process *TeleportProcess) initInstance() error {
-	if process.Config.Auth.Enabled {
-		// if we have a local auth server, we cannot create an instance client without breaking HSM rotation.
+	var hasNonAuthRole bool
+	for _, role := range process.getInstanceRoles() {
+		if role != types.RoleAuth {
+			hasNonAuthRole = true
+			break
+		}
+	}
+
+	if process.Config.Auth.Enabled && !hasNonAuthRole {
+		// if we have a local auth server and no other services, we cannot create an instance client without breaking HSM rotation.
 		// instance control stream will be created via in-memory pipe, but until this limitation is resolved
 		// or a fully in-memory instance client is implemented, we cannot rely on the instance client existing
 		// for purposes other than the control stream.
@@ -2656,10 +2688,12 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 			// the registerExpectedServices function.
 			process.log.Errorf("Register called for unexpected instance role %q (this is a bug).", role)
 		}
+
 		connector, err := process.reconnectToAuthService(role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		process.BroadcastEvent(Event{Name: eventName, Payload: connector})
 		return nil
 	})
