@@ -16,8 +16,6 @@ the on-call team for a service affected by an alert.
 This guide will explain how to set up Teleport's Access Request plugin for
 Opsgenie.
 
-(!docs/pages/includes/plugins/diagram.mdx api="Opsgenie" action="Listen for Access Requests\nModify Access Requests" messages="Send notifications\nGet alert status" !)
-
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -66,6 +64,22 @@ To create a user first navigate to Management -> Access -> Users
 Then select 'Create New User' and create a user with the requester role.
 
 ![Add user two](../../../img/enterprise/plugins/opsgenie/add-user-two.png)
+
+```
+kind: role
+version: v5
+metadata:
+  name: requester
+spec:
+  allow:
+    request:
+      roles: ['editor']
+      thresholds:
+        - approve: 1
+          deny: 1
+      annotations:
+        opsgenie_notify_services: ['teleport-access-request-notifications']
+```
 
 ## Step 3/5. Set up an Opsgenie API key
 
