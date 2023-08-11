@@ -50,6 +50,9 @@ Next, use the appropriate commands for your environment to install your package.
   # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
   # and the codename your distro was forked from instead of '$ID'
   # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
+  # First, get the major version from $VERSION_ID so this fetches the correct
+  # package version.
+  $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   $ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
   $ sudo yum install teleport
   #
