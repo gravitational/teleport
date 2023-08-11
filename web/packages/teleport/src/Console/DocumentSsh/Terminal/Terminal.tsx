@@ -14,18 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
-import { Flex } from "design";
-import { ITheme } from "xterm";
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from 'react';
+import { Flex } from 'design';
+import { ITheme } from 'xterm';
 
-import { getPlatform } from "design/theme/utils";
+import { getPlatform } from 'design/theme/utils';
 
-import Tty from "teleport/lib/term/tty";
-import XTermCtrl from "teleport/lib/term/terminal";
-import { getMappedAction } from "teleport/Console/useKeyboardNav";
+import Tty from 'teleport/lib/term/tty';
+import XTermCtrl from 'teleport/lib/term/terminal';
+import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 
-import StyledXterm from "../../StyledXterm";
-import Chat from "teleport/Console/DocumentSsh/chat";
+import StyledXterm from '../../StyledXterm';
 
 export interface TerminalRef {
   focus(): void;
@@ -80,17 +84,14 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   }, [props.theme]);
 
   return (
-    <>
-      <Flex
-        flexDirection="column"
-        height="100%"
-        width="100%"
-        px="2"
-        style={{ overflow: 'auto' }}
-      >
-        <StyledXterm ref={elementRef} />
-      </Flex>
-      <Chat pasteFn={(cmd: string) => {termCtrlRef.current.term.paste(cmd)}} getSuggestionsFn={() => termCtrlRef.current.term.getSelection()}/>
-    </>
+    <Flex
+      flexDirection="column"
+      height="100%"
+      width="100%"
+      px="2"
+      style={{ overflow: 'auto' }}
+    >
+      <StyledXterm ref={elementRef} />
+    </Flex>
   );
 });
