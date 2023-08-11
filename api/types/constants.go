@@ -662,6 +662,15 @@ const (
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
 
+	// DiscoveredResourceNode identifies a discovered SSH node.
+	DiscoveredResourceNode = "node"
+	// DiscoveredResourceDatabase identifies a discovered database.
+	DiscoveredResourceDatabase = "db"
+	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
+	DiscoveredResourceKubernetes = "k8s"
+	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
+	DiscoveredResourceAgentlessNode = "node.openssh"
+
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
 
@@ -859,6 +868,12 @@ const (
 	// that's used by reverse tunnel agents to know which proxies in each proxy
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
+)
+
+const (
+	// InstallMethodAWSOIDCDeployServiceEnvVar is the env var used to detect if the agent was installed
+	// using the DeployService action of the AWS OIDC integration.
+	InstallMethodAWSOIDCDeployServiceEnvVar = "TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
