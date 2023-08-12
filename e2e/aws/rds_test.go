@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,8 +52,8 @@ func TestDatabases(t *testing.T) {
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		t.Skip("Skipping Databases test suite.")
 	}
-	t.Run("AWS DB Discovery - Unmatched database", awsDBDiscoveryUnmatched)
-	t.Run("AWS DB Discovery - Matched database", awsDBDiscoveryMatched)
+	t.Run("unmatched discovery", awsDBDiscoveryUnmatched)
+	t.Run("matched discovery", awsDBDiscoveryMatched)
 }
 
 func awsDBDiscoveryUnmatched(t *testing.T) {
@@ -104,6 +105,7 @@ func awsDBDiscoveryMatched(t *testing.T) {
 	dbSvcRoleARN := mustGetEnv(t, dbSvcRoleARNEnv)
 	dbUser := mustGetEnv(t, dbUserEnv)
 	rdsPostgresInstanceName := mustGetEnv(t, rdsPostgresInstanceNameEnv)
+	rdsMySQLInstanceName := mustGetEnv(t, rdsMySQLInstanceNameEnv)
 
 	cluster := createTeleportCluster(t,
 		withSingleProxyPort(t),
@@ -126,6 +128,7 @@ func awsDBDiscoveryMatched(t *testing.T) {
 
 	wantDBNames := []string{
 		rdsPostgresInstanceName,
+		rdsMySQLInstanceName,
 	}
 	// wait for the databases to be discovered
 	waitForDatabases(t, cluster.Process, wantDBNames...)
@@ -137,6 +140,12 @@ func awsDBDiscoveryMatched(t *testing.T) {
 		Protocol:    defaults.ProtocolPostgres,
 		Username:    dbUser,
 		Database:    "postgres",
+	}
+	rdsMySQLInstance := tlsca.RouteToDatabase{
+		ServiceName: rdsMySQLInstanceName,
+		Protocol:    defaults.ProtocolMySQL,
+		Username:    dbUser,
+		Database:    "", // not needed
 	}
 	t.Run("connection", func(t *testing.T) {
 		tests := []struct {
@@ -153,6 +162,11 @@ func awsDBDiscoveryMatched(t *testing.T) {
 				name:             "RDS postgres instance via local proxy",
 				route:            rdsPostgresInstance,
 				testDBConnection: postgresLocalProxyConnTestFn(cluster),
+			},
+			{
+				name:             "RDS MySQL instance via local proxy",
+				route:            rdsMySQLInstance,
+				testDBConnection: mySQLLocalProxyConnTestFn(cluster),
 			},
 		}
 		for _, test := range tests {
@@ -232,6 +246,32 @@ func postgresLocalProxyConnTestFn(cluster *helpers.TeleInstance) dbConnectionTes
 		// Disconnect.
 		err = pgConn.Close(ctx)
 		require.NoError(t, err)
+	}
+}
+
+// mySQLLocalProxyConnTestFn tests connection to a MySQL database via
+// local proxy tunnel.
+func mySQLLocalProxyConnTestFn(cluster *helpers.TeleInstance) dbConnectionTestFunc {
+	return func(t *testing.T, ctx context.Context, route tlsca.RouteToDatabase) {
+		lp := startLocalALPNProxy(t, ctx, cluster, route)
+		defer lp.Close()
+
+		var conn *mysqlclient.Conn
+		// retry for a while, the database service might need time to give
+		// itself IAM rds:connect permissions.
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			var err error
+			conn, err = mysqlclient.Connect(lp.GetAddr(), route.Username, "" /*no password*/, route.Database)
+			assert.NoError(c, err)
+			assert.NotNil(c, conn)
+		}, time.Second*10, time.Second, "connecting to mysql")
+
+		// Execute a query.
+		_, err := conn.Execute("select 1")
+		require.NoError(t, err)
+
+		// Disconnect.
+		require.NoError(t, conn.Close())
 	}
 }
 

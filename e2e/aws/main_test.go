@@ -45,6 +45,10 @@ const (
 	// name of the RDS Postgres DB instance that will be created by the Teleport
 	// Discovery Service.
 	rdsPostgresInstanceNameEnv = "RDS_POSTGRES_INSTANCE_NAME"
+	// rdsMySQLInstanceNameEnv is the environment variable that specifies the
+	// name of the RDS MySQL DB instance that will be created by the Teleport
+	// Discovery Service.
+	rdsMySQLInstanceNameEnv = "RDS_MYSQL_INSTANCE_NAME"
 	// kubeSvcRoleARNEnv is the environment variable that specifies
 	// the IAM role that Teleport Kubernetes Service will assume to access the EKS cluster.
 	// This role needs to have the following permissions:
