@@ -25,7 +25,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.1.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
 	github.com/ClickHouse/ch-go v0.58.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.12.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.13.0
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/ThalesIgnite/crypto11 v1.2.5
@@ -352,7 +352,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/pascaldekloe/name v1.0.1 // indirect
 	github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627 // indirect
-	github.com/paulmach/orb v0.9.0 // indirect
+	github.com/paulmach/orb v0.10.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
