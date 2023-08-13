@@ -46,7 +46,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.110.1
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.3
 	github.com/aws/aws-sdk-go-v2/service/glue v1.60.1
-	github.com/aws/aws-sdk-go-v2/service/iam v1.22.1
+	github.com/aws/aws-sdk-go-v2/service/iam v1.22.2
 	github.com/aws/aws-sdk-go-v2/service/rds v1.50.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.2
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.14

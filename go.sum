@@ -280,8 +280,8 @@ github.com/aws/aws-sdk-go-v2/service/ecs v1.29.3 h1:0ZSVrt1+pgYyOzud9n/itBUfUh66
 github.com/aws/aws-sdk-go-v2/service/ecs v1.29.3/go.mod h1:eukPNZGjyJH0hhog9z/cgwWlc8v8T2hoFWFjewBgwbk=
 github.com/aws/aws-sdk-go-v2/service/glue v1.60.1 h1:a1QUroUEdQ9truaxIZn83bMUxeJFs1ii97t+PRKovW8=
 github.com/aws/aws-sdk-go-v2/service/glue v1.60.1/go.mod h1:rFJKWCyHpk3GaHZkZqsvxVSqB2aY5X9KDY4Xoz3ZiWo=
-github.com/aws/aws-sdk-go-v2/service/iam v1.22.1 h1:wIuOFPPOOX3YAuons6RbboSgzzbWTSew4ndU1oyz3+E=
-github.com/aws/aws-sdk-go-v2/service/iam v1.22.1/go.mod h1:Z/fo7V12RMikcbwRqtZAHp3RaLbVcnSdnI9zyxOjwCM=
+github.com/aws/aws-sdk-go-v2/service/iam v1.22.2 h1:DPFxx/6Zwes/MiadlDteVqDKov7yQ5v9vuwfhZuJm1s=
+github.com/aws/aws-sdk-go-v2/service/iam v1.22.2/go.mod h1:cQTMNdo/Z5t1DDRsUnx0a2j6cPnytMBidUYZw2zks28=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.13 h1:iV/W5OMBys+66OeXJi/7xIRrKZNsu0ylsLGu+6nbmQE=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.13/go.mod h1:ReJb6xYmtGyu9KoFtRreWegbN9dZqvZIIv4vWnhcsyI=
 github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.33 h1:QviNkc+vGSuEHx8P+pVNKOdWLXBPIwMFv7p0fphgE4U=
