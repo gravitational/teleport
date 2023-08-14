@@ -444,7 +444,12 @@ guide for a more in depth explanation of the language.
 
 ## Template variables and functions
 
-Teleport provides several template variables and functions to enable more robust access control:
+Teleport enables operators to define roles with template variables and functions
+to provide more precise controls over which users can access resources in your
+infrastructure.
+
+See the [Teleport Role Templates](./guides/role-templates) guide for an overview
+of how template variables and functions work within Teleport roles.
 
 ### Internal Variables and Functions
 
@@ -506,15 +511,6 @@ This function is often paired with an external variable, for example:
 - **Description**: List of GCP service accounts defined in Teleport available
   to the user.
 - **Example**: `internal.gcp_service_accounts}}` -> `"user@google-cloud-project.iam.gserviceaccount.com"`
-
-#### `{{internal.jwt}}`
-
-- **Type**: Variable
-- **Description**: A JWT token signed by Teleport that contains user identity information.
-- **Example**: `"Authorization: Bearer {{internal.jwt}}"` -> `"Authorization": "Bearer eyJhbGci...`
-
-**Note**: This variable is used when defining application access, and is not
-available when defining roles.
 
 #### `{{internal.kube_username}}`
 
