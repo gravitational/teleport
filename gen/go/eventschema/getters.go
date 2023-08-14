@@ -17,6 +17,7 @@ package eventschema
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -69,26 +70,31 @@ func TableList() (string, error) {
 func (event *Event) TableSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("column_name, column_type, description\n")
-	for propName, prop := range event.Fields {
+	err := iterateOverFields(event.Fields, func(propName string, prop *EventField) error {
 		line, err := prop.TableSchema(propName)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		sb.WriteString(line)
-	}
-	return sb.String(), nil
+		return nil
+	})
+	return sb.String(), trace.Wrap(err)
 }
 
 func (field *EventField) TableSchema(name string) (string, error) {
 	sb := strings.Builder{}
 	switch field.Type {
 	case "object":
-		for propName, prop := range field.Fields {
+		err := iterateOverFields(field.Fields, func(propName string, prop *EventField) error {
 			line, err := prop.TableSchema(fmt.Sprintf("%s_%s", name, propName))
 			if err != nil {
-				return "", trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 			sb.WriteString(line)
+			return nil
+		})
+		if err != nil {
+			return "", trace.Wrap(err)
 		}
 	case "string", "integer", "boolean", "date-time":
 		sb.WriteString(tableSchemaLine(name, dmlType[field.Type], field.Description))
@@ -104,26 +110,31 @@ func (event *Event) ViewSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("SELECT\n")
 	sb.WriteString("  event_date, event_time,\n")
-	for propName, prop := range event.Fields {
+	err := iterateOverFields(event.Fields, func(propName string, prop *EventField) error {
 		line, err := prop.ViewSchema([]string{propName})
 		if err != nil {
-			return "", trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		sb.WriteString(line)
-	}
-	return sb.String(), nil
+		return nil
+	})
+	return sb.String(), trace.Wrap(err)
 }
 
 func (field *EventField) ViewSchema(path []string) (string, error) {
 	sb := strings.Builder{}
 	switch field.Type {
 	case "object":
-		for propName, prop := range field.Fields {
+		err := iterateOverFields(field.Fields, func(propName string, prop *EventField) error {
 			line, err := prop.ViewSchema(append(path, propName))
 			if err != nil {
-				return "", trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 			sb.WriteString(line)
+			return nil
+		})
+		if err != nil {
+			return "", trace.Wrap(err)
 		}
 	case "string", "integer", "boolean", "date-time":
 		sb.WriteString(viewSchemaLine(jsonFieldName(path), path[len(path)-1], dmlType[field.Type]))
@@ -153,4 +164,24 @@ func jsonFieldName(path []string) string {
 
 func viewSchemaLine(jsonField, viewField, fieldType string) string {
 	return fmt.Sprintf("  CAST(json_extract(event_data, '%s') AS %s) as %s,\n", jsonField, fieldType, viewField)
+}
+
+// iterateOverFields iterates over Event or EventField fields while ensuring
+// the field order is consistent.
+func iterateOverFields(fields map[string]*EventField, fn func(name string, prop *EventField) error) error {
+	fieldNames := make([]string, len(fields))
+	for name, _ := range fields {
+		fieldNames = append(fieldNames, name)
+	}
+
+	sort.Strings(fieldNames)
+	var err error
+
+	for _, name := range fieldNames {
+		err = fn(name, fields[name])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }

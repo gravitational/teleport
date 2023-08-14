@@ -590,5 +590,3 @@ generate-eventschema:
 		--plugin=./tooling/bin/protoc-gen-eventschema \
 		--eventschema_out="../gen/go/eventschema" \
 		"teleport/legacy/types/events/events.proto";
-
-	cd tooling && go run ./cmd/eventtype-mapping ../../lib/events/api.go > "../../gen/go/eventschema/zz_generated.eventtype.go"

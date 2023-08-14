@@ -68,7 +68,7 @@ Items: &EventField{
 {{- end }}
 {{- end -}}
 
-// Copyright 2023 Gravitational, Inc
+// Copyright {{ now | date "2006" }} Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,6 +84,7 @@ Items: &EventField{
 
 package eventschema
 // Generated code, DO NOT EDIT
+// To re-generate the file, go into build.assets/ and run "make generate-eventschema".
 
 type Event struct {
   Description string
