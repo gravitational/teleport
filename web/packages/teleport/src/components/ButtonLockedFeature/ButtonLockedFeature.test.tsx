@@ -53,7 +53,7 @@ describe('buttonLockedFeature', () => {
     );
     expect(screen.getByText('text').closest('a')).toHaveAttribute(
       'href',
-      `https://goteleport.com/r/upgrade-team?${version}&utm_campaign=undefined`
+      `https://goteleport.com/r/upgrade-team?${version}&utm_campaign=CTA_UNSPECIFIED`
     );
 
     renderWithContext(
