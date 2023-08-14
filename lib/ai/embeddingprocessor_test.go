@@ -180,16 +180,6 @@ func makeNode(num int) types.Server {
 	return node
 }
 
-func waitForDone(t *testing.T, done chan struct{}, errMsg string) {
-	t.Helper()
-
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal(errMsg)
-	}
-}
-
 func validateEmbeddings(t *testing.T, nodesStream stream.Stream[types.Server], embeddingsStream stream.Stream[*embedding.Embedding]) {
 	t.Helper()
 
