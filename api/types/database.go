@@ -46,8 +46,6 @@ type Database interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the database.
 	String() string
 	// GetDescription returns the database description.
@@ -132,6 +130,11 @@ type Database interface {
 	// SupportsAutoUsers returns true if this database supports automatic
 	// user provisioning.
 	SupportsAutoUsers() bool
+	// GetEndpointType returns the endpoint type of the database, if available.
+	GetEndpointType() string
+	// GetCloud gets the cloud this database is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -253,11 +256,6 @@ func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
 	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
-}
-
-// LabelsString returns all database labels as a string.
-func (d *DatabaseV3) LabelsString() string {
-	return LabelsAsString(d.Metadata.Labels, d.Spec.DynamicLabels)
 }
 
 // GetDescription returns the database description.
@@ -477,6 +475,21 @@ func (d *DatabaseV3) IsAWSHosted() bool {
 // Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
+}
+
+// GetCloud gets the cloud this database is running on, or an empty string if it
+// isn't running on a cloud provider.
+func (d *DatabaseV3) GetCloud() string {
+	switch {
+	case d.IsAWSHosted():
+		return CloudAWS
+	case d.IsCloudSQL():
+		return CloudGCP
+	case d.IsAzure():
+		return CloudAzure
+	default:
+		return ""
+	}
 }
 
 // getAWSType returns the database type.
@@ -952,6 +965,22 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 // IAM roles as database users.
 func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
 	return d.GetType() == DatabaseTypeMongoAtlas
+}
+
+// GetEndpointType returns the endpoint type of the database, if available.
+func (d *DatabaseV3) GetEndpointType() string {
+	if endpointType, ok := d.GetStaticLabels()[DiscoveryLabelEndpointType]; ok {
+		return endpointType
+	}
+	switch d.GetType() {
+	case DatabaseTypeElastiCache:
+		return d.GetAWS().ElastiCache.EndpointType
+	case DatabaseTypeMemoryDB:
+		return d.GetAWS().MemoryDB.EndpointType
+	case DatabaseTypeOpenSearch:
+		return d.GetAWS().OpenSearch.EndpointType
+	}
+	return ""
 }
 
 const (

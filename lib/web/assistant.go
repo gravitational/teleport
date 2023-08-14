@@ -471,7 +471,17 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return trace.Wrap(err)
 	}
 
-	chat, err := assistClient.NewChat(ctx, authClient, authClient.EmbeddingClient(), conversationID, sctx.GetUser())
+	ac, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	toolsConfig := model.ToolsConfig{
+		EmbeddingsClient: authClient.EmbeddingClient(),
+		AccessChecker:    ac,
+		NodeClient:       h.nodeWatcher,
+	}
+	chat, err := assistClient.NewChat(ctx, authClient, conversationID, sctx.GetUser(), toolsConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}

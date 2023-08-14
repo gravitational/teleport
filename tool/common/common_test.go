@@ -90,3 +90,57 @@ func TestShowClusterAlerts(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatLabels(t *testing.T) {
+	basicLabels := map[string]string{
+		"c": "d",
+		"a": "b",
+	}
+	namespacedLabels := map[string]string{
+		types.TeleportNamespace + "/foo":          "abc",
+		types.TeleportInternalLabelPrefix + "bar": "def",
+		types.TeleportHiddenLabelPrefix + "baz":   "ghi",
+	}
+	allLabels := make(map[string]string)
+	for k, v := range basicLabels {
+		allLabels[k] = v
+	}
+	for k, v := range namespacedLabels {
+		allLabels[k] = v
+	}
+	tests := []struct {
+		desc    string
+		labels  map[string]string
+		verbose bool
+		want    string
+	}{
+		{
+			desc:   "handles nil labels",
+			labels: nil,
+			want:   "",
+		}, {
+			desc:   "sorts labels",
+			labels: basicLabels,
+			want:   "a=b,c=d",
+		}, {
+			desc:   "excludes teleport namespace labels in non-verbose mode",
+			labels: allLabels,
+			want:   "a=b,c=d",
+		}, {
+			desc:   "returns empty string if all labels are excluded out",
+			labels: namespacedLabels,
+			want:   "",
+		}, {
+			desc:    "includes all labels in verbose mode",
+			labels:  allLabels,
+			verbose: true,
+			want:    "a=b,c=d,teleport.dev/foo=abc,teleport.hidden/baz=ghi,teleport.internal/bar=def",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got := FormatLabels(test.labels, test.verbose)
+			require.Equal(t, test.want, got)
+		})
+	}
+}

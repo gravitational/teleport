@@ -92,7 +92,6 @@ func TestNewKubeClusterFromAWSEKS(t *testing.T) {
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID: "123456789012",
 					types.DiscoveryLabelRegion:    "eu-west-1",
-					types.OriginLabel:             types.OriginCloud,
 					types.CloudLabel:              types.CloudAWS,
 					overrideLabel:                 "override-1",
 					"env":                         "prod",
@@ -135,7 +134,6 @@ func TestNewKubeClusterFromAzureAKS(t *testing.T) {
 			types.DiscoveryLabelRegion:              "uswest1",
 			types.DiscoveryLabelAzureResourceGroup:  "group1",
 			types.DiscoveryLabelAzureSubscriptionID: "subID",
-			types.OriginLabel:                       types.OriginCloud,
 			types.CloudLabel:                        types.CloudAzure,
 			overrideLabel:                           "override-1",
 			"env":                                   "prod",
@@ -179,7 +177,6 @@ func TestNewKubeClusterFromGCPGKE(t *testing.T) {
 		Labels: map[string]string{
 			types.DiscoveryLabelGCPLocation:  "central-1",
 			types.DiscoveryLabelGCPProjectID: "p1",
-			types.OriginLabel:                types.OriginCloud,
 			types.CloudLabel:                 types.CloudGCP,
 			overrideLabel:                    "override-1",
 			"env":                            "prod",
