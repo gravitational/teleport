@@ -93,17 +93,15 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		Jitter:              retryutils.NewSeventhJitter(),
 	})
 
-	done := make(chan struct{})
 	go func() {
 		err := processor.Run(ctx, 100*time.Millisecond, time.Second)
 		assert.ErrorIs(t, context.Canceled, err)
-		close(done)
 	}()
 
 	// Add some node servers.
-	const numNodes = 5
-	nodes := make([]types.Server, 0, numNodes)
-	for i := 0; i < numNodes; i++ {
+	const numInitialNodes = 5
+	nodes := make([]types.Server, 0, numInitialNodes)
+	for i := 0; i < numInitialNodes; i++ {
 		node := makeNode(i + 1)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -113,12 +111,8 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	require.Eventually(t, func() bool {
 		items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
 		assert.NoError(t, err)
-		return (len(items) == numNodes) && (len(nodes) == numNodes)
+		return len(items) == numInitialNodes
 	}, 7*time.Second, 200*time.Millisecond)
-
-	cancel()
-
-	waitForDone(t, done, "timed out waiting for processor to stop")
 
 	validateEmbeddings(t,
 		presence.GetNodeStream(ctx, defaults.Namespace),
@@ -128,15 +122,22 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		require.Equal(t, 1, v, "expected %v to be computed once, was %d", k, v)
 	}
 
-	// Run once more and verify that only changed nodes get their embeddings recalculated
+	// Run once more and verify that only changed or newly inserted nodes get their embeddings calculated
 	node1 := nodes[0]
 	node1.GetMetadata().Labels["foo"] = "bar"
 	_, err = presence.UpsertNode(ctx, node1)
 	require.NoError(t, err)
+	node6 := makeNode(6)
+	_, err = presence.UpsertNode(ctx, node6)
+	require.NoError(t, err)
 
-	ctx, cancel = context.WithCancel(context.Background())
-	defer cancel()
-	processor.Process(ctx)
+	// Since nodes are streamed in ascending order by names, when embeddings for node6 are calculated,
+	// we can be sure that our recent changes have been fully processed
+	require.Eventually(t, func() bool {
+		items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
+		assert.NoError(t, err)
+		return len(items) == numInitialNodes+1
+	}, 7*time.Second, 200*time.Millisecond)
 
 	for k, v := range embedder.timesCalled {
 		expected := 1
@@ -145,6 +146,10 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 		}
 		require.Equal(t, expected, v, "expected embedding for %q to be computed %d times, got computed %d times", k, expected, v)
 	}
+
+	validateEmbeddings(t,
+		presence.GetNodeStream(ctx, defaults.Namespace),
+		embeddings.GetEmbeddings(ctx, types.KindNode))
 }
 
 func TestMarshallUnmarshallEmbedding(t *testing.T) {

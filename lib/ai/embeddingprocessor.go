@@ -201,16 +201,15 @@ func (e *EmbeddingProcessor) Run(ctx context.Context, initialDelay, period time.
 		case <-initTimer.C:
 			// Stop the timer after the initial delay.
 			initTimer.Stop()
-			e.Process(ctx)
+			e.process(ctx)
 		case <-time.After(e.jitter(period)):
-			e.Process(ctx)
+			e.process(ctx)
 		}
 	}
 }
 
-// Process updates embeddings for all nodes once. It is only exposed for use in tests,
-// the service should use Run() to do this periodically instead.
-func (e *EmbeddingProcessor) Process(ctx context.Context) {
+// Process updates embeddings for all nodes once.
+func (e *EmbeddingProcessor) process(ctx context.Context) {
 	batch := NewBatchReducer(e.mapProcessFn,
 		maxEmbeddingAPISize, // Max batch size allowed by OpenAI API,
 	)
