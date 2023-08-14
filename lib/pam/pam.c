@@ -111,6 +111,7 @@ int converse(int n, const struct pam_message **msg, struct pam_response **resp, 
         }
     }
     memset(aresp, 0, n * sizeof *aresp);
+    free(aresp);
     *resp = NULL;
     return PAM_CONV_ERR;
 }
