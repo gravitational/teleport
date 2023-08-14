@@ -34,24 +34,27 @@ import (
 )
 
 const (
+	// DateTimeFormat is the time format used by servicenow
 	DateTimeFormat = "2006-01-02 15:04:05"
 )
 
-var incidentBodyTemplate = template.Must(template.New("incident body").Parse(
-	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
+var (
+	incidentBodyTemplate = template.Must(template.New("incident body").Parse(
+		`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
 {{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
 {{if .RequestLink}}To approve or deny the request, proceed to {{.RequestLink}}{{end}}
 `,
-))
-var reviewNoteTemplate = template.Must(template.New("review note").Parse(
-	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
+	))
+	reviewNoteTemplate = template.Must(template.New("review note").Parse(
+		`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
-))
-var resolutionNoteTemplate = template.Must(template.New("resolution note").Parse(
-	`Access request has been {{.Resolution}}
+	))
+	resolutionNoteTemplate = template.Must(template.New("resolution note").Parse(
+		`Access request has been {{.Resolution}}
 {{if .ResolveReason}}Reason: {{.ResolveReason}}{{end}}`,
-))
+	))
+)
 
 // Client is a wrapper around resty.Client.
 type Client struct {
@@ -80,6 +83,9 @@ type ClientConfig struct {
 
 // NewClient creates a new Servicenow client for managing incidents.
 func NewClient(conf ClientConfig) (*Client, error) {
+	if err := conf.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
 	client.SetBaseURL(conf.APIEndpoint).
 		SetHeader("Content-Type", "application/json").
@@ -91,20 +97,26 @@ func NewClient(conf ClientConfig) (*Client, error) {
 	}, nil
 }
 
+func (conf ClientConfig) checkAndSetDefaults() error {
+	if conf.APIEndpoint == "" {
+		return trace.BadParameter("missing required field: APIEndpoint")
+	}
+	return nil
+}
+
 func errWrapper(statusCode int, body string) error {
 	switch statusCode {
 	case http.StatusForbidden:
 		return trace.AccessDenied("servicenow API access denied: status code %v: %q", statusCode, body)
 	case http.StatusRequestTimeout:
-		return trace.ConnectionProblem(trace.Errorf("status code %v: %q", statusCode, body),
-			"connecting to servicenow API")
+		return trace.ConnectionProblem(nil, fmt.Sprintf("connecting to servicenow API :status code %v: %q", statusCode, body))
 	}
 	return trace.Errorf("connecting to servicenow API status code %v: %q", statusCode, body)
 }
 
 // CreateIncident creates an servicenow incident.
-func (og Client) CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error) {
-	bodyDetails, err := buildIncidentBody(og.WebProxyURL, reqID, reqData)
+func (snc Client) CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error) {
+	bodyDetails, err := buildIncidentBody(snc.WebProxyURL, reqID, reqData)
 	if err != nil {
 		return Incident{}, trace.Wrap(err)
 	}
@@ -115,7 +127,7 @@ func (og Client) CreateIncident(ctx context.Context, reqID string, reqData Reque
 	}
 
 	var result Incident
-	resp, err := og.client.NewRequest().
+	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetResult(&result).
@@ -132,7 +144,7 @@ func (og Client) CreateIncident(ctx context.Context, reqID string, reqData Reque
 }
 
 // PostReviewNote posts a note once a new request review appears.
-func (og Client) PostReviewNote(ctx context.Context, incidentID string, review types.AccessReview) error {
+func (snc Client) PostReviewNote(ctx context.Context, incidentID string, review types.AccessReview) error {
 	note, err := buildReviewNoteBody(review)
 	if err != nil {
 		return trace.Wrap(err)
@@ -140,7 +152,7 @@ func (og Client) PostReviewNote(ctx context.Context, incidentID string, review t
 	body := Incident{
 		WorkNotes: note,
 	}
-	resp, err := og.client.NewRequest().
+	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetPathParams(map[string]string{"sys_id": incidentID}).
@@ -156,7 +168,7 @@ func (og Client) PostReviewNote(ctx context.Context, incidentID string, review t
 }
 
 // ResolveIncident resolves an incident and posts a note with resolution details.
-func (og Client) ResolveIncident(ctx context.Context, incidentID string, resolution Resolution) error {
+func (snc Client) ResolveIncident(ctx context.Context, incidentID string, resolution Resolution) error {
 	note, err := buildResolutionNoteBody(resolution)
 	if err != nil {
 		return trace.Wrap(err)
@@ -166,7 +178,7 @@ func (og Client) ResolveIncident(ctx context.Context, incidentID string, resolut
 		IncidentState: resolution.State,
 		CloseNotes:    note,
 	}
-	resp, err := og.client.NewRequest().
+	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetPathParams(map[string]string{"sys_id": incidentID}).
@@ -182,10 +194,10 @@ func (og Client) ResolveIncident(ctx context.Context, incidentID string, resolut
 }
 
 // GetOnCall returns the current users on-call for the given rota ID.
-func (og Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error) {
+func (snc Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error) {
 	formattedTime := time.Now().Format(DateTimeFormat)
 	var result onCallResult
-	resp, err := og.client.NewRequest().
+	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetQueryParams(map[string]string{
 			"rota_ids":  rotaID,
@@ -203,9 +215,9 @@ func (og Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error)
 	if len(result.Result) == 0 {
 		return nil, trace.NotFound("no user found for given rota")
 	}
-	emails := []string{}
+	var emails []string
 	for _, result := range result.Result {
-		email, err := og.GetUserEmail(ctx, result.UserID)
+		email, err := snc.GetUserEmail(ctx, result.UserID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -215,9 +227,9 @@ func (og Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error)
 }
 
 // GetUserEmail returns the email address for the given user ID
-func (og Client) GetUserEmail(ctx context.Context, userID string) (string, error) {
+func (snc Client) GetUserEmail(ctx context.Context, userID string) (string, error) {
 	var result userResult
-	resp, err := og.client.NewRequest().
+	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
 		SetQueryParams(map[string]string{
 			"sysparm_fields": "email",
