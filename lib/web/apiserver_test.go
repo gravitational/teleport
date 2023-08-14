@@ -1134,14 +1134,12 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, res, res2)
 }
 
-func TestUnifiedResourcesGet_WithSort(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  modules.Features{SAML: true, Kubernetes: true},
-	})
+func TestUnifiedResourcesGet(t *testing.T) {
+	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil)
+
 	// Add nodes
 	for i := 0; i < 20; i++ {
 		name := fmt.Sprintf("server-%d", i)
@@ -1152,28 +1150,6 @@ func TestUnifiedResourcesGet_WithSort(t *testing.T) {
 		_, err = env.server.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
-
-	// Get nodes from endpoint.
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
-
-	// add kubes
-	cluster2, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: "test-kube2",
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-	server2, err := types.NewKubernetesServerV3FromCluster(
-		cluster2,
-		"test-kube2-hostname",
-		"test-kube2-hostid",
-	)
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
-	require.NoError(t, err)
-
 	// add db
 	db, err := types.NewDatabaseV3(types.Metadata{
 		Name: "dbdb",
@@ -1193,90 +1169,6 @@ func TestUnifiedResourcesGet_WithSort(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
-
-	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
-	require.NoError(t, err)
-
-	// should return ascending sorted types
-	query := url.Values{"sort": []string{"type"}, "limit": []string{"15"}}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-	res := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
-
-	// should return descending sorted types
-	query = url.Values{"sort": []string{"type:desc"}, "limit": []string{"15"}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-	res = clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindNode, res.Items[0].Kind)
-}
-
-func TestUnifiedResourcesGet_WithNoAccess(t *testing.T) {
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-
-	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
-	require.NoError(t, err)
-	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
-
-	clusterName := env.server.ClusterName()
-	endpoint := noAccessPack.clt.Endpoint("webapi", "sites", clusterName, "resources")
-
-	// shouldnt get any results with no access
-	query := url.Values{"sort": []string{"name"}, "limit": []string{"1"}}
-	re, err := noAccessPack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-	res := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 0)
-}
-
-func TestUnifiedResourcesGet_WithPages(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  modules.Features{SAML: true, Kubernetes: true},
-	})
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil)
-	// Add nodes
-	for i := 0; i < 20; i++ {
-		name := fmt.Sprintf("server-%d", i)
-		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
-			Hostname: name,
-		})
-		require.NoError(t, err)
-		_, err = env.server.Auth().UpsertNode(context.Background(), node)
-		require.NoError(t, err)
-	}
-
-	// Get nodes from endpoint.
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
-
-	// add db
-	db, err := types.NewDatabaseV3(types.Metadata{
-		Name: "dbdb",
-		Labels: map[string]string{
-			"env": "prod",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: "test-protocol",
-		URI:      "test-uri",
-	})
-	require.NoError(t, err)
-	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "dddb1",
-	}, types.DatabaseServerSpecV3{
-		Hostname: "dddb1",
-		HostID:   uuid.NewString(),
-		Database: db,
-	})
-	require.NoError(t, err)
-
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
 
@@ -1290,11 +1182,43 @@ func TestUnifiedResourcesGet_WithPages(t *testing.T) {
 	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
 	require.NoError(t, err)
 
-	// should return first page and have a second page
-	query := url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	// test sort type ascend
+	query := url.Values{"sort": []string{"type:asc"}}
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
+
+	// test sort type desc
+	query = url.Values{"sort": []string{"type:desc"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
+
+	// test with no access
+	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
+	require.NoError(t, err)
+	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
+
+	// shouldnt get any results with no access
+	query = url.Values{}
+	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 0)
+
+	// should return first page and have a second page
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
 	require.NotEqual(t, "", res.StartKey)
@@ -1308,6 +1232,7 @@ func TestUnifiedResourcesGet_WithPages(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 8)
 	require.Equal(t, "", res.StartKey)
+
 }
 
 type clusterAlertsGetResponse struct {
@@ -1315,7 +1240,6 @@ type clusterAlertsGetResponse struct {
 }
 
 func TestClusterAlertsGet(t *testing.T) {
-	t.Parallel()
 	env := newWebPack(t, 1)
 
 	// generate alert
