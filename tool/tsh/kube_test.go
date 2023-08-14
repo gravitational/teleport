@@ -19,22 +19,29 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestKube(t *testing.T) {
@@ -238,6 +245,196 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			want := strings.TrimSpace(tc.wantTable())
 			diff := cmp.Diff(want, got)
 			require.Empty(t, diff)
+		})
+	}
+}
+
+func TestKubeLogin(t *testing.T) {
+	modules.SetTestModules(t,
+		&modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Kubernetes: true,
+			},
+		},
+	)
+	testenv.WithInsecureDevMode(t, true)
+	testenv.WithResyncInterval(t, 0)
+	t.Run("complex filters", testKubeLoginWithFilters)
+}
+
+func testKubeLoginWithFilters(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	kubeFoo := "foo"
+	kubeFooBar := "foo-bar"
+	kubeBaz := "baz"
+	staticLabels := map[string]string{
+		"env": "root",
+	}
+	allKubes := []string{kubeFoo, kubeFooBar, kubeBaz}
+
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Kube.Enabled = true
+			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, allKubes...)
+			cfg.Kube.StaticLabels = staticLabels
+		}),
+		withValidationFunc(func(s *suite) bool {
+			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
+			require.NoError(t, err)
+			return len(rootClusters) == 3
+		}),
+	)
+
+	tests := []struct {
+		desc            string
+		args            []string
+		wantLoggedIn    []string
+		wantSelected    string
+		wantErrContains string
+	}{
+		{
+			desc:         "login with exact name and set current context",
+			args:         []string{"foo"},
+			wantLoggedIn: []string{"foo"},
+			wantSelected: "foo",
+		},
+		{
+			desc:         "login with prefix name and set current context",
+			args:         []string{"foo-b"},
+			wantLoggedIn: []string{"foo-bar"},
+			wantSelected: "foo-bar",
+		},
+		{
+			desc:         "login with all",
+			args:         []string{"--all"},
+			wantLoggedIn: []string{"foo", "foo-bar", "baz"},
+			wantSelected: "",
+		},
+		{
+			desc:         "login with labels",
+			args:         []string{"--labels", "env=root"},
+			wantLoggedIn: []string{"foo", "foo-bar", "baz"},
+			wantSelected: "",
+		},
+		{
+			desc:         "login with query",
+			args:         []string{"--query", `name == "foo"`},
+			wantLoggedIn: []string{"foo"},
+			wantSelected: "",
+		},
+		{
+			desc:         "login to multiple with all and set current context by name",
+			args:         []string{"foo", "--all"},
+			wantLoggedIn: []string{"foo", "foo-bar", "baz"},
+			wantSelected: "foo",
+		},
+		{
+			desc:         "login to multiple with labels and set current context by name",
+			args:         []string{"foo", "--labels", "env=root"},
+			wantLoggedIn: []string{"foo", "foo-bar", "baz"},
+			wantSelected: "foo",
+		},
+		{
+			desc:         "login to multiple with query and set current context by prefix name",
+			args:         []string{"foo-b", "--query", `name == "foo-bar" || name == "foo"`},
+			wantLoggedIn: []string{"foo", "foo-bar"},
+			wantSelected: "foo-bar",
+		},
+		{
+			desc:            "all with labels is an error",
+			args:            []string{"xxx", "--all", "--labels", `env=root`},
+			wantErrContains: "cannot use",
+		},
+		{
+			desc:            "all with query is an error",
+			args:            []string{"xxx", "--all", "--query", `name == "foo-bar" || name == "foo"`},
+			wantErrContains: "cannot use",
+		},
+		{
+			desc:            "missing required args is an error",
+			args:            []string{},
+			wantErrContains: "required",
+		},
+	}
+
+	tshHome, _ := mustLogin(t, s)
+	webProxyAddr, err := utils.ParseAddr(s.root.Config.Proxy.WebAddr.String())
+	require.NoError(t, err)
+	// profile kube config path depends on web proxy host
+	webProxyHost := webProxyAddr.Host()
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			// clone the login dir for each parallel test to avoid profile kube config file races.
+			tshHome := mustCloneTempDir(t, tshHome)
+			kubeConfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+			err := Run(
+				context.Background(),
+				append([]string{
+					"--insecure",
+					"kube",
+					"login",
+				},
+					test.args...,
+				),
+				setHomePath(tshHome),
+				// set a custom empty kube config for each test, as we do
+				// not want parallel (or even shuffled sequential) tests
+				// potentially racing on the same config
+				setKubeConfigPath(kubeConfigPath),
+			)
+			if test.wantErrContains != "" {
+				require.ErrorContains(t, err, test.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+
+			config, err := kubeconfig.Load(kubeConfigPath)
+			require.NoError(t, err)
+			if test.wantSelected == "" {
+				require.Empty(t, config.CurrentContext)
+			} else {
+				require.Equal(t, kubeconfig.ContextName("root", test.wantSelected), config.CurrentContext)
+			}
+			for _, name := range allKubes {
+				contextName := kubeconfig.ContextName("root", name)
+				if !slices.Contains(test.wantLoggedIn, name) {
+					require.NotContains(t, config.AuthInfos, contextName, "unexpected kube cluster %v in config update", name)
+					return
+				}
+				require.Contains(t, config.AuthInfos, contextName, "kube cluster %v not in config update", name)
+				authInfo := config.AuthInfos[contextName]
+				require.NotNil(t, authInfo)
+				require.Contains(t, authInfo.Exec.Args, fmt.Sprintf("--kube-cluster=%v", name))
+			}
+
+			// ensure the profile config only contains one
+			profileKubeConfigPath := keypaths.KubeConfigPath(
+				profile.FullProfilePath(tshHome),
+				webProxyHost,
+				s.user.GetName(),
+				s.root.Config.Auth.ClusterName.GetClusterName(),
+				test.wantSelected,
+			)
+			profileConfig, err := kubeconfig.Load(profileKubeConfigPath)
+			require.NoError(t, err)
+			for _, name := range allKubes {
+				contextName := kubeconfig.ContextName("root", name)
+				if name != test.wantSelected {
+					require.NotContains(t, profileConfig.AuthInfos, contextName, "unexpected kube cluster %v in profile config update", name)
+					return
+				}
+				require.Contains(t, profileConfig.AuthInfos, contextName, "kube cluster %v not in profile config update", name)
+				authInfo := profileConfig.AuthInfos[contextName]
+				require.NotNil(t, authInfo)
+				require.Contains(t, authInfo.Exec.Args, fmt.Sprintf("--kube-cluster=%v", name))
+			}
 		})
 	}
 }
