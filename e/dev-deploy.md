@@ -23,6 +23,7 @@ The following CLI tools need to be available:
 - jq
 - kubectl
 - tsh
+- tcctl (from [gravitational/cloud/tools/tcctl](https://github.com/gravitational/cloud/tree/master/tools/tcctl)]
 
 On macOS a compiler toolchain targeting `x86_64/linux` is required to support `cgo` directives.
 
@@ -83,6 +84,14 @@ If the email configured in git doesn't contain a valid platform.teleport.sh SSO 
 
 ```
 TELEPORT_USER=first.last@goteleport.com make deploy-cloud-login
+```
+
+A tool from the [cloud repo](https://github.com/gravitational/cloud) is needed to patch your tenant on the staging cluster. If the `tcctl` binary is not available in your path, the source of the `tcctl` tool must be available in the path referenced by environment variable `TCCTL_PATH`. The default value is `../../cloud/tools/tcctl`. Export a valid `TCCTL_PATH` if the cloud repo is not cloned as a sibling of the `teleport` repo.
+
+```
+export TCCTL_PATH=/src/cloud/tools/tcctl
+make deploy-cloud-login
+make TENANT=yourtenant deploy-cloud
 ```
 
 ### `deploy-cloud`

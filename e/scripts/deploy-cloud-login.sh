@@ -11,6 +11,8 @@ TELEPORT_USER=${TELEPORT_USER:-$(git config user.email)}
 TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.com/teleport-local-build}
 AWS_SSO_PROFILE=${AWS_SSO_PROFILE:-tc-stage-core}
 AWS_PROFILE=${AWS_PROFILE:-tc-stage-ecr}
+CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
+TCCTL_PATH=${TCCTL_PATH:-../../cloud/tools/tcctl}
 
 function echo_color() {
     local color='\033[0;'$1'm'
@@ -64,13 +66,22 @@ echo "Logging into kube clusters on \"$TELEPORT_PROXY\"..."
 tsh kube login --proxy=$TELEPORT_PROXY --all
 fail_on_exit_code "Failed to login to kubernetes cluster on $TELEPORT_PROXY"
 
-echo "Searching for tenant namespace in k8s cluster..."
-ns_prefix="namespace/cloud-gravitational-io-"
-ns=$(kubectl get ns --all-namespaces -o name --context $KUBE_CONTEXT | grep $ns_prefix | head -n 1)
-fail_on_exit_code "Unable to find any k8s namespaces having prefix \"$ns_prefix\""
-tenant=${ns/$ns_prefix/} # strip namespace prefix
-ns=$(cut -d "/" -f 2 <<< $ns) # strip resource kind prefix
-echo "Checking for permissions to patch tenant..."
+echo "Logging into app \"$CLOUD_API_APP\" on \"$TELEPORT_PROXY\"..."
+tsh app login --proxy=$TELEPORT_PROXY $CLOUD_API_APP
+fail_on_exit_code "Failed to login to app \"$CLOUD_API_APP\" on $TELEPORT_PROXY"
+
+echo "Checking for tooling to patch tenant..."
+if ! (command -v tcctl); then
+    echo "Using \`tcctl\` from source in folder \"$TCCTL_PATH\"..."
+    tcctl () {
+        cd "$TCCTL_PATH" && go run . "$@"
+    }
+fi
+tenant=$(tcctl tenant --app-name="$CLOUD_API_APP" list | head -n 1)
+fail_on_exit_code "Unable to retrieve tenant from \"$CLOUD_API_APP\". Ensure the \`tcctl\` executable is available in the path or the source from \"cloud\" repo is found at path \"$TCCTL_PATH\". Override env var \"TCCTL_PATH\" to point to the source folder if necessary."
+
+ns="cloud-gravitational-io-$tenant"
+echo "Checking for permissions to patch tenants via k8s API... (tenant=\"$tenant\", namespace=\"$ns\")"
 kres=$(kubectl auth can-i patch tenant/$tenant -n $ns --context $KUBE_CONTEXT) && [[ "${kres}" == "yes" ]]
 fail_on_exit_code "Insufficient k8s API permissions on cluster \"$KUBE_TENANT_CLUSTER\" - cannot patch tenant \"$tenant\""
 

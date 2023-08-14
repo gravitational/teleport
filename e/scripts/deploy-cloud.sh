@@ -43,6 +43,8 @@ KUBE_TENANT_CLUSTER=${KUBE_TENANT_CLUSTER:-tc-staging-management}
 KUBE_TENANT_CONTEXT=$TELEPORT_CLUSTER-$KUBE_TENANT_CLUSTER
 KUBE_AUTH_CLUSTER=${KUBE_AUTH_CLUSTER:-tc-staging-cs-01-usw2}
 KUBE_AUTH_CONTEXT=$TELEPORT_CLUSTER-$KUBE_AUTH_CLUSTER
+CLOUD_API_APP=${CLOUD_API_APP:-cloud-api-staging}
+TCCTL_PATH=${TCCTL_PATH:-../../cloud/tools/tcctl}
 
 [ -z "$TENANT" ] && fail_on_exit_code "Environment variable \"TENANT\" must be set." 1
 echo "-> Checking for tenant \"$TENANT\"..."
@@ -87,11 +89,21 @@ if [[ -n "$CLOUD_SKIP_DEPLOY" ]]; then
 fi
 
 echo "-> Patching tenant \"$TENANT\" to run new image..."
-tenant=$(kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name --context=$KUBE_TENANT_CONTEXT)
-fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\'"
-kubectl patch $tenant -n $NAMESPACE --type merge --patch '{"spec": {"teleportImageRepo": "'"$TARGET_IMAGE_REPO"'", "teleportVersion": "'"$target_image_tag"'"}}' --context=$KUBE_TENANT_CONTEXT
-fail_on_exit_code "Unable to patch tenant \"$TENANT\" in namespace \"$NAMESPACE\""
-
+if ! (command -v tcctl); then
+    echo "Using \`tcctl\` from source in folder \"$TCCTL_PATH\"..."
+    tcctl () {
+        cd "$TCCTL_PATH" && go run . "$@"
+    }
+fi
+if (tcctl tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then 
+    (tcctl tenant patch set --app-name="$CLOUD_API_APP" --name="$TENANT" --teleport-image-repo="$TARGET_IMAGE_REPO" --teleport-version="$target_image_tag")
+else
+	echo "Failed to patch tenant \"$TENANT\" using tcctl, retrying with kubectl..."
+	tenant=$(kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name --context=$KUBE_TENANT_CONTEXT)
+	fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\'"
+	kubectl patch $tenant -n $NAMESPACE --type merge --patch '{"spec": {"teleportImageRepo": "'"$TARGET_IMAGE_REPO"'", "teleportVersion": "'"$target_image_tag"'"}}' --context=$KUBE_TENANT_CONTEXT
+	fail_on_exit_code "Unable to patch tenant \"$TENANT\" in namespace \"$NAMESPACE\""
+fi
 # warn and exit when tenant has skipReconcile annotation
 tenant_json=$(kubectl get tenant $TENANT -n $NAMESPACE -o json --context=$KUBE_TENANT_CONTEXT)
 echo "$tenant_json" | jq -r '.metadata.annotations."teleport.sh/skipreconcile"' | grep -v true
