@@ -2,14 +2,14 @@
 # This file can be included in other Makefiles to avoid duplication.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.21.0
+GOLANG_VERSION ?= go1.20.7
 
 # Sync with devbox.json.
 NODE_VERSION ?= 16.18.1
 
 # Sync any version changes below with devbox.json.
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.71.0
+RUST_VERSION ?= 1.71.1
 LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
