@@ -14,4 +14,5 @@
 
 package client
 
+// TODO (Joerger): Remove this export once /e no longer depends on it.
 var PromptWebauthn = &promptWebauthn
