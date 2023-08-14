@@ -130,6 +130,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     cargo --version && \
     rustc --version && \
     rustup target add ${RUST_ARCH}
+# Install wasm-pack for targeting WebAssembly from Rust.
+RUN cargo install wasm-pack
 
 USER root
 

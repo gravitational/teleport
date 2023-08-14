@@ -780,7 +780,7 @@ func (proxyExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool)
 }
 
 func (proxyExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertProxy(resource)
+	return cache.presenceCache.UpsertProxy(ctx, resource)
 }
 
 func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {
@@ -788,7 +788,7 @@ func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {
 }
 
 func (proxyExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteProxy(resource.GetName())
+	return cache.presenceCache.DeleteProxy(ctx, resource.GetName())
 }
 
 func (proxyExecutor) isSingleton() bool { return false }
@@ -809,7 +809,7 @@ func (authServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 }
 
 func (authServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertAuthServer(resource)
+	return cache.presenceCache.UpsertAuthServer(ctx, resource)
 }
 
 func (authServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {

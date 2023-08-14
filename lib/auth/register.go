@@ -433,7 +433,7 @@ func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientCon
 	// skip verify as the Proxy server will present its host cert which is not
 	// fully verifiable at this point since the client does not have the host
 	// CAs yet before completing registration.
-	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(getHostAddresses(params)[0], insecure)
+	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(context.TODO(), getHostAddresses(params)[0], insecure)
 	if alpnConnUpgrade && !insecure {
 		tlsConfig.InsecureSkipVerify = true
 		tlsConfig.VerifyConnection = verifyALPNUpgradedConn(params.Clock)

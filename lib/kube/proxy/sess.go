@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport"
@@ -556,7 +557,7 @@ func (s *session) launch() error {
 			Protocol:   events.EventProtocolKube,
 		},
 		TerminalSize:              termParams.Serialize(),
-		KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 		KubernetesPodMetadata:     eventPodMeta,
 		InitialCommand:            q["command"],
 		SessionRecording:          s.ctx.recordingConfig.GetMode(),
@@ -655,7 +656,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 				},
 				UserMetadata:              s.ctx.eventUserMeta(),
 				TerminalSize:              params.Serialize(),
-				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+				KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 				KubernetesPodMetadata:     eventPodMeta,
 			}
 
@@ -769,7 +770,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			CommandMetadata: apievents.CommandMetadata{
 				Command: strings.Join(request.cmd, " "),
 			},
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 			KubernetesPodMetadata:     eventPodMeta,
 		}
 
@@ -817,7 +818,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			Participants:              s.allParticipants(),
 			StartTime:                 sessionStart,
 			EndTime:                   s.forwarder.cfg.Clock.Now().UTC(),
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 			SessionRecording:          s.ctx.recordingConfig.GetMode(),
@@ -840,7 +841,7 @@ func (s *session) join(p *party) error {
 		}
 
 		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, p.Mode) {
+		if !slices.Contains(modes, p.Mode) {
 			return trace.AccessDenied("insufficient permissions to join session")
 		}
 	}

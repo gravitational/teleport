@@ -16,7 +16,6 @@
 
 import React from 'react';
 import { Box, LabelInput, Text, TextArea } from 'design';
-
 import { TextAreaProps } from 'design/TextArea';
 
 import { useRule } from 'shared/components/Validation';

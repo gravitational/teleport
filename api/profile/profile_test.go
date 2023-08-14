@@ -115,3 +115,58 @@ func TestProfilePath(t *testing.T) {
 	require.Equal(t, "/foo/bar", profile.FullProfilePath("/foo/bar"))
 	require.Equal(t, filepath.Join(dir, ".tsh"), profile.FullProfilePath(""))
 }
+
+func TestRequireKubeLocalProxy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		inputProfile *profile.Profile
+		checkResult  require.BoolAssertionFunc
+	}{
+		{
+			name: "kube not enabled",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				TLSRoutingEnabled:             true,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "ALPN connection upgrade not required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:      "example.com:443",
+				KubeProxyAddr:     "example.com:443",
+				TLSRoutingEnabled: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "kube uses separate listener",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:3026",
+				TLSRoutingEnabled:             false,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "local proxy required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:443",
+				TLSRoutingEnabled:             true,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.True,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.checkResult(t, test.inputProfile.RequireKubeLocalProxy())
+		})
+	}
+}

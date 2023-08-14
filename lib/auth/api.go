@@ -37,11 +37,11 @@ type Announcer interface {
 
 	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(s types.Server) error
+	UpsertProxy(ctx context.Context, s types.Server) error
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(s types.Server) error
+	UpsertAuthServer(ctx context.Context, s types.Server) error
 
 	// UpsertKubernetesServer registers a kubernetes server
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)

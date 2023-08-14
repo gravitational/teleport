@@ -48,11 +48,7 @@ const (
 // It publishes proto events directly to SNS topic, or use S3 bucket
 // if payload is too large for SNS.
 type publisher struct {
-	topicARN      string
-	snsPublisher  snsPublisher
-	uploader      s3uploader
-	payloadBucket string
-	payloadPrefix string
+	PublisherConfig
 }
 
 type snsPublisher interface {
@@ -63,23 +59,38 @@ type s3uploader interface {
 	Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error)
 }
 
-// newPublisher returns new instance of publisher.
-func newPublisher(cfg Config) *publisher {
+type PublisherConfig struct {
+	TopicARN      string
+	SNSPublisher  snsPublisher
+	Uploader      s3uploader
+	PayloadBucket string
+	PayloadPrefix string
+}
+
+// NewPublisher returns new instance of publisher.
+func NewPublisher(cfg PublisherConfig) *publisher {
+	return &publisher{
+		PublisherConfig: cfg,
+	}
+}
+
+// newPublisherFromAthenaConfig returns new instance of publisher from athena
+// config.
+func newPublisherFromAthenaConfig(cfg Config) *publisher {
 	r := retry.NewStandard(func(so *retry.StandardOptions) {
 		so.MaxAttempts = 20
 		so.MaxBackoff = 1 * time.Minute
 	})
-
-	// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
-	return &publisher{
-		topicARN: cfg.TopicARN,
-		snsPublisher: sns.NewFromConfig(*cfg.AWSConfig, func(o *sns.Options) {
+	return NewPublisher(PublisherConfig{
+		TopicARN: cfg.TopicARN,
+		SNSPublisher: sns.NewFromConfig(*cfg.AWSConfig, func(o *sns.Options) {
 			o.Retryer = r
 		}),
-		uploader:      manager.NewUploader(s3.NewFromConfig(*cfg.AWSConfig)),
-		payloadBucket: cfg.largeEventsBucket,
-		payloadPrefix: cfg.largeEventsPrefix,
-	}
+		// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
+		Uploader:      manager.NewUploader(s3.NewFromConfig(*cfg.AWSConfig)),
+		PayloadBucket: cfg.largeEventsBucket,
+		PayloadPrefix: cfg.largeEventsPrefix,
+	})
 }
 
 // EmitAuditEvent emits audit event to SNS topic. Topic should be connected with
@@ -117,9 +128,9 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 }
 
 func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []byte) error {
-	path := filepath.Join(p.payloadPrefix, uid)
-	out, err := p.uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(p.payloadBucket),
+	path := filepath.Join(p.PayloadPrefix, uid)
+	out, err := p.Uploader.Upload(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(p.PayloadBucket),
 		Key:    aws.String(path),
 		Body:   bytes.NewBuffer(marshaledEvent),
 	})
@@ -140,8 +151,8 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 		return trace.Wrap(err)
 	}
 
-	_, err = p.snsPublisher.Publish(ctx, &sns.PublishInput{
-		TopicArn: aws.String(p.topicARN),
+	_, err = p.SNSPublisher.Publish(ctx, &sns.PublishInput{
+		TopicArn: aws.String(p.TopicARN),
 		Message:  aws.String(base64.StdEncoding.EncodeToString(buf)),
 		MessageAttributes: map[string]snsTypes.MessageAttributeValue{
 			payloadTypeAttr: {DataType: aws.String("String"), StringValue: aws.String(payloadTypeS3Based)},
@@ -151,8 +162,8 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 }
 
 func (p *publisher) emitViaSNS(ctx context.Context, uid string, b64Encoded string) error {
-	_, err := p.snsPublisher.Publish(ctx, &sns.PublishInput{
-		TopicArn: aws.String(p.topicARN),
+	_, err := p.SNSPublisher.Publish(ctx, &sns.PublishInput{
+		TopicArn: aws.String(p.TopicARN),
 		Message:  aws.String(b64Encoded),
 		MessageAttributes: map[string]snsTypes.MessageAttributeValue{
 			payloadTypeAttr: {DataType: aws.String("String"), StringValue: aws.String(payloadTypeRawProtoEvent)},

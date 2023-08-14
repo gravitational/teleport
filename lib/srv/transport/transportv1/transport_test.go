@@ -227,8 +227,8 @@ func fakeSigner(authzCtx *authz.Context, clusterName string) agentless.SignerCre
 
 type fakeMonitor struct{}
 
-func (f fakeMonitor) MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error) {
-	return ctx, nil
+func (f fakeMonitor) MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+	return ctx, conn, nil
 }
 
 // TestService_GetClusterDetails validates that a [Service] returns

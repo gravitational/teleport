@@ -67,6 +67,18 @@ type CommandRequest struct {
 	ExecutionID string `json:"execution_id"`
 }
 
+// commandExecResult is a result of a command execution.
+type commandExecResult struct {
+	// NodeID is the ID of the node where the command was executed.
+	NodeID string `json:"node_id"`
+	// NodeName is the name of the node where the command was executed.
+	NodeName string `json:"node_name"`
+	// ExecutionID is a unique ID used to identify the command execution.
+	ExecutionID string `json:"execution_id"`
+	// SessionID is the ID of the session where the command was executed.
+	SessionID string `json:"session_id"`
+}
+
 // Check checks if the request is valid.
 func (c *CommandRequest) Check() error {
 	if c.Command == "" {
@@ -153,7 +165,7 @@ func (h *Handler) executeCommand(
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
-	ws, err := upgrader.Upgrade(w, r, nil)
+	rawWS, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		errMsg := "Error upgrading to websocket"
 		h.log.WithError(err).Error(errMsg)
@@ -162,16 +174,27 @@ func (h *Handler) executeCommand(
 	}
 
 	defer func() {
-		ws.WriteMessage(websocket.CloseMessage, nil)
-		ws.Close()
+		rawWS.WriteMessage(websocket.CloseMessage, nil)
+		rawWS.Close()
 	}()
 
 	keepAliveInterval := netConfig.GetKeepAliveInterval()
-	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
+	err = rawWS.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil, trace.Wrap(err)
 	}
+	// Update the read deadline upon receiving a pong message.
+	rawWS.SetPongHandler(func(_ string) error {
+		// This is intentonally called without a lock as this callback is
+		// called from the same goroutine as the read loop which is already locked.
+		return trace.Wrap(rawWS.SetReadDeadline(deadlineForInterval(keepAliveInterval)))
+	})
+
+	// Wrap the raw websocket connection in a syncRWWSConn so that we can
+	// safely read and write to the the single websocket connection from
+	// multiple goroutines/execution nodes.
+	ws := &syncRWWSConn{WSConn: rawWS}
 
 	hosts, err := findByQuery(ctx, clt, req.Query)
 	if err != nil {
@@ -226,12 +249,9 @@ func (h *Handler) executeCommand(
 		h.log.Infof("Executing command: %#v.", req)
 		httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
 
-		msgPayload, err := json.Marshal(struct {
-			NodeID      string `json:"node_id"`
-			ExecutionID string `json:"execution_id"`
-			SessionID   string `json:"session_id"`
-		}{
+		msgPayload, err := json.Marshal(&commandExecResult{
 			NodeID:      host.id,
+			NodeName:    host.hostName,
 			ExecutionID: req.ExecutionID,
 			SessionID:   string(sessionData.ID),
 		})
@@ -305,8 +325,7 @@ func getMFACacheFn() mfaFuncCache {
 			return authMethods, nil
 		}
 
-		var err error
-		authMethods, err = issueMfaAuthFn()
+		authMethods, err := issueMfaAuthFn()
 		return authMethods, trace.Wrap(err)
 	}
 }
@@ -485,7 +504,7 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func (t *commandHandler) handler(r *http.Request) {
-	t.stream = NewWStream(t.ws)
+	t.stream = NewWStream(r.Context(), t.ws, t.log, nil)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -497,12 +516,6 @@ func (t *commandHandler) handler(r *http.Request) {
 	}
 
 	t.log.Debug("Creating websocket stream")
-
-	// Update the read deadline upon receiving a pong message.
-	t.ws.SetPongHandler(func(_ string) error {
-		t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
-		return nil
-	})
 
 	// Start sending ping frames through websocket to the client.
 	go startPingLoop(r.Context(), t.ws, t.keepAliveInterval, t.log, t.Close)

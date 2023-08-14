@@ -268,8 +268,7 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// nature of AuditWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3): remove this once a buffer pool
-	// is added.
+	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
@@ -281,7 +280,9 @@ func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
 func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
 func (f PNG2Frame) Data() []byte   { return f[21:] }
 
-// RDPFastPathPDU is a FastPath frame message.
+// RDPFastPathPDU is an RDP Fast-Path PDU message. It carries a raw
+// RDP Server Fast-Path Update PDU (https://tinyurl.com/3t2t6er8) which
+// is used to transport image data to the frontend.
 //
 // | message type (29) | data_length uint32 | data []byte |
 //
@@ -292,13 +293,15 @@ func (f PNG2Frame) Data() []byte   { return f[21:] }
 type RDPFastPathPDU []byte
 
 func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
-	// Read PNG length so we can allocate buffer that will fit RDPFastPathPDU message
+	// Read data length so we can allocate buffer that will fit RDPFastPathPDU message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
 		return RDPFastPathPDU(nil), trace.Wrap(err)
 	}
 
 	// Allocate buffer that will fit the data
+	// TODO(isaiah): improve performance by changing
+	// this api to allow buffer re-use.
 	data := make([]byte, dataLength)
 
 	// Write the data into the buffer
@@ -310,14 +313,17 @@ func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
 }
 
 func (f RDPFastPathPDU) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeRDPFastPathPDU))
-	writeUint32(buf, uint32(len(f)))
-	buf.Write(f)
-	return buf.Bytes(), nil
+	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
+	b := make([]byte, 1+4+len(f))                      // byte + uint32 + len(f)
+	b[0] = byte(TypeRDPFastPathPDU)                    // message type (29)
+	binary.BigEndian.PutUint32(b[1:5], uint32(len(f))) // data_length uint32
+	copy(b[5:], f)                                     // data []byte
+	return b, nil
 }
 
-// RDPResponsePDU is a fast path response message.
+// RDPResponsePDU is an RDP Response PDU message. It carries a raw
+// encoded RDP response PDU created by the ironrdp client on the
+// frontend and sends it directly to the RDP server.
 //
 // | message type (30) | data_length uint32 | data []byte |
 //

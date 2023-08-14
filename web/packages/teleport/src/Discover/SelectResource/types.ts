@@ -17,6 +17,7 @@
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
+
 import type { ResourceIconName } from './icons';
 
 export enum DatabaseLocation {
@@ -64,6 +65,9 @@ export interface ResourceSpec {
   // It is used as a flag, that when defined, means that
   // this resource is not "guided" (has no UI interactive flow).
   unguidedLink?: string;
+  // isDialog is whether or not the flow for this resource is a popover dialog as opposed to a Discover flow.
+  // This is the case for the 'Application' resource.
+  isDialog?: boolean;
   // event is the expected backend enum event name that describes
   // the type of this resource (eg. server v. kubernetes),
   // used for usage reporting.

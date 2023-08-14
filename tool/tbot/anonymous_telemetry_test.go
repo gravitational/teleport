@@ -59,7 +59,7 @@ func TestSendTelemetry(t *testing.T) {
 		}
 		cfg := &config.BotConfig{
 			Oneshot: true,
-			Onboarding: &config.OnboardingConfig{
+			Onboarding: config.OnboardingConfig{
 				JoinMethod: types.JoinMethodGitHub,
 			},
 			Destinations: []*config.DestinationConfig{

@@ -104,9 +104,9 @@ type Config struct {
 	// ResourceMatchers is a list of database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers is a list of AWS databases matchers.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
@@ -909,7 +909,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

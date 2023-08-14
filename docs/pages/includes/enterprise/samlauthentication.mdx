@@ -8,18 +8,7 @@ user database.
   </ScopedBlock>
 
   <Tabs>
-  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
-
-  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
-
-  ```yaml
-  auth_service:
-    authentication:
-      type: saml
-  ```
-
-  </TabItem>
-  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
+  <TabItem scope={["cloud", "oss", "enterprise"]} label="Dynamic Resources (All Editions)">
 
   Use `tctl` to edit the `cluster_auth_preference` value:
 
@@ -48,4 +37,21 @@ user database.
   ```
 
   </TabItem>
+  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+
+  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+
+  ```yaml
+  auth_service:
+    authentication:
+      type: saml
+  ```
+
+  </TabItem>
   </Tabs>
+
+  <Admonition type="tip">
+
+  If you need to log in again before configuring your SAML provider, use the flag <nobr>`--auth=local`</nobr>.
+
+  </Admonition>

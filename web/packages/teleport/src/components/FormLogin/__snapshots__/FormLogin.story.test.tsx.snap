@@ -68,9 +68,9 @@ exports[`auth2faType: off 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -345,9 +345,9 @@ exports[`auth2faType: optional rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -878,9 +878,9 @@ exports[`auth2faType: otp rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -1424,9 +1424,9 @@ exports[`auth2faType: webauthn rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -2031,9 +2031,9 @@ exports[`cloud auth2faType: on rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -2534,9 +2534,9 @@ exports[`no login enabled 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -2675,9 +2675,9 @@ exports[`server error rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -2994,9 +2994,9 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -3279,9 +3279,9 @@ exports[`sso providers rendering 1`] = `
   margin-bottom: 32px;
   padding-bottom: 24px;
   width: 464px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {

@@ -195,16 +195,16 @@ returns the <nobr>`ERR Teleport: command not supported`</nobr> error.
 Teleport conducts additional processing on the following commands before 
 communicating with Redis Cluster:
 
-| Command                      | Description                                                                                                                                                                                                  |
-|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `DBSIZE`                     | Sends the query to all nodes and returns the number of keys in the whole cluster.                                                                                                                            |
-| `KEYS`                       | Sends the query to all nodes and returns a list of all keys in the whole cluster.                                                                                                                            |
-| `MGET`                       | Translates the commands to multiple `GET`s and sends them to multiple nodes. Result is merged in Teleport and returned back to the client. If Teleport fails to fetch at least one key an error is returned. |
-| `FLUSHDB`                    | Sends the query to all nodes.                                                                                                                                                                                |
-| `FLUSHALL`                   | Works the same as `FLUSHDB`.                                                                                                                                                                                 |
-| <nobr>`SCRIPT EXISTS`</nobr> | Sends the query to all nodes. `1` is returned only if script exists on all nodes.                                                                                                                            |
-| <nobr>`SCRIPT LOAD`</nobr>   | Sends the script to all nodes.                                                                                                                                                                               |
-| <nobr>`SCRIPT FLUSH`</nobr>  | Sends the query to all nodes. `ASYNC` parameter is ignored.                                                                                                                                                  |
+| Command         | Description                                                                        |
+|-----------------|------------------------------------------------------------------------------------|
+| `DBSIZE`        | Sends the query to all nodes and returns the number of keys in the whole cluster.  |
+| `KEYS`          | Sends the query to all nodes and returns a list of all keys in the whole cluster.  |
+| `MGET`          | Translates the commands to multiple `GET`s and sends them to multiple nodes. Result is merged in Teleport and returned back to the client. If Teleport fails to fetch at least one key an error is returned. |
+| `FLUSHDB`       | Sends the query to all nodes.                                                      |
+| `FLUSHALL`      | Works the same as `FLUSHDB`.                                                       |
+| `SCRIPT EXISTS` | Sends the query to all nodes. `1` is returned only if script exists on all nodes.  |
+| `SCRIPT LOAD`   | Sends the script to all nodes.                                                     |
+| `SCRIPT FLUSH`  | Sends the query to all nodes. `ASYNC` parameter is ignored.                        |
 
 ## Next steps
 

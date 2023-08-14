@@ -487,11 +487,13 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 
 ### DynamoDB autoscaling
 
-When setting up DynamoDB it's important to set up backups. Autoscaling is optional with Teleport,
-and it is advised to collect some production usage data before enabling autoscaling.
+When setting up DynamoDB it's important to set up backups. Autoscaling is
+optional with Teleport, and it is advised to collect some production usage data
+before enabling autoscaling.
 
-Autoscaling and backup can be configured on DynamoDB directly. We also make setup simpler by allowing AWS DynamoDB
-settings to be set automatically during Teleport startup. The configuration is described below.
+Autoscaling and backup can be configured on DynamoDB directly. We also make
+setup simpler by allowing AWS DynamoDB settings to be set automatically during
+Teleport startup. The configuration is described below.
 
 **DynamoDB Continuous Backups**
 
@@ -500,6 +502,16 @@ settings to be set automatically during Teleport startup. The configuration is d
 **DynamoDB Autoscaling Options**
 
 - [AWS Docs - Managing Throughput Capacity Automatically with DynamoDB Auto Scaling](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.html)
+
+<Notice type="danger">
+
+AWS can throttle DynamoDB if more than two processes are reading from the same
+stream's shard simultaneously, so you must not deploy more than two Auth Service
+instances that read from a DynamoDB backend. For details on DynamoDB Streams,
+read the [AWS
+documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html).
+
+</Notice>
 
 ```yaml
 # ...

@@ -41,6 +41,9 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/x11 \
     FuzzParseDisplay fuzz_parse_display
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/aws \
+    FuzzParseSigV4 fuzz_parse_sig_v4
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/parse \
     FuzzNewExpression fuzz_new_expression
 
@@ -84,6 +87,9 @@ build_teleport_fuzzers() {
 #  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
 #   FuzzMongoRead fuzz_mongo_read
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/opensearch \
+    FuzzPathToMatcher fuzz_opensearch_path_to_matcher
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthn \
     FuzzParseCredentialCreationResponseBody fuzz_parse_credential_creation_response_body
 
@@ -113,6 +119,18 @@ build_teleport_api_fuzzers() {
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/aws \
     FuzzParseDynamoDBEndpoint fuzz_parse_dynamodb_endpoint
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
+    FuzzParseDatabaseEndpoint fuzz_azure_parse_database_endpoint
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
+    FuzzParseCacheForRedisEndpoint fuzz_azure_parse_cache_for_redis_endpoint
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
+    FuzzNormalizeLocation fuzz_azure_normalize_location
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
+    FuzzParseMSSQLEndpoint fuzz_azure_parse_mssql_endpoint
 
   cd -
 

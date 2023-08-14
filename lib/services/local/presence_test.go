@@ -886,6 +886,7 @@ func TestListResources_Helpers(t *testing.T) {
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
 			Namespace:    namespace,
+			Limit:        -1,
 		}
 		for _, tc := range tests {
 			tc := tc

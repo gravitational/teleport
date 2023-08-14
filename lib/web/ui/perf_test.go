@@ -133,9 +133,9 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 		case types.KindNode:
 			_, err = svc.UpsertNode(ctx, server)
 		case types.KindProxy:
-			err = svc.UpsertProxy(server)
+			err = svc.UpsertProxy(ctx, server)
 		case types.KindAuthServer:
-			err = svc.UpsertAuthServer(server)
+			err = svc.UpsertAuthServer(ctx, server)
 		default:
 			b.Errorf("Unexpected server kind: %s", kind)
 		}

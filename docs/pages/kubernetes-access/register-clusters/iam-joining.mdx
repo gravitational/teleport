@@ -74,9 +74,9 @@ Then create the IAM policy:
 $ aws iam create-policy --policy-name <Var name="kube-iam-policy"/> --policy-document file://iam-policy.json
 {
     "Policy": {
-        "PolicyName": "kube-iam-policy",
+        "PolicyName": "<Var name="kube-iam-policy"/>",
         "PolicyId": "ANPAW2Y2Q2Y2Y2Y2Y2Y2Y",
-        "Arn": "arn:aws:iam::aws:policy/kube-iam-policy",
+        "Arn": "arn:aws:iam::aws:policy/<Var name="kube-iam-policy"/>",
         "Path": "/",
         "DefaultVersionId": "v1",
         "AttachmentCount": 0,
@@ -133,10 +133,10 @@ Kubernetes service account.
 
 ```code
 $ kubectl create ns <Var name="teleport-agent"/>
-namespace/teleport-agent created
+namespace/<Var name="teleport-agent"/> created
 
 $ kubectl create sa <Var name="teleport-kube-agent-sa"/> -n  <Var name="teleport-agent"/>
-serviceaccount/teleport-kube-agent-sa created
+serviceaccount/<Var name="teleport-kube-agent-sa"/> created
 ```
 
 Then we need to create the IAM role and trust relationship. For that, we need

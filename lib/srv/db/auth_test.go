@@ -245,6 +245,12 @@ const (
 	azureRedisToken = "azure-redis-token"
 	// elastiCacheRedisToken is a mock ElastiCache Redis token.
 	elastiCacheRedisToken = "elasticache-redis-token"
+	// atlasAuthUser is a mock Mongo Atlas IAM auth user.
+	atlasAuthUser = "arn:aws:iam::111111111111:role/alice"
+	// atlasAuthToken is a mock Mongo Atlas IAM auth token.
+	atlasAuthToken = "atlas-auth-token"
+	// atlasAuthSessionToken is a mock Mongo Atlas IAM auth session token.
+	atlasAuthSessionToken = "atlas-session-token"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -289,6 +295,13 @@ func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.S
 func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
 	return azureRedisToken, nil
+}
+
+// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
+// access key and session token.
+func (a *testAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *common.Session) (string, string, string, error) {
+	a.Infof("Generating AWS IAM credentials for %v.", sessionCtx)
+	return atlasAuthUser, atlasAuthToken, atlasAuthSessionToken, nil
 }
 
 func TestDBCertSigning(t *testing.T) {
@@ -375,6 +388,58 @@ func TestDBCertSigning(t *testing.T) {
 			// Verify if the generated certificate can be verified with the correct CA.
 			_, err = dbCert.Verify(opts)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestMongoDBAtlas(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t,
+		withAtlasMongo("iam-auth", atlasAuthUser, atlasAuthSessionToken),
+		withAtlasMongo("certs-auth", "", ""),
+	)
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	for name, tt := range map[string]struct {
+		service   string
+		dbUser    string
+		expectErr require.ErrorAssertionFunc
+	}{
+		"authenticates with arn username": {
+			service:   "iam-auth",
+			dbUser:    "arn:aws:iam::111111111111:role/alice",
+			expectErr: require.NoError,
+		},
+		"disabled iam authentication": {
+			service:   "certs-auth",
+			dbUser:    "arn:aws:iam::111111111111:role/alice",
+			expectErr: require.Error,
+		},
+		"partial arn authentication": {
+			service:   "iam-auth",
+			dbUser:    "role/alice",
+			expectErr: require.NoError,
+		},
+		"IAM user arn": {
+			service:   "iam-auth",
+			dbUser:    "arn:aws:iam::111111111111:user/alice",
+			expectErr: require.Error,
+		},
+		"certs authentication": {
+			service:   "certs-auth",
+			dbUser:    "alice",
+			expectErr: require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			conn, err := testCtx.mongoClient(ctx, "alice", tt.service, tt.dbUser)
+			tt.expectErr(t, err)
+			if err != nil {
+				require.NoError(t, conn.Disconnect(ctx))
+			}
 		})
 	}
 }

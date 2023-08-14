@@ -181,9 +181,9 @@ export function useFilterSearch() {
       };
       const getResourceType = () => {
         let resourceTypes = [
-          'kubes' as const,
           'servers' as const,
           'databases' as const,
+          'kubes' as const,
         ];
         if (search) {
           resourceTypes = resourceTypes.filter(resourceType =>

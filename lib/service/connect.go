@@ -228,7 +228,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 	for _, opt := range opts {
 		opt(&options)
 	}
-	state, err := process.storage.GetState(role)
+	state, err := process.storage.GetState(context.TODO(), role)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -737,7 +737,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		return trace.Wrap(err)
 	}
 
-	state, err := process.storage.GetState(types.RoleNode)
+	state, err := process.storage.GetState(ctx, types.RoleNode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -975,7 +975,7 @@ func (process *TeleportProcess) syncRotationState(conn *Connector) (*rotationSta
 // syncServiceRotationState syncs up rotation state for internal services (Auth, Proxy, Node) and
 // if necessary, updates credentials. Returns true if the service will need to reload.
 func (process *TeleportProcess) syncServiceRotationState(ca types.CertAuthority, conn *Connector) (*rotationStatus, error) {
-	state, err := process.storage.GetState(conn.ClientIdentity.ID.Role)
+	state, err := process.storage.GetState(context.TODO(), conn.ClientIdentity.ID.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

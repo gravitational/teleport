@@ -30,5 +30,6 @@ export {
   useConnectionDiagnostic,
 } from './ConnectionDiagnostic';
 export { useShowHint } from './useShowHint';
+export { StepBox } from './StepBox';
 
 export type { DiscoverLabel } from './LabelsCreater';

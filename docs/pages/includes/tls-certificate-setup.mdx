@@ -12,13 +12,13 @@ deployments, use your own private key and certificate.
     verification process when it starts up.
 
     On the host where you will start the Teleport Auth Service and Proxy Service,
-    run the following `teleport configure` command, where `tele.example.com` is the
-    domain name of your Teleport cluster and `user@example.com` is an email address
-    used for notifications (you can use any domain):
+    run the following `teleport configure` command. Assign 
+    <Var name="tele.example.com" /> to the
+    domain name of your Teleport cluster and <Var name="user@example.com" /> to
+    an email address used for notifications (you can use any domain):
 
     ```code
-    $ teleport configure --acme --acme-email=<Var name="user@example.com" description="Your email address to register with Let's Encrypt for TLS certificates" /> --cluster-name=<Var name="tele.example.com" description="The domain name of your Teleport cluster" /> | \
-    sudo tee /etc/teleport.yaml > /dev/null
+    $ teleport configure --acme --acme-email=<Var name="user@example.com" description="Your email address to register with Let's Encrypt for TLS certificates" /> --cluster-name=<Var name="tele.example.com" description="The domain name of your Teleport cluster" /> | sudo tee /etc/teleport.yaml > /dev/null
     ```
 
     The `--acme`, `--acme-email`, and `--cluster-name` flags will add the following
@@ -43,12 +43,14 @@ deployments, use your own private key and certificate.
 
   The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
 
-  Configure Teleport, changing the values of the `--cluster-name` and `--public-addr` flags to match the domain name of your Teleport host.
+  On the host where you will start the Teleport Auth Service and Proxy Service,
+  run the following `teleport configure` command. Assign <Var
+  name="tele.example.com" /> to the domain name of your Teleport cluster.
 
   ```code
   $ sudo teleport configure -o file \
-      --cluster-name=tele.example.com \
-      --public-addr=tele.example.com:443 \
+      --cluster-name=<Var name="tele.example.com" /> \
+      --public-addr=<Var name="tele.example.com" />:443 \
       --cert-file=/var/lib/teleport/fullchain.pem \
       --key-file=/var/lib/teleport/privkey.pem
   ```

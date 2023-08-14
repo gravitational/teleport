@@ -20,39 +20,17 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
-type mockHostCertAuth struct {
-	mockAuth
-}
-
-func (m *mockHostCertAuth) GenerateHostCert(
-	ctx context.Context,
-	key []byte, hostID, nodeName string, principals []string,
-	clusterName string, role types.SystemRole, ttl time.Duration,
-) ([]byte, error) {
-	// We could generate a cert easily enough here, but the template generates a
-	// random key each run so the resulting cert will change too.
-	// The CA fixture isn't even a cert but we never examine it, so it'll do the
-	// job.
-	return []byte(fixtures.SSHCAPublicKey), nil
-}
-
 func TestTemplateSSHHostCertRender(t *testing.T) {
-	mockAuth := &mockHostCertAuth{
-		mockAuth: *newMockAuth(t),
-	}
-
-	cfg, err := NewDefaultConfig("example.com")
+	cfg, err := newTestConfig("example.com")
 	require.NoError(t, err)
 
-	mockBot := newMockBot(cfg, mockAuth)
+	mockBot := newMockProvider(cfg)
 
 	template := TemplateSSHHostCert{
 		Prefix:     "example",
@@ -69,7 +47,7 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	require.NoError(t, dest.CheckAndSetDefaults())
 
 	ident := getTestIdent(t, "bot-test")
-	err = template.Render(context.Background(), mockBot, ident, ident, dest)
+	err = template.Render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
 	// Make sure a cert is written. We just use a dummy cert (the CA fixture)

@@ -15,7 +15,6 @@
  */
 
 // these constants are 1:1 with constants found in lib/usagereporter/web/userevent.go
-
 export enum CaptureEvent {
   // UserEvent types
   BannerClickEvent = 'tp.ui.banner.click',
@@ -123,6 +122,8 @@ export enum DiscoverEventResource {
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
+
+  SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
 }
 
 export enum DiscoverEventStatus {
@@ -181,7 +182,6 @@ export type DiscoverEventStepStatus = {
   stepStatusError?: string;
 };
 
-// TODO(mcbattirola): import this from protofile instead of copying it here
 export enum CtaEvent {
   CTA_UNSPECIFIED = 0,
   CTA_AUTH_CONNECTOR = 1,
@@ -190,4 +190,5 @@ export enum CtaEvent {
   CTA_PREMIUM_SUPPORT = 4,
   CTA_TRUSTED_DEVICES = 5,
   CTA_UPGRADE_BANNER = 6,
+  CTA_BILLING_SUMMARY = 7,
 }

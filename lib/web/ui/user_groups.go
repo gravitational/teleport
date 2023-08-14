@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,18 +29,41 @@ type UserGroup struct {
 	Description string `json:"description"`
 	// Labels is the user group list of labels
 	Labels []Label `json:"labels"`
+	// FriendlyName is a friendly name for the user group.
+	FriendlyName string `json:"friendlyName,omitempty"`
+	// Applications is a list of associated applications.
+	Applications []ApplicationAndFriendlyName `json:"applications,omitempty"`
+}
+
+// ApplicationAndFriendlyName is an application name and its friendly name.
+type ApplicationAndFriendlyName struct {
+	// Name is the name of the application.
+	Name string `json:"name"`
+	// FriendlyName is the friendly name of the application.
+	FriendlyName string `json:"friendlyName"`
 }
 
 // MakeUserGroups creates user group objects for the UI.
-func MakeUserGroups(clusterName string, userGroups []types.UserGroup, userRoles services.RoleSet) ([]UserGroup, error) {
+func MakeUserGroups(userGroups []types.UserGroup, userGroupsToApps map[string]types.Apps) ([]UserGroup, error) {
 	uiUserGroups := []UserGroup{}
 	for _, userGroup := range userGroups {
 		uiLabels := makeLabels(userGroup.GetStaticLabels())
 
+		apps := userGroupsToApps[userGroup.GetName()]
+		appsAndFriendlyNames := make([]ApplicationAndFriendlyName, len(apps))
+		for i, app := range apps {
+			appsAndFriendlyNames[i] = ApplicationAndFriendlyName{
+				Name:         app.GetName(),
+				FriendlyName: services.FriendlyName(app),
+			}
+		}
+
 		uiUserGroups = append(uiUserGroups, UserGroup{
-			Name:        userGroup.GetName(),
-			Description: userGroup.GetMetadata().Description,
-			Labels:      uiLabels,
+			Name:         userGroup.GetName(),
+			Description:  userGroup.GetMetadata().Description,
+			Labels:       uiLabels,
+			FriendlyName: services.FriendlyName(userGroup),
+			Applications: appsAndFriendlyNames,
 		})
 	}
 

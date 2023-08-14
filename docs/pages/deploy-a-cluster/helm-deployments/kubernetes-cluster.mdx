@@ -226,9 +226,9 @@ Obtain the address of your load balancer by following the instructions below.
 Get information about the Proxy Service load balancer:
 
 ```code
-$ kubectl get services/teleport-cluster-proxy
-NAME                    TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
-teleport-cluster-proxy  LoadBalancer   10.4.4.73    192.0.2.0        443:31204/TCP                  89s
+$ kubectl get services/teleport-cluster
+NAME              TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
+teleport-cluster  LoadBalancer   10.4.4.73    192.0.2.0        443:31204/TCP                  89s
 ```
 
 The `teleport-cluster` service directs traffic to the Teleport Proxy Service.

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 	"time"
 
@@ -476,6 +477,9 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 		consumerBatchCount.Add(float64(fullBatchMetadata.Count))
 		consumerBatchSize.Observe(float64(fullBatchMetadata.Size))
 		consumerAgeOfOldestProcessedMessage.Set(time.Since(fullBatchMetadata.OldestTimestamp).Seconds())
+	} else {
+		// When no messages were processed, clear gauge metric.
+		consumerAgeOfOldestProcessedMessage.Set(0)
 	}
 }
 
@@ -500,14 +504,18 @@ func (c *collectedEventsMetadata) Merge(in collectedEventsMetadata) {
 }
 
 // MergeWithEvent combines collectedEventsMetadata with metadata of single event.
-func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent) {
+func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent, publishedToQueueTimestamp time.Time) {
 	c.Merge(collectedEventsMetadata{
 		// 1 because we are merging single event
 		Count:           1,
 		Size:            in.Size(),
-		OldestTimestamp: in.GetTime(),
+		OldestTimestamp: publishedToQueueTimestamp,
 	})
 }
+
+// SDK defines invalid type for attribute names, let's just use const here.
+// https://github.com/aws/aws-sdk-go-v2/issues/2124
+const sentTimestampAttribute = "SentTimestamp"
 
 func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context, eventsC chan<- eventAndAckID, errorsC chan<- error) collectedEventsMetadata {
 	sqsOut, err := s.cfg.sqsReceiver.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
@@ -516,6 +524,7 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 		WaitTimeSeconds:       s.cfg.waitOnReceiveTimeout,
 		VisibilityTimeout:     s.cfg.visibilityTimeout,
 		MessageAttributeNames: []string{payloadTypeAttr},
+		AttributeNames:        []sqsTypes.QueueAttributeName{sentTimestampAttribute},
 	})
 	if err != nil {
 		// We don't need handle canceled errors anyhow.
@@ -547,9 +556,28 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 			event:         event,
 			receiptHandle: aws.ToString(msg.ReceiptHandle),
 		}
-		singleReceiveMetadata.MergeWithEvent(event)
+		messageSentTimestamp, err := getMessageSentTimestamp(msg)
+		if err != nil {
+			s.cfg.logger.Debugf("Failed to get sentTimestamp: %v", err)
+		}
+		singleReceiveMetadata.MergeWithEvent(event, messageSentTimestamp)
 	}
 	return singleReceiveMetadata
+}
+
+func getMessageSentTimestamp(msg sqsTypes.Message) (time.Time, error) {
+	if msg.Attributes == nil {
+		return time.Time{}, nil
+	}
+	attribute := msg.Attributes[sentTimestampAttribute]
+	if attribute == "" {
+		return time.Time{}, nil
+	}
+	milis, err := strconv.Atoi(attribute)
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return time.UnixMilli(int64(milis)).UTC(), nil
 }
 
 // auditEventFromSQSorS3 returns events either directly from SQS message payload

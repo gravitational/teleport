@@ -204,7 +204,7 @@ machine where you can manage your group policy, assigning <Var name="proxy" />
 to the address of your Teleport Proxy Service:
 
 ```code
-$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=windows' > user-ca.cer
+$ curl -o user-ca.cer https://<Var name="proxy"/>/webapi/auth/export?type=windows
 ```
 
 <Admonition type="note" title="Take note of the location">

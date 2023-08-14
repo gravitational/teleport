@@ -74,7 +74,7 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" pb={4}>
+      <Card my="5" mx="auto" width="464px" pb={4}>
         <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
@@ -90,7 +90,7 @@ export default function LoginForm(props: Props) {
 
   if (!isLocalAuthEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
+      <Card my="5" mx="auto" width="464px" px={5} pb={4}>
         <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
@@ -105,7 +105,7 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card bg="levels.surface" my="5" mx="auto" width={464} pb={4}>
+    <Card my="5" mx="auto" width={464} pb={4}>
       <Text typography="h3" pt={4} textAlign="center">
         {title}
       </Text>

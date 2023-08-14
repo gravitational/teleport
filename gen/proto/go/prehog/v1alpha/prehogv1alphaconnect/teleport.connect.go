@@ -61,8 +61,19 @@ const (
 // TeleportReportingServiceClient is a client for the prehog.v1alpha.TeleportReportingService
 // service.
 type TeleportReportingServiceClient interface {
+	// equivalent to SubmitEvents with a single event, should be unused by now
+	//
 	// Deprecated: do not use.
 	SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error)
+	// encodes and forwards usage events to the PostHog event database; each
+	// event is annotated with some properties that depend on the identity of the
+	// caller:
+	//   - tp.account_id (UUID in string form, can be empty if missing from the
+	//     license)
+	//   - tp.license_name (should always be a UUID)
+	//   - tp.license_authority (name of the authority that signed the license file
+	//     used for authentication)
+	//   - tp.is_cloud (boolean)
 	SubmitEvents(context.Context, *connect_go.Request[v1alpha.SubmitEventsRequest]) (*connect_go.Response[v1alpha.SubmitEventsResponse], error)
 	HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error)
 }
@@ -122,8 +133,19 @@ func (c *teleportReportingServiceClient) HelloTeleport(ctx context.Context, req 
 // TeleportReportingServiceHandler is an implementation of the
 // prehog.v1alpha.TeleportReportingService service.
 type TeleportReportingServiceHandler interface {
+	// equivalent to SubmitEvents with a single event, should be unused by now
+	//
 	// Deprecated: do not use.
 	SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error)
+	// encodes and forwards usage events to the PostHog event database; each
+	// event is annotated with some properties that depend on the identity of the
+	// caller:
+	//   - tp.account_id (UUID in string form, can be empty if missing from the
+	//     license)
+	//   - tp.license_name (should always be a UUID)
+	//   - tp.license_authority (name of the authority that signed the license file
+	//     used for authentication)
+	//   - tp.is_cloud (boolean)
 	SubmitEvents(context.Context, *connect_go.Request[v1alpha.SubmitEventsRequest]) (*connect_go.Response[v1alpha.SubmitEventsResponse], error)
 	HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error)
 }

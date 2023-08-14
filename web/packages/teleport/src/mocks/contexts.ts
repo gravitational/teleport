@@ -64,6 +64,7 @@ export const allAccessAcl: Acl = {
   deviceTrust: fullAccess,
   lock: fullAccess,
   assist: fullAccess,
+  samlIdpServiceProvider: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

@@ -26,6 +26,7 @@ import {
   ipcMain,
   Menu,
   MenuItemConstructorOptions,
+  nativeTheme,
   shell,
 } from 'electron';
 import { wait } from 'shared/utils/wait';
@@ -193,6 +194,10 @@ export default class MainProcess {
       event.returnValue = this.settings;
     });
 
+    ipcMain.on('main-process-should-use-dark-colors', event => {
+      event.returnValue = nativeTheme.shouldUseDarkColors;
+    });
+
     ipcMain.handle('main-process-get-resolved-child-process-addresses', () => {
       return this.resolvedChildProcessAddresses;
     });
@@ -332,10 +337,7 @@ export default class MainProcess {
         role: 'help',
         submenu: [
           { label: 'Learn More', click: openDocsUrl },
-          {
-            label: 'About Teleport Connect',
-            click: app.showAboutPanel,
-          },
+          { role: 'about' },
         ],
       },
     ];
@@ -345,8 +347,7 @@ export default class MainProcess {
   }
 
   private updateAboutPanelIfNeeded(): void {
-    // There is no about menu for Linux. See https://github.com/electron/electron/issues/18918
-    // On Windows default menu does not show copyrights.
+    // On Windows and Linux default menu does not show copyrights.
     if (
       this.settings.platform === 'linux' ||
       this.settings.platform === 'win32'

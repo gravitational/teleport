@@ -61,6 +61,6 @@ func (c *AutoEnrollCeremony) Run(ctx context.Context, devicesClient devicepb.Dev
 		return nil, trace.Wrap(err, "creating auto-token")
 	}
 
-	dev, err := c.Ceremony.Run(ctx, devicesClient, token.Token)
+	dev, err := c.Ceremony.Run(ctx, devicesClient, false, token.Token)
 	return dev, trace.Wrap(err)
 }

@@ -65,10 +65,13 @@ func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool]
 				}),
 		},
 		Functions: map[string]typical.Function{
+			"labels_matching": typical.UnaryFunctionWithEnv(labelsMatching),
 			"contains": typical.BinaryFunction[labelExpressionEnv](
 				func(list []string, item string) (bool, error) {
 					return slices.Contains(list, item), nil
 				}),
+			"contains_any": typical.BinaryFunction[labelExpressionEnv](containsAny),
+			"contains_all": typical.BinaryFunction[labelExpressionEnv](containsAll),
 			"regexp.match": typical.BinaryFunction[labelExpressionEnv](
 				func(list []string, re string) (bool, error) {
 					match, err := utils.RegexMatchesAny(list, re)
@@ -77,9 +80,10 @@ func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool]
 					}
 					return match, nil
 				}),
-			// Use regexp.replace from lib/utils/parse to get behavior identical
+			// Use regexp.replace and email.local from lib/utils/parse to get behavior identical
 			// to role templates.
 			"regexp.replace": typical.TernaryFunction[labelExpressionEnv](parse.RegexpReplace),
+			"email.local":    typical.UnaryFunction[labelExpressionEnv](parse.EmailLocal),
 			"strings.upper": typical.UnaryFunction[labelExpressionEnv](
 				func(list []string) ([]string, error) {
 					out := make([]string, len(list))
@@ -99,4 +103,57 @@ func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool]
 		},
 	})
 	return parser, trace.Wrap(err)
+}
+
+// labelsMatching returns the aggregate of all label values for all keys that
+// match keyExpr. It supports globs or full regular expressions and must find
+// a complete match for the key.
+func labelsMatching(env labelExpressionEnv, keyExpr string) ([]string, error) {
+	allLabels := env.resourceLabelGetter.GetAllLabels()
+	var matchingLabelValues []string
+	for key, value := range allLabels {
+		match, err := utils.MatchString(key, keyExpr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if match {
+			matchingLabelValues = append(matchingLabelValues, value)
+		}
+	}
+	return matchingLabelValues, nil
+}
+
+// containsAny returns true if [list] contains any element of [items].
+func containsAny(list []string, items []string) (bool, error) {
+	s := set(list)
+	for _, item := range items {
+		if _, ok := s[item]; ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// containsAny returns true if [list] contains every element of [items]. If
+// [items] is empty, it returns false, to avoid matching resources that
+// otherwise appear unrelated to the expression.
+func containsAll(list []string, items []string) (bool, error) {
+	if len(items) == 0 {
+		return false, nil
+	}
+	s := set(list)
+	for _, item := range items {
+		if _, ok := s[item]; !ok {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func set(list []string) map[string]struct{} {
+	m := make(map[string]struct{}, len(list))
+	for _, l := range list {
+		m[l] = struct{}{}
+	}
+	return m
 }

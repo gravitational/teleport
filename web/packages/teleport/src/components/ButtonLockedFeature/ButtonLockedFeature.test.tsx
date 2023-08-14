@@ -53,7 +53,7 @@ describe('buttonLockedFeature', () => {
     );
     expect(screen.getByText('text').closest('a')).toHaveAttribute(
       'href',
-      `https://goteleport.com/r/upgrade-team?${version}&campaign=undefined`
+      `https://goteleport.com/r/upgrade-team?${version}&utm_campaign=undefined`
     );
 
     renderWithContext(
@@ -63,7 +63,7 @@ describe('buttonLockedFeature', () => {
     );
     expect(screen.getByText('othertext').closest('a')).toHaveAttribute(
       'href',
-      `https://goteleport.com/r/upgrade-team?${version}&campaign=${
+      `https://goteleport.com/r/upgrade-team?${version}&utm_campaign=${
         CtaEvent[CtaEvent.CTA_ACCESS_REQUESTS]
       }`
     );

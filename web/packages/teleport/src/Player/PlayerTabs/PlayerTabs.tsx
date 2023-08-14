@@ -47,7 +47,7 @@ const StyledTabItem = styled(Box)`
   }
 
   ${({ theme }) => ({
-    backgroundColor: theme.colors.bgTerminal,
+    backgroundColor: theme.colors.levels.sunken,
     color: theme.colors.text.main,
     fontWeight: 'bold',
     transition: 'none',
@@ -56,7 +56,7 @@ const StyledTabItem = styled(Box)`
   ${({ theme }) => {
     return {
       border: 'none',
-      borderRight: `1px solid ${theme.colors.bgTerminal}`,
+      borderRight: `1px solid ${theme.colors.levels.sunken}`,
       '&:hover, &:focus': {
         color: theme.colors.text.main,
         transition: 'color .3s',

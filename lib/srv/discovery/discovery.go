@@ -50,11 +50,11 @@ type Config struct {
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
 	// AWSMatchers is a list of AWS EC2 matchers.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure matchers to discover resources.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// GCPMatchers is a list of GCP matchers to discover resources.
-	GCPMatchers []services.GCPMatcher
+	GCPMatchers []types.GCPMatcher
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 	// AccessPoint is a discovery access point
@@ -164,7 +164,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 }
 
 // initAWSWatchers starts AWS resource watchers based on types provided.
-func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
+func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	ec2Matchers, otherMatchers := splitAWSMatchers(matchers, func(matcherType string) bool {
 		return matcherType == services.AWSMatcherEC2
 	})
@@ -195,6 +195,11 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 
 	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
+		matcherAssumeRole := &types.AssumeRole{}
+		if matcher.AssumeRole != nil {
+			matcherAssumeRole = matcher.AssumeRole
+		}
+
 		for _, t := range matcher.Types {
 			for _, region := range matcher.Regions {
 				switch t {
@@ -203,8 +208,8 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 						s.ctx,
 						region,
 						cloud.WithAssumeRole(
-							matcher.AssumeRole.RoleARN,
-							matcher.AssumeRole.ExternalID,
+							matcherAssumeRole.RoleARN,
+							matcherAssumeRole.ExternalID,
 						),
 					)
 					if err != nil {
@@ -231,7 +236,7 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 }
 
 // initAzureWatchers starts Azure resource watchers based on types provided.
-func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.AzureMatcher) error {
+func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
 	vmMatchers, otherMatchers := splitAzureMatchers(matchers, func(matcherType string) bool {
 		return matcherType == services.AzureMatcherVM
 	})
@@ -292,7 +297,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 }
 
 // initGCPWatchers starts GCP resource watchers based on types provided.
-func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMatcher) error {
+func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatcher) error {
 	// return early if there are no matchers as GetGCPGKEClient causes
 	// an error if there are no credentials present
 	if len(matchers) == 0 {
@@ -679,7 +684,7 @@ func splitSlice(ss []string, check func(string) bool) (split, other []string) {
 }
 
 // splitAWSMatchers splits the AWS matchers by checking the matcher types.
-func splitAWSMatchers(matchers []services.AWSMatcher, matcherTypeCheck func(string) bool) (split, other []services.AWSMatcher) {
+func splitAWSMatchers(matchers []types.AWSMatcher, matcherTypeCheck func(string) bool) (split, other []types.AWSMatcher) {
 	for _, matcher := range matchers {
 		splitTypes, otherTypes := splitSlice(matcher.Types, matcherTypeCheck)
 
@@ -694,7 +699,7 @@ func splitAWSMatchers(matchers []services.AWSMatcher, matcherTypeCheck func(stri
 }
 
 // splitAzureMatchers splits the Azure matchers by checking the matcher types.
-func splitAzureMatchers(matchers []services.AzureMatcher, matcherTypeCheck func(string) bool) (split, other []services.AzureMatcher) {
+func splitAzureMatchers(matchers []types.AzureMatcher, matcherTypeCheck func(string) bool) (split, other []types.AzureMatcher) {
 	for _, matcher := range matchers {
 		splitTypes, otherTypes := splitSlice(matcher.Types, matcherTypeCheck)
 
@@ -709,14 +714,14 @@ func splitAzureMatchers(matchers []services.AzureMatcher, matcherTypeCheck func(
 }
 
 // copyAWSMatcherWithNewTypes copies an AWS Matcher and replaces the types with newTypes
-func copyAWSMatcherWithNewTypes(matcher services.AWSMatcher, newTypes []string) services.AWSMatcher {
+func copyAWSMatcherWithNewTypes(matcher types.AWSMatcher, newTypes []string) types.AWSMatcher {
 	newMatcher := matcher
 	newMatcher.Types = newTypes
 	return newMatcher
 }
 
 // copyAzureMatcherWithNewTypes copies an Azure Matcher and replaces the types with newTypes.
-func copyAzureMatcherWithNewTypes(matcher services.AzureMatcher, newTypes []string) services.AzureMatcher {
+func copyAzureMatcherWithNewTypes(matcher types.AzureMatcher, newTypes []string) types.AzureMatcher {
 	newMatcher := matcher
 	newMatcher.Types = newTypes
 	return newMatcher

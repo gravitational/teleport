@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport14
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
   UID: "1000"
 trigger:
   event:
@@ -155,7 +155,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport14
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
   UID: "1000"
 trigger:
   event:
@@ -269,7 +269,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport14
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
   UID: "1000"
 trigger:
   event:
@@ -387,7 +387,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport14
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
   UID: "1000"
 trigger:
   event:
@@ -1042,7 +1042,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport14
   GID: "1000"
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
   UID: "1000"
 trigger:
   event:
@@ -1479,7 +1479,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
 trigger:
   event:
     include:
@@ -1688,7 +1688,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
 trigger:
   event:
     include:
@@ -1896,7 +1896,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
 trigger:
   event:
     include:
@@ -2111,7 +2111,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
 trigger:
   event:
     include:
@@ -3411,7 +3411,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
 trigger:
   event:
     include:
@@ -4237,7 +4237,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
 trigger:
   event:
     include:
@@ -5566,7 +5566,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport14
-  RUNTIME: go1.20.4
+  RUNTIME: go1.20.5
 trigger:
   event:
     include:
@@ -6229,29 +6229,6 @@ steps:
   - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
-- name: Build and push buildbox-fips
-  image: docker
-  pull: if-not-exists
-  commands:
-  - apk add --no-cache make aws-cli
-  - chown -R $UID:$GID /go
-  - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
-    -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - make -C build.assets buildbox-fips
-  - docker tag public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
-    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
-    login -u="AWS" --password-stdin public.ecr.aws
-  - docker push public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   volumes:
   - name: awsconfig
     path: /root/.aws
@@ -7038,6 +7015,66 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow promote-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
     -input "release-source-tag=${DRONE_TAG}" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-teleport-hardened-amis
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-hardened-amis
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow promote-teleport-hardened-amis.yaml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
+    "release-source-tag=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -8420,7 +8457,9 @@ clone:
 depends_on:
 - clean-up-previous-build
 - build-linux-amd64-deb
+- build-linux-amd64-fips-deb
 - build-linux-arm64-deb
+- build-linux-arm-deb
 steps:
 - name: Check out code
   image: docker:git
@@ -8448,6 +8487,68 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 2h30m0s -workflow release-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: build-teleport-hardened-amis
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+depends_on:
+- clean-up-previous-build
+- build-linux-amd64-deb
+- build-linux-amd64-fips-deb
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 2h30m0s -workflow release-teleport-hardened-amis.yaml -workflow-ref=${DRONE_TAG}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
@@ -16996,6 +17097,7 @@ depends_on:
 - teleport-container-images-branch-promote
 - publish-os-package-repos
 - promote-teleport-oci-distroless-images
+- promote-teleport-hardened-amis
 - promote-teleport-kube-agent-updater-oci-images
 steps:
 - name: Check if commit is tagged
@@ -17106,6 +17208,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: c12537f0b20719e1d7b3247410ec676e00d60db9c892bdaf02b08f13b0c224d0
+hmac: d3185434ba38b96a9cbf435a59a3ab0d7e4d3ef6ef39a198164e0e2198f1286d
 
 ...

@@ -37,9 +37,9 @@ type DatabasesConfig struct {
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers match AWS hosted databases.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers match Azure hosted databases.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
 }

@@ -170,7 +170,6 @@ func (t *Tracker) tick() {
 		}
 		t.wp.Set(uint64(count))
 	}
-
 }
 
 func (t *Tracker) getOrCreate() *proxySet {
@@ -208,6 +207,20 @@ func (t *Tracker) release(principals ...string) {
 	}
 
 	t.sets.release(principals...)
+}
+
+// IsClaimed returns true if the proxy identified by the given principals is
+// already claimed by some other agent at the time of the call. Keep in mind
+// that a return value of false doesn't imply that a subsequent call to Claim is
+// guaranteed to succeed, as other goroutines might claim the same proxy between
+// IsClaimed and Claim.
+func (t *Tracker) IsClaimed(principals ...string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.sets == nil {
+		return false
+	}
+	return t.sets.isClaimed(principals...)
 }
 
 type entry struct {
@@ -249,6 +262,11 @@ func (p *proxySet) release(principals ...string) {
 	p.proxies[proxy] = entry{
 		lastSeen: time.Now(),
 	}
+}
+
+func (p *proxySet) isClaimed(principals ...string) bool {
+	proxy := p.resolveName(principals)
+	return p.proxies[proxy].claimed
 }
 
 func (p *proxySet) markSeen(t time.Time, proxy string) {

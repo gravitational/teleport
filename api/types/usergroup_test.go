@@ -26,7 +26,7 @@ func TestUserGroupMatchSearch(t *testing.T) {
 	ug, err := NewUserGroup(Metadata{
 		Name:        "test",
 		Description: "description",
-	})
+	}, UserGroupSpecV1{})
 	require.NoError(t, err)
 
 	// Match against the name

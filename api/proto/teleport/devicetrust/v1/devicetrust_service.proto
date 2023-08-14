@@ -23,6 +23,7 @@ import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
+import "teleport/devicetrust/v1/tpm.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
@@ -438,36 +439,6 @@ message TPMEnrollChallengeResponse {
   TPMPlatformParameters platform_parameters = 2;
 }
 
-// Encapsulates the value of a PCR at a point at time.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#PCR
-message TPMPCR {
-  // the PCR index in the PCR bank
-  int32 index = 1;
-  // the digest currently held in the PCR
-  bytes digest = 2;
-  // the hash algorithm used to produce the digest in this PCR bank. This value
-  // is the underlying value of the Go crypto.Hash type.
-  uint64 digest_alg = 3;
-}
-
-// Encapsulates the result of a quote operation against the TPM over a PCR
-// using an attestation key.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#Quote
-message TPMQuote {
-  bytes quote = 1;
-  bytes signature = 2;
-}
-
-// The quotes, PCRs and event log from a TPM that attest to the booted state
-// of the machine.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#PlatformParameters
-// Excludes TPMVersion and Public since these are already known values.
-message TPMPlatformParameters {
-  repeated TPMQuote quotes = 1;
-  repeated TPMPCR pcrs = 2;
-  bytes event_log = 3;
-}
-
 // Request for AuthenticateDevice.
 //
 // Authentication ceremony flow:
@@ -554,8 +525,10 @@ message AuthenticateDeviceChallengeResponse {
 // (end loop)
 // -> SyncInventoryEnd
 // (loop until server closes the stream, zero or more times)
-// <- SyncInventoryResult (deleted/missing devices)
-// (end)
+// <- SyncInventoryMissingDevices
+// -> SyncInventoryDevices (removals only)
+// <- SyncInventoryResult
+// (end loop)
 message SyncInventoryRequest {
   oneof payload {
     SyncInventoryStart start = 1;
@@ -570,6 +543,7 @@ message SyncInventoryResponse {
   oneof payload {
     SyncInventoryAck ack = 1;
     SyncInventoryResult result = 2;
+    SyncInventoryMissingDevices missing_devices = 3;
   }
 }
 
@@ -580,51 +554,25 @@ message SyncInventoryStart {
   // by this RPC.
   DeviceSource source = 1;
 
-  // Mode of syncing.
-  // Required.
-  SyncInventoryMode mode = 2;
+  reserved 2; // SyncInventoryMode mode
+  reserved "mode";
 
-  // Action for devices missing from the external inventory, but present in
-  // Teleport.
-  // Only executed if mode is FULL and external_sync_successful is set to true
-  // in the SyncInventoryEnd message.
-  SyncInventoryDeviceAction on_missing_action = 3;
-}
+  reserved 3; // SyncInventoryDeviceAction on_missing_action
+  reserved "on_missing_action";
 
-// Mode of sync for SyncInventory.
-enum SyncInventoryMode {
-  SYNC_INVENTORY_MODE_UNSPECIFIED = 0;
-
-  // Partial inventory sync; not all devices in the external inventory are sent
-  // to the stream.
-  // Partial sync precludes inventory cleanup.
-  SYNC_INVENTORY_MODE_PARTIAL = 1;
-
-  // Full inventory sync; all devices in the external inventory must be sent to
-  // the stream.
-  // Full sync allows for handling of missing devices.
-  SYNC_INVENTORY_MODE_FULL = 2;
-}
-
-// Device action for SyncInventory.
-// Typically triggered at the end of FULL syncs..
-enum SyncInventoryDeviceAction {
-  SYNC_INVENTORY_DEVICE_ACTION_UNSPECIFIED = 0;
-
-  // Noop is a no-action.
-  SYNC_INVENTORY_DEVICE_ACTION_NOOP = 1;
-
-  // Deletes the device if the action condition is met.
-  SYNC_INVENTORY_DEVICE_ACTION_DELETE = 2;
+  // If true, the server keeps track of the devices upserted during the sync.
+  // After receiving the [SyncInventoryEnd] message, the server informs the
+  // client of all devices that are present in storage but not observed in the
+  // upserts.
+  // See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
+  bool track_missing_devices = 4;
 }
 
 // SyncInventoryEnd ends the inventory sync, signaling that no more
 // SyncInventoryDevices messages will be sent by the client.
 message SyncInventoryEnd {
-  // True if the external sync was fully successful (for example, all reads from
-  // an MDM API were successful).
-  // If false the sync's on_missing_action is skipped.
-  bool external_sync_successful = 1;
+  reserved 1; // bool external_sync_successful
+  reserved "external_sync_successful";
 }
 
 // SyncInventoryDevices transports devices to add/update/remove.
@@ -644,4 +592,19 @@ message SyncInventoryAck {}
 message SyncInventoryResult {
   // Devices modified, in the same order as the input when applicable.
   repeated DeviceOrStatus devices = 1;
+}
+
+// SyncInventoryMissingDevices informs the sync client of all stored devices
+// that were not observed in upserts during the sync.
+//
+// Requires `track_missing_devices` to be set in the [SyncInventoryStart]
+// message.
+//
+// The client must follow up with a [SyncInventoryDevices] message, including
+// any devices to be deleted.
+message SyncInventoryMissingDevices {
+  // Devices missing from the client-side sync.
+  // Guaranteed to have the following fields: id, os_type, asset_tag and
+  // profile.external_id.
+  repeated Device devices = 1;
 }

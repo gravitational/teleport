@@ -96,9 +96,7 @@ type RegexpConfig struct {
 // The wildcard (*) expansion is also supported.
 func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
 	for _, resource := range resources {
-		// TODO(tigrato): evaluate if we should support wildcards as well
-		// for future compatibility.
-		if input.Kind != resource.Kind {
+		if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 			continue
 		}
 		switch ok, err := MatchString(input.Name, resource.Name); {

@@ -223,7 +223,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	}
 	defer authClient.Close()
 
-	roleSet, err := services.FetchAllClusterRoles(ctx, authClient, c.status.Roles, c.status.Traits)
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.status.Cluster, authClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -233,7 +233,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 		return nil, trace.Wrap(err)
 	}
 
-	dbUsers := roleSet.EnumerateDatabaseUsers(db)
+	dbUsers := accessChecker.EnumerateDatabaseUsers(db)
 
 	return dbUsers.Allowed(), nil
 }

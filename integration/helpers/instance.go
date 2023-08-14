@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
+	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
 const (
@@ -1243,6 +1244,8 @@ func (i *TeleInstance) Start() error {
 
 // ClientConfig is a client configuration
 type ClientConfig struct {
+	// TeleportUser is Teleport username
+	TeleportUser string
 	// Login is SSH login name
 	Login string
 	// Cluster is a cluster name to connect to
@@ -1322,8 +1325,12 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		fwdAgentMode = client.ForwardAgentYes
 	}
 
+	if cfg.TeleportUser == "" {
+		cfg.TeleportUser = cfg.Login
+	}
+
 	cconf := &client.Config{
-		Username:                      cfg.Login,
+		Username:                      cfg.TeleportUser,
 		Host:                          cfg.Host,
 		HostPort:                      cfg.Port,
 		HostLogin:                     cfg.Login,
@@ -1407,8 +1414,8 @@ func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
 		return nil, trace.BadParameter("unexpected number of cookies returned; got %d, want %d", len(cookies), 1)
 	}
 	cookie := cookies[0]
-	if cookie.Name != web.CookieName {
-		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, web.CookieName)
+	if cookie.Name != websession.CookieName {
+		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, websession.CookieName)
 	}
 
 	tc, err := i.NewUnauthenticatedClient(cfg)
@@ -1554,21 +1561,22 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := web.NewTerminalStream(ws)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	stream := web.NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
 	return stream, nil
 }
 
 // AddClientCredentials adds authenticated credentials to a client.
 // (server CAs and signed session key).
 func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg ClientConfig) (*client.TeleportClient, error) {
+	login := cfg.Login
+	if cfg.TeleportUser != "" {
+		login = cfg.TeleportUser
+	}
+
 	// Generate certificates for the user simulating login.
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,
-		Username: cfg.Login,
+		Username: login,
 		SourceIP: cfg.SourceIP,
 	})
 	if err != nil {

@@ -201,7 +201,6 @@ exports[`render DocumentNodes 1`] = `
   margin: -16px;
   height: 100%;
   width: 100%;
-  background-color: #010B1C;
   display: flex;
 }
 
@@ -755,7 +754,7 @@ exports[`render DocumentNodes 1`] = `
 >
   <div
     class="c1"
-    style="overflow: auto; background: rgb(1, 11, 28); display: flex; position: relative;"
+    style="overflow: auto; display: flex; position: relative;"
   >
     <div
       class="c2"

@@ -67,6 +67,11 @@ variable "teleport_fips" {
   default = false
 }
 
+variable "teleport_tarball" {
+  description = "Path to teleport tarball"
+  type = string  
+}
+
 variable "teleport_uid" {
   type    = string
   default = "1007"
@@ -175,21 +180,16 @@ build {
     destination = "/tmp/files"
   }
 
+  provisioner "file" {
+    source = var.teleport_tarball
+    destination = "/tmp/teleport.tar.gz"
+  }
+
   provisioner "shell" {
     remote_folder = local.remote_folder
     inline = [
       "sudo cp /tmp/files/system/* /etc/systemd/system/",
       "sudo cp /tmp/files/bin/* /usr/local/bin/"
-    ]
-  }
-
-  provisioner "shell" {
-    remote_folder = local.remote_folder
-    environment_vars = [
-      "FIPS=${var.teleport_fips ? 1 : 0}"
-    ]
-    inline = [
-      "if [ \"$FIPS\" -eq 1 ]; then touch /tmp/teleport-fips; fi"
     ]
   }
 

@@ -50,6 +50,7 @@ import (
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -89,6 +90,9 @@ type Auth interface {
 	// attached to the current compute instance. If Teleport is not running on
 	// Azure VM returns an error.
 	GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error)
+	// GetAWSIAMCreds returns the AWS IAM credentials, including access key,
+	// secret access key and session token.
+	GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (string, string, string, error)
 	// Closer releases all resources used by authenticator.
 	io.Closer
 }
@@ -541,6 +545,12 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		return tlsConfig, nil
 	}
 
+	// MongoDB Atlas doesn't not require client certificates if is using AWS
+	// authentication.
+	if awsutils.IsRoleARN(sessionCtx.DatabaseUser) && sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas {
+		return tlsConfig, nil
+	}
+
 	// Otherwise, when connecting to an onprem database, generate a client
 	// certificate. The database instance should be configured with
 	// Teleport's CA obtained with 'tctl auth sign --type=db'.
@@ -820,6 +830,68 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 	}
 
 	return vm, nil
+}
+
+// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
+// access key and session token.
+func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (string, string, string, error) {
+	dbAWS := sessionCtx.Database.GetAWS()
+	awsAccountID := dbAWS.AccountID
+
+	if awsutils.IsPartialRoleARN(sessionCtx.DatabaseUser) && awsAccountID == "" {
+		switch {
+		case dbAWS.AssumeRoleARN != "":
+			a.cfg.Log.Debugf("Using AWS Account ID from assumed role")
+			assumeRoleARN, err := awsutils.ParseRoleARN(dbAWS.AssumeRoleARN)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
+
+			awsAccountID = assumeRoleARN.AccountID
+		default:
+			a.cfg.Log.Debugf("Fetching AWS Account ID to build role ARN")
+			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
+
+			identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
+
+			awsAccountID = identity.GetAccountID()
+		}
+	}
+
+	arn, err := awsutils.BuildRoleARN(sessionCtx.DatabaseUser, dbAWS.Region, awsAccountID)
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithAssumeRoleFromAWSMeta(dbAWS))
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	// ExternalID should only be used once. If the baseSession assumes a role,
+	// the chained sessions should have an empty external ID.
+	awsExternalID := ""
+	if dbAWS.AssumeRoleARN == "" {
+		awsExternalID = dbAWS.ExternalID
+	}
+
+	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithChainedAssumeRole(baseSession, arn, awsExternalID))
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	creds, err := sess.Config.Credentials.Get()
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	return creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken, nil
 }
 
 // Close releases all resources used by authenticator.

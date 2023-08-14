@@ -69,16 +69,15 @@ windows_desktop_service:
   # objects in Teleport. These hosts must be part of the Active Directory
   # domain configured to grant Teleport access.
   hosts:
-  - win1.example.com
-  - win2.example.com
-  - ...
+  - win1.dev.example.com
+  - win2.dev.example.com
   # (optional) non_ad_hosts is a list of hostnames that are not part of an
   # Active Diretory domain to register as WindowsDesktop objects in Teleport.
   # These hosts require the Teleport CA certificate and service, as described in
   # https://goteleport.com/docs/desktop-access/getting-started/
   non_ad_hosts:
-  - win3.example.com
-  - win4.example.com
+  - win3.prod.example.com
+  - win4.prod.example.com
   # (optional) settings for enabling automatic desktop discovery via LDAP
   discovery:
     # The wildcard '*' character tells Teleport to discover all the hosts in
@@ -97,13 +96,20 @@ windows_desktop_service:
   # Rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
+  # 
+  # The rules for matching static hosts (hosts and non_ad_hosts) and discovered hosts
+  # are slightly different. See https://goteleport.com/docs/desktop-access/rbac/
+  # for details.
   host_labels:
-  - match: '^.*\.dev\.example\.com$'
+  - match: '^.*\.dev\.example\.com'
     labels:
       environment: dev
-  - match: '^.*\.prod\.example\.com$'
+  - match: '^.*\.prod\.example\.com'
     labels:
       environment: prod
+  - match: '^EC2AMAZ-'
+    labels:
+      environment: discovered-in-aws
 
   # Labels to attach to the Windows Desktop Service. This is used internally, so
   # any custom labels added won't affect the Windows hosts.

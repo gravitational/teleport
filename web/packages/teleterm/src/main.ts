@@ -18,7 +18,7 @@ import { spawn } from 'child_process';
 
 import path from 'path';
 
-import { app, globalShortcut, shell } from 'electron';
+import { app, globalShortcut, shell, nativeTheme } from 'electron';
 
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
@@ -59,6 +59,8 @@ async function initializeApp(): Promise<void> {
     jsonSchemaFile: configJsonSchemaFileStorage,
     platform: settings.platform,
   });
+
+  nativeTheme.themeSource = configService.get('theme').value;
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', (error, origin) => {

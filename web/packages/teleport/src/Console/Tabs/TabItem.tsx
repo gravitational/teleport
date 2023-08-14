@@ -33,7 +33,12 @@ export default function TabItem(props: Props) {
         </Text>
       </StyledTabButton>
       <StyledCloseButton title="Close" onClick={onClose}>
-        <CloseIcon />
+        <CloseIcon
+          css={`
+            transition: none;
+            color: inherit;
+          `}
+        />
       </StyledCloseButton>
     </StyledTabItem>
   );
@@ -51,7 +56,7 @@ type Props = {
 function fromProps({ theme, active }) {
   let styles: Record<any, any> = {
     border: 'none',
-    borderRight: `1px solid ${theme.colors.bgTerminal}`,
+    borderRight: `1px solid ${theme.colors.levels.sunken}`,
     '&:hover, &:focus': {
       color: theme.colors.text.main,
       transition: 'color .3s',
@@ -61,7 +66,7 @@ function fromProps({ theme, active }) {
   if (active) {
     styles = {
       ...styles,
-      backgroundColor: theme.colors.bgTerminal,
+      backgroundColor: theme.colors.levels.sunken,
       color: theme.colors.text.main,
       fontWeight: 'bold',
       transition: 'none',
@@ -85,7 +90,6 @@ const StyledTabButton = styled.button`
   text-decoration: none;
   outline: none;
   margin: 0;
-  text-decoration: none;
   color: inherit;
   line-height: 32px;
   background-color: transparent;
@@ -97,6 +101,9 @@ const StyledTabButton = styled.button`
 `;
 
 const StyledCloseButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border-radius: 2px;
   border: none;
@@ -109,7 +116,9 @@ const StyledCloseButton = styled.button`
   transition: all 0.3s;
 
   &:hover {
+    color: ${props => props.theme.colors.text.primaryInverse};
     background: ${props => props.theme.colors.error.main};
   }
+
   ${space}
 `;

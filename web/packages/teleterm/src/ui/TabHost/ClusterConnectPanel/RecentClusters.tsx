@@ -47,7 +47,7 @@ export function RecentClusters() {
   }
 
   return (
-    <Card p={3} maxWidth="480px" bg="levels.surface" m="auto">
+    <Card p={3} maxWidth="480px" m="auto">
       <Text bold fontSize={3} mb={1}>
         Recent clusters
       </Text>

@@ -24,6 +24,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -82,6 +83,19 @@ func TestParser(t *testing.T) {
 					return "", trace.BadParameter("list has length 0")
 				}
 				return list[0], nil
+			}),
+			"labels_matching": typical.UnaryFunctionWithEnv(func(e env, keyExpr string) ([]string, error) {
+				var matchingLabels []string
+				for key, value := range e.labels {
+					match, err := utils.MatchString(key, keyExpr)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					if match {
+						matchingLabels = append(matchingLabels, value)
+					}
+				}
+				return matchingLabels, nil
 			}),
 		},
 		Methods: map[string]typical.Function{
@@ -318,6 +332,26 @@ func TestParser(t *testing.T) {
 				"usera",
 			)`,
 			expectMatch: true,
+		},
+		{
+			desc:        "unary func with env",
+			expr:        `contains_all(labels_matching("*"), "staging", "dev")`,
+			expectMatch: true,
+		},
+		{
+			desc: "unary func with env no arg",
+			expr: `contains_all(labels_matching(), "staging", "dev")`,
+			expectParseError: []string{
+				"function (labels_matching) accepts 1 argument, given 0",
+			},
+		},
+		{
+			desc: "unary func with env wrong type",
+			expr: `contains_all(labels_matching(traits["username"]), "staging", "dev")`,
+			expectParseError: []string{
+				"parsing argument to (labels_matching)",
+				"expected type string, got expression returning type ([]string)",
+			},
 		},
 		{
 			desc: "unsupported function",

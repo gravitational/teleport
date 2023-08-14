@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
@@ -176,7 +177,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		return nil
 	}
 

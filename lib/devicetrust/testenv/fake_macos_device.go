@@ -95,6 +95,7 @@ func (f *FakeMacOSDevice) SignChallenge(chal []byte) (sig []byte, err error) {
 
 func (d *FakeMacOSDevice) SolveTPMEnrollChallenge(
 	_ *devicepb.TPMEnrollChallenge,
+	_ bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.NotImplemented("mac device does not implement SolveTPMEnrollChallenge")
 }

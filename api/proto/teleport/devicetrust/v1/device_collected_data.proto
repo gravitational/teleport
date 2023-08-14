@@ -18,6 +18,7 @@ package teleport.devicetrust.v1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/devicetrust/v1/os_type.proto";
+import "teleport/devicetrust/v1/tpm.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
 
@@ -81,4 +82,18 @@ message DeviceCollectedData {
   // The serial number of the "base board" as reported by BIOS DMI Type 2.
   // This field can be empty if no value has been configured.
   string base_board_serial_number = 13;
+
+  // If during the collection of this device data, the device performed a TPM
+  // platform attestation (e.g during enrollment or authentication), then this
+  // field holds the record of this attestation. This allows the state of the
+  // device to be compared to historical state, and allows for the platform
+  // attestations to be revalidated at a later date.
+  //
+  // This field is not explicitly sent up by the client, and any DCD sent by a
+  // client including this field should be rejected. The server should inject
+  // this field once verifying that the submitted platform attestation during
+  // the enrollment or authentication.
+  //
+  // System managed.
+  TPMPlatformAttestation tpm_platform_attestation = 14;
 }

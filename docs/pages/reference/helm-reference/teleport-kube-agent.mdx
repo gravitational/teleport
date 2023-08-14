@@ -89,16 +89,32 @@ This parameter is not mandatory to preserve backwards compatibility with older c
   ```yaml
   roles: kube,app,db
   ```
+  
+## `enterprise`
 
-If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
+| Type     | Default value |
+|----------|---------------|
+| `bool`   | `false`       |
 
+When `enterprise` is set to `true`, the container image used for Teleport agent
+pods run by the `teleport-kube-agent` chart will be the enterprise version.
+This should be set to `true` for connecting to Teleport Cloud and self-hosted
+Teleport Enterprise clusters to use enterprise features within the Kube Agent. 
+
+`values.yaml` example:
+
+  ```yaml
+  enterprise: true
+  ```  
+  
 ## `updater`
 
 `updater` controls whether the Kube Agent Updater should be deployed alongside
 the `teleport-kube-agent`. The updater fetches the target version, validates the
-image signature, and updates the teleport deployment.
+image signature, and updates the teleport deployment. The `enterprise` value should 
+have been set to `true`.
 
-All kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
 ... default to the agent values. However, they can be overridden from the
 `updater` object. For example:
 
@@ -146,9 +162,9 @@ You must not enable this if:
 
 ### `updater.versionServer`
 
-| Type     | Default value                         | Required?                       |
-|----------|---------------------------------------|---------------------------------|
-| `string` | "https://update.gravitational.io/v1/" | Yes if not using Teleport Cloud |
+| Type     | Default value                               | Required?                       |
+|----------|---------------------------------------------|---------------------------------|
+| `string` | "https://updates.releases.teleport.dev/v1/" | Yes if not using Teleport Cloud |
 
 `updater.versionServer` is the URL of the version server the agent fetches the
 target version from. The complete version endpoint is built by concatenating
@@ -956,9 +972,9 @@ connecting to a Teleport Cloud instance enrolled in automatic updates.
 
 ## `imagePullSecrets`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
 
@@ -1116,9 +1132,9 @@ Ensures that this number of replicas is available during voluntary disruptions, 
 
 ## `serviceAccount.create`
 
-| Type      | Default value | Required? | Can be used in `custom` mode? |
-|-----------|---------------|-----------|-------------------------------|
-| `boolean` | `true`        | No        | ✅                             |
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `true`        | No        |
 
 [Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 
@@ -1135,9 +1151,9 @@ When off, the `serviceAccount.name` parameter should be set to the existing `Ser
 
 ## `serviceAccount.name`
 
-| Type     | Default value | Required? | Can be used in `custom` mode? |
-|----------|---------------|-----------|-------------------------------|
-| `string` | `""`          | No        | ✅                             |
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `string` | `""`          | No        |
 
 `serviceAccount.name` provides a custom name for the `ServiceAccount` resource
 that the `teleport-kube-agent` chart creates for the Teleport pod. By default,
@@ -1230,9 +1246,9 @@ The default is `INFO`, which is recommended in production.
 
 ### `log.output`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-|----------|---------------|-------------------------------|----------------------------|
-| `string` | `stderr`      | ❌                             | `teleport.log.output`      |
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `stderr`      | `teleport.log.output`      |
 
 `log.output` sets the output destination for the Teleport process.
 
@@ -1249,9 +1265,9 @@ The value can also be set to a file path (such as `/var/log/teleport.log`) to wr
 
 ### `log.format`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent   |
-|----------|---------------|-------------------------------|------------------------------|
-| `string` | `text`        | ❌                             | `teleport.log.format.output` |
+| Type     | Default value | `teleport.yaml` equivalent   |
+|----------|---------------|------------------------------|
+| `string` | `text`        | `teleport.log.format.output` |
 
 `log.format` sets the output type for the Teleport process.
 
@@ -1266,9 +1282,9 @@ Possible values are `text` (default) or `json`.
 
 ### `log.extraFields`
 
-| Type   | Default value                                   | Can be used in `custom` mode? | `teleport.yaml` equivalent         |
-|--------|-------------------------------------------------|-------------------------------|------------------------------------|
-| `list` | `["timestamp", "level", "component", "caller"]` | ❌                             | `teleport.log.format.extra_fields` |
+| Type   | Default value                                   | `teleport.yaml` equivalent         |
+|--------|-------------------------------------------------|------------------------------------|
+| `list` | `["timestamp", "level", "component", "caller"]` | `teleport.log.format.extra_fields` |
 
 `log.extraFields` sets the fields used in logging for the Teleport process.
 
@@ -1567,18 +1583,13 @@ chart for the Teleport pod.
 
 ## `annotations.config`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-|----------|---------------|-------------------------------|----------------------------|
-| `object` | `{}`          | ❌                             | None                       |
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `object` | `{}`          | None                       |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
-
-<Admonition type="note">
-  These annotations will not be applied in `custom` mode, as the `ConfigMap` is not managed by the chart.
-  In this instance, you should apply annotations manually to your created `ConfigMap`.
-</Admonition>
 
 `values.yaml` example:
 
@@ -1590,9 +1601,9 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
 
 ## `annotations.deployment`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1608,9 +1619,9 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
 
 ## `annotations.pod`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1626,9 +1637,9 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
 
 ## `annotations.serviceAccount`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
@@ -1644,9 +1655,9 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
 
 ## `extraVolumes`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
@@ -1697,9 +1708,9 @@ A list of extra environment variables to be set on the main Teleport container.
 
 ## `extraVolumeMounts`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
@@ -1714,11 +1725,36 @@ mounts will also be mounted into any `initContainers` configured by the chart.
     mountPath: /path/to/mount/volume
   ```
 
+## `hostAliases`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+Configure aliases in the pod's `/etc/hosts`.
+This can be used to have the agent join the Teleport cluster through a different
+non-public route, or to allow the agent to access applications or databases that
+are not resolvable. See [the Kubernetes documentation
+](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/) for
+more details.
+
+```yaml
+hostAliases:
+  - ip: "127.0.0.1"
+    hostnames:
+      - "foo.local"
+      - "bar.local"
+  - ip: "10.1.2.3"
+    hostnames:
+      - "foo.remote"
+      - "bar.remote"
+```
+
 ## `imagePullPolicy`
 
-| Type     | Default value  | Can be used in `custom` mode? |
-|----------|----------------|-------------------------------|
-| `string` | `IfNotPresent` | ✅                             |
+| Type     | Default value  |
+|----------|----------------|
+| `string` | `IfNotPresent` |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 
@@ -1732,9 +1768,9 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
 ## `initContainers`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 
@@ -1751,9 +1787,9 @@ A list of `initContainers` which will be run before the main Teleport container 
 
 ## `resources`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 
@@ -1809,9 +1845,9 @@ To unset the security context, set it to `null` or `~`.
 
 ## `tolerations`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
 

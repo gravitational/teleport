@@ -17,7 +17,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Text, Popover } from 'design';
+import { Popover, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 export const ToolTipInfo: React.FC = ({ children }) => {
@@ -35,6 +35,7 @@ export const ToolTipInfo: React.FC = ({ children }) => {
   return (
     <>
       <span
+        role="icon"
         aria-owns={open ? 'mouse-over-popover' : undefined}
         onMouseEnter={handlePopoverOpen}
         onMouseLeave={handlePopoverClose}
@@ -76,7 +77,7 @@ const modalCss = () => `
 `;
 
 const StyledOnHover = styled(Text)`
-  background-color: white;
-  color: black;
+  color: ${props => props.theme.colors.text.main};
+  background-color: ${props => props.theme.colors.tooltip.background};
   max-width: 350px;
 `;

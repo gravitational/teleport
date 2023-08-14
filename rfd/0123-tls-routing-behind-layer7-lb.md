@@ -228,6 +228,28 @@ See [RFD 0121 - Kubernetes MFA
 sessions](https://github.com/gravitational/teleport/blob/master/rfd/0121-kube-mfa-sessions.md)
 for more details.
 
+### Client source IPs
+
+Correct client source IPs must be reported for IP pinning and audit logs.
+
+Unlike layer 4 load balancers, layer 7 load balancers usually CANNOT transparently forward original clients' IPs or add
+standard [PROXY](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt) protocol headers to layer 7 payload. The
+standard way for layer 7 load balancers to report correct client source IPs is through the
+["X-Forwarded-For"](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For) (XFF) header.
+
+The Proxy service will examine the values of the XFF headers when `proxy_service.use_x_forwarded_for` is enabled (more
+details in security section).
+
+ALL web APIs will take client source IPs from the XFF headers. This includes login APIs, Web UI APIs (including wss
+sessions) and the ALPN connection upgrade API, to make sure a correct IP is always logged.
+
+Teleport should support XFF header with both IPv4 and IPv6 addresses, with or without port numbers. In case no port is
+reported in the XFF header, port can be taken from the observed TCP connection or use an arbitrary number, since the
+port is usually trivial.
+
+To keep things simple, only XFF header containing one IP address is accepted. Any requests with multiple XFF headers or
+headers containing multiple IPs will be rejected.
+
 ### User Experience
 
 Once the connection upgrade support to all protocols is implemented, users can be recommended to upgrade their Teleport
@@ -299,7 +321,31 @@ for different clusters.
 UX is the same as when [TLS Routing is
 enabled](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md#local-teleport-proxy).
 
+#### 5 - Client source IPs
+
+A new setting is added to the Proxy service for web APIs to take client IPs from the "X-Forwarded-For" headers:
+```
+proxy_service:
+  # Enables the Proxy service to take client source IPs from the
+  # "X-Forwarded-For" headers for web APIs recevied from layer 7 load balancers
+  # or reverse proxies.
+  # 
+  # IMPORTANT: please make sure the service is behind a layer 7 load balancer or
+  # reverse proxy that sets or appends client IPs in the "X-Forwarded-For"
+  # headers.
+  #
+  # default: false
+  use_x_forwarded_for: true
+```
+
+Note that this setting is NOT mutually exclusive with the `proxy_protocol` setting. For example, in a separate-port
+setup, web APIs including the ALPN connection upgrade endpoint (e.g. called by `tsh proxy db`) can take client source
+IPs from the XFF headers set by a layer 7 load balancer, whereas SSH, reverse tunnels and separate DB ports can take
+client source IPs from the PROXY headers set by a layer 4 load balancer.
+
 ### Security
+
+#### 1 - Connection upgrade
 
 When upgrading the connection, the Teleport client verifies the load balancer's TLS cert using SystemCertPool. And as
 mentioned early, at the TLS Routing request, the Teleport client will be configured with a Teleport CA for verifying the
@@ -307,6 +353,24 @@ Proxy server.
 
 There is no authentication at the connection upgrade request. Authentication is deferred to the TLS Routing request so
 authentication remains the same as if there is no connection upgrade.
+
+#### 2 - Client source IPs
+
+The premise of the IP Pinning feature is to protect against hackers using comproised credentials from different
+locations.
+
+A hacker can easily modify a Teleport client with a fake IP in the "X-Forwarded-For" (XFF) if the Proxy service trusts
+this value without conditions. Remember the ALPN connection upgrade endpoint can embed all Teleport protocols in TLS
+routing requests, and the endpoint is publicly available regardless of whether the Proxy is behind a load balancer or
+not.
+
+To minimize this risk, the web APIs will only take client source IPs from XFF headers when
+`proxy_service.use_x_forwarded_for` is explicitly set to true. Users have the responsibility to ensure that the Proxy
+service is indeed behind a layer 7 load balancer AND the load balancer is configured to set correct values in the XFF
+headers.
+
+Further more, requests with multiple XFF headers or headers containing multiple IPs will be rejected as it is difficult
+to know which is the truth without extra knowledge of the setup.
 
 ### Performance
 

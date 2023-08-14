@@ -76,6 +76,10 @@ func Setup(conf Config) error {
 	return nil
 }
 
+func WithLogger(ctx context.Context, logger log.FieldLogger) context.Context {
+	return withLogger(ctx, logger)
+}
+
 func withLogger(ctx context.Context, logger log.FieldLogger) context.Context {
 	return context.WithValue(ctx, contextKey{}, logger)
 }

@@ -317,6 +317,20 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 	return servers, nil
 }
 
+// GetNodeStream returns a stream of nodes in a namespace.
+func (s *PresenceService) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	startKey := backend.ExactKey(nodesPrefix, namespace)
+	items := backend.StreamRange(ctx, s, startKey, backend.RangeEnd(startKey), 50)
+	return stream.FilterMap(items, func(item backend.Item) (types.Server, bool) {
+		embedding, err := services.UnmarshalServer(item.Value, types.KindNode)
+		if err != nil {
+			s.log.Warnf("Skipping node at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return embedding, true
+	})
+}
+
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
@@ -357,8 +371,8 @@ func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertAuthServer(server types.Server) error {
-	return s.upsertServer(context.TODO(), authServersPrefix, server)
+func (s *PresenceService) UpsertAuthServer(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, authServersPrefix, server)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -375,8 +389,8 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(server types.Server) error {
-	return s.upsertServer(context.TODO(), proxiesPrefix, server)
+func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies
@@ -391,9 +405,9 @@ func (s *PresenceService) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy
-func (s *PresenceService) DeleteProxy(name string) error {
+func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 	key := backend.Key(proxiesPrefix, name)
-	return s.Delete(context.TODO(), key)
+	return s.Delete(ctx, key)
 }
 
 // DeleteAllReverseTunnels deletes all reverse tunnels

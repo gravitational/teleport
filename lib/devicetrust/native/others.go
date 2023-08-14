@@ -39,6 +39,7 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 
 func solveTPMEnrollChallenge(
 	_ *devicepb.TPMEnrollChallenge,
+	_ bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }
@@ -47,4 +48,8 @@ func solveTPMAuthnDeviceChallenge(
 	_ *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
+}
+
+func handleTPMActivateCredential(_, _ string) error {
+	return devicetrust.ErrPlatformNotSupported
 }

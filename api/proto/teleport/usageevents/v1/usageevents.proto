@@ -128,6 +128,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34;
   DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35;
   DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
+
+  DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -211,6 +213,7 @@ enum CTA {
   CTA_PREMIUM_SUPPORT = 4;
   CTA_TRUSTED_DEVICES = 5;
   CTA_UPGRADE_BANNER = 6;
+  CTA_BILLING_SUMMARY = 7;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.

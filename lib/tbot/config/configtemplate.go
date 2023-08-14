@@ -105,8 +105,8 @@ type Template interface {
 	// Render writes the config template to the destination.
 	Render(
 		ctx context.Context,
-		bot Bot,
-		routedIdentity, unroutedIdentity *identity.Identity,
+		bot provider,
+		identity *identity.Identity,
 		destination *DestinationConfig,
 	) error
 }

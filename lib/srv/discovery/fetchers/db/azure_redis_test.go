@@ -45,7 +45,7 @@ func TestAzureRedisFetchers(t *testing.T) {
 	azRedisServer, azRedisDB := makeAzureRedisServer(t, "redis", "sub", "group", "East US", map[string]string{"env": "prod"})
 	azRedisEnterpriseCluster, azRedisEnterpriseDatabase, azRedisEnterpriseDB := makeAzureRedisEnterpriseCluster(t, "redis-enterprise", "sub", "group", "eastus", map[string]string{"env": "prod"})
 
-	azureMatchers := []services.AzureMatcher{{
+	azureMatchers := []types.AzureMatcher{{
 		Types:        []string{services.AzureMatcherRedis},
 		ResourceTags: types.Labels{"env": []string{"prod"}},
 		Regions:      []string{"eastus"},

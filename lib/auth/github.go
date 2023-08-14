@@ -371,6 +371,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 
 	auth, err := m.validateGithubAuthCallback(ctx, diagCtx, q)
 	diagCtx.Info.Error = trace.UserMessage(err)
+	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
 
 	diagCtx.WriteToBackend(ctx)
 
@@ -597,7 +598,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateGithubUser(ctx, connector, claims, req)
+	params, err := a.calculateGithubUser(ctx, diagCtx, connector, claims, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
@@ -645,6 +646,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 			Traits:     user.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
+			LoginIP:    req.ClientLoginIP,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
@@ -723,7 +725,7 @@ type CreateUserParams struct {
 	SessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(ctx context.Context, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
+func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContext, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
 	p := CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      claims.Username,
@@ -749,6 +751,7 @@ func (a *Server) calculateGithubUser(ctx context.Context, connector types.Github
 		return nil, trace.Wrap(err)
 	}
 	p.Traits = evaluationOutput.Traits
+	diagCtx.Info.AppliedLoginRules = evaluationOutput.AppliedRules
 
 	// Kube groups and users are ultimately only set in the traits, not any
 	// other property of the User. In case the login rules changed the relevant

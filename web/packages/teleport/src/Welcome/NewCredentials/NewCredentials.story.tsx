@@ -155,7 +155,7 @@ export const SuccessAndPrivateKeyEnabledReset = () => (
 
 function CardWrapper({ children }) {
   return (
-    <Card as="form" bg="levels.surface" my={5} mx="auto" width={464}>
+    <Card as="form" my={5} mx="auto" width={464}>
       {children}
     </Card>
   );

@@ -181,7 +181,7 @@ your Node.
 
 Run the following command to get the current logins for your user:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh status
@@ -196,6 +196,21 @@ $ tsh status
 ```
 
 </ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh status
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       myuser
+  Cluster:            teleport.example.com
+  Roles:              access, editor, reviewer
+  Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
+  Kubernetes:         enabled
+  Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -203,7 +218,7 @@ tsh status
 > Profile URL:        https://mytenant.teleport.sh:443
   Logged in as:       myuser
   Cluster:            mytenant.teleport.sh
-  Roles:              access, editor
+  Roles:              access, editor, reviewer
   Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
   Kubernetes:         enabled
   Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]

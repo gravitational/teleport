@@ -123,6 +123,18 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.MemoryDBDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("OpenSearchAutoDiscovery", func(t *testing.T) {
+		t.Parallel()
+		flags := DatabaseSampleFlags{
+			OpenSearchDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"opensearch"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.OpenSearchDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
 	t.Run("AWS discovery tags", func(t *testing.T) {
 		t.Parallel()
 		flags := DatabaseSampleFlags{
@@ -352,7 +364,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				flags: DatabaseSampleFlags{
 					StaticDatabaseName:     "",
 					StaticDatabaseProtocol: "postgres",
-					StaticDatabaseURI:      "postgres://localhost:5432",
+					StaticDatabaseURI:      "localhost:5432",
 				},
 				requireFn: require.Error,
 			},
@@ -360,7 +372,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				flags: DatabaseSampleFlags{
 					StaticDatabaseName:     "sample",
 					StaticDatabaseProtocol: "",
-					StaticDatabaseURI:      "postgres://localhost:5432",
+					StaticDatabaseURI:      "localhost:5432",
 				},
 				requireFn: require.Error,
 			},
@@ -372,11 +384,19 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				},
 				requireFn: require.Error,
 			},
+			"BadURI": {
+				flags: DatabaseSampleFlags{
+					StaticDatabaseName:     "sample",
+					StaticDatabaseProtocol: "postgres",
+					StaticDatabaseURI:      "postgres://localhost:5432",
+				},
+				requireFn: require.Error,
+			},
 			"InvalidLabels": {
 				flags: DatabaseSampleFlags{
 					StaticDatabaseName:      "sample",
 					StaticDatabaseProtocol:  "postgres",
-					StaticDatabaseURI:       "postgres://localhost:5432",
+					StaticDatabaseURI:       "localhost:5432",
 					StaticDatabaseRawLabels: "abc",
 				},
 				requireFn: require.Error,

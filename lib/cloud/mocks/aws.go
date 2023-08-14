@@ -33,6 +33,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
+	"github.com/aws/aws-sdk-go/service/opensearchservice"
+	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -681,6 +683,38 @@ func (m *ElastiCacheMock) ModifyUserWithContext(_ aws.Context, input *elasticach
 		}
 	}
 	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserId))
+}
+
+type OpenSearchMock struct {
+	opensearchserviceiface.OpenSearchServiceAPI
+
+	Domains   []*opensearchservice.DomainStatus
+	TagsByARN map[string][]*opensearchservice.Tag
+}
+
+func (o *OpenSearchMock) ListDomainNamesWithContext(aws.Context, *opensearchservice.ListDomainNamesInput, ...request.Option) (*opensearchservice.ListDomainNamesOutput, error) {
+	out := &opensearchservice.ListDomainNamesOutput{}
+	for _, domain := range o.Domains {
+		out.DomainNames = append(out.DomainNames, &opensearchservice.DomainInfo{
+			DomainName: domain.DomainName,
+			EngineType: aws.String("OpenSearch"),
+		})
+	}
+
+	return out, nil
+}
+
+func (o *OpenSearchMock) DescribeDomainsWithContext(aws.Context, *opensearchservice.DescribeDomainsInput, ...request.Option) (*opensearchservice.DescribeDomainsOutput, error) {
+	out := &opensearchservice.DescribeDomainsOutput{DomainStatusList: o.Domains}
+	return out, nil
+}
+
+func (o *OpenSearchMock) ListTagsWithContext(_ aws.Context, request *opensearchservice.ListTagsInput, _ ...request.Option) (*opensearchservice.ListTagsOutput, error) {
+	tags, found := o.TagsByARN[aws.StringValue(request.ARN)]
+	if !found {
+		return nil, trace.NotFound("tags not found")
+	}
+	return &opensearchservice.ListTagsOutput{TagList: tags}, nil
 }
 
 // MemoryDBMock mocks AWS MemoryDB API.

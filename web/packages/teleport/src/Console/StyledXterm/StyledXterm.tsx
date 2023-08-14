@@ -18,17 +18,12 @@ import styled from 'styled-components';
 import { Box } from 'design';
 
 import 'xterm/css/xterm.css';
-import { colors } from 'teleport/Console/colors';
 
 const StyledXterm = styled(Box)(
   () => `
   height: 100%;
   width: 100%;
   overflow: hidden;
-
-  .terminal .xterm-viewport {
-    background-color: ${colors.bgTerminal} !important;
-  }
 `
 );
 

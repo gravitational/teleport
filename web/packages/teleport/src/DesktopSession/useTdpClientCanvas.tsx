@@ -77,7 +77,7 @@ export default function useTdpClientCanvas(props: Props) {
 
   // Default TdpClientEvent.TDP_PNG_FRAME handler (buffered)
   const onPngFrame = (ctx: CanvasRenderingContext2D, pngFrame: PngFrame) => {
-    // The first image fragment we see signals a successful tdp connection.
+    // The first image fragment we see signals a successful TDP connection.
     if (!initialTdpConnectionSucceeded.current) {
       syncCanvasSizeToDisplaySize(ctx.canvas);
       setTdpConnection({ status: 'success' });
@@ -91,7 +91,7 @@ export default function useTdpClientCanvas(props: Props) {
     ctx: CanvasRenderingContext2D,
     bmpFrame: BitmapFrame
   ) => {
-    // The first image fragment we see signals a successful tdp connection.
+    // The first image fragment we see signals a successful TDP connection.
     if (!initialTdpConnectionSucceeded.current) {
       syncCanvasSizeToDisplaySize(ctx.canvas);
       setTdpConnection({ status: 'success' });

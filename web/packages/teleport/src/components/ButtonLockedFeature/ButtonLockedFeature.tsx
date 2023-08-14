@@ -55,6 +55,7 @@ export function ButtonLockedFeature({
       py="12px"
       width="100%"
       style={{ textTransform: 'none' }}
+      rel="noreferrer"
       {...rest}
     >
       <Flex alignItems="center">
@@ -70,12 +71,14 @@ function getParams(
   isEnterprise: boolean,
   event: CtaEvent
 ): string {
-  return `${isEnterprise ? 'e_' : ''}${version}&campaign=${CtaEvent[event]}`;
+  return `${isEnterprise ? 'e_' : ''}${version}&utm_campaign=${
+    CtaEvent[event]
+  }`;
 }
 
 const UnlockIcon = styled(Unlock)`
   color: inherit;
   font-weight: 500;
   font-size: 15px;
-  margin-right: 4px;
+  margin-right: 10px;
 `;

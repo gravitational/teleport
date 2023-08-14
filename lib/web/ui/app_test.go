@@ -19,6 +19,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -73,4 +74,125 @@ func TestMakeAppsLabelFilter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMakeApps(t *testing.T) {
+	tests := []struct {
+		name             string
+		apps             types.Apps
+		appsToUserGroups map[string]types.UserGroups
+		expected         []App
+	}{
+		{
+			name:     "empty",
+			expected: []App{},
+		},
+		{
+			name: "app without user groups",
+			apps: types.Apps{
+				newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"}),
+				newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{"label2": "value2", types.OriginLabel: types.OriginOkta}),
+			},
+			expected: []App{
+				{
+					Name:       "1",
+					URI:        "1.com",
+					PublicAddr: "1.com",
+					FQDN:       "1.com",
+					Labels:     []Label{{Name: "label1", Value: "value1"}},
+					UserGroups: []UserGroupAndDescription{},
+				},
+				{
+					Name:        "2",
+					Description: "group 2 friendly name",
+					URI:         "2.com",
+					PublicAddr:  "2.com",
+					FQDN:        "2.com",
+					Labels: []Label{
+						{Name: "label2", Value: "value2"},
+						{Name: types.OriginLabel, Value: types.OriginOkta},
+					},
+					FriendlyName: "group 2 friendly name",
+					UserGroups:   []UserGroupAndDescription{},
+				},
+			},
+		},
+		{
+			name: "app with user groups",
+			apps: types.Apps{
+				newApp(t, "1", "1.com", "", map[string]string{"label1": "value1"}),
+				newApp(t, "2", "2.com", "group 2 friendly name", map[string]string{"label2": "value2", types.OriginLabel: types.OriginOkta}),
+			},
+			appsToUserGroups: map[string]types.UserGroups{
+				"1": {
+					newGroup(t, "group1", "group1 desc", nil),
+					newGroup(t, "group2", "group2 desc", nil),
+				},
+				"2": {
+					newGroup(t, "group2", "group2 desc", nil),
+					newGroup(t, "group3", "group3 desc", nil),
+				},
+				// This will be ignored
+				"3": {
+					newGroup(t, "group3", "group3 desc", nil),
+				},
+			},
+			expected: []App{
+				{
+					Name:       "1",
+					URI:        "1.com",
+					PublicAddr: "1.com",
+					FQDN:       "1.com",
+					Labels:     []Label{{Name: "label1", Value: "value1"}},
+					UserGroups: []UserGroupAndDescription{
+						{Name: "group1", Description: "group1 desc"},
+						{Name: "group2", Description: "group2 desc"},
+					},
+				},
+				{
+					Name:        "2",
+					Description: "group 2 friendly name",
+					URI:         "2.com",
+					PublicAddr:  "2.com",
+					FQDN:        "2.com",
+					Labels: []Label{
+						{Name: "label2", Value: "value2"},
+						{Name: types.OriginLabel, Value: types.OriginOkta},
+					},
+					FriendlyName: "group 2 friendly name",
+					UserGroups: []UserGroupAndDescription{
+						{Name: "group2", Description: "group2 desc"},
+						{Name: "group3", Description: "group3 desc"},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			apps := MakeApps(MakeAppsConfig{
+				Apps:             test.apps,
+				AppsToUserGroups: test.appsToUserGroups,
+			})
+
+			require.Empty(t, cmp.Diff(test.expected, apps))
+		})
+	}
+}
+
+func newApp(t *testing.T, name, publicAddr, description string, labels map[string]string) types.Application {
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        name,
+		Description: description,
+		Labels:      labels,
+	}, types.AppSpecV3{
+		URI:        publicAddr,
+		PublicAddr: publicAddr,
+	})
+	require.NoError(t, err)
+	return app
 }

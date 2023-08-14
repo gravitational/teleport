@@ -28,15 +28,11 @@ of this page to choose the correct version.
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
 
-## Step 1/4. Install Helm
-
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
-
-## Step 2/4. Add the Teleport Helm chart repository
+## Step 1/3. Add the Teleport Helm chart repository
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-## Step 3/4. Setting up a Teleport cluster with Helm using a custom config
+## Step 2/3. Setting up a Teleport cluster with Helm using a custom config
 
 `teleport-cluster` deploys two sets of pods: one for the Proxy Service and one for the Auth Service. You can provide two configurations, one for each pod type.
 
@@ -208,12 +204,13 @@ replicaset.apps/teleport-auth-57989d4cbd   1         1         1       22h
 replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 ```
 
-## Step 4/4. Create a Teleport user (optional)
+## Step 3/3. Create a Teleport user (optional)
 
 If you're not migrating an existing Teleport cluster, you'll need to create a
 user to be able to log into Teleport. This needs to be done on the Teleport
 auth server, so we can run the command using `kubectl`:
 
+<ScopedBlock scope={["oss"]}>
 ```code
 $ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor
 
@@ -222,6 +219,17 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code
+$ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor,reviewer
+
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
+```
+</ScopedBlock>
 
 <Admonition type="note">
 If you didn't set up DNS for your hostname earlier, remember to replace

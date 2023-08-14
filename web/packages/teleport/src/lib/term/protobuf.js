@@ -56,6 +56,7 @@ export const messageFields = {
       data: MessageTypeEnum.RAW.charCodeAt(0),
       event: MessageTypeEnum.AUDIT.charCodeAt(0),
       close: MessageTypeEnum.SESSION_END.charCodeAt(0),
+      challengeResponse: MessageTypeEnum.WEBAUTHN_CHALLENGE.charCodeAt(0),
     },
   },
 };
@@ -71,6 +72,10 @@ export class Protobuf {
 
   encodeResizeMessage(message) {
     return this.encode(messageFields.type.values.resize, message);
+  }
+
+  encodeChallengeResponse(message) {
+    return this.encode(messageFields.type.values.challengeResponse, message);
   }
 
   encodeFileTransferRequest(message) {

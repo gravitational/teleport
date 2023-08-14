@@ -28,15 +28,10 @@ on_azure() {
     PACKAGE_LIST="${PACKAGE_LIST} {{ .TeleportPackage }}-updater"
   fi
 
-  # old versions of ubuntu require that keys get added by `apt-key add`, without
-  # adding the key apt shows a key signing error when installing teleport.
-  LEGACY_UBUNTU=false
-  if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
-    LEGACY_UBUNTU=true
-  fi
-
   if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
-    if [ "$LEGACY_UBUNTU" = true ]; then
+    # old versions of ubuntu require that keys get added by `apt-key add`, without
+    # adding the key apt shows a key signing error when installing teleport.
+    if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
       curl -o /tmp/teleport-pubkey.asc https://apt.releases.teleport.dev/gpg
       sudo apt-key add /tmp/teleport-pubkey.asc
       echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list

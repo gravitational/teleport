@@ -111,8 +111,8 @@ func (t *TemplateTLS) Describe(destination bot.Destination) []FileDescription {
 
 func (t *TemplateTLS) Render(
 	ctx context.Context,
-	bot Bot,
-	currentIdentity, _ *identity.Identity,
+	bot provider,
+	identity *identity.Identity,
 	destination *DestinationConfig,
 ) error {
 	dest, err := destination.GetDestination()
@@ -125,7 +125,7 @@ func (t *TemplateTLS) Render(
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(currentIdentity, cas)
+	key, err := newClientKey(identity, cas)
 	if err != nil {
 		return trace.Wrap(err)
 	}

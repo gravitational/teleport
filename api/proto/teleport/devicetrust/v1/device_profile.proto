@@ -46,4 +46,7 @@ message DeviceProfile {
   // Jamf binary version, without the leading 'v'.
   // Example: "9.27" or "10.44.1-t1677509507".
   string jamf_binary_version = 6;
+
+  // External device identifier, for example the Jamf or Intune ID.
+  string external_id = 7;
 }

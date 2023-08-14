@@ -144,6 +144,7 @@ function SearchBar() {
         height: 100%;
         border: 1px ${props => props.theme.colors.buttons.border.border} solid;
         border-radius: ${props => props.theme.radii[2]}px;
+
         &:hover {
           background: ${props => props.theme.colors.spotBackground[0]};
         }
@@ -152,10 +153,20 @@ function SearchBar() {
       ref={containerRef}
     >
       {!isOpen && (
-        <>
-          <Input {...defaultInputProps} />
+        <Flex alignItems="center" flex={1}>
+          <Input
+            {...defaultInputProps}
+            // Adds `text-overflow: ellipsis` only to the closed state.
+            // Generally, ellipsis does not work when the input is focused.
+            // This causes flickering when an item is selected by clicking -
+            // the input loses focus, the ellipsis activates for a moment,
+            // and after a fraction of a second is removed when the input receives focus back.
+            css={`
+              text-overflow: ellipsis;
+            `}
+          />
           <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
-        </>
+        </Flex>
       )}
       {isOpen && (
         <activePicker.picker
@@ -189,11 +200,7 @@ const Input = styled.input`
   }
 `;
 
-const Shortcut = styled(Box).attrs({ p: 1 })`
-  position: absolute;
-  right: ${props => props.theme.space[2]}px;
-  top: 50%;
-  transform: translate(0, -50%);
+const Shortcut = styled(Box).attrs({ p: 1, mr: 2 })`
   color: ${({ theme }) => theme.colors.text.slightlyMuted};
   background-color: ${({ theme }) => theme.colors.spotBackground[0]};
   line-height: 12px;
