@@ -189,6 +189,19 @@ spec:
        roles: [ "access" ]
 ```
 
+### Optional: Prompt
+
+Set the Authorization Server prompt for the End-User for reauthentication and consent
+per the OIDC protocol. If no `prompt` value is set, Teleport uses `select_account` as
+default.
+
+```yaml
+# Extra parts of OIDC yaml have been removed.
+spec:
+  # Valid values are none, select_account, login, consent
+  prompt: 'none'  
+```
+
 ### Optional: Redirect URL and Timeout
 
 The redirect URL must be accessible by all user, optional redirect timeout.
