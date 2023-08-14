@@ -25,7 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -45,8 +45,8 @@ type Embeddings interface {
 	UpsertEmbedding(ctx context.Context, embedding *embeddinglib.Embedding) (*embeddinglib.Embedding, error)
 }
 
-// NodesStreamGetter is a service that gets nodes.
-type NodesStreamGetter interface {
+// NodeStreamGetter is a service that gets nodes.
+type NodeStreamGetter interface {
 	// GetNodeStream returns a list of registered servers.
 	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
 }
@@ -132,7 +132,7 @@ type EmbeddingProcessorConfig struct {
 	AIClient            embeddinglib.Embedder
 	EmbeddingSrv        Embeddings
 	EmbeddingsRetriever *SimpleRetriever
-	NodeSrv             NodesStreamGetter
+	NodeSrv             NodeStreamGetter
 	Log                 logrus.FieldLogger
 	Jitter              retryutils.Jitter
 }
@@ -143,7 +143,7 @@ type EmbeddingProcessor struct {
 	aiClient            embeddinglib.Embedder
 	embeddingSrv        Embeddings
 	embeddingsRetriever *SimpleRetriever
-	nodeSrv             NodesStreamGetter
+	nodeSrv             NodeStreamGetter
 	log                 logrus.FieldLogger
 	jitter              retryutils.Jitter
 }
@@ -217,7 +217,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 	defer e.log.Debugf("embedding processor finished")
 
 	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, types.KindNode)
-	nodesStream := e.nodeSrv.GetNodeStream(ctx, defaults.Namespace)
+	nodesStream := e.nodeSrv.GetNodeStream(ctx, apidefaults.Namespace)
 
 	s := streamutils.NewZipStreams(
 		nodesStream,

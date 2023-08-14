@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -2587,4 +2589,37 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	}
 
 	return rg.reader.ListResources(ctx, req)
+}
+
+// GetNodeStream returns a stream of all nodes in the cache.
+func (c *Cache) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	var startKey string
+	var done bool
+	return stream.PageFunc(func() ([]types.Server, error) {
+		if done {
+			return nil, io.EOF
+		}
+		resp, err := c.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:    apidefaults.Namespace,
+			ResourceType: types.KindNode,
+			StartKey:     startKey,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		startKey = resp.NextKey
+
+		servers := make([]types.Server, 0, len(resp.Resources))
+		for _, r := range resp.Resources {
+			srv, ok := r.(types.Server)
+			if !ok {
+				return nil, trace.BadParameter("Expected types.Server, got %T", r)
+			}
+			servers = append(servers, srv)
+		}
+		if startKey == "" {
+			done = true
+		}
+		return servers, err
+	})
 }

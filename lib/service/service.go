@@ -1743,7 +1743,7 @@ func (process *TeleportProcess) initAuthService() error {
 			AIClient:            embedderClient,
 			EmbeddingsRetriever: embeddingsRetriever,
 			EmbeddingSrv:        authServer,
-			NodeSrv:             authServer,
+			NodeSrv:             authServer.Cache,
 			Log:                 log,
 			Jitter:              retryutils.NewFullJitter(),
 		})

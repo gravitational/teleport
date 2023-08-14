@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -2811,6 +2812,35 @@ func TestInvalidDatabases(t *testing.T) {
 			unexpectedEvent(t, p.eventsC, Reloading)
 		})
 	}
+}
+
+func TestGetNodeStream(t *testing.T) {
+	t.Parallel()
+
+	const nodeCount = 100
+	ctx := context.Background()
+
+	p := newPackForAuth(t)
+	t.Cleanup(p.Close)
+
+	for i := 0; i < nodeCount; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(t, err)
+	}
+
+	var servers []types.Server
+	require.Eventually(t, func() bool {
+		var err error
+		servers, err = stream.Collect(p.cache.GetNodeStream(ctx, apidefaults.Namespace))
+		require.NoError(t, err)
+		return len(servers) == nodeCount
+	}, 2*time.Second, 100*time.Millisecond)
+
+	require.Equal(t, nodeCount, len(servers))
+	fieldVals, err := types.Servers(servers).GetFieldVals(types.ResourceMetadataName)
+	require.NoError(t, err)
+	require.IsIncreasing(t, fieldVals)
 }
 
 func newAccessList(t *testing.T, name string) *accesslist.AccessList {
