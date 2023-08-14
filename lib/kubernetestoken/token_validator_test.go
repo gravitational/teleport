@@ -314,6 +314,18 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 
 	now := time.Now()
 	clusterName := "example.teleport.sh"
+	validKubeSubclaim := &kubernetesSubClaim{
+		ServiceAccount: &serviceAccountSubClaim{
+			Name: "my-service-account",
+			UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
+		},
+		Pod: &podSubClaim{
+			Name: "my-pod-797959fdf-wptbj",
+			UID:  "413b22ca-4833-48d9-b6db-76219d583173",
+		},
+		Namespace: "default",
+	}
+
 	tests := []struct {
 		name   string
 		signer jose.Signer
@@ -329,21 +341,11 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
-					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Second)),
-					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Second)),
-					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Second)),
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
 				},
-				Kubernetes: &kubernetesSubClaim{
-					ServiceAccount: &serviceAccountSubClaim{
-						Name: "my-service-account",
-						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
-					},
-					Pod: &podSubClaim{
-						Name: "my-pod-797959fdf-wptbj",
-						UID:  "413b22ca-4833-48d9-b6db-76219d583173",
-					},
-					Namespace: "default",
-				},
+				Kubernetes: validKubeSubclaim,
 			},
 			wantResult: &ValidationResult{
 				Type:     types.KubernetesJoinTypeStaticJWKS,
@@ -357,9 +359,9 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
-					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Second)),
-					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Second)),
-					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Second)),
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
 				},
 				Kubernetes: &kubernetesSubClaim{
 					ServiceAccount: &serviceAccountSubClaim{
@@ -378,12 +380,75 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
-					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Second)),
-					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Second)),
-					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Second)),
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
 				},
+				Kubernetes: validKubeSubclaim,
 			},
 			wantErr: "error in cryptographic primitive",
+		},
+		{
+			name:   "wrong audience",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{"wrong.audience"},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "invalid audience claim",
+		},
+		{
+			name:   "no expiry",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "static_jwks joining requires the use of a service account token with `exp`",
+		},
+		{
+			name:   "no issued at",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantErr: "static_jwks joining requires the use of a service account token with `iat`",
+		},
+		{
+			name:   "too long ttl",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Hour)),
+				},
+				Kubernetes: validKubeSubclaim,
+			},
+			wantResult: &ValidationResult{
+				Type:     types.KubernetesJoinTypeStaticJWKS,
+				Username: "system:serviceaccount:default:my-service-account",
+			},
+			wantErr: "static_jwks joining requires the use of a service account token with a TTL of less than 30m0s",
 		},
 		{
 			name:   "expired",
@@ -396,6 +461,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					NotBefore: jwt.NewNumericDate(now.Add(-2 * time.Minute)),
 					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 				},
+				Kubernetes: validKubeSubclaim,
 			},
 			wantErr: "token is expired",
 		},
@@ -410,22 +476,9 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					NotBefore: jwt.NewNumericDate(now.Add(2 * time.Minute)),
 					Expiry:    jwt.NewNumericDate(now.Add(4 * time.Minute)),
 				},
+				Kubernetes: validKubeSubclaim,
 			},
 			wantErr: "token not valid yet",
-		},
-		{
-			name:   "wrong audience",
-			signer: signer,
-			claims: serviceAccountClaims{
-				Claims: jwt.Claims{
-					Subject:   "system:serviceaccount:default:my-service-account",
-					Audience:  jwt.Audience{"wrong.audience"},
-					IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Minute)),
-					NotBefore: jwt.NewNumericDate(now.Add(-2 * time.Minute)),
-					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
-				},
-			},
-			wantErr: "invalid audience claim",
 		},
 	}
 	for _, tt := range tests {

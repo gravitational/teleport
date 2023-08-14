@@ -241,8 +241,25 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "validating jwt claims")
 	}
 
+	// Ensure this is a pod-bound service account token
 	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
 		return nil, trace.BadParameter("static_jwks joining requires the use of projected pod bound service account token")
+	}
+
+	// Ensure the token has a TTL, and that this TTL is low. This ensures that
+	// customers have correctly and securely configured the token and avoids
+	// bad practice becoming common.
+	// We recommend a configuration of 10 minutes (the kubernetes minimum), but
+	// allow up to a 30 minute TTL here.
+	if claims.Expiry == nil {
+		return nil, trace.BadParameter("static_jwks joining requires the use of a service account token with `exp`")
+	}
+	if claims.IssuedAt == nil {
+		return nil, trace.BadParameter("static_jwks joining requires the use of a service account token with `iat`")
+	}
+	maxAllowedTTL := time.Minute * 30
+	if claims.Expiry.Time().Sub(claims.IssuedAt.Time()) > maxAllowedTTL {
+		return nil, trace.BadParameter("static_jwks joining requires the use of a service account token with a TTL of less than %s", maxAllowedTTL)
 	}
 
 	return &ValidationResult{
