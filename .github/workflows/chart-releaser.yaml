@@ -1,0 +1,62 @@
+# Chart Releaser Action
+
+name: Release Charts
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  PACKAGES_PATH: .cr-release-packages
+
+jobs:
+  release:
+    # depending on default permission settings for your org (contents being read-only or read-write for workloads), you will have to add permissions
+    # see: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#modifying-the-permissions-for-the-github_token
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.10.0
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.4.1
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          charts_dir: charts
+
+      - name: List packages
+        id: ls
+        continue-on-error: true
+        working-directory: ${{ env.PACKAGES_PATH }}
+        run: ls *.tgz
+
+      - name: Log in to the OCI registry
+        if: steps.ls.outcome == 'success'
+        run: echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Upload chart to the OCI registry
+        working-directory: ${{ env.PACKAGES_PATH }}
+        if: steps.ls.outcome == 'success'
+        run: |
+          for f in *tgz
+          do
+            helm push $f oci://${{ env.REGISTRY }}/${{ github.repository }}/charts
+          done
