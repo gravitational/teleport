@@ -138,6 +138,7 @@ type Uploader struct {
 }
 
 func (u *Uploader) Close() {
+	// TODO(tigrato): prevent close to be called before Serve starts.
 	u.mu.Lock()
 	u.isClosing = true
 	u.mu.Unlock()
