@@ -241,7 +241,7 @@ image: "public.ecr.aws/gravitational/teleport"
 
 For debugging purposes, a "debug" image is available and contains BusyBox,
 which includes a shell and most common POSIX executables:
-`public.ecr.aws/gravitational/teleport-distroless`.
+`public.ecr.aws/gravitational/teleport-distroless-debug`.
 
 ## 12.3.0 (05/01/23)
 
@@ -3033,7 +3033,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](./docs/pages/access-controls/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
 * Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./docs/pages/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
-* Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
+* Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
 

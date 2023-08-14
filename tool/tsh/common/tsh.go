@@ -179,7 +179,7 @@ type CLIConf struct {
 	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
-	// SiteName specifies remote site go login to
+	// SiteName specifies remote site to login to.
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
@@ -1838,23 +1838,14 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
-	// If the cluster is using single-sign on, providing the user name
-	// with --user is likely a mistake, so display a warning.
-	if cf.Username != "" {
-		displayIgnoreUserWarning := false
-		if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.AuthConnector != constants.PasswordlessConnector {
-			displayIgnoreUserWarning = true
-		} else if cf.AuthConnector == "" {
-			// Get the Ping so we check if the default Auth type is SSO
-			pr, err := tc.Ping(cf.Context)
-			if err != nil {
-				return trace.Wrap(err, "Teleport proxy not available at %s.", tc.WebProxyAddr)
-			}
-			if pr.Auth.Type != constants.LocalConnector && pr.Auth.Type != constants.PasswordlessConnector {
-				displayIgnoreUserWarning = true
-			}
+	// If the cluster is using single-sign on, providing the user name with --user
+	// is likely a mistake, so display a warning.
+	if cf.Username != "" && !slices.Contains(constants.LocalConnectors, cf.AuthConnector) {
+		pr, err := tc.Ping(cf.Context)
+		if err != nil {
+			return trace.Wrap(err, "Teleport proxy not available at %s.", tc.WebProxyAddr)
 		}
-		if displayIgnoreUserWarning {
+		if !slices.Contains(constants.LocalConnectors, pr.Auth.Type) {
 			fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
 		}
 	}
@@ -2831,23 +2822,15 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDiscoveredName(r types.ResourceWithLabels) (string, bool) {
-	name, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
-	return name, ok
-}
-
 func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
 	name := database.GetName()
-	printName := name
-	if d, ok := getDiscoveredName(database); ok && !verbose && d != name {
-		printName = d
-	}
+	displayName := common.FormatResourceName(database, verbose)
 	var connect string
 	for _, a := range active {
 		if a.ServiceName == name {
-			a.ServiceName = printName
-			// format the db name with the print name
-			printName = formatActiveDB(a)
+			a.ServiceName = displayName
+			// format the db name with the display name
+			displayName = formatActiveDB(a)
 			// then revert it for connect string
 			a.ServiceName = name
 			switch a.Protocol {
@@ -2869,7 +2852,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	labels := common.FormatLabels(database.GetAllLabels(), verbose)
 	if verbose {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			database.GetProtocol(),
 			database.GetType(),
@@ -2880,7 +2863,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		)
 	} else {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			formatUsersForDB(database, accessChecker),
 			labels,
@@ -4222,6 +4205,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		}
 	}
 
+	selectedKubeCluster, _ := kubeconfig.SelectedKubeCluster("", p.Cluster)
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
@@ -4231,7 +4215,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Traits:             p.Traits,
 		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster(p.Cluster, ""),
+		KubernetesCluster:  selectedKubeCluster,
 		KubernetesUsers:    p.KubeUsers,
 		KubernetesGroups:   p.KubeGroups,
 		Databases:          p.DatabaseServices(),
@@ -4698,7 +4682,7 @@ func onEnvironment(cf *CLIConf) error {
 			fmt.Printf("unset %v\n", kubeClusterEnvVar)
 			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 		case !cf.unsetEnvironment:
-			kubeName := selectedKubeCluster(profile.Cluster, "")
+			kubeName, _ := kubeconfig.SelectedKubeCluster("", profile.Cluster)
 			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
 			if kubeName != "" {
@@ -4723,7 +4707,7 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		proxyEnvVar:   profile.ProxyURL.Host,
 		clusterEnvVar: profile.Cluster,
 	}
-	kubeName := selectedKubeCluster(profile.Cluster, "")
+	kubeName, _ := kubeconfig.SelectedKubeCluster("", profile.Cluster)
 	if kubeName != "" {
 		env[kubeClusterEnvVar] = kubeName
 		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)

@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -1167,7 +1168,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	// initInstance initializes the pseudo-service "Instance" that is active for all teleport
-	// instances. We active this last because it cares about which other services are active.
+	// instances. We activate this last because it cares about which other services are active.
 	if err := process.initInstance(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1640,7 +1641,7 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
-	var embedderClient ai.Embedder
+	var embedderClient embedding.Embedder
 	if cfg.Auth.AssistAPIKey != "" {
 		// cfg.OpenAIConfig is set in tests to change the OpenAI API endpoint
 		// Like for proxy, if a custom OpenAIConfig is passed, the token from
@@ -1984,12 +1985,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
-
-	// Periodically update labels on discovered instances.
-	process.RegisterFunc("auth.server_info", func() error {
-		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
-	})
-
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2257,7 +2252,7 @@ func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName
 	return auth.NewAppsWrapper(clt, cache), nil
 }
 
-// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
+// newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
 func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
@@ -2880,7 +2875,9 @@ func (process *TeleportProcess) initMetricsService() error {
 
 	server := &http.Server{
 		Handler:           mux,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentMetrics),
 		TLSConfig:         tlsConfig,
@@ -3001,7 +2998,9 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	server := &http.Server{
 		Handler:           mux,
-		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentDiagnostic),
 	}
@@ -3897,6 +3896,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}),
 			PROXYSigner:  proxySigner,
 			OpenAIConfig: cfg.OpenAIConfig,
+			NodeWatcher:  nodeWatcher,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -3930,7 +3930,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					limiter.MakeMiddleware(proxyLimiter),
 					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
 				),
-				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+				ReadTimeout:       apidefaults.DefaultIOTimeout,
+				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+				WriteTimeout:      apidefaults.DefaultIOTimeout,
 				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
@@ -4629,7 +4631,9 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
-			ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+			ReadTimeout:       apidefaults.DefaultIOTimeout,
+			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
 		},

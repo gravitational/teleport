@@ -44,6 +44,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -248,7 +249,7 @@ type InitConfig struct {
 	EmbeddingRetriever *ai.SimpleRetriever
 
 	// EmbeddingClient is a client that allows generating embeddings.
-	EmbeddingClient ai.Embedder
+	EmbeddingClient embedding.Embedder
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
