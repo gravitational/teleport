@@ -36,6 +36,9 @@ type Config struct {
 	Log *logrus.Entry
 	// PrehogAddr is the URL where prehog events should be submitted.
 	PrehogAddr string
+	// KubeconfigsDir is the directory containing kubeconfigs for Kubernetes
+	// Acesss.
+	KubeconfigsDir string
 
 	GatewayCreator         GatewayCreator
 	DBCLICommandProvider   gateway.CLICommandProvider
@@ -55,6 +58,10 @@ type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Storage == nil {
 		return trace.BadParameter("missing cluster storage")
+	}
+
+	if c.KubeconfigsDir == "" {
+		return trace.BadParameter("missing kubeconfigs directory")
 	}
 
 	if c.GatewayCreator == nil {
@@ -84,6 +91,5 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.ConnectMyComputerTokenProvisioner == nil {
 		c.ConnectMyComputerTokenProvisioner = connectmycomputer.NewTokenProvisioner(&connectmycomputer.TokenProvisionerConfig{Clock: c.Storage.Clock})
 	}
-
 	return nil
 }
