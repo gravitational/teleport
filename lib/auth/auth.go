@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -2869,7 +2870,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 		}
 
 		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_Webauthn{
-			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
+			Webauthn: wantypes.CredentialCreationToProto(credentialCreation),
 		}}, nil
 
 	default:
@@ -3178,7 +3179,7 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
 		User:             req.username,
 		DeviceName:       req.newDeviceName,
-		CreationResponse: wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
+		CreationResponse: wantypes.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
 		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	return dev, trace.Wrap(err)
@@ -5173,7 +5174,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 			return nil, trace.Wrap(err)
 		}
 		return &proto.MFAAuthenticateChallenge{
-			WebauthnChallenge: wanlib.CredentialAssertionToProto(assertion),
+			WebauthnChallenge: wantypes.CredentialAssertionToProto(assertion),
 		}, nil
 	}
 
@@ -5205,7 +5206,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		challenge.WebauthnChallenge = wanlib.CredentialAssertionToProto(assertion)
+		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
 	}
 
 	return challenge, nil
@@ -5268,7 +5269,7 @@ func (a *Server) validateMFAAuthResponse(
 			return nil, "", trace.Wrap(err)
 		}
 
-		assertionResp := wanlib.CredentialAssertionResponseFromProto(res.Webauthn)
+		assertionResp := wantypes.CredentialAssertionResponseFromProto(res.Webauthn)
 		var dev *types.MFADevice
 		if passwordless {
 			webLogin := &wanlib.PasswordlessFlow{
@@ -5282,7 +5283,7 @@ func (a *Server) validateMFAAuthResponse(
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, err = webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
 		if err != nil {
 			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)

@@ -41,8 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -99,7 +99,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
 	}
-	noopWebauthnFn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	noopWebauthnFn := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		<-ctx.Done() // wait for timeout
 		return nil, ctx.Err()
 	}
@@ -107,18 +107,18 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	solveOTP := func(ctx context.Context) (string, error) {
 		return totp.GenerateCode(otpKey, clock.Now())
 	}
-	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	solveWebauthn := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
 			return nil, err
 		}
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
 			},
 		}, nil
 	}
-	solvePwdless := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	solvePwdless := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
 		if err == nil {
 			resp.GetWebauthn().Response.UserHandle = webID
@@ -130,7 +130,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	userPINFn := func(ctx context.Context) (string, error) {
 		return pin, nil
 	}
-	solvePIN := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	solvePIN := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		// Ask and verify the PIN. Usually the authenticator would verify the PIN,
 		// but we are faking it here.
 		got, err := prompt.PromptPIN()
@@ -159,7 +159,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		name                    string
 		secondFactor            constants.SecondFactorType
 		inputReader             *prompt.FakeReader
-		solveWebauthn           func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
+		solveWebauthn           func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 		authConnector           string
 		allowStdinHijack        bool
 		preferOTP               bool
@@ -191,7 +191,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			name:         "OTP preferred",
 			secondFactor: constants.SecondFactorOptional,
 			inputReader:  prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
-			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 				panic("this should not be called")
 			},
 			preferOTP: true,
@@ -250,7 +250,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(solveOTP),
-			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 				panic("this should not be called")
 			},
 			preferOTP:             true,
@@ -265,7 +265,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			prompt.SetStdin(test.inputReader)
 			*client.PromptWebauthn = func(
 				ctx context.Context,
-				origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
+				origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
 			) (*proto.MFAAuthenticateResponse, string, error) {
 				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
 				return resp, "", err
@@ -670,7 +670,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	require.NoError(t, err)
-	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 	webID := cc.Response.User.ID
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
@@ -683,7 +683,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		NewPassword: []byte(password),
 		NewMFARegisterResponse: &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 			},
 		},
 	})
