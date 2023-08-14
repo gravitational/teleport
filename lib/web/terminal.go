@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -614,7 +614,7 @@ func promptMFAChallenge(
 		switch {
 		case c.GetWebauthnChallenge() != nil:
 			challenge = &client.MFAAuthenticateChallenge{
-				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+				WebauthnChallenge: wantypes.CredentialAssertionFromProto(c.WebauthnChallenge),
 			}
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")

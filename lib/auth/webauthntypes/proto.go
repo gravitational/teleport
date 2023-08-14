@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package webauthn
+package webauthntypes
 
 import (
 	"encoding/base64"
@@ -20,17 +20,17 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // CredentialAssertionToProto converts a CredentialAssertion to its proto
 // counterpart.
-func CredentialAssertionToProto(assertion *CredentialAssertion) *wantypes.CredentialAssertion {
+func CredentialAssertionToProto(assertion *CredentialAssertion) *wanpb.CredentialAssertion {
 	if assertion == nil {
 		return nil
 	}
-	return &wantypes.CredentialAssertion{
-		PublicKey: &wantypes.PublicKeyCredentialRequestOptions{
+	return &wanpb.CredentialAssertion{
+		PublicKey: &wanpb.PublicKeyCredentialRequestOptions{
 			Challenge:        assertion.Response.Challenge,
 			TimeoutMs:        int64(assertion.Response.Timeout),
 			RpId:             assertion.Response.RelyingPartyID,
@@ -43,14 +43,14 @@ func CredentialAssertionToProto(assertion *CredentialAssertion) *wantypes.Creden
 
 // CredentialAssertionResponseToProto converts a CredentialAssertionResponse to
 // its proto counterpart.
-func CredentialAssertionResponseToProto(car *CredentialAssertionResponse) *wantypes.CredentialAssertionResponse {
+func CredentialAssertionResponseToProto(car *CredentialAssertionResponse) *wanpb.CredentialAssertionResponse {
 	if car == nil {
 		return nil
 	}
-	return &wantypes.CredentialAssertionResponse{
+	return &wanpb.CredentialAssertionResponse{
 		Type:  car.Type,
 		RawId: car.RawID,
-		Response: &wantypes.AuthenticatorAssertionResponse{
+		Response: &wanpb.AuthenticatorAssertionResponse{
 			ClientDataJson:    car.AssertionResponse.ClientDataJSON,
 			AuthenticatorData: car.AssertionResponse.AuthenticatorData,
 			Signature:         car.AssertionResponse.Signature,
@@ -62,12 +62,12 @@ func CredentialAssertionResponseToProto(car *CredentialAssertionResponse) *wanty
 
 // CredentialCreationToProto converts a CredentialCreation to its proto
 // counterpart.
-func CredentialCreationToProto(cc *CredentialCreation) *wantypes.CredentialCreation {
+func CredentialCreationToProto(cc *CredentialCreation) *wanpb.CredentialCreation {
 	if cc == nil {
 		return nil
 	}
-	return &wantypes.CredentialCreation{
-		PublicKey: &wantypes.PublicKeyCredentialCreationOptions{
+	return &wanpb.CredentialCreation{
+		PublicKey: &wanpb.PublicKeyCredentialCreationOptions{
 			Challenge:              cc.Response.Challenge,
 			Rp:                     rpEntityToProto(cc.Response.RelyingParty),
 			User:                   userEntityToProto(cc.Response.User),
@@ -83,14 +83,14 @@ func CredentialCreationToProto(cc *CredentialCreation) *wantypes.CredentialCreat
 
 // CredentialCreationResponseToProto converts a CredentialCreationResponse to
 // its proto counterpart.
-func CredentialCreationResponseToProto(ccr *CredentialCreationResponse) *wantypes.CredentialCreationResponse {
+func CredentialCreationResponseToProto(ccr *CredentialCreationResponse) *wanpb.CredentialCreationResponse {
 	if ccr == nil {
 		return nil
 	}
-	return &wantypes.CredentialCreationResponse{
+	return &wanpb.CredentialCreationResponse{
 		Type:  ccr.Type,
 		RawId: ccr.RawID,
-		Response: &wantypes.AuthenticatorAttestationResponse{
+		Response: &wanpb.AuthenticatorAttestationResponse{
 			ClientDataJson:    ccr.AttestationResponse.ClientDataJSON,
 			AttestationObject: ccr.AttestationResponse.AttestationObject,
 		},
@@ -100,7 +100,7 @@ func CredentialCreationResponseToProto(ccr *CredentialCreationResponse) *wantype
 
 // CredentialAssertionFromProto converts a CredentialAssertion proto to its lib
 // counterpart.
-func CredentialAssertionFromProto(assertion *wantypes.CredentialAssertion) *CredentialAssertion {
+func CredentialAssertionFromProto(assertion *wanpb.CredentialAssertion) *CredentialAssertion {
 	if assertion == nil {
 		return nil
 	}
@@ -111,7 +111,7 @@ func CredentialAssertionFromProto(assertion *wantypes.CredentialAssertion) *Cred
 
 // CredentialAssertionResponseFromProto converts a CredentialAssertionResponse
 // proto to its lib counterpart.
-func CredentialAssertionResponseFromProto(car *wantypes.CredentialAssertionResponse) *CredentialAssertionResponse {
+func CredentialAssertionResponseFromProto(car *wanpb.CredentialAssertionResponse) *CredentialAssertionResponse {
 	if car == nil {
 		return nil
 	}
@@ -130,7 +130,7 @@ func CredentialAssertionResponseFromProto(car *wantypes.CredentialAssertionRespo
 
 // CredentialCreationFromProto converts a CredentialCreation proto to its lib
 // counterpart.
-func CredentialCreationFromProto(cc *wantypes.CredentialCreation) *CredentialCreation {
+func CredentialCreationFromProto(cc *wanpb.CredentialCreation) *CredentialCreation {
 	if cc == nil {
 		return nil
 	}
@@ -141,7 +141,7 @@ func CredentialCreationFromProto(cc *wantypes.CredentialCreation) *CredentialCre
 
 // CredentialCreationResponseFromProto converts a CredentialCreationResponse
 // proto to its lib counterpart.
-func CredentialCreationResponseFromProto(ccr *wantypes.CredentialCreationResponse) *CredentialCreationResponse {
+func CredentialCreationResponseFromProto(ccr *wanpb.CredentialCreationResponse) *CredentialCreationResponse {
 	if ccr == nil {
 		return nil
 	}
@@ -158,18 +158,18 @@ func CredentialCreationResponseFromProto(ccr *wantypes.CredentialCreationRespons
 	}
 }
 
-func authenticatorSelectionToProto(a AuthenticatorSelection) *wantypes.AuthenticatorSelection {
-	return &wantypes.AuthenticatorSelection{
+func authenticatorSelectionToProto(a AuthenticatorSelection) *wanpb.AuthenticatorSelection {
+	return &wanpb.AuthenticatorSelection{
 		AuthenticatorAttachment: string(a.AuthenticatorAttachment),
 		RequireResidentKey:      a.RequireResidentKey != nil && *a.RequireResidentKey,
 		UserVerification:        string(a.UserVerification),
 	}
 }
 
-func credentialDescriptorsToProto(creds []CredentialDescriptor) []*wantypes.CredentialDescriptor {
-	res := make([]*wantypes.CredentialDescriptor, len(creds))
+func credentialDescriptorsToProto(creds []CredentialDescriptor) []*wanpb.CredentialDescriptor {
+	res := make([]*wanpb.CredentialDescriptor, len(creds))
 	for i, cred := range creds {
-		res[i] = &wantypes.CredentialDescriptor{
+		res[i] = &wanpb.CredentialDescriptor{
 			Type: string(cred.Type),
 			Id:   cred.CredentialID,
 		}
@@ -177,10 +177,10 @@ func credentialDescriptorsToProto(creds []CredentialDescriptor) []*wantypes.Cred
 	return res
 }
 
-func credentialParametersToProto(params []CredentialParameter) []*wantypes.CredentialParameter {
-	res := make([]*wantypes.CredentialParameter, len(params))
+func credentialParametersToProto(params []CredentialParameter) []*wanpb.CredentialParameter {
+	res := make([]*wanpb.CredentialParameter, len(params))
 	for i, p := range params {
-		res[i] = &wantypes.CredentialParameter{
+		res[i] = &wanpb.CredentialParameter{
 			Type: string(p.Type),
 			Alg:  int32(p.Algorithm),
 		}
@@ -188,11 +188,11 @@ func credentialParametersToProto(params []CredentialParameter) []*wantypes.Crede
 	return res
 }
 
-func inputExtensionsToProto(exts AuthenticationExtensions) *wantypes.AuthenticationExtensionsClientInputs {
+func inputExtensionsToProto(exts AuthenticationExtensions) *wanpb.AuthenticationExtensionsClientInputs {
 	if len(exts) == 0 {
 		return nil
 	}
-	res := &wantypes.AuthenticationExtensionsClientInputs{}
+	res := &wanpb.AuthenticationExtensionsClientInputs{}
 	if value, ok := exts[AppIDExtension]; ok {
 		// Type should always be string, since we are the ones setting it, but let's
 		// play it safe and check anyway.
@@ -203,31 +203,31 @@ func inputExtensionsToProto(exts AuthenticationExtensions) *wantypes.Authenticat
 	return res
 }
 
-func outputExtensionsToProto(exts *AuthenticationExtensionsClientOutputs) *wantypes.AuthenticationExtensionsClientOutputs {
+func outputExtensionsToProto(exts *AuthenticationExtensionsClientOutputs) *wanpb.AuthenticationExtensionsClientOutputs {
 	if exts == nil {
 		return nil
 	}
-	return &wantypes.AuthenticationExtensionsClientOutputs{
+	return &wanpb.AuthenticationExtensionsClientOutputs{
 		AppId: exts.AppID,
 	}
 }
 
-func rpEntityToProto(rp RelyingPartyEntity) *wantypes.RelyingPartyEntity {
-	return &wantypes.RelyingPartyEntity{
+func rpEntityToProto(rp RelyingPartyEntity) *wanpb.RelyingPartyEntity {
+	return &wanpb.RelyingPartyEntity{
 		Id:   rp.ID,
 		Name: rp.Name,
 	}
 }
 
-func userEntityToProto(user UserEntity) *wantypes.UserEntity {
-	return &wantypes.UserEntity{
+func userEntityToProto(user UserEntity) *wanpb.UserEntity {
+	return &wanpb.UserEntity{
 		Id:          user.ID,
 		Name:        user.Name,
 		DisplayName: user.DisplayName,
 	}
 }
 
-func authenticatorAssertionResponseFromProto(resp *wantypes.AuthenticatorAssertionResponse) AuthenticatorAssertionResponse {
+func authenticatorAssertionResponseFromProto(resp *wanpb.AuthenticatorAssertionResponse) AuthenticatorAssertionResponse {
 	if resp == nil {
 		return AuthenticatorAssertionResponse{}
 	}
@@ -241,7 +241,7 @@ func authenticatorAssertionResponseFromProto(resp *wantypes.AuthenticatorAsserti
 	}
 }
 
-func authenticatorAttestationResponseFromProto(resp *wantypes.AuthenticatorAttestationResponse) AuthenticatorAttestationResponse {
+func authenticatorAttestationResponseFromProto(resp *wanpb.AuthenticatorAttestationResponse) AuthenticatorAttestationResponse {
 	if resp == nil {
 		return AuthenticatorAttestationResponse{}
 	}
@@ -253,7 +253,7 @@ func authenticatorAttestationResponseFromProto(resp *wantypes.AuthenticatorAttes
 	}
 }
 
-func authenticatorSelectionFromProto(a *wantypes.AuthenticatorSelection) AuthenticatorSelection {
+func authenticatorSelectionFromProto(a *wanpb.AuthenticatorSelection) AuthenticatorSelection {
 	if a == nil {
 		return AuthenticatorSelection{}
 	}
@@ -265,7 +265,7 @@ func authenticatorSelectionFromProto(a *wantypes.AuthenticatorSelection) Authent
 	}
 }
 
-func credentialDescriptorsFromProto(creds []*wantypes.CredentialDescriptor) []CredentialDescriptor {
+func credentialDescriptorsFromProto(creds []*wanpb.CredentialDescriptor) []CredentialDescriptor {
 	var res []CredentialDescriptor
 	for _, cred := range creds {
 		if cred == nil {
@@ -279,7 +279,7 @@ func credentialDescriptorsFromProto(creds []*wantypes.CredentialDescriptor) []Cr
 	return res
 }
 
-func credentialParametersFromProto(params []*wantypes.CredentialParameter) []CredentialParameter {
+func credentialParametersFromProto(params []*wanpb.CredentialParameter) []CredentialParameter {
 	var res []CredentialParameter
 	for _, p := range params {
 		if p == nil {
@@ -293,7 +293,7 @@ func credentialParametersFromProto(params []*wantypes.CredentialParameter) []Cre
 	return res
 }
 
-func inputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientInputs) AuthenticationExtensions {
+func inputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientInputs) AuthenticationExtensions {
 	if exts == nil {
 		return nil
 	}
@@ -304,7 +304,7 @@ func inputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientInput
 	return res
 }
 
-func outputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientOutputs) *AuthenticationExtensionsClientOutputs {
+func outputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientOutputs) *AuthenticationExtensionsClientOutputs {
 	if exts == nil {
 		return nil
 	}
@@ -313,7 +313,7 @@ func outputExtensionsFromProto(exts *wantypes.AuthenticationExtensionsClientOutp
 	}
 }
 
-func publicKeyCredentialCreationOptionsFromProto(pubKey *wantypes.PublicKeyCredentialCreationOptions) PublicKeyCredentialCreationOptions {
+func publicKeyCredentialCreationOptionsFromProto(pubKey *wanpb.PublicKeyCredentialCreationOptions) PublicKeyCredentialCreationOptions {
 	if pubKey == nil {
 		return PublicKeyCredentialCreationOptions{}
 	}
@@ -330,7 +330,7 @@ func publicKeyCredentialCreationOptionsFromProto(pubKey *wantypes.PublicKeyCrede
 	}
 }
 
-func publicKeyCredentialRequestOptionsFromProto(pubKey *wantypes.PublicKeyCredentialRequestOptions) PublicKeyCredentialRequestOptions {
+func publicKeyCredentialRequestOptionsFromProto(pubKey *wanpb.PublicKeyCredentialRequestOptions) PublicKeyCredentialRequestOptions {
 	if pubKey == nil {
 		return PublicKeyCredentialRequestOptions{}
 	}
@@ -344,7 +344,7 @@ func publicKeyCredentialRequestOptionsFromProto(pubKey *wantypes.PublicKeyCreden
 	}
 }
 
-func rpEntityFromProto(rp *wantypes.RelyingPartyEntity) RelyingPartyEntity {
+func rpEntityFromProto(rp *wanpb.RelyingPartyEntity) RelyingPartyEntity {
 	if rp == nil {
 		return RelyingPartyEntity{}
 	}
@@ -356,7 +356,7 @@ func rpEntityFromProto(rp *wantypes.RelyingPartyEntity) RelyingPartyEntity {
 	}
 }
 
-func userEntityFromProto(user *wantypes.UserEntity) UserEntity {
+func userEntityFromProto(user *wanpb.UserEntity) UserEntity {
 	if user == nil {
 		return UserEntity{}
 	}

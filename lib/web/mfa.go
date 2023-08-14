@@ -24,7 +24,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -78,7 +78,7 @@ type addMFADeviceRequest struct {
 	// SecondFactorToken is the totp code.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnRegisterResponse is a WebAuthn registration challenge response.
-	WebauthnRegisterResponse *webauthn.CredentialCreationResponse `json:"webauthnRegisterResponse"`
+	WebauthnRegisterResponse *wantypes.CredentialCreationResponse `json:"webauthnRegisterResponse"`
 	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
 	// It mimics the proto.DeviceUsage enum.
 	// Defaults to MFA.
@@ -110,7 +110,7 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 		}}
 	case req.WebauthnRegisterResponse != nil:
 		protoReq.NewMFAResponse = &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_Webauthn{
-			Webauthn: webauthn.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
+			Webauthn: wantypes.CredentialCreationResponseToProto(req.WebauthnRegisterResponse),
 		}}
 	default:
 		return nil, trace.BadParameter("missing new mfa credentials")
