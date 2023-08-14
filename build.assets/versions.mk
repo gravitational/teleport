@@ -2,7 +2,7 @@
 # This file can be included in other Makefiles to avoid duplication.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.21.0
+GOLANG_VERSION ?= go1.20.7
 
 # Sync with devbox.json.
 NODE_VERSION ?= 16.18.1
