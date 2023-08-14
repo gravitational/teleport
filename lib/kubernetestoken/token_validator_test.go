@@ -351,6 +351,27 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			},
 		},
 		{
+			name:   "missing bound pod claim",
+			signer: signer,
+			claims: serviceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Second)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Second)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Second)),
+				},
+				Kubernetes: &kubernetesSubClaim{
+					ServiceAccount: &serviceAccountSubClaim{
+						Name: "my-service-account",
+						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
+					},
+					Namespace: "default",
+				},
+			},
+			wantErr: "static_jwks joining requires the use of projected pod bound service account token",
+		},
+		{
 			name:   "signed by unknown key",
 			signer: wrongSigner,
 			claims: serviceAccountClaims{
@@ -390,7 +411,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					Expiry:    jwt.NewNumericDate(now.Add(4 * time.Minute)),
 				},
 			},
-			wantErr: "token is expired",
+			wantErr: "token not valid yet",
 		},
 		{
 			name:   "wrong audience",
@@ -404,7 +425,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					Expiry:    jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 				},
 			},
-			wantErr: "token not valid yet",
+			wantErr: "invalid audience claim",
 		},
 	}
 	for _, tt := range tests {
