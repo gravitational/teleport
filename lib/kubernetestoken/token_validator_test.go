@@ -309,7 +309,6 @@ func testSigner(t *testing.T) ([]byte, jose.Signer) {
 
 func TestValidateTokenWithJWKS(t *testing.T) {
 	jwks, signer := testSigner(t)
-	// match kid of right key
 	_, wrongSigner := testSigner(t)
 
 	now := time.Now()
