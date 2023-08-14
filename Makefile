@@ -97,11 +97,6 @@ CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
 RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
-# Have cargo use sparse crates.io protocol:
-# https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html
-# TODO: Delete when it becomes default in Rust 1.70.0
-export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
@@ -711,7 +706,7 @@ test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) ensure-
 # Runs base unit tests
 .PHONY: test-go-unit
 test-go-unit: FLAGS ?= -race -shuffle on
-test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
+test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -E 'teleport/(integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
@@ -867,6 +862,10 @@ test-sh:
 	fi; \
 	find . -iname "*.bats" -exec dirname {} \; | uniq | xargs -t -L1 bats $(BATSFLAGS)
 
+
+.PHONY: test-e2e
+test-e2e:
+	make -C e2e test
 
 .PHONY: run-etcd
 run-etcd:

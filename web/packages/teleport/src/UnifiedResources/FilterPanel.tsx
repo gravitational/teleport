@@ -109,8 +109,8 @@ export function FilterPanel({
           />
         </Box>
         <SortOrderButton px={3} onClick={onSortOrderButtonClicked}>
-          {sort.dir === 'ASC' && <icons.SortAsc />}
-          {sort.dir === 'DESC' && <icons.SortDesc />}
+          {sort.dir === 'ASC' && <icons.ChevronUp />}
+          {sort.dir === 'DESC' && <icons.ChevronDown />}
         </SortOrderButton>
       </Flex>
     </Flex>

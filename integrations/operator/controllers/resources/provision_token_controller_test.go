@@ -22,11 +22,15 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -39,6 +43,12 @@ var tokenSpec = &types.ProvisionTokenSpecV2{
 		},
 	},
 	JoinMethod: types.JoinMethodIAM,
+}
+
+var teleportTokenGVK = schema.GroupVersionKind{
+	Group:   resourcesv2.GroupVersion.Group,
+	Version: resourcesv2.GroupVersion.Version,
+	Kind:    "TeleportProvisionToken",
 }
 
 // newProvisionTokenFromSpecNoExpire returns a new provision token with the given spec without expiration set.
@@ -157,4 +167,90 @@ func TestProvisionTokenDeletionDrift(t *testing.T) {
 func TestProvisionTokenUpdate(t *testing.T) {
 	test := &tokenTestingPrimitives{}
 	testlib.ResourceUpdateTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, test)
+}
+
+// This test checks the operator can create Token resources in Teleport for a
+// typical GitHub Action MachineID setup: the token allows a bot to join from
+// GitHub Actions.
+//
+// Proto messages for GitHub provision tokens have one
+// specificity: the Rule message is defined as a sub message of
+// ProvisionTokenSpecV2GitHub. this caused several issues in the CRD generation
+// tooling and required its own dedicated test.
+func TestProvisionTokenCreation_GitHubBot(t *testing.T) {
+	// Test setup
+	ctx := context.Background()
+	setup := setupTestEnv(t)
+	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
+
+	tokenSpecYAML := `
+roles: 
+  - Bot
+join_method: github
+bot_name: my-bot
+github:
+  allow:
+    - repository: org/repo
+`
+	expectedSpec := &types.ProvisionTokenSpecV2{
+		Roles:      types.SystemRoles{types.RoleBot},
+		JoinMethod: types.JoinMethodGitHub,
+		BotName:    "my-bot",
+		GitHub:     &types.ProvisionTokenSpecV2GitHub{Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{{Repository: "org/repo"}}},
+	}
+
+	// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
+	tokenManifest := map[string]interface{}{}
+	err := yaml.Unmarshal([]byte(tokenSpecYAML), &tokenManifest)
+	require.NoError(t, err)
+
+	tokenName := validRandomResourceName("token-")
+
+	obj := resources.GetUnstructuredObjectFromGVK(teleportTokenGVK)
+	obj.Object["spec"] = tokenManifest
+	obj.SetName(tokenName)
+	obj.SetNamespace(setup.Namespace.Name)
+
+	// Doing the test: we create the TeleportProvisionToken in Kubernetes
+	err = setup.K8sClient.Create(ctx, obj)
+	require.NoError(t, err)
+
+	// Then we wait for the token to be created in Teleport
+	fastEventually(t, func() bool {
+		tToken, err := setup.TeleportClient.GetToken(ctx, tokenName)
+		// If the resource creation should succeed we check the resource was found and validate ownership labels
+		if trace.IsNotFound(err) {
+			return false
+		}
+		require.NoError(t, err)
+
+		require.Equal(t, tToken.GetName(), tokenName)
+		require.Contains(t, tToken.GetMetadata().Labels, types.OriginLabel)
+		require.Equal(t, tToken.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+		expectedToken := &types.ProvisionTokenV2{
+			Metadata: types.Metadata{},
+			Spec:     *expectedSpec,
+		}
+		_ = expectedToken.CheckAndSetDefaults()
+		compareTokenSpecs(t, expectedToken, tToken)
+
+		return true
+	})
+	// Test Teardown
+
+	require.NoError(t, setup.K8sClient.Delete(ctx, obj))
+	// We wait for the role deletion in Teleport
+	fastEventually(t, func() bool {
+		_, err := setup.TeleportClient.GetToken(ctx, tokenName)
+		return trace.IsNotFound(err)
+	})
+}
+
+func compareTokenSpecs(t *testing.T, expectedUser, actualUser types.ProvisionToken) {
+	expected, err := teleportResourceToMap(expectedUser)
+	require.NoError(t, err)
+	actual, err := teleportResourceToMap(actualUser)
+	require.NoError(t, err)
+
+	require.Equal(t, expected["spec"], actual["spec"])
 }

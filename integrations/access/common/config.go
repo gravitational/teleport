@@ -40,9 +40,9 @@ type PluginConfiguration interface {
 }
 
 type BaseConfig struct {
-	Teleport   lib.TeleportConfig
-	Recipients RawRecipientsMap `toml:"role_to_recipients"`
-	Log        logger.Config
+	Teleport   lib.TeleportConfig `toml:"teleport"`
+	Recipients RawRecipientsMap   `toml:"role_to_recipients"`
+	Log        logger.Config      `toml:"log"`
 	PluginType types.PluginType
 }
 
@@ -69,9 +69,6 @@ func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, err
 		Credentials: c.Teleport.Credentials(),
 		DialOpts: []grpc.DialOption{
 			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-			grpc.WithDefaultCallOptions(
-				grpc.WaitForReady(true),
-			),
 			grpc.WithReturnConnectionError(),
 		},
 	})

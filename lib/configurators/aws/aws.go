@@ -126,9 +126,11 @@ func makeDatabaseActionsBuildOption(flags configurators.BootstrapFlags, targetCf
 	case configurators.DatabaseServiceByDiscoveryServiceConfig:
 		return databaseActionsBuildOption{
 			withDiscovery:    false,
-			withMetadata:     false, // Discovered databases should have correct metadata.
 			withAuth:         true,
 			withAuthBoundary: boundary,
+			// Discovered databases should be checked by URL validator which
+			// requires same permissions as the metadata service.
+			withMetadata: true,
 		}
 
 	case configurators.DatabaseService:
@@ -257,6 +259,19 @@ var (
 	}
 	// dynamodbActions contains IAM actions for static AWS DynamoDB databases.
 	dynamodbActions = databaseActions{
+		authBoundary: stsActions,
+	}
+	// opensearchActions contains IAM actions for services.AWSMatcherOpenSearch
+	opensearchActions = databaseActions{
+		discovery: []string{
+			"es:ListDomainNames",
+			"es:DescribeDomains",
+			"es:ListTags",
+		},
+		metadata: []string{
+			// Used for url validation.
+			"es:DescribeDomains",
+		},
 		authBoundary: stsActions,
 	}
 )
@@ -646,6 +661,7 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	}
 
 	// Build statements for databases.
+	// TODO(greedy52) remove discovery permissions for static databases.
 	var requireSecretsManager, requireIAMEdit bool
 	var allActions []databaseActions
 	if hasRDSDatabases(flags, targetCfg) {
@@ -671,6 +687,9 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	}
 	if hasDynamoDBDatabases(flags, targetCfg) {
 		allActions = append(allActions, dynamodbActions)
+	}
+	if hasOpenSearchDatabases(flags, targetCfg) {
+		allActions = append(allActions, opensearchActions)
 	}
 
 	dbOption := makeDatabaseActionsBuildOption(flags, targetCfg, boundary)
@@ -811,6 +830,18 @@ func hasMemoryDBDatabases(flags configurators.BootstrapFlags, targetCfg targetCo
 	}
 	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherMemoryDB, targetCfg.awsMatchers) ||
 		findEndpointIs(targetCfg.databases, apiawsutils.IsMemoryDBEndpoint)
+}
+
+// hasOpenSearchDatabases checks if the agent needs permission for OpenSearch
+// databases.
+func hasOpenSearchDatabases(flags configurators.BootstrapFlags, targetCfg targetConfig) bool {
+	if flags.ForceOpenSearchPermissions {
+		return true
+	}
+	return isAutoDiscoveryEnabledForMatcher(services.AWSMatcherOpenSearch, targetCfg.awsMatchers) ||
+		findDatabaseIs(targetCfg.databases, func(db *servicecfg.Database) bool {
+			return db.Protocol == defaults.ProtocolOpenSearch
+		})
 }
 
 // hasAWSKeyspacesDatabases checks if the agent needs permission for AWS Keyspaces.

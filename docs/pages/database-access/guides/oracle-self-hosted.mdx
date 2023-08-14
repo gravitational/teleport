@@ -8,11 +8,7 @@ description: How to configure Teleport database access with Oracle.
   implemented in a future release.
 </Admonition>
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Set up Teleport to access your self-hosted Oracle server 18c or later.
-- Connect to your database through Teleport.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Oracle" dbConfigure="Oracle with mutual TLS authentication" dbName="Oracle" !)
 
 <ScopedBlock scope={["enterprise"]}>
 ![Teleport Database Access Self-hosted Oracle](../../../img/database-access/guides/oracle_selfhosted.png)
@@ -179,6 +175,15 @@ Install and configure Teleport where you will run the Teleport Database Service:
 </Tabs>
 
 (!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
+
+Make sure that the Teleport agent pod is running. You should see one Teleport
+agent pod pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+teleport-kube-agent-0   1/1     Running   0          32s
+```
 
 ## Step 5/5. Connect
 

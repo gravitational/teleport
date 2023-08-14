@@ -48,9 +48,8 @@ type AppServer interface {
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
 
-	// CloneAny is used to return a clone of the AppServer and match the CloneAny interface
-	// This is helpful when interfacing with multiple types at the same time in unified resources
-	CloneAny() any
+	// CloneResource returns a copy of the AppServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 	// GetApp returns the app this app server proxies.
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
@@ -296,7 +295,7 @@ func (s *AppServerV3) Copy() AppServer {
 	return utils.CloneProtoMsg(s)
 }
 
-func (s *AppServerV3) CloneAny() any {
+func (s *AppServerV3) CloneResource() ResourceWithLabels {
 	return s.Copy()
 }
 

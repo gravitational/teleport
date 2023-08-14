@@ -26,6 +26,15 @@ import (
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
+	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+const (
+	// proxyLookupClusterMaxSize is max the number of nodes in the cluster to attempt an opportunistic node lookup
+	// in the proxy cache. We always do embedding lookups if the cluster is larger than this number.
+	proxyLookupClusterMaxSize = 100
+	maxEmbeddingsPerLookup    = 10
 )
 
 // Tool is an interface that allows the agent to interact with the outside world.
@@ -100,13 +109,46 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 	return &output, nil
 }
 
+type NodeGetter interface {
+	GetNodes(ctx context.Context, fn func(n services.Node) bool) []types.Server
+	NodeCount() int
+}
+
 type embeddingRetrievalTool struct {
-	assistClient assist.AssistEmbeddingServiceClient
-	currentUser  string
+	assistClient      assist.AssistEmbeddingServiceClient
+	nodeClient        NodeGetter
+	userAccessChecker services.AccessChecker
+	currentUser       string
 }
 
 type embeddingRetrievalToolInput struct {
 	Question string `json:"question"`
+}
+
+// tryNodeLookupFromProxyCache checks how many nodes the user has access to by
+// hitting the proxy cache.  If the user has access to less than
+// maxEmbeddingsPerLookup, the returned boolean indicates the lookup is
+// successful and the result can be used. If the boolean is false, the caller
+// must not use the returned result and perform a Node lookup via other means
+// (embeddings lookup).
+func (e *embeddingRetrievalTool) tryNodeLookupFromProxyCache(ctx context.Context) (bool, string, error) {
+	nodes := e.nodeClient.GetNodes(ctx, func(node services.Node) bool {
+		err := e.userAccessChecker.CheckAccess(node, services.AccessState{MFAVerified: true})
+		return err == nil
+	})
+	if len(nodes) == 0 || len(nodes) > maxEmbeddingsPerLookup {
+		return false, "", nil
+	}
+	sb := strings.Builder{}
+	for _, node := range nodes {
+		data, err := embeddinglib.SerializeNode(node)
+		if err != nil {
+			return false, "", trace.Wrap(err)
+		}
+		sb.Write(data)
+		sb.WriteString("\n")
+	}
+	return true, sb.String(), nil
 }
 
 func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (string, error) {
@@ -119,10 +161,21 @@ func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (string,
 	}
 	log.Tracef("embedding retrieval input: %v", input)
 
+	// Threshold to avoid looping over all nodes on large clusters
+	if e.nodeClient != nil && e.nodeClient.NodeCount() < proxyLookupClusterMaxSize {
+		ok, result, err := e.tryNodeLookupFromProxyCache(ctx)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		if ok {
+			return result, nil
+		}
+	}
+
 	resp, err := e.assistClient.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
 		Username: e.currentUser,
 		Kind:     types.KindNode, // currently only node embeddings are supported
-		Limit:    10,
+		Limit:    maxEmbeddingsPerLookup,
 		Query:    input,
 	})
 	if err != nil {

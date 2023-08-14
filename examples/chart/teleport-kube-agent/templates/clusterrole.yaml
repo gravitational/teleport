@@ -16,6 +16,14 @@ rules:
   - serviceaccounts
   verbs:
   - impersonate
+{{- if contains "discovery" (.Values.roles | toString) }}
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - list
+{{- end}}
 - apiGroups:
   - ""
   resources:

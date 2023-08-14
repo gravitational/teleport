@@ -35,7 +35,7 @@ export const NavigationMenuIcon = forwardRef<
       size="small"
       title="Open Connect My Computer"
     >
-      <Wand fontSize={16} />
+      <Wand size={16} />
     </StyledButton>
   );
 });
