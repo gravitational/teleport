@@ -15,6 +15,7 @@
 package eventschema
 
 // Generated code, DO NOT EDIT
+// To re-generate the file, go into build.assets/ and run "make generate-eventschema".
 
 type Event struct {
 	Description string

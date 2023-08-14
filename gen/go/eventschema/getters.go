@@ -169,7 +169,7 @@ func viewSchemaLine(jsonField, viewField, fieldType string) string {
 // iterateOverFields iterates over Event or EventField fields while ensuring
 // the field order is consistent.
 func iterateOverFields(fields map[string]*EventField, fn func(name string, prop *EventField) error) error {
-	fieldNames := make([]string, len(fields))
+	fieldNames := make([]string, 0, len(fields))
 	for name, _ := range fields {
 		fieldNames = append(fieldNames, name)
 	}
