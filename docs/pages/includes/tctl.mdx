@@ -1,9 +1,6 @@
-To check that you can connect to your Teleport cluster, sign in with `tsh`, then 
-verify that you can run `tctl` commands on the host using your current credentials:
-
-{/* Ignoring scope linting since we use this partial throughout the docs and
-cannot guarantee that it will line up with a page's configured scopes*/}
-{/*lint ignore scopes*/} 
+To check that you can connect to your Teleport cluster, sign in with `tsh login`, then 
+verify that you can run `tctl` commands on your administrative workstation 
+using your current credentials. For example:
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=<Var name="email@example.com" />
@@ -13,16 +10,7 @@ $ tctl status
 # CA pin   (=presets.ca_pin=)
 ```
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-If you can connect to the cluster and run the `tctl` command,
-you can run subsequent `tctl` commands on the host computer.
-
-For full privileges, you can also run `tctl` commands on your 
-Teleport Auth Service host.
-</ScopedBlock>
-
-{/*lint ignore scopes*/}
-<ScopedBlock scope={["cloud","team"]}>
-After you connect to your Teleport cluster instance, you must run subsequent `tctl` commands 
-on the host computer.
-</ScopedBlock>
+If you can connect to the cluster and run the `tctl status` command, you can use your
+current credntials to run subsequent `tctl` commands from your worksttion.
+If you host your own Teleport cluster, you can also run `tctl` commands on the computer that 
+hosts the Teleport Auth Service for full permissions.
