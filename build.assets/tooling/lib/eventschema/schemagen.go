@@ -25,14 +25,6 @@ import (
 	"github.com/gravitational/teleport/build.assets/tooling/lib/tree"
 )
 
-// TODO
-// index by event type (static mapping for now)
-// how can I know which event has a view? -> maintain a list of ignored events -> check ignore logic
-// AST or protobuf?
-// get the schema from API ?
-// hide metadata
-// use hardcoded event_date event_time and other fields
-
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
 type SchemaGenerator struct {
 	memo  map[string]*Schema

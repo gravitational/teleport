@@ -103,7 +103,6 @@ type EventField struct {
 const recursionMaxNums = 10
 
 func (generator *SchemaGenerator) Render() (string, error) {
-
 	t := template.New("*")
 
 	funcMap := sprig.FuncMap()
