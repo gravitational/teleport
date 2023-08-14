@@ -19,6 +19,7 @@ import (
 	"os"
 	"text/template"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/trace"
 )
 
@@ -40,7 +41,7 @@ After=network.target
 Type=simple
 Restart=on-failure
 EnvironmentFile=-{{ .EnvironmentFile }}
-ExecStart={{ .TeleportInstallationFile }} start --pid-file={{ .PIDFile }}
+ExecStart={{ .TeleportInstallationFile }} start --config {{ .TeleportConfigPath }} --pid-file={{ .PIDFile }}
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile={{ .PIDFile }}
 LimitNOFILE={{ .FileDescriptorLimit }}
@@ -58,6 +59,8 @@ type SystemdFlags struct {
 	FileDescriptorLimit int
 	// TeleportInstallationFile is the teleport installation path provided by the user.
 	TeleportInstallationFile string
+	// TeleportConfigPath is the path to the teleport config file (as set by Teleport defaults)
+	TeleportConfigPath string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
@@ -69,6 +72,8 @@ func (f *SystemdFlags) CheckAndSetDefaults() error {
 		}
 		f.TeleportInstallationFile = teleportPath
 	}
+	// set Teleport config path to the default
+	f.TeleportConfigPath = defaults.ConfigFilePath
 
 	return nil
 }
