@@ -2163,10 +2163,13 @@ func getGithubConnectors(ctx context.Context, client auth.ClientI, name string, 
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
 func UpsertVerb(exists bool, force bool) string {
-	if !force && exists {
-		return "updated"
+	if !exists {
+		return "created"
 	}
-	return "created"
+	if force && exists {
+		return "overwritten"
+	}
+	return "updated"
 }
 
 func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, force, confirm bool) error {
