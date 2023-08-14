@@ -1612,8 +1612,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					application.Name)
 			}
 			app.Rewrite = &servicecfg.Rewrite{
-				Redirect: application.Rewrite.Redirect,
-				Headers:  headers,
+				Redirect:  application.Rewrite.Redirect,
+				Headers:   headers,
+				JWTClaims: application.Rewrite.JWTClaims,
 			}
 		}
 		if application.AWS != nil {

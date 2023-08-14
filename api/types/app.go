@@ -367,6 +367,15 @@ func (a *AppV3) CheckAndSetDefaults() error {
 			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
 	}
 
+	if a.Spec.Rewrite != nil {
+		switch a.Spec.Rewrite.JWTClaims {
+		case "", JWTClaimsRewriteRolesAndTraits, JWTClaimsRewriteRoles, JWTClaimsRewriteNone:
+		default:
+			return trace.BadParameter("app %q has unexpected JWT rewrite value %q", a.GetName(), a.Spec.Rewrite.JWTClaims)
+
+		}
+	}
+
 	return nil
 }
 
