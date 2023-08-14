@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package webauthn_test
+package webauthntypes_test
 
 import (
 	"encoding/base64"
@@ -25,23 +25,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestCredentialAssertionResponse_json(t *testing.T) {
-	resp := &wanlib.CredentialAssertionResponse{
-		PublicKeyCredential: wanlib.PublicKeyCredential{
-			Credential: wanlib.Credential{
+	resp := &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{
 				ID:   base64.RawURLEncoding.EncodeToString([]byte("credentialid")),
 				Type: "public-key",
 			},
 			RawID: []byte("credentialid"),
-			Extensions: &wanlib.AuthenticationExtensionsClientOutputs{
+			Extensions: &wantypes.AuthenticationExtensionsClientOutputs{
 				AppID: true,
 			},
 		},
-		AssertionResponse: wanlib.AuthenticatorAssertionResponse{
-			AuthenticatorResponse: wanlib.AuthenticatorResponse{
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: []byte("clientdatajson"),
 			},
 			AuthenticatorData: []byte("authdata"),
@@ -53,7 +53,7 @@ func TestCredentialAssertionResponse_json(t *testing.T) {
 	respJSON, err := json.Marshal(resp)
 	require.NoError(t, err)
 
-	got := &wanlib.CredentialAssertionResponse{}
+	got := &wantypes.CredentialAssertionResponse{}
 	require.NoError(t, json.Unmarshal(respJSON, got))
 	if diff := cmp.Diff(resp, got); diff != "" {
 		t.Errorf("Unmarshal() mismatch (-want +got):\n%s", diff)
@@ -61,24 +61,24 @@ func TestCredentialAssertionResponse_json(t *testing.T) {
 }
 
 func TestCredentialCreation_Validate(t *testing.T) {
-	okCC := &wanlib.CredentialCreation{
-		Response: wanlib.PublicKeyCredentialCreationOptions{
+	okCC := &wantypes.CredentialCreation{
+		Response: wantypes.PublicKeyCredentialCreationOptions{
 			Challenge: make([]byte, 32),
-			RelyingParty: wanlib.RelyingPartyEntity{
+			RelyingParty: wantypes.RelyingPartyEntity{
 				ID: "example.com",
-				CredentialEntity: wanlib.CredentialEntity{
+				CredentialEntity: wantypes.CredentialEntity{
 					Name: "Teleport",
 				},
 			},
-			Parameters: []wanlib.CredentialParameter{
+			Parameters: []wantypes.CredentialParameter{
 				{Type: protocol.PublicKeyCredentialType, Algorithm: webauthncose.AlgES256},
 			},
-			AuthenticatorSelection: wanlib.AuthenticatorSelection{
+			AuthenticatorSelection: wantypes.AuthenticatorSelection{
 				UserVerification: protocol.VerificationDiscouraged,
 			},
 			Attestation: protocol.PreferNoAttestation,
-			User: wanlib.UserEntity{
-				CredentialEntity: wanlib.CredentialEntity{
+			User: wantypes.UserEntity{
+				CredentialEntity: wantypes.CredentialEntity{
 					Name: "llama",
 				},
 				DisplayName: "Llama",
@@ -89,23 +89,23 @@ func TestCredentialCreation_Validate(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		createCC       func() *wanlib.CredentialCreation
+		createCC       func() *wantypes.CredentialCreation
 		alwaysCreateRK bool
 		wantErr        string
 	}{
 		{
 			name:     "ok", // check that good params are good
-			createCC: func() *wanlib.CredentialCreation { return okCC },
+			createCC: func() *wantypes.CredentialCreation { return okCC },
 			wantErr:  "",
 		},
 		{
 			name:     "nil cc",
-			createCC: func() *wanlib.CredentialCreation { return nil },
+			createCC: func() *wantypes.CredentialCreation { return nil },
 			wantErr:  "credential creation required",
 		},
 		{
 			name: "nil challenge",
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *wantypes.CredentialCreation {
 				cp := *okCC
 				cp.Response.Challenge = nil
 				return &cp
@@ -114,7 +114,7 @@ func TestCredentialCreation_Validate(t *testing.T) {
 		},
 		{
 			name: "empty RPID",
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *wantypes.CredentialCreation {
 				cp := *okCC
 				cp.Response.RelyingParty.ID = ""
 				return &cp
@@ -123,7 +123,7 @@ func TestCredentialCreation_Validate(t *testing.T) {
 		},
 		{
 			name: "empty RP name",
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *wantypes.CredentialCreation {
 				cp := *okCC
 				cp.Response.RelyingParty.Name = ""
 				return &cp
@@ -132,7 +132,7 @@ func TestCredentialCreation_Validate(t *testing.T) {
 		},
 		{
 			name: "empty user name",
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *wantypes.CredentialCreation {
 				cp := *okCC
 				cp.Response.User.Name = ""
 				return &cp
@@ -141,7 +141,7 @@ func TestCredentialCreation_Validate(t *testing.T) {
 		},
 		{
 			name: "empty user display name",
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *wantypes.CredentialCreation {
 				cp := *okCC
 				cp.Response.User.DisplayName = ""
 				return &cp
@@ -150,7 +150,7 @@ func TestCredentialCreation_Validate(t *testing.T) {
 		},
 		{
 			name: "nil user ID",
-			createCC: func() *wanlib.CredentialCreation {
+			createCC: func() *wantypes.CredentialCreation {
 				cp := *okCC
 				cp.Response.User.ID = nil
 				return &cp
@@ -171,11 +171,11 @@ func TestCredentialCreation_Validate(t *testing.T) {
 }
 
 func TestCredentialAssertion_Validate(t *testing.T) {
-	okAssertion := &wanlib.CredentialAssertion{
-		Response: wanlib.PublicKeyCredentialRequestOptions{
+	okAssertion := &wantypes.CredentialAssertion{
+		Response: wantypes.PublicKeyCredentialRequestOptions{
 			Challenge:      make([]byte, 32),
 			RelyingPartyID: "example.com",
-			AllowedCredentials: []wanlib.CredentialDescriptor{
+			AllowedCredentials: []wantypes.CredentialDescriptor{
 				{Type: protocol.PublicKeyCredentialType, CredentialID: []byte{1, 2, 3, 4, 5}},
 			},
 		},
@@ -188,7 +188,7 @@ func TestCredentialAssertion_Validate(t *testing.T) {
 	emptyRPIDAssertion.Response.RelyingPartyID = ""
 	tests := []struct {
 		name      string
-		assertion *wanlib.CredentialAssertion
+		assertion *wantypes.CredentialAssertion
 		wantErr   string
 	}{
 		{
@@ -226,18 +226,18 @@ func TestCredentialAssertion_Validate(t *testing.T) {
 func TestRequireResidentKey(t *testing.T) {
 	tests := []struct {
 		name    string
-		in      wanlib.AuthenticatorSelection
+		in      wantypes.AuthenticatorSelection
 		want    bool
 		wantErr string
 	}{
 		{
 			name: "nothing set",
-			in:   wanlib.AuthenticatorSelection{},
+			in:   wantypes.AuthenticatorSelection{},
 			want: false,
 		},
 		{
 			name: "discouraged and rrk=true",
-			in: wanlib.AuthenticatorSelection{
+			in: wantypes.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
 				RequireResidentKey: protocol.ResidentKeyRequired(),
 			},
@@ -245,7 +245,7 @@ func TestRequireResidentKey(t *testing.T) {
 		},
 		{
 			name: "required and rrk=false",
-			in: wanlib.AuthenticatorSelection{
+			in: wantypes.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementRequired,
 				RequireResidentKey: protocol.ResidentKeyNotRequired(),
 			},
@@ -253,7 +253,7 @@ func TestRequireResidentKey(t *testing.T) {
 		},
 		{
 			name: "support nil RequireResidentKey",
-			in: wanlib.AuthenticatorSelection{
+			in: wantypes.AuthenticatorSelection{
 				ResidentKey:        "",
 				RequireResidentKey: nil,
 			},
@@ -261,7 +261,7 @@ func TestRequireResidentKey(t *testing.T) {
 		},
 		{
 			name: "ResidentKey preferred result in false",
-			in: wanlib.AuthenticatorSelection{
+			in: wantypes.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementPreferred,
 				RequireResidentKey: nil,
 			},
@@ -269,21 +269,21 @@ func TestRequireResidentKey(t *testing.T) {
 		},
 		{
 			name: "ResidentKey required",
-			in: wanlib.AuthenticatorSelection{
+			in: wantypes.AuthenticatorSelection{
 				ResidentKey: protocol.ResidentKeyRequirementRequired,
 			},
 			want: true,
 		},
 		{
 			name: "ResidentKey discouraged",
-			in: wanlib.AuthenticatorSelection{
+			in: wantypes.AuthenticatorSelection{
 				ResidentKey: protocol.ResidentKeyRequirementDiscouraged,
 			},
 			want: false,
 		},
 		{
 			name: "use RequireResidentKey required if ResidentKey empty",
-			in: wanlib.AuthenticatorSelection{
+			in: wantypes.AuthenticatorSelection{
 				ResidentKey:        "",
 				RequireResidentKey: protocol.ResidentKeyRequired(),
 			},
@@ -292,8 +292,8 @@ func TestRequireResidentKey(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			req := &wanlib.CredentialCreation{
-				Response: wanlib.PublicKeyCredentialCreationOptions{
+			req := &wantypes.CredentialCreation{
+				Response: wantypes.PublicKeyCredentialCreationOptions{
 					AuthenticatorSelection: test.in,
 				},
 			}
