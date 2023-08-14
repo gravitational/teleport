@@ -48,6 +48,9 @@ type DatabaseServer interface {
 	String() string
 	// Copy returns a copy of this database server object.
 	Copy() DatabaseServer
+
+	// CloneResource returns a copy of the DatabaseServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 	// GetDatabase returns the database this database server proxies.
 	GetDatabase() Database
 	// SetDatabase sets the database this database server proxies.
@@ -266,6 +269,11 @@ func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return utils.CloneProtoMsg(s)
+}
+
+// CloneResource returns a copy of this database server object.
+func (s *DatabaseServerV3) CloneResource() ResourceWithLabels {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to
