@@ -21,12 +21,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -187,17 +188,11 @@ This includes nodes via SSH access.`
 }
 
 func (a *AccessRequestListRequestableResourcesTool) Run(ctx context.Context, toolCtx *ToolContext, input string) (string, error) {
-	foundResources := make(chan promptResource, 0)
-	var workersAlive atomic.Int32
-	workersAlive.Store(5)
+	foundResources := make([]promptResource, 0)
+	foundResourcesMu := &sync.Mutex{}
+	g := new(errgroup.Group)
 
 	searchAndAppend := func(resourceType string, convert func(types.Resource) (promptResource, error)) error {
-		defer func() {
-			if workersAlive.Add(-1) == 0 {
-				close(foundResources)
-			}
-		}()
-
 		list, err := toolCtx.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType:     resourceType,
 			Limit:            maxShownRequestableItems,
@@ -213,11 +208,9 @@ func (a *AccessRequestListRequestableResourcesTool) Run(ctx context.Context, too
 				return trace.Wrap(err)
 			}
 
-			select {
-			case foundResources <- resource:
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			}
+			foundResourcesMu.Lock()
+			foundResources = append(foundResources, resource)
+			foundResourcesMu.Unlock()
 		}
 
 		return nil
@@ -233,23 +226,28 @@ func (a *AccessRequestListRequestableResourcesTool) Run(ctx context.Context, too
 		})
 	}
 
-	go searchAndAppend(types.KindNode, func(resource types.Resource) (promptResource, error) {
-		return promptResource{
-			Name:         resource.GetName(),
-			Kind:         resource.GetKind(),
-			SubKind:      resource.GetSubKind(),
-			Labels:       resource.GetMetadata().Labels,
-			FriendlyName: resource.(types.Server).GetHostname(),
-		}, nil
+	g.Go(func() error {
+		return searchAndAppend(types.KindNode, func(resource types.Resource) (promptResource, error) {
+			return promptResource{
+				Name:         resource.GetName(),
+				Kind:         resource.GetKind(),
+				SubKind:      resource.GetSubKind(),
+				Labels:       resource.GetMetadata().Labels,
+				FriendlyName: resource.(types.Server).GetHostname(),
+			}, nil
+		})
 	})
-	go searchAndAppendPlain(types.KindApp)
-	go searchAndAppendPlain(types.KindKubernetesCluster)
-	go searchAndAppendPlain(types.KindDatabase)
-	go searchAndAppendPlain(types.KindWindowsDesktop)
+	g.Go(func() error { return searchAndAppendPlain(types.KindApp) })
+	g.Go(func() error { return searchAndAppendPlain(types.KindKubernetesCluster) })
+	g.Go(func() error { return searchAndAppendPlain(types.KindDatabase) })
+	g.Go(func() error { return searchAndAppendPlain(types.KindWindowsDesktop) })
 
+	if err := g.Wait(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	sb := strings.Builder{}
 	total := 0
-	for resource := range foundResources {
+	for _, resource := range foundResources {
 		yaml, err := yaml.Marshal(resource)
 		if err != nil {
 			return "", trace.Wrap(err)

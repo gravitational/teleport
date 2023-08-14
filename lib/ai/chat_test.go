@@ -27,7 +27,9 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestChat_PromptTokens(t *testing.T) {
@@ -51,7 +53,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hello",
 				},
 			},
-			want: 1020,
+			want: 721,
 		},
 		{
 			name: "system and user messages",
@@ -65,7 +67,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hi LLM.",
 				},
 			},
-			want: 1028,
+			want: 729,
 		},
 		{
 			name: "tokenize our prompt",
@@ -79,7 +81,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Show me free disk space on localhost node.",
 				},
 			},
-			want: 1231,
+			want: 932,
 		},
 	}
 
@@ -130,11 +132,16 @@ func TestChat_PromptTokens(t *testing.T) {
 }
 
 func TestChat_Complete(t *testing.T) {
-	t.Parallel()
+	beforeModules := modules.GetModules()
+	modules.SetModules(&modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+	t.Cleanup(func() { modules.SetModules(beforeModules) })
 
 	responses := [][]byte{
 		[]byte(generateTextResponse()),
 		[]byte(generateCommandResponse()),
+		[]byte(generateAccessRequestResponse()),
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -186,6 +193,20 @@ func TestChat_Complete(t *testing.T) {
 		require.Len(t, command.Nodes, 1)
 		require.Equal(t, "localhost", command.Nodes[0])
 	})
+
+	t.Run("access request creation", func(t *testing.T) {
+		msg, _, err := chat.Complete(ctx, "Now, request access to the resource with kind node, hostname Alpha.local and the Name a35161f0-a2dc-48e7-bdd2-49b81926cab7", func(aa *model.AgentAction) {})
+		require.NoError(t, err)
+
+		require.IsType(t, &model.AccessRequest{}, msg)
+		request := msg.(*model.AccessRequest)
+		require.Empty(t, request.Roles)
+		require.Empty(t, request.SuggestedReviewers)
+		require.Equal(t, "maintenance", request.Reason)
+		require.Len(t, request.Resources, 1)
+		require.Equal(t, "a35161f0-a2dc-48e7-bdd2-49b81926cab7", request.Resources[0].Name)
+		require.Equal(t, "Alpha.local", request.Resources[0].FriendlyName)
+	})
 }
 
 // generateTextResponse generates a response for a text completion
@@ -225,6 +246,50 @@ func generateCommandResponse() string {
 			Command string   `json:"command"`
 			Nodes   []string `json:"nodes"`
 		}{"df -h", []string{"localhost"}},
+	}
+	actionJson, err := json.Marshal(actionObj)
+	if err != nil {
+		panic(err)
+	}
+
+	obj := struct {
+		Content string `json:"content"`
+		Role    string `json:"role"`
+	}{
+		Content: string(actionJson),
+		Role:    "assistant",
+	}
+	json, err := json.Marshal(obj)
+	if err != nil {
+		panic(err)
+	}
+
+	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":%v}]}`, string(json))
+	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
+
+	dataBytes = append(dataBytes, []byte("event: done\n")...)
+	dataBytes = append(dataBytes, []byte("data: [DONE]\n\n")...)
+
+	return string(dataBytes)
+}
+
+func generateAccessRequestResponse() string {
+	dataBytes := []byte{}
+	dataBytes = append(dataBytes, []byte("event: message\n")...)
+
+	actionObj := model.PlanOutput{
+		Action: "Create Access Requests",
+		ActionInput: struct {
+			SuggestedReviewers []string         `json:"suggested_reviewers"`
+			Roles              []string         `json:"roles"`
+			Resources          []model.Resource `json:"resources"`
+			Reason             string           `json:"reason"`
+		}{
+			nil,
+			nil,
+			[]model.Resource{{Type: types.KindNode, Name: "a35161f0-a2dc-48e7-bdd2-49b81926cab7", FriendlyName: "Alpha.local"}},
+			"maintenance",
+		},
 	}
 	actionJson, err := json.Marshal(actionObj)
 	if err != nil {

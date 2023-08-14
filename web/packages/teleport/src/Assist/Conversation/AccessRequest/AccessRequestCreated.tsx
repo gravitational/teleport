@@ -46,9 +46,7 @@ const Header = styled.div`
 export function AccessRequestCreated(props: AccessRequestCreatedProps) {
   return (
     <Container>
-      <Header>
-        Access Request Created
-      </Header>
+      <Header>Access Request Created</Header>
 
       <ButtonPrimary
         as={Link}

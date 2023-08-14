@@ -169,7 +169,7 @@ export function AccessRequest(props: AccessRequestProps) {
 
       <SubTitle>Roles</SubTitle>
 
-      { props.roles && props.roles.length > 0 && <Roles roles={props.roles} />}
+      {props.roles && props.roles.length > 0 && <Roles roles={props.roles} />}
 
       <SubTitle>Reason</SubTitle>
 
