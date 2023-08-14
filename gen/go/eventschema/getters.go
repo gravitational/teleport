@@ -66,6 +66,15 @@ func TableList() (string, error) {
 	return sb.String(), nil
 }
 
+func IsValidEventType(input string) bool {
+	for _, eventType := range eventTypes {
+		if input == eventType {
+			return true
+		}
+	}
+	return false
+}
+
 func (event *Event) TableSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("column_name, column_type, description\n")

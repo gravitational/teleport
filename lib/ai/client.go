@@ -51,6 +51,8 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 // toolsConfig contains all required clients and configuration for agent tools
 // to interact with Teleport.
 func (client *Client) NewChat(username string, toolsConfig model.ToolsConfig) (*Chat, error) {
+	toolsConfig.LLMClient = client.svc
+
 	agent, err := model.NewAgent(username, toolsConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

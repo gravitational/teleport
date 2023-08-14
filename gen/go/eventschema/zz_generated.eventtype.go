@@ -16,7 +16,7 @@ package eventschema
 
 // This file is generated, DO NOT EDIT
 
-var eventTypes = []string {
+var eventTypes = []string{
 	"access_request.create",
 	"access_request.delete",
 	"access_request.review",
@@ -30,10 +30,6 @@ var eventTypes = []string {
 	"app.session.start",
 	"app.update",
 	"auth",
-	"billing.create_card",
-	"billing.delete_card",
-	"billing.update_card",
-	"billing.update_info",
 	"bot.join",
 	"bot_token.create",
 	"cert.create",
@@ -154,4 +150,3 @@ var eventTypes = []string {
 	"windows.desktop.session.start",
 	"x11-forward",
 }
-

@@ -66,6 +66,10 @@ func NewAgent(username string, config ToolsConfig) (*Agent, error) {
 			})
 	}
 
+	if config.LLMClient != nil {
+		tools = append(tools, &auditQueryGenerationTool{llm: config.LLMClient})
+	}
+
 	return &Agent{
 		tools: tools,
 	}, nil
@@ -84,6 +88,8 @@ type ToolsConfig struct {
 	// NodeClient is optional, when set, the tools might attempt to search for
 	// nodes directly from cache on small clusters.
 	NodeClient *services.NodeWatcher
+	// LLMClient contains a client to perform LLM completion requests.
+	LLMClient *openai.Client
 }
 
 // CheckAndSetDefaults checks if the ToolsConfig is valid and sets defaults
@@ -261,6 +267,25 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		}
 
 		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
+		return stepOutput{finish: &agentFinish{output: completion}}, nil
+	}
+
+	if tool, ok := tool.(*auditQueryGenerationTool); ok {
+		progressUpdates()
+		log.Tracef("Tool called with input:'%s'", action.Input)
+		tableName, err := tool.chooseEventTable(ctx, action.Input, state.tokenCount)
+		if err != nil {
+			return stepOutput{}, trace.Wrap(err)
+		}
+
+		log.Tracef("Tool chose to query table '%s'", tableName)
+		query, err := tool.generateQuery(ctx, tableName, action.Input, state.tokenCount)
+		if err != nil {
+			return stepOutput{}, trace.Wrap(err)
+		}
+		log.Tracef("Tool generated query: %s", query)
+
+		completion := &Message{Content: fmt.Sprintf("You must run the query:\n\n```sql\n%s\n```", query)}
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
