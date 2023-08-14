@@ -235,6 +235,17 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  static_jwks:
+                    nullable: true
+                    properties:
+                      jwks:
+                        type: string
+                    type: object
+                  type:
+                    description: 'Type controls which behavior should be used for
+                      validating the Kubernetes Service Account token. Support values:
+                      - `incluster` - `static_jwks` If unset, this defaults to `incluster`.'
+                    type: string
                 type: object
               roles:
                 description: Roles is a list of roles associated with the token, that

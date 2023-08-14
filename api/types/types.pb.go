@@ -4100,10 +4100,11 @@ type ProvisionTokenSpecV2Kubernetes struct {
 	Allow []*ProvisionTokenSpecV2Kubernetes_Rule `protobuf:"bytes,1,rep,name=Allow,proto3" json:"allow,omitempty"`
 	// Type controls which behavior should be used for validating the Kubernetes
 	// Service Account token. Support values:
-	// - `incluster`
+	// - `in_cluster`
 	// - `static_jwks`
-	// If unset, this defaults to `incluster`.
-	Type                 KubernetesJoinType                               `protobuf:"bytes,2,opt,name=Type,proto3,casttype=KubernetesJoinType" json:"type,omitempty"`
+	// If unset, this defaults to `in_cluster`.
+	Type KubernetesJoinType `protobuf:"bytes,2,opt,name=Type,proto3,casttype=KubernetesJoinType" json:"type,omitempty"`
+	// StaticJWKS is the configuration specific to the `static_jwks` type.
 	StaticJWKS           *ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig `protobuf:"bytes,3,opt,name=StaticJWKS,proto3" json:"static_jwks,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                                         `json:"-"`
 	XXX_unrecognized     []byte                                           `json:"-"`
@@ -4144,6 +4145,9 @@ func (m *ProvisionTokenSpecV2Kubernetes) XXX_DiscardUnknown() {
 var xxx_messageInfo_ProvisionTokenSpecV2Kubernetes proto.InternalMessageInfo
 
 type ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig struct {
+	// JWKS should be the JSON Web Key Set formatted public keys of that the
+	// Kubernetes Cluster uses to sign service account tokens.
+	// This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
 	JWKS                 string   `protobuf:"bytes,1,opt,name=JWKS,proto3" json:"jwks,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
