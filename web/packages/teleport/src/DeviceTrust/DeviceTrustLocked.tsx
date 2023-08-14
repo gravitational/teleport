@@ -43,21 +43,6 @@ import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 export function DeviceTrustLocked() {
   const theme = useTheme();
 
-  function generateFakeItems(count) {
-    const items = [];
-    const osType = ['Windows', 'Linux', 'macOS'];
-
-    for (let i = 0; i < count; i++) {
-      items.push({
-        id: `id-${i}`,
-        assetTag: `CLFBDAACC${i}`,
-        enrollStatus: `enroll-status-${i}`,
-        osType: osType[i % osType.length],
-      });
-    }
-
-    return items;
-  }
   return (
     <FeatureBox>
       <FeatureHeader>
@@ -108,6 +93,22 @@ export function DeviceTrustLocked() {
       </StyledMessageContainer>
     </FeatureBox>
   );
+}
+
+function generateFakeItems(count) {
+  const items = [];
+  const osType = ['Windows', 'Linux', 'macOS'];
+
+  for (let i = 0; i < count; i++) {
+    items.push({
+      id: `id-${i}`,
+      assetTag: `CLFBDAACC${i}`,
+      enrollStatus: `enroll-status-${i}`,
+      osType: osType[i % osType.length],
+    });
+  }
+
+  return items;
 }
 
 const FakeDeviceList = ({
