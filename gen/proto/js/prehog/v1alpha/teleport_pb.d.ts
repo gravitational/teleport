@@ -62,6 +62,18 @@ export class ResourceCreateEvent extends jspb.Message {
     getResourceType(): string;
     setResourceType(value: string): ResourceCreateEvent;
 
+    getResourceOrigin(): string;
+    setResourceOrigin(value: string): ResourceCreateEvent;
+
+    getCloudProvider(): string;
+    setCloudProvider(value: string): ResourceCreateEvent;
+
+
+    hasDatabase(): boolean;
+    clearDatabase(): void;
+    getDatabase(): DiscoveredDatabaseMetadata | undefined;
+    setDatabase(value?: DiscoveredDatabaseMetadata): ResourceCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceCreateEvent.AsObject;
@@ -76,6 +88,34 @@ export class ResourceCreateEvent extends jspb.Message {
 export namespace ResourceCreateEvent {
     export type AsObject = {
         resourceType: string,
+        resourceOrigin: string,
+        cloudProvider: string,
+        database?: DiscoveredDatabaseMetadata.AsObject,
+    }
+}
+
+export class DiscoveredDatabaseMetadata extends jspb.Message { 
+    getDbType(): string;
+    setDbType(value: string): DiscoveredDatabaseMetadata;
+
+    getDbProtocol(): string;
+    setDbProtocol(value: string): DiscoveredDatabaseMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DiscoveredDatabaseMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: DiscoveredDatabaseMetadata): DiscoveredDatabaseMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DiscoveredDatabaseMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DiscoveredDatabaseMetadata;
+    static deserializeBinaryFromReader(message: DiscoveredDatabaseMetadata, reader: jspb.BinaryReader): DiscoveredDatabaseMetadata;
+}
+
+export namespace DiscoveredDatabaseMetadata {
+    export type AsObject = {
+        dbType: string,
+        dbProtocol: string,
     }
 }
 
@@ -1594,6 +1634,35 @@ export namespace EditorChangeEvent {
     }
 }
 
+export class DeviceAuthenticateEvent extends jspb.Message { 
+    getDeviceId(): string;
+    setDeviceId(value: string): DeviceAuthenticateEvent;
+
+    getUserName(): string;
+    setUserName(value: string): DeviceAuthenticateEvent;
+
+    getDeviceOsType(): string;
+    setDeviceOsType(value: string): DeviceAuthenticateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): DeviceAuthenticateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: DeviceAuthenticateEvent): DeviceAuthenticateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: DeviceAuthenticateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): DeviceAuthenticateEvent;
+    static deserializeBinaryFromReader(message: DeviceAuthenticateEvent, reader: jspb.BinaryReader): DeviceAuthenticateEvent;
+}
+
+export namespace DeviceAuthenticateEvent {
+    export type AsObject = {
+        deviceId: string,
+        userName: string,
+        deviceOsType: string,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1893,6 +1962,12 @@ export class SubmitEventRequest extends jspb.Message {
     setAssistNewConversation(value?: AssistNewConversationEvent): SubmitEventRequest;
 
 
+    hasDeviceAuthenticateEvent(): boolean;
+    clearDeviceAuthenticateEvent(): void;
+    getDeviceAuthenticateEvent(): DeviceAuthenticateEvent | undefined;
+    setDeviceAuthenticateEvent(value?: DeviceAuthenticateEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1957,6 +2032,7 @@ export namespace SubmitEventRequest {
         botJoin?: BotJoinEvent.AsObject,
         assistExecution?: AssistExecutionEvent.AsObject,
         assistNewConversation?: AssistNewConversationEvent.AsObject,
+        deviceAuthenticateEvent?: DeviceAuthenticateEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2057,6 +2133,8 @@ export namespace SubmitEventRequest {
     ASSIST_EXECUTION = 50,
 
     ASSIST_NEW_CONVERSATION = 51,
+
+    DEVICE_AUTHENTICATE_EVENT = 52,
 
     }
 

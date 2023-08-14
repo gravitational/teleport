@@ -827,6 +827,9 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 		I: authz.BuiltinRole{
 			Role:     role,
 			Username: serverID,
+			Identity: tlsca.Identity{
+				Username: serverID,
+			},
 		},
 	}
 }

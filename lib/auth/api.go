@@ -734,6 +734,9 @@ type DiscoveryAccessPoint interface {
 	UpdateApp(context.Context, types.Application) error
 	// DeleteApp removes the specified application resource.
 	DeleteApp(ctx context.Context, name string) error
+
+	// SubmitUsageEvent submits an external usage event.
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1241,6 +1244,11 @@ func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) erro
 // UpsertServerInfo upserts a server info resource.
 func (w *DiscoveryWrapper) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
 	return w.NoCache.UpsertServerInfo(ctx, si)
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	return w.NoCache.SubmitUsageEvent(ctx, req)
 }
 
 // Close closes all associated resources
