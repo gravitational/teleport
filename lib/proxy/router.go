@@ -16,6 +16,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -258,7 +259,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 			serverAddr = reversetunnelclient.LocalNode
 		}
 	} else {
-		return nil, trace.NotImplemented("direct dialing to nodes not found in inventory is not supported")
+		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
 	}
 
 	// if the node is a registered openssh node, create a signer for auth
