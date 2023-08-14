@@ -618,7 +618,6 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 		if a.StaticJWKS.JWKS == "" {
 			return trace.BadParameter("static_jwks.jwks: must be set when type is %q", KubernetesJoinTypeStaticJWKS)
 		}
-		// TODO(noah): Try and parse JWKS to fail early if malformatted?
 	default:
 		return trace.BadParameter(
 			"type: must be one of (%s), got %q",
