@@ -1,11 +1,11 @@
 # Copyright 2023 Gravitational, Inc.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,27 +23,20 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # general packages
-    rust-overlay.url = "github:oxalica/rust-overlay";
-
 
     # Linting dependencies
     helmPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # helm 3.11.1
 
     # libbpf dependencies.
     libbpfPkgs.url = "github:nixos/nixpkgs/79b3d4bcae8c7007c9fd51c279a8a67acfa73a2a"; # libbpf 1.0.1
-
-    # bats dependencies.
-    batsPkgs.url = "github:nixos/nixpkgs/5c1ffb7a9fc96f2d64ed3523c2bdd379bdb7b471"; # bats 1.2.1
   };
 
   outputs = { self,
               flake-utils,
               nixpkgs,
-              rust-overlay,
 
               helmPkgs,
               libbpfPkgs,
-              batsPkgs,
      }:
     flake-utils.lib.eachDefaultSystem
       (system:
@@ -54,16 +47,13 @@
           nodeProtocTsVersion = "v5.0.1";
           grpcToolsVersion = "1.12.4";
           libpcscliteVersion = "1.9.9-teleport";
-          rustVersion = "1.68.0";
-          yarnVersion = "1.22.19";
 
-          overlays = [ (import rust-overlay) ];
+          overlays = [];
 
           # Package aliases to make reusing these packages easier.
           # The individual package names here have been determined by using
           # https://lazamar.co.uk/nix-versions/
           libbpf = libbpfPkgs.legacyPackages.${system}.libbpf;
-          bats = batsPkgs.legacyPackages.${system}.bats;
 
           # pkgs is an alias for the nixpkgs at the system level. This will be used
           # for general utilities.
@@ -74,7 +64,7 @@
           # The helm unittest plugin.
           helm-unittest = pkgs.buildGoModule rec {
             name = "helm-unittest";
-          
+
             src = pkgs.fetchFromGitHub {
               owner = "vbehar";
               repo = "helm3-unittest";
@@ -83,13 +73,13 @@
             };
 
             vendorSha256 = null;
-          
+
             postInstall = ''
               install -Dm644 plugin.yaml $out/helm-unittest/plugin.yaml
               mkdir "$out/helm-unittest/bin"
               mv $out/bin/helm3-unittest $out/helm-unittest/bin/unittest
             '';
-          
+
             doCheck = false;
           };
 
@@ -167,7 +157,7 @@
           grpc-tools = pkgs.stdenv.mkDerivation rec {
             pname = "grpc-tools";
             version = grpcToolsVersion;
-          
+
             src = pkgs.fetchFromGitHub {
               owner = "grpc";
               repo = "grpc-node";
@@ -175,41 +165,22 @@
               fetchSubmodules = true;
               sha256 = "sha256-708lBIGW5+vvSTrZHl/kc+ck7JKNXElrghIGDrMSyx8=";
             };
-          
+
             sourceRoot = "source/packages/grpc-tools";
-          
+
             nativeBuildInputs = [ pkgs.cmake ];
-          
+
             installPhase = ''
               install -Dm755 -t $out/bin grpc_node_plugin
 
               cp grpc_node_plugin grpc_tools_node_protoc_plugin
               install -Dm755 -t $out/bin grpc_tools_node_protoc_plugin
-              
+
               install -Dm755 -t $out/bin deps/protobuf/protoc
             '';
           };
 
-          rust = pkgs.rust-bin.stable.${rustVersion}.default;
-
-          # Yarn binary.
-          yarn = pkgs.stdenv.mkDerivation {
-            name = "yarn";
-            src = fetchTarball {
-              url = "https://yarnpkg.com/downloads/${yarnVersion}/yarn-v${yarnVersion}.tar.gz";
-              sha256 = "sha256:0jl77rl2sidsj3ym637w7g35wnv190l96n050aqlm4pyc6wi8v6p";
-            };
-            buildInputs = [
-              pkgs.nodejs-16_x
-            ];
-            buildPhase = ''
-              mkdir "$out"
-              cp -R * "$out"
-            '';
-          };
-
           conditionalBuildInputs = if pkgs.stdenv.isLinux then [
-            bats
             libbpf
           ] else if pkgs.stdenv.isDarwin then [
             pkgs.darwin.IOKit
@@ -232,8 +203,6 @@
             helm = helm;
             libpcsclite = libpcsclite;
             protoc-gen-gogo = protoc-gen-gogo;
-            rust = rust;
-            yarn = yarn;
           };
       });
 }

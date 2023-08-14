@@ -17,7 +17,7 @@
 import React from 'react';
 import { ButtonIcon, ButtonPrimary, Flex, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
-import { Close } from 'design/Icon';
+import { Cross } from 'design/Icon';
 
 import { Attempt } from 'shared/hooks/useAsync';
 import * as Alerts from 'design/Alert';
@@ -65,7 +65,7 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
                 title="Close"
                 color="text.slightlyMuted"
               >
-                <Close fontSize={5} />
+                <Cross size="medium" />
               </ButtonIcon>
             </Flex>
             <Link

@@ -339,7 +339,7 @@ func describeRDSProxy(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyName 
 // fetchRDSProxyCustomEndpointMetadata fetches metadata about specified RDS
 // proxy custom endpoint.
 func fetchRDSProxyCustomEndpointMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName, uri string) (*types.AWS, error) {
-	rdsProxyEndpoint, err := describeRDSProxyCustomEndpoint(ctx, rdsClient, proxyEndpointName, uri)
+	rdsProxyEndpoint, err := describeRDSProxyCustomEndpointAndFindURI(ctx, rdsClient, proxyEndpointName, uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -352,9 +352,9 @@ func fetchRDSProxyCustomEndpointMetadata(ctx context.Context, rdsClient rdsiface
 	return services.MetadataFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint)
 }
 
-// describeRDSProxyCustomEndpoint returns AWS RDS Proxy endpoint for the
-// specified RDS Proxy custom endpoint.
-func describeRDSProxyCustomEndpoint(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName, uri string) (*rds.DBProxyEndpoint, error) {
+// describeRDSProxyCustomEndpointAndFindURI returns AWS RDS Proxy endpoint for
+// the specified RDS Proxy custom endpoint.
+func describeRDSProxyCustomEndpointAndFindURI(ctx context.Context, rdsClient rdsiface.RDSAPI, proxyEndpointName, uri string) (*rds.DBProxyEndpoint, error) {
 	out, err := rdsClient.DescribeDBProxyEndpointsWithContext(ctx, &rds.DescribeDBProxyEndpointsInput{
 		DBProxyEndpointName: aws.String(proxyEndpointName),
 	})

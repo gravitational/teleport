@@ -26,8 +26,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
+	"github.com/redis/go-redis/v9"
 )
 
 // ErrCmdNotSupported is returned when an unsupported Redis command is sent to Teleport proxy.

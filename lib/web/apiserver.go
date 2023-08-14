@@ -137,6 +137,10 @@ type Handler struct {
 
 	// ClusterFeatures contain flags for supported and unsupported features.
 	ClusterFeatures proto.Features
+
+	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
+	// the proxy's cache and get nodes in real time.
+	nodeWatcher *services.NodeWatcher
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -259,6 +263,10 @@ type Config struct {
 
 	// OpenAIConfig provides config options for the OpenAI integration.
 	OpenAIConfig *openai.ClientConfig
+
+	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
+	// the proxy's cache and get nodes in real time.
+	NodeWatcher *services.NodeWatcher
 }
 
 type APIHandler struct {
@@ -424,6 +432,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 	}
 
+	if cfg.NodeWatcher != nil {
+		h.nodeWatcher = cfg.NodeWatcher
+	}
+
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// ensure security headers are set for all responses
 		httplib.SetDefaultSecurityHeaders(w.Header())
@@ -477,7 +489,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
 			} else {
-				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures)
+				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 			}
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
@@ -631,6 +643,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
+	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
 
 	// Get applications.
 	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
@@ -764,6 +777,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration

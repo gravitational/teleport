@@ -18,6 +18,7 @@ package events
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -461,38 +462,32 @@ func (a *SessionWriter) processEvents() {
 	}
 }
 
-// IsPermanentEmitError checks if the error contains underlying BadParameter error.
+// IsPermanentEmitError checks if the error contains either a sole
+// [trace.BadParameter] error in its chain, or a [trace.Aggregate] error
+// composed entirely of BadParameters.
 func IsPermanentEmitError(err error) bool {
-	var (
-		maxDeep            = 50
-		iter               = 0
-		isPerErrRecurCheck func(error) bool
-	)
+	return isPermanentEmitError(err, 1 /* depth */)
+}
 
-	isPerErrRecurCheck = func(err error) bool {
-		defer func() { iter++ }()
-		if iter >= maxDeep {
-			return false
-		}
+func isPermanentEmitError(err error, depth int) bool {
+	const maxDepth = 50
+	if depth >= maxDepth {
+		return false
+	}
 
-		if trace.IsBadParameter(err) {
-			return true
-		}
-		if !trace.IsAggregate(err) {
-			return false
-		}
-		agg, ok := trace.Unwrap(err).(trace.Aggregate)
-		if !ok {
-			return false
-		}
-		for _, err := range agg.Errors() {
-			if !isPerErrRecurCheck(err) {
+	// If Aggregate, then it must match entirely.
+	var agg trace.Aggregate
+	if errors.As(err, &agg) {
+		for _, e := range agg.Errors() {
+			if !isPermanentEmitError(e, depth+1) {
 				return false
 			}
 		}
 		return true
 	}
-	return isPerErrRecurCheck(err)
+
+	// Otherwise, a sole BadParameter is enough.
+	return trace.IsBadParameter(err)
 }
 
 func (a *SessionWriter) recoverStream() error {
