@@ -81,15 +81,10 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 	// Reset functions after tests.
 	oldStdin := prompt.Stdin()
-	oldHasPlatformSupport := *client.HasPlatformSupport
-	*client.HasPlatformSupport = func() bool {
-		return true
-	}
 	oldHasCredentials := *client.HasTouchIDCredentials
 
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
-		*client.HasPlatformSupport = oldHasPlatformSupport
 		*client.HasTouchIDCredentials = oldHasCredentials
 	})
 

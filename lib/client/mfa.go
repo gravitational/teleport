@@ -29,9 +29,6 @@ import (
 // promptWebauthn provides indirection for tests.
 var promptWebauthn WebauthnLoginFunc
 
-// hasPlatformSupport is used to mock wancli.HasPlatformSupport for tests.
-var hasPlatformSupport = wancli.HasPlatformSupport
-
 // PromptMFAFunc matches the signature of [mfa.Prompt.Run].
 type PromptMFAFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 

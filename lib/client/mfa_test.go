@@ -26,7 +26,6 @@ import (
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
@@ -36,10 +35,8 @@ import (
 // See api_login_test.go and/or TeleportClient tests for more general
 // authentication tests.
 func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
-	oldHasPlatformSupport := *client.HasPlatformSupport
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() {
-		*client.HasPlatformSupport = oldHasPlatformSupport
 		prompt.SetStdin(oldStdin)
 	})
 

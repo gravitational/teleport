@@ -15,4 +15,3 @@
 package client
 
 var PromptWebauthn = &promptWebauthn
-var HasPlatformSupport = &hasPlatformSupport
