@@ -167,6 +167,13 @@ func WithPassHostHeader() Option {
 	}
 }
 
+// WithResponseModifier sets the response modifier for the forwarder.
+func WithResponseModifier(m func(*http.Response) error) Option {
+	return func(rp *Forwarder) {
+		rp.ModifyResponse = m
+	}
+}
+
 // Modify the request to handle the target URL.
 func modifyRequest(outReq *http.Request) {
 	u := getURLFromRequest(outReq)

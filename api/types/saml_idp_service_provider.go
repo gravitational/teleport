@@ -42,9 +42,9 @@ type SAMLIdPServiceProvider interface {
 	SetEntityID(string)
 	// Copy returns a copy of this saml idp service provider object.
 	Copy() SAMLIdPServiceProvider
-	// CloneAny is used to return a clone of the SAMLIdPServiceProvider and match the CloneAny interface
+	// CloneResource returns a copy of the SAMLIdPServiceProvider as a ResourceWithLabels
 	// This is helpful when interfacing with multiple types at the same time in unified resources
-	CloneAny() any
+	CloneResource() ResourceWithLabels
 }
 
 // NewSAMLIdPServiceProvider returns a new SAMLIdPServiceProvider based off a metadata object and SAMLIdPServiceProviderSpecV1.
@@ -92,7 +92,7 @@ func (s *SAMLIdPServiceProviderV1) Copy() SAMLIdPServiceProvider {
 	return utils.CloneProtoMsg(s)
 }
 
-func (s *SAMLIdPServiceProviderV1) CloneAny() any {
+func (s *SAMLIdPServiceProviderV1) CloneResource() ResourceWithLabels {
 	return s.Copy()
 }
 

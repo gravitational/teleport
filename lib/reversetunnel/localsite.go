@@ -231,7 +231,7 @@ func (s *localSite) DialAuthServer(params reversetunnelclient.DialParams) (net.C
 		return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
 	}
 
-	if err := s.maybeSendSignedPROXYHeader(params, conn, false, false); err != nil {
+	if err := s.maybeSendSignedPROXYHeader(params, conn, false); err != nil {
 		return nil, trace.ConnectionProblem(err, "unable to send signed PROXY header to auth server")
 	}
 
@@ -274,16 +274,16 @@ func (s *localSite) Dial(params reversetunnelclient.DialParams) (net.Conn, error
 	return s.DialTCP(params)
 }
 
-func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, version string, useTunnel, checkVersion bool, srcAddr, dstAddr net.Addr) bool {
+func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel, isAgentlessNode bool, srcAddr, dstAddr net.Addr) bool {
 	return !(signer == nil ||
 		useTunnel ||
-		(checkVersion && utils.CheckVersion(version, utils.MinIPPropagationVersion) != nil) ||
+		isAgentlessNode ||
 		srcAddr == nil ||
 		dstAddr == nil)
 }
 
-func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel, checkVersion bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, params.TeleportVersion, useTunnel, checkVersion, params.From, params.OriginalClientDstAddr) {
+func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.AgentlessSigner != nil, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -309,8 +309,7 @@ func (s *localSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, er
 	}
 	s.log.Debugf("Succeeded dialing %v.", params)
 
-	isKubeOrDB := params.ConnType == types.KubeTunnel || params.ConnType == types.DatabaseTunnel
-	if err := s.maybeSendSignedPROXYHeader(params, conn, useTunnel, !isKubeOrDB); err != nil {
+	if err := s.maybeSendSignedPROXYHeader(params, conn, useTunnel); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -383,7 +382,7 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.maybeSendSignedPROXYHeader(params, targetConn, useTunnel, true); err != nil {
+	if err := s.maybeSendSignedPROXYHeader(params, targetConn, useTunnel); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -525,11 +524,10 @@ func stringOrEmpty(addr net.Addr) string {
 
 func (s *localSite) getConn(params reversetunnelclient.DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dreq := &sshutils.DialReq{
-		ServerID:        params.ServerID,
-		ConnType:        params.ConnType,
-		ClientSrcAddr:   stringOrEmpty(params.From),
-		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
+		ServerID:      params.ServerID,
+		ConnType:      params.ConnType,
+		ClientSrcAddr: stringOrEmpty(params.From),
+		ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
 	}
 	if params.To != nil {
 		dreq.Address = params.To.String()

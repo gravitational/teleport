@@ -93,7 +93,7 @@ export function TabItem(props: TabItemProps) {
             `}
             onClick={handleClose}
           >
-            <Icons.Close fontSize="16px" />
+            <Icons.Cross size="small" />
           </ButtonIcon>
         )}
       </TabContent>
@@ -119,7 +119,7 @@ export function NewTabItem(props: NewTabItemProps) {
           title={props.tooltip}
           onClick={props.onClick}
         >
-          <Icons.Add fontSize="16px" />
+          <Icons.Add size="small" />
         </ButtonIcon>
       </TabContent>
       <BottomShadow />
