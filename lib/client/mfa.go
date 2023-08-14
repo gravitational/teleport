@@ -27,13 +27,16 @@ import (
 
 // TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
 // promptWebauthn provides indirection for tests.
-var promptWebauthn func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+var promptWebauthn WebauthnLoginFunc
 
 // hasPlatformSupport is used to mock wancli.HasPlatformSupport for tests.
 var hasPlatformSupport = wancli.HasPlatformSupport
 
 // PromptMFAFunc matches the signature of [mfa.Prompt.Run].
 type PromptMFAFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+
+// WebauthnLoginFunc matches the signature of [wancli.Login].
+type WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 
 // NewMFAPrompt creates a new MFA prompt from client settings.
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) PromptMFAFunc {
@@ -49,6 +52,11 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) PromptMFAFunc {
 	// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
 	if promptWebauthn != nil {
 		prompt.WebauthnLogin = promptWebauthn
+		prompt.WebauthnSupported = true
+	}
+
+	if tc.WebauthnLogin != nil {
+		prompt.WebauthnLogin = tc.WebauthnLogin
 		prompt.WebauthnSupported = true
 	}
 
