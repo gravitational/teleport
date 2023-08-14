@@ -459,7 +459,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		// Send the close message to the client and close the connection
 		if err := ws.WriteControl(websocket.CloseMessage,
 			websocket.FormatCloseMessage(closureReason, closureMsg),
-			h.clock.Now().Add(time.Second),
+			time.Now().Add(time.Second),
 		); err != nil {
 			h.log.Warnf("Failed to write close message: %v", err)
 		}
