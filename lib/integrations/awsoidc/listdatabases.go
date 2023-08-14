@@ -112,7 +112,7 @@ func ListDatabases(ctx context.Context, clt ListDatabasesClient, req ListDatabas
 		// Related:
 		// https://github.com/gravitational/teleport/pull/18328
 		// https://github.com/aws/aws-toolkit-jetbrains/pull/3644
-		var enginesWithoutAurora []string
+		enginesWithoutAurora := make([]string, 0, len(req.Engines))
 		for _, e := range req.Engines {
 			if e == services.RDSEngineAurora {
 				continue

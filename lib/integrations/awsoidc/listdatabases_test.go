@@ -80,6 +80,7 @@ func hasAuroraEngineFilter(filters []rdsTypes.Filter) bool {
 					return true
 				}
 			}
+			return false
 		}
 	}
 	return false
