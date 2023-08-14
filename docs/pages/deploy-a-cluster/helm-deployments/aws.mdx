@@ -82,7 +82,7 @@ these options:
 You can use `cert-manager` to provision and automatically renew TLS credentials
 by completing ACME challenges via Let's Encrypt.
 
-`cert-manager` can also be used with AWS Private CAs (PCA) in EKS using the
+You can also use `cert-manager` with AWS Private Certificate Authority (PCA) in EKS using the
 `aws-privateca-issuer` plugin.  If using an AWS PCA, you will need to 
 [ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
 `highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
