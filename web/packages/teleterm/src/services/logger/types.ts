@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Stream } from 'stream';
+import type { ChildProcess } from 'node:child_process';
 
 export interface Logger {
   error(...args: unknown[]): void;
@@ -27,5 +27,5 @@ export interface LoggerService {
 }
 
 export interface NodeLoggerService extends LoggerService {
-  pipeProcessOutputIntoLogger(stream: Stream): void;
+  pipeProcessOutputIntoLogger(childProcess: ChildProcess): void;
 }

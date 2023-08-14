@@ -249,7 +249,7 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
           background: ${props => props.theme.colors.error.main};
         `}
       >
-        <Icons.Close fontSize="18px" />
+        <Icons.Cross size="small" />
       </Box>
       <Text>Clear search</Text>
     </Flex>

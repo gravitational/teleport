@@ -23,6 +23,7 @@ import React, {
   useCallback,
 } from 'react';
 import { Flex } from 'design';
+import { IconProps } from 'design/Icon/Icon';
 import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
 
@@ -193,18 +194,16 @@ const InteractiveItem = styled(NonInteractiveItem)`
  */
 export function IconAndContent(
   props: React.PropsWithChildren<{
-    Icon: React.ComponentType<{
-      color: string;
-      fontSize: string;
-      lineHeight: string;
-    }>;
+    Icon: React.ComponentType<IconProps>;
     iconColor: string;
   }>
 ) {
   return (
     <Flex alignItems="flex-start" gap={2}>
       {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
-      <props.Icon color={props.iconColor} fontSize="20px" lineHeight="24px" />
+      <Flex height="24px">
+        <props.Icon color={props.iconColor} size="medium" />
+      </Flex>
       <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
         {props.children}
       </Flex>

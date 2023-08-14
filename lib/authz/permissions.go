@@ -873,10 +873,12 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindKubernetesCluster, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindServerInfo, services.RW()),
+						types.NewRule(types.KindApp, services.RW()),
 					},
-					// wildcard any cluster available.
-					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+					// Discovery service should only access kubes/apps/dbs that originated from discovery.
+					KubernetesLabels: types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					DatabaseLabels:   types.Labels{types.OriginLabel: []string{types.OriginCloud}},
+					AppLabels:        types.Labels{types.OriginLabel: []string{types.OriginDiscoveryKubernetes}},
 				},
 			})
 	case types.RoleOkta:
@@ -1354,4 +1356,28 @@ func UserFromContext(ctx context.Context) (IdentityGetter, error) {
 		return nil, trace.BadParameter("expected type IdentityGetter, got %T", user)
 	}
 	return user, nil
+}
+
+// HasBuiltinRole checks if the identity is a builtin role with the matching
+// name.
+func HasBuiltinRole(authContext Context, name string) bool {
+	if _, ok := authContext.Identity.(BuiltinRole); !ok {
+		return false
+	}
+	if !authContext.Checker.HasRole(name) {
+		return false
+	}
+
+	return true
+}
+
+// IsLocalUser checks if the identity is a local user.
+func IsLocalUser(authContext Context) bool {
+	_, ok := authContext.Identity.(LocalUser)
+	return ok
+}
+
+// IsCurrentUser checks if the identity is a local user matching the given username
+func IsCurrentUser(authContext Context, username string) bool {
+	return IsLocalUser(authContext) && authContext.User.GetName() == username
 }

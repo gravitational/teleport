@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 )
 
 func TestSimpleRetriever_GetRelevant(t *testing.T) {
@@ -33,11 +34,11 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	// Generate random vector. The seed is fixed, so the results are deterministic.
 	randGen := rand.New(rand.NewSource(42))
 
-	generateVector := func() Vector64 {
+	generateVector := func() embedding.Vector64 {
 		const testVectorDimension = 100
 		// generate random vector
 		// reduce the dimensionality to 100
-		vec := make(Vector64, testVectorDimension)
+		vec := make(embedding.Vector64, testVectorDimension)
 		for i := 0; i < testVectorDimension; i++ {
 			vec[i] = randGen.Float64()
 		}
@@ -47,13 +48,13 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	}
 
 	const testEmbeddingsSize = 100
-	points := make([]*Embedding, testEmbeddingsSize)
+	points := make([]*embedding.Embedding, testEmbeddingsSize)
 	for i := 0; i < testEmbeddingsSize; i++ {
-		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), [32]byte{})
+		points[i] = embedding.NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), [32]byte{})
 	}
 
 	// Create a query.
-	query := NewEmbedding(types.KindNode, "1", generateVector(), [32]byte{})
+	query := embedding.NewEmbedding(types.KindNode, "1", generateVector(), [32]byte{})
 
 	retriever := NewSimpleRetriever()
 
@@ -62,7 +63,7 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	}
 
 	// Get the top 10 most similar documents.
-	docs := retriever.GetRelevant(query, 10, func(id string, embedding *Embedding) bool {
+	docs := retriever.GetRelevant(query, 10, func(id string, embedding *embedding.Embedding) bool {
 		return true
 	})
 	require.Len(t, docs, 10)

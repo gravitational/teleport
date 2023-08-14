@@ -168,7 +168,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		return nil, trace.Wrap(err)
 	}
 
-	return (*CredentialAssertion)(assertion), nil
+	return CredentialAssertionFromProtocol(assertion), nil
 }
 
 func (f *loginFlow) getWebID(ctx context.Context, user string) ([]byte, error) {

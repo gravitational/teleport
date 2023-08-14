@@ -1338,6 +1338,16 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)
 	}
 
+	for _, matcher := range fc.Discovery.KubernetesMatchers {
+		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers,
+			types.KubernetesMatcher{
+				Types:      matcher.Types,
+				Namespaces: matcher.Namespaces,
+				Labels:     matcher.Labels,
+			},
+		)
+	}
+
 	return nil
 }
 
@@ -1613,8 +1623,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					application.Name)
 			}
 			app.Rewrite = &servicecfg.Rewrite{
-				Redirect: application.Rewrite.Redirect,
-				Headers:  headers,
+				Redirect:  application.Rewrite.Redirect,
+				Headers:   headers,
+				JWTClaims: application.Rewrite.JWTClaims,
 			}
 		}
 		if application.AWS != nil {

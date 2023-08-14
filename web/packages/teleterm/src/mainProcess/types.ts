@@ -15,6 +15,8 @@
  */
 
 import { AgentConfigFileClusterProperties } from 'teleterm/mainProcess/createAgentConfigFile';
+import { RootClusterUri } from 'teleterm/ui/uri';
+
 import { Kind } from 'teleterm/ui/services/workspacesService';
 import { FileStorage } from 'teleterm/services/fileStorage';
 
@@ -49,6 +51,11 @@ export type RuntimeSettings = {
   arch: string;
   osVersion: string;
   appVersion: string;
+  /**
+   * The {@link appVersion} is set to a real version only for packaged apps that went through our CI build pipeline.
+   * In local builds, both for the development version and for packaged apps, settings.appVersion is set to 1.0.0-dev.
+   */
+  isLocalBuild: boolean;
   username: string;
   hostname: string;
 };
@@ -92,6 +99,16 @@ export type MainProcessClient = {
   createAgentConfigFile(
     properties: AgentConfigFileClusterProperties
   ): Promise<void>;
+  runAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
+  subscribeToAgentUpdate: SubscribeToAgentUpdate;
+};
+
+export type SubscribeToAgentUpdate = (
+  rootClusterUri: RootClusterUri,
+  listener: (state: AgentProcessState) => void
+) => {
+  cleanup: () => void;
 };
 
 export type ChildProcessAddresses = {
@@ -104,6 +121,26 @@ export type GrpcServerAddresses = ChildProcessAddresses & {
 };
 
 export type Platform = NodeJS.Platform;
+
+export type AgentProcessState =
+  | {
+      status: 'not-started';
+    }
+  | {
+      status: 'running';
+    }
+  | {
+      status: 'exited';
+      code: number | null;
+      signal: NodeJS.Signals | null;
+      exitedSuccessfully: boolean;
+      /** Fragment of a stack trace when the process did not exit successfully. */
+      stackTrace?: string;
+    }
+  | {
+      status: 'error';
+      message: string;
+    };
 
 export interface ClusterContextMenuOptions {
   isClusterConnected: boolean;

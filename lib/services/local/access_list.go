@@ -32,6 +32,9 @@ import (
 
 const (
 	accessListPrefix = "access_list"
+	// We'll use a small page size here to minimize the potential for access lists with large member lists
+	// from hitting the gRPC receive limit.
+	accessListMaxPageSize = 4
 )
 
 // AccessListService manages Access List resources in the Backend.
@@ -45,6 +48,7 @@ type AccessListService struct {
 func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*AccessListService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessList]{
 		Backend:       backend,
+		PageLimit:     accessListMaxPageSize,
 		ResourceKind:  types.KindAccessList,
 		BackendPrefix: accessListPrefix,
 		MarshalFunc:   services.MarshalAccessList,
@@ -65,6 +69,11 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock) (*Acce
 func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	accessLists, err := a.svc.GetResources(ctx)
 	return accessLists, trace.Wrap(err)
+}
+
+// ListAccessLists returns a paginated list of access lists.
+func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
+	return a.svc.ListResources(ctx, pageSize, nextToken)
 }
 
 // GetAccessList returns the specified access list resource.

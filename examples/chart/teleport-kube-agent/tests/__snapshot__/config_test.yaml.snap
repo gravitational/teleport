@@ -9,6 +9,8 @@ does not generate a config for clusterrole.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -47,6 +49,8 @@ does not generate a config for pdb.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -84,6 +88,8 @@ matches snapshot and tests for annotations.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -126,6 +132,8 @@ matches snapshot and tests for extra-labels.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -167,6 +175,8 @@ matches snapshot for affinity.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -206,6 +216,7 @@ matches snapshot for all-v6.yaml:
             name: grafana
             uri: http://localhost:3000
           enabled: true
+          resources: null
         auth_service:
           enabled: false
         db_service:
@@ -216,6 +227,8 @@ matches snapshot for all-v6.yaml:
             protocol: postgres
             uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
           enabled: true
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -272,6 +285,8 @@ matches snapshot for aws-databases.yaml:
             types:
             - rds
           enabled: true
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -331,6 +346,8 @@ matches snapshot for azure-databases.yaml:
             types:
             - mysql
           enabled: true
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -367,6 +384,8 @@ matches snapshot for backwards-compatibility.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -405,6 +424,8 @@ matches snapshot for ca-pin.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -452,6 +473,8 @@ matches snapshot for db.yaml:
             protocol: postgres
             uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
           enabled: true
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -491,6 +514,8 @@ matches snapshot for dynamic-app.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: false
@@ -532,6 +557,8 @@ matches snapshot for dynamic-db.yaml:
           resources:
           - labels:
               '*': '*'
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: false
         proxy_service:
@@ -568,6 +595,8 @@ matches snapshot for imagepullsecrets.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -607,6 +636,8 @@ matches snapshot for initcontainers.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -644,6 +675,8 @@ matches snapshot for join-params-iam.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -683,6 +716,8 @@ matches snapshot for join-params-token.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -720,6 +755,8 @@ matches snapshot for log-basic.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -759,6 +796,8 @@ matches snapshot for log-extra.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -796,6 +835,8 @@ matches snapshot for log-legacy.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -835,6 +876,8 @@ matches snapshot for node-selector.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -872,6 +915,8 @@ matches snapshot for pdb.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -911,6 +956,8 @@ matches snapshot for resources.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -948,6 +995,8 @@ matches snapshot for stateful.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -987,6 +1036,8 @@ matches snapshot for tolerations.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
@@ -1024,6 +1075,8 @@ matches snapshot for v10.yaml:
         auth_service:
           enabled: false
         db_service:
+          enabled: false
+        discovery_service:
           enabled: false
         kubernetes_service:
           enabled: true
@@ -1063,6 +1116,8 @@ matches snapshot for v11.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
@@ -1101,6 +1156,60 @@ matches snapshot for volumes.yaml:
           enabled: false
         db_service:
           enabled: false
+        discovery_service:
+          enabled: false
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: test-kube-cluster
+        proxy_service:
+          enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+matches snapshot when app discovery is enabled:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        app_service:
+          enabled: true
+          resources:
+          - labels:
+              teleport.dev/kubernetes-cluster: test-kube-cluster
+              teleport.dev/origin: discovery-kubernetes
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
+        discovery_service:
+          discovery_group: test-kube-cluster
+          enabled: true
+          kubernetes:
+          - labels:
+              '*': '*'
+            namespaces:
+            - '*'
+            types:
+            - app
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
