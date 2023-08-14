@@ -262,10 +262,6 @@ func (e *EmbeddingProcessor) Process(ctx context.Context) {
 		},
 		// On compare keys callback. Compare the keys for iteration.
 		func(node types.Server, embeddings *embeddinglib.Embedding) int {
-			if node.GetName() == embeddings.GetEmbeddedID() {
-				return 0
-			}
-
 			return strings.Compare(node.GetName(), embeddings.GetEmbeddedID())
 		},
 	)

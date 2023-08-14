@@ -163,13 +163,13 @@ func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	require.Equal(t, initial.Vector, final.Vector)
 }
 
-func makeNode(index int) types.Server {
-	node, _ := types.NewServer(fmt.Sprintf("node%d", index), types.KindNode, types.ServerSpecV2{
+func makeNode(num int) types.Server {
+	node, _ := types.NewServer(fmt.Sprintf("node%d", num), types.KindNode, types.ServerSpecV2{
 		Addr:     "127.0.0.1:1234",
-		Hostname: fmt.Sprintf("node%d", index),
+		Hostname: fmt.Sprintf("node%d", num),
 		CmdLabels: map[string]types.CommandLabelV2{
 			"version":  {Result: "v8"},
-			"hostname": {Result: fmt.Sprintf("node%d.example.com", index)},
+			"hostname": {Result: fmt.Sprintf("node%d.example.com", num)},
 		},
 	})
 	return node
