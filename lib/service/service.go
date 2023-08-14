@@ -2554,10 +2554,6 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-			return authClient.GetCertAuthority(ctx, id, loadKeys)
-		}
-
 		s, err := regular.New(
 			process.ExitContext(),
 			cfg.SSH.Addr,
@@ -2594,7 +2590,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetInventoryControlHandle(process.inventoryHandle),
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
-			regular.SetCAGetter(caGetter),
+			regular.SetCAGetter(authClient.GetCertAuthority),
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 		)
 		if err != nil {
@@ -2613,7 +2609,26 @@ func (process *TeleportProcess) initSSH() error {
 
 			log.Infof("Service %s:%s is starting on %v %v.", teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr, process.Config.CachePolicy)
 
-			go s.Serve(limiter.WrapListener(listener))
+			// Use multiplexer to leverage support for signed PROXY protocol headers.
+			mux, err := multiplexer.New(multiplexer.Config{
+				Context:             process.ExitContext(),
+				Listener:            listener,
+				ID:                  teleport.Component(teleport.ComponentNode, process.id),
+				CertAuthorityGetter: authClient.GetCertAuthority,
+				LocalClusterName:    conn.ServerIdentity.ClusterName,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			go func() {
+				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
+					mux.Entry.WithError(err).Error("mux encountered err serving")
+				}
+			}()
+			defer mux.Close()
+
+			go s.Serve(limiter.WrapListener(mux.SSH()))
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
