@@ -184,7 +184,7 @@ func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, 
 	// If the cluster is offline, return an error because we don't have the schema
 	// for the cluster.
 	if k.isClusterOffline {
-		return nil, nil, trace.BadParameter("kubernetes cluster %q is offline", k.kubeCluster.GetName())
+		return nil, nil, trace.ConnectionProblem(nil, "kubernetes cluster %q is offline", k.kubeCluster.GetName())
 	}
 	return &(k.kubeCodecs), k.rbacSupportedTypes, nil
 }
