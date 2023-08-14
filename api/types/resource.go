@@ -112,11 +112,6 @@ type ResourceWithLabels interface {
 	MatchSearch(searchValues []string) bool
 }
 
-// CloneAny is an interface used for resources that can clone themselves
-type CloneAny interface {
-	CloneAny() any
-}
-
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 
@@ -482,11 +477,6 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	}
 	resourceKind := resource.GetKind()
 
-	for _, kind := range kinds {
-		if kind == resourceKind {
-			return true
-		}
-	}
 	return slices.Contains(kinds, resourceKind)
 }
 

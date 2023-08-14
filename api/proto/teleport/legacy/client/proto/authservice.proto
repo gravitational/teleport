@@ -629,13 +629,6 @@ message GetAppSessionResponse {
   types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
 }
 
-// GetAppSessionsResponse contains all the requested application web sessions.
-// DELETE IN 13.0. Deprecated, use ListAppSessions instead
-message GetAppSessionsResponse {
-  // Sessions is a list of application web sessions.
-  repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
-}
-
 // ListAppSessionRequest are the parameters used to request an application web session.
 //
 // Follows the pagination semantics of
@@ -2440,9 +2433,6 @@ service AuthService {
 
   // GetAppSession gets an application web session.
   rpc GetAppSession(GetAppSessionRequest) returns (GetAppSessionResponse);
-  // GetAppSessions gets all application web sessions.
-  // DELETE IN 13.0. Deprecated, use ListAppSessions instead
-  rpc GetAppSessions(google.protobuf.Empty) returns (GetAppSessionsResponse);
   // ListAppSessions gets all application web sessions.
   rpc ListAppSessions(ListAppSessionsRequest) returns (ListAppSessionsResponse);
   // CreateAppSession creates an application web session. Application web
@@ -2641,12 +2631,6 @@ service AuthService {
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
-  // UpsertToken upserts a token in a backend.
-  // Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
-  rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
-  // CreateToken creates a token in a backend.
-  // Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
-  rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateTokenV2 creates a token in a backend.
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
   // UpsertTokenV2 upserts a token in a backend.

@@ -17,7 +17,6 @@ limitations under the License.
 package db
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -75,22 +74,7 @@ func TestRedshiftFetcher(t *testing.T) {
 }
 
 func makeRedshiftCluster(t *testing.T, region, env string, opts ...func(*redshift.Cluster)) (*redshift.Cluster, types.Database) {
-	cluster := &redshift.Cluster{
-		ClusterIdentifier:   aws.String(env),
-		ClusterNamespaceArn: aws.String(fmt.Sprintf("arn:aws:redshift:%s:123456789012:namespace:%s", region, env)),
-		ClusterStatus:       aws.String("available"),
-		Endpoint: &redshift.Endpoint{
-			Address: aws.String("localhost"),
-			Port:    aws.Int64(5439),
-		},
-		Tags: []*redshift.Tag{{
-			Key:   aws.String("env"),
-			Value: aws.String(env),
-		}},
-	}
-	for _, opt := range opts {
-		opt(cluster)
-	}
+	cluster := mocks.RedshiftCluster(env, region, map[string]string{"env": env}, opts...)
 
 	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)

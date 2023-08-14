@@ -17,9 +17,13 @@
 import childProcess from 'node:child_process';
 import fs from 'node:fs/promises';
 
+import { RootClusterUri } from 'teleterm/ui/uri';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
-import { createAgentConfigFile } from './createAgentConfigFile';
+import {
+  createAgentConfigFile,
+  generateAgentConfigPaths,
+} from './createAgentConfigFile';
 
 jest.mock('node:child_process');
 jest.mock('node:fs');
@@ -40,7 +44,7 @@ test('teleport configure is called with proper arguments', async () => {
     '/Users/test/Caches/Teleport Connect/teleport/teleport';
   const token = '8f50fd5d-38e8-4e96-baea-e9b882bb433b';
   const proxy = 'cluster.local:3080';
-  const profileName = 'cluster.local';
+  const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
   const labels = [
     {
       name: 'teleport.dev/connect-my-computer/owner',
@@ -61,7 +65,7 @@ test('teleport configure is called with proper arguments', async () => {
       {
         token,
         proxy,
-        profileName,
+        rootClusterUri,
         labels,
       }
     )
@@ -72,8 +76,8 @@ test('teleport configure is called with proper arguments', async () => {
     [
       'node',
       'configure',
-      `--output=${userDataDir}/agents/${profileName}/config.yaml`,
-      `--data-dir=${userDataDir}/agents/${profileName}/data`,
+      `--output=${userDataDir}/agents/cluster.local/config.yaml`,
+      `--data-dir=${userDataDir}/agents/cluster.local/data`,
       `--proxy=${proxy}`,
       `--token=${token}`,
       `--labels=${labels[0].name}=${labels[0].value},${labels[1].name}=${labels[1].value}`,
@@ -87,7 +91,7 @@ test('teleport configure is called with proper arguments', async () => {
 
 test('previous config file is removed before calling teleport configure', async () => {
   const userDataDir = '/Users/test/Application Data/Teleport Connect';
-  const profileName = 'cluster.local';
+  const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
 
   await expect(
     createAgentConfigFile(
@@ -97,45 +101,35 @@ test('previous config file is removed before calling teleport configure', async 
       {
         token: '',
         proxy: '',
-        profileName,
+        rootClusterUri,
         labels: [],
       }
     )
   ).resolves.toBeUndefined();
 
   expect(fs.rm).toHaveBeenCalledWith(
-    `${userDataDir}/agents/${profileName}/config.yaml`
+    `${userDataDir}/agents/cluster.local/config.yaml`
   );
 });
 
-test('throws when profileName is not a valid path segment', async () => {
-  await expect(
-    createAgentConfigFile(
+test('throws when rootClusterUri does not contain a valid path segment', () => {
+  expect(() =>
+    generateAgentConfigPaths(
       makeRuntimeSettings({
         userDataDir: '/Users/test/Application Data/Teleport Connect',
       }),
-      {
-        token: '',
-        proxy: '',
-        profileName: '/cluster',
-        labels: [],
-      }
+      '/clusters/../not_valid'
     )
-  ).rejects.toThrow('The agent config file path is incorrect');
+  ).toThrow('The agent config path is incorrect');
 });
 
-test('throws when profileName is undefined', async () => {
-  await expect(
-    createAgentConfigFile(
+test('throws when rootClusterUri is undefined', () => {
+  expect(() =>
+    generateAgentConfigPaths(
       makeRuntimeSettings({
         userDataDir: '/Users/test/Application Data/Teleport Connect',
       }),
-      {
-        token: '',
-        proxy: '',
-        profileName: undefined,
-        labels: [],
-      }
+      '/clusters/'
     )
-  ).rejects.toThrow('The "path" argument must be of type string');
+  ).toThrow('Incorrect root cluster URI');
 });

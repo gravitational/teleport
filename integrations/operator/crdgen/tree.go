@@ -128,7 +128,6 @@ func (forest *Forest) addMessageFromDesc(msgDesc *gogodesc.DescriptorProto, inde
 	}
 
 	return &message
-
 }
 
 func (file File) Forest() *Forest {
@@ -144,6 +143,9 @@ func (file File) Package() string {
 }
 
 func (message Message) Name() string {
+	if message.parentMsg != nil {
+		return message.parentMsg.Name() + "/" + message.desc.GetName()
+	}
 	return message.desc.GetName()
 }
 

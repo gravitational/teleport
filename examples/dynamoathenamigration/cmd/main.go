@@ -39,6 +39,7 @@ func main() {
 	noOfEmitWorker := flag.Int("noOfEmitWorker", 5, "noOfEmitWorker defines number of workers emitting events to athena logger")
 	checkpointPath := flag.String("checkpointPath", "", "checkpointPath defines where checkpoint file will be stored")
 	exportLocalDir := flag.String("exportLocalDir", "", "exportLocalDir defines directory where export will be downloaded")
+	maxMemoryUseDuringSort := flag.Int("maxMem", dynamoathenamigration.DefaultMaxMemoryUsedForSortingExportInMB, "maximum memory used during sorting of events in MB")
 	debug := flag.Bool("d", false, "debug logs")
 	flag.Parse()
 
@@ -50,13 +51,14 @@ func main() {
 	logger.SetLevel(level)
 
 	cfg := dynamoathenamigration.Config{
-		ExportARN:       *exportARN,
-		DynamoTableARN:  *dynamoARN,
-		DryRun:          *dryRun,
-		NoOfEmitWorkers: *noOfEmitWorker,
-		TopicARN:        *snsTopicARN,
-		ExportLocalDir:  *exportLocalDir,
-		Logger:          logger,
+		ExportARN:                         *exportARN,
+		DynamoTableARN:                    *dynamoARN,
+		DryRun:                            *dryRun,
+		NoOfEmitWorkers:                   *noOfEmitWorker,
+		TopicARN:                          *snsTopicARN,
+		ExportLocalDir:                    *exportLocalDir,
+		MaxMemoryUsedForSortingExportInMB: *maxMemoryUseDuringSort,
+		Logger:                            logger,
 	}
 	var err error
 	if *timeStr != "" {

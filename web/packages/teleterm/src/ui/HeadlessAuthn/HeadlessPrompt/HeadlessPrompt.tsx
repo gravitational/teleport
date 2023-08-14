@@ -64,7 +64,7 @@ export function HeadlessPrompt({
           Headless command on <b>{cluster.name}</b>
         </Text>
         <ButtonIcon type="button" onClick={onCancel} color="text.slightlyMuted">
-          <Icons.Close fontSize={5} />
+          <Icons.Cross size="medium" />
         </ButtonIcon>
       </DialogHeader>
       {updateHeadlessStateAttempt.status === 'error' && (

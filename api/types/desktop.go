@@ -124,8 +124,6 @@ type WindowsDesktop interface {
 	ResourceWithLabels
 	// GetAddr returns the network address of this host.
 	GetAddr() string
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// GetDomain returns the ActiveDirectory domain of this host.
 	GetDomain() string
 	// GetHostID returns the ID of the Windows Desktop Service reporting the desktop.
@@ -135,9 +133,8 @@ type WindowsDesktop interface {
 	NonAD() bool
 	// Copy returns a copy of this windows desktop
 	Copy() *WindowsDesktopV3
-	// CloneAny is used to return a clone of the WindowDesktop and match the CloneAny interface
-	// This is helpful when interfacing with multiple types at the same time in unified resources
-	CloneAny() any
+	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -192,11 +189,6 @@ func (d *WindowsDesktopV3) GetHostID() string {
 	return d.Spec.HostID
 }
 
-// LabelsString returns all desktop labels as a string.
-func (d *WindowsDesktopV3) LabelsString() string {
-	return LabelsAsString(d.Metadata.Labels, nil)
-}
-
 // GetDomain returns the Active Directory domain of this host.
 func (d *WindowsDesktopV3) GetDomain() string {
 	return d.Spec.Domain
@@ -214,8 +206,8 @@ func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
 	return utils.CloneProtoMsg(d)
 }
 
-func (d *WindowsDesktopV3) CloneAny() any {
-	return utils.CloneProtoMsg(d)
+func (d *WindowsDesktopV3) CloneResource() ResourceWithLabels {
+	return d.Copy()
 }
 
 // DeduplicateDesktops deduplicates desktops by name.
@@ -242,7 +234,7 @@ func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
 	return true
 }
 
-// WindowsDesktops represents a list of windows desktops.
+// WindowsDesktops represents a list of Windows desktops.
 type WindowsDesktops []WindowsDesktop
 
 // Len returns the slice length.
