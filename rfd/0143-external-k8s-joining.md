@@ -51,11 +51,11 @@ To configure the Teleport for external Kubernetes joining, the existing
 
 A new `type` field will be introduced with two possible values:
 
-- `incluster`: the current behaviour of Kubernetes joining based on TokenReview.
+- `in_cluster`: the current behaviour of Kubernetes joining based on TokenReview.
 - `static_jwks`: enables the new behaviour based on validation of the token
   against a known JWKS.
 
-Where no value has been provided, this will default to `incluster`.
+Where no value has been provided, this will default to `in_cluster`.
 
 Example token configuration:
 
@@ -106,9 +106,9 @@ message ProvisionTokenSpecV2Kubernetes{
 
   // Type specifies what behaviour should be used for validating a
   // Kubernetes Service Account token. This must be
-  // - `incluster`
+  // - `in_cluster`
   // - `static_jwks`
-  // If omitted, it will default to `incluster`.
+  // If omitted, it will default to `in_cluster`.
   string Type = 2;
 
   // StaticJWKS contains configuration specific to the `static_jwks` type.
@@ -165,14 +165,14 @@ spec:
 ### Implementation
 
 The `static_jwks` variant will leverage some of the same parts of the flow
-as the `incluster` variant.
+as the `in_cluster` variant.
 
-1. As with `incluster`, the client loads the service account JWT from the
+1. As with `in_cluster`, the client loads the service account JWT from the
   filesystem that was mounted by Kubelet and calls `RegisterUsingToken` with 
   this JWT and the name of the token it wishes to join using.
 2. The Auth Server finds the ProvisionToken matching the name of token. If this
   is a ProvisionToken with `type: static_jwks`, the flow now diverges from the
-  existing `incluster` implementation.
+  existing `in_cluster` implementation.
 5. The Auth Server validates:
   a. The JWT is signed by the keys present in the `jwks` field of the 
     ProvisionToken.
@@ -191,10 +191,10 @@ This flow requires no modifications to the existing RPC protobufs.
 ## Security Considerations
 
 It's important to note that this join method will be less secure than the 
-`incluster` variant. This should be explicitly mentioned in documentation
-for this join method, and encourage the use of `incluster` where possible.
+`in_cluster` variant. This should be explicitly mentioned in documentation
+for this join method, and encourage the use of `in_cluster` where possible.
 
-This is because the `incluster` join method makes use of the TokenReview 
+This is because the `in_cluster` join method makes use of the TokenReview 
 endpoint which performs additional checks to the validity of the token. This 
 includes checking that the pod and service account listed within the JWT claims 
 exist and are running. This increases the complexity of falsifying a 
