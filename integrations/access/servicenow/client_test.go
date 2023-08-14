@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateIncident(t *testing.T) {
@@ -35,7 +35,8 @@ func TestCreateIncident(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
-			log.Fatal(err)
+			t.Error(err)
+			res.WriteHeader(http.StatusInternalServerError)
 		}
 		recievedReq = string(bodyBytes)
 	}))
@@ -45,7 +46,7 @@ func TestCreateIncident(t *testing.T) {
 		APIEndpoint: testServer.URL,
 		ClusterName: "someClusterName",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = c.CreateIncident(context.Background(), "someRequestID", RequestData{
 		User:          "someUser",
@@ -70,7 +71,8 @@ func TestPostReviewNote(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
-			log.Fatal(err)
+			t.Error(err)
+			res.WriteHeader(http.StatusInternalServerError)
 		}
 		recievedReq = string(bodyBytes)
 	}))
@@ -80,7 +82,7 @@ func TestPostReviewNote(t *testing.T) {
 		APIEndpoint: testServer.URL,
 		ClusterName: "someClusterName",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = c.PostReviewNote(context.Background(), "someIncidentID", types.AccessReview{
 		ProposedState: types.RequestState_APPROVED,
@@ -104,7 +106,8 @@ func TestResolveIncident(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		bodyBytes, err := io.ReadAll(req.Body)
 		if err != nil {
-			log.Fatal(err)
+			t.Error(err)
+			res.WriteHeader(http.StatusInternalServerError)
 		}
 		recievedReq = string(bodyBytes)
 	}))
@@ -114,7 +117,7 @@ func TestResolveIncident(t *testing.T) {
 		APIEndpoint: testServer.URL,
 		ClusterName: "someClusterName",
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = c.ResolveIncident(context.Background(), "someIncidentID", Resolution{
 		CloseCode: "approved",
@@ -145,7 +148,7 @@ func TestCreateIncidentError(t *testing.T) {
 	c, err := NewClient(ClientConfig{
 		APIEndpoint: testServer.URL,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = c.CreateIncident(context.Background(), "someRequestID", RequestData{})
 	assert.True(t, trace.IsAccessDenied(err))
