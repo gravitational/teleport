@@ -552,6 +552,11 @@ type ProxyConfig struct {
 	// AssistAPIKey is the OpenAI API key.
 	// TODO: This key will be moved to a plugin once support for plugins is implemented.
 	AssistAPIKey string
+
+	// TrustXForwardedFor enables the service to take client source IPs from
+	// the "X-Forwarded-For" headers for web APIs recevied from layer 7 load
+	// balancers or reverse proxies.
+	TrustXForwardedFor bool
 }
 
 // ACME configures ACME automatic certificate renewal
@@ -1491,6 +1496,8 @@ type Rewrite struct {
 	Redirect []string
 	// Headers is a list of extra headers to inject in the request.
 	Headers []Header
+	// JWTClaims configures whether roles/traits are included in the JWT token.
+	JWTClaims string
 }
 
 // Header represents a single http header passed over to the proxied application.

@@ -544,7 +544,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr); err == nil {
 		// The current private key was rejected due to an unmet key policy requirement.
 		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
-		fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
+		fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 
 		// The current private key was rejected due to an unmet key policy requirement.
 		// Set the private key policy to the expected value and re-login.
@@ -3360,8 +3360,9 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 					return tc.headlessLogin(ctx, priv)
 				}, nil
 			}
-			log.Debug("Headless login is disabled for this command. Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported. Defaulting to local authentication methods.")
-			fallthrough
+			return nil, trace.BadParameter("" +
+				"Headless login is not supported for this command. " +
+				"Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported.")
 		case constants.LocalConnector, "":
 			// if passwordless is enabled and there are passwordless credentials
 			// registered, we can try to go with passwordless login even though
@@ -3447,7 +3448,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 				return nil, trace.Wrap(err)
 			}
 
-			fmt.Fprintf(tc.Stderr, "Re-initiating login with YubiKey generated private key.\n")
+			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}

@@ -1071,7 +1071,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Proxy.ACME = *acme
-
+	cfg.Proxy.TrustXForwardedFor = fc.Proxy.TrustXForwardedFor.Value()
 	return nil
 }
 
@@ -1523,8 +1523,9 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 					application.Name)
 			}
 			app.Rewrite = &service.Rewrite{
-				Redirect: application.Rewrite.Redirect,
-				Headers:  headers,
+				Redirect:  application.Rewrite.Redirect,
+				Headers:   headers,
+				JWTClaims: application.Rewrite.JWTClaims,
 			}
 		}
 		if application.AWS != nil {

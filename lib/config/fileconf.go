@@ -1933,6 +1933,8 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 	// Headers is a list of extra headers to inject in the request.
 	Headers []string `yaml:"headers,omitempty"`
+	// JWTClaims configures whether roles/traits are included in the JWT token
+	JWTClaims string `yaml:"jwt_claims,omitempty"`
 }
 
 // AppAWS contains additional options for AWS applications.
@@ -2024,6 +2026,11 @@ type Proxy struct {
 
 	// Assist is a set of options related to the Teleport Assist feature.
 	Assist *AssistOptions `yaml:"assist,omitempty"`
+
+	// TrustXForwardedFor enables the service to take client source IPs from
+	// the "X-Forwarded-For" headers for web APIs received from layer 7 load
+	// balancers or reverse proxies.
+	TrustXForwardedFor types.Bool `yaml:"trust_x_forwarded_for,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

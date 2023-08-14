@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 var (
@@ -100,10 +101,9 @@ func Test_kubeClusterCollection_writeText(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &kubeClusterCollection{
 				clusters: kubeClusters,
-				verbose:  tt.fields.verbose,
 			}
 			w := &bytes.Buffer{}
-			err := c.writeText(w)
+			err := c.writeText(w, tt.fields.verbose)
 			require.NoError(t, err)
 			require.Contains(t, w.String(), tt.wantTable())
 		})
@@ -151,5 +151,5 @@ func formatTestLabels(l1, l2 map[string]string, verbose bool) string {
 	for key, value := range l2 {
 		labels[key] = value
 	}
-	return stripInternalTeleportLabels(verbose, labels)
+	return common.FormatLabels(labels, verbose)
 }

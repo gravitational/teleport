@@ -218,7 +218,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client auth.ClientI) error {
 	// is experimental.
 	switch rc.format {
 	case teleport.Text:
-		return collection.writeText(rc.stdout)
+		return collection.writeText(rc.stdout, rc.verbose)
 	case teleport.YAML:
 		return writeYAML(collection, rc.stdout)
 	case teleport.JSON:
@@ -1200,6 +1200,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
+	case types.KindProxy:
+		if err := client.DeleteProxy(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Proxy %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1452,13 +1457,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &roleCollection{roles: roles, verbose: rc.verbose}, nil
+			return &roleCollection{roles: roles}, nil
 		}
 		role, err := client.GetRole(ctx, rc.ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &roleCollection{roles: []types.Role{role}, verbose: rc.verbose}, nil
+		return &roleCollection{roles: []types.Role{role}}, nil
 	case types.KindNamespace:
 		if rc.ref.Name == "" {
 			namespaces, err := client.GetNamespaces()

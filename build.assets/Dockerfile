@@ -38,9 +38,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.10 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
+    [ "$(git rev-parse HEAD)" = '245cb0291e0db99d9ccf3692fa76f440b2b054c2' ] && \
     ./config --release --libdir=/usr/local/lib && \
     make && \
     make install_sw
@@ -291,10 +291,10 @@ RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.9.1
+RUN go install github.com/daixiang0/gci@v0.11.0
 
 # Install golangci-lint.
-RUN TAG='v1.53.3' && \
+RUN TAG='v1.54.0' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
