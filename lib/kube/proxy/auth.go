@@ -143,7 +143,6 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			f.log.WithError(err).Warnf("Failed to create cluster details for cluster %q.", cluster)
 			return trace.Wrap(err)
 		}
-		fmt.Println("#######registered", cluster)
 		f.clusterDetails[cluster] = details
 	}
 	return nil
