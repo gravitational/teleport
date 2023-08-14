@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -247,8 +247,8 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				// Customize Windows prompt directly.
 				// Note that the platform popup is a modal and will only go away if
 				// canceled.
-				webauthnwin.PromptPlatformMessage = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
-				defer webauthnwin.ResetPromptPlatformMessage()
+				wanwin.PromptPlatformMessage = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
+				defer wanwin.ResetPromptPlatformMessage()
 
 			default: // Webauthn only
 				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
