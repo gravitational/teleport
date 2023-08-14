@@ -2283,8 +2283,13 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	if err != nil {
 		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
+
+	codecFactory, rbacSupportedResources, err := details.getClusterSupportedResources()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	connCtx, cancel := context.WithCancel(ctx)
-	codecFactory, rbacSupportedResources := details.getClusterSupportedResources()
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
 		parent:                 f,

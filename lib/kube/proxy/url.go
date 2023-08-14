@@ -213,7 +213,7 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (*types
 	if kubeDetails == nil {
 		return nil, apiResource, nil
 	}
-	codecFactory, rbacSupportedTypes := kubeDetails.getClusterSupportedResources()
+	codecFactory, rbacSupportedTypes, _ := kubeDetails.getClusterSupportedResources()
 
 	resourceType, ok := rbacSupportedTypes.getTeleportResourceKindFromAPIResource(apiResource)
 	switch {
