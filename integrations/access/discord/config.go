@@ -75,8 +75,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GetTeleportClient implements PluginConfiguration. If a pre-created client 
-// was supplied on construction, this method will return that. If not, an RPC 
+// GetTeleportClient implements PluginConfiguration. If a pre-created client
+// was supplied on construction, this method will return that. If not, an RPC
 // client will be created  using the values in the config.
 func (c *Config) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
 	if c.Client != nil {
