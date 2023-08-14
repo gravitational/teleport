@@ -1175,6 +1175,8 @@ type kubeLoginCommand struct {
 	overrideContextName  string
 	disableAccessRequest bool
 	requestReason        string
+	labels               string
+	predicateExpression  string
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
@@ -1183,11 +1185,13 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").StringVar(&c.kubeCluster)
+	c.Flag("labels", labelHelp).StringVar(&c.labels)
+	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
 	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
-	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
+	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
 	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
 		// Use the default context name template if --set-context-name is not set.
 		// This works as an hint to the user that the context name can be customized.
@@ -1199,17 +1203,31 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 }
 
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
-	if c.kubeCluster == "" && !c.all {
+	switch {
+	case c.all && (c.labels != "" || c.predicateExpression != ""):
+		return trace.BadParameter("cannot use --labels or --query with --all")
+	case !c.all && c.getSelectors().IsEmpty():
 		return trace.BadParameter("kube-cluster name is required. Check 'tsh kube ls' for a list of available clusters.")
 	}
-	// If --all and --set-context-name are set, ensure that the template is valid
-	// and can produce distinct context names for each cluster before proceeding.
-	if err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName); err != nil && c.all {
-		return trace.Wrap(err)
+	// If --all, --query, or --labels and --set-context-name are set, ensure
+	// that the template is valid and can produce distinct context names for
+	// each cluster before proceeding.
+	if c.all || c.labels != "" || c.predicateExpression != "" {
+		err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
-	cf.KubernetesCluster = c.kubeCluster
+	// NOTE: in case relogin-retry logic is used, we want to avoid having
+	// cf.KubernetesCluster set because kube cluster selection by prefix name is
+	// not supported in that flow
+	// (it's equivalent to tsh login --kube-cluster=<name>).
+	// We will set that flag later, after listing the kube clusters and choosing
+	// one by prefix/labels/query (if a cluster name/prefix was given).
+	cf.Labels = c.labels
+	cf.PredicateExpression = c.predicateExpression
+
 	cf.SiteName = c.siteName
 	cf.kubernetesImpersonationConfig = impersonationConfig{
 		kubernetesUser:   c.impersonateUser,
@@ -1224,73 +1242,144 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	var kubeStatus *kubernetesStatus
 	err = retryWithAccessRequest(cf, tc, func() error {
 		// Check that this kube cluster exists.
-		currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+		var err error
+		kubeStatus, err = fetchKubeStatus(cf.Context, tc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		clusterNames := kubeClustersToStrings(kubeClusters)
-		// If the user is trying to login to a specific cluster, check that it exists.
-		switch {
-		case c.kubeCluster != "" && !slices.Contains(clusterNames, c.kubeCluster):
-			return trace.AccessDenied("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
-		case cf.ListAll && len(clusterNames) == 0:
-			return trace.AccessDenied("no kubernetes clusters found, check 'tsh kube ls' for a list of known clusters")
-		}
-
-		// Update default kubeconfig file located at ~/.kube/config or the value of
-		// KUBECONFIG env var even if the context exists.
-		if err := updateKubeConfig(cf, tc, "", c.overrideContextName); err != nil {
+		err = c.checkClusterSelection(cf, tc, kubeStatus.kubeClusters)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				// rewrap not found error as access denied, so we can retry
+				// fetching clusters with an access request.
+				return trace.AccessDenied(err.Error())
+			}
 			return trace.Wrap(err)
 		}
-
-		// Generate a profile specific kubeconfig which can be used
-		// by setting the kubeconfig environment variable (with `tsh env`)
-		profileKubeconfigPath := keypaths.KubeConfigPath(
-			profile.FullProfilePath(cf.HomePath), tc.WebProxyHost(), tc.Username, currentTeleportCluster, c.kubeCluster,
-		)
-		if err := updateKubeConfig(cf, tc, profileKubeconfigPath, c.overrideContextName); err != nil {
-			return trace.Wrap(err)
-		}
-
-		c.printUserMessage(cf, tc)
 		return nil
-	},
-		accessRequestForKubeCluster,
-		resourceNameOrWildcard(c.kubeCluster, c.all),
+	}, c.accessRequestForKubeCluster, c.selectorsOrWildcard())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update default kubeconfig file located at ~/.kube/config or the value of
+	// KUBECONFIG env var even if the context exists.
+	if err := updateKubeConfig(cf, tc, "", c.overrideContextName, kubeStatus); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Generate a profile specific kubeconfig which can be used
+	// by setting the kubeconfig environment variable (with `tsh env`)
+	profileKubeconfigPath := keypaths.KubeConfigPath(
+		profile.FullProfilePath(cf.HomePath), tc.WebProxyHost(), tc.Username, kubeStatus.teleportClusterName, c.kubeCluster,
 	)
-	return trace.Wrap(err)
+	if err := updateKubeConfig(cf, tc, profileKubeconfigPath, c.overrideContextName, kubeStatus); err != nil {
+		return trace.Wrap(err)
+	}
+
+	c.printUserMessage(cf, tc, kubeClustersToStrings(kubeStatus.kubeClusters))
+	return nil
 }
 
-func resourceNameOrWildcard(clusterName string, listAll bool) string {
-	if clusterName != "" {
-		return clusterName
-	} else if listAll {
+func (c *kubeLoginCommand) selectorsOrWildcard() string {
+	selectors := c.getSelectors()
+	if !selectors.IsEmpty() {
+		return selectors.String()
+	}
+	if c.all {
 		return "*"
 	}
 	return ""
 }
 
-func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient) {
+// checkClusterSelection checks the kube clusters selected by user input.
+func (c *kubeLoginCommand) checkClusterSelection(cf *CLIConf, tc *client.TeleportClient, clusters types.KubeClusters) error {
+	clusters = filterKubeClusters(c.kubeCluster, clusters)
+	switch {
+	// If the user is trying to login to a specific cluster, check that it
+	// exists and that a cluster matched the name/prefix unambiguously.
+	case c.kubeCluster != "" && len(clusters) == 1:
+		// Populate settings using the selected kube cluster, which contains
+		// the full cluster name.
+		c.kubeCluster = clusters[0].GetName()
+		// Set CLIConf.KubernetesCluster so that the kube cluster's context
+		// is automatically selected.
+		cf.KubernetesCluster = c.kubeCluster
+		tc.KubernetesCluster = c.kubeCluster
+		return nil
+	// allow multiple selection without a name.
+	case c.kubeCluster == "" && len(clusters) > 0:
+		return nil
+	}
+
+	// anything else is an error.
+	selectors := c.getSelectors()
+	if len(clusters) == 0 {
+		if selectors.IsEmpty() {
+			return trace.NotFound("no kubernetes clusters found, check 'tsh kube ls' for a list of known clusters")
+		}
+		return trace.NotFound("%v not found, check 'tsh kube ls' for a list of known clusters", selectors.String())
+	}
+	errMsg := formatAmbiguousKubeCluster(cf, selectors, clusters)
+	return trace.BadParameter(errMsg)
+}
+
+func (c *kubeLoginCommand) getSelectors() resourceSelectors {
+	return resourceSelectors{
+		kind:   "kubernetes cluster",
+		name:   c.kubeCluster,
+		labels: c.labels,
+		query:  c.predicateExpression,
+	}
+}
+
+func filterKubeClusters(nameOrPrefix string, clusters types.KubeClusters) types.KubeClusters {
+	if nameOrPrefix == "" {
+		return clusters
+	}
+	var prefixMatches types.KubeClusters
+	for _, kc := range clusters {
+		if kc.GetName() == nameOrPrefix {
+			return types.KubeClusters{kc}
+		}
+		if strings.HasPrefix(kc.GetName(), nameOrPrefix) {
+			prefixMatches = append(prefixMatches, kc)
+		}
+	}
+	return prefixMatches
+}
+
+func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient, names []string) {
 	if tc.Profile().RequireKubeLocalProxy() {
-		c.printLocalProxyUserMessage(cf)
+		c.printLocalProxyUserMessage(cf, names)
 		return
 	}
 
-	if c.kubeCluster != "" {
+	switch {
+	case c.kubeCluster != "":
 		fmt.Fprintf(cf.Stdout(), "Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
-	} else {
+	case c.labels != "" || c.predicateExpression != "":
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes clusters:
+%v
+
+Select a context and try 'kubectl version' to test the connection.
+`, strings.Join(names, "\n"))
+	case c.all:
 		fmt.Fprintf(cf.Stdout(), "Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
 	}
 }
 
-func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
+func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string) {
 	switch {
 	case c.kubeCluster != "":
 		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
-
-	default:
+	case c.labels != "" || c.predicateExpression != "":
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes clusters:
+%v`, strings.Join(names, "\n"))
+	case c.all:
 		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
 	}
 
@@ -1414,12 +1503,14 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus, overrideCo
 	clusterNames := kubeClustersToStrings(kubeStatus.kubeClusters)
 
 	// Validate if cf.KubernetesCluster is part of the returned list of clusters
-	if cf.KubernetesCluster != "" && !slices.Contains(clusterNames, cf.KubernetesCluster) {
-		return nil, trace.NotFound("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
-	}
-	// If ListAll is not enabled, update only cf.KubernetesCluster cluster.
-	if cf.KubernetesCluster != "" && !cf.ListAll {
-		clusterNames = []string{cf.KubernetesCluster}
+	if cf.KubernetesCluster != "" {
+		if !slices.Contains(clusterNames, cf.KubernetesCluster) {
+			return nil, trace.NotFound("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
+		}
+		// If ListAll or labels/query is not enabled, update only cf.KubernetesCluster cluster.
+		if !cf.ListAll && cf.Labels == "" && cf.PredicateExpression == "" {
+			clusterNames = []string{cf.KubernetesCluster}
+		}
 	}
 
 	v.KubeClusters = clusterNames
@@ -1447,7 +1538,7 @@ type impersonationConfig struct {
 // updateKubeConfig adds Teleport configuration to the users's kubeconfig based on the CLI
 // parameters and the kubernetes services in the current Teleport cluster. If no path for
 // the kubeconfig is given, it will use environment values or known defaults to get a path.
-func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string, overrideContext string) error {
+func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path, overrideContext string, status *kubernetesStatus) error {
 	// Fetch proxy's advertised ports to check for k8s support.
 	if _, err := tc.Ping(cf.Context); err != nil {
 		return trace.Wrap(err)
@@ -1457,16 +1548,11 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string, overr
 		return nil
 	}
 
-	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if cf.Proxy == "" {
 		cf.Proxy = tc.WebProxyAddr
 	}
 
-	values, err := buildKubeConfigUpdate(cf, kubeStatus, overrideContext)
+	values, err := buildKubeConfigUpdate(cf, status, overrideContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1519,34 +1605,26 @@ func init() {
 
 // accessRequestForKubeCluster attempts to create a resource access request for the case
 // where "tsh kube login" was attempted and access was denied
-func accessRequestForKubeCluster(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
-	if tc.KubernetesCluster == "" && !cf.ListAll {
-		return nil, trace.BadParameter("no KubernetesCluster specified")
-	}
+func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *CLIConf, tc *client.TeleportClient) (types.AccessRequest, error) {
 	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer clt.Close()
 
-	// Match on cluster name
-	expr := ""
-	if !cf.ListAll {
-		expr = fmt.Sprintf(`resource.metadata.name == "%s"`, tc.KubernetesCluster)
-	}
 	kubes, err := apiclient.GetAllResources[types.KubeCluster](ctx, clt.AuthClient, &proto.ListResourcesRequest{
 		Namespace:           apidefaults.Namespace,
 		ResourceType:        types.KindKubernetesCluster,
 		UseSearchAsRoles:    true,
-		PredicateExpression: expr,
+		PredicateExpression: tc.PredicateExpression,
+		Labels:              tc.Labels,
 	})
-	switch {
-	case err != nil:
+	if err != nil {
 		return nil, trace.Wrap(err)
-	case len(kubes) == 0:
-		return nil, trace.NotFound("kubernetes cluster %q not found, unable to request access", tc.KubernetesCluster)
-	case len(kubes) > 1 && !cf.ListAll:
-		return nil, trace.BadParameter("more than one kubernetes cluster matched %q", tc.KubernetesCluster)
+	}
+
+	if err := c.checkClusterSelection(cf, tc, kubes); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	requestResourceIDs := make([]types.ResourceID, len(kubes))
@@ -1578,4 +1656,25 @@ func accessRequestForKubeCluster(ctx context.Context, cf *CLIConf, tc *client.Te
 	req.SetRequestReason("")
 
 	return req, nil
+}
+
+// formatAmbiguousKubeCluster is a helper func that formats an ambiguous kube
+// cluster error message.
+func formatAmbiguousKubeCluster(cf *CLIConf, selectors resourceSelectors, kubeClusters types.KubeClusters) string {
+	// dont mark the selected cluster
+	selectedCluster := ""
+	// verbose output to show full names and labels
+	quiet := false
+	verbose := true
+	table := formatKubeClustersAsText(kubeClusters, selectedCluster, quiet, verbose)
+	listCommand := formatKubeListCommand(cf.SiteName)
+	fullNameExample := kubeClusters[0].GetName()
+	return formatAmbiguityErrTemplate(cf, selectors, listCommand, table, fullNameExample)
+}
+
+func formatKubeListCommand(clusterFlag string) string {
+	if clusterFlag == "" {
+		return "tsh kube ls"
+	}
+	return fmt.Sprintf("tsh kube ls --cluster=%v", clusterFlag)
 }
