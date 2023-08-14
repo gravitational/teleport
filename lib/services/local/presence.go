@@ -1750,9 +1750,10 @@ type FakePaginateParams struct {
 	NeedTotalCount bool
 }
 
-func (m *FakePaginateParams) GetWindowsDesktopFilter() types.WindowsDesktopFilter {
-	if m != nil {
-		return m.WindowsDesktopFilter
+// GetWindowsDesktopFilter retrieves the WindowsDesktopFilter from params
+func (req *FakePaginateParams) GetWindowsDesktopFilter() types.WindowsDesktopFilter {
+	if req != nil {
+		return req.WindowsDesktopFilter
 	}
 	return types.WindowsDesktopFilter{}
 }

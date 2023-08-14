@@ -34,13 +34,13 @@ import (
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
-	goredis "github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	mssql "github.com/microsoft/go-mssqldb"
 	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -71,6 +71,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
@@ -2203,6 +2204,9 @@ type agentParams struct {
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
 	AzureMatchers []types.AzureMatcher
+	// discoveryResourceChecker performs some pre-checks when creating databases
+	// discovered by the discovery service.
+	DiscoveryResourceChecker cloud.DiscoveryResourceChecker
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2241,6 +2245,10 @@ func (p *agentParams) setDefaults(c *testContext) {
 			IAM:                &mocks.IAMMock{},
 			GCPSQL:             p.GCPSQL,
 		}
+	}
+
+	if p.DiscoveryResourceChecker == nil {
+		p.DiscoveryResourceChecker = &fakeDiscoveryResourceChecker{}
 	}
 }
 
@@ -2310,12 +2318,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		GetRotation: func(types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		NewAudit: func(common.AuditConfig) (common.Audit, error) {
+		NewAudit: func(cfg common.AuditConfig) (common.Audit, error) {
 			// Use the same audit logger implementation but substitute the
 			// underlying emitter so events can be tracked in tests.
 			return common.NewAudit(common.AuditConfig{
 				Emitter:  c.emitter,
 				Recorder: libevents.WithNoOpPreparer(libevents.NewDiscardRecorder()),
+				Database: cfg.Database,
 			})
 		},
 		CADownloader:             p.CADownloader,
@@ -2325,7 +2334,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
-		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
+		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
@@ -2989,9 +2998,17 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 	}
 }
 
-type fakeDiscoveryResourceChecker struct{}
+type fakeDiscoveryResourceChecker struct {
+	byName map[string]func(context.Context, types.Database) error
+}
 
-func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
+func (f *fakeDiscoveryResourceChecker) Check(ctx context.Context, database types.Database) error {
+	if len(f.byName) > 0 {
+		if check := f.byName[database.GetName()]; check != nil {
+			return trace.Wrap(check(ctx, database))
+		}
+	}
+	return nil
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{

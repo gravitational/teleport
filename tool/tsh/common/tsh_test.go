@@ -3535,6 +3535,7 @@ func setCmdRunner(cmdRunner func(*exec.Cmd) error) CliOption {
 }
 
 func testSerialization(t *testing.T, expected string, serializer func(string) (string, error)) {
+	t.Helper()
 	out, err := serializer(teleport.JSON)
 	require.NoError(t, err)
 	require.JSONEq(t, expected, out)
@@ -3670,7 +3671,7 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "iam_policy_exists": false,
+        "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
@@ -3699,7 +3700,7 @@ func TestSerializeDatabases(t *testing.T) {
         "rds": {
           "iam_auth": false
         },
-        "iam_policy_exists": false,
+        "iam_policy_status": "IAM_POLICY_STATUS_UNSPECIFIED",
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},

@@ -46,8 +46,6 @@ type KubeCluster interface {
 	GetKubeconfig() []byte
 	// SetKubeconfig sets the kubeconfig.
 	SetKubeconfig([]byte)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the kube cluster.
 	String() string
 	// GetDescription returns the kube cluster description.
@@ -74,10 +72,9 @@ type KubeCluster interface {
 	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
 	Copy() *KubernetesClusterV3
-
-	// CloneAny is used to return a clone of the KubeCluster and match the CloneAny interface
-	// This is helpful when interfacing with multiple types at the same time in unified resources
-	CloneAny() any
+	// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
 }
 
 // NewKubernetesClusterV3FromLegacyCluster creates a new Kubernetes cluster resource
@@ -248,11 +245,6 @@ func (k *KubernetesClusterV3) GetAllLabels() map[string]string {
 	return CombineLabels(k.Metadata.Labels, k.Spec.DynamicLabels)
 }
 
-// LabelsString returns all labels as a string.
-func (k *KubernetesClusterV3) LabelsString() string {
-	return LabelsAsString(k.Metadata.Labels, k.Spec.DynamicLabels)
-}
-
 // GetDescription returns the description.
 func (k *KubernetesClusterV3) GetDescription() string {
 	return k.Metadata.Description
@@ -303,6 +295,21 @@ func (k *KubernetesClusterV3) IsGCP() bool {
 	return !protoKnownFieldsEqual(&k.Spec.GCP, &KubeGCP{})
 }
 
+// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
+// isn't running on a cloud provider.
+func (k *KubernetesClusterV3) GetCloud() string {
+	switch {
+	case k.IsAzure():
+		return CloudAzure
+	case k.IsAWS():
+		return CloudAWS
+	case k.IsGCP():
+		return CloudGCP
+	default:
+		return ""
+	}
+}
+
 // IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
 func (k *KubernetesClusterV3) IsKubeconfig() bool {
 	return len(k.Spec.Kubeconfig) > 0
@@ -317,11 +324,6 @@ func (k *KubernetesClusterV3) String() string {
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
 	return utils.CloneProtoMsg(k)
-}
-
-// Copy returns a copy of this resource.
-func (k *KubernetesClusterV3) CloneAny() any {
-	return k.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

@@ -20,7 +20,7 @@ import styled from 'styled-components';
 import dayPicker from 'react-day-picker/DayPicker';
 import 'react-day-picker/lib/style.css';
 import { Flex } from 'design';
-import { Close as CloseIcon } from 'design/Icon';
+import { Cross as CloseIcon } from 'design/Icon';
 
 // There is a vite issue with react-day-picker in production builds
 // https://github.com/vitejs/vite/issues/2139
@@ -84,7 +84,7 @@ export default class CustomRange extends React.Component {
     return (
       <StyledDateRange>
         <StyledCloseButton title="Close" onClick={this.props.onClosePicker}>
-          <CloseIcon color="dark" />
+          <CloseIcon color="dark" size="medium" />
         </StyledCloseButton>
         <DayPicker
           className="Selectable"
@@ -119,6 +119,10 @@ const StyledCloseButton = styled.button`
   z-index: 100;
   top: 8px;
   right: 0px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   &:hover {
     background: ${props => props.theme.colors.grey[200]};

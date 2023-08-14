@@ -480,10 +480,11 @@ connectors are accepted, invalid are rejected with sensible error messages.
 - [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes ProvisionToken
 
 ### Azure Node Joining
-[Docs](https://goteleport.com/docs/management/guides/joining-nodes-azure/)
+[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/azure/)
 - [ ] Join a Teleport node running in an Azure VM
 
 ### GCP Node Joining
+[Docs](https://goteleport.com/docs/agents/join-services-to-your-cluster/gcp/)
 - [ ] Join a Teleport node running in a GCP VM.
 
 ### Cloud Labels
@@ -925,6 +926,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Can update registered database using `tctl create -f`.
   - [ ] Can delete registered database using `tctl rm`.
 - [ ] Verify discovery.
+  Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
       - [ ] Can detect and register RDS instances.
         - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
@@ -935,6 +937,7 @@ tsh bench web sessions --max=5000 --web user ls
       - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
+      - [ ] Can detect and register OpenSearch domains.
     - [ ] Azure
       - [ ] Can detect and register MySQL and Postgres single-server instances.
       - [ ] Can detect and register MySQL and Postgres flexible-server instances.
@@ -1260,6 +1263,29 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] Custom SSM documents specified in different matchers are executed
   - [ ] New EC2 instances with matching AWS tags are discovered and added to the teleport cluster
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
+  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+
+## Azure Discovery
+
+[Azure Discovery docs](https://goteleport.com/docs/server-access/guides/azure-discovery/)
+- Verify Azure VM discovery
+  - [ ] Only Azure VMs matching given Azure tags have the installer executed on them
+  - [ ] Only the IAM permissions mentioned in the discovery docs are required for operation
+  - [ ] Custom scripts specified in different matchers are executed
+  - [ ] New Azure VMs with matching Azure tags are discovered and added to the teleport cluster
+    - [ ] Large numbers of Azure VMs (51+) are all successfully added to the cluster
+  - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+
+## GCP Discovery
+
+[GCP Discovery docs](https://goteleport.com/docs/server-access/guides/gcp-discovery/)
+
+- Verify GCP instance discovery
+  - [ ] Only GCP instances matching given GCP tags have the installer executed on them
+  - [ ] Only the IAM permissions mentioned in the discovery docs are required for operation
+  - [ ] Custom scripts specified in different matchers are executed
+  - [ ] New GCP instances with matching GCP tags are discovered and added to the teleport cluster
+    - [ ] Large numbers of GCP instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
 
 ## IP Pinning
