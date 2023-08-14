@@ -1,0 +1,17 @@
+# The following configuration fields are available across most output types.
+
+# destination specifies where the output should write any generated artifacts
+# such as certificates and configuration files.
+#
+# See the full list of supported destinations and their configuration options
+# under the Destinations section of this reference page.
+destination:
+  type: directory
+  path: /opt/machine-id
+# roles specifies the roles that should be included in the certificates generated
+# by the output. These roles must be roles that the bot has been granted
+# permission to impersonate.
+#
+# if no roles are specified, all roles the bot is allowed to impersonate are used.
+roles:
+  - editor

@@ -78,7 +78,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		XXX_sizecache:        0,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inCommand  string
 		inError    error
 		outCommand string
@@ -140,10 +140,12 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 	require.NoError(t, err)
 	term.SetTermType("xterm")
 
+	rec := &mockRecorder{done: false}
 	scx.session = &session{
 		id:       "xxx",
 		term:     term,
-		recorder: &mockRecorder{done: false},
+		emitter:  rec,
+		recorder: rec,
 	}
 	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
 	require.NoError(t, err)

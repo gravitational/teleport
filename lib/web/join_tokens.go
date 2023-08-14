@@ -210,7 +210,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 }
 
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	scripts.SetScriptHeaders(w.Header())
+	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
 		token:          params.ByName("token"),
@@ -236,7 +236,7 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	scripts.SetScriptHeaders(w.Header())
+	httplib.SetScriptHeaders(w.Header())
 	queryValues := r.URL.Query()
 
 	name, err := url.QueryUnescape(queryValues.Get("name"))
@@ -278,7 +278,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	scripts.SetScriptHeaders(w.Header())
+	httplib.SetScriptHeaders(w.Header())
 
 	settings := scriptSettings{
 		token:               params.ByName("token"),

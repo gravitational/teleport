@@ -17,7 +17,6 @@ package types
 import (
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
@@ -38,15 +37,6 @@ var JamfOnMissingActions = []string{
 	JamfOnMissingNoop,
 	JamfOnMissingDelete,
 }
-
-const (
-	// JamfSyncPeriodPartialDefault is the default value for sync_period_partial
-	// in inventory entries.
-	JamfSyncPeriodPartialDefault = 6 * time.Hour
-	// JamfSyncPeriodFullDefault is the default value for sync_period_full in
-	// inventory entries.
-	JamfSyncPeriodFullDefault = 24 * time.Hour
-)
 
 // ValidateJamfSpecV1 validates a [JamfSpecV1] instance.
 func ValidateJamfSpecV1(s *JamfSpecV1) error {
@@ -77,15 +67,9 @@ func ValidateJamfSpecV1(s *JamfSpecV1) error {
 		}
 
 		syncPartial := e.SyncPeriodPartial
-		if syncPartial == 0 {
-			syncPartial = Duration(JamfSyncPeriodPartialDefault)
-		}
 		syncFull := e.SyncPeriodFull
-		if syncFull == 0 {
-			syncFull = Duration(JamfSyncPeriodFullDefault)
-		}
-		if syncPartial > syncFull {
-			return trace.BadParameter("inventory[%v]: sync_period_partial is greater than sync_period_full, partial syncs will never happen", i)
+		if syncFull > 0 && syncPartial >= syncFull {
+			return trace.BadParameter("inventory[%v]: sync_period_partial is greater or equal to sync_period_full, partial syncs will never happen", i)
 		}
 	}
 

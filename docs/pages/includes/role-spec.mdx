@@ -98,7 +98,9 @@ spec:
        name: login@github.com
        value: "{{ external.github_login }}"
     # Controls whether this role supports auto provisioning of SSH users.
-    create_host_user: true
+    # Options: drop (remove user on session end), keep (keep users at session end)
+    #          and off (disable host user creation)
+    create_host_user_mode: drop
     # Controls whether this role requires automatic database user provisioning.
     create_db_user: true
     # Specifies role specific options for identity provider access.
@@ -271,6 +273,12 @@ spec:
         # requires at least two qualifying approvers and at least one denier.
         - approve: 2
           deny: 1
+
+      # max_duration specifies the maximum duration for which a user can request
+      # access to a role. The duration can be specified in seconds (s), minutes
+      # (m), hours (h), or days (d), e.g. 4d, 10h, 30m, 60s.
+      # The maximum duration is 7 days.
+      max_duration: 7d
 
       # the `claims_to_roles` mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to

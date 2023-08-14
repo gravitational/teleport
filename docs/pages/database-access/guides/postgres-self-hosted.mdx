@@ -3,11 +3,7 @@ title: Database Access with Self-Hosted PostgreSQL
 description: How to configure Teleport database access with self-hosted PostgreSQL.
 ---
 
-This guide will help you to:
-
-- Install Teleport `(=teleport.version=)`.
-- Set up Teleport to access your self-hosted PostgreSQL.
-- Connect to your databases through Teleport.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL" dbConfigure="PostgreSQL database with mutual TLS authentication" dbName="PostgreSQL" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access PostgreSQL Self-Hosted](../../../img/database-access/guides/postgresqlselfhosted_selfhosted.png)
@@ -45,6 +41,9 @@ Create the secrets:
 # for host db.example.com with a 1-year validity period.
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
+
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the PostgreSQL server.
 
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 
@@ -113,7 +112,7 @@ databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=testuser
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
 # Name             Description        Labels
 # ---------------- ------------------ --------
@@ -124,7 +123,7 @@ $ tsh db ls
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
 # Name             Description        Labels
 # ---------------- ------------------ --------

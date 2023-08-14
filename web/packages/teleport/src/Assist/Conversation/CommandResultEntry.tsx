@@ -17,6 +17,8 @@
 import React from 'react';
 import styled, { keyframes } from 'styled-components';
 
+import { MonospacedOutput } from 'teleport/Assist/shared/MonospacedOutput';
+
 interface CommandResultEntryProps {
   nodeId: string;
   nodeName: string;
@@ -35,16 +37,6 @@ const Title = styled.div`
   font-size: 15px;
   font-weight: 600;
   padding: 10px 15px;
-`;
-
-const Output = styled.pre.attrs({ 'data-scrollbar': 'default' })`
-  background: #161b22;
-  color: white;
-  padding: 10px 15px;
-  margin: 0;
-  overflow-x: auto;
-  font-family: ${p => p.theme.fonts.mono};
-  font-size: 13px;
 `;
 
 const Header = styled.div`
@@ -94,7 +86,9 @@ export function CommandResultEntry(props: CommandResultEntryProps) {
         )}
       </Header>
 
-      <Output>{props.errorMessage ? props.errorMessage : props.output}</Output>
+      <MonospacedOutput>
+        {props.errorMessage ? props.errorMessage : props.output}
+      </MonospacedOutput>
     </Container>
   );
 }

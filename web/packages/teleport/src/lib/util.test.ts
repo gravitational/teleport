@@ -14,12 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  generateTshLoginCommand,
-  arrayStrDiff,
-  compareSemVers,
-  compareByString,
-} from './util';
+import { generateTshLoginCommand, arrayStrDiff, compareByString } from './util';
 
 let windowSpy;
 
@@ -74,32 +69,6 @@ test('arrayStrDiff returns the correct diff', () => {
   const arrayB = ['b', 'e', 'f', 'g'];
 
   expect(arrayStrDiff(arrayA, arrayB)).toStrictEqual(['a', 'c', 'd']);
-});
-
-test('compareSemVers', () => {
-  expect(['3.0.0', '1.0.0', '2.0.0'].sort(compareSemVers)).toEqual([
-    '1.0.0',
-    '2.0.0',
-    '3.0.0',
-  ]);
-
-  expect(['3.1.0', '3.2.0', '3.1.1'].sort(compareSemVers)).toEqual([
-    '3.1.0',
-    '3.1.1',
-    '3.2.0',
-  ]);
-
-  expect(['10.0.1', '10.0.2', '2.0.0'].sort(compareSemVers)).toEqual([
-    '2.0.0',
-    '10.0.1',
-    '10.0.2',
-  ]);
-
-  expect(['10.1.0', '11.1.0', '5.10.10'].sort(compareSemVers)).toEqual([
-    '5.10.10',
-    '10.1.0',
-    '11.1.0',
-  ]);
 });
 
 test('sortByString with simple string array', () => {

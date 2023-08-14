@@ -4,7 +4,8 @@ To modify an existing user to provide access to the Database Service, see [Datab
 
 </Admonition>
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss","team"]} label="Teleport Team/Community Edition">
 Create a local Teleport user with the built-in `access` role:
 
 ```code
@@ -14,8 +15,8 @@ $ tctl users add \
   --db-names=\* \
   alice
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Teleport Enterprise/Enterprise Cloud">
 Create a local Teleport user with the built-in `access` and `requester` roles:
 
 ```code
@@ -25,7 +26,8 @@ $ tctl users add \
   --db-names=\* \
   alice
 ```
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 | Flag         | Description                                                                                                                              |
 |--------------|------------------------------------------------------------------------------------------------------------------------------------------|

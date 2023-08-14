@@ -10,6 +10,8 @@
     "directory": "packages/shared"
   },
   "dependencies": {
+    "@react-spring/web": "^9.7.2",
+    "@use-gesture/react": "^10.2.27",
     "ace-builds": "1.4.6",
     "create-react-class": "^15.6.3",
     "cross-env": "5.0.5",

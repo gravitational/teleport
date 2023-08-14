@@ -8,7 +8,7 @@ authToken: ""
 
 # Address of the teleport proxy with port (usually :3080).
 proxyAddr: ""
-# Comma-separated list of roles to enable (any of: kube,db,app)
+# Comma-separated list of roles to enable (any of: kube,db,app,discovery)
 roles: "kube"
 
 ################################################################
@@ -98,6 +98,20 @@ databases: []
 #  - labels:
 #      "*": "*"
 databaseResources: []
+
+################################################################
+# Values that must be provided for Kubernetes Discovery
+################################################################
+
+# kubernetesDiscovery controls configuration for discovery service if it's enabled.
+# discovery service is enabled when the agent `roles` contains "discovery".
+# Default value will try to discovery all apps, use needs to override it to limit
+# scope of the discovered apps.
+kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      "*": "*"
 
 ################################################################
 # Values that you may need to change.
@@ -200,6 +214,15 @@ storage:
   enabled: false
   storageClassName: ""
   requests: 128Mi
+
+# Settings for configuring an cluster admin role binding.
+# This is useful for granting cluster admin permissions to a Kubernetes Group
+# other than the default "system:masters" group.
+# GKE Autopilot clusters forbid using the "system:masters" group for impersonation
+# and require a custom group to be used instead.
+adminClusterRoleBinding:
+  create: false
+  name: "cluster-admin"
 
 ################################################################
 # Values that you shouldn't need to change.

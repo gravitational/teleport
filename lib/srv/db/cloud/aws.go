@@ -112,24 +112,33 @@ type awsClient struct {
 	log            logrus.FieldLogger
 }
 
-// setupIAM configures IAM for RDS, Aurora, ElastiCache or Redshift database.
-func (r *awsClient) setupIAM(ctx context.Context) error {
-	var errors []error
+// setupIAMAuth ensures the IAM Authentication is enbaled for RDS, Aurora, ElastiCache or Redshift database.
+func (r *awsClient) setupIAMAuth(ctx context.Context) error {
 	if err := r.dbConfigurator.ensureIAMAuth(ctx, r.cfg.database); err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
 			r.log.Debugf("No permissions to enable IAM auth: %v.", err)
-		} else {
-			errors = append(errors, err)
+			return nil
 		}
+		return trace.Wrap(err)
 	}
+
+	return nil
+}
+
+// setupIAMAuth ensures the IAM Policy is set up for RDS, Aurora, ElastiCache or Redshift database.
+// It returns whether the IAM Policy was properly set up.
+// Eg for RDS: adds policy to allow the `rds-db:connect` action for the Database.
+func (r *awsClient) setupIAMPolicy(ctx context.Context) (bool, error) {
 	if err := r.ensureIAMPolicy(ctx); err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
 			r.log.Debugf("No permissions to ensure IAM policy: %v.", err)
-		} else {
-			errors = append(errors, err)
+			return false, nil
 		}
+
+		return false, trace.Wrap(err)
 	}
-	return trace.NewAggregate(errors...)
+
+	return true, nil
 }
 
 // teardownIAM deconfigures IAM for RDS, Aurora or Redshift database.

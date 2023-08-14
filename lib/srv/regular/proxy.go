@@ -17,11 +17,8 @@ limitations under the License.
 package regular
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"strings"
 
@@ -30,15 +27,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -177,8 +170,12 @@ func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest)
 		req.clusterName = ctx.Identity.RouteToCluster
 	}
 	if req.clusterName != "" && srv.proxyTun != nil {
-		_, err := srv.tunnelWithAccessChecker(ctx).GetSite(req.clusterName)
+		checker, err := srv.tunnelWithAccessChecker(ctx)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := checker.GetSite(req.clusterName); err != nil {
 			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
 		}
 	}
@@ -217,16 +214,6 @@ func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.C
 	t.log.Debugf("Starting subsystem")
 
 	clientAddr := sconn.RemoteAddr()
-
-	// did the client pass us a true client IP ahead of time via an environment variable?
-	// (usually the web client would do that)
-	trueClientIP, ok := serverContext.GetEnv(sshutils.TrueClientAddrVar)
-	if ok {
-		a, err := utils.ParseAddr(trueClientIP)
-		if err == nil {
-			clientAddr = a
-		}
-	}
 
 	// connect to a site's auth server
 	if t.host == "" {
@@ -267,14 +254,11 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 
 	signer := agentless.SignerFromSSHCertificate(identity.Certificate, authClient, t.clusterName, identity.TeleportUser)
 	aGetter := t.ctx.StartAgentChannel
-	conn, teleportVersion, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
+	conn, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if teleportVersion != "" && utils.CheckVersion(teleportVersion, utils.MinIPPropagationVersion) != nil {
-		t.doHandshake(ctx, clientSrcAddr, ch, conn)
-	}
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
 	}()
@@ -288,47 +272,4 @@ func (t *proxySubsys) close(err error) {
 
 func (t *proxySubsys) Wait() error {
 	return <-t.closeC
-}
-
-// doHandshake allows a proxy server to send additional information (client IP and tracing context)
-// to an SSH server before establishing a bridge.
-// NOTE: Used for compatibility with versions <12.1, before IP propagation through signed PROXY headers was added.
-// DELETE IN 14.0
-// DEPRECATED
-func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.ReadWriter) {
-	// on behalf of a client ask the server for its version:
-	buff := make([]byte, sshutils.MaxVersionStringBytes)
-	n, err := serverConn.Read(buff)
-	if err != nil {
-		t.log.Error(err)
-		return
-	}
-	// chop off extra unused bytes at the end of the buffer:
-	buff = buff[:n]
-
-	// is that a Teleport server?
-	if bytes.HasPrefix(buff, []byte(sshutils.SSHVersionPrefix)) {
-		// if we're connecting to a Teleport SSH server, send our own "handshake payload"
-		// message, along with a client's IP:
-		hp := &apisshutils.HandshakePayload{
-			ClientAddr:     clientAddr.String(),
-			TracingContext: tracing.PropagationContextFromContext(ctx),
-		}
-		payloadJSON, err := json.Marshal(hp)
-		if err != nil {
-			t.log.Error(err)
-		} else {
-			// send a JSON payload sandwiched between 'teleport proxy signature' and 0x00:
-			payload := fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON)
-			_, err = serverConn.Write([]byte(payload))
-			if err != nil {
-				t.log.Error(err)
-			}
-		}
-	}
-	// forward server's response to the client:
-	_, err = clientConn.Write(buff)
-	if err != nil {
-		t.log.Error(err)
-	}
 }
