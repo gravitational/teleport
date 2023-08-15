@@ -2,10 +2,10 @@ package mdm
 
 import (
 	"errors"
-	"sort"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 // ErrScheduleNoEntries is returned when no entries are provided to the
@@ -186,7 +186,7 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 }
 
 func (t *SyncScheduler[E]) sort() {
-	sort.Slice(t.schedule, func(i, j int) bool {
-		return t.schedule[i].offset < t.schedule[j].offset
+	slices.SortFunc(t.schedule, func(a, b ScheduleEntry[E]) int {
+		return int(a.offset - b.offset)
 	})
 }

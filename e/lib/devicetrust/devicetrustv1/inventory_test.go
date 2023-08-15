@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"testing"
 
@@ -13,11 +12,13 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -752,10 +753,8 @@ func TestService_SyncInventory_audit(t *testing.T) {
 	// Assert audit events.
 	// Note that the order of audit events is not deterministic for this stream.
 	got := emitter.Events()
-	sort.Slice(got, func(i, j int) bool {
-		e1 := got[i]
-		e2 := got[j]
-		return e1.GetType() < e2.GetType()
+	slices.SortFunc(got, func(a, b apievents.AuditEvent) int {
+		return strings.Compare(a.GetType(), b.GetType())
 	})
 	assertEvents(t, got, []wantEvent{
 		createEvent,

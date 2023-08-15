@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -3701,8 +3700,12 @@ func TestS_UserTrustedDeviceIDs(t *testing.T) {
 
 // diffDevices diffs two slices of devices, sorting both by ID first.
 func diffDevices(want, got []*devicepb.Device) string {
-	sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
-	sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
+	slices.SortFunc(want, func(a, b *devicepb.Device) int {
+		return strings.Compare(a.Id, b.Id)
+	})
+	slices.SortFunc(got, func(a, b *devicepb.Device) int {
+		return strings.Compare(a.Id, b.Id)
+	})
 	return cmp.Diff(want, got, protocmp.Transform())
 }
 

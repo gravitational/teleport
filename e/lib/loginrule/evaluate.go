@@ -3,9 +3,10 @@ package loginrule
 import (
 	"context"
 	"errors"
-	"sort"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -93,11 +94,11 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 // sortLoginRules sorts a slice of login rules in increasing order of Priority,
 // with ties broken by sorting in increasing string order by Name.
 func sortLoginRules(rules []*loginrulepb.LoginRule) {
-	sort.Slice(rules, func(i, j int) bool {
-		if rules[i].Priority != rules[j].Priority {
-			return rules[i].Priority < rules[j].Priority
+	slices.SortFunc(rules, func(a, b *loginrulepb.LoginRule) int {
+		if a.Priority != b.Priority {
+			return int(a.Priority - b.Priority)
 		}
-		return rules[i].Metadata.Name < rules[j].Metadata.Name
+		return strings.Compare(a.Metadata.Name, b.Metadata.Name)
 	})
 }
 

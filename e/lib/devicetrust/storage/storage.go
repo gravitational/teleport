@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"sort"
 	"sync"
 	"time"
 
@@ -826,13 +825,11 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 	}
 
 	// Sort by ascending RecordTime.
-	sort.Slice(cd, func(i, j int) bool {
-		d1 := cd[i]
-		d2 := cd[j]
-		if d1.RecordTime.Seconds == d2.RecordTime.Seconds {
-			return d1.RecordTime.Nanos < d2.RecordTime.Nanos
+	slices.SortFunc(cd, func(a, b *devicepb.DeviceCollectedData) int {
+		if a.RecordTime.Seconds == b.RecordTime.Seconds {
+			return int(a.RecordTime.Nanos - b.RecordTime.Nanos)
 		}
-		return d1.RecordTime.Seconds < d2.RecordTime.Seconds
+		return int(a.RecordTime.Seconds - b.RecordTime.Seconds)
 	})
 
 	return cd, nil
@@ -1349,10 +1346,8 @@ func (s *S) clearCollectedDataIfNeeded(ctx context.Context, deviceID string) err
 			return trace.Wrap(err)
 		}
 	}
-	sort.Slice(cd, func(i, j int) bool {
-		d1 := cd[i]
-		d2 := cd[j]
-		return d1.RecordTime.Before(d2.RecordTime)
+	slices.SortFunc(cd, func(a, b simplifiedCollectedData) int {
+		return a.RecordTime.Compare(b.RecordTime)
 	})
 
 	// From older to newer, delete data until we hit the size limit.

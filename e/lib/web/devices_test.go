@@ -3,10 +3,11 @@ package web
 import (
 	"encoding/json"
 	"net/url"
-	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -184,8 +185,12 @@ func TestListDevices_paginated(t *testing.T) {
 }
 
 func requireAssetTagsEqual(t *testing.T, want, got []ui.Device) {
-	sort.Slice(want, func(i, j int) bool { return want[i].AssetTag < want[j].AssetTag })
-	sort.Slice(got, func(i, j int) bool { return got[i].AssetTag < got[j].AssetTag })
+	slices.SortFunc(want, func(a, b ui.Device) int {
+		return strings.Compare(a.AssetTag, b.AssetTag)
+	})
+	slices.SortFunc(got, func(a, b ui.Device) int {
+		return strings.Compare(a.AssetTag, b.AssetTag)
+	})
 	for i, w := range want {
 		require.Equal(t, w.AssetTag, got[i].AssetTag)
 	}

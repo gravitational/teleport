@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -20,6 +19,7 @@ import (
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
@@ -731,8 +731,12 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 		want := make([]*devicepb.Device, len(allDevices))
 		copy(want, allDevices)
 
-		sort.Slice(want, func(i, j int) bool { return want[i].AssetTag < want[j].AssetTag })
-		sort.Slice(got, func(i, j int) bool { return got[i].AssetTag < got[j].AssetTag })
+		slices.SortFunc(want, func(a, b *devicepb.Device) int {
+			return strings.Compare(a.AssetTag, b.AssetTag)
+		})
+		slices.SortFunc(got, func(a, b *devicepb.Device) int {
+			return strings.Compare(a.AssetTag, b.AssetTag)
+		})
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Fatalf("ListDevices mismatch (-want +got):\n%s", diff)
 		}
@@ -1485,8 +1489,12 @@ func TestService_ListDevices(t *testing.T) {
 			}
 
 			want := test.wantDevices
-			sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
-			sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
+			slices.SortFunc(want, func(a, b *devicepb.Device) int {
+				return strings.Compare(a.Id, b.Id)
+			})
+			slices.SortFunc(got, func(a, b *devicepb.Device) int {
+				return strings.Compare(a.Id, b.Id)
+			})
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
 			}
@@ -1594,8 +1602,12 @@ func TestService_FindDevices(t *testing.T) {
 
 			got := resp.Devices
 			want := test.wantDevices
-			sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
-			sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
+			slices.SortFunc(got, func(a, b *devicepb.Device) int {
+				return strings.Compare(a.Id, b.Id)
+			})
+			slices.SortFunc(want, func(a, b *devicepb.Device) int {
+				return strings.Compare(a.Id, b.Id)
+			})
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("FindDevices mismatch (-want +got)\n%s", diff)
 			}
