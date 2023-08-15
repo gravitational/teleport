@@ -63,6 +63,8 @@ func TableList() (string, error) {
 func (event *Event) TableSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("column_name, column_type, description\n")
+	sb.WriteString("event_date, date, is the event date\n")
+	sb.WriteString("event_time, timestamp, is the event time\n")
 	err := iterateOverFields(event.Fields, func(propName string, prop *EventField) error {
 		line, err := prop.TableSchema([]string{propName})
 		if err != nil {
