@@ -106,23 +106,9 @@ func Test_validateEntityDescriptor(t *testing.T) {
         <md:KeyDescriptor use="signing">
           <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
             <ds:X509Data>
-              <ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAX4zyofpMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG
-    A1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU
-    MBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi04MTMzNTQxHDAaBgkqhkiG9w0BCQEW
-    DWluZm9Ab2t0YS5jb20wHhcNMjIwMTA3MDkwNTU4WhcNMzIwMTA3MDkwNjU4WjCBkjELMAkGA1UE
-    BhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV
-    BAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtODEzMzU0MRwwGgYJ
-    KoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
-    xQz+tLD5cNlOBfdohHvqNWIfC13OCSnUAe20qA0K8y+jtZrpwjtjjLX8iRuCx8dYc/nd6zYOhhSq
-    2sLmrRa09wUXXTgnLGcj50gePTaroYLyF4FNgQWLvPHJk0FGcx6JvD6L+V5RzYwH87Fhg8niP4LZ
-    EBw3iZnsIJN9KOuLuQeXTW0PIlMFzpCwT9aUCHCoLepe5Ou8oi8XcOCmsOESHPchV2RC/xQDIqRP
-    Lp1Sf7NNJ6mTmP2gOoLwsz95beOLrEI+PI/GgZBqM3OutWA0L9mAbJK9T5dPAvhnwCV+SK2HvicJ
-    T8c6uJxuKmoWv1t3SyaN0cIbmw6vj9CIf4DTwQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQCWGgLL
-    f3tgUZRGjmR5iiKeOeaEWG/eaF1nfenVfSaWT9ckimcXyLCY/P7CXEBiioVrxjky07iceJpi4rVE
-    RcVZ8SGXCa0NroESmIFlIHez6vRTrqUsfDmidxsSCwY02eaBq+9gK5iXV5WeXMKbn0yeGwF+3PkU
-    RAH1HuypwMH0FJRLIdW36pw7FCrGrXpk3UC6mEumXC9FptjSK1FlW+ZckgDprePOoUpypEygr2UC
-    XXOsqT0dwBUUttdOQMZHqIiXS5VPJ8zhYPHBGYI8WGk5FWVuXIXhgRm7LN/EyXIvCOFmDH0tVnQL
-    V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate>
+              <ds:X509Certificate>
+							nonBase64Cert
+							</ds:X509Certificate>
             </ds:X509Data>
           </ds:KeyInfo>
         </md:KeyDescriptor>
@@ -193,7 +179,6 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr
 		{
 			name:                "malformed ed fails",
 			entityDescriptorXML: edMalformed,
-			certificate:         "",
 			wantErr:             true,
 		},
 		{
