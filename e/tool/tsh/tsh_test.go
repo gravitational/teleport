@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dttestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
@@ -145,7 +145,7 @@ func TestNodeAccess(t *testing.T) {
 			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 		})
 		require.NoError(t, err)
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		ccr, err := device.SignCredentialCreation(origin, cc)
 		require.NoError(t, err)
@@ -153,7 +153,7 @@ func TestNodeAccess(t *testing.T) {
 			TokenID: tokenID,
 			NewMFARegisterResponse: &proto.MFARegisterResponse{
 				Response: &proto.MFARegisterResponse_Webauthn{
-					Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+					Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 				},
 			},
 		})
@@ -540,13 +540,13 @@ func setupWebAuthnChallengeSolver(t *testing.T, device *mocku2f.Key, success boo
 		*client.PromptWebauthn = oldWebauthn
 	})
 
-	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
 			return nil, "", err
 		}
 
-		carProto := wanlib.CredentialAssertionResponseToProto(car)
+		carProto := wantypes.CredentialAssertionResponseToProto(car)
 		if !success {
 			carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
 		}

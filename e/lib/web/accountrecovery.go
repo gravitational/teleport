@@ -16,7 +16,7 @@ import (
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -120,7 +120,7 @@ type verifyAccountRecoveryRequest struct {
 	// SecondFactorToken is the otp value.
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
 }
 
 // verifyAccountRecoveryHandle is the second step in recovery process which obtains a recovery approved token
@@ -146,7 +146,7 @@ func (p *Plugin) verifyAccountRecoveryHandle(w http.ResponseWriter, r *http.Requ
 		}}
 	case req.WebauthnAssertionResponse != nil:
 		protoReq.AuthnCred = &proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse{MFAAuthenticateResponse: &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnAssertionResponse)},
+			Response: &proto.MFAAuthenticateResponse_Webauthn{Webauthn: wantypes.CredentialAssertionResponseToProto(req.WebauthnAssertionResponse)},
 		}}
 	default:
 		return nil, trace.BadParameter("at least one auth credential is required")
@@ -180,7 +180,7 @@ type completeAccountRecoveryRequest struct {
 	// Password is user password
 	Password string `json:"password"`
 	// WebauthnCreationResponse is the signed credential creation response.
-	WebauthnCreationResponse *wanlib.CredentialCreationResponse `json:"webauthnCreationResponse"`
+	WebauthnCreationResponse *wantypes.CredentialCreationResponse `json:"webauthnCreationResponse"`
 	// DeviceName is the name of the second factor device.
 	DeviceName string `json:"deviceName"`
 }
@@ -208,7 +208,7 @@ func (p *Plugin) completeAccountRecoveryHandle(w http.ResponseWriter, r *http.Re
 	case req.WebauthnCreationResponse != nil:
 		protoReq.NewAuthnCred = &proto.CompleteAccountRecoveryRequest_NewMFAResponse{NewMFAResponse: &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
+				Webauthn: wantypes.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
 			},
 		}}
 	default:
