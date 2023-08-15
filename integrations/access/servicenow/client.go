@@ -25,12 +25,12 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/lib"
-
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib"
 )
 
 const (
@@ -109,7 +109,7 @@ func errWrapper(statusCode int, body string) error {
 	case http.StatusForbidden:
 		return trace.AccessDenied("servicenow API access denied: status code %v: %q", statusCode, body)
 	case http.StatusRequestTimeout:
-		return trace.ConnectionProblem(nil, fmt.Sprintf("connecting to servicenow API :status code %v: %q", statusCode, body))
+		return trace.ConnectionProblem(nil, "connecting to servicenow API :status code %v: %q", statusCode, body)
 	}
 	return trace.Errorf("connecting to servicenow API status code %v: %q", statusCode, body)
 }

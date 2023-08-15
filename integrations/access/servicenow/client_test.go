@@ -38,6 +38,7 @@ func TestCreateIncident(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		recievedReq = string(bodyBytes)
 	}))
@@ -74,6 +75,7 @@ func TestPostReviewNote(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		recievedReq = string(bodyBytes)
 	}))
@@ -109,6 +111,7 @@ func TestResolveIncident(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		recievedReq = string(bodyBytes)
 	}))
