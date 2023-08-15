@@ -281,7 +281,6 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
-				"script-src":      "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
 				"frame-ancestors": "'none'",
