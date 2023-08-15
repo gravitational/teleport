@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
@@ -71,9 +72,17 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		// CRL is required for Windows smartcard certs.
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
+
+	limitExceeded, err := s.desktopsLimitExceeded(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
 		Id:    tlsca.LicenseOID,
 		Value: []byte(modules.GetModules().BuildType()),
+	}, pkix.Extension{
+		Id:    tlsca.DesktopsLimitExceededOID,
+		Value: []byte(strconv.FormatBool(limitExceeded)),
 	})
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {

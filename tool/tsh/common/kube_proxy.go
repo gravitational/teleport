@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -167,7 +168,6 @@ func (c *proxyKubeCommand) printTemplate(cf *CLIConf, localProxy *kubeLocalProxy
 
 type kubeLocalProxy struct {
 	tc             *client.TeleportClient
-	profile        *client.ProfileStatus
 	clusters       kubeconfig.LocalProxyClusters
 	kubeConfigPath string
 
@@ -198,7 +198,9 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		return nil, trace.Wrap(err)
 	}
 
-	localClientKey, err := keys.LoadPrivateKey(profile.KeyPath())
+	// Generate a new private key for the proxy. The client's existing private key may be
+	// a hardware-backed private key, which cannot be added to the local proxy kube config.
+	localClientKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -214,7 +216,6 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 
 	kubeProxy := &kubeLocalProxy{
 		tc:        tc,
-		profile:   profile,
 		clusters:  clusters,
 		clientKey: localClientKey,
 		localCAs:  cas,

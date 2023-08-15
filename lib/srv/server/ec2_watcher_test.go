@@ -226,13 +226,13 @@ func TestEC2Watcher(t *testing.T) {
 		Region:     "us-west-2",
 		Instances:  []EC2Instance{toEC2Instance(&present)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, *result.EC2Instances)
+	}, *result.EC2)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
 		Region:     "us-west-2",
 		Instances:  []EC2Instance{toEC2Instance(&presentOther)},
 		Parameters: map[string]string{"token": "", "scriptName": ""},
-	}, *result.EC2Instances)
+	}, *result.EC2)
 }
 
 func TestConvertEC2InstancesToServerInfos(t *testing.T) {
@@ -240,10 +240,6 @@ func TestConvertEC2InstancesToServerInfos(t *testing.T) {
 	expected, err := types.NewServerInfo(types.Metadata{
 		Name: "myaccount-myinstance",
 	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "myaccount",
-			InstanceID: "myinstance",
-		},
 		NewLabels: map[string]string{"aws/foo": "bar"},
 	})
 	require.NoError(t, err)

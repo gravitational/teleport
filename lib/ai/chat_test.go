@@ -51,7 +51,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hello",
 				},
 			},
-			want: 697,
+			want: 610,
 		},
 		{
 			name: "system and user messages",
@@ -65,7 +65,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hi LLM.",
 				},
 			},
-			want: 705,
+			want: 618,
 		},
 		{
 			name: "tokenize our prompt",
@@ -79,7 +79,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Show me free disk space on localhost node.",
 				},
 			},
-			want: 908,
+			want: 821,
 		},
 	}
 
@@ -108,19 +108,21 @@ func TestChat_PromptTokens(t *testing.T) {
 			cfg.BaseURL = server.URL + "/v1"
 
 			client := NewClientFromConfig(cfg)
-			chat := client.NewChat(nil, "Bob")
+
+			toolsConfig := model.ToolsConfig{DisableEmbeddingsTool: true}
+			chat, err := client.NewChat("Bob", toolsConfig)
+			require.NoError(t, err)
 
 			for _, message := range tt.messages {
 				chat.Insert(message.Role, message.Content)
 			}
 
 			ctx := context.Background()
-			message, err := chat.Complete(ctx, "", func(aa *model.AgentAction) {})
+			_, tokenCount, err := chat.Complete(ctx, "", func(aa *model.AgentAction) {})
 			require.NoError(t, err)
-			msg, ok := message.(interface{ UsedTokens() *model.TokensUsed })
-			require.True(t, ok)
 
-			usedTokens := msg.UsedTokens().Completion + msg.UsedTokens().Prompt
+			prompt, completion := tokenCount.CountAll()
+			usedTokens := prompt + completion
 			require.Equal(t, tt.want, usedTokens)
 		})
 	}
@@ -150,16 +152,18 @@ func TestChat_Complete(t *testing.T) {
 	cfg.BaseURL = server.URL + "/v1"
 	client := NewClientFromConfig(cfg)
 
-	chat := client.NewChat(nil, "Bob")
+	toolsConfig := model.ToolsConfig{DisableEmbeddingsTool: true}
+	chat, err := client.NewChat("Bob", toolsConfig)
+	require.NoError(t, err)
 
 	ctx := context.Background()
-	_, err := chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
+	_, _, err = chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
 	require.NoError(t, err)
 
 	chat.Insert(openai.ChatMessageRoleUser, "Show me free disk space on localhost node.")
 
 	t.Run("text completion", func(t *testing.T) {
-		msg, err := chat.Complete(ctx, "Show me free disk space", func(aa *model.AgentAction) {})
+		msg, _, err := chat.Complete(ctx, "Show me free disk space", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
 		require.IsType(t, &model.StreamingMessage{}, msg)
@@ -171,7 +175,7 @@ func TestChat_Complete(t *testing.T) {
 	})
 
 	t.Run("command completion", func(t *testing.T) {
-		msg, err := chat.Complete(ctx, "localhost", func(aa *model.AgentAction) {})
+		msg, _, err := chat.Complete(ctx, "localhost", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
 		require.IsType(t, &model.CompletionCommand{}, msg)

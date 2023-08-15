@@ -43,8 +43,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
@@ -58,6 +60,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -905,16 +908,6 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
-// UnstableAssertSystemRole is not a stable part of the public API.  Used by older
-// instances to prove that they hold a given system role.
-//
-// DELETE IN: 11.0 (server side method should continue to exist until 12.0 for back-compat reasons,
-// but v11 clients should no longer need this method)
-func (c *Client) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	_, err := c.grpc.UnstableAssertSystemRole(ctx, &req)
-	return trail.FromGRPC(err)
-}
-
 // EmitAuditEvent sends an auditable event to the auth server.
 func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
@@ -1015,6 +1008,16 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	}
 	_, err := c.grpc.CreateAccessRequest(ctx, r)
 	return trail.FromGRPC(err)
+}
+
+// CreateAccessRequestV2 registers a new access request with the auth server.
+func (c *Client) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+	r, ok := req.(*types.AccessRequestV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected access request type %T", req)
+	}
+	resp, err := c.grpc.CreateAccessRequestV2(ctx, r)
+	return resp, trail.FromGRPC(err)
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -1207,34 +1210,6 @@ func (c *Client) GetAppSession(ctx context.Context, req types.GetAppSessionReque
 	}
 
 	return resp.GetSession(), nil
-}
-
-// GetAppSessions gets all application web sessions.
-func (c *Client) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
-	var (
-		nextToken string
-		sessions  []types.WebSession
-	)
-
-	// Leverages ListAppSessions instead of GetAppSessions to prevent
-	// the server from having to send all sessions in a single message.
-	// If there are enough sessions it can cause the max message size to be
-	// exceeded.
-	for {
-		webSessions, token, err := c.ListAppSessions(ctx, defaults.DefaultChunkSize, nextToken, "")
-		if err != nil {
-			return nil, trail.FromGRPC(err)
-		}
-
-		sessions = append(sessions, webSessions...)
-		if token == "" {
-			break
-		}
-
-		nextToken = token
-	}
-
-	return sessions, nil
 }
 
 // ListAppSessions gets a paginated list of application web sessions.
@@ -1841,7 +1816,7 @@ func (c *Client) GetServerInfos(ctx context.Context) stream.Stream[types.ServerI
 	return stream.Func(func() (types.ServerInfo, error) {
 		si, err := serverInfos.Recv()
 		if err != nil {
-			if trace.IsEOF(err) {
+			if errors.Is(err, io.EOF) {
 				// io.EOF signals that stream has completed successfully
 				return nil, io.EOF
 			}
@@ -1976,15 +1951,7 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	if err != nil {
-		err := trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			_, err := c.grpc.UpsertToken(ctx, tokenV2)
-			return trail.FromGRPC(err)
-		}
-		return err
-	}
-	return nil
+	return trail.FromGRPC(err)
 }
 
 // CreateToken creates a provision token.
@@ -1999,15 +1966,7 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 			V2: tokenV2,
 		},
 	})
-	if err != nil {
-		err := trail.FromGRPC(err)
-		if trace.IsNotImplemented(err) {
-			_, err := c.grpc.CreateToken(ctx, tokenV2)
-			return trail.FromGRPC(err)
-		}
-		return err
-	}
-	return nil
+	return trail.FromGRPC(err)
 }
 
 // DeleteToken deletes a provision token by name.
@@ -3089,6 +3048,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubernetesServer()
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
+		case types.KindAppOrSAMLIdPServiceProvider:
+			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -3115,10 +3076,30 @@ func (c *Client) GetResources(ctx context.Context, req *proto.ListResourcesReque
 	return resp, trail.FromGRPC(err)
 }
 
+// ListUnifiedResources returns a paginated list of unified resources that the user has access to.
+// `nextKey` is used as `startKey` in another call to ListUnifiedResources to retrieve
+// the next page.
+// It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
+// message size.
+func (c *Client) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.grpc.ListUnifiedResources(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
 // GetResourcesClient is an interface used by GetResources to abstract over implementations of
 // the ListResources method.
 type GetResourcesClient interface {
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+}
+
+// ListUnifiedResourcesClient is an interface used by ListUnifiedResources to abstract over implementations of
+// the ListUnifiedResources method.
+type ListUnifiedResourcesClient interface {
+	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 }
 
 // ResourcePage holds a page of results from [GetResourcePage].
@@ -3131,6 +3112,86 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	Total int
 	// NextKey is the start of the next page
 	NextKey string
+}
+
+// getResourceFromProtoPage extracts the resource from the PaginatedResource returned
+// from the rpc ListUnifiedResources
+func getResourceFromProtoPage(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
+	var out types.ResourceWithLabels
+	if r := resource.GetNode(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetDatabaseServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetDatabaseService(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetWindowsDesktop(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetWindowsDesktopService(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetKubeCluster(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetKubernetesServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetUserGroup(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetAppServer(); r != nil {
+		out = r
+		return out, nil
+	} else {
+		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
+	}
+}
+
+// ListUnifiedResourcePage is a helper for getting a single page of unified resources that match the provided request.
+func ListUnifiedResourcePage(ctx context.Context, clt ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (ResourcePage[types.ResourceWithLabels], error) {
+	var out ResourcePage[types.ResourceWithLabels]
+
+	// Set the limit to the default size if one was not provided within
+	// an acceptable range.
+	if req.Limit == 0 || req.Limit > int32(defaults.DefaultChunkSize) {
+		req.Limit = int32(defaults.DefaultChunkSize)
+	}
+
+	for {
+		resp, err := clt.ListUnifiedResources(ctx, req)
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
+				req.Limit /= 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if req.Limit == 0 {
+					return out, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return out, trail.FromGRPC(err)
+		}
+
+		for _, respResource := range resp.Resources {
+			resource, err := getResourceFromProtoPage(respResource)
+			if err != nil {
+				return out, trace.Wrap(err)
+			}
+			out.Resources = append(out.Resources, resource)
+		}
+
+		out.NextKey = resp.NextKey
+
+		return out, nil
+	}
 }
 
 // GetResourcePage is a helper for getting a single page of resources that match the provide request.
@@ -3181,6 +3242,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubernetesServer()
 			case types.KindUserGroup:
 				resource = respResource.GetUserGroup()
+			case types.KindAppOrSAMLIdPServiceProvider:
+				resource = respResource.GetAppServerOrSAMLIdPServiceProvider()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -3880,8 +3943,16 @@ func (c *Client) OktaClient() *okta.Client {
 // Clients connecting to  older Teleport versions, still get an access list client
 // when calling this method, but all RPCs will return "not implemented" errors
 // (as per the default gRPC behavior).
-func (c *Client) AccessListClient() accesslistv1.AccessListServiceClient {
-	return accesslistv1.NewAccessListServiceClient(c.conn)
+func (c *Client) AccessListClient() *accesslist.Client {
+	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(c.conn))
+}
+
+// UserLoginStateClient returns a user login state client.
+// Clients connecting to  older Teleport versions, still get a user login state client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) UserLoginStateClient() *userloginstate.Client {
+	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.

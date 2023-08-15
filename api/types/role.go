@@ -432,7 +432,9 @@ func (r *RoleV6) convertKubernetesResourcesBetweenRoleVersions(resources []Kuber
 			for _, resource := range KubernetesResourcesKinds {
 				// Ignore Pod resources for older roles because Pods were already supported
 				// so we don't need to keep backwards compatibility for them.
-				if resource == KindKubePod {
+				// Also ignore Namespace resources because it grants access to all resources
+				// in the namespace.
+				if resource == KindKubePod || resource == KindNamespace {
 					continue
 				}
 				resources = append(resources, KubernetesResource{Kind: resource, Name: Wildcard, Namespace: Wildcard, Verbs: []string{Wildcard}})

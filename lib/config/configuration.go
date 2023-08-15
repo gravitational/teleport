@@ -1262,9 +1262,9 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
-func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
-	if matcher.InstallParams != nil && matcher.InstallParams.PublicProxyAddr != "" {
-		return matcher.InstallParams.PublicProxyAddr
+func getInstallerProxyAddr(installParams *InstallParams, fc *FileConfig) string {
+	if installParams != nil && installParams.PublicProxyAddr != "" {
+		return installParams.PublicProxyAddr
 	}
 	if fc.ProxyServer != "" {
 		return fc.ProxyServer
@@ -1278,6 +1278,7 @@ func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
 func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
+	cfg.Discovery.PollInterval = fc.Discovery.PollInterval
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		installParams, err := matcher.InstallParams.Parse()
 		if err != nil {
@@ -1312,20 +1313,37 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
-				PublicProxyAddr: getInstallerProxyAddr(matcher, fc),
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
 			}
 		}
 		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
-		cfg.Discovery.GCPMatchers = append(
-			cfg.Discovery.GCPMatchers,
-			types.GCPMatcher{
+		m := types.GCPMatcher{
+			Types:           matcher.Types,
+			Locations:       matcher.Locations,
+			Tags:            matcher.Tags,
+			ProjectIDs:      matcher.ProjectIDs,
+			ServiceAccounts: matcher.ServiceAccounts,
+		}
+		if matcher.InstallParams != nil {
+			m.Params = &types.InstallerParams{
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
+				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+				ScriptName:      matcher.InstallParams.ScriptName,
+				PublicProxyAddr: getInstallerProxyAddr(matcher.InstallParams, fc),
+			}
+		}
+		cfg.Discovery.GCPMatchers = append(cfg.Discovery.GCPMatchers, m)
+	}
+
+	for _, matcher := range fc.Discovery.KubernetesMatchers {
+		cfg.Discovery.KubernetesMatchers = append(cfg.Discovery.KubernetesMatchers,
+			types.KubernetesMatcher{
 				Types:      matcher.Types,
-				Locations:  matcher.Locations,
-				Tags:       matcher.Tags,
-				ProjectIDs: matcher.ProjectIDs,
+				Namespaces: matcher.Namespaces,
+				Labels:     matcher.Labels,
 			},
 		)
 	}
@@ -1605,8 +1623,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					application.Name)
 			}
 			app.Rewrite = &servicecfg.Rewrite{
-				Redirect: application.Rewrite.Redirect,
-				Headers:  headers,
+				Redirect:  application.Rewrite.Redirect,
+				Headers:   headers,
+				JWTClaims: application.Rewrite.JWTClaims,
 			}
 		}
 		if application.AWS != nil {

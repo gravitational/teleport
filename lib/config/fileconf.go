@@ -185,6 +185,8 @@ type SampleFlags struct {
 	JoinMethod string
 	// NodeName is the name of the teleport node
 	NodeName string
+	// Silent suppresses user hint printed after config has been generated.
+	Silent bool
 }
 
 // MakeSampleFileConfig returns a sample config to start
@@ -478,6 +480,16 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	if err := checkAndSetDefaultsForGCPMatchers(conf.Discovery.GCPMatchers); err != nil {
 		return trace.Wrap(err)
 	}
+	if len(conf.Discovery.KubernetesMatchers) > 0 {
+		if conf.Discovery.DiscoveryGroup == "" {
+			// TODO(anton): add link to documentation when it's available
+			return trace.BadParameter(`parameter 'discovery_group' should be defined for discovery service if
+kubernetes matchers are present`)
+		}
+		if err := checkAndSetDefaultsForKubeMatchers(conf.Discovery.KubernetesMatchers); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	return nil
 }
@@ -686,6 +698,12 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 			}
 		}
 
+		if slices.Contains(matcher.Types, services.GCPMatcherCompute) {
+			if err := checkAndSetDefaultsForGCPInstaller(matcher); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if slices.Contains(matcher.Locations, types.Wildcard) || len(matcher.Locations) == 0 {
 			matcher.Locations = []string{types.Wildcard}
 		}
@@ -704,6 +722,64 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 		}
 
 	}
+	return nil
+}
+
+func checkAndSetDefaultsForGCPInstaller(matcher *GCPMatcher) error {
+	if matcher.InstallParams == nil {
+		matcher.InstallParams = &InstallParams{
+			JoinParams: JoinParams{
+				TokenName: defaults.GCPInviteTokenName,
+				Method:    types.JoinMethodGCP,
+			},
+			ScriptName: installers.InstallerScriptName,
+		}
+		return nil
+	}
+
+	switch matcher.InstallParams.JoinParams.Method {
+	case types.JoinMethodGCP, "":
+		matcher.InstallParams.JoinParams.Method = types.JoinMethodGCP
+	default:
+		return trace.BadParameter("only GCP joining is supported for GCP auto-discovery")
+	}
+
+	if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+		matcher.InstallParams.JoinParams.TokenName = defaults.GCPInviteTokenName
+	}
+
+	if installer := matcher.InstallParams.ScriptName; installer == "" {
+		matcher.InstallParams.ScriptName = installers.InstallerScriptName
+	}
+	return nil
+}
+
+// checkAndSetDefaultsForKubeMatchers sets the default values for Kubernetes matchers
+// and validates the provided types.
+func checkAndSetDefaultsForKubeMatchers(matchers []KubernetesMatcher) error {
+	for i := range matchers {
+		matcher := &matchers[i]
+
+		for _, t := range matcher.Types {
+			if !slices.Contains(services.SupportedKubernetesMatchers, t) {
+				return trace.BadParameter("Kubernetes discovery does not support %q resource type; supported resource types are: %v",
+					t, services.SupportedKubernetesMatchers)
+			}
+		}
+
+		if len(matcher.Types) == 0 {
+			matcher.Types = []string{services.KubernetesMatchersApp}
+		}
+
+		if len(matcher.Namespaces) == 0 {
+			matcher.Namespaces = []string{types.Wildcard}
+		}
+
+		if len(matcher.Labels) == 0 {
+			matcher.Labels = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
+		}
+	}
+
 	return nil
 }
 
@@ -1581,6 +1657,9 @@ type Discovery struct {
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
 
+	// KubernetesMatchers are used to match services inside Kubernetes cluster for auto discovery
+	KubernetesMatchers []KubernetesMatcher `yaml:"kubernetes,omitempty"`
+
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another
@@ -1589,11 +1668,14 @@ type Discovery struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
+	// PollInterval is the cadence at which the discovery server will run each of its
+	// discovery cycles.
+	PollInterval time.Duration `yaml:"poll_interval,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke".
+	// Types are GKE resource types to match: "gke", "gce".
 	Types []string `yaml:"types,omitempty"`
 	// Locations are GKE locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
@@ -1601,6 +1683,11 @@ type GCPMatcher struct {
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project ID where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
+	// ServiceAccounts are the emails of service accounts attached to VMs.
+	ServiceAccounts []string `yaml:"service_accounts,omitempty"`
+	// InstallParams sets the join method when installing on
+	// discovered GCP VMs.
+	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1826,6 +1913,16 @@ type AzureMatcher struct {
 	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
+// KubernetesMatcher matches Kubernetes resources.
+type KubernetesMatcher struct {
+	// Types are Kubernetes services types to match. Currently only 'app' is supported.
+	Types []string `yaml:"types,omitempty"`
+	// Namespaces are Kubernetes namespaces in which to discover services
+	Namespaces []string `yaml:"namespaces,omitempty"`
+	// Labels are Kubernetes services labels to match.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+}
+
 // Database represents a single database proxied by the service.
 type Database struct {
 	// Name is the name for the database proxy service.
@@ -2041,6 +2138,8 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 	// Headers is a list of extra headers to inject in the request.
 	Headers []string `yaml:"headers,omitempty"`
+	// JWTClaims configures whether roles/traits are included in the JWT token
+	JWTClaims string `yaml:"jwt_claims,omitempty"`
 }
 
 // AppAWS contains additional options for AWS applications.

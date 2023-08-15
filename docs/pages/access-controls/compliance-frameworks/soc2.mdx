@@ -35,7 +35,7 @@ Teleport helps audit and monitor access.
 - Monitor, share and join interactive sessions in real-time from the CLI or browser.
 
 ### CC8 Change Management
-Teleport helps users elevate their permissions during incidents, RBAC helps limit the need for approvals. The Teleport slack integration allows for managers to quickly approve temporary SSH Access Requests.
+Teleport helps users elevate their permissions during incidents, RBAC helps limit the need for approvals. The Teleport Slack integration allows for managers to quickly approve temporary SSH Access Requests.
 
 - Let engineers request elevated permissions on the fly without ever leaving the terminal
 - Approve or deny permission requests with ChatOps workflow via Slack or other supported platforms.
@@ -43,9 +43,9 @@ Teleport helps users elevate their permissions during incidents, RBAC helps limi
 
 ## What Specific Criteria does Teleport Help Satisfy? 
 
-Below is a table of principles and common points of focus listed by [AICPA’s official “trust Service Criteria” Document](https://www.aicpa.org/content/dam/aicpa/interestareas/frc/assuranceadvisoryservices/downloadabledocuments/trust-services-criteria.pdf) and how Teleport helps satisfy them.
+Below is a table of principles and common points of focus listed by [AICPA's official "Trust Services Criteria" reference document](https://us.aicpa.org/content/dam/aicpa/interestareas/frc/assuranceadvisoryservices/downloadabledocuments/trust-services-criteria-2020.pdf) and how Teleport helps satisfy them.
 
-Each principle has many “Points of Focus” which will apply differently to different products and organizations, talk to an auditor to understand exactly which points of focus apply to your organization.
+Each principle has many "Points of Focus" which will apply differently to different products and organizations, talk to an auditor to understand exactly which points of focus apply to your organization.
 
 | Principle Criteria | Point of Focus | Teleport Features |
 | --- | --- | --- |
@@ -58,7 +58,7 @@ Each principle has many “Points of Focus” which will apply differently to di
 | CC6.1 - Manages Credentials for Infrastructure and Software | New internal and external infrastructure and software are registered, authorized, and documented prior to being granted access credentials and implemented on the network or access point. Credentials are removed and access is disabled when access is no longer required or the infrastructure and software are no longer in use. | [Invite nodes to your cluster with short lived tokens](../../agents/join-services-to-your-cluster/join-token.mdx) | 
 | CC6.1 - Uses Encryption to Protect Data | The entity uses encryption to supplement other measures used to protect data at rest, when such protections are deemed appropriate based on assessed risk. | Teleport Audit logs can use DynamoDB encryption at rest. | 
 | CC6.1 - Protects Encryption Keys | Processes are in place to protect encryption keys during generation, storage, use, and destruction. | Teleport acts as a Certificate Authority to issue SSH and x509 user certificates that are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA and rotated automatically  | 
-| CC6.2 - Controls Access Credentials to Protected Assets | Information asset access credentials are created based on an authorization from the system&#39;s asset owner or authorized custodian. | [Request Approval from the command line](../../reference/cli.mdx#tctl-request-approve) <br/><br/> [Build Approval Workflows with Access Requests](../../access-controls/access-requests.mdx) <br/><br/> [Use Plugins to send approvals to tools like Slack or Jira](../../access-controls/access-requests.mdx) |
+| CC6.2 - Controls Access Credentials to Protected Assets | Information asset access credentials are created based on an authorization from the system&#39;s asset owner or authorized custodian. | [Request Approval from the command line](../../reference/cli/tctl.mdx#tctl-request-approve) <br/><br/> [Build Approval Workflows with Access Requests](../../access-controls/access-requests.mdx) <br/><br/> [Use Plugins to send approvals to tools like Slack or Jira](../../access-controls/access-requests.mdx) |
 | CC6.2 - Removes Access to Protected Assets When Appropriate | Processes are in place to remove credential access when an individual no longer requires such access. | [Teleport issues temporary credentials based on an employees role and are revoked upon job change, termination or end of a maintenance window](../../access-controls/access-requests.mdx) | 
 | CC6.2 - Reviews Appropriateness of Access Credentials | The appropriateness of access credentials is reviewed on a periodic basis for unnecessary and inappropriate individuals with credentials. | Teleport maintains a live list of all nodes within a cluster. This node list can be queried by users (who see a subset they have access to) and administrators any time. | 
 | CC6.3 - Creates or Modifies Access to Protected Information Assets | Processes are in place to create or modify access to protected information assets based on authorization from the asset’s owner. | [Build Approval Workflows with Access Requests](../../access-controls/access-requests.mdx) to get authorization from asset owners. | 

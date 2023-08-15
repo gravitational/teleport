@@ -171,6 +171,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 				return nil, trace.Wrap(err)
 			}
 			parser = p
+		case types.KindAccessList:
+			parser = newAccessListParser()
+		case types.KindUserLoginState:
+			parser = newUserLoginStateParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1580,7 +1584,7 @@ type headlessAuthenticationParser struct {
 func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindIntegration, types.V1, 0)
+		return resourceHeader(event, types.KindHeadlessAuthentication, types.V1, 0)
 	case types.OpPut:
 		ha, err := unmarshalHeadlessAuthentication(event.Item.Value)
 		if err != nil {
@@ -1590,6 +1594,54 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 			return nil, nil
 		}
 		return ha, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAccessListParser() *accessListParser {
+	return &accessListParser{
+		baseParser: newBaseParser(backend.Key(accessListPrefix)),
+	}
+}
+
+type accessListParser struct {
+	baseParser
+}
+
+func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindAccessList, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalAccessList(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserLoginStateParser() *userLoginStateParser {
+	return &userLoginStateParser{
+		baseParser: newBaseParser(backend.Key(userLoginStatePrefix)),
+	}
+}
+
+type userLoginStateParser struct {
+	baseParser
+}
+
+func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindUserLoginState, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalUserLoginState(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

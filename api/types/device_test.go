@@ -107,14 +107,16 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
 		},
 		Profile: &devicepb.DeviceProfile{
-			UpdateTime:        timestamppb.New(t1),
-			ModelIdentifier:   "MacBookPro9,2",
-			OsVersion:         "13.1.2",
-			OsBuild:           "22D68",
-			OsUsernames:       []string{"admin", "llama"},
-			JamfBinaryVersion: "9.27",
-			ExternalId:        "99",
+			UpdateTime:          timestamppb.New(t1),
+			ModelIdentifier:     "MacBookPro9,2",
+			OsVersion:           "13.1.2",
+			OsBuild:             "22F82",
+			OsBuildSupplemental: "22F770820d",
+			OsUsernames:         []string{"admin", "llama"},
+			JamfBinaryVersion:   "9.27",
+			ExternalId:          "99",
 		},
+		Owner: "llama",
 	}
 
 	gotRes := DeviceToResource(dev)

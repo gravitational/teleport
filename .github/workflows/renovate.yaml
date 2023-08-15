@@ -1,8 +1,36 @@
 name: Renovate
 on:
   workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Test changes without applying them, empty otherwise"
+        default: ""
+        required: false
+        type: choice
+        options:
+          - extract
+          - lookup
+          - full
+    log-level:
+      description: "Log severity level"
+      default: "debug"
+      required: false
+      type: choice
+      options:
+        - fatal
+        - error
+        - warn
+        - info
+        - debug
+        - trace # Warning: this will generate a very large and verbose log!
   schedule:
     - cron: '0 21 * * 0' # At 9:00 PM every Sunday UTC
+
+env:
+  # Default values for inputs when the trigger is not `workflow_dispatch`
+  DRY_RUN_DEFAULT: ""
+  LOG_LEVEL_DEFAULT: debug
+
 jobs:
   renovate:
     name: 'Renovate'
@@ -22,7 +50,7 @@ jobs:
       # immediately following this project. For now it lives here to
       # avoid scope creep.
       #
-      # Github can be notoriously difficult to authenticate and talk with.
+      # GitHub can be notoriously difficult to authenticate and talk with.
       # There are four different types of authentication. This step
       # generates an app JWT token, and an app installation token, for
       # other steps that need a specific one.
@@ -83,12 +111,14 @@ jobs:
             core.setOutput("user-id", userId);
             core.setOutput("user-email", `${userId}+${process.env.APP_USERNAME}@users.noreply.github.com`);
       - name: Renovate
-        uses: renovatebot/github-action@v36.0.0
+        uses: renovatebot/github-action@v39.0.1
         env:
-          LOG_LEVEL: 'debug'
+          LOG_LEVEL: ${{ inputs.log-level || env.LOG_LEVEL_DEFAULT }}
+          RENOVATE_LOG_FILE_LEVEL: ${{ inputs.log-level || env.LOG_LEVEL_DEFAULT }}
           RENOVATE_USERNAME: ${{ steps.app-jwt-info.outputs.app-username }}
           RENOVATE_GIT_AUTHOR: "${{ steps.app-jwt-info.outputs.app-username }} <${{ steps.app-installation-info.outputs.user-email }}>"
           RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_DRY_RUN: ${{ inputs.dry-run || env.DRY_RUN_DEFAULT }}
         with:
           token: ${{ steps.generate-tokens.outputs.app-installation-token }}
           configurationFile: .github/renovate.json

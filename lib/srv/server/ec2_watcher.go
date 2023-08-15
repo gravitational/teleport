@@ -27,8 +27,10 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -39,6 +41,8 @@ const (
 	// https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html
 	// Used for filtering instances for automatic EC2 discovery
 	AWSInstanceStateName = "instance-state-name"
+
+	awsEventPrefix = "aws/"
 )
 
 // EC2Instances contains information required to send SSM commands to EC2 instances
@@ -87,7 +91,6 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 		ec2Insts = append(ec2Insts, toEC2Instance(inst))
 	}
 	return ec2Insts
-
 }
 
 // ServerInfos creates a ServerInfo resource for each discovered instance.
@@ -103,10 +106,6 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 		si, err := types.NewServerInfo(types.Metadata{
 			Name: name,
 		}, types.ServerInfoSpecV1{
-			AWS: &types.ServerInfoSpecV1_AWSInfo{
-				AccountID:  i.AccountID,
-				InstanceID: instance.InstanceID,
-			},
 			NewLabels: tags,
 		})
 		if err != nil {
@@ -118,18 +117,48 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	return serverInfos, nil
 }
 
+// Option is a functional option for the Watcher.
+type Option func(*Watcher)
+
+// WithPollInterval sets the interval at which the watcher will fetch
+// instances from AWS.
+func WithPollInterval(interval time.Duration) Option {
+	return func(w *Watcher) {
+		w.pollInterval = interval
+	}
+}
+
+// MakeEvents generates ResourceCreateEvents for these instances.
+func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
+	resourceType := types.DiscoveredResourceNode
+	if instances.DocumentName == defaults.AWSAgentlessInstallerDocument {
+		resourceType = types.DiscoveredResourceAgentlessNode
+	}
+	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
+	for _, inst := range instances.Instances {
+		events[awsEventPrefix+inst.InstanceID] = &usageeventsv1.ResourceCreateEvent{
+			ResourceType:   resourceType,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  types.CloudAWS,
+		}
+	}
+	return events
+}
+
 // NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server) (*Watcher, error) {
+func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
 		fetchers:       []Fetcher{},
 		ctx:            cancelCtx,
 		cancel:         cancelFn,
-		fetchInterval:  time.Minute,
+		pollInterval:   time.Minute,
 		InstancesC:     make(chan Instances),
 		missedRotation: missedRotation,
 	}
-
+	for _, opt := range opts {
+		opt(&watcher)
+	}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
 			// TODO(gavin): support assume_role_arn for ec2.
@@ -321,7 +350,7 @@ func chunkInstances(insts EC2Instances) []Instances {
 			Instances:    insts.Instances[i:end],
 			Rotation:     insts.Rotation,
 		}
-		instColl = append(instColl, Instances{EC2Instances: &inst})
+		instColl = append(instColl, Instances{EC2: &inst})
 	}
 	return instColl
 }
@@ -352,12 +381,11 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					for _, ec2inst := range res.Instances[i:end] {
 						f.cachedInstances.add(ownerID, aws.StringValue(ec2inst.InstanceId))
 					}
-					instances = append(instances, Instances{EC2Instances: &inst})
+					instances = append(instances, Instances{EC2: &inst})
 				}
 			}
 			return true
 		})
-
 	if err != nil {
 		return nil, common.ConvertError(err)
 	}

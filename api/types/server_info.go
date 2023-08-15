@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -139,9 +140,6 @@ func (s *ServerInfoV1) MatchSearch(searchValues []string) bool {
 		utils.MapToStrings(s.GetAllLabels()),
 		s.GetName(),
 	)
-	if s.Spec.AWS != nil {
-		fieldVals = append(fieldVals, s.Spec.AWS.AccountID, s.Spec.AWS.InstanceID)
-	}
 	return MatchSearch(fieldVals, searchValues, nil)
 }
 
@@ -165,4 +163,10 @@ func (s *ServerInfoV1) setStaticFields() {
 func (s *ServerInfoV1) CheckAndSetDefaults() error {
 	s.setStaticFields()
 	return trace.Wrap(s.Metadata.CheckAndSetDefaults())
+}
+
+// GetServerInfoName gets the name of the ServerInfo generated for a discovered
+// EC2 instance with this account ID and instance ID.
+func (a *AWSInfo) GetServerInfoName() string {
+	return fmt.Sprintf("aws-%v-%v", a.AccountID, a.InstanceID)
 }

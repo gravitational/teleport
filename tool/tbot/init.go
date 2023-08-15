@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/user"
@@ -379,6 +380,9 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 }
 
 func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	var output config.Output
 	var err error
 	// First, resolve the correct output. If using a config file with only
@@ -416,7 +420,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
-	if err := output.Init(); err != nil {
+	if err := output.Init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 

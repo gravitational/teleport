@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"crypto/x509"
+	"net"
 	"runtime"
 
 	"github.com/google/uuid"
@@ -90,15 +91,15 @@ type Config struct {
 	// RootClusterCACertPoolFunc is callback function to fetch Root cluster CAs
 	// when ALPN connection upgrade is required.
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
-	// ProfileDir specifies the tsh home dir of the user profile.
-	ProfileDir string
+	// KubeconfigsDir is the directory containing kubeconfigs for kube gateways.
+	KubeconfigsDir string
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
 // accepted by the gateway but cannot be proxied because the cert used by the gateway has expired.
 //
 // Handling of the connection is blocked until the function returns.
-type OnExpiredCertFunc func(context.Context, *Gateway) error
+type OnExpiredCertFunc func(context.Context, Gateway) error
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
@@ -168,4 +169,20 @@ func (c *Config) RouteToDatabase() tlsca.RouteToDatabase {
 		Protocol:    c.Protocol,
 		Username:    c.TargetUser,
 	}
+}
+
+func (c *Config) makeListener() (net.Listener, error) {
+	listener, err := c.TCPPortAllocator.Listen(c.LocalAddress, c.LocalPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// retrieve automatically assigned port number
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.LocalPort = port
+	return listener, nil
 }

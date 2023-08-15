@@ -178,6 +178,7 @@ func (cfg *Config) ConnectionURI() string {
 
 	u := url.URL{
 		Scheme:   "file",
+		OmitHost: true,
 		Path:     filepath.Join(cfg.Path, defaultDBFile),
 		RawQuery: params.Encode(),
 	}
@@ -272,6 +273,10 @@ type Backend struct {
 
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
+}
+
+func (l *Backend) GetName() string {
+	return GetName()
 }
 
 // showPragmas is used to debug SQLite database connection

@@ -57,7 +57,8 @@ message DeviceCollectedData {
   string os_version = 6;
 
   // OS build identifier. Augments the os_version.
-  // Example: "22D68".
+  // May match either the DeviceProfile os_build or os_build_supplemental.
+  // Example: "22D68" or "22F770820d".
   string os_build = 7;
 
   // OS username (distinct from the Teleport user).

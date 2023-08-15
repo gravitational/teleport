@@ -27,9 +27,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/types/accesslist"
-	"github.com/gravitational/teleport/lib/types/header"
 )
 
 // TestAccessListCRUD tests backend operations with access list resources.
@@ -71,6 +71,22 @@ func TestAccessListCRUD(t *testing.T) {
 	out, err = service.GetAccessLists(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2}, out, cmpOpts...))
+
+	// Fetch a paginated list of access lists
+	paginatedOut := make([]*accesslist.AccessList, 0, 2)
+	var nextToken string
+	for {
+		out, nextToken, err = service.ListAccessLists(ctx, 1, nextToken)
+		require.NoError(t, err)
+
+		paginatedOut = append(paginatedOut, out...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	require.Len(t, paginatedOut, 2)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{accessList1, accessList2}, paginatedOut, cmpOpts...))
 
 	// Fetch a specific access list.
 	accessList, err = service.GetAccessList(ctx, accessList2.GetName())

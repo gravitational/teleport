@@ -25,7 +25,9 @@ import {
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { Props as CredentialsProps, SliderProps } from './NewCredentials';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+
+import { SliderProps, UseTokenState } from './types';
 
 export function NewPassword(props: Props) {
   const {
@@ -75,11 +77,15 @@ export function NewPassword(props: Props) {
   return (
     <Validation>
       {({ validator }) => (
-        <Box p={5} ref={refCallback} data-testid="password">
-          {mfaEnabled && <Text color="text.slightlyMuted">Step 1 of 2</Text>}
-          <Text typography="h4" bold mb={3} color="text.main">
+        <OnboardCard ref={refCallback} data-testid="password">
+          <Text typography="h4" bold color="text.main">
             Set A Password
           </Text>
+          {mfaEnabled && (
+            <Text color="text.slightlyMuted" mb={3}>
+              Step 1 of 2
+            </Text>
+          )}
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
@@ -137,13 +143,13 @@ export function NewPassword(props: Props) {
               </ButtonText>
             </Box>
           )}
-        </Box>
+        </OnboardCard>
       )}
     </Validation>
   );
 }
 
-type Props = CredentialsProps &
+type Props = UseTokenState &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;

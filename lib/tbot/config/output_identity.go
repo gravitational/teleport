@@ -69,7 +69,7 @@ func (o *IdentityOutput) templates() []template {
 
 func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	dest := o.GetDestination()
-	if err := identity.SaveIdentity(ident, dest, identity.DestinationKinds()...); err != nil {
+	if err := identity.SaveIdentity(ctx, ident, dest, identity.DestinationKinds()...); err != nil {
 		return trace.Wrap(err, "persisting identity")
 	}
 
@@ -82,13 +82,13 @@ func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity
 	return nil
 }
 
-func (o *IdentityOutput) Init() error {
+func (o *IdentityOutput) Init(ctx context.Context) error {
 	subDirs, err := listSubdirectories(o.templates())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Destination.Init(subDirs))
+	return trace.Wrap(o.Destination.Init(ctx, subDirs))
 }
 
 func (o *IdentityOutput) GetDestination() bot.Destination {
