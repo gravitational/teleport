@@ -1,5 +1,3 @@
-
-
 ---
 authors: Michael Myers (michael.myers@goteleport.com)
 state: draft
@@ -19,22 +17,11 @@ Rather than separating all resources into their own individual pages, a Unified 
 
 ## Details
 
-In order to get a searchable and filterable list of all resource kinds, we will create a new, in-memory store that will initialize on auth service start and only live as long as the service is up. The watcher will update the store any time it receives an event for any of the watched kinds. We will use a very similar setup for this as our in-memory backend, but instead of storing the marshaled (unmarshaled? i forget which. TODO LEARN THE RIGHT WORD BEFORE PUBLISH) resource, we can store the actual resource. 
-
-Once that exists, we can add a new Kind `KindUnifiedResource`. This isn't an actual Kind but more of a "meta" kind that will be used to distinguish request types in `ListResources`. Using the existing pathways that `ListResources` uses will give us almost all the functionality we already need such as pagination, filtering, etc. 
+In order to get a searchable and filterable list of all resource kinds, we will create a new, in-memory store that will initialize on auth service start and only live as long as the service is up. The watcher will update the store any time it receives an event for any of the watched kinds. We will use a very similar setup for this as our in-memory backend, but instead of storing the resource in its textual representation required by the backend, we can store resources as their concrete type(e.g. types.ServerV2).
 
 ### New Types
-`KindUnifiedResource` will be created and used as the `RequestType` for Unified Resource requests coming from the web. This will inform `ListResources` to pull from our Unified Resource collection.
+`KindUnifiedResource` will be created and used as the `RequestType` for Unified Resource requests coming from the web. This will inform a few specific methods like `auth_with_roles.MakePaginatedResource` to check the response items type individually rather than collectively. 
 
-Most of the core implementation is reusing logic from existing components with slight changes where needed. Our new Unified Resource store will be a b-tree similar to the backend memory structure, but the item is slightly modified to have it's `Value` be a common interface for the resources we want to track.
-```go
-type Item struct {
-	// Key is a key of the key value item
-	Key []byte
-	// Value represents a resource that is available for a unified resource request
-	Value types.ResourceWithLabels
-}
-```
 The key is in the format `name/type` to prevent name collisions across types. However, this makes the default sort a little weird where resource with UUID names will come first, even though they'll be displayed with a "friendly" name. Such as `Servers` being stored by a UUID but making the `Hostname` visible. This can change if we find a better way "on the fly" since it's only created when the auth service is started so, we aren't locked into anything in this regard. For now, we'll implement with `GetName()/GetKind()`
 
 For the existing resource endpoints, we return a "ui" version of the resource. Because our list will be of multiple types, we will add the `Kind` field to our existing resource structs. In a vacuum, it's redundant. When listed together, this will allow our UI to differentiate between the different kinds
@@ -50,49 +37,88 @@ type Server struct {
 }
 ```
 
-### The Watcher and Collector
+### The UnifiedResourceCache
+Most of the magic will happen within this new cache. It's a pretty close copy of our memory backend implementation with a few changes. The important types are below
 
-We will add `UnifiedResourceWatcher` to the auth `Server` 
-
-The UnifiedResourceWatcher isn't really different than any other watcher in `lib/services/watcher.go`. The underlying watcher is still just a `resourceWatcher` and the collector is the same as something like `nodeCollector`, but uses a btree as it's `current` instead of a map. We can also ignore any of the expiration/event related features. We will create the `resourceWatcher` with a list of Kinds we plan to watch. To do this, we have to extend the `resourceKind` method that collectors have.
-
-The one biggish change is, currently, `collector.resourceKind()` returns a single type as a string and when the watcher runs `resourceWatcher.watch()` it creates a slice containing the single Kind returned. We can make `resourceKind()` take ownership of supplying the slice instead of `watch`, which would allow us to return the slice of all desired kinds to watch
 ```go
-func (u *unifiedResourceCollector) resourceKind() []types.WatchKind {
-	return []types.WatchKind{
-		{Kind: types.KindNode},
-		{Kind: types.KindDatabaseServer},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindWindowsDesktop},
-	}
+// UnifiedResourceCache contains a representation of all resources that are displayable in the UI
+type UnifiedResourceCache struct {
+	mu  sync.Mutex
+	log *log.Entry
+	cfg UnifiedResourceCacheConfig
+	// tree is a BTree with items
+	tree            *btree.BTreeG[*item]
+	initializationC chan struct{}
+	stale           bool
+	once            sync.Once
+	cache           *utils.FnCache
+	ResourceGetter
 }
-```
-The above example can be expanded to include any Kinds we may need/want to add in our Unified Resource view.
 
-When the watcher inits, we populate the btree with all the available items on startup
-```go
-func (u *uiResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	err := u.getAndUpdateNodes(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = u.getAndUpdateDatabases(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	//...
-
-	u.defineCollectorAsInitialized()
-	return nil
+type resource interface {
+	types.ResourceWithLabels
+	CloneResource() types.ResourceWithLabels
 }
+
 ```
 
-If the collector is uninitialized or stale, we will resort to the upstream and send Nodes only.
+The cache will initialize with a `resourceWatcher` that watches ever type currently available in the UI. As of this RFD, those types include server, database servers, app servers, kube servers, saml IdP service providers, and windows desktops. This can be easily updated to include (or not include) any type by removing it's type from the watcher, and the getResource call associated with that type. 
+
+The cache initializes by getting every current resource of the above types and adding them to the internal bTree, and then starts a watcher to put/delete those types based on events. If the resources are requested from an uninitialized or stale UnifiedResourceCache, we will resort to getting all the current resources again, and storing the result in a `utils.FnCache` until the watcher is back online. This `fnCache` has a TTL of 15 seconds.
+
+We created a new interface `resource` that extends `ResourceWithLabels` with a new method `CloneResource()`. This is only used to have a common "copy" method when getting resources to prevent concurrent memory modification. 
+
+The underlying resource watcher is fundamentally the same as usual, except we'd added a `QueueSize` of `8192`, to match other watchers such as auth and proxy.
 
 ### ListUnifiedResources grpc endppint
-We will add a new grpc endpoint, `ListUnifiedResources`. It will function pretty closes to how `ListResources` works, except without needing to differentiate between `RequestType`, as every request is a unified resource request. Originally, the thought of just extending `ListResources`, but because of the many new filters that will be added to the request, we don't want to muddy up the `ListResourcesRequest`. Some of the new filters include which types to include (can be multiple), subtypes, etc etc. 
+We will add a new grpc endpoint, `ListUnifiedResources`. It will function pretty close to how `ListResources` works, except without needing to differentiate between `RequestType`, as every request is a unified resource request. Originally, the thought of just extending `ListResources`, but because of the many new filters that will be added to the request, we don't want to muddy up the `ListResourcesRequest`. Some of the new filters include which types to include (can be multiple), subtypes, etc etc. 
+
+```protobuf
+// ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources
+message ListUnifiedResourcesRequest {
+  // Kinds is a list of kinds to match against a resource's kind. This can be used in a
+  // unified resource request that can include multiple types.
+  repeated string Kinds = 1 [(gogoproto.jsontag) = "kinds,omitempty"];
+  // Limit is the maximum amount of resources to retrieve.
+  int32 Limit = 2 [(gogoproto.jsontag) = "limit,omitempty"];
+  // StartKey is used to start listing resources from a specific spot. It
+  // should be set to the previous NextKey value if using pagination, or
+  // left empty.
+  string StartKey = 3 [(gogoproto.jsontag) = "start_key,omitempty"];
+  // Labels is a label-based matcher if non-empty.
+  map<string, string> Labels = 4 [(gogoproto.jsontag) = "labels,omitempty"];
+  // PredicateExpression defines boolean conditions that will be matched against the resource.
+  string PredicateExpression = 5 [(gogoproto.jsontag) = "predicate_expression,omitempty"];
+  // SearchKeywords is a list of search keywords to match against resource field values.
+  repeated string SearchKeywords = 6 [(gogoproto.jsontag) = "search_keywords,omitempty"];
+  // SortBy describes which resource field and which direction to sort by.
+  types.SortBy SortBy = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "sort_by,omitempty"
+  ];
+  // WindowsDesktopFilter specifies windows desktop specific filters.
+  types.WindowsDesktopFilter WindowsDesktopFilter = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "windows_desktop_filter,omitempty"
+  ];
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool UseSearchAsRoles = 9 [(gogoproto.jsontag) = "use_search_as_roles,omitempty"];
+  // UsePreviewAsRoles indicates that the response should include all resources
+  // the caller would be able to access with their preview_as_roles
+  bool UsePreviewAsRoles = 10 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+}
+
+// ListUnifiedResourceResponse response of ListUnifiedResources.
+message ListUnifiedResourcesResponse {
+  // Resources is a list of resource.
+  repeated PaginatedResource Resources = 1 [(gogoproto.jsontag) = "resources,omitempty"];
+  // NextKey is the next Key to use as StartKey in a ListResourcesRequest to
+  // continue retrieving pages of resource. If NextKey is empty, there are no
+  // more pages.
+  string NextKey = 2 [(gogoproto.jsontag) = "next_key,omitempty"];
+}
+```
 
 This endpoint will pull resources from our unified resource cache and run through the same filtering/rbac as `ListResources`
 
@@ -100,12 +126,14 @@ This endpoint will pull resources from our unified resource cache and run throug
 
 We will leave `ListResources` alone and keep the old individual resource endpoints available until we've vetted the unified resource view. We will remove the individual navigation items from the web ui, but leave the routes/api endpoints until we've gained confidence in the new flow. 
 
+Any leaf cluster that does not support Unified Resources will gracefully fallback to a "legacy" view, with the navigation and tables we currently have.
+
 ### UX
 The UI for the web will be changing drastically given the fact that all resources will be on the same page and we will be using a Card layout rather than the current Table. However, besides the visual changes, the actual resources listed will still be interacted with the same way. You can still click "Connect" on servers and databases, or Login for apps. The individual functionality for each "Item" will remain the same. Labels will be truncated but viewable with an expand button.
 
+This example of a `ResourceCard` is a general view of what a resource will look like. The checkboxes, while not included in the initial release of Unified Resources, will be made available shortly after to perform bulk actions such as lock, search audit logs, etc. These bulk actions will be an ever growing list of actions as time goes on.
 
-
-https://github.com/gravitational/teleport/assets/5201977/9c859a2a-784d-4805-9ba7-9e37a8a4ce77
+![Screenshot 2023-07-25 at 4 18 19 PM](https://user-images.githubusercontent.com/43280172/256302298-2d853296-faff-4e58-8a6b-102f8c42ff01.png)
 
 
 
@@ -115,6 +143,8 @@ Also, filters will be added. Some filters will just be a "pseudo-filter" in the 
 
 
 This page will also use "infinite scrolling" rather than pagination. We will employ the use of a loading skeleton as we wait for the data to come in and then at a certain scroll distance from the bottom (not the exact bottom, but maybe 200 or so pixels up) we will fetch more. [example of skeleton component](https://codepen.io/JCLee/pen/dyPejGV)
+
+We will not offload previous requests and only append resources as the user scrolls. On paper, this could cause issues if someone tries to load too many resources onto the page, but we do not expect any customers to casually browse through 10,000 items. If this becomes a pain point, we can revisit. 
 
 ### Test Plan
 
