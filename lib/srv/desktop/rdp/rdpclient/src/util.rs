@@ -15,6 +15,9 @@
 use crate::errors::invalid_data_error;
 use rdp::model::error::RdpResult;
 use std::convert::TryFrom;
+use std::ffi::{CStr, CString, NulError};
+use std::os::raw::c_char;
+use std::slice;
 use utf16string::{WString, LE};
 
 /// According to [MS-RDPEFS] 1.1 Glossary:
@@ -56,6 +59,79 @@ pub fn unicode_size(s: &str, with_null_term: bool) -> u32 {
 
 pub fn vec_u8_debug(v: &[u8]) -> String {
     format!("&[u8] of length {}", v.len())
+}
+
+/// to_c_string can be used to return string values over the Go boundary.
+/// To avoid memory leaks, the Go function must call free_go_string once
+/// it's done with the memory.
+///
+/// See https://doc.rust-lang.org/std/ffi/struct.CString.html#method.into_raw
+pub fn to_c_string(s: &str) -> Result<*const c_char, NulError> {
+    let c_string = CString::new(s)?;
+    Ok(c_string.into_raw())
+}
+
+/// See the docstring for to_c_string.
+///
+/// # Safety
+///
+/// s must be a pointer originally created by to_c_string
+#[no_mangle]
+pub unsafe extern "C" fn free_c_string(s: *mut c_char) {
+    // retake pointer to free memory
+    let _ = CString::from_raw(s);
+}
+
+/// # Safety
+///
+/// s must be a C-style null terminated string.
+/// s is cloned here, and the caller is responsible for
+/// ensuring its memory is freed.
+pub unsafe fn from_c_string(s: *const c_char) -> String {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
+    CStr::from_ptr(s).to_string_lossy().into_owned()
+}
+
+/// Creates a Vec from a Go (C) array without a copy.
+///
+/// # Safety
+///
+/// See https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html
+pub unsafe fn from_go_array<T: Clone>(data: *const T, len: u32) -> Vec<T> {
+    // # Safety
+    //
+    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+    // In other words, all pointer data that needs to persist after this function returns MUST
+    // be copied into Rust-owned memory.
+    slice::from_raw_parts(data, len as usize).to_vec()
+}
+
+/// encodes png from the uncompressed bitmap data
+///
+/// # Arguments
+///
+/// * `dest` - buffer that will contain the png data
+/// * `width` - width of the png
+/// * `height` - height of the png
+/// * `data` - buffer that contains uncompressed bitmap data
+pub fn encode_png(
+    dest: &mut Vec<u8>,
+    width: u16,
+    height: u16,
+    data: Vec<u8>,
+) -> Result<(), png::EncodingError> {
+    let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
+    encoder.set_compression(png::Compression::Fast);
+    encoder.set_color(png::ColorType::Rgba);
+
+    let mut writer = encoder.write_header()?;
+    writer.write_image_data(&data)?;
+    writer.finish()?;
+    Ok(())
 }
 
 #[cfg(test)]

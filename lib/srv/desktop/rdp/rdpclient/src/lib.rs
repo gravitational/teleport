@@ -21,22 +21,8 @@
 //!   macro and a `pub unsafe extern "C"`).
 //! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
 //!   and whose name begins with `CGO`)
-//!
-//! Memory management at this interface can be tricky, given the long list of rules
-//! required by CGO (https://pkg.go.dev/cmd/cgo). We can simplify our job in this
-//! regard by sticking to the following design principles:
-//!
-//! 1) Whichever side of the Rust-Go interface allocates some memory on the heap is
-//!    responsible for freeing it.
-//! 2) And therefore whenever one side of the Rust-Go interface is passed some memory
-//!    it didn't allocate but needs to hold on to, is responsible for copying it to its
-//!    own respective heap.
-//!
-//! In practice, this means that all the functions called from Go (those
-//! prefixed with `pub unsafe extern "C"`) MUST NOT hang on to any of the
-//! pointers passed in to them after they return. All pointer data that needs to
-//! persist MUST be copied into Rust-owned memory.
 
+mod client;
 mod cliprdr;
 mod errors;
 mod piv;
@@ -49,413 +35,25 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
-use bytes::BytesMut;
-use errors::try_error;
-use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
-use ironrdp_pdu::input::mouse::PointerFlags;
-use ironrdp_pdu::input::MousePdu;
-use ironrdp_pdu::PduParsing;
+use client::{Client, ConnectParams};
 use ironrdp_session::image::DecodedImage;
-use ironrdp_session::utils::swap_hashmap_kv;
-use ironrdp_session::{x224, ActiveStageOutput, SessionError, SessionErrorKind, SessionResult};
 use rdp::core::event::*;
 use rdp::model::error::{Error as RdpError, RdpResult};
 use rdpdr::path::UnixPath;
-use rdpdr::ServerCreateDriveRequest;
-use sspi::network_client::reqwest_network_client::RequestClientFactory;
+use rdpdr::tdp::{
+    FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryDeleteResponse,
+    SharedDirectoryMoveResponse, SharedDirectoryWriteResponse, TdpErrCode,
+};
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString, NulError};
 use std::fmt::Debug;
 use std::io::Cursor;
-use std::io::{self, Error as IoError};
-use std::net::ToSocketAddrs;
 use std::os::raw::c_char;
-use std::{mem, ptr, slice, time};
-use tokio::net::TcpStream as TokioTcpStream;
-use tokio::sync::Mutex;
+use std::{mem, ptr, time};
+use util::{encode_png, from_c_string, from_go_array, to_c_string};
 
 #[no_mangle]
 pub extern "C" fn init() {
     env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
-}
-
-pub struct IronRDPClient {
-    framed: UpgradedFramed,
-    x224_processor: x224::Processor,
-}
-
-impl IronRDPClient {
-    fn new(upgraded_framed: UpgradedFramed, x224_processor: x224::Processor) -> Self {
-        Self {
-            framed: upgraded_framed,
-            x224_processor,
-        }
-    }
-}
-
-/// Client has an unusual lifecycle:
-/// - The function client_connect calls Client::connect(), which creates it on the heap (Box::new), grabs a raw pointer(Box::into_raw),
-///   and returns in to Go.
-/// - Most other exported rdp functions (pub unsafe extern "C") take the raw pointer and convert it Client::from_raw
-///   to a reference (&Client), which can then be used without dropping the client.
-/// - The function client_drop takes the raw pointer and drops it.
-///
-/// The Client is forced to be Sync. See "Go/Rust Interface" in ../README.md for more details.
-///
-/// The Client makes use of asynchronous rust via the tokio runtime. A single runtime is created in client_connect and held on to by the
-/// Client. The exported rdp functions which need to call async rust functions start with `client.tokio_rt.handle().clone().block_on( ... )`,
-/// which creates a new task on the tokio runtime and blocks the current thread until it completes. Since these functions are called from
-/// Go, the "current thread" can be thought of as whichever goroutine the exported rdp function is called from. Because the client might
-/// be being used by multiple goroutines concurrently, it is up to the programmer to consider any synchronization mechanisms that might
-/// need to be implemented as features are added to the Client going forward.
-pub struct Client {
-    iron_rdp_client: Mutex<IronRDPClient>,
-    tokio_rt: tokio::runtime::Runtime,
-    go_ref: usize,
-}
-
-/// Forces the compiler to check that the Client struct is Send + Sync.
-/// See the README for more details.
-const _: () = {
-    const fn assert_send_sync<T: Send + Sync>() {}
-    assert_send_sync::<Client>();
-};
-
-impl Client {
-    pub fn connect(
-        go_ref: usize,
-        tokio_rt: tokio::runtime::Runtime,
-        params: ConnectParams,
-    ) -> Result<*const Self, ConnectError> {
-        match tokio_rt.block_on(async {
-            let server_addr = params.addr;
-            let server_socket_addr = server_addr.to_socket_addrs()?.next().unwrap();
-
-            let stream = match TokioTcpStream::connect(&server_socket_addr).await {
-                Ok(it) => it,
-                Err(err) => {
-                    error!("tcp connect error: {:?}", err);
-                    return Err(ConnectError::IronRdpError(SessionError::new(
-                        "tcp connect error",
-                        SessionErrorKind::General,
-                    )));
-                }
-            };
-
-            let mut framed = ironrdp_tokio::TokioFramed::new(stream);
-
-            let connector_config = ironrdp_connector::Config {
-                desktop_size: ironrdp_connector::DesktopSize {
-                    width: params.screen_width,
-                    height: params.screen_height,
-                },
-                security_protocol: ironrdp_pdu::nego::SecurityProtocol::HYBRID_EX,
-                username: params.username,
-                password: std::env::var("RDP_PASSWORD").unwrap(), //todo(isaiah)
-                domain: None,
-                client_build: 0,
-                client_name: "Teleport".to_string(),
-                keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
-                keyboard_subtype: 0,
-                keyboard_functional_keys_count: 12,
-                ime_file_name: "".to_string(),
-                graphics: None,
-                bitmap: Some(ironrdp_connector::BitmapConfig {
-                    lossy_compression: true,
-                    color_depth: 32, // Changing this to 16 gets us uncompressed bitmaps on machines configured like https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
-                }),
-                dig_product_id: "".to_string(),
-                client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
-                platform: ironrdp_pdu::rdp::capability_sets::MajorPlatformType::Unspecified,
-            };
-
-            let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
-                .with_server_addr(server_socket_addr)
-                .with_server_name(server_addr)
-                .with_credssp_client_factory(Box::new(RequestClientFactory));
-
-            let should_upgrade =
-                match ironrdp_tokio::connect_begin(&mut framed, &mut connector).await {
-                    Ok(it) => it,
-                    Err(e) => {
-                        error!("connect_begin error: {:?}", e);
-                        return Err(ConnectError::IronRdpError(SessionError::new(
-                            "connect_begin error",
-                            SessionErrorKind::General,
-                        )));
-                    }
-                };
-
-            debug!("TLS upgrade");
-
-            // Ensure there is no leftover
-            let initial_stream = framed.into_inner_no_leftover();
-            let (upgraded_stream, server_public_key) =
-                ironrdp_tls::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
-
-            let upgraded =
-                ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector, server_public_key);
-
-            let mut upgraded_framed = ironrdp_tokio::TokioFramed::new(upgraded_stream);
-
-            let connection_result =
-                match ironrdp_tokio::connect_finalize(upgraded, &mut upgraded_framed, connector)
-                    .await
-                {
-                    Ok(it) => it,
-                    Err(e) => {
-                        error!("connect_finalize error: {:?}", e);
-                        return Err(ConnectError::IronRdpError(SessionError::new(
-                            "connect_finalize error",
-                            SessionErrorKind::General,
-                        )));
-                    }
-                };
-
-            debug!("connection_result: {:?}", connection_result);
-
-            unsafe {
-                match handle_rdp_channel_ids(
-                    go_ref,
-                    connection_result.io_channel_id,
-                    connection_result.user_channel_id,
-                ) {
-                    CGOErrCode::ErrCodeSuccess => {}
-                    _ => {
-                        return Err(ConnectError::IronRdpError(SessionError::new(
-                            "handle_rdp_channel_ids error",
-                            SessionErrorKind::General,
-                        )));
-                    }
-                };
-            };
-
-            let x224_processor = x224::Processor::new(
-                swap_hashmap_kv(connection_result.static_channels),
-                connection_result.user_channel_id,
-                connection_result.io_channel_id,
-                None,
-                None,
-            );
-
-            Ok((upgraded_framed, x224_processor))
-        }) {
-            Ok((upgraded_framed, x224_processor)) => Ok(Box::into_raw(Box::new(Self {
-                iron_rdp_client: Mutex::new(IronRDPClient::new(upgraded_framed, x224_processor)),
-                tokio_rt,
-                go_ref,
-            }))),
-            Err(err) => Err(err),
-        }
-    }
-
-    pub fn null() -> *const Self {
-        ptr::null()
-    }
-
-    /// # Safety
-    ///
-    /// client_ptr MUST be a valid pointer.
-    /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-    pub unsafe fn from_raw<'a>(client_ptr: *const Self) -> Result<&'a Client, CGOErrCode> {
-        client_ptr.as_ref().ok_or_else(|| {
-            error!("Client pointer is null");
-            CGOErrCode::ErrCodeClientPtr
-        })
-    }
-
-    /// # Safety
-    ///
-    /// Calling this twice on the same Client
-    /// pointer will result in a double free.
-    pub unsafe fn drop(ptr: *mut Self) {
-        if !ptr.is_null() {
-            drop(Box::from_raw(ptr))
-        }
-    }
-
-    pub async fn read_rdp_output(&self) -> ReadRdpOutputReturns {
-        loop {
-            trace!("awaiting frame from rdp server");
-            let (action, mut frame) = match self.read_pdu().await {
-                Ok(it) => it,
-                Err(e) => {
-                    error!("error reading PDU: {:?}", e);
-                    return ReadRdpOutputReturns {
-                        user_message: "error reading PDU".to_string(),
-                        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                        err_code: CGOErrCode::ErrCodeFailure,
-                    };
-                }
-            };
-            trace!(
-                "Frame received, action = {:?}, frame_len = {:?}",
-                action,
-                frame.len()
-            );
-
-            match action {
-                ironrdp_pdu::Action::X224 => {
-                    let result = self.process_x224_frame(&frame).await;
-                    if let Some(return_value) = self.process_active_stage_result(result).await {
-                        return return_value;
-                    }
-                }
-                ironrdp_pdu::Action::FastPath => {
-                    let go_ref = self.go_ref;
-                    match unsafe {
-                        handle_fastpath_pdu(go_ref, frame.as_mut_ptr(), frame.len() as u32)
-                    } {
-                        CGOErrCode::ErrCodeSuccess => continue,
-                        err => {
-                            error!("failed to process fastpath frame: {:?}", err);
-                            return ReadRdpOutputReturns {
-                                user_message: "Failed to process fastpath frame".to_string(),
-                                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                                err_code: err,
-                            };
-                        }
-                    }
-                }
-            };
-        }
-    }
-
-    pub async fn client_write_rdp_pointer(&self, pointer: CGOMousePointerEvent) -> CGOErrCode {
-        let mut fastpath_events = Vec::new();
-        // TODO(isaiah): impl From for this
-        let mut flags = match pointer.button {
-            CGOPointerButton::PointerButtonLeft => PointerFlags::LEFT_BUTTON,
-            CGOPointerButton::PointerButtonRight => PointerFlags::RIGHT_BUTTON,
-            CGOPointerButton::PointerButtonMiddle => PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
-            _ => PointerFlags::empty(),
-        };
-
-        flags |= match pointer.wheel {
-            CGOPointerWheel::PointerWheelVertical => PointerFlags::VERTICAL_WHEEL,
-            CGOPointerWheel::PointerWheelHorizontal => PointerFlags::HORIZONTAL_WHEEL,
-            _ => PointerFlags::empty(),
-        };
-
-        if pointer.button == CGOPointerButton::PointerButtonNone
-            && pointer.wheel == CGOPointerWheel::PointerWheelNone
-        {
-            flags |= PointerFlags::MOVE;
-        }
-
-        if pointer.down {
-            flags |= PointerFlags::DOWN;
-        }
-
-        // MousePdu.to_buffer takes care of the rest of the flags.
-        let event = FastPathInputEvent::MouseEvent(MousePdu {
-            flags,
-            number_of_wheel_rotation_units: pointer.wheel_delta,
-            x_position: pointer.x,
-            y_position: pointer.y,
-        });
-        fastpath_events.push(event);
-
-        let mut data: Vec<u8> = Vec::new();
-        let input_pdu = FastPathInput(fastpath_events);
-        input_pdu.to_buffer(&mut data).unwrap();
-
-        self.write_all(&data).await.unwrap(); // todo(isaiah): handle error
-
-        CGOErrCode::ErrCodeSuccess
-    }
-
-    /// Iterates through any response frames in result, sending them to the RDP server.
-    /// Typically returns None if everything goes as expected and the session should continue.
-    // TODO(isaiah): this api is weird, should probably return a Result instead of an Option.
-    pub async fn process_active_stage_result(
-        &self,
-        result: SessionResult<Vec<ActiveStageOutput>>,
-    ) -> Option<ReadRdpOutputReturns> {
-        match result {
-            Ok(outputs) => {
-                for output in outputs {
-                    match output {
-                        ActiveStageOutput::ResponseFrame(response) => {
-                            match self.write_all(&response).await {
-                                Ok(_) => {
-                                    trace!("write_all succeeded, continuing");
-                                    continue;
-                                }
-                                Err(e) => {
-                                    return Some(ReadRdpOutputReturns {
-                                        user_message: format!("Failed to write frame: {}", e),
-                                        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                                        err_code: CGOErrCode::ErrCodeFailure,
-                                    });
-                                }
-                            }
-                        }
-                        ActiveStageOutput::Terminate => {
-                            return Some(ReadRdpOutputReturns {
-                                user_message: "RDP session terminated".to_string(),
-                                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                                err_code: CGOErrCode::ErrCodeSuccess,
-                            });
-                        }
-                        ActiveStageOutput::GraphicsUpdate(_) => {
-                            error!("unexpected GraphicsUpdate, this should be handled on the client side");
-                            return Some(ReadRdpOutputReturns {
-                                user_message: "Server error".to_string(),
-                                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                                err_code: CGOErrCode::ErrCodeFailure,
-                            });
-                        }
-                    }
-                }
-            }
-            Err(err) => {
-                error!("failed to process frame: {}", err);
-                return Some(ReadRdpOutputReturns {
-                    user_message: "Failed to process frame".to_string(),
-                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                    err_code: CGOErrCode::ErrCodeFailure,
-                });
-            }
-        }
-
-        // All outputs were response frames, return None to indicate that the client should continue
-        trace!("process_active_stage_result succeeded, returning None");
-        None
-    }
-
-    async fn read_pdu(&self) -> io::Result<(ironrdp_pdu::Action, BytesMut)> {
-        self.iron_rdp_client.lock().await.framed.read_pdu().await
-    }
-
-    async fn write_all(&self, buf: &[u8]) -> io::Result<()> {
-        self.iron_rdp_client
-            .lock()
-            .await
-            .framed
-            .write_all(buf)
-            .await
-    }
-
-    async fn process_x224_frame(&self, frame: &[u8]) -> SessionResult<Vec<ActiveStageOutput>> {
-        let output = self
-            .iron_rdp_client
-            .lock()
-            .await
-            .x224_processor
-            .process(frame)?;
-        let mut stage_outputs = Vec::new();
-        if !output.is_empty() {
-            stage_outputs.push(ActiveStageOutput::ResponseFrame(output));
-        }
-        Ok(stage_outputs)
-    }
-}
-
-#[repr(C)]
-pub struct ClientOrError {
-    client: *const Client,
-    err: CGOErrCode,
 }
 
 /// client_connect establishes an RDP connection to go_addr with the provided credentials and screen
@@ -467,7 +65,10 @@ pub struct ClientOrError {
 /// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
 /// to their corresponding parameters.
 #[no_mangle]
-pub unsafe extern "C" fn client_connect(go_ref: usize, params: CGOConnectParams) -> ClientOrError {
+pub unsafe extern "C" fn client_connect(go_ref: usize, params: CGOConnectParams) -> CGOClientOrError
+where
+    Client: Send + Sync,
+{
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
     let username = from_c_string(params.go_username);
@@ -491,13 +92,13 @@ pub unsafe extern "C" fn client_connect(go_ref: usize, params: CGOConnectParams)
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     ) {
-        Ok(client) => ClientOrError {
+        Ok(client) => CGOClientOrError {
             client,
             err: CGOErrCode::ErrCodeSuccess,
         },
         Err(err) => {
             error!("{:?}", err);
-            ClientOrError {
+            CGOClientOrError {
                 client: Client::null(),
                 err: CGOErrCode::ErrCodeFailure,
             }
@@ -505,28 +106,309 @@ pub unsafe extern "C" fn client_connect(go_ref: usize, params: CGOConnectParams)
     }
 }
 
-#[derive(Debug)]
-pub enum ConnectError {
-    Tcp(IoError),
-    Rdp(RdpError),
-    IronRdpError(SessionError), //todo(isaiah): reconsider error typing
+/// `client_update_clipboard` is called from Go, and caches data that was copied
+/// client-side while notifying the RDP server that new clipboard data is available.
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// data MUST be a valid pointer.
+/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
+#[no_mangle]
+pub unsafe extern "C" fn client_update_clipboard(
+    client_ptr: *const Client,
+    data: *mut u8,
+    len: u32,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_update_clipboard");
+    CGOErrCode::ErrCodeSuccess
 }
 
-impl From<IoError> for ConnectError {
-    fn from(e: IoError) -> ConnectError {
-        ConnectError::Tcp(e)
-    }
+/// client_handle_tdp_sd_announce announces a new drive that's ready to be
+/// redirected over RDP.
+///
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_announce(
+    client_ptr: *const Client,
+    sd_announce: CGOSharedDirectoryAnnounce,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_handle_tdp_sd_announce");
+    CGOErrCode::ErrCodeSuccess
 }
 
-impl From<RdpError> for ConnectError {
-    fn from(e: RdpError) -> ConnectError {
-        ConnectError::Rdp(e)
-    }
+/// client_handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
+    client_ptr: *const Client,
+    res: CGOSharedDirectoryInfoResponse,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_handle_tdp_sd_info_response");
+    CGOErrCode::ErrCodeSuccess
 }
 
-const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
-const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
-const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
+/// client_handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
+    client_ptr: *const Client,
+    res: CGOSharedDirectoryCreateResponse,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_handle_tdp_sd_create_response");
+    CGOErrCode::ErrCodeSuccess
+}
+
+/// client_handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
+    client_ptr: *const Client,
+    res: CGOSharedDirectoryDeleteResponse,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_handle_tdp_sd_delete_response");
+    CGOErrCode::ErrCodeSuccess
+}
+
+/// client_handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+///
+/// res.fso_list MUST be a valid pointer
+/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
+///
+/// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
+    client_ptr: *const Client,
+    res: CGOSharedDirectoryListResponse,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_handle_tdp_sd_list_response");
+    CGOErrCode::ErrCodeSuccess
+}
+
+/// client_handle_tdp_sd_read_response handles a TDP Shared Directory Read Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
+    client_ptr: *const Client,
+    res: CGOSharedDirectoryReadResponse,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_handle_tdp_sd_read_response");
+    CGOErrCode::ErrCodeSuccess
+}
+
+/// client_handle_tdp_sd_write_response handles a TDP Shared Directory Write Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr must be a valid pointer
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
+    client_ptr: *const Client,
+    res: CGOSharedDirectoryWriteResponse,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_handle_tdp_sd_write_response");
+    CGOErrCode::ErrCodeSuccess
+}
+
+/// client_handle_tdp_sd_move_response handles a TDP Shared Directory Move Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
+    client_ptr: *const Client,
+    res: CGOSharedDirectoryMoveResponse,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_handle_tdp_sd_move_response");
+    CGOErrCode::ErrCodeSuccess
+}
+
+/// client_handle_tdp_rdp_response_pdu handles a TDP RDP Response PDU message. It takes a raw encoded RDP PDU
+/// created by the ironrdp client on the frontend and sends it directly to the RDP server.
+///
+/// res is the raw RDP response message to be sent back to the RDP server, without the TDP message type or
+/// array length header.
+///n
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
+    client_ptr: *const Client,
+    res: *mut u8,
+    res_len: u32,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    let client = match Client::from_raw(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let res = from_go_array(res, res_len);
+    client.handle_tdp_rdp_response_pdu(res)
+}
+
+/// `client_read_rdp_output` reads incoming RDP bitmap frames from client at client_ref, encodes bitmap
+/// as a png and forwards them to handle_png.
+///
+/// # Safety
+///
+/// `client_ptr` must be a valid pointer to a Client.
+/// `handle_png` *must not* free the memory of CGOPNG.
+#[no_mangle]
+pub unsafe extern "C" fn client_read_rdp_output(
+    client_ptr: *const Client,
+) -> CGOReadRdpOutputReturns
+where
+    Client: Send + Sync,
+{
+    let client = match Client::from_raw(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return CGOReadRdpOutputReturns {
+                user_message: to_c_string("invalid Rust client pointer").unwrap(),
+                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                err_code: cgo_error,
+            }
+        }
+    };
+
+    client.read_rdp_output()
+}
+
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn client_write_rdp_pointer(
+    client_ptr: *const Client,
+    pointer: CGOMousePointerEvent,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    let client = match Client::from_raw(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    client.write_rdp_pointer(pointer)
+}
+
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn client_write_rdp_keyboard(
+    client_ptr: *const Client,
+    key: CGOKeyboardEvent,
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_write_rdp_keyboard");
+    CGOErrCode::ErrCodeSuccess
+}
+
+/// # Safety
+///
+/// client_ptr must be a valid pointer to a Client.
+#[no_mangle]
+pub unsafe extern "C" fn client_close_rdp(client_ptr: *const Client) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
+    warn!("unimplemented: client_close_rdp");
+    CGOErrCode::ErrCodeSuccess
+}
+
+/// client_drop lets the Go side inform us when it's done with Client and it can be dropped.
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn client_drop(client_ptr: *mut Client)
+where
+    Client: Send + Sync,
+{
+    Client::drop(client_ptr)
+}
 
 #[repr(C)]
 pub struct CGOConnectParams {
@@ -542,21 +424,6 @@ pub struct CGOConnectParams {
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
 }
-
-#[derive(Debug)]
-pub struct ConnectParams {
-    addr: String,
-    username: String,
-    cert_der: Vec<u8>,
-    key_der: Vec<u8>,
-    screen_width: u16,
-    screen_height: u16,
-    allow_clipboard: bool,
-    allow_directory_sharing: bool,
-    show_desktop_wallpaper: bool,
-}
-
-type UpgradedFramed = ironrdp_tokio::TokioFramed<ironrdp_tls::TlsStream<TokioTcpStream>>;
 
 /// CGOPNG is a CGO-compatible version of PNG that we pass back to Go.
 #[repr(C)]
@@ -638,30 +505,6 @@ impl TryFrom<&DecodedImage> for CGOPNG {
     }
 }
 
-/// encodes png from the uncompressed bitmap data
-///
-/// # Arguments
-///
-/// * `dest` - buffer that will contain the png data
-/// * `width` - width of the png
-/// * `height` - height of the png
-/// * `data` - buffer that contains uncompressed bitmap data
-pub fn encode_png(
-    dest: &mut Vec<u8>,
-    width: u16,
-    height: u16,
-    data: Vec<u8>,
-) -> Result<(), png::EncodingError> {
-    let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
-    encoder.set_compression(png::Compression::Fast);
-    encoder.set_color(png::ColorType::Rgba);
-
-    let mut writer = encoder.write_header()?;
-    writer.write_image_data(&data)?;
-    writer.finish()?;
-    Ok(())
-}
-
 impl Drop for CGOPNG {
     fn drop(&mut self) {
         // Reconstruct into Vec to drop the allocated buffer.
@@ -671,224 +514,54 @@ impl Drop for CGOPNG {
     }
 }
 
-/// `client_update_clipboard` is called from Go, and caches data that was copied
-/// client-side while notifying the RDP server that new clipboard data is available.
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-///
-/// data MUST be a valid pointer.
-/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
-#[no_mangle]
-pub unsafe extern "C" fn client_update_clipboard(
-    client_ptr: *const Client,
-    data: *mut u8,
-    len: u32,
-) -> CGOErrCode {
-    warn!("unimplemented: client_update_clipboard");
-    CGOErrCode::ErrCodeSuccess
+/// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
+/// KeyboardEvent is a keyboard update from the user.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct CGOKeyboardEvent {
+    // Note: there's only one key code sent at a time. A key combo is sent as a sequence of
+    // KeyboardEvent messages, one key at a time in the "down" state. The RDP server takes care of
+    // interpreting those.
+    pub code: u16,
+    pub down: bool,
 }
 
-/// client_handle_tdp_sd_announce announces a new drive that's ready to be
-/// redirected over RDP.
-///
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-///
-/// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_announce(
-    client_ptr: *const Client,
-    sd_announce: CGOSharedDirectoryAnnounce,
-) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_announce");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// client_handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-///
-/// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
-    client_ptr: *const Client,
-    res: CGOSharedDirectoryInfoResponse,
-) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_info_response");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// client_handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
-    client_ptr: *const Client,
-    res: CGOSharedDirectoryCreateResponse,
-) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_create_response");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// client_handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
-    client_ptr: *const Client,
-    res: CGOSharedDirectoryDeleteResponse,
-) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_delete_response");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// client_handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-///
-/// res.fso_list MUST be a valid pointer
-/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
-///
-/// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
-    client_ptr: *const Client,
-    res: CGOSharedDirectoryListResponse,
-) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_list_response");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// client_handle_tdp_sd_read_response handles a TDP Shared Directory Read Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr must be a valid pointer
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
-    client_ptr: *const Client,
-    res: CGOSharedDirectoryReadResponse,
-) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_read_response");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// client_handle_tdp_sd_write_response handles a TDP Shared Directory Write Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr must be a valid pointer
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
-    client_ptr: *const Client,
-    res: CGOSharedDirectoryWriteResponse,
-) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_write_response");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// client_handle_tdp_sd_move_response handles a TDP Shared Directory Move Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
-    client_ptr: *const Client,
-    res: CGOSharedDirectoryMoveResponse,
-) -> CGOErrCode {
-    warn!("unimplemented: client_handle_tdp_sd_move_response");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// client_handle_tdp_rdp_response_pdu handles a TDP RDP Response PDU message. It takes a raw encoded RDP PDU
-/// created by the ironrdp client on the frontend and sends it directly to the RDP server.
-///
-/// res is the raw RDP response message to be sent back to the RDP server, without the TDP message type or
-/// array length header.
-///n
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
-    client_ptr: *const Client,
-    res: *mut u8,
-    res_len: u32,
-) -> CGOErrCode {
-    let client = match Client::from_raw(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
+impl From<CGOKeyboardEvent> for KeyboardEvent {
+    fn from(k: CGOKeyboardEvent) -> KeyboardEvent {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
+        KeyboardEvent {
+            code: k.code,
+            down: k.down,
         }
-    };
-
-    client.tokio_rt.handle().clone().block_on(async {
-        let res = from_go_array(res, res_len);
-        match client
-            .process_active_stage_result(Ok(vec![ActiveStageOutput::ResponseFrame(res)]))
-            .await
-        {
-            Some(ret) => ret.err_code,
-            None => CGOErrCode::ErrCodeSuccess,
-        }
-    })
+    }
 }
 
-/// `client_read_rdp_output` reads incoming RDP bitmap frames from client at client_ref, encodes bitmap
-/// as a png and forwards them to handle_png.
-///
-/// # Safety
-///
-/// `client_ptr` must be a valid pointer to a Client.
-/// `handle_png` *must not* free the memory of CGOPNG.
-#[no_mangle]
-pub unsafe extern "C" fn client_read_rdp_output(
-    client_ptr: *const Client,
-) -> CGOReadRdpOutputReturns {
-    let client = match Client::from_raw(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return ReadRdpOutputReturns {
-                user_message: "invalid Rust client pointer".to_string(),
-                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                err_code: cgo_error,
-            }
-            .into();
-        }
-    };
+#[repr(C)]
+pub enum CGODisconnectCode {
+    /// DisconnectCodeUnknown is for when we can't determine whether
+    /// a disconnect was caused by the RDP client or server.
+    DisconnectCodeUnknown = 0,
+    /// DisconnectCodeClient is for when the RDP client initiated a disconnect.
+    DisconnectCodeClient = 1,
+    /// DisconnectCodeServer is for when the RDP server initiated a disconnect.
+    DisconnectCodeServer = 2,
+}
 
-    client
-        .tokio_rt
-        .handle()
-        .clone()
-        .block_on(async { client.read_rdp_output().await.into() })
+#[repr(C)]
+pub struct CGOReadRdpOutputReturns {
+    user_message: *const c_char,
+    disconnect_code: CGODisconnectCode,
+    err_code: CGOErrCode,
+}
+
+#[repr(C)]
+pub struct CGOClientOrError {
+    client: *const Client,
+    err: CGOErrCode,
 }
 
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
@@ -948,171 +621,6 @@ impl From<CGOMousePointerEvent> for PointerEvent {
     }
 }
 
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn client_write_rdp_pointer(
-    client_ptr: *const Client,
-    pointer: CGOMousePointerEvent,
-) -> CGOErrCode {
-    let client = match Client::from_raw(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    client
-        .tokio_rt
-        .handle()
-        .clone()
-        .block_on(async { client.client_write_rdp_pointer(pointer).await })
-}
-
-/// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
-/// KeyboardEvent is a keyboard update from the user.
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct CGOKeyboardEvent {
-    // Note: there's only one key code sent at a time. A key combo is sent as a sequence of
-    // KeyboardEvent messages, one key at a time in the "down" state. The RDP server takes care of
-    // interpreting those.
-    pub code: u16,
-    pub down: bool,
-}
-
-impl From<CGOKeyboardEvent> for KeyboardEvent {
-    fn from(k: CGOKeyboardEvent) -> KeyboardEvent {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        KeyboardEvent {
-            code: k.code,
-            down: k.down,
-        }
-    }
-}
-
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn client_write_rdp_keyboard(
-    client_ptr: *const Client,
-    key: CGOKeyboardEvent,
-) -> CGOErrCode {
-    warn!("unimplemented: client_write_rdp_keyboard");
-    CGOErrCode::ErrCodeSuccess
-}
-
-/// # Safety
-///
-/// client_ptr must be a valid pointer to a Client.
-#[no_mangle]
-pub unsafe extern "C" fn client_close_rdp(client_ptr: *const Client) -> CGOErrCode {
-    warn!("unimplemented: client_close_rdp");
-    CGOErrCode::ErrCodeSuccess
-}
-
-#[repr(C)]
-pub enum CGODisconnectCode {
-    /// DisconnectCodeUnknown is for when we can't determine whether
-    /// a disconnect was caused by the RDP client or server.
-    DisconnectCodeUnknown = 0,
-    /// DisconnectCodeClient is for when the RDP client initiated a disconnect.
-    DisconnectCodeClient = 1,
-    /// DisconnectCodeServer is for when the RDP server initiated a disconnect.
-    DisconnectCodeServer = 2,
-}
-
-pub struct ReadRdpOutputReturns {
-    user_message: String,
-    disconnect_code: CGODisconnectCode,
-    err_code: CGOErrCode,
-}
-
-#[repr(C)]
-pub struct CGOReadRdpOutputReturns {
-    user_message: *const c_char,
-    disconnect_code: CGODisconnectCode,
-    err_code: CGOErrCode,
-}
-
-impl From<ReadRdpOutputReturns> for CGOReadRdpOutputReturns {
-    fn from(r: ReadRdpOutputReturns) -> CGOReadRdpOutputReturns {
-        CGOReadRdpOutputReturns {
-            user_message: to_c_string(&r.user_message).unwrap(),
-            disconnect_code: r.disconnect_code,
-            err_code: r.err_code,
-        }
-    }
-}
-
-/// client_drop lets the Go side inform us when it's done with Client and it can be dropped.
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn client_drop(client_ptr: *mut Client) {
-    Client::drop(client_ptr)
-}
-
-/// # Safety
-///
-/// s must be a C-style null terminated string.
-/// s is cloned here, and the caller is responsible for
-/// ensuring its memory is freed.
-unsafe fn from_c_string(s: *const c_char) -> String {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-    CStr::from_ptr(s).to_string_lossy().into_owned()
-}
-
-/// Creates a Vec from a Go (C) array without a copy.
-///
-/// # Safety
-///
-/// See https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html
-unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-    slice::from_raw_parts(data, len as usize).to_vec()
-}
-
-/// to_c_string can be used to return string values over the Go boundary.
-/// To avoid memory leaks, the Go function must call free_go_string once
-/// it's done with the memory.
-///
-/// See https://doc.rust-lang.org/std/ffi/struct.CString.html#method.into_raw
-fn to_c_string(s: &str) -> Result<*const c_char, NulError> {
-    let c_string = CString::new(s)?;
-    Ok(c_string.into_raw())
-}
-
-/// See the docstring for to_c_string.
-///
-/// # Safety
-///
-/// s must be a pointer originally created by to_c_string
-#[no_mangle]
-pub unsafe extern "C" fn free_c_string(s: *mut c_char) {
-    // retake pointer to free memory
-    let _ = CString::from_raw(s);
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CGOErrCode {
@@ -1127,48 +635,7 @@ pub struct CGOSharedDirectoryAnnounce {
     pub name: *const c_char,
 }
 
-/// SharedDirectoryAnnounce is sent by the TDP client to the server
-/// to announce a new directory to be shared over TDP.
-pub struct SharedDirectoryAnnounce {
-    directory_id: u32,
-    name: String,
-}
-
-impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
-    fn from(cgo: CGOSharedDirectoryAnnounce) -> SharedDirectoryAnnounce {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        unsafe {
-            SharedDirectoryAnnounce {
-                directory_id: cgo.directory_id,
-                name: from_c_string(cgo.name),
-            }
-        }
-    }
-}
-
-/// SharedDirectoryAcknowledge is sent by the TDP server to the client
-/// to acknowledge that a SharedDirectoryAnnounce was received.
-#[derive(Debug)]
-#[repr(C)]
-pub struct SharedDirectoryAcknowledge {
-    pub err_code: TdpErrCode,
-    pub directory_id: u32,
-}
-
 pub type CGOSharedDirectoryAcknowledge = SharedDirectoryAcknowledge;
-
-/// SharedDirectoryInfoRequest is sent from the TDP server to the client
-/// to request information about a file or directory at a given path.
-#[derive(Debug)]
-pub struct SharedDirectoryInfoRequest {
-    completion_id: u32,
-    directory_id: u32,
-    path: UnixPath,
-}
 
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoRequest {
@@ -1177,70 +644,11 @@ pub struct CGOSharedDirectoryInfoRequest {
     pub path: *const c_char,
 }
 
-impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
-    fn from(req: ServerCreateDriveRequest) -> SharedDirectoryInfoRequest {
-        SharedDirectoryInfoRequest {
-            completion_id: req.device_io_request.completion_id,
-            directory_id: req.device_io_request.device_id,
-            path: UnixPath::from(&req.path),
-        }
-    }
-}
-
-/// SharedDirectoryInfoResponse is sent by the TDP client to the server
-/// in response to a `Shared Directory Info Request`.
-#[derive(Debug)]
-pub struct SharedDirectoryInfoResponse {
-    completion_id: u32,
-    err_code: TdpErrCode,
-
-    fso: FileSystemObject,
-}
-
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoResponse {
     pub completion_id: u32,
     pub err_code: TdpErrCode,
     pub fso: CGOFileSystemObject,
-}
-
-impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
-    fn from(cgo_res: CGOSharedDirectoryInfoResponse) -> SharedDirectoryInfoResponse {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        SharedDirectoryInfoResponse {
-            completion_id: cgo_res.completion_id,
-            err_code: cgo_res.err_code,
-            fso: FileSystemObject::from(cgo_res.fso),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-/// FileSystemObject is a TDP structure containing the metadata
-/// of a file or directory.
-pub struct FileSystemObject {
-    last_modified: u64,
-    size: u64,
-    file_type: FileType,
-    is_empty: u8,
-    path: UnixPath,
-}
-
-impl FileSystemObject {
-    fn name(&self) -> RdpResult<String> {
-        if let Some(name) = self.path.last() {
-            Ok(name.to_string())
-        } else {
-            Err(try_error(&format!(
-                "failed to extract name from path: {:?}",
-                self.path
-            )))
-        }
-    }
 }
 
 #[repr(C)]
@@ -1272,49 +680,6 @@ impl From<CGOFileSystemObject> for FileSystemObject {
     }
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum FileType {
-    File = 0,
-    Directory = 1,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum TdpErrCode {
-    /// nil (no error, operation succeeded)
-    Nil = 0,
-    /// operation failed
-    Failed = 1,
-    /// resource does not exist
-    DoesNotExist = 2,
-    /// resource already exists
-    AlreadyExists = 3,
-}
-
-/// SharedDirectoryWriteRequest is sent by the TDP server to the client
-/// to write to a file.
-#[derive(Clone)]
-pub struct SharedDirectoryWriteRequest {
-    completion_id: u32,
-    directory_id: u32,
-    offset: u64,
-    path: UnixPath,
-    write_data: Vec<u8>,
-}
-
-impl std::fmt::Debug for SharedDirectoryWriteRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SharedDirectoryWriteRequest")
-            .field("completion_id", &self.completion_id)
-            .field("directory_id", &self.directory_id)
-            .field("offset", &self.offset)
-            .field("path", &self.path)
-            .field("write_data", &util::vec_u8_debug(&self.write_data))
-            .finish()
-    }
-}
-
 #[derive(Debug)]
 #[repr(C)]
 pub struct CGOSharedDirectoryWriteRequest {
@@ -1327,17 +692,6 @@ pub struct CGOSharedDirectoryWriteRequest {
     pub write_data: *mut u8,
 }
 
-/// SharedDirectoryReadRequest is sent by the TDP server to the client
-/// to request the contents of a file.
-#[derive(Debug)]
-pub struct SharedDirectoryReadRequest {
-    completion_id: u32,
-    directory_id: u32,
-    path: UnixPath,
-    offset: u64,
-    length: u32,
-}
-
 #[repr(C)]
 pub struct CGOSharedDirectoryReadRequest {
     pub completion_id: u32,
@@ -1346,37 +700,6 @@ pub struct CGOSharedDirectoryReadRequest {
     pub path: *const c_char,
     pub offset: u64,
     pub length: u32,
-}
-
-/// SharedDirectoryReadResponse is sent by the TDP client to the server
-/// with the data as requested by a SharedDirectoryReadRequest.
-#[repr(C)]
-pub struct SharedDirectoryReadResponse {
-    pub completion_id: u32,
-    pub err_code: TdpErrCode,
-    pub read_data: Vec<u8>,
-}
-
-impl std::fmt::Debug for SharedDirectoryReadResponse {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SharedDirectoryReadResponse")
-            .field("completion_id", &self.completion_id)
-            .field("err_code", &self.err_code)
-            .field("read_data", &util::vec_u8_debug(&self.read_data))
-            .finish()
-    }
-}
-
-impl From<CGOSharedDirectoryReadResponse> for SharedDirectoryReadResponse {
-    fn from(cgo_response: CGOSharedDirectoryReadResponse) -> SharedDirectoryReadResponse {
-        unsafe {
-            SharedDirectoryReadResponse {
-                completion_id: cgo_response.completion_id,
-                err_code: cgo_response.err_code,
-                read_data: from_go_array(cgo_response.read_data, cgo_response.read_data_length),
-            }
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -1388,27 +711,7 @@ pub struct CGOSharedDirectoryReadResponse {
     pub read_data: *mut u8,
 }
 
-/// SharedDirectoryWriteResponse is sent by the TDP client to the server
-/// to acknowledge the completion of a SharedDirectoryWriteRequest.
-#[derive(Debug)]
-#[repr(C)]
-pub struct SharedDirectoryWriteResponse {
-    pub completion_id: u32,
-    pub err_code: TdpErrCode,
-    pub bytes_written: u32,
-}
-
 pub type CGOSharedDirectoryWriteResponse = SharedDirectoryWriteResponse;
-
-/// SharedDirectoryCreateRequest is sent by the TDP server to
-/// the client to request the creation of a new file or directory.
-#[derive(Debug)]
-pub struct SharedDirectoryCreateRequest {
-    completion_id: u32,
-    directory_id: u32,
-    file_type: FileType,
-    path: UnixPath,
-}
 
 #[repr(C)]
 pub struct CGOSharedDirectoryCreateRequest {
@@ -1416,38 +719,6 @@ pub struct CGOSharedDirectoryCreateRequest {
     pub directory_id: u32,
     pub file_type: FileType,
     pub path: *const c_char,
-}
-
-/// SharedDirectoryListResponse is sent by the TDP client to the server
-/// in response to a SharedDirectoryInfoRequest.
-#[derive(Debug)]
-pub struct SharedDirectoryListResponse {
-    completion_id: u32,
-    err_code: TdpErrCode,
-    fso_list: Vec<FileSystemObject>,
-}
-
-impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
-    fn from(cgo: CGOSharedDirectoryListResponse) -> SharedDirectoryListResponse {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        unsafe {
-            let cgo_fso_list = from_go_array(cgo.fso_list, cgo.fso_list_length);
-            let mut fso_list = vec![];
-            for cgo_fso in cgo_fso_list.into_iter() {
-                fso_list.push(FileSystemObject::from(cgo_fso));
-            }
-
-            SharedDirectoryListResponse {
-                completion_id: cgo.completion_id,
-                err_code: cgo.err_code,
-                fso_list,
-            }
-        }
-    }
 }
 
 #[repr(C)]
@@ -1458,31 +729,12 @@ pub struct CGOSharedDirectoryListResponse {
     fso_list: *mut CGOFileSystemObject,
 }
 
-/// SharedDirectoryMoveRequest is sent from the TDP server to the client
-/// to request a file at original_path be moved to new_path.
-#[derive(Debug)]
-pub struct SharedDirectoryMoveRequest {
-    completion_id: u32,
-    directory_id: u32,
-    original_path: UnixPath,
-    new_path: UnixPath,
-}
-
 #[repr(C)]
 pub struct CGOSharedDirectoryMoveRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub original_path: *const c_char,
     pub new_path: *const c_char,
-}
-
-/// SharedDirectoryCreateResponse is sent by the TDP client to the server
-/// to acknowledge a SharedDirectoryCreateRequest was received and executed.
-#[derive(Debug)]
-pub struct SharedDirectoryCreateResponse {
-    completion_id: u32,
-    err_code: TdpErrCode,
-    fso: FileSystemObject,
 }
 
 #[repr(C)]
@@ -1492,30 +744,6 @@ pub struct CGOSharedDirectoryCreateResponse {
     pub fso: CGOFileSystemObject,
 }
 
-impl From<CGOSharedDirectoryCreateResponse> for SharedDirectoryCreateResponse {
-    fn from(cgo_res: CGOSharedDirectoryCreateResponse) -> SharedDirectoryCreateResponse {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        SharedDirectoryCreateResponse {
-            completion_id: cgo_res.completion_id,
-            err_code: cgo_res.err_code,
-            fso: FileSystemObject::from(cgo_res.fso),
-        }
-    }
-}
-
-/// SharedDirectoryDeleteRequest is sent by the TDP server to the client
-/// to request the deletion of a file or directory at path.
-#[derive(Debug)]
-pub struct SharedDirectoryDeleteRequest {
-    completion_id: u32,
-    directory_id: u32,
-    path: UnixPath,
-}
-
 #[repr(C)]
 pub struct CGOSharedDirectoryDeleteRequest {
     pub completion_id: u32,
@@ -1523,36 +751,9 @@ pub struct CGOSharedDirectoryDeleteRequest {
     pub path: *const c_char,
 }
 
-/// SharedDirectoryDeleteResponse is sent by the TDP client to the server
-/// to acknowledge a SharedDirectoryDeleteRequest was received and executed.
-#[derive(Debug)]
-#[repr(C)]
-pub struct SharedDirectoryDeleteResponse {
-    completion_id: u32,
-    err_code: TdpErrCode,
-}
-
 pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryDeleteResponse;
 
-/// SharedDirectoryMoveResponse is sent by the TDP client to the server
-/// to acknowledge a SharedDirectoryMoveRequest was received and expected.
-#[derive(Debug)]
-#[repr(C)]
-pub struct SharedDirectoryMoveResponse {
-    completion_id: u32,
-    err_code: TdpErrCode,
-}
-
 pub type CGOSharedDirectoryMoveResponse = SharedDirectoryMoveResponse;
-
-/// SharedDirectoryListRequest is sent by the TDP server to the client
-/// to request the contents of a directory.
-#[derive(Debug)]
-pub struct SharedDirectoryListRequest {
-    completion_id: u32,
-    directory_id: u32,
-    path: UnixPath,
-}
 
 #[repr(C)]
 pub struct CGOSharedDirectoryListRequest {
@@ -1621,3 +822,7 @@ pub(crate) trait Encode: std::fmt::Debug {
 /// Note that this is not an RDP defined value, but rather one we've chosen
 /// in order to harden system security.
 const MAX_ALLOWED_VCHAN_MSG_SIZE: usize = 2 * 1024 * 1024; // 2MB
+
+const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
+const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
+const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
