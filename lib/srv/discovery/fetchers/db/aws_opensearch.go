@@ -112,7 +112,7 @@ func (f *openSearchFetcher) Get(ctx context.Context) (types.ResourcesWithLabels,
 			}
 		}
 
-		dbs, err := services.NewDatabaseFromOpenSearchDomain(domain, tags)
+		dbs, err := services.NewDatabasesFromOpenSearchDomain(domain, tags)
 		if err != nil {
 			f.log.WithError(err).Infof("Could not convert OpenSearch domain %q configuration to database resource.", aws.StringValue(domain.DomainName))
 		} else {
