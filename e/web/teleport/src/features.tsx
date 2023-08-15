@@ -71,8 +71,8 @@ class FeatureAccessRequests implements TeleportFeature {
     icon: <EqualizersVertical />,
   };
 
-  hasAccess() {
-    return !cfg.oss.isDashboard;
+  hasAccess(flags: FeatureFlags) {
+    return flags.accessRequests;
   }
   // display an alternate page with a call to action
   // in case the feature is locked in the cluster

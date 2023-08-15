@@ -184,6 +184,7 @@ func getLicenseFeatures(license types.License) modules.Features {
 		HSM:                     true,
 		RecoveryCodes:           license.GetCloud().Value(),
 		IsUsageBasedBilling:     false, // usage-based subscriptions don't use license as source of features
+		FeatureHiding:           license.GetSupportsFeatureHiding().Value(),
 		// Assist is disabled by default on Cloud.
 		// In case of the Team plan, this gets overridden to `true` by the dynamic features from Sales Center
 		Assist: !license.GetCloud().Value(),
