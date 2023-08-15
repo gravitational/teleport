@@ -31,6 +31,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
 	insecurerand "math/rand"
