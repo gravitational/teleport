@@ -113,6 +113,12 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/web \
     FuzzTdpMFACodecDecode fuzz_tdp_mfa_codec_decode
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
+    FuzzReadProxyLineV1 fuzz_read_proxy_linec_v1
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
+    FuzzReadProxyLineV2 fuzz_read_proxy_linec_v2
+
 }
 
 build_teleport_api_fuzzers() {
