@@ -30,7 +30,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // RegistrationIdentity represents the subset of Identity methods used by
@@ -42,8 +43,8 @@ type RegistrationIdentity interface {
 
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
-	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error
-	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error)
+	UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error
+	GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error)
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
@@ -52,7 +53,7 @@ type RegistrationIdentity interface {
 func WithInMemorySessionData(identity RegistrationIdentity) RegistrationIdentity {
 	return &inMemoryIdentity{
 		RegistrationIdentity: identity,
-		sessionData:          make(map[string]*wantypes.SessionData),
+		sessionData:          make(map[string]*wanpb.SessionData),
 	}
 }
 
@@ -63,17 +64,17 @@ type inMemoryIdentity struct {
 	// We don't foresee concurrent use for inMemoryIdentity, but it's easy enough
 	// to play it safe.
 	mu          sync.RWMutex
-	sessionData map[string]*wantypes.SessionData
+	sessionData map[string]*wanpb.SessionData
 }
 
-func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
+func (identity *inMemoryIdentity) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wanpb.SessionData) error {
 	identity.mu.Lock()
 	defer identity.mu.Unlock()
 	identity.sessionData[sessionDataKey(user, sessionID)] = sd
 	return nil
 }
 
-func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wantypes.SessionData, error) {
+func (identity *inMemoryIdentity) GetWebauthnSessionData(ctx context.Context, user, sessionID string) (*wanpb.SessionData, error) {
 	identity.mu.RLock()
 	defer identity.mu.RUnlock()
 	sd, ok := identity.sessionData[sessionDataKey(user, sessionID)]
@@ -126,7 +127,7 @@ type RegistrationFlow struct {
 // resident key.
 // As a side effect Begin may assign (and record in storage) a WebAuthn ID for
 // the user.
-func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless bool) (*CredentialCreation, error) {
+func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless bool) (*wantypes.CredentialCreation, error) {
 	if user == "" {
 		return nil, trace.BadParameter("user required")
 	}
@@ -192,7 +193,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		return nil, trace.Wrap(err)
 	}
 
-	return (*CredentialCreation)(cc), nil
+	return wantypes.CredentialCreationFromProtocol(cc), nil
 }
 
 func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIdentity) ([]byte, error) {
@@ -233,7 +234,7 @@ type RegisterResponse struct {
 	// DeviceName is the name for the new device.
 	DeviceName string
 	// CreationResponse is the response from the new device.
-	CreationResponse *CredentialCreationResponse
+	CreationResponse *wantypes.CredentialCreationResponse
 	// Passwordless is true if this is expected to be a passwordless registration.
 	// Callers may make certain concessions when processing passwordless
 	// registration (such as skipping password validation), this flag reflects that.
@@ -349,7 +350,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	return newDevice, nil
 }
 
-func parseCredentialCreationResponse(resp *CredentialCreationResponse) (*protocol.ParsedCredentialCreationData, error) {
+func parseCredentialCreationResponse(resp *wantypes.CredentialCreationResponse) (*protocol.ParsedCredentialCreationData, error) {
 	// Remove extensions before marshaling, duo-labs/webauthn isn't expecting it.
 	exts := resp.Extensions
 	resp.Extensions = nil
