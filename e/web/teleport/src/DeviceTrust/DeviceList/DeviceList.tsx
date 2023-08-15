@@ -3,14 +3,17 @@ import Table, { Cell } from 'design/DataTable';
 
 import * as Icons from 'design/Icon';
 
-import { TrustedDeviceResponse } from 'e-teleport/services/devices/types';
+import {
+  DeviceListProps,
+  TrustedDeviceOSType,
+} from 'teleport/DeviceTrust/types';
 
 export const DeviceList = ({
   items = [],
   pageSize = 50,
   fetchStatus = '',
   fetchData,
-}: Props) => {
+}: DeviceListProps) => {
   return (
     <Table
       data={items}
@@ -37,11 +40,7 @@ export const DeviceList = ({
   );
 };
 
-export const IconCell = ({
-  osType,
-}: {
-  osType: 'Windows' | 'Linux' | 'macOS';
-}) => {
+export const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
   let icon;
   switch (osType) {
     case 'Windows':
@@ -58,11 +57,4 @@ export const IconCell = ({
       {icon} {osType}
     </Cell>
   );
-};
-
-type Props = {
-  items: TrustedDeviceResponse['items'];
-  pageSize?: number;
-  fetchStatus?: 'loading' | 'disabled' | '';
-  fetchData?: () => void;
 };

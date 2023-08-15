@@ -388,8 +388,8 @@ exports[`render successful first timer recovery codes dialog 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  font-weight: 400;
+  font-size: 18px;
   line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;
@@ -874,8 +874,8 @@ exports[`render successful recovery codes dialog 1`] = `
 .c9 {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
+  font-weight: 400;
+  font-size: 18px;
   line-height: 32px;
   margin: 0px;
   margin-bottom: 16px;

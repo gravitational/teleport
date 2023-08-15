@@ -6,7 +6,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { DeviceTrust } from './DeviceTrust';
 
-import type { TrustedDevice } from 'e-teleport/services/devices/types';
+import type { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 import type { State } from './useDevices';
 

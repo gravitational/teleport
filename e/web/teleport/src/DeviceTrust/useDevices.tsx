@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { FetchStatus } from 'design/DataTable/types';
 
-import { TrustedDevice } from 'e-teleport/services/devices/types';
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 

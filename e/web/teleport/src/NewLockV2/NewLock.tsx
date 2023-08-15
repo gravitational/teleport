@@ -26,9 +26,10 @@ import {
   SimpleListProps,
 } from 'teleport/LocksV2/NewLock/ResourceList/common';
 
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
+
 import useTeleportE from 'e-teleport/useTeleportE';
 import { AccessRequest } from 'e-teleport/services/workflow';
-import { TrustedDevice } from 'e-teleport/services/devices/types';
 
 import { AccessRequests } from './SimpleList/AccessRequests';
 import { TrustedDevices } from './HybridList/TrustedDevices';

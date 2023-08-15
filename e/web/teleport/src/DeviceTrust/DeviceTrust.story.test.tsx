@@ -1,6 +1,8 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
+import cfg from 'e-teleport/config';
+
 import {
   Loaded,
   Failed,
@@ -15,6 +17,7 @@ test('loaded', () => {
 });
 
 test('loaded with CTA', () => {
+  cfg.oss.isUsageBasedBilling = true;
   const { container } = render(<LoadedWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });

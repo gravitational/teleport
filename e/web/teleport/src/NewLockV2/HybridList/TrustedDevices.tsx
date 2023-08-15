@@ -5,7 +5,8 @@ import {
   HybridListProps,
 } from 'teleport/LocksV2/NewLock/ResourceList/common';
 
-import { TrustedDevice } from 'e-teleport/services/devices/types';
+import { TrustedDevice } from 'teleport/DeviceTrust/types';
+
 import { IconCell } from 'e-teleport/DeviceTrust/DeviceList/DeviceList';
 
 export function TrustedDevices(
