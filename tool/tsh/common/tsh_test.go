@@ -1003,10 +1003,9 @@ func approveAllAccessRequests(ctx context.Context, approver accessApprover) erro
 // sessions when set either via role or cluster auth preference.
 // Sessions created via hostname and by matched labels are
 // verified.
-//
-// NOTE: This test must NOT be run in parallel because it updates
-// the global [client.PromptWebauthn] in multiple test cases.
 func TestSSHOnMultipleNodes(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

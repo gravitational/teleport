@@ -55,6 +55,8 @@ import (
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
+	t.Parallel()
+
 	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
