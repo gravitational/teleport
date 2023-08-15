@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Platform } from 'design/theme/utils';
+
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 import {
@@ -25,6 +27,10 @@ import { ResourceKind } from '../Shared';
 
 import { sortResources } from './SelectResource';
 import { ResourceSpec } from './types';
+
+const setUp = () => {
+  jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Macintosh');
+};
 
 const makeResourceSpec = (
   overrides: Partial<ResourceSpec> = {}
@@ -43,6 +49,7 @@ const makeResourceSpec = (
 };
 
 test('sortResources without preferred resources, sorts resources alphabetically with guided resources first', () => {
+  setUp();
   const mockIn: ResourceSpec[] = [
     // unguided
     makeResourceSpec({ name: 'jenkins', unguidedLink: 'test.com' }),
@@ -90,6 +97,10 @@ const kindBasedList: ResourceSpec[] = [
 ];
 
 describe('preferred resources', () => {
+  beforeEach(() => {
+    setUp();
+  });
+
   const testCases: {
     name: string;
     preferred: OnboardUserPreferences;
@@ -233,5 +244,169 @@ describe('preferred resources', () => {
     const actual = sortResources(kindBasedList, preferences);
 
     expect(actual).toMatchObject(testCase.expected);
+  });
+});
+
+const osBasedList: ResourceSpec[] = [
+  makeResourceSpec({ name: 'Aaaa' }),
+  makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+  makeResourceSpec({ name: 'linux-2', platform: Platform.PLATFORM_LINUX }),
+  makeResourceSpec({ name: 'mac', platform: Platform.PLATFORM_MACINTOSH }),
+  makeResourceSpec({ name: 'linux-1', platform: Platform.PLATFORM_LINUX }),
+];
+
+describe('os sorted resources', () => {
+  let OS;
+
+  beforeEach(() => {
+    OS = jest.spyOn(window.navigator, 'userAgent', 'get');
+  });
+
+  const testCases: {
+    name: string;
+    platform: Platform;
+    expected: ResourceSpec[];
+  }[] = [
+    {
+      name: 'running mac',
+      platform: Platform.PLATFORM_MACINTOSH,
+      expected: [
+        // preferred first
+        makeResourceSpec({
+          name: 'mac',
+          platform: Platform.PLATFORM_MACINTOSH,
+        }),
+        // alpha
+        makeResourceSpec({ name: 'Aaaa' }),
+        makeResourceSpec({
+          name: 'linux-1',
+          platform: Platform.PLATFORM_LINUX,
+        }),
+        makeResourceSpec({
+          name: 'linux-2',
+          platform: Platform.PLATFORM_LINUX,
+        }),
+        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+      ],
+    },
+    {
+      name: 'running linux',
+      platform: Platform.PLATFORM_LINUX,
+      expected: [
+        // preferred first
+        makeResourceSpec({
+          name: 'linux-1',
+          platform: Platform.PLATFORM_LINUX,
+        }),
+        makeResourceSpec({
+          name: 'linux-2',
+          platform: Platform.PLATFORM_LINUX,
+        }),
+        // alpha
+        makeResourceSpec({ name: 'Aaaa' }),
+        makeResourceSpec({
+          name: 'mac',
+          platform: Platform.PLATFORM_MACINTOSH,
+        }),
+        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+      ],
+    },
+    {
+      name: 'running windows',
+      platform: Platform.PLATFORM_WINDOWS,
+      expected: [
+        // preferred first
+        makeResourceSpec({ name: 'win', platform: Platform.PLATFORM_WINDOWS }),
+        // alpha
+        makeResourceSpec({ name: 'Aaaa' }),
+        makeResourceSpec({
+          name: 'linux-1',
+          platform: Platform.PLATFORM_LINUX,
+        }),
+        makeResourceSpec({
+          name: 'linux-2',
+          platform: Platform.PLATFORM_LINUX,
+        }),
+        makeResourceSpec({
+          name: 'mac',
+          platform: Platform.PLATFORM_MACINTOSH,
+        }),
+      ],
+    },
+  ];
+
+  test.each(testCases)('$name', testCase => {
+    OS.mockReturnValue(testCase.platform);
+
+    const actual = sortResources(osBasedList, makeDefaultUserPreferences());
+    expect(actual).toMatchObject(testCase.expected);
+  });
+
+  test('does not prioritize os if the user does not have access', () => {
+    const mockIn: ResourceSpec[] = [
+      makeResourceSpec({
+        name: 'macOs',
+        platform: Platform.PLATFORM_MACINTOSH,
+        hasAccess: false,
+      }),
+      makeResourceSpec({ name: 'Aaaa' }),
+    ];
+    OS.mockReturnValue(Platform.PLATFORM_MACINTOSH);
+
+    const actual = sortResources(mockIn, makeDefaultUserPreferences());
+    expect(actual).toMatchObject([
+      makeResourceSpec({ name: 'Aaaa' }),
+      makeResourceSpec({
+        name: 'macOs',
+        platform: Platform.PLATFORM_MACINTOSH,
+        hasAccess: false,
+      }),
+    ]);
+  });
+
+  const oneOfEachList: ResourceSpec[] = [
+    makeResourceSpec({
+      name: 'no access but super matches',
+      hasAccess: false,
+      platform: Platform.PLATFORM_MACINTOSH,
+      kind: ResourceKind.Server,
+    }),
+    makeResourceSpec({ name: 'guided' }),
+    makeResourceSpec({ name: 'unguidedA', unguidedLink: 'test.com' }),
+    makeResourceSpec({ name: 'unguidedB', unguidedLink: 'test.com' }),
+    makeResourceSpec({
+      name: 'platform match',
+      platform: Platform.PLATFORM_MACINTOSH,
+    }),
+    makeResourceSpec({ name: 'preferred', kind: ResourceKind.Server }),
+  ];
+
+  test('all logic together', () => {
+    OS.mockReturnValue(Platform.PLATFORM_MACINTOSH);
+    const preferences = makeDefaultUserPreferences();
+    preferences.onboard = { preferredResources: [2] };
+
+    const actual = sortResources(oneOfEachList, preferences);
+    expect(actual).toMatchObject([
+      // 1. OS
+      makeResourceSpec({
+        name: 'platform match',
+        platform: Platform.PLATFORM_MACINTOSH,
+      }),
+      // 2. preferred
+      makeResourceSpec({ name: 'preferred', kind: ResourceKind.Server }),
+      // 3. guided
+      makeResourceSpec({ name: 'guided' }),
+      // 4. alpha
+      makeResourceSpec({ name: 'unguidedA', unguidedLink: 'test.com' }),
+      makeResourceSpec({ name: 'unguidedB', unguidedLink: 'test.com' }),
+      // 5. no access is last
+      makeResourceSpec({
+        name: 'no access but super matches',
+        hasAccess: false,
+        platform: Platform.PLATFORM_MACINTOSH,
+        kind: ResourceKind.Server,
+      }),
+    ]);
   });
 });
