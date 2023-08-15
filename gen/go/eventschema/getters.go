@@ -25,13 +25,6 @@ import (
 	events2 "github.com/gravitational/teleport/lib/events"
 )
 
-var dmlType = map[string]string{
-	"string":    "varchar",
-	"integer":   "integer",
-	"boolean":   "boolean",
-	"date-time": "timestamp",
-}
-
 func GetEventSchemaFromType(eventType string) (*Event, error) {
 	fields := events2.EventFields{"event": eventType}
 	eventStruct, err := events2.FromEventFields(fields)
@@ -71,7 +64,7 @@ func (event *Event) TableSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("column_name, column_type, description\n")
 	err := iterateOverFields(event.Fields, func(propName string, prop *EventField) error {
-		line, err := prop.TableSchema(propName)
+		line, err := prop.TableSchema([]string{propName})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -81,12 +74,12 @@ func (event *Event) TableSchema() (string, error) {
 	return sb.String(), trace.Wrap(err)
 }
 
-func (field *EventField) TableSchema(name string) (string, error) {
+func (field *EventField) TableSchema(path []string) (string, error) {
 	sb := strings.Builder{}
 	switch field.Type {
 	case "object":
 		err := iterateOverFields(field.Fields, func(propName string, prop *EventField) error {
-			line, err := prop.TableSchema(fmt.Sprintf("%s_%s", name, propName))
+			line, err := prop.TableSchema(append(path, propName))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -96,10 +89,8 @@ func (field *EventField) TableSchema(name string) (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-	case "string", "integer", "boolean", "date-time":
-		sb.WriteString(tableSchemaLine(name, dmlType[field.Type], field.Description))
-	case "array":
-		sb.WriteString(tableSchemaLine(name, fmt.Sprintf("array(%s)", dmlType[field.Items.Type]), field.Description))
+	case "string", "integer", "boolean", "date-time", "array":
+		sb.WriteString(tableSchemaLine(viewFieldName(path), field.dmlType(), field.Description))
 	default:
 		return "", trace.NotImplemented("field type '%s' not supported", field.Type)
 	}
@@ -109,7 +100,7 @@ func (field *EventField) TableSchema(name string) (string, error) {
 func (event *Event) ViewSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("SELECT\n")
-	sb.WriteString("  event_date, event_time,\n")
+	sb.WriteString("  event_date, event_time\n")
 	err := iterateOverFields(event.Fields, func(propName string, prop *EventField) error {
 		line, err := prop.ViewSchema([]string{propName})
 		if err != nil {
@@ -136,10 +127,8 @@ func (field *EventField) ViewSchema(path []string) (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-	case "string", "integer", "boolean", "date-time":
-		sb.WriteString(viewSchemaLine(jsonFieldName(path), path[len(path)-1], dmlType[field.Type]))
-	case "array":
-		sb.WriteString(viewSchemaLine(jsonFieldName(path), path[len(path)-1], fmt.Sprintf("array(%s)", dmlType[field.Items.Type])))
+	case "string", "integer", "boolean", "date-time", "array":
+		sb.WriteString(viewSchemaLine(jsonFieldName(path), viewFieldName(path), field.dmlType()))
 	default:
 		return "", trace.NotImplemented("field type '%s' not supported", field.Type)
 	}
@@ -148,6 +137,36 @@ func (field *EventField) ViewSchema(path []string) (string, error) {
 
 func tableSchemaLine(columnName, columnType, description string) string {
 	return fmt.Sprintf("%s, %s, %s\n", columnName, columnType, description)
+}
+
+func (field *EventField) dmlType() string {
+	switch field.Type {
+	case "string":
+		return "varchar"
+	case "integer":
+		return "integer"
+	case "boolean":
+		return "boolean"
+	case "date-time":
+		return "timestamp"
+	case "array":
+		if field.Items == nil {
+			return "array(varchar)"
+		}
+		return fmt.Sprintf("array(%s)", field.Items.dmlType())
+	case "object":
+		if field.Fields == nil || len(field.Fields) == 0 {
+			return "varchar"
+		}
+		rowTypes := make([]string, 0, len(field.Fields))
+		for name, subField := range field.Fields {
+			rowTypes = append(rowTypes, fmt.Sprintf("%s %s", name, subField.dmlType()))
+		}
+		return fmt.Sprintf("row(%s)", strings.Join(rowTypes, ", "))
+	default:
+		// If all else fails, we cast as a string, at last this is usable
+		return "varchar"
+	}
 }
 
 // We use the $["foo"]["bar"] syntax instead of the $.foo.bar syntax because
@@ -162,8 +181,12 @@ func jsonFieldName(path []string) string {
 	return sb.String()
 }
 
+func viewFieldName(path []string) string {
+	return strings.ReplaceAll(strings.Join(path, "_"), ".", "_")
+}
+
 func viewSchemaLine(jsonField, viewField, fieldType string) string {
-	return fmt.Sprintf("  CAST(json_extract(event_data, '%s') AS %s) as %s,\n", jsonField, fieldType, viewField)
+	return fmt.Sprintf("  , CAST(json_extract(event_data, '%s') AS %s) as %s\n", jsonField, fieldType, viewField)
 }
 
 // iterateOverFields iterates over Event or EventField fields while ensuring
