@@ -74,6 +74,8 @@ type Features struct {
 	DeviceTrust DeviceTrustFeature
 	// AccessRequests holds its namesake feature settings.
 	AccessRequests AccessRequestsFeature
+	// FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
+	FeatureHiding bool
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -116,6 +118,7 @@ func (f Features) ToProto() *proto.Features {
 		AutomaticUpgrades:       f.AutomaticUpgrades,
 		IsUsageBased:            f.IsUsageBasedBilling,
 		Assist:                  f.Assist,
+		FeatureHiding:           f.FeatureHiding,
 		DeviceTrust: &proto.DeviceTrustFeature{
 			Enabled:           f.DeviceTrust.Enabled,
 			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
