@@ -327,10 +327,10 @@ func TestProxyResync(t *testing.T) {
 			require.NotNil(t, req)
 			require.Len(t, req.Proxies, 2)
 
-			sort.Slice(req.Proxies, func(i, j int) bool { return req.Proxies[i].GetName() < req.Proxies[j].GetName() })
+			sort.Slice(req.Proxies, func(i, j int) bool { return req.Proxies[i].Metadata.Name < req.Proxies[j].Metadata.Name })
 
-			require.Equal(t, req.Proxies[0].GetName(), expected[0].GetName())
-			require.Equal(t, req.Proxies[1].GetName(), expected[1].GetName())
+			require.Equal(t, req.Proxies[0].Metadata.Name, expected[0].GetName())
+			require.Equal(t, req.Proxies[1].Metadata.Name, expected[1].GetName())
 		case <-time.After(10 * time.Second):
 			t.Fatal("timed out waiting for discovery request")
 		}

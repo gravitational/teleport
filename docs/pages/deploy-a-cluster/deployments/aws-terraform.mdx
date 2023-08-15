@@ -768,7 +768,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../reference/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../management/join-services-to-your-cluster.mdx)
+  cluster](../../agents/join-services-to-your-cluster.mdx)
 
 ### Getting the CA pin hash
 
@@ -790,7 +790,7 @@ $ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_clu
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../management/join-services-to-your-cluster/join-token.mdx).
+You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../agents/join-services-to-your-cluster/join-token.mdx).
 
 ### Joining Nodes via the Teleport Auth Service
 
@@ -811,7 +811,7 @@ auth_server: example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com:3
 ### Joining Nodes via Teleport IoT/Node tunneling
 
 To join Teleport Nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
-for this document) or join your nodes using [Teleport's node tunneling](../../management/join-services-to-your-cluster/join-token.mdx) functionality.
+for this document) or join your nodes using [Teleport's node tunneling](../../agents/join-services-to-your-cluster/join-token.mdx) functionality.
 
 With this method, you can join the nodes using the public facing proxy address - `teleport.example.com:443` for our
 example.

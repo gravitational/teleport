@@ -14,7 +14,7 @@
 
 import { base64ToArrayBuffer } from 'shared/utils/base64';
 
-import Client, { TdpClientEvent } from './client';
+import Client from './client';
 
 enum Action {
   TOGGLE_PLAY_PAUSE = 'play/pause',
@@ -66,9 +66,9 @@ export class PlayerClient extends Client {
 
   // Overrides Client implementation.
   handleClientScreenSpec(buffer: ArrayBuffer) {
+    console.log('handleClientScreenSpec');
     const spec = this.codec.decodeClientScreenSpec(buffer);
-    this.initFastPathProcessor(spec);
-    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
+    this.setClientScreenSpec(spec);
   }
 
   // Overrides Client implementation. This prevents the Client from sending

@@ -6,7 +6,7 @@ layout: tocless-doc
 
 After [deploying a Teleport cluster](../deploy-a-cluster/introduction.mdx), the
 next step is to manage the access that Teleport users have to resources in your
-infrastructure. 
+infrastructure.
 
 Teleport's role-based access control (RBAC) enables you to set fine-grained
 policies for who can perform certain actions against specific resources. For
@@ -16,7 +16,7 @@ example:
   database.
 - Interns can't access production databases.
 - SREs can access a production server only when using a [trusted hardware
-  device](./guides/device-trust.mdx).
+  device](./device-trust/guide.mdx).
 - Members of a team can access the production Kubernetes cluster if approved by
   someone else from the same team.
 
@@ -30,7 +30,7 @@ Started](./getting-started.mdx) guide.
 The heart of Teleport's RBAC system is the **role**, a configuration document
 that specifies access policies for resources in your Teleport cluster.
 Assigning a role to a Teleport user applies the policies listed in the role to
-the user. 
+the user.
 
 See the [Cluster Access and RBAC](./guides.mdx) section for instructions on
 setting up Teleport roles.
@@ -39,7 +39,7 @@ setting up Teleport roles.
 
 While you can create Teleport users directly on the Auth Service, the more
 scalable approach is to integrate Teleport with a Single Sign-On identity
-provider (IdP), such as Okta or GitHub. 
+provider (IdP), such as Okta or GitHub.
 
 When a user authenticates to your Teleport cluster via your IdP, Teleport
 automatically assigns roles to the user based on data provided by the IdP. This

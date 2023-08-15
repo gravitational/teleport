@@ -1,6 +1,37 @@
-ARG BUILDBOX
 # BUILDPLATFORM is provided by Docker/buildx
-FROM --platform=$BUILDPLATFORM $BUILDBOX as builder
+FROM --platform=$BUILDPLATFORM docker.io/debian:11 as builder
+ARG BUILDARCH
+
+## Install dependencies.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    unzip \
+    build-essential \
+    gcc-arm-linux-gnueabi \
+    binutils-arm-linux-gnueabi \
+    gcc-aarch64-linux-gnu \
+    binutils-aarch64-linux-gnu
+
+# Install Go.
+ARG GOLANG_VERSION
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+    chmod a+w /var/lib && \
+    chmod a-w /
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin"
+
+# Install protoc.
+ARG PROTOC_VER # eg, "3.20.2"
+RUN VERSION="$PROTOC_VER" && \
+  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
+  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
+  unzip "$PB_FILE" -d /usr/local && \
+  rm -f "$PB_FILE"
+
+## Build the operator
 
 WORKDIR /go/src/github.com/gravitational/teleport
 
@@ -28,7 +59,9 @@ COPY integrations/operator/namespace.go integrations/operator/namespace.go
 # Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
 #  in most cases, to avoid issues on systems with multiple versions of gcc (i.e. buildboxes)
 # TARGETOS and TARGETARCH are provided by Docker/buildx, but must be explicitly listed here
-ARG COMPILER_NAME TARGETOS TARGETARCH
+ARG COMPILER_NAME
+ARG TARGETOS
+ARG TARGETARCH
 
 # Build the program
 # CGO is required for github.com/gravitational/teleport/lib/system

@@ -38,12 +38,6 @@ type Inventory interface {
 type InventoryInternal interface {
 	Inventory
 
-	// GetRawInstance gets an instance resource as it appears in the backend, along with its
-	// associated raw key value for use with CompareAndSwapInstance.
-	GetRawInstance(ctx context.Context, serverID string) (types.Instance, []byte, error)
-
-	// CompareAndSwapInstance creates or updates the underlying instance resource based on the currently
-	// expected value. The first call to this method should use the value returned by GetRawInstance for the
-	// 'expect' parameter. Subsequent calls should use the value returned by this method.
-	CompareAndSwapInstance(ctx context.Context, instance types.Instance, expect []byte) ([]byte, error)
+	// UpsertInstance creates or updates an instance resource.
+	UpsertInstance(ctx context.Context, instance types.Instance) error
 }

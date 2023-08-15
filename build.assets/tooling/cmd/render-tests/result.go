@@ -170,7 +170,6 @@ func (rr *runResult) printSummary(out io.Writer) {
 }
 
 func (rr *runResult) printFlakinessSummary(out io.Writer) {
-	fmt.Fprintln(out, separator)
 	if rr.testCount.fail == 0 {
 		fmt.Fprintln(out, "No flaky tests!")
 		return
@@ -187,6 +186,15 @@ func (rr *runResult) printFlakinessSummary(out io.Writer) {
 				alltests = append(alltests, test)
 			}
 		}
+		// Create a pseudo-test result for the package level output
+		// as it can contain relevant output not included in individual
+		// tests such as crash or data race output.
+		tr := &testResult{
+			name:   pkg.name,
+			count:  pkg.count,
+			output: pkg.output,
+		}
+		alltests = append(alltests, tr)
 	}
 	// reverse sort by failure rate
 	sort.Slice(alltests, func(i, j int) bool {
@@ -196,18 +204,8 @@ func (rr *runResult) printFlakinessSummary(out io.Writer) {
 		if rr.top != 0 && i >= rr.top {
 			break
 		}
-		fmt.Fprintf(out, "FAIL(%3.1f%%): %s\n", test.count.failureRate()*100, test.name)
+		fmt.Fprintf(out, "FAIL(%d/%d): %s\n", test.count.fail, test.count.total, test.name)
 	}
-
-	fmt.Fprintln(out, separator)
-
-	for i, test := range alltests {
-		if rr.top != 0 && i >= rr.top {
-			break
-		}
-		printOutput(out, test.name, test.output)
-	}
-
 }
 
 // printFailedTests prints a summary list of the failed tests and packages in
@@ -240,19 +238,15 @@ func (rr *runResult) printFailedTestOutput(out io.Writer) {
 	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].name < pkgs[j].name })
 
 	for _, pkg := range pkgs {
-		testPrinted := false
 		if pkg.count.fail == 0 {
 			continue
 		}
+		printOutput(out, pkg.name, pkg.output)
 		for _, test := range pkg.tests {
 			if test.count.fail == 0 {
 				continue
 			}
 			printOutput(out, test.name, test.output)
-			testPrinted = true
-		}
-		if !testPrinted {
-			printOutput(out, pkg.name, pkg.output)
 		}
 	}
 }
@@ -267,17 +261,6 @@ func printOutput(out io.Writer, test string, output []string) {
 }
 
 func (pr *packageResult) processTestEvent(te TestEvent) {
-	if te.Action == actionOutput {
-		// Record the output of package AND test against the package
-		// TODO(camh): Why? not sure that makes sense
-
-		// Only append output if no failures. We only record the output
-		// of the first failure so we don't store too much redundant output.
-		if pr.count.fail == 0 {
-			pr.output = append(pr.output, te.Output)
-		}
-	}
-
 	if te.Test != "" {
 		tst := pr.getTest(pr.name + "." + te.Test)
 		tst.processTestEvent(te)
@@ -285,6 +268,11 @@ func (pr *packageResult) processTestEvent(te TestEvent) {
 	}
 
 	if te.Action == actionOutput {
+		// Only append output if no failures. We only record the output
+		// of the first failure so we don't store too much redundant output.
+		if pr.count.fail == 0 {
+			pr.output = append(pr.output, te.Output)
+		}
 		if matches := covPattern.FindStringSubmatch(te.Output); len(matches) > 0 {
 			value, err := strconv.ParseFloat(matches[1], 64)
 			if err != nil {

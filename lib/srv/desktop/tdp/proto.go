@@ -76,6 +76,7 @@ const (
 	TypeNotification                  = MessageType(28)
 	TypeRDPFastPathPDU                = MessageType(29)
 	TypeRDPResponsePDU                = MessageType(30)
+	TypeRDPChannelIDs                 = MessageType(31)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -118,6 +119,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeRDPFastPathPDU(in)
 	case TypeRDPResponsePDU:
 		return decodeRDPResponsePDU(in)
+	case TypeRDPChannelIDs:
+		return decodeRDPChannelIDs(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -262,11 +265,10 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// Encode gets called on the reusable buffer at
 	// lib/srv/desktop/rdp/rdclient.Client.png2FrameBuffer,
 	// which was causing us recording problems due to the async
-	// nature of AuditWriter. Copying into a new buffer here is
+	// nature of SessionWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3): remove this once a buffer pool
-	// is added.
+	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
@@ -278,7 +280,9 @@ func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
 func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
 func (f PNG2Frame) Data() []byte   { return f[21:] }
 
-// RDPFastPathPDU is a FastPath frame message.
+// RDPFastPathPDU is an RDP Fast-Path PDU message. It carries a raw
+// RDP Server Fast-Path Update PDU (https://tinyurl.com/3t2t6er8) which
+// is used to transport image data to the frontend.
 //
 // | message type (29) | data_length uint32 | data []byte |
 //
@@ -289,13 +293,15 @@ func (f PNG2Frame) Data() []byte   { return f[21:] }
 type RDPFastPathPDU []byte
 
 func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
-	// Read PNG length so we can allocate buffer that will fit RDPFastPathPDU message
+	// Read data length so we can allocate buffer that will fit RDPFastPathPDU message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
 		return RDPFastPathPDU(nil), trace.Wrap(err)
 	}
 
 	// Allocate buffer that will fit the data
+	// TODO(isaiah): improve performance by changing
+	// this api to allow buffer re-use.
 	data := make([]byte, dataLength)
 
 	// Write the data into the buffer
@@ -307,14 +313,17 @@ func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
 }
 
 func (f RDPFastPathPDU) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeRDPFastPathPDU))
-	writeUint32(buf, uint32(len(f)))
-	buf.Write(f)
-	return buf.Bytes(), nil
+	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
+	b := make([]byte, 1+4+len(f))                      // byte + uint32 + len(f)
+	b[0] = byte(TypeRDPFastPathPDU)                    // message type (29)
+	binary.BigEndian.PutUint32(b[1:5], uint32(len(f))) // data_length uint32
+	copy(b[5:], f)                                     // data []byte
+	return b, nil
 }
 
-// RDPResponsePDU is a fast path response message.
+// RDPResponsePDU is an RDP Response PDU message. It carries a raw
+// encoded RDP response PDU created by the ironrdp client on the
+// frontend and sends it directly to the RDP server.
 //
 // | message type (30) | data_length uint32 | data []byte |
 //
@@ -344,6 +353,30 @@ func (r RDPResponsePDU) Encode() ([]byte, error) {
 	writeUint32(buf, uint32(len(r)))
 	buf.Write(r)
 	return buf.Bytes(), nil
+}
+
+// RDPChannelIDs are the IO and user channel IDs negotiated during the RDP connection.
+//
+// See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
+//
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+type RDPChannelIDs struct {
+	IOChannelID   uint16
+	UserChannelID uint16
+}
+
+func (c RDPChannelIDs) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeRDPChannelIDs))
+	writeUint16(buf, c.IOChannelID)
+	writeUint16(buf, c.UserChannelID)
+	return buf.Bytes(), nil
+}
+
+func decodeRDPChannelIDs(in byteReader) (RDPChannelIDs, error) {
+	var ids RDPChannelIDs
+	err := binary.Read(in, binary.BigEndian, &ids)
+	return ids, trace.Wrap(err)
 }
 
 // MouseMove is the mouse movement message.
@@ -983,7 +1016,6 @@ func decodeSharedDirectoryCreateRequest(in io.Reader) (SharedDirectoryCreateRequ
 		FileType:     fileType,
 		Path:         path,
 	}, nil
-
 }
 
 // SharedDirectoryCreateResponseis sent by the TDP client to the server with information from an executed SharedDirectoryCreateRequest.
@@ -1384,7 +1416,6 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 		WriteDataLength: writeDataLength,
 		WriteData:       writeData,
 	}, nil
-
 }
 
 // SharedDirectoryWriteResponse is a message sent by the TDP client to the server
@@ -1514,6 +1545,12 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 	return string(s), nil
 }
 
+// writeUint16 writes v to b in big endian order
+func writeUint16(b *bytes.Buffer, v uint16) {
+	b.WriteByte(byte(v >> 8))
+	b.WriteByte(byte(v))
+}
+
 // writeUint32 writes v to b in big endian order
 func writeUint32(b *bytes.Buffer, v uint32) {
 	b.WriteByte(byte(v >> 24))
@@ -1534,17 +1571,19 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v))
 }
 
-// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
-// the browser (Teleport never receives this message, so won't be decoding it)
-const tdpMaxNotificationMessageLength = 10240
+const (
+	// tdpMaxNotificationMessageLength is somewhat arbitrary, as it is only sent *to*
+	// the browser (Teleport never receives this message, so won't be decoding it)
+	tdpMaxNotificationMessageLength = 10240
 
-// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
-// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
-// The limit is kept as an additional defense-in-depth measure.
-const tdpMaxPathLength = 10240
+	// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
+	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
+	// The limit is kept as an additional defense-in-depth measure.
+	tdpMaxPathLength = 10240
 
-const maxClipboardDataLength = 1024 * 1024    // 1MB
-const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+	maxClipboardDataLength    = 1024 * 1024 // 1MB
+	tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+)
 
 // maxPNGFrameDataLength is maximum data length for PNG2Frame
 const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB

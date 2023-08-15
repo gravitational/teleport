@@ -119,7 +119,7 @@ const (
 # A Sample Teleport configuration file.
 #
 # Things to update:
-#  1. license.pem: You only need a license from https://dashboard.goteleport.com
+#  1. license.pem: Retrieve a license from your Teleport account https://teleport.sh
 #     if you are an Enterprise customer.
 #`
 )

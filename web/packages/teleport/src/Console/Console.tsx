@@ -25,7 +25,6 @@ import AjaxPoller from 'teleport/components/AjaxPoller';
 
 import { useConsoleContext, useStoreDocs } from './consoleContextProvider';
 import * as stores from './stores/types';
-import { colors } from './colors';
 import Tabs from './Tabs';
 import ActionBar from './ActionBar';
 import DocumentSsh from './DocumentSsh';
@@ -35,8 +34,6 @@ import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
 import useOnExitConfirmation from './useOnExitConfirmation';
 import useKeyboardNav from './useKeyboardNav';
-
-import { ConsoleThemeProvider } from './ThemeProvider';
 
 const POLL_INTERVAL = 5000; // every 5 sec
 
@@ -87,39 +84,37 @@ export default function Console() {
   ));
 
   return (
-    <ConsoleThemeProvider>
-      <StyledConsole>
-        {attempt.status === 'failed' && (
-          <Danger>{`Error: ${attempt.statusText} (Try refreshing the page)`}</Danger>
-        )}
-        {attempt.status === 'processing' && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
-        {attempt.status === 'success' && (
-          <>
-            <Flex bg={colors.terminalDark} height="32px">
-              <Tabs
-                flex="1"
-                items={documents}
-                onClose={onTabClose}
-                onSelect={onTabClick}
-                activeTab={activeDocId}
-                clusterId={clusterId}
-                disableNew={disableNewTab}
-                onNew={onTabNew}
-              />
-              <ActionBar onLogout={onLogout} />
-            </Flex>
-            {$docs}
-            {hasSshSessions && (
-              <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
-            )}
-          </>
-        )}
-      </StyledConsole>
-    </ConsoleThemeProvider>
+    <StyledConsole>
+      {attempt.status === 'failed' && (
+        <Danger>{`Error: ${attempt.statusText} (Try refreshing the page)`}</Danger>
+      )}
+      {attempt.status === 'processing' && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+      {attempt.status === 'success' && (
+        <>
+          <Flex bg="levels.surface" height="32px">
+            <Tabs
+              flex="1"
+              items={documents}
+              onClose={onTabClose}
+              onSelect={onTabClick}
+              activeTab={activeDocId}
+              clusterId={clusterId}
+              disableNew={disableNewTab}
+              onNew={onTabNew}
+            />
+            <ActionBar onLogout={onLogout} />
+          </Flex>
+          {$docs}
+          {hasSshSessions && (
+            <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
+          )}
+        </>
+      )}
+    </StyledConsole>
   );
 }
 
@@ -141,7 +136,7 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
 }
 
 const StyledConsole = styled.div`
-  background-color: ${colors.bgTerminal};
+  background-color: ${props => props.theme.colors.levels.sunken};
   bottom: 0;
   left: 0;
   position: absolute;

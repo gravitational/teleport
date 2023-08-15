@@ -119,12 +119,23 @@ func TestUsers(t *testing.T) {
 		// Validate db6 is same as before.
 		requireDatabaseWithManagedUsers(t, users, db6, []string{"alice", "bob"})
 	})
+
+	t.Run("new database with same name", func(t *testing.T) {
+		newDB6 := mustCreateRDSDatabase(t, "db6")
+		users.setupDatabaseAndRotatePasswords(ctx, newDB6)
+
+		// Make sure no users are cached for "db6".
+		_, err := users.GetPassword(context.Background(), db6, "alice")
+		require.Error(t, err)
+	})
 }
 
 func requireDatabaseWithManagedUsers(t *testing.T, users *Users, db types.Database, managedUsers []string) {
 	require.Equal(t, managedUsers, db.GetManagedUsers())
 	for _, username := range managedUsers {
-		password, err := users.GetPassword(context.TODO(), db, username)
+		// Usually a copy of the proxied database is passed to the engine
+		// instead of the same object.
+		password, err := users.GetPassword(context.Background(), db.Copy(), username)
 		require.NoError(t, err)
 		require.NotEmpty(t, password)
 	}

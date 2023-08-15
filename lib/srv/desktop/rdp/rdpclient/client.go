@@ -30,24 +30,24 @@ package rdpclient
 // The flow is roughly this:
 //    Go                                Rust
 // ==============================================
-//  rdpclient.New -----------------> connect_rdp
+//  rdpclient.New -----------------> client_connect
 //                   *connected*
 //
 //            *register output callback*
-//                -----------------> read_rdp_output
+//                -----------------> client_read_rdp_output
 //  handleBitmap  <----------------
 //  handleBitmap  <----------------
 //  handleBitmap  <----------------
 //           *output streaming continues...*
 //
 //              *user input messages*
-//  ReadMessage(MouseMove) ------> write_rdp_pointer
-//  ReadMessage(MouseButton) ----> write_rdp_pointer
-//  ReadMessage(KeyboardButton) -> write_rdp_keyboard
+//  ReadMessage(MouseMove) ------> client_write_rdp_pointer
+//  ReadMessage(MouseButton) ----> client_write_rdp_pointer
+//  ReadMessage(KeyboardButton) -> client_write_rdp_keyboard
 //            *user input continues...*
 //
 //        *connection closed (client or server side)*
-//    Wait       -----------------> close_rdp
+//    Wait       -----------------> client_close_rdp
 //
 
 /*
@@ -59,7 +59,7 @@ package rdpclient
 #cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -framework SystemConfiguration -lrdp_client -lpthread -ldl -lm
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
 #include <librdprs.h>
 */
 import "C"
@@ -250,23 +250,37 @@ func (c *Client) connect(ctx context.Context) error {
 	}
 
 	// Addr and username strings only need to be valid for the duration of
-	// C.connect_rdp. They are copied on the Rust side and can be freed here.
+	// C.client_connect. They are copied on the Rust side and can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	res := C.connect_rdp(
+	cert_der, err := utils.UnsafeSliceData(userCertDER)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if cert_der == nil {
+		return trace.BadParameter("user cert was nil")
+	}
+
+	key_der, err := utils.UnsafeSliceData(userKeyDER)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if key_der == nil {
+		return trace.BadParameter("user key was nil")
+	}
+
+	res := C.client_connect(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			go_addr:     addr,
 			go_username: username,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
-			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
+			cert_der:     (*C.uint8_t)(cert_der),
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
-			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
+			key_der:                 (*C.uint8_t)(key_der),
 			screen_width:            C.uint16_t(c.clientWidth),
 			screen_height:           C.uint16_t(c.clientHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
@@ -294,9 +308,9 @@ func (c *Client) start() {
 
 		c.cfg.Log.Info("RDP output streaming starting")
 
-		// C.read_rdp_output blocks for the duration of the RDP connection and
+		// C.client_read_rdp_output blocks for the duration of the RDP connection and
 		// calls handle_png repeatedly with the incoming pngs.
-		res := C.read_rdp_output(c.rustClient)
+		res := C.client_read_rdp_output(c.rustClient)
 
 		// Copy the returned message and free the C memory.
 		userMessage := C.GoString(res.user_message)
@@ -356,7 +370,7 @@ func (c *Client) start() {
 
 			if atomic.LoadUint32(&c.readyForInput) == 0 {
 				// Input not allowed yet, drop the message.
-				c.cfg.Log.Warnf("Dropping TDP input message: %T", msg)
+				c.cfg.Log.Debugf("Dropping TDP input message: %T", msg)
 				continue
 			}
 
@@ -365,7 +379,7 @@ func (c *Client) start() {
 			switch m := msg.(type) {
 			case tdp.MouseMove:
 				mouseX, mouseY = m.X, m.Y
-				if errCode := C.write_rdp_pointer(
+				if errCode := C.client_write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(m.X),
@@ -374,7 +388,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseMove: write_rdp_pointer @ (%v,%v): %v", m.X, m.Y, errCode)
+					c.cfg.Log.Warningf("MouseMove: client_write_rdp_pointer @ (%v,%v): %v", m.X, m.Y, errCode)
 					return
 				}
 			case tdp.MouseButton:
@@ -390,7 +404,7 @@ func (c *Client) start() {
 				default:
 					button = C.PointerButtonNone
 				}
-				if errCode := C.write_rdp_pointer(
+				if errCode := C.client_write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:      C.uint16_t(mouseX),
@@ -400,7 +414,7 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseButton: write_rdp_pointer @ (%v, %v) button=%v state=%v: %v",
+					c.cfg.Log.Warningf("MouseButton: client_write_rdp_pointer @ (%v, %v) button=%v state=%v: %v",
 						mouseX, mouseY, button, m.State, errCode)
 					return
 				}
@@ -420,7 +434,7 @@ func (c *Client) start() {
 				default:
 					wheel = C.PointerWheelNone
 				}
-				if errCode := C.write_rdp_pointer(
+				if errCode := C.client_write_rdp_pointer(
 					c.rustClient,
 					C.CGOMousePointerEvent{
 						x:           C.uint16_t(mouseX),
@@ -430,30 +444,36 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseWheel: write_rdp_pointer @ (%v, %v) wheel=%v delta=%v: %v",
+					c.cfg.Log.Warningf("MouseWheel: client_write_rdp_pointer @ (%v, %v) wheel=%v delta=%v: %v",
 						mouseX, mouseY, wheel, m.Delta, errCode)
 					return
 				}
 			case tdp.KeyboardButton:
-				if errCode := C.write_rdp_keyboard(
+				if errCode := C.client_write_rdp_keyboard(
 					c.rustClient,
 					C.CGOKeyboardEvent{
 						code: C.uint16_t(m.KeyCode),
 						down: m.State == tdp.ButtonPressed,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("KeyboardButton: write_rdp_keyboard code=%v state=%v: %v",
+					c.cfg.Log.Warningf("KeyboardButton: client_write_rdp_keyboard code=%v state=%v: %v",
 						m.KeyCode, m.State, errCode)
 					return
 				}
 			case tdp.ClipboardData:
 				if len(m) > 0 {
-					if errCode := C.update_clipboard(
+					data, err := utils.UnsafeSliceData(m)
+					if err != nil {
+						c.cfg.Log.Errorf("ClipboardData: %v", err)
+						return
+					}
+					// data will not be nil because len(m) > 0
+					if errCode := C.client_update_clipboard(
 						c.rustClient,
-						(*C.uint8_t)(unsafe.Pointer(&m[0])),
+						(*C.uint8_t)(data),
 						C.uint32_t(len(m)),
 					); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Warningf("ClipboardData: update_clipboard (len=%v): %v", len(m), errCode)
+						c.cfg.Log.Warningf("ClipboardData: client_update_clipboard (len=%v): %v", len(m), errCode)
 						return
 					}
 				} else {
@@ -463,7 +483,7 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 					driveName := C.CString(m.Name)
 					defer C.free(unsafe.Pointer(driveName))
-					if errCode := C.handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
+					if errCode := C.client_handle_tdp_sd_announce(c.rustClient, C.CGOSharedDirectoryAnnounce{
 						directory_id: C.uint32_t(m.DirectoryID),
 						name:         driveName,
 					}); errCode != C.ErrCodeSuccess {
@@ -475,7 +495,7 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 					path := C.CString(m.Fso.Path)
 					defer C.free(unsafe.Pointer(path))
-					if errCode := C.handle_tdp_sd_info_response(c.rustClient, C.CGOSharedDirectoryInfoResponse{
+					if errCode := C.client_handle_tdp_sd_info_response(c.rustClient, C.CGOSharedDirectoryInfoResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 						fso: C.CGOFileSystemObject{
@@ -494,7 +514,7 @@ func (c *Client) start() {
 				if c.cfg.AllowDirectorySharing {
 					path := C.CString(m.Fso.Path)
 					defer C.free(unsafe.Pointer(path))
-					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
+					if errCode := C.client_handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 						fso: C.CGOFileSystemObject{
@@ -511,7 +531,7 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryDeleteResponse:
 				if c.cfg.AllowDirectorySharing {
-					if errCode := C.handle_tdp_sd_delete_response(c.rustClient, C.CGOSharedDirectoryDeleteResponse{
+					if errCode := C.client_handle_tdp_sd_delete_response(c.rustClient, C.CGOSharedDirectoryDeleteResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 					}); errCode != C.ErrCodeSuccess {
@@ -537,15 +557,12 @@ func (c *Client) start() {
 					}
 
 					fsoListLen := len(fsoList)
-					var cgoFsoList *C.CGOFileSystemObject
-
-					if fsoListLen > 0 {
-						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList[0]))
-					} else {
-						cgoFsoList = (*C.CGOFileSystemObject)(unsafe.Pointer(&fsoList))
+					cgoFsoList, err := utils.UnsafeSliceData(fsoList)
+					if err != nil {
+						c.cfg.Log.Errorf("SharedDirectoryListResponse: %v", err)
 					}
 
-					if errCode := C.handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
+					if errCode := C.client_handle_tdp_sd_list_response(c.rustClient, C.CGOSharedDirectoryListResponse{
 						completion_id:   C.uint32_t(m.CompletionID),
 						err_code:        m.ErrCode,
 						fso_list_length: C.uint32_t(fsoListLen),
@@ -557,18 +574,16 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryReadResponse:
 				if c.cfg.AllowDirectorySharing {
-					var readData *C.uint8_t
-					if m.ReadDataLength > 0 {
-						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData[0]))
-					} else {
-						readData = (*C.uint8_t)(unsafe.Pointer(&m.ReadData))
+					readData, err := utils.UnsafeSliceData(m.ReadData)
+					if err != nil {
+						c.cfg.Log.Errorf("SharedDirectoryReadResponse: %v", err)
 					}
 
-					if errCode := C.handle_tdp_sd_read_response(c.rustClient, C.CGOSharedDirectoryReadResponse{
+					if errCode := C.client_handle_tdp_sd_read_response(c.rustClient, C.CGOSharedDirectoryReadResponse{
 						completion_id:    C.uint32_t(m.CompletionID),
 						err_code:         m.ErrCode,
 						read_data_length: C.uint32_t(m.ReadDataLength),
-						read_data:        readData,
+						read_data:        (*C.uint8_t)(readData),
 					}); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("SharedDirectoryReadResponse failed: %v", errCode)
 						return
@@ -576,7 +591,7 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryWriteResponse:
 				if c.cfg.AllowDirectorySharing {
-					if errCode := C.handle_tdp_sd_write_response(c.rustClient, C.CGOSharedDirectoryWriteResponse{
+					if errCode := C.client_handle_tdp_sd_write_response(c.rustClient, C.CGOSharedDirectoryWriteResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 						bytes_written: C.uint32_t(m.BytesWritten),
@@ -587,7 +602,7 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryMoveResponse:
 				if c.cfg.AllowDirectorySharing {
-					if errCode := C.handle_tdp_sd_move_response(c.rustClient, C.CGOSharedDirectoryMoveResponse{
+					if errCode := C.client_handle_tdp_sd_move_response(c.rustClient, C.CGOSharedDirectoryMoveResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
 					}); errCode != C.ErrCodeSuccess {
@@ -596,17 +611,15 @@ func (c *Client) start() {
 					}
 				}
 			case tdp.RDPResponsePDU:
-				var rdpResponsePDULen uint32 = uint32(len(m))
-				var rdpResponsePDU *C.uint8_t
-				if rdpResponsePDULen > 0 {
-					rdpResponsePDU = (*C.uint8_t)(unsafe.Pointer(&m[0]))
-				} else {
-					c.cfg.Log.Error("RDPResponsePDU is empty")
+				pduLen := uint32(len(m))
+				if pduLen == 0 {
+					c.cfg.Log.Error("response PDU empty")
 					return
 				}
+				rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
 
-				if errCode := C.handle_tdp_fast_path_response(
-					c.rustClient, rdpResponsePDU, C.uint32_t(rdpResponsePDULen),
+				if errCode := C.client_handle_tdp_rdp_response_pdu(
+					c.rustClient, rdpResponsePDU, C.uint32_t(pduLen),
 				); errCode != C.ErrCodeSuccess {
 					c.cfg.Log.Errorf("RDPResponsePDU failed: %v", errCode)
 					return
@@ -659,8 +672,8 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
-//export handle_remote_fx_frame
-func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
+//export handle_fastpath_pdu
+func handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))
 	return cgo.Handle(handle).Value().(*Client).handleRDPFastPathPDU(goData)
 }
@@ -668,11 +681,29 @@ func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32
 func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
-	// from the fact that a png was sent.
+	// from the fact that a fast path pdu was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
 	if err := c.cfg.Conn.WriteMessage(tdp.RDPFastPathPDU(data)); err != nil {
 		c.cfg.Log.Errorf("failed handling RDPFastPathPDU: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export handle_rdp_channel_ids
+func handle_rdp_channel_ids(handle C.uintptr_t, io_channel_id C.uint16_t, user_channel_id C.uint16_t) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).handleRDPChannelIDs(io_channel_id, user_channel_id)
+}
+
+func (c *Client) handleRDPChannelIDs(ioChannelID, userChannelID C.uint16_t) C.CGOErrCode {
+	c.cfg.Log.Debugf("Received RDP channel IDs: io_channel_id=%d, user_channel_id=%d", ioChannelID, userChannelID)
+
+	if err := c.cfg.Conn.WriteMessage(tdp.RDPChannelIDs{
+		IOChannelID:   uint16(ioChannelID),
+		UserChannelID: uint16(userChannelID),
+	}); err != nil {
+		c.cfg.Log.Errorf("failed handling RDPChannelIDs: %v", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
@@ -890,7 +921,7 @@ func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) 
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
 		// Ensure the RDP connection is closed
-		if errCode := C.close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
+		if errCode := C.client_close_rdp(c.rustClient); errCode != C.ErrCodeSuccess {
 			c.cfg.Log.Warningf("error closing the RDP connection")
 		} else {
 			c.cfg.Log.Debug("RDP connection closed successfully")
@@ -912,7 +943,7 @@ func (c *Client) close() {
 func (c *Client) cleanup() {
 	// Let the Rust side free its data
 	if c.rustClient != nil {
-		C.free_rdp(c.rustClient)
+		C.client_drop(c.rustClient)
 	}
 
 	// Release the memory of the cgo.Handle

@@ -1,6 +1,11 @@
 <Tabs>
   <TabItem label="Mac">
-    [Download the MacOS .pkg installer](https://goteleport.com/download?os=mac) (`tsh` client only, signed) and double-click to run it.
+    Download the signed macOS .pkg installer for `tsh`. In Finder double-click the `pkg` file to install it:
+ 
+    ```code
+    $ curl -O https://cdn.teleport.dev/tsh-(=teleport.version=).pkg
+    ```
+
   </TabItem>
 
   <TabItem label="Mac - Homebrew">
@@ -27,6 +32,7 @@
   </TabItem>
 
   <TabItem label="Linux">
+    `tsh` is included with all of the Teleport binaries in Linux installations.
     For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](../installation.mdx).
 
     ```code
@@ -35,7 +41,6 @@
     $ cd teleport
     $ sudo ./install
     # Teleport binaries have been copied to /usr/local/bin
-    # To configure the systemd service for Teleport take a look at examples/systemd/README.mdx
     ```
   </TabItem>
 </Tabs>

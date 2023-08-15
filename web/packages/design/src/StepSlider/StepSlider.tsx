@@ -36,8 +36,9 @@ export function StepSlider<T>(props: Props<T>) {
   const [step, setStep] = useState(0);
   // animationDirectionPrefix defines the prefix of the class name that contains
   // the animations to apply when transitioning.
-  const [animationDirectionPrefix, setAnimationDirectionPrefix] =
-    useState<'next' | 'prev' | ''>('');
+  const [animationDirectionPrefix, setAnimationDirectionPrefix] = useState<
+    'next' | 'prev' | ''
+  >('');
 
   const startTransitionInDirection = useCallback(
     (direction: 'next' | 'prev') => {

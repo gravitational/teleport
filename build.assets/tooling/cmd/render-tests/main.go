@@ -118,9 +118,9 @@ func main() {
 		rr.printFlakinessSummary(summaryOut)
 	} else {
 		rr.printSummary(summaryOut)
-		fmt.Fprintln(os.Stdout, separator)
-		rr.printFailedTestOutput(os.Stdout)
 	}
+	fmt.Fprintln(os.Stdout, separator)
+	rr.printFailedTestOutput(os.Stdout)
 
 	if rr.testCount.fail == 0 {
 		os.Exit(0)

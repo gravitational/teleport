@@ -13,11 +13,7 @@ description: How to configure Teleport database access with AWS Keyspaces (Apach
   Database access for AWS Keyspaces (Apache Cassandra) is available starting from Teleport `v11.0`.
 </Details>
 
-This guide will help you to:
-
-- Install and configure Teleport.
-- Set up Teleport to access AWS Keyspaces (Apache Cassandra).
-- Connect to your database through Teleport.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS Keyspaces (Apache Cassandra)" dbConfigure="AWS Keyspaces database with IAM authentication" dbName="AWS Keyspaces" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/cassandra_keyspaces_selfhosted.png)
@@ -33,7 +29,6 @@ This guide will help you to:
 - AWS Account with AWS Keyspaces database and permissions to create and attach IAM policies
 - The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
-
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Teleport Database Service

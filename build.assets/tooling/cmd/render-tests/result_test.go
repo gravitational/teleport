@@ -64,16 +64,16 @@ func TestStatus(t *testing.T) {
 	rr := newRunResult(byPackage, 0)
 	feedEvents(t, rr, passFailSkip)
 
-	require.Equal(t, rr.testCount.pass, 1)
-	require.Equal(t, rr.testCount.fail, 1)
-	require.Equal(t, rr.testCount.skip, 1)
-	require.Equal(t, rr.pkgCount.fail, 1)
+	require.Equal(t, 1, rr.testCount.pass)
+	require.Equal(t, 1, rr.testCount.fail)
+	require.Equal(t, 1, rr.testCount.skip)
+	require.Equal(t, 1, rr.pkgCount.fail)
 	pkgname := "example.com/package"
 	pkg := rr.packages[pkgname]
-	require.Equal(t, pkg.count.fail, 1)
-	require.Equal(t, pkg.tests[pkgname+".TestEmpty"].count.pass, 1)
-	require.Equal(t, pkg.tests[pkgname+".TestParse"].count.fail, 1)
-	require.Equal(t, pkg.tests[pkgname+".TestParseHostPort"].count.skip, 1)
+	require.Equal(t, 1, pkg.count.fail)
+	require.Equal(t, 1, pkg.tests[pkgname+".TestEmpty"].count.pass)
+	require.Equal(t, 1, pkg.tests[pkgname+".TestParse"].count.fail)
+	require.Equal(t, 1, pkg.tests[pkgname+".TestParseHostPort"].count.skip)
 }
 
 func TestSuccessOutput(t *testing.T) {
@@ -104,26 +104,12 @@ func TestFailureOutput(t *testing.T) {
 		"--- FAIL: TestParse (0.00s)\n",
 	}
 	expectedPkgOutput := []string{
-		"=== RUN   TestParseHostPort\n",
-		"=== PAUSE TestParseHostPort\n",
-		"=== RUN   TestEmpty\n",
-		"=== PAUSE TestEmpty\n",
-		"=== RUN   TestParse\n",
-		"=== PAUSE TestParse\n",
-		"=== CONT  TestParseHostPort\n",
-		"    addr_test.go:32: \n",
-		"=== CONT  TestParse\n",
-		"--- SKIP: TestParseHostPort (0.00s)\n",
-		"=== CONT  TestEmpty\n",
-		"    addr_test.go:71: failed\n",
-		"--- PASS: TestEmpty (0.00s)\n",
-		"--- FAIL: TestParse (0.00s)\n",
 		"FAIL\n",
 		"\texample.com/package\tcoverage: 2.4% of statements\n",
 		"FAIL\texample.com/package\t0.007s\n",
 	}
-	require.Equal(t, pkg.tests[pkgname+".TestParse"].output, expectedTestOutput)
-	require.Equal(t, pkg.output, expectedPkgOutput)
+	require.Equal(t, expectedTestOutput, pkg.tests[pkgname+".TestParse"].output)
+	require.Equal(t, expectedPkgOutput, pkg.output)
 }
 
 func TestPrintTestResultByPackage(t *testing.T) {
@@ -200,6 +186,12 @@ func TestPrintFailedTestOutput(t *testing.T) {
 	rr.printFailedTestOutput(output)
 
 	expected := `
+OUTPUT example.com/package
+===================================================
+FAIL
+	example.com/package	coverage: 2.4% of statements
+FAIL	example.com/package	0.007s
+===================================================
 OUTPUT example.com/package.TestParse
 ===================================================
 === RUN   TestParse
@@ -222,15 +214,12 @@ func TestPrintFlakinessSummaryNoFail(t *testing.T) {
 	output := &bytes.Buffer{}
 	rr.printFlakinessSummary(output)
 
-	expected := `
-===================================================
-No flaky tests!
-`[1:]
+	expected := "No flaky tests!\n"
 	require.Equal(t, expected, output.String())
 }
 
 func TestPrintFlakinessSummaryFail(t *testing.T) {
-	rr := newRunResult(byFlakiness, 2) // top 2 failures only
+	rr := newRunResult(byFlakiness, 3) // top 3 failures only (including packages)
 	feedEvents(t, rr, flakyPass)
 	feedEvents(t, rr, flakyFail1)
 	feedEvents(t, rr, flakyPass)
@@ -246,24 +235,9 @@ func TestPrintFlakinessSummaryFail(t *testing.T) {
 	rr.printFlakinessSummary(output)
 
 	expected := `
-===================================================
-FAIL(30.0%): example.com/package3.Test5
-FAIL(20.0%): example.com/package1.Test1
-===================================================
-OUTPUT example.com/package3.Test5
-===================================================
-=== RUN   Test5
-    baz_test.go:10: nevermind
---- FAIL: Test5 (0.00s)
-===================================================
-OUTPUT example.com/package1.Test1
-===================================================
-=== RUN   Test1
-    foo_test.go:6: doing stuff
-x =  1
-    foo_test.go:8: fail
---- FAIL: Test1 (0.00s)
-===================================================
+FAIL(4/10): example.com/package3
+FAIL(3/10): example.com/package3.Test5
+FAIL(2/10): example.com/package1.Test1
 `[1:]
 	require.Equal(t, expected, output.String())
 }

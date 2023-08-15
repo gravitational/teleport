@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 
-import { icons } from 'teleport/Discover/SelectResource/icons';
+import { DiscoverIcon } from 'teleport/Discover/SelectResource/icons';
 
 import { StepList } from './StepList';
 
@@ -53,7 +53,7 @@ export function StepItem(props: StepItemProps) {
       <StepsContainer>
         <StepTitle>
           {getBulletIcon({
-            Icon: icons[props.selectedResource.icon],
+            Icon: <DiscoverIcon name={props.selectedResource.icon} />,
           })}
           {props.selectedResource.name}
         </StepTitle>

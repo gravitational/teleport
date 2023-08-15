@@ -1,0 +1,6 @@
+clusterName: teleport.example.com
+ingress:
+  enabled: true
+proxyListenerMode: multiplex
+service:
+  type: ClusterIP

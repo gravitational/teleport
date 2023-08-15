@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# This is a dummy protoc plugin that dumps all requests to a file.
+# This file can then be replayed `cat file.dump | my-real-protoc-plugin`
+# Or loaded by a debug protoc plugin (see ../DEBUG.md).
+
+DEST="$(mktemp)"
+>&2 echo "Output written to $DEST" 
+
+cat /dev/stdin > "$DEST"

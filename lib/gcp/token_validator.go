@@ -19,6 +19,7 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -92,5 +93,43 @@ func (id *IDTokenValidator) Validate(ctx context.Context, token string) (*IDToke
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if claims.Google.ComputeEngine != (ComputeEngine{}) {
+		return &claims, nil
+	}
+
+	if gcpDefaultServiceAccountEmailRegex.MatchString(claims.Email) {
+		return nil, trace.BadParameter("default compute engine service account %q is not supported", claims.Email)
+	}
+
+	// GKE Workload Identity tokens do not have the `google.compute_engine` claim
+	// and so to support Teleport services running on GKE, we need to extract the
+	// project ID from the email claim.
+	// Managed Service accounts running on GKE are not guaranteed to have domain emails
+	// with the following format: <sa_name>@<project_id>.iam.gserviceaccount.com
+	// See https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#authenticating_to_other_services
+	// See https://cloud.google.com/iam/docs/service-accounts#service_account_email_addresses
+	// See https://cloud.google.com/iam/docs/service-account-types#user-managed
+	matches := gcpUserManagedServiceAccountEmailRegex.FindStringSubmatch(claims.Email)
+	if len(matches) != 2 {
+		return nil, trace.BadParameter("invalid email claim: %q", claims.Email)
+	}
+
+	// Assign the project ID exatracted from the email to the Google claims.
+	claims.Google.ComputeEngine.ProjectID = matches[1]
+
 	return &claims, nil
 }
+
+var (
+	// gcpUserManagedServiceAccountEmailRegex is the regex used to extract the project ID from
+	// the email claim of a GCP service account.
+	// See https://cloud.google.com/iam/docs/service-accounts#service_account_email_addresses
+	// See https://cloud.google.com/iam/docs/service-account-types#user-managed
+	gcpUserManagedServiceAccountEmailRegex = regexp.MustCompile(`(?s)^[^@]+@([^\.]+)\.iam\.gserviceaccount\.com$`)
+
+	// gcpDefaultServiceAccountEmailRegex is the regex used to identify when the default
+	// compute engine service account is being used. When this is the case, we return an
+	// error because the default compute engine service account is not supported.
+	gcpDefaultServiceAccountEmailRegex = regexp.MustCompile(`(?s)^[^@]+@developer\.gserviceaccount\.com$`)
+)

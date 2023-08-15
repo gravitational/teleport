@@ -4,11 +4,7 @@ description: How to configure Teleport database access with self-hosted MongoDB.
 videoBanner: 6lgVObxoLkc
 ---
 
-In this guide you will:
-
-1. Install and configure Teleport for database access.
-2. Configure mutual TLS authentication between Teleport and your MongoDB cluster.
-3. Connect to your MongoDB instance via Teleport.
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB cluster" dbConfigure="MongoDB cluster with mutual TLS authentication" dbName="MongoDB" !)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodb_selfhosted.png)
@@ -78,6 +74,8 @@ $ --uri="mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet
 ### Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
+
+(!docs/pages/includes/database-access/mongodb-required-database-access.mdx!)
 
 ## Step 2/3. Configure MongoDB
 

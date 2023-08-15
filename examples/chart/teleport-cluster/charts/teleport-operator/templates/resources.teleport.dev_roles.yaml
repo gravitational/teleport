@@ -41,6 +41,10 @@ spec:
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
+                  app_labels_expression:
+                    description: AppLabelsExpression is a predicate expression used
+                      to allow/deny access to Apps.
+                    type: string
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
                       is allowed to assume.
@@ -61,12 +65,20 @@ spec:
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
+                  cluster_labels_expression:
+                    description: ClusterLabelsExpression is a predicate expression
+                      used to allow/deny access to remote Teleport clusters.
+                    type: string
                   db_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
+                  db_labels_expression:
+                    description: DatabaseLabelsExpression is a predicate expression
+                      used to allow/deny access to Databases.
+                    type: string
                   db_names:
                     description: DatabaseNames is a list of database names this role
                       is allowed to connect to.
@@ -87,6 +99,10 @@ spec:
                     description: DatabaseServiceLabels are used in RBAC system to
                       allow/deny access to Database Services.
                     type: object
+                  db_service_labels_expression:
+                    description: DatabaseServiceLabelsExpression is a predicate expression
+                      used to allow/deny access to Database Services.
+                    type: string
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
@@ -114,6 +130,10 @@ spec:
                     description: GroupLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
+                  group_labels_expression:
+                    description: GroupLabelsExpression is a predicate expression used
+                      to allow/deny access to user groups.
+                    type: string
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -196,6 +216,10 @@ spec:
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
+                  kubernetes_labels_expression:
+                    description: KubernetesLabelsExpression is a predicate expression
+                      used to allow/deny access to kubernetes clusters.
+                    type: string
                   kubernetes_resources:
                     description: KubernetesResources is the Kubernetes Resources this
                       Role grants access to.
@@ -212,6 +236,13 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
+                        verbs:
+                          description: Verbs are the allowed Kubernetes verbs for
+                            the following resource.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -232,6 +263,10 @@ spec:
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
+                  node_labels_expression:
+                    description: NodeLabelsExpression is a predicate expression used
+                      to allow/deny access to SSH nodes.
+                    type: string
                   request:
                     nullable: true
                     properties:
@@ -269,6 +304,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                      max_duration:
+                        description: MaxDuration is the amount of time the access
+                          will be granted for. If this is zero, the default duration
+                          is used.
+                        format: duration
+                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -439,6 +480,10 @@ spec:
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
+                  windows_desktop_labels_expression:
+                    description: WindowsDesktopLabelsExpression is a predicate expression
+                      used to allow/deny access to Windows desktops.
+                    type: string
                   windows_desktop_logins:
                     description: WindowsDesktopLogins is a list of desktop login names
                       allowed/denied for Windows desktops.
@@ -457,6 +502,10 @@ spec:
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
+                  app_labels_expression:
+                    description: AppLabelsExpression is a predicate expression used
+                      to allow/deny access to Apps.
+                    type: string
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
                       is allowed to assume.
@@ -477,12 +526,20 @@ spec:
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
+                  cluster_labels_expression:
+                    description: ClusterLabelsExpression is a predicate expression
+                      used to allow/deny access to remote Teleport clusters.
+                    type: string
                   db_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
+                  db_labels_expression:
+                    description: DatabaseLabelsExpression is a predicate expression
+                      used to allow/deny access to Databases.
+                    type: string
                   db_names:
                     description: DatabaseNames is a list of database names this role
                       is allowed to connect to.
@@ -503,6 +560,10 @@ spec:
                     description: DatabaseServiceLabels are used in RBAC system to
                       allow/deny access to Database Services.
                     type: object
+                  db_service_labels_expression:
+                    description: DatabaseServiceLabelsExpression is a predicate expression
+                      used to allow/deny access to Database Services.
+                    type: string
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
@@ -530,6 +591,10 @@ spec:
                     description: GroupLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
+                  group_labels_expression:
+                    description: GroupLabelsExpression is a predicate expression used
+                      to allow/deny access to user groups.
+                    type: string
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -612,6 +677,10 @@ spec:
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
+                  kubernetes_labels_expression:
+                    description: KubernetesLabelsExpression is a predicate expression
+                      used to allow/deny access to kubernetes clusters.
+                    type: string
                   kubernetes_resources:
                     description: KubernetesResources is the Kubernetes Resources this
                       Role grants access to.
@@ -628,6 +697,13 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
+                        verbs:
+                          description: Verbs are the allowed Kubernetes verbs for
+                            the following resource.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -648,6 +724,10 @@ spec:
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
+                  node_labels_expression:
+                    description: NodeLabelsExpression is a predicate expression used
+                      to allow/deny access to SSH nodes.
+                    type: string
                   request:
                     nullable: true
                     properties:
@@ -685,6 +765,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                      max_duration:
+                        description: MaxDuration is the amount of time the access
+                          will be granted for. If this is zero, the default duration
+                          is used.
+                        format: duration
+                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -855,6 +941,10 @@ spec:
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
+                  windows_desktop_labels_expression:
+                    description: WindowsDesktopLabelsExpression is a predicate expression
+                      used to allow/deny access to Windows desktops.
+                    type: string
                   windows_desktop_logins:
                     description: WindowsDesktopLogins is a list of desktop login names
                       allowed/denied for Windows desktops.
@@ -913,6 +1003,11 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
+                  create_host_user_mode:
+                    description: CreateHostUserMode allows users to be automatically
+                      created on a host when not set to off
+                    format: int32
+                    type: integer
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -1018,7 +1113,7 @@ spec:
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
-                      users what they aught to
+                      users what they aught to request.
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced
@@ -1143,6 +1238,10 @@ spec:
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
+                  app_labels_expression:
+                    description: AppLabelsExpression is a predicate expression used
+                      to allow/deny access to Apps.
+                    type: string
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
                       is allowed to assume.
@@ -1163,12 +1262,20 @@ spec:
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
+                  cluster_labels_expression:
+                    description: ClusterLabelsExpression is a predicate expression
+                      used to allow/deny access to remote Teleport clusters.
+                    type: string
                   db_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
+                  db_labels_expression:
+                    description: DatabaseLabelsExpression is a predicate expression
+                      used to allow/deny access to Databases.
+                    type: string
                   db_names:
                     description: DatabaseNames is a list of database names this role
                       is allowed to connect to.
@@ -1189,6 +1296,10 @@ spec:
                     description: DatabaseServiceLabels are used in RBAC system to
                       allow/deny access to Database Services.
                     type: object
+                  db_service_labels_expression:
+                    description: DatabaseServiceLabelsExpression is a predicate expression
+                      used to allow/deny access to Database Services.
+                    type: string
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
@@ -1216,6 +1327,10 @@ spec:
                     description: GroupLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
+                  group_labels_expression:
+                    description: GroupLabelsExpression is a predicate expression used
+                      to allow/deny access to user groups.
+                    type: string
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -1298,6 +1413,10 @@ spec:
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
+                  kubernetes_labels_expression:
+                    description: KubernetesLabelsExpression is a predicate expression
+                      used to allow/deny access to kubernetes clusters.
+                    type: string
                   kubernetes_resources:
                     description: KubernetesResources is the Kubernetes Resources this
                       Role grants access to.
@@ -1314,6 +1433,13 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
+                        verbs:
+                          description: Verbs are the allowed Kubernetes verbs for
+                            the following resource.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -1334,6 +1460,10 @@ spec:
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
+                  node_labels_expression:
+                    description: NodeLabelsExpression is a predicate expression used
+                      to allow/deny access to SSH nodes.
+                    type: string
                   request:
                     nullable: true
                     properties:
@@ -1371,6 +1501,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                      max_duration:
+                        description: MaxDuration is the amount of time the access
+                          will be granted for. If this is zero, the default duration
+                          is used.
+                        format: duration
+                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -1541,6 +1677,10 @@ spec:
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
+                  windows_desktop_labels_expression:
+                    description: WindowsDesktopLabelsExpression is a predicate expression
+                      used to allow/deny access to Windows desktops.
+                    type: string
                   windows_desktop_logins:
                     description: WindowsDesktopLogins is a list of desktop login names
                       allowed/denied for Windows desktops.
@@ -1559,6 +1699,10 @@ spec:
                     description: AppLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
+                  app_labels_expression:
+                    description: AppLabelsExpression is a predicate expression used
+                      to allow/deny access to Apps.
+                    type: string
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
                       is allowed to assume.
@@ -1579,12 +1723,20 @@ spec:
                     description: ClusterLabels is a map of node labels (used to dynamically
                       grant access to clusters).
                     type: object
+                  cluster_labels_expression:
+                    description: ClusterLabelsExpression is a predicate expression
+                      used to allow/deny access to remote Teleport clusters.
+                    type: string
                   db_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
                     description: DatabaseLabels are used in RBAC system to allow/deny
                       access to databases.
                     type: object
+                  db_labels_expression:
+                    description: DatabaseLabelsExpression is a predicate expression
+                      used to allow/deny access to Databases.
+                    type: string
                   db_names:
                     description: DatabaseNames is a list of database names this role
                       is allowed to connect to.
@@ -1605,6 +1757,10 @@ spec:
                     description: DatabaseServiceLabels are used in RBAC system to
                       allow/deny access to Database Services.
                     type: object
+                  db_service_labels_expression:
+                    description: DatabaseServiceLabelsExpression is a predicate expression
+                      used to allow/deny access to Database Services.
+                    type: string
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
@@ -1632,6 +1788,10 @@ spec:
                     description: GroupLabels is a map of labels used as part of the
                       RBAC system.
                     type: object
+                  group_labels_expression:
+                    description: GroupLabelsExpression is a predicate expression used
+                      to allow/deny access to user groups.
+                    type: string
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -1714,6 +1874,10 @@ spec:
                     description: KubernetesLabels is a map of kubernetes cluster labels
                       used for RBAC.
                     type: object
+                  kubernetes_labels_expression:
+                    description: KubernetesLabelsExpression is a predicate expression
+                      used to allow/deny access to kubernetes clusters.
+                    type: string
                   kubernetes_resources:
                     description: KubernetesResources is the Kubernetes Resources this
                       Role grants access to.
@@ -1730,6 +1894,13 @@ spec:
                           description: Namespace is the resource namespace. It supports
                             wildcards.
                           type: string
+                        verbs:
+                          description: Verbs are the allowed Kubernetes verbs for
+                            the following resource.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
                       type: object
                     type: array
                   kubernetes_users:
@@ -1750,6 +1921,10 @@ spec:
                     description: NodeLabels is a map of node labels (used to dynamically
                       grant access to nodes).
                     type: object
+                  node_labels_expression:
+                    description: NodeLabelsExpression is a predicate expression used
+                      to allow/deny access to SSH nodes.
+                    type: string
                   request:
                     nullable: true
                     properties:
@@ -1787,6 +1962,12 @@ spec:
                               type: string
                           type: object
                         type: array
+                      max_duration:
+                        description: MaxDuration is the amount of time the access
+                          will be granted for. If this is zero, the default duration
+                          is used.
+                        format: duration
+                        type: string
                       roles:
                         description: Roles is the name of roles which will match the
                           request rule.
@@ -1957,6 +2138,10 @@ spec:
                     description: WindowsDesktopLabels are used in the RBAC system
                       to allow/deny access to Windows desktops.
                     type: object
+                  windows_desktop_labels_expression:
+                    description: WindowsDesktopLabelsExpression is a predicate expression
+                      used to allow/deny access to Windows desktops.
+                    type: string
                   windows_desktop_logins:
                     description: WindowsDesktopLogins is a list of desktop login names
                       allowed/denied for Windows desktops.
@@ -2015,6 +2200,11 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
+                  create_host_user_mode:
+                    description: CreateHostUserMode allows users to be automatically
+                      created on a host when not set to off
+                    format: int32
+                    type: integer
                   desktop_clipboard:
                     description: DesktopClipboard indicates whether clipboard sharing
                       is allowed between the user's workstation and the remote desktop.
@@ -2120,7 +2310,7 @@ spec:
                     type: string
                   request_prompt:
                     description: RequestPrompt is an optional message which tells
-                      users what they aught to
+                      users what they aught to request.
                     type: string
                   require_session_mfa:
                     description: RequireMFAType is the type of MFA requirement enforced

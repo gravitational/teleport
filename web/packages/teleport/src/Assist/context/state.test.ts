@@ -38,6 +38,7 @@ import type {
 } from './state';
 
 const defaultState: AssistState = {
+  sidebarVisible: false,
   conversations: {
     loading: false,
     selectedId: null,

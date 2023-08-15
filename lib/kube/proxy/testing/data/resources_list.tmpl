@@ -1,0 +1,155 @@
+{
+    "apiVersion": "{{ .API }}",
+    "items": [
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "labels": {
+                    "app": "nginx",
+                    "pod-template-hash": "6595874d85"
+                },
+                "name": "nginx-deployment-6595874d85-6j2zm",
+                "namespace": "default"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "name": "nginx-deployment-6595874d85-7xgmb",
+                "namespace": "default"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "labels": {
+                    "app": "nginx",
+                    "pod-template-hash": "6595874d85"
+                },
+                "name": "nginx-deployment-6595874d85-c4kz8",
+                "namespace": "default"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "name": "coredns-6d4b75cb6d-k84h9",
+                "namespace": "kube-system"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "labels": {
+                    "component": "etcd",
+                    "tier": "control-plane"
+                },
+                "name": "etcd-"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "name": "kube-apiserver-",
+                "namespace": "kube-system"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "labels": {
+                    "component": "kube-controller-manager",
+                    "tier": "control-plane"
+                },
+                "name": "kube-controller-manager-",
+                "namespace": "kube-system"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "name": "kube-proxy-g7j5r",
+                "namespace": "kube-system"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "annotations": {
+                    "kubernetes.io/config.hash": "2e95d5efbc70e877d20097c03ba4ff89",
+                    "kubernetes.io/config.mirror": "2e95d5efbc70e877d20097c03ba4ff89",
+                    "kubernetes.io/config.seen": "2022-08-17T15:35:54.018492220Z",
+                    "kubernetes.io/config.source": "file",
+                    "seccomp.security.alpha.kubernetes.io/pod": "runtime/default"
+                },
+                "labels": {
+                    "component": "kube-scheduler",
+                    "tier": "control-plane"
+                },
+                "name": "kube-scheduler-",
+                "namespace": "kube-system"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{},\"labels\":{\"addonmanager.kubernetes.io/mode\":\"Reconcile\",\"integration-test\":\"storage-provisioner\"},\"name\":\"storage-provisioner\",\"namespace\":\"kube-system\"},\"spec\":{\"containers\":[{\"command\":[\"/storage-provisioner\"],\"image\":\"gcr.io/k8s-/storage-provisioner:v5\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"storage-provisioner\",\"volumeMounts\":[{\"mountPath\":\"/tmp\",\"name\":\"tmp\"}]}],\"hostNetwork\":true,\"serviceAccountName\":\"storage-provisioner\",\"volumes\":[{\"hostPath\":{\"path\":\"/tmp\",\"type\":\"Directory\"},\"name\":\"tmp\"}]}}\n"
+                },
+                "creationTimestamp": "2022-08-17T15:36:01Z",
+                "labels": {
+                    "addonmanager.kubernetes.io/mode": "Reconcile",
+                    "integration-test": "storage-provisioner"
+                },
+                "name": "storage-provisioner",
+                "namespace": "kube-system",
+                "resourceVersion": "6829727",
+                "uid": "d81fa902-f7f2-4fe4-bcde-ed756114f643"
+            }
+        },
+        {
+            "apiVersion": "{{ .API }}",
+            "kind": "{{ .Kind }}",
+            "metadata": {
+                "annotations": {
+                    "checksum/config": "cec97c9fa908ccde2f13ba02005250c50e977cbf07bf37fc9a0b10cc9126437c"
+                },
+                "creationTimestamp": "2023-01-30T13:58:46Z",
+                "generateName": "teleport-agent-",
+                "labels": {
+                    "app": "teleport-agent",
+                    "controller-revision-hash": "teleport-agent-75d57b58f8",
+                    "statefulset.kubernetes.io/pod-name": "teleport-agent-0"
+                },
+                "name": "teleport-agent-0",
+                "namespace": "teleport-agent",
+                "ownerReferences": [
+                    {
+                        "apiVersion": "apps/v1",
+                        "blockOwnerDeletion": true,
+                        "controller": true,
+                        "kind": "StatefulSet",
+                        "name": "teleport-agent",
+                        "uid": "5818849f-dfd0-4a02-af34-58667af341e6"
+                    }
+                ],
+                "resourceVersion": "6826207",
+                "uid": "a6c0791d-d5d3-44d4-a569-5299140222dd"
+            }
+        }
+    ],
+    "kind": "{{ .Kind }}List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

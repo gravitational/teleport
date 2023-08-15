@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -45,8 +46,6 @@ type Database interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the database dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the database.
 	String() string
 	// GetDescription returns the database description.
@@ -131,6 +130,11 @@ type Database interface {
 	// SupportsAutoUsers returns true if this database supports automatic
 	// user provisioning.
 	SupportsAutoUsers() bool
+	// GetEndpointType returns the endpoint type of the database, if available.
+	GetEndpointType() string
+	// GetCloud gets the cloud this database is running on, or an empty string if it
+	// isn't running on a cloud provider.
+	GetCloud() string
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -252,11 +256,6 @@ func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
 	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
-}
-
-// LabelsString returns all database labels as a string.
-func (d *DatabaseV3) LabelsString() string {
-	return LabelsAsString(d.Metadata.Labels, d.Spec.DynamicLabels)
 }
 
 // GetDescription returns the database description.
@@ -478,6 +477,21 @@ func (d *DatabaseV3) IsCloudHosted() bool {
 	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
 }
 
+// GetCloud gets the cloud this database is running on, or an empty string if it
+// isn't running on a cloud provider.
+func (d *DatabaseV3) GetCloud() string {
+	switch {
+	case d.IsAWSHosted():
+		return CloudAWS
+	case d.IsCloudSQL():
+		return CloudGCP
+	case d.IsAzure():
+		return CloudAzure
+	default:
+		return ""
+	}
+}
+
 // getAWSType returns the database type.
 func (d *DatabaseV3) getAWSType() (string, bool) {
 	aws := d.GetAWS()
@@ -565,11 +579,30 @@ func (d *DatabaseV3) setStaticFields() {
 	d.Version = V3
 }
 
+// validDatabaseNameRegexp filters the allowed characters in database names.
+// This is the (almost) the same regexp used to check for valid DNS 1035 labels,
+// except we allow uppercase chars.
+var validDatabaseNameRegexp = regexp.MustCompile(`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`)
+
+// ValidateDatabaseName returns an error if a given string is not a valid
+// Database name.
+// Unlike application access proxy, database name doesn't necessarily
+// need to be a valid subdomain but use the same validation logic for the
+// simplicity and consistency, except two differences: don't restrict names to
+// 63 chars in length and allow upper case chars.
+func ValidateDatabaseName(name string) error {
+	return ValidateResourceName(validDatabaseNameRegexp, name)
+}
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (d *DatabaseV3) CheckAndSetDefaults() error {
 	d.setStaticFields()
 	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if err := ValidateDatabaseName(d.GetName()); err != nil {
+		return trace.Wrap(err, "invalid database name")
 	}
 
 	for key := range d.Spec.DynamicLabels {
@@ -791,6 +824,27 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.GetName(), d.GetProtocol(), d.GetType())
 	}
 
+	switch protocol := d.GetProtocol(); protocol {
+	case DatabaseProtocolClickHouseHTTP, DatabaseProtocolClickHouse:
+		const (
+			clickhouseNativeSchema = "clickhouse"
+			clickhouseHTTPSchema   = "https"
+		)
+		parts := strings.Split(d.GetURI(), ":")
+		if len(parts) == 3 {
+			break
+		} else if len(parts) != 2 {
+			return trace.BadParameter("invalid ClickHouse URL %s", d.GetURI())
+		}
+
+		if !strings.HasPrefix(d.Spec.URI, clickhouseHTTPSchema) && protocol == DatabaseProtocolClickHouseHTTP {
+			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseHTTPSchema, d.Spec.URI)
+		}
+		if protocol == DatabaseProtocolClickHouse {
+			d.Spec.URI = fmt.Sprintf("%s://%s", clickhouseNativeSchema, d.Spec.URI)
+		}
+	}
+
 	return nil
 }
 
@@ -913,9 +967,31 @@ func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
 	return d.GetType() == DatabaseTypeMongoAtlas
 }
 
+// GetEndpointType returns the endpoint type of the database, if available.
+func (d *DatabaseV3) GetEndpointType() string {
+	if endpointType, ok := d.GetStaticLabels()[DiscoveryLabelEndpointType]; ok {
+		return endpointType
+	}
+	switch d.GetType() {
+	case DatabaseTypeElastiCache:
+		return d.GetAWS().ElastiCache.EndpointType
+	case DatabaseTypeMemoryDB:
+		return d.GetAWS().MemoryDB.EndpointType
+	case DatabaseTypeOpenSearch:
+		return d.GetAWS().OpenSearch.EndpointType
+	}
+	return ""
+}
+
 const (
 	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
 	DatabaseProtocolPostgreSQL = "postgres"
+	// DatabaseProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
+	DatabaseProtocolClickHouseHTTP = "clickhouse-http"
+	// DatabaseProtocolClickHouse is the ClickHouse database native write protocol.
+	DatabaseProtocolClickHouse = "clickhouse"
+	// DatabaseProtocolMySQL is the MySQL database protocol.
+	DatabaseProtocolMySQL = "mysql"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
@@ -1047,4 +1123,24 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 		return nil
 	}
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
+}
+
+// MarshalJSON supports marshaling enum value into it's string value.
+func (s *IAMPolicyStatus) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
+// UnmarshalJSON supports unmarshaling enum string value back to number.
+func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	var stringVal string
+	if err := json.Unmarshal(data, &stringVal); err != nil {
+		return err
+	}
+
+	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
+	return nil
 }

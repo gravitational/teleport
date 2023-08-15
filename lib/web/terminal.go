@@ -32,6 +32,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -507,12 +508,33 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 				},
 			},
 		}); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		err = trail.FromGRPC(err)
+		// If connecting to a host in a leaf cluster and MFA failed check to see
+		// if the leaf cluster requires MFA. If it doesn't return an error indicating
+		// that MFA was not required instead of the error received from the root cluster.
+		if t.sessionData.ClusterName != tc.SiteName {
+			check, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
+				Target: &authproto.IsMFARequiredRequest_Node{
+					Node: &authproto.NodeLogin{
+						Node:  t.sessionData.ServerID,
+						Login: tc.HostLogin,
+					},
+				},
+			})
+			if err != nil {
+				return nil, trace.Wrap(client.MFARequiredUnknown(err))
+			}
+			if !check.Required {
+				return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			}
+		}
+
+		return nil, trail.FromGRPC(err)
 	}
 
 	challenge := resp.GetMFAChallenge()
@@ -533,7 +555,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 			},
 		})
 		if err != nil {
-			return nil, trace.Wrap(client.MFARequiredUnknown(err))
+			return nil, trace.Wrap(client.MFARequiredUnknown(trail.FromGRPC(err)))
 		}
 
 		if !mfaRequiredResp.Required {
@@ -551,12 +573,12 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 
 	err = stream.Send(&authproto.UserSingleUseCertsRequest{Request: &authproto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: assertion}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	certResp := resp.GetCert()
@@ -744,6 +766,11 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		return
 	}
 
+	// Send close envelope to web terminal upon exit without an error.
+	if err := t.stream.SendCloseMessage(sessionEndEvent{NodeID: t.sessionData.ServerID}); err != nil {
+		t.log.WithError(err).Error("Unable to send close event to web client.")
+	}
+
 	if err := t.stream.Close(); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
@@ -755,7 +782,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
 func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
-	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
@@ -778,7 +805,10 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *clien
 		t.sessionData.ServerHostname,
 		tc, modules.GetModules().IsBoringBinary())
 	if err != nil {
-		return nil, trace.NewAggregate(err, conn.Close())
+		// The close error is ignored instead of using [trace.NewAggregate] because
+		// aggregate errors do not allow error inspection with things like [trace.IsAccessDenied].
+		_ = conn.Close()
+		return nil, trace.Wrap(err)
 	}
 
 	clt.ProxyPublicAddr = t.proxyPublicAddr
@@ -808,7 +838,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws WSConn
 	}
 
 	// connect to the node again with the new certs
-	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -910,7 +940,6 @@ func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers
 		ws:         ws,
 		encoder:    unicode.UTF8.NewEncoder(),
 		decoder:    unicode.UTF8.NewDecoder(),
-		completedC: make(chan struct{}),
 		rawC:       make(chan Envelope, 100),
 		challengeC: make(chan Envelope, 1),
 		handlers:   handlers,
@@ -956,7 +985,6 @@ type WSStream struct {
 	once       sync.Once
 	challengeC chan Envelope
 	rawC       chan Envelope
-	completedC chan struct{}
 
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
@@ -993,7 +1021,7 @@ func (t *WSStream) writeError(msg string) {
 
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
-		close(t.completedC)
+		t.close()
 	}()
 	t.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 
@@ -1187,25 +1215,23 @@ func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 // readChallengeResponse reads and decodes the challenge response from the
 // websocket in the correct format.
 func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
-	select {
-	case <-t.completedC:
+	envelope, ok := <-t.challengeC
+	if !ok {
 		return nil, io.EOF
-	case envelope := <-t.challengeC:
-		resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
-		return resp, trace.Wrap(err)
 	}
+	resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	return resp, trace.Wrap(err)
 }
 
 // readChallenge reads and decodes the challenge from the
 // websocket in the correct format.
 func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChallenge, error) {
-	select {
-	case <-t.completedC:
+	envelope, ok := <-t.challengeC
+	if !ok {
 		return nil, io.EOF
-	case envelope := <-t.challengeC:
-		challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
-		return challenge, trace.Wrap(err)
 	}
+	challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	return challenge, trace.Wrap(err)
 }
 
 // writeAuditEvent encodes and writes the audit event to the
@@ -1263,9 +1289,9 @@ func (t *WSStream) Write(data []byte) (n int, err error) {
 }
 
 // Read provides data received from [defaults.WebsocketRaw] envelopes. If
-// the previous envelope was not consumed in the last read any remaining data
+// the previous envelope was not consumed in the last read, any remaining data
 // is returned prior to processing the next envelope.
-func (t *WSStream) Read(out []byte) (n int, err error) {
+func (t *WSStream) Read(out []byte) (int, error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)
 		if n == len(t.buffer) {
@@ -1276,53 +1302,59 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 		return n, nil
 	}
 
-	select {
-	case <-t.completedC:
+	envelope, ok := <-t.rawC
+	if !ok {
 		return 0, io.EOF
-	case envelope := <-t.rawC:
-		data, err := t.decoder.Bytes([]byte(envelope.Payload))
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		n := copy(out, data)
-		// if payload size is greater than [out], store the remaining
-		// part in the buffer to be processed on the next Read call
-		if len(data) > n {
-			t.buffer = data[n:]
-		}
-		return n, nil
 	}
+
+	data, err := t.decoder.Bytes([]byte(envelope.Payload))
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	n := copy(out, data)
+	// if the payload size is greater than [out], store the remaining
+	// part in the buffer to be processed on the next Read call
+	if len(data) > n {
+		t.buffer = data[n:]
+	}
+	return n, nil
+}
+
+// SendCloseMessage sends a close message on the web socket.
+func (t *WSStream) SendCloseMessage(event sessionEndEvent) error {
+	sessionMetadataPayload, err := json.Marshal(&event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketClose,
+		Payload: string(sessionMetadataPayload),
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+func (t *WSStream) close() {
+	t.once.Do(func() {
+		defer func() {
+			close(t.rawC)
+			close(t.challengeC)
+		}()
+	})
 }
 
 // Close sends a close message on the web socket and closes the web socket.
 func (t *WSStream) Close() error {
-	var closeErr error
-	t.once.Do(func() {
-		defer func() {
-			<-t.completedC
-
-			close(t.rawC)
-			close(t.challengeC)
-		}()
-
-		// Send close envelope to web terminal upon exit without an error.
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketClose,
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			closeErr = trace.NewAggregate(err, t.ws.Close())
-			return
-		}
-
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		closeErr = trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
-	})
-
-	return trace.Wrap(closeErr)
+	return trace.Wrap(t.ws.Close())
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.

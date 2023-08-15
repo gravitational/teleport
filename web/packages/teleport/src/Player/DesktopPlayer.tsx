@@ -139,9 +139,6 @@ const useDesktopPlayer = ({
   ) => {
     const { width, height } = spec;
 
-    // Initialize the FastPathProcessor with this recording's screen dimensions.
-    cli.initFastPathProcessor({ width, height });
-
     const styledPlayer = canvas.parentElement;
     const progressBar = styledPlayer.children.namedItem('progressBarDesktop');
 

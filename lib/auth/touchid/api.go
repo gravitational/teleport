@@ -108,6 +108,16 @@ type DiagResult struct {
 	// IsAvailable is true if Touch ID is considered functional.
 	// It means enough of the preceding tests to enable the feature.
 	IsAvailable bool
+
+	// isClamshellFailure is set when it's likely that clamshell mode is the sole
+	// culprit of Touch ID unavailability.
+	isClamshellFailure bool
+}
+
+// IsClamshellFailure returns true if the lack of touch ID availability could be
+// due to clamshell mode.
+func (d *DiagResult) IsClamshellFailure() bool {
+	return d.isClamshellFailure
 }
 
 // CredentialInfo holds information about a Secure Enclave credential.
@@ -514,7 +524,7 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 
 func pickCredential(
 	actx AuthContext,
-	infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor,
+	infos []CredentialInfo, allowedCredentials []wanlib.CredentialDescriptor,
 	picker CredentialPicker, promptOnce func(), userRequested bool,
 ) (*CredentialInfo, error) {
 	// Handle early exits.

@@ -53,13 +53,13 @@ const ResolvedExpired = ResolutionTag("expired")
 
 // RequestData stores a slice of some request fields in a convenient format.
 type RequestData struct {
-	User               string
-	Roles              []string
-	Created            time.Time
-	RequestReason      string
-	ReviewsCount       int
-	Resolution         Resolution
-	ResolveAnnotations types.Labels
+	User              string
+	Roles             []string
+	Created           time.Time
+	RequestReason     string
+	ReviewsCount      int
+	Resolution        Resolution
+	SystemAnnotations types.Labels
 }
 
 // OpsgenieData stores the notification alert info.
