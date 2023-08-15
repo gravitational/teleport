@@ -935,6 +935,7 @@ update-api-import-path:
 update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
+	cd build.assets/tooling && go run ./cmd/check -check valid -tag $(GITTAG)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
