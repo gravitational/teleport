@@ -12,7 +12,7 @@ api_token = "token"                        # JIRA API token
 project = "TAR"                            # JIRA Project key
 
 [http]
-# URL on which webhook server is accessible externally, e.g.
+# URL on which webhook server is accessible externally, for example,
 # [https://]teleport-jira.example.com
 public_addr = "example.com" 
 https_key_file = "/var/lib/teleport/plugins/jira/server.key"  # TLS private key
