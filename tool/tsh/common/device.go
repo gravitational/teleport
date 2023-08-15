@@ -31,9 +31,10 @@ import (
 type deviceCommand struct {
 	enroll *deviceEnrollCommand
 
-	// collect and keyget are debug commands.
-	collect *deviceCollectCommand
-	keyget  *deviceKeygetCommand
+	// collect, assetTag and keyget are debug commands.
+	collect  *deviceCollectCommand
+	assetTag *deviceAssetTagCommand
+	keyget   *deviceKeygetCommand
 
 	// activateCredential is a hidden command invoked on an elevated child
 	// process
@@ -44,6 +45,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	root := &deviceCommand{
 		enroll:             &deviceEnrollCommand{},
 		collect:            &deviceCollectCommand{},
+		assetTag:           &deviceAssetTagCommand{},
 		keyget:             &deviceKeygetCommand{},
 		activateCredential: &deviceActivateCredentialCommand{},
 	}
@@ -61,6 +63,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 
 	// "tsh device" hidden debug commands.
 	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
+	root.assetTag.CmdClause = parentCmd.Command("asset-tag", "Print the detected device asset tag").Hidden()
 	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
 	root.activateCredential.CmdClause = parentCmd.Command("tpm-activate-credential", "").Hidden()
 	root.activateCredential.Flag("encrypted-credential", "").
@@ -133,6 +136,20 @@ func (c *deviceCollectCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("DeviceCollectedData %s\n", val)
+	return nil
+}
+
+type deviceAssetTagCommand struct {
+	*kingpin.CmdClause
+}
+
+func (c *deviceAssetTagCommand) run(cf *CLIConf) error {
+	cdd, err := dtnative.CollectDeviceData()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println(cdd.SerialNumber)
 	return nil
 }
 
