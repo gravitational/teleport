@@ -65,10 +65,10 @@ pub extern "C" fn init() {
 /// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
 /// to their corresponding parameters.
 #[no_mangle]
-pub unsafe extern "C" fn client_connect(
-    go_ref: usize,
-    params: CGOConnectParams,
-) -> CGOClientOrError {
+pub unsafe extern "C" fn client_connect(go_ref: usize, params: CGOConnectParams) -> CGOClientOrError
+where
+    Client: Send + Sync,
+{
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
     let username = from_c_string(params.go_username);
@@ -121,7 +121,10 @@ pub unsafe extern "C" fn client_update_clipboard(
     client_ptr: *const Client,
     data: *mut u8,
     len: u32,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_update_clipboard");
     CGOErrCode::ErrCodeSuccess
 }
@@ -140,7 +143,10 @@ pub unsafe extern "C" fn client_update_clipboard(
 pub unsafe extern "C" fn client_handle_tdp_sd_announce(
     client_ptr: *const Client,
     sd_announce: CGOSharedDirectoryAnnounce,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_handle_tdp_sd_announce");
     CGOErrCode::ErrCodeSuccess
 }
@@ -158,7 +164,10 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
 pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryInfoResponse,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_handle_tdp_sd_info_response");
     CGOErrCode::ErrCodeSuccess
 }
@@ -174,7 +183,10 @@ pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
 pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryCreateResponse,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_handle_tdp_sd_create_response");
     CGOErrCode::ErrCodeSuccess
 }
@@ -190,7 +202,10 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
 pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryDeleteResponse,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_handle_tdp_sd_delete_response");
     CGOErrCode::ErrCodeSuccess
 }
@@ -210,7 +225,10 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
 pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryListResponse,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_handle_tdp_sd_list_response");
     CGOErrCode::ErrCodeSuccess
 }
@@ -225,7 +243,10 @@ pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
 pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryReadResponse,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_handle_tdp_sd_read_response");
     CGOErrCode::ErrCodeSuccess
 }
@@ -240,7 +261,10 @@ pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
 pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryWriteResponse,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_handle_tdp_sd_write_response");
     CGOErrCode::ErrCodeSuccess
 }
@@ -256,7 +280,10 @@ pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
 pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
     client_ptr: *const Client,
     res: CGOSharedDirectoryMoveResponse,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_handle_tdp_sd_move_response");
     CGOErrCode::ErrCodeSuccess
 }
@@ -276,7 +303,10 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     client_ptr: *const Client,
     res: *mut u8,
     res_len: u32,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     let client = match Client::from_raw(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -298,7 +328,10 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
 #[no_mangle]
 pub unsafe extern "C" fn client_read_rdp_output(
     client_ptr: *const Client,
-) -> CGOReadRdpOutputReturns {
+) -> CGOReadRdpOutputReturns
+where
+    Client: Send + Sync,
+{
     let client = match Client::from_raw(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -321,7 +354,10 @@ pub unsafe extern "C" fn client_read_rdp_output(
 pub unsafe extern "C" fn client_write_rdp_pointer(
     client_ptr: *const Client,
     pointer: CGOMousePointerEvent,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     let client = match Client::from_raw(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -340,7 +376,10 @@ pub unsafe extern "C" fn client_write_rdp_pointer(
 pub unsafe extern "C" fn client_write_rdp_keyboard(
     client_ptr: *const Client,
     key: CGOKeyboardEvent,
-) -> CGOErrCode {
+) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_write_rdp_keyboard");
     CGOErrCode::ErrCodeSuccess
 }
@@ -349,7 +388,10 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
 ///
 /// client_ptr must be a valid pointer to a Client.
 #[no_mangle]
-pub unsafe extern "C" fn client_close_rdp(client_ptr: *const Client) -> CGOErrCode {
+pub unsafe extern "C" fn client_close_rdp(client_ptr: *const Client) -> CGOErrCode
+where
+    Client: Send + Sync,
+{
     warn!("unimplemented: client_close_rdp");
     CGOErrCode::ErrCodeSuccess
 }
@@ -361,7 +403,10 @@ pub unsafe extern "C" fn client_close_rdp(client_ptr: *const Client) -> CGOErrCo
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn client_drop(client_ptr: *mut Client) {
+pub unsafe extern "C" fn client_drop(client_ptr: *mut Client)
+where
+    Client: Send + Sync,
+{
     Client::drop(client_ptr)
 }
 
