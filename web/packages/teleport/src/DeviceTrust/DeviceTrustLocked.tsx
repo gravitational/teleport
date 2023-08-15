@@ -68,7 +68,7 @@ export function DeviceTrustLocked() {
         <Box bgColor={theme.colors.spotBackground[0]} p="3" borderRadius="50%">
           <IconCircle Icon={LockIcon} size={64} />
         </Box>
-        <Text fontSize="2" textAlign="center">
+        <Text typography="subtitle" textAlign="justify">
           Device Trust enables trusted and authenticated device access. When
           resources are configured with the Device Trust mode “required”,
           Teleport will authenticate the Trusted Device, in addition to
@@ -172,7 +172,7 @@ const StyledMessageContainer = styled(Flex)`
   align-items: center;
   padding: 24px;
   gap: 24px;
-  width: 650px;
+  width: 600px;
   box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
     0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 2px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
