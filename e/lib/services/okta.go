@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -43,15 +42,6 @@ import (
 const (
 	oktaInit = "okta.init"
 )
-
-// oktaDependEvents is a list of events that the Okta service depends on.
-var oktaDependEvents = []string{
-	service.AuthTLSReady,
-	service.AuthIdentityEvent,
-	service.ProxySSHReady,
-	service.ProxyWebServerReady,
-	service.ProxyReverseTunnelReady,
-}
 
 // InitOkta will initialize and start the Okta service.
 func InitOkta(process *service.TeleportProcess) error {
@@ -122,39 +112,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, plug
 		}()
 	}
 
-	resp, err := conn.Client.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// If this process connected through the web proxy, it will discover the
-	// reverse tunnel address correctly and store it in the connector.
-	//
-	// If it was not, it is running in single process mode which is used for
-	// development and demos. In that case, wait until all dependencies (like
-	// auth and reverse tunnel server) are ready before starting.
-	tunnelAddrResolver := conn.TunnelProxyResolver()
-	if tunnelAddrResolver == nil {
-		tunnelAddrResolver = process.SingleProcessModeResolver(resp.GetProxyListenerMode())
-
-		// run the resolver. this will check configuration for errors.
-		_, _, err := tunnelAddrResolver(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Block and wait for all dependencies to start before starting.
-		log.Debugf("Waiting for Okta service dependencies to start.")
-		for _, event := range oktaDependEvents {
-			_, err := process.WaitForEvent(ctx, event)
-			if err != nil {
-				log.Debugf("Process is exiting.")
-				break
-			}
-		}
-		log.Debugf("Okta service dependencies have started, continuing.")
-	}
-
 	// Create the authorizer.
 	clusterName := conn.ServerIdentity.ClusterName
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -190,8 +147,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, plug
 			log.Warnf("Error while closing emitter: %v", err)
 		}
 	}()
-
-	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	tlsConfig, err := conn.ServerIdentity.TLSConfig(nil)
 	if err != nil {
@@ -243,29 +198,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, plug
 
 	log.Info("Okta service has successfully started")
 
-	// Create and start an agent pool.
-	agentPool, err := reversetunnel.NewAgentPool(
-		ctx,
-		reversetunnel.AgentPoolConfig{
-			Component:            eteleport.ComponentOkta,
-			HostUUID:             conn.ServerIdentity.ID.HostUUID,
-			Resolver:             tunnelAddrResolver,
-			Client:               conn.Client,
-			Server:               oktaService,
-			AccessPoint:          accessPoint,
-			HostSigner:           conn.ServerIdentity.KeySigner,
-			Cluster:              clusterName,
-			FIPS:                 process.Config.FIPS,
-			ConnectedProxyGetter: proxyGetter,
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = agentPool.Start()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	oktaService.Wait(ctx)
 
 	// If we get here, we can attempt to clean up the service. Either this is a result of the
@@ -282,9 +214,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, plug
 	// to the okta service despite no longer being necessary.
 	oktaService = nil
 	oktaServiceMu.Unlock()
-
-	agentPool.Stop()
-	agentPool.Wait()
 
 	return nil
 }
