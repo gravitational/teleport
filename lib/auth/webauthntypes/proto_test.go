@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package webauthn_test
+package webauthntypes_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 func TestConversionFromProto_nils(t *testing.T) {
@@ -37,29 +37,29 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialAssertion nil",
 			fn: func() {
-				wanlib.CredentialAssertionFromProto(nil)
+				wantypes.CredentialAssertionFromProto(nil)
 			},
 		},
 		{
 			name: "CredentialAssertion empty",
 			fn: func() {
-				wanlib.CredentialAssertionFromProto(&wantypes.CredentialAssertion{})
+				wantypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{})
 			},
 		},
 		{
 			name: "CredentialAssertion.PublicKey empty",
 			fn: func() {
-				wanlib.CredentialAssertionFromProto(&wantypes.CredentialAssertion{
-					PublicKey: &wantypes.PublicKeyCredentialRequestOptions{},
+				wantypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{
+					PublicKey: &wanpb.PublicKeyCredentialRequestOptions{},
 				})
 			},
 		},
 		{
 			name: "CredentialAssertion.PublicKey slice elements nil",
 			fn: func() {
-				wanlib.CredentialAssertionFromProto(&wantypes.CredentialAssertion{
-					PublicKey: &wantypes.PublicKeyCredentialRequestOptions{
-						AllowCredentials: []*wantypes.CredentialDescriptor{
+				wantypes.CredentialAssertionFromProto(&wanpb.CredentialAssertion{
+					PublicKey: &wanpb.PublicKeyCredentialRequestOptions{
+						AllowCredentials: []*wanpb.CredentialDescriptor{
 							{}, nil, {},
 						},
 					},
@@ -69,52 +69,52 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialAssertionResponse nil",
 			fn: func() {
-				wanlib.CredentialAssertionResponseFromProto(nil)
+				wantypes.CredentialAssertionResponseFromProto(nil)
 			},
 		},
 		{
 			name: "CredentialAssertionResponse empty",
 			fn: func() {
-				wanlib.CredentialAssertionResponseFromProto(&wantypes.CredentialAssertionResponse{})
+				wantypes.CredentialAssertionResponseFromProto(&wanpb.CredentialAssertionResponse{})
 			},
 		},
 		{
 			name: "CredentialAssertionResponse.Response empty",
 			fn: func() {
-				wanlib.CredentialAssertionResponseFromProto(&wantypes.CredentialAssertionResponse{
-					Response: &wantypes.AuthenticatorAssertionResponse{},
+				wantypes.CredentialAssertionResponseFromProto(&wanpb.CredentialAssertionResponse{
+					Response: &wanpb.AuthenticatorAssertionResponse{},
 				})
 			},
 		},
 		{
 			name: "CredentialCreation nil",
 			fn: func() {
-				wanlib.CredentialCreationFromProto(nil)
+				wantypes.CredentialCreationFromProto(nil)
 			},
 		},
 		{
 			name: "CredentialCreation empty",
 			fn: func() {
-				wanlib.CredentialCreationFromProto(&wantypes.CredentialCreation{})
+				wantypes.CredentialCreationFromProto(&wanpb.CredentialCreation{})
 			},
 		},
 		{
 			name: "CredentialCreation.PublicKey empty",
 			fn: func() {
-				wanlib.CredentialCreationFromProto(&wantypes.CredentialCreation{
-					PublicKey: &wantypes.PublicKeyCredentialCreationOptions{},
+				wantypes.CredentialCreationFromProto(&wanpb.CredentialCreation{
+					PublicKey: &wanpb.PublicKeyCredentialCreationOptions{},
 				})
 			},
 		},
 		{
 			name: "CredentialCreation.PublicKey slice elements nil",
 			fn: func() {
-				wanlib.CredentialCreationFromProto(&wantypes.CredentialCreation{
-					PublicKey: &wantypes.PublicKeyCredentialCreationOptions{
-						CredentialParameters: []*wantypes.CredentialParameter{
+				wantypes.CredentialCreationFromProto(&wanpb.CredentialCreation{
+					PublicKey: &wanpb.PublicKeyCredentialCreationOptions{
+						CredentialParameters: []*wanpb.CredentialParameter{
 							{}, nil, {},
 						},
-						ExcludeCredentials: []*wantypes.CredentialDescriptor{
+						ExcludeCredentials: []*wanpb.CredentialDescriptor{
 							{}, nil, {},
 						},
 					},
@@ -124,20 +124,20 @@ func TestConversionFromProto_nils(t *testing.T) {
 		{
 			name: "CredentialCreationResponse nil",
 			fn: func() {
-				wanlib.CredentialCreationResponseFromProto(nil)
+				wantypes.CredentialCreationResponseFromProto(nil)
 			},
 		},
 		{
 			name: "CredentialCreationResponse empty",
 			fn: func() {
-				wanlib.CredentialCreationResponseFromProto(&wantypes.CredentialCreationResponse{})
+				wantypes.CredentialCreationResponseFromProto(&wanpb.CredentialCreationResponse{})
 			},
 		},
 		{
 			name: "CredentialCreationResponse.Response empty",
 			fn: func() {
-				wanlib.CredentialCreationResponseFromProto(&wantypes.CredentialCreationResponse{
-					Response: &wantypes.AuthenticatorAttestationResponse{},
+				wantypes.CredentialCreationResponseFromProto(&wanpb.CredentialCreationResponse{
+					Response: &wanpb.AuthenticatorAttestationResponse{},
 				})
 			},
 		},

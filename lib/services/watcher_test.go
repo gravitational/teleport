@@ -714,7 +714,7 @@ func TestAppWatcher(t *testing.T) {
 	}
 }
 
-func newApp(t *testing.T, name string) types.Application {
+func newApp(t *testing.T, name string) *types.AppV3 {
 	app, err := types.NewAppV3(types.Metadata{
 		Name: name,
 	}, types.AppSpecV3{

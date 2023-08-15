@@ -46,8 +46,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -111,7 +111,7 @@ type MFAChallengeResponse struct {
 	// TOTPCode is a code for a otp device.
 	TOTPCode string `json:"totp_code,omitempty"`
 	// WebauthnResponse is a response from a webauthn device.
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
+	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
 }
 
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
@@ -129,7 +129,7 @@ func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthe
 
 	if r.WebauthnResponse != nil {
 		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(r.WebauthnResponse),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
 		}}, nil
 	}
 
@@ -174,7 +174,7 @@ type AuthenticateSSHUserRequest struct {
 	// performed.
 	Password string `json:"password"`
 	// WebauthnChallengeResponse is a signed WebAuthn credential assertion.
-	WebauthnChallengeResponse *wanlib.CredentialAssertionResponse `json:"webauthn_challenge_response"`
+	WebauthnChallengeResponse *wantypes.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
 	// PubKey is a public key user wishes to sign
@@ -198,14 +198,14 @@ type AuthenticateWebUserRequest struct {
 	// User is a teleport username.
 	User string `json:"user"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
 type HeadlessRequest struct {
 	// Actions can be either accept or deny.
 	Action string `json:"action"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
 // SSHLogin contains common SSH login parameters.
@@ -536,7 +536,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		ctx, webClient.Endpoint("webapi", "mfa", "login", "finish"),
 		&AuthenticateSSHUserRequest{
 			User:                      "", // User carried on WebAuthn assertion.
-			WebauthnChallengeResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+			WebauthnChallengeResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
 			PubKey:                    login.PubKey,
 			TTL:                       login.TTL,
 			Compatibility:             login.Compatibility,
@@ -585,7 +585,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		challengePB.TOTP = &proto.TOTPChallenge{}
 	}
 	if challenge.WebauthnChallenge != nil {
-		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
+		challengePB.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
 	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
@@ -612,7 +612,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	case *proto.MFAAuthenticateResponse_TOTP:
 		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
-		challengeResp.WebauthnChallengeResponse = wanlib.CredentialAssertionResponseFromProto(r.Webauthn)
+		challengeResp.WebauthnChallengeResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
@@ -782,7 +782,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		challengePB.TOTP = &proto.TOTPChallenge{}
 	}
 	if challenge.WebauthnChallenge != nil {
-		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
+		challengePB.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
 	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
@@ -800,7 +800,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	// Convert back from auth gRPC proto response.
 	switch r := respPB.Response.(type) {
 	case *proto.MFAAuthenticateResponse_Webauthn:
-		challengeResp.WebauthnAssertionResponse = wanlib.CredentialAssertionResponseFromProto(r.Webauthn)
+		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
@@ -867,7 +867,7 @@ func SSHAgentPasswordlessLoginWeb(ctx context.Context, login SSHLoginPasswordles
 		ctx, webClient.Endpoint("webapi", "mfa", "login", "finishsession"),
 		&AuthenticateWebUserRequest{
 			User:                      login.User,
-			WebauthnAssertionResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+			WebauthnAssertionResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
 		})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

@@ -54,20 +54,25 @@ func TestParseFromMetadata(t *testing.T) {
 func TestCheckSAMLEntityDescriptor(t *testing.T) {
 	t.Parallel()
 
-	input := fixtures.SAMLOktaConnectorV2
+	for name, input := range map[string]string{
+		"without certificate padding": fixtures.SAMLOktaConnectorV2,
+		"with certificate padding":    fixtures.SAMLOktaConnectorV2WithPadding,
+	} {
+		t.Run(name, func(t *testing.T) {
+			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+			var raw UnknownResource
+			err := decoder.Decode(&raw)
+			require.NoError(t, err)
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
-	var raw UnknownResource
-	err := decoder.Decode(&raw)
-	require.NoError(t, err)
+			oc, err := UnmarshalSAMLConnector(raw.Raw)
+			require.NoError(t, err)
 
-	oc, err := UnmarshalSAMLConnector(raw.Raw)
-	require.NoError(t, err)
-
-	ed := oc.GetEntityDescriptor()
-	certs, err := CheckSAMLEntityDescriptor(ed)
-	require.NoError(t, err)
-	require.Len(t, certs, 1)
+			ed := oc.GetEntityDescriptor()
+			certs, err := CheckSAMLEntityDescriptor(ed)
+			require.NoError(t, err)
+			require.Len(t, certs, 1)
+		})
+	}
 }
 
 func TestValidateRoles(t *testing.T) {
