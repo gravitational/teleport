@@ -1,0 +1,34 @@
+---
+title: Deploying Machine ID
+description: How to deploy Machine ID in your environment
+---
+
+Teleport Machine ID provides authentication for machine access to Teleport. This
+allows unattended machines (e.g CI/CD workflows) to access resources protected
+by Teleport and configure Teleport itself.
+
+At the core of Machine ID is the `tbot` agent. This authenticates to your
+Teleport cluster using a **join method** and produces outputs such as
+credentials and configuration files that other tools can use to access Teleport.
+
+EXPLAIN BOT USER, EXPLAIN ROLES, EXPLAIN BOT CREATION
+
+## Deploying `tbot` to your environment
+
+Something something talk about persistence and ephemerality. Then deep dive
+on the specific pages with examples of systemd files or kubernetes manifests.
+
+- CI/CD
+- Kubernetes
+- Linux Host (SystemD)
+
+## Configuring access
+
+
+
+## Next Steps
+
+- [Configuration Reference](../reference/configuration.mdx): A full description
+  of all Machine ID configuration options.
+- [Architecture](../architecture.mdx): A technical overview of how Machine ID
+  works
