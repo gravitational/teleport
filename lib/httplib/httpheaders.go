@@ -64,6 +64,7 @@ type cspMap map[string][]string
 
 var defaultContentSecurityPolicy = cspMap{
 	"default-src": {"'self'"},
+	"script-src":  {"'self'"},
 	// specify CSP directives not covered by `default-src`
 	"base-uri":        {"'self'"},
 	"form-action":     {"'self'"},
@@ -79,7 +80,7 @@ var defaultConnectSrc = cspMap{"connect-src": {"'self'", "wss:"}}
 
 var stripeSecurityPolicy = cspMap{
 	// auto-pay plans in Cloud use stripe.com to manage billing information
-	"script-src": {"'self'", "https://js.stripe.com"},
+	"script-src": {"https://js.stripe.com"},
 	"frame-src":  {"https://js.stripe.com"},
 }
 

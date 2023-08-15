@@ -281,6 +281,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 			urlPath:  "/web/index.js",
 			expectedCspVals: map[string]string{
 				"default-src":     "'self'",
+				"script-src":      "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
 				"frame-ancestors": "'none'",
@@ -319,7 +320,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"form-action":     "'self'",
 				"frame-ancestors": "'none'",
 				"object-src":      "'none'",
-				"script-src":      "'wasm-unsafe-eval'",
+				"script-src":      "'self' 'wasm-unsafe-eval'",
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
