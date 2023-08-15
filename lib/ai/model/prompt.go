@@ -111,7 +111,8 @@ func ConversationCommandResult(result map[string][]byte) string {
 		message.WriteString(string(output))
 		message.WriteString("\n")
 	}
-	message.WriteString("Based on the chat history, extract relevant information out of the command output and write a summary.")
+	message.WriteString("Based on the chat history, extract relevant information out of the command output and write a summary. " +
+		"For error messages suggest a solution if possible. The solution can contain a Linux command or a description.")
 	return message.String()
 }
 

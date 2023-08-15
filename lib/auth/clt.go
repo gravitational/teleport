@@ -864,4 +864,6 @@ type ClientI interface {
 
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
+	// ListUnifiedResources returns a paginated list of unified resources.
+	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 }

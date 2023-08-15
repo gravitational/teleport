@@ -469,6 +469,17 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 	return true
 }
 
+// MatchKinds takes an array of strings that represent a Kind and
+// returns true if the resource's kind matches any item in the given array.
+func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
+	if len(kinds) == 0 {
+		return true
+	}
+	resourceKind := resource.GetKind()
+
+	return slices.Contains(kinds, resourceKind)
+}
+
 // IsValidLabelKey checks if the supplied string matches the
 // label key regexp.
 func IsValidLabelKey(s string) bool {
