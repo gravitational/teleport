@@ -86,7 +86,7 @@ func (c *ACLCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI
 	switch cmd {
 	case c.ls.FullCommand():
 		err = c.List(ctx, client)
-	case c.ls.FullCommand():
+	case c.get.FullCommand():
 		err = c.Get(ctx, client)
 	case c.usersAdd.FullCommand():
 		err = c.UsersAdd(ctx, client)

@@ -19,7 +19,6 @@ package v1
 import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -57,17 +56,6 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 		}
 	}
 
-	members := make([]accesslist.Member, len(msg.Spec.Members))
-	for i, member := range msg.Spec.Members {
-		members[i] = accesslist.Member{
-			Name:    member.Name,
-			Joined:  member.Joined.AsTime(),
-			Expires: member.Expires.AsTime(),
-			Reason:  member.Reason,
-			AddedBy: member.AddedBy,
-		}
-	}
-
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Description: msg.Spec.Description,
 		Owners:      owners,
@@ -86,7 +74,6 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
-		Members: members,
 	})
 
 	return accessList, trace.Wrap(err)
@@ -99,17 +86,6 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		owners[i] = &accesslistv1.AccessListOwner{
 			Name:        owner.Name,
 			Description: owner.Description,
-		}
-	}
-
-	members := make([]*accesslistv1.AccessListMember, len(accessList.Spec.Members))
-	for i, member := range accessList.Spec.Members {
-		members[i] = &accesslistv1.AccessListMember{
-			Name:    member.Name,
-			Joined:  timestamppb.New(member.Joined),
-			Expires: timestamppb.New(member.Expires),
-			Reason:  member.Reason,
-			AddedBy: member.AddedBy,
 		}
 	}
 
@@ -133,7 +109,6 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 				Roles:  accessList.Spec.Grants.Roles,
 				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
-			Members: members,
 		},
 	}
 }
