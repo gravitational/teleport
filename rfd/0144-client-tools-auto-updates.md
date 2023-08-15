@@ -13,7 +13,7 @@ state: draft
 
 ## What
 
-A workflow for Teleport client tools (both tsh and tctl) to automatically stay up to date with the latest cloud-stable version of Teleport.
+Support for Teleport client tools (both tsh and tctl) to automatically stay up to date with the latest cloud-stable version of Teleport.
 
 ## Why
 
@@ -29,9 +29,13 @@ Development for Automatic Updates of Teleport Agents has already been completed,
 
 Teleport will now store a single cached version of the client tools in the user's $HOME directory. tsh/tctl will execute this cached version when communicating with the Teleport Cloud cluster.
 
-Cloud will host an endpoint for Teleport client tools version discovery. tsh/tctl will check this endpoint to identify the current cloud-stable version of Teleport. If the cached version is behind the current cloud-stable version, the cache will be updated to match the current cloud-stable version. This will ensure Teleport client tools are always executed using the latest compatible version of Teleport when communicating with a Teleport Cloud cluster.
+Cloud will host an endpoint for Teleport client tools version discovery. tsh/tctl will check this endpoint to identify the current cloud-stable version of Teleport. If the cached version is behind or ahead of the current cloud-stable version, the cache will be updated to match the current cloud-stable version. This will ensure Teleport client tools are always executed using the latest compatible version of Teleport when communicating with a Teleport Cloud cluster.
+
+### Detecting Cloud instances
 
 For now this feature will be disabled for self-hosted users and will only be supported for Cloud users.
+
+For tsh/tctl to identify if it is communicating with a Cloud instance of Teleport the `../webapi/ping` endpoint will now include a `cloud` boolean flag in it's ping response.
 
 ### Version discovery
 
@@ -41,15 +45,15 @@ The client tools are not using the same endpoint that agents use to discover the
 
 The stable version should be updated after each Cloud Tenant upgrade. This should follow the same workflow as updating the cloud-stable agent version endpoint. The version should be updated soon after Cloud Tenant upgrades have been completed.
 
-Unlike the agent version discovery model, there will not be an endpoint to identify if a critical update is available. The reason for this is because updates are not executed in a scheduled update window. Teleport client tools will check this endpoint on every login and update accordingly if a new version is available.
+The [deploy-auto-update-changes.yml](https://github.com/gravitational/cloud/blob/master/.github/workflows/deploy-auto-update-changes.yml) workflow will need to be updated to include an additional job that updates the cloud-stable version of client tools.
 
-On every login, tsh will pull the current cloud-stable version of Teleport and store the value in the .tsh directory under `$HOME/.tsh/cloud-stable-version`.
+Unlike the agent version discovery model, there will not be an endpoint to identify if a critical update is available. The reason for this is because updates are not executed in a scheduled update window. Teleport client tools will check this endpoint everytime `login` or `status` is executed, and update accordingly if the cached version does not match the cloud-stable version.
 
 ### Caching
 
-A single version of the Teleport client tools will be stored in the user's $HOME directory. Teleport already makes use of a .tsh directory for storing tsh config. Cached versions of tsh/tctl will also live within this directory under ` $HOME/.tsh/cache/<version>/{tsh,tctl}`. Whenever a new version of the client tools are available, the existing cached version will be replaced.
+A single version of the Teleport client tools will be stored in the user's $HOME directory. Teleport already makes use of a .tsh directory for storing tsh config. Cached versions of tsh/tctl will also live within this directory under ` $HOME/.tsh/bin/{tsh,tctl}`. Whenever a new version of the client tools are available, the existing cached version will be replaced.
 
-On every login, tsh will compare the currently cached version of the client tools with the current stable version stored in `$HOME/.tsh/cloud-stable-version`. If the cached version is behind the current stable version, a new version of the client tools will be downloaded to replace the existing ones. When downloading the Teleport client tools, the binaries will be downloaded directly. We need to make sure to download a version that is compatible with the system.
+Everytime `login` or `status` command is executed, tsh will compare the currently cached version of the client tools with the current cloud-stable version of Teleport. If the cached version is behind or ahead of the current stable version, a new version of the client tools will be downloaded to replace the existing ones. When downloading the Teleport client tools, the binaries will be downloaded directly. We need to make sure to download a version that is compatible with the system.
 
 Because only a single version of the client tools will be cached at a time, we do not need to worry about cleaning up the cache.
 
@@ -63,19 +67,27 @@ Another downside to this approach would be that upgrades would require sudo/admi
 
 ### Config
 
-By default, the client tools will have auto-updates enabled. I don't see compelling reason to allow users to disable auto updates for client tools. But if we want to allow this feature to be disabled, we can add support in the tsh configuration files by adding a DISABLE_AUTO_UPDATES flag.
+Automatic updates for client tools can be configured through tsh configuration. If `DISABLE_AUTO_UPDATE=true`, then auto updates for client tools will be disabled. If `DISABLE_UPDATE_PROMPT=true`, then the user will not be prompted to confirm the update. Both values will default to false.
 
 ## UX
 
-Ideally, we'd like this feature to be integrated seamlessly. Users of the Teleport client tools should not need to take any actions to enable auto updates for their client tools.
+Ideally, we'd like this feature to be integrated seamlessly. Users of the Teleport client tools should not need to search for documentation and spend time figuring out how to enable auto updates for their cleint tools.
 
-We should be transparent about the client tools updates. Whenever a new cloud-stable version is available for download, the progress of the update will be output to stdout. e.g. `New cloud-stable version of Teleport detected`, `Downloading latest version of tsh/tctl... `, `Updated tsh/tctl to version v13.2.3!`.
+After client tools auto updates is deployed and the first time the client tools are executed, the user will be asked two questions: 1) if they would like to update to the latest version (default yes) and 2) if they would like to enroll in auto updates for client tools (default yes).
+
+Users that would like to opt-in or opt-out of auto updates at a later time can edit their tsh configuration file and edit the `DISABLE_AUTO_UPDATE` value.
+
+If a user opts out of auto updates, the user will still be prompted with the first question every time an update is available, but not the second question.
+
+We should provide some observability into the download status. Whenever a new cloud-stable version is available for download, the progress of the update will be output to stdout. e.g. `New cloud-stable version of Teleport detected`, `Downloading latest version of tsh/tctl... `, `Updated tsh/tctl to version v13.2.3!`.
+
+To avoid breaking existing scripts, a `--skip-auto-update` flag will be included. If the flag is enabled, auto updates will be skipped and the prompts will also be skipped.
 
 ## Documentation
 
 There should be minimal documentation changes required for this feature. Users will not need to opt-in or take any actions to take advantage of this feature.
 
-The documentation should include a basic overview of how auto updates works for client tools. Documenation should also be available describing how to opt-out of auto updates.
+The documentation should include a basic overview of how auto updates works for client tools. Documention should also be available describing how to use the configuration values `DISABLE_AUTO_UPDATE`, `DISABLE_UPDATE_PROMPT`, and the `--skip-auto-update` flag.
 
 ## Security Considerations
 
