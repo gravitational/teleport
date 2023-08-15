@@ -759,7 +759,6 @@ db_service:
 			}
 
 			if test.extraAssertions != nil {
-				t.Log(script)
 				test.extraAssertions(script)
 			}
 		})
@@ -952,7 +951,8 @@ func TestJoinScript(t *testing.T) {
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
 				"    # Disabling the warning above because expression is templated.\n"+
 				"    # shellcheck disable=SC2050\n"+
-				"    if [[ \"true\" == \"true\" ]]; then\n"+
+				"    if is_using_systemd && [[ \"true\" == \"true\" ]]; then\n"+
+				"        # Teleport Updater requires systemd.\n"+
 				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
@@ -969,7 +969,8 @@ func TestJoinScript(t *testing.T) {
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
 				"    # Disabling the warning above because expression is templated.\n"+
 				"    # shellcheck disable=SC2050\n"+
-				"    if [[ \"false\" == \"true\" ]]; then\n"+
+				"    if is_using_systemd && [[ \"false\" == \"true\" ]]; then\n"+
+				"        # Teleport Updater requires systemd.\n"+
 				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)

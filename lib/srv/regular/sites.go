@@ -52,7 +52,12 @@ func (t *proxySitesSubsys) Wait() error {
 // service.Site structures, and writes it serialized as JSON back to the SSH client
 func (t *proxySitesSubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	log.Debugf("proxysites.start(%v)", serverContext)
-	remoteSites, err := t.srv.tunnelWithAccessChecker(serverContext).GetSites()
+	checker, err := t.srv.tunnelWithAccessChecker(serverContext)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	remoteSites, err := checker.GetSites()
 	if err != nil {
 		return trace.Wrap(err)
 	}

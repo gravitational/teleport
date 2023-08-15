@@ -19,12 +19,17 @@ jobs:
   build:
     name: Build on Mac OS
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: macos-12-xl
+    runs-on: macos-13-xl-arm64
 
     permissions:
       contents: read
 
     steps:
+      # This is necessary on macos arm64 runners because the .cache and
+      # .config dirs on the runner are owned by root not the "runner" user.
+      - name: Fix home dir perms
+        run: sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
+
       - name: Checkout Teleport
         uses: actions/checkout@v3
 

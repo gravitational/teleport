@@ -17,16 +17,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Sun, Moon } from 'design/Icon';
-import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
+import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text } from 'design';
-import { LogoutIcon } from 'design/SVGIcon';
 import { NavLink } from 'react-router-dom';
 
 import session from 'teleport/services/websession';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
-import storage from 'teleport/services/localStorage/localStorage';
+import { useUser } from 'teleport/User/UserContext';
+import { ThemePreference } from 'teleport/services/userPreferences/types';
 
 interface UserMenuNavProps {
   username: string;
@@ -53,7 +52,7 @@ const UserInfo = styled.div`
 `;
 
 const Username = styled(Text)`
-  color: ${props => props.theme.colors.text.main}
+  color: ${props => props.theme.colors.text.main};
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
@@ -145,6 +144,11 @@ const commonDropdownItemStyles = css`
   &:hover {
     opacity: 1;
   }
+
+  svg {
+    height: 18px;
+    width: 18px;
+  }
 `;
 
 const DropdownItemButton = styled.div`
@@ -169,19 +173,21 @@ const DropdownDivider = styled.div`
 export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
 
+  const { preferences, updatePreferences } = useUser();
+
   const ref = useRef<HTMLDivElement>();
 
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
   const features = useFeatures();
 
-  const currentThemeOption = storage.getThemeOption();
   const onThemeChange = () => {
-    if (currentThemeOption === 'dark') {
-      storage.setThemeOption('light');
-    } else {
-      storage.setThemeOption('dark');
-    }
+    const nextTheme =
+      preferences.theme === ThemePreference.Light
+        ? ThemePreference.Dark
+        : ThemePreference.Light;
+
+    updatePreferences({ theme: nextTheme });
     setOpen(false);
   };
 
@@ -242,7 +248,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         <Username>{username}</Username>
 
         <Arrow open={open}>
-          <ChevronDownIcon />
+          <ChevronDown size="medium" />
         </Arrow>
       </UserInfo>
 
@@ -259,9 +265,11 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         >
           <DropdownItemButton onClick={onThemeChange}>
             <DropdownItemIcon>
-              {currentThemeOption === 'dark' ? <Sun /> : <Moon />}
+              {preferences.theme === ThemePreference.Light ? <Sun /> : <Moon />}
             </DropdownItemIcon>
-            Switch to {currentThemeOption === 'dark' ? 'Light' : 'Dark'} Theme
+            Switch to{' '}
+            {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
+            Theme
           </DropdownItemButton>
         </DropdownItem>
         <DropdownItem
@@ -272,7 +280,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         >
           <DropdownItemButton onClick={() => session.logout()}>
             <DropdownItemIcon>
-              <LogoutIcon size={16} />
+              <LogoutIcon />
             </DropdownItemIcon>
             Logout
           </DropdownItemButton>

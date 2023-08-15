@@ -88,12 +88,32 @@ func WithMirrorMode(mirror bool) ConstructionOption {
 	}
 }
 
-// WithConcurrentBackend() asks the constructor to create a
+// WithConcurrentBackend asks the constructor to create a
 func WithConcurrentBackend(target backend.Backend) ConstructionOption {
 	return func(opts *ConstructionOptions) error {
 		opts.ConcurrentBackend = target
 		return nil
 	}
+}
+
+// BlockingFakeClock simulates a fake clock by
+// sleeping instead of advancing an actual fake clock.
+// This is required for backend clients which cannot
+// time travel via a fake clock.
+type BlockingFakeClock struct {
+	clockwork.Clock
+}
+
+func (r BlockingFakeClock) Advance(d time.Duration) {
+	if d < 0 {
+		panic("Invalid argument, negative duration")
+	}
+
+	time.Sleep(d)
+}
+
+func (r BlockingFakeClock) BlockUntil(int) {
+	panic("Not implemented")
 }
 
 // Constructor describes a function for constructing new instances of a
@@ -168,15 +188,15 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 // RequireItems asserts that the supplied `actual` items collection matches
 // the `expected` collection, in size, ordering and the key/value pairs of
 // each entry.
-func RequireItems(t *testing.T, actual, expected []backend.Item) {
+func RequireItems(t *testing.T, expected, actual []backend.Item) {
 	require.Len(t, actual, len(expected))
 	for i := range expected {
-		require.Equal(t, actual[i].Key, expected[i].Key)
-		require.Equal(t, actual[i].Value, expected[i].Value)
+		require.Equal(t, expected[i].Key, actual[i].Key)
+		require.Equal(t, expected[i].Value, actual[i].Value)
 	}
 }
 
-// CRUD tests create read update scenarios
+// testCRUD tests create read update scenarios
 func testCRUD(t *testing.T, newBackend Constructor) {
 	uut, _, err := newBackend()
 	require.NoError(t, err)
@@ -201,13 +221,13 @@ func testCRUD(t *testing.T, newBackend Constructor) {
 	// get succeeds
 	out, err := uut.Get(ctx, item.Key)
 	require.NoError(t, err)
-	require.Equal(t, out.Value, item.Value)
+	require.Equal(t, item.Value, out.Value)
 
 	// get range succeeds
 	res, err := uut.GetRange(ctx, item.Key, backend.RangeEnd(item.Key), backend.NoLimit)
 	require.NoError(t, err)
 	require.Len(t, res.Items, 1)
-	RequireItems(t, res.Items, []backend.Item{item})
+	RequireItems(t, []backend.Item{item}, res.Items)
 
 	// update succeeds
 	updated := backend.Item{Key: prefix("/hello"), Value: []byte("world 2")}
@@ -216,7 +236,7 @@ func testCRUD(t *testing.T, newBackend Constructor) {
 
 	out, err = uut.Get(ctx, item.Key)
 	require.NoError(t, err)
-	require.Equal(t, out.Value, updated.Value)
+	require.Equal(t, updated.Value, out.Value)
 
 	// delete succeeds
 	require.NoError(t, uut.Delete(ctx, item.Key))
@@ -234,7 +254,7 @@ func testCRUD(t *testing.T, newBackend Constructor) {
 
 	out, err = uut.Get(ctx, item.Key)
 	require.NoError(t, err)
-	require.Equal(t, out.Value, item.Value)
+	require.Equal(t, item.Value, out.Value)
 
 	// put with large key and binary value succeeds.
 	// NB: DynamoDB has a maximum overall key length of 1024 bytes, so
@@ -244,18 +264,20 @@ func testCRUD(t *testing.T, newBackend Constructor) {
 	//         (485 bytes * 2 (for hex encoding)) + 33 = 1003
 	//     which gives us a little bit of room to spare
 	keyBytes := make([]byte, 485)
-	rand.Read(keyBytes)
+	_, err = rand.Read(keyBytes)
+	require.NoError(t, err)
 	key := hex.EncodeToString(keyBytes)
 
 	data := make([]byte, 1024)
-	rand.Read(data)
+	_, err = rand.Read(data)
+	require.NoError(t, err)
 	item = backend.Item{Key: prefix(key), Value: data}
 	_, err = uut.Put(ctx, item)
 	require.NoError(t, err)
 
 	out, err = uut.Get(ctx, item.Key)
 	require.NoError(t, err)
-	require.Equal(t, out.Value, item.Value)
+	require.Equal(t, item.Value, out.Value)
 }
 
 func testQueryRange(t *testing.T, newBackend Constructor) {
@@ -280,31 +302,31 @@ func testQueryRange(t *testing.T, newBackend Constructor) {
 	// prefix range fetch
 	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
 	require.NoError(t, err)
-	RequireItems(t, result.Items, []backend.Item{a, b, c1, c2})
+	RequireItems(t, []backend.Item{a, b, c1, c2}, result.Items)
 
 	// sub prefix range fetch
 	result, err = uut.GetRange(ctx, prefix("/prefix/c"), backend.RangeEnd(prefix("/prefix/c")), backend.NoLimit)
 	require.NoError(t, err)
-	RequireItems(t, result.Items, []backend.Item{c1, c2})
+	RequireItems(t, []backend.Item{c1, c2}, result.Items)
 
 	// range match
 	result, err = uut.GetRange(ctx, prefix("/prefix/c/c1"), backend.RangeEnd(prefix("/prefix/c/cz")), backend.NoLimit)
 	require.NoError(t, err)
-	RequireItems(t, result.Items, []backend.Item{c1, c2})
+	RequireItems(t, []backend.Item{c1, c2}, result.Items)
 
 	// pagination
 	result, err = uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), 2)
 	require.NoError(t, err)
 
 	// expect two first records
-	RequireItems(t, result.Items, []backend.Item{a, b})
+	RequireItems(t, []backend.Item{a, b}, result.Items)
 
 	// fetch next two items
 	result, err = uut.GetRange(ctx, backend.RangeEnd(prefix("/prefix/b")), backend.RangeEnd(prefix("/prefix")), 2)
 	require.NoError(t, err)
 
 	// expect two last records
-	RequireItems(t, result.Items, []backend.Item{c1, c2})
+	RequireItems(t, []backend.Item{c1, c2}, result.Items)
 
 	// next fetch is empty
 	result, err = uut.GetRange(ctx, backend.RangeEnd(prefix("/prefix/c/c2")), backend.RangeEnd(prefix("/prefix")), 2)
@@ -337,7 +359,7 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 	// make sure items with "/prefix/c" are gone
 	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
 	require.NoError(t, err)
-	RequireItems(t, result.Items, []backend.Item{a, b})
+	RequireItems(t, []backend.Item{a, b}, result.Items)
 }
 
 // testPutRange tests scenarios with put range
@@ -363,7 +385,7 @@ func testPutRange(t *testing.T, newBackend Constructor) {
 	// prefix range fetch
 	result, err := uut.GetRange(ctx, prefix("/prefix"), backend.RangeEnd(prefix("/prefix")), backend.NoLimit)
 	require.NoError(t, err)
-	RequireItems(t, result.Items, []backend.Item{a, b})
+	RequireItems(t, []backend.Item{a, b}, result.Items)
 }
 
 // testCompareAndSwap tests compare and swap functionality
@@ -375,33 +397,72 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 	prefix := MakePrefix()
 	ctx := context.Background()
 
+	key := prefix("one")
+
 	// compare and swap on non existing value will fail
-	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("2")})
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: []byte("1")}, backend.Item{Key: key, Value: []byte("2")})
 	require.True(t, trace.IsCompareFailed(err))
 
 	// create value and try again...
-	_, err = uut.Create(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")})
+	_, err = uut.Create(ctx, backend.Item{Key: key, Value: []byte("1")})
 	require.NoError(t, err)
 
 	// success CAS!
-	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("2")})
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: []byte("1")}, backend.Item{Key: key, Value: []byte("2")})
 	require.NoError(t, err)
 
-	out, err := uut.Get(ctx, prefix("one"))
+	out, err := uut.Get(ctx, key)
 	require.NoError(t, err)
 	require.Equal(t, []byte("2"), out.Value)
 
 	// value has been updated - not '1' any more
-	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("3")})
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: []byte("1")}, backend.Item{Key: key, Value: []byte("3")})
 	require.True(t, trace.IsCompareFailed(err))
 
 	// existing value has not been changed by the failed CAS operation
-	out, err = uut.Get(ctx, prefix("one"))
+	out, err = uut.Get(ctx, key)
 	require.NoError(t, err)
 	require.Equal(t, []byte("2"), out.Value)
+
+	for i := 0; i < 10; i++ {
+		i := i
+		var wg sync.WaitGroup
+		wg.Add(1)
+		errs := make(chan error, 2)
+		go func(value byte) {
+			defer wg.Done()
+			_, err := uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: out.Value}, backend.Item{Key: key, Value: []byte{value}})
+			errs <- err
+		}(byte(i + 10))
+
+		wg.Add(1)
+		go func(value byte) {
+			defer wg.Done()
+			_, err := uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: out.Value}, backend.Item{Key: key, Value: []byte{value}})
+			errs <- err
+		}(byte(i + 100))
+
+		// validate that only a single failure occurred
+		var failed int
+		for i := 0; i < 2; i++ {
+			err := <-errs
+			if err != nil {
+				failed++
+			}
+		}
+		require.Equal(t, 1, failed)
+
+		// validate that the value for the key was updated - we
+		// don't care which CAS above won only that one of them
+		// succeeded.
+		item, err := uut.Get(ctx, key)
+		require.NoError(t, err)
+		require.NotEqual(t, out.Value, item.Value)
+		out = item
+	}
 }
 
-// Expiration tests scenario with expiring values
+// testExpiration tests scenario with expiring values
 func testExpiration(t *testing.T, newBackend Constructor) {
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
@@ -422,7 +483,7 @@ func testExpiration(t *testing.T, newBackend Constructor) {
 
 	res, err := uut.GetRange(ctx, prefix(""), backend.RangeEnd(prefix("")), backend.NoLimit)
 	require.NoError(t, err)
-	RequireItems(t, res.Items, []backend.Item{itemA})
+	RequireItems(t, []backend.Item{itemA}, res.Items)
 }
 
 // addSeconds adds seconds with a seconds precision
@@ -432,8 +493,10 @@ func addSeconds(t time.Time, seconds int64) time.Time {
 	return time.Unix(t.UTC().Unix()+seconds+1, 0)
 }
 
-// KeepAlive tests keep alive API
+// testKeepAlive tests keep alive API
 func testKeepAlive(t *testing.T, newBackend Constructor) {
+	const eventTimeout = 10 * time.Second
+
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
 	defer func() { require.NoError(t, uut.Close()) }()
@@ -449,23 +512,25 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 
 	// ...expect that the event channel contains the original `init` message
 	// sent when the Firestore client was set up.
-	init := collectEvents(ctx, t, watcher, 1)
-	requireEvents(t, init, []backend.Event{
-		{Type: types.OpInit, Item: backend.Item{}},
-	})
+	requireEvent(t, watcher, types.OpInit, nil, eventTimeout)
 
-	// When I create an item that expires in 2 seconds and add it to the DB
-	expiresAt := addSeconds(clock.Now(), 2)
-	item, lease := AddItem(ctx, t, uut, prefix("key"), "val1", expiresAt)
+	// Make sure that nothing breaks even if the value we are KeepAlive-ing is
+	// somewhat big; PostgreSQL starts optimizing values if their compressed
+	// form doesn't fit within 8KiB, so we use 16KiB of uncompressible data
+	var bigValue [16384]byte
+	rand.Read(bigValue[:])
 
-	events := collectEvents(ctx, t, watcher, 1)
-	requireEvents(t, events, []backend.Event{
-		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
-	})
+	// When I create an item that expires in 10 seconds and add it to the DB
+	expiresAt := addSeconds(clock.Now(), 10)
+	item, lease := AddItem(ctx, t, uut, prefix("key"), string(bigValue[:]), expiresAt)
+
+	event := requireEvent(t, watcher, types.OpPut, prefix("key"), eventTimeout)
+	require.Equal(t, bigValue[:], event.Item.Value)
+	require.WithinDuration(t, expiresAt, event.Item.Expires, 2*time.Second)
 
 	// move the current slightly forward, but still *before* the item's
 	// expiry time
-	clock.Advance(1 * time.Second)
+	clock.Advance(2 * time.Second)
 
 	// Move the item's expiration further in the future using a KeepAlive
 	updatedAt := addSeconds(clock.Now(), 60)
@@ -475,10 +540,9 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	// Since the backend translates absolute expiration timestamp to a TTL
 	// and collecting events takes arbitrary time, the expiration timestamps
 	// on the collected events might have a slight skew
-	events = collectEvents(ctx, t, watcher, 1)
-	requireEvents(t, events, []backend.Event{
-		{Type: types.OpPut, Item: backend.Item{Key: prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
-	})
+	event = requireEvent(t, watcher, types.OpPut, prefix("key"), eventTimeout)
+	require.Equal(t, bigValue[:], event.Item.Value)
+	require.WithinDuration(t, updatedAt, event.Item.Expires, 2*time.Second)
 
 	err = uut.Delete(context.TODO(), item.Key)
 	require.NoError(t, err)
@@ -491,25 +555,9 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	require.True(t, trace.IsNotFound(err))
 }
 
-func collectEvents(ctx context.Context, t *testing.T, watcher backend.Watcher, count int) []backend.Event {
-	var events []backend.Event
-	for i := 0; i < count; i++ {
-		select {
-		case e := <-watcher.Events():
-			events = append(events, e)
-		case <-watcher.Done():
-			require.FailNow(t, "Watcher has unexpectedly closed.")
-		case <-ctx.Done():
-			require.FailNowf(t, "Context expired waiting for events.",
-				"Captured %d of %d so far: %v", len(events), count, events)
-		}
-	}
-	return events
-}
-
-// Events tests scenarios with event watches
+// testEvents tests scenarios with event watches
 func testEvents(t *testing.T, newBackend Constructor) {
-	eventTimeout := 2 * time.Second
+	const eventTimeout = 10 * time.Second
 
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
@@ -576,7 +624,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	require.Error(t, err)
 
 	// Make sure a DELETE event is emitted.
-	requireEvent(t, watcher, types.OpDelete, item.Key, 2*time.Second)
+	requireEvent(t, watcher, types.OpDelete, item.Key, eventTimeout)
 }
 
 // testFetchLimit tests fetch max items size limit.
@@ -617,7 +665,7 @@ func testLimit(t *testing.T, newBackend Constructor) {
 	item := &backend.Item{
 		Key:     prefix("/db/database_tail_item"),
 		Value:   []byte("data"),
-		Expires: clock.Now().Add(time.Minute),
+		Expires: clock.Now().Add(10 * time.Minute),
 	}
 	_, err = uut.Put(ctx, *item)
 	require.NoError(t, err)
@@ -625,17 +673,17 @@ func testLimit(t *testing.T, newBackend Constructor) {
 		item := &backend.Item{
 			Key:     prefix(fmt.Sprintf("/db/database%d", i)),
 			Value:   []byte("data"),
-			Expires: clock.Now().Add(time.Second * 10),
+			Expires: clock.Now().Add(time.Second * 3),
 		}
 		_, err = uut.Put(ctx, *item)
 		require.NoError(t, err)
 	}
-	clock.Advance(time.Second * 20)
+	clock.Advance(time.Second * 5)
 
 	item = &backend.Item{
 		Key:     prefix("/db/database_head_item"),
 		Value:   []byte("data"),
-		Expires: clock.Now().Add(time.Minute),
+		Expires: clock.Now().Add(10 * time.Minute),
 	}
 	_, err = uut.Put(ctx, *item)
 	require.NoError(t, err)
@@ -954,6 +1002,8 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 // Mirror tests mirror mode for backends (used in caches). Only some backends
 // support mirror mode (like memory).
 func testMirror(t *testing.T, newBackend Constructor) {
+	const eventTimeout = 2 * time.Second
+
 	uut, _, err := newBackend(WithMirrorMode(true))
 	if err == ErrMirrorNotSupported {
 		t.Skip("Backend does not support mirror mode")
@@ -971,7 +1021,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, watcher.Close()) }()
 
 	// Make sure INIT event is emitted.
-	requireEvent(t, watcher, types.OpInit, nil, 2*time.Second)
+	requireEvent(t, watcher, types.OpInit, nil, eventTimeout)
 
 	// Add item to backend with a 1 second TTL.
 	item := &backend.Item{
@@ -991,7 +1041,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	originalID := item.ID
 
 	// Make sure a PUT event is emitted.
-	e := requireEvent(t, watcher, types.OpPut, item.Key, 2*time.Second)
+	e := requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
 	require.Equal(t, item.Value, e.Item.Value)
 
 	// Wait 1 second for the item to expire.
@@ -1004,7 +1054,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	require.Equal(t, item.Value, nitem.Value)
 
 	// Make sure a DELETE event was not emitted.
-	requireNoEvent(t, watcher, 2*time.Second)
+	requireNoEvent(t, watcher, eventTimeout)
 
 	// Update the existing item.
 	_, err = uut.Put(ctx, backend.Item{
@@ -1067,44 +1117,5 @@ func MakePrefix() func(k string) []byte {
 	id := "/" + uuid.New().String()
 	return func(k string) []byte {
 		return []byte(id + k)
-	}
-}
-
-func requireEvents(t *testing.T, obtained, expected []backend.Event) {
-	requireIncreasingIDs(t, obtained)
-	requireNoDuplicateIDs(t, obtained)
-	requireExpireTimestamps(t, obtained, expected)
-}
-
-func requireIncreasingIDs(t *testing.T, obtained []backend.Event) {
-	lastID := int64(-1)
-	for _, item := range obtained {
-		require.Greater(t, item.Item.ID, lastID)
-		lastID = item.Item.ID
-	}
-}
-
-func requireNoDuplicateIDs(t *testing.T, obtained []backend.Event) {
-	set := make(map[int64]struct{})
-	for _, event := range obtained {
-		_, ok := set[event.Item.ID]
-		require.False(t, ok, "Duplicate ID for %v.", event.Item.ID)
-		set[event.Item.ID] = struct{}{}
-	}
-}
-
-// requireExpireTimestampsIncreasing verifies that the expiry timestamps
-// of the `obtained` items expire _after_ the corresponding `expected`
-// item expiry times
-func requireExpireTimestamps(t *testing.T, obtained, expected []backend.Event) {
-	require.Len(t, obtained, len(expected))
-
-	for i := range expected {
-		require.False(t,
-			obtained[i].Item.Expires.After(expected[i].Item.Expires),
-			"Expected %v >= %v",
-			expected[i].Item.Expires,
-			obtained[i].Item.Expires,
-		)
 	}
 }

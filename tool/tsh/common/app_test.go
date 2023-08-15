@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	defaults2 "github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
@@ -86,7 +86,7 @@ func TestAppLoginLeaf(t *testing.T) {
 	rootAuth, rootProxy := makeTestServers(t, withClusterName(t, "root"), withBootstrap(connector, alice), withConfig(configStorage))
 	event, err := rootAuth.WaitForEventTimeout(time.Second, service.ProxyReverseTunnelReady)
 	require.NoError(t, err)
-	tunnel, ok := event.Payload.(reversetunnel.Server)
+	tunnel, ok := event.Payload.(reversetunnelclient.Server)
 	require.True(t, ok)
 
 	rootAppURL := startDummyHTTPServer(t, "rootapp")

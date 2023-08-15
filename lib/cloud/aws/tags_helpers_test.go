@@ -44,7 +44,6 @@ func TestTagsToLabels(t *testing.T) {
 				Value: aws.String("test"),
 			},
 		}
-		t.Log(inputTags)
 
 		expectLabels := map[string]string{
 			"Name":                        "test",
@@ -71,7 +70,6 @@ func TestTagsToLabels(t *testing.T) {
 				Value: aws.String("test"),
 			},
 		}
-		t.Log(inputTags)
 
 		expectLabels := map[string]string{
 			"Name":                        "test",

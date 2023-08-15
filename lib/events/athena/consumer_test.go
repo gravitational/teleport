@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -37,9 +38,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
-	"github.com/xitongsys/parquet-go-source/local"
-	"github.com/xitongsys/parquet-go/source"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -188,6 +188,51 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		// Make sure that channel is closed.
 		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
 		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(r.GetMsgs()))
+	})
+	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxUniquePerDayEvents", func(t *testing.T) {
+		// Given SqsMessagesCollector reading from fake sqs with random wait time on receiveMessage call
+		// When maxUniquePerDayEvents is reached.
+		// Then reading chan is closed.
+
+		// Given
+		fclock := clockwork.NewFakeClock()
+		fq := &fakeSQS{
+			clock:       fclock,
+			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
+		}
+		cfg := validCollectCfgForTests(t)
+		cfg.sqsReceiver = fq
+		cfg.batchMaxItems = 1000
+		require.NoError(t, cfg.CheckAndSetDefaults())
+		c := newSqsMessagesCollector(cfg)
+
+		eventsChan := c.getEventsChan()
+
+		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		defer readCancel()
+
+		go c.fromSQS(readSQSCtx)
+
+		// receiver is used to read messages from eventsChan.
+		r := &receiver{}
+		go r.Do(eventsChan)
+
+		// When over 100 unique days are sent
+		eventsToSend := make([]apievents.AuditEvent, 0, 101)
+		for i := 0; i < 101; i++ {
+			day := fclock.Now().Add(time.Duration(i) * 24 * time.Hour)
+			eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
+		}
+		fq.addEvents(eventsToSend...)
+		fclock.BlockUntil(cfg.noOfWorkers)
+		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
+		require.Eventually(t, func() bool {
+			return len(r.GetMsgs()) == 101
+		}, maxWaitOnResults, 1*time.Millisecond)
+
+		// Then
+		// Make sure that channel is closed.
+		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
 	})
 }
 
@@ -600,12 +645,12 @@ func TestConsumerWriteToS3(t *testing.T) {
 	defer cancel()
 
 	tmp := t.TempDir()
-	localWriter := func(ctx context.Context, date string) (source.ParquetFile, error) {
+	localWriter := func(ctx context.Context, date string) (io.WriteCloser, error) {
 		err := os.MkdirAll(filepath.Join(tmp, date), 0o777)
 		if err != nil {
 			return nil, err
 		}
-		localW, err := local.NewLocalFileWriter(filepath.Join(tmp, date, "test.parquet"))
+		localW, err := os.Create(filepath.Join(tmp, date, "test.parquet"))
 		return localW, err
 	}
 
@@ -617,11 +662,15 @@ func TestConsumerWriteToS3(t *testing.T) {
 		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: t}, AppMetadata: apievents.AppMetadata{AppName: name}}
 	}
 
+	eventR1 := makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")
+	eventR2 := makeAppCreateEventWithTime(april1st2023Afternoon.Add(10*time.Second), "app-2")
+	// r3 date is next date, so it should be written as separate file.
+	eventR3 := makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")
+
 	events := []eventAndAckID{
-		{receiptHandle: "r1", event: makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")},
-		{receiptHandle: "r2", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(10*time.Second), "app-2")},
-		// r3 date is next date, so it should be written as separate file.
-		{receiptHandle: "r3", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")},
+		{receiptHandle: "r1", event: eventR1},
+		{receiptHandle: "r2", event: eventR2},
+		{receiptHandle: "r3", event: eventR3},
 	}
 
 	eventsC := make(chan eventAndAckID, 100)
@@ -638,26 +687,52 @@ func TestConsumerWriteToS3(t *testing.T) {
 	// Make sure that all events are marked to delete.
 	require.Equal(t, []string{"r1", "r2", "r3"}, gotHandlesToDelete)
 
-	// vefiry that both files for 2023-04-01 and 2023-04-02 were written and
-	// if they are equal to test data.
+	// verify that both files for 2023-04-01 and 2023-04-02 were written and
+	// if they contain audit events.
 	type wantGot struct {
-		wantFilepath string
-		gotFile      string
+		name       string
+		wantEvents []apievents.AuditEvent
+		gotFile    string
 	}
 	toCheck := []wantGot{
-		{wantFilepath: filepath.Join("testdata/events_2023-04-01.parquet"), gotFile: filepath.Join(tmp, "2023-04-01", "test.parquet")},
-		{wantFilepath: filepath.Join("testdata/events_2023-04-02.parquet"), gotFile: filepath.Join(tmp, "2023-04-02", "test.parquet")},
+		{
+			name:       "2023-04-01 should contain 2 events",
+			wantEvents: []apievents.AuditEvent{eventR1, eventR2},
+			gotFile:    filepath.Join(tmp, "2023-04-01", "test.parquet"),
+		},
+		{
+			name:       "2023-04-02 should contain 1 events",
+			wantEvents: []apievents.AuditEvent{eventR3},
+			gotFile:    filepath.Join(tmp, "2023-04-02", "test.parquet"),
+		},
 	}
 
 	for _, v := range toCheck {
-		t.Run("Checking "+filepath.Base(v.wantFilepath), func(t *testing.T) {
-			got, err := os.ReadFile(v.gotFile)
+		t.Run("Checking "+v.name, func(t *testing.T) {
+			rows, err := parquet.ReadFile[eventParquet](v.gotFile)
 			require.NoError(t, err)
-			want, err := os.ReadFile(v.wantFilepath)
+			gotEvents, err := parquetRowsToAuditEvents(rows)
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(got, want))
+
+			require.Empty(t, cmp.Diff(gotEvents, v.wantEvents))
 		})
 	}
+}
+
+func parquetRowsToAuditEvents(in []eventParquet) ([]apievents.AuditEvent, error) {
+	out := make([]apievents.AuditEvent, 0, len(in))
+	for _, p := range in {
+		var fields events.EventFields
+		if err := utils.FastUnmarshal([]byte(p.EventData), &fields); err != nil {
+			return nil, trace.Wrap(err, "failed to unmarshal event, %s", p.EventData)
+		}
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, event)
+	}
+	return out, nil
 }
 
 func TestDeleteMessagesFromQueue(t *testing.T) {
@@ -794,11 +869,13 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 				Size:            10,
 				Count:           5,
 				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
 			},
 			expected: collectedEventsMetadata{
 				Size:            10,
 				Count:           5,
 				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
 			},
 		},
 		{
@@ -807,6 +884,7 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 				Size:            10,
 				Count:           5,
 				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
 			},
 			b: collectedEventsMetadata{
 				Size:            0,
@@ -817,6 +895,7 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 				Size:            10,
 				Count:           5,
 				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
 			},
 		},
 		{
@@ -835,6 +914,30 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 				Size:            25,
 				Count:           12,
 				OldestTimestamp: now.Add(-time.Hour),
+			},
+		},
+		{
+			name: "Merge with two different days",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now.Add(-36 * time.Hour),
+				UniqueDays:      map[string]struct{}{now.Add(-36 * time.Hour).Format(time.DateOnly): {}},
+			},
+			b: collectedEventsMetadata{
+				Size:            15,
+				Count:           7,
+				OldestTimestamp: now,
+				UniqueDays:      map[string]struct{}{now.Format(time.DateOnly): {}},
+			},
+			expected: collectedEventsMetadata{
+				Size:            25,
+				Count:           12,
+				OldestTimestamp: now.Add(-36 * time.Hour),
+				UniqueDays: map[string]struct{}{
+					now.Add(-36 * time.Hour).Format(time.DateOnly): {},
+					now.Format(time.DateOnly):                      {},
+				},
 			},
 		},
 	}

@@ -154,6 +154,7 @@ const _: () = {
 };
 ```
 
+<<<<<<< HEAD
 and tell the compiler the nature of `Client` in the `where` clause of each function signature at the FFI
 boundary:
 
@@ -166,6 +167,10 @@ where
     //...
 }
 ```
+
+=======
+
+> > > > > > > ironrdp
 
 ##### Immutable Reference (`&Client`)
 

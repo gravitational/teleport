@@ -18,16 +18,36 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import * as Icons from 'design/Icon';
 
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import TeleportContext from 'teleport/teleportContext';
+import { makeUserContext } from 'teleport/services/user';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { getOSSFeatures } from 'teleport/features';
+
 import { UserMenuNav } from './UserMenuNav';
 
 export default {
   title: 'Teleport/UserMenuNav',
+  args: { userContext: true },
 };
 
 export function Loaded() {
+  const ctx = new TeleportContext();
+
+  ctx.storeUser.state = makeUserContext({
+    cluster: {
+      name: 'test-cluster',
+      lastConnected: Date.now(),
+    },
+  });
+
   return (
     <MemoryRouter>
-      <UserMenuNav {...props} />
+      <TeleportContextProvider ctx={ctx}>
+        <FeaturesContextProvider value={getOSSFeatures()}>
+          <UserMenuNav {...props} />
+        </FeaturesContextProvider>
+      </TeleportContextProvider>
     </MemoryRouter>
   );
 }

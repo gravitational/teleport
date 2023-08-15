@@ -90,6 +90,11 @@ export class Protobuf {
     return this.encode(messageFields.type.values.data, message);
   }
 
+  encodeCloseMessage() {
+    // Close message has no payload
+    return this.encode(messageFields.type.values.close, '');
+  }
+
   encodePayload(buffer, text) {
     // set type
     buffer.push(messageFields.payload.code);

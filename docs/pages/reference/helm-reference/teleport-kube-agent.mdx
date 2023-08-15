@@ -301,9 +301,9 @@ These sub-values must be configured for the agent to connect to a cluster.
 Possible values are `token`, `iam` and `ec2`.
 
 - For `iam`, see [Joining Nodes Via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-iam.mdx).
+  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx).
 - For `ec2`, see [Joining Nodes Via AWS IAM
-  Role](../../management/join-services-to-your-cluster/aws-ec2.mdx).
+  Role](../../agents/join-services-to-your-cluster/aws-ec2.mdx).
 - For `token` (default value), the token must be provided through `joinParams.tokenName` or
   [through an existing Kubernetes Secret](#joinTokenSecret).
 
@@ -438,7 +438,7 @@ You can specify multiple selectors by including additional list elements.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-create-an-iam-policy-for-teleport).
+  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-create-iam-policies-for-teleport).
 
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
@@ -692,7 +692,7 @@ If you want to run Teleport version `X.Y.Z`, you should use
 When `caPin` is set, the Teleport pod will use its values to check the
 Auth Service's identity when first joining a cluster. This enables a more secure
 way of adding new Teleport instances to a cluster. See
-["Adding Nodes to the Cluster"](../../management/join-services-to-your-cluster/join-token.mdx).
+["Adding Nodes to the Cluster"](../../agents/join-services-to-your-cluster/join-token.mdx).
 
 Each list element can be the pin itself (recommended, works out of the box),
 or a path to a file containing the pin. For the latter it is your

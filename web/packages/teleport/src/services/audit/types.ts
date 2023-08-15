@@ -203,6 +203,7 @@ export const eventCodes = {
   TRUSTED_CLUSTER_CREATED: 'T7000I',
   TRUSTED_CLUSTER_DELETED: 'T7001I',
   TRUSTED_CLUSTER_TOKEN_CREATED: 'T7002I',
+  PROVISION_TOKEN_CREATED: 'TJT00I',
   UNKNOWN: 'TCC00E',
   USER_CREATED: 'T1002I',
   USER_DELETED: 'T1004I',
@@ -592,6 +593,13 @@ export type RawEvents = {
     typeof eventCodes.TRUSTED_CLUSTER_DELETED,
     {
       name: string;
+    }
+  >;
+  [eventCodes.PROVISION_TOKEN_CREATED]: RawEvent<
+    typeof eventCodes.PROVISION_TOKEN_CREATED,
+    {
+      roles: string[];
+      join_method: string;
     }
   >;
   [eventCodes.KUBE_REQUEST]: RawEvent<

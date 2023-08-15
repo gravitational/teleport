@@ -219,8 +219,8 @@ func TestSampleConfig(t *testing.T) {
 	}
 }
 
-// TestBooleanParsing tests that boolean options
-// are parsed properly
+// TestBooleanParsing tests that types.Bool and *types.BoolOption are parsed
+// properly
 func TestBooleanParsing(t *testing.T) {
 	testCases := []struct {
 		s string
@@ -240,11 +240,15 @@ func TestBooleanParsing(t *testing.T) {
 		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
 teleport:
   advertise_ip: 10.10.10.1
+proxy_service:
+  enabled: yes
+  trust_x_forwarded_for: %v
 auth_service:
   enabled: yes
   disconnect_expired_cert: %v
-`, tc.s))))
+`, tc.s, tc.s))))
 		require.NoError(t, err, msg)
+		require.Equal(t, tc.b, conf.Proxy.TrustXForwardedFor.Value(), msg)
 		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value, msg)
 	}
 }
@@ -1972,13 +1976,13 @@ func TestProxyKube(t *testing.T) {
 			cfg: Proxy{Kube: KubeProxy{
 				Service:        Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
 				KubeconfigFile: "/tmp/kubeconfig",
-				PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
+				PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
 			}},
 			want: servicecfg.KubeProxyConfig{
 				Enabled:         true,
 				ListenAddr:      *utils.MustParseAddr("0.0.0.0:8080"),
 				KubeconfigPath:  "/tmp/kubeconfig",
-				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("kube.example.com:443")},
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr(constants.KubeTeleportProxyALPNPrefix + "example.com:443")},
 				LegacyKubeProxy: true,
 			},
 			checkErr: require.NoError,
@@ -2009,7 +2013,7 @@ func TestProxyKube(t *testing.T) {
 				Kube: KubeProxy{
 					Service:        Service{EnabledFlag: "no", ListenAddress: "0.0.0.0:8080"},
 					KubeconfigFile: "/tmp/kubeconfig",
-					PublicAddr:     apiutils.Strings([]string{"kube.example.com:443"}),
+					PublicAddr:     apiutils.Strings([]string{constants.KubeTeleportProxyALPNPrefix + "example.com:443"}),
 				},
 			},
 			want: servicecfg.KubeProxyConfig{
@@ -3439,7 +3443,7 @@ func TestApplyConfig_JamfService(t *testing.T) {
 	const password = "supersecret!!1!"
 	passwordFile := filepath.Join(tempDir, "test_jamf_password.txt")
 	require.NoError(t,
-		os.WriteFile(passwordFile, []byte(password+"\n"), 0400),
+		os.WriteFile(passwordFile, []byte(password+"\n"), 0o400),
 		"WriteFile(%q) failed", passwordFile)
 
 	minimalYAML := fmt.Sprintf(`
@@ -4026,7 +4030,24 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 			},
-			wantError: true,
+			wantError: false,
+			wantServiceConfig: servicecfg.KubeConfig{
+				ListenAddr:     utils.MustParseAddr("0.0.0.0:8888"),
+				KubeconfigPath: "path-to-kubeconfig",
+				ResourceMatchers: []services.ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+						AWS: services.ResourceMatcherAWS{
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
 		},
 		{
 			name: "valid",

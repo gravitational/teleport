@@ -1,6 +1,6 @@
 use crate::{
-    handle_remote_fx_frame, util::to_c_string, CGODisconnectCode, CGOErrCode, CGOMousePointerEvent,
-    CGOPointerButton, CGOPointerWheel, CGOReadRdpOutputReturns,
+    handle_fastpath_pdu, handle_rdp_channel_ids, util::to_c_string, CGODisconnectCode, CGOErrCode,
+    CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel, CGOReadRdpOutputReturns,
 };
 use bytes::BytesMut;
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
@@ -136,6 +136,22 @@ impl Client {
 
             debug!("connection_result: {:?}", connection_result);
 
+            unsafe {
+                match handle_rdp_channel_ids(
+                    go_ref,
+                    connection_result.io_channel_id,
+                    connection_result.user_channel_id,
+                ) {
+                    CGOErrCode::ErrCodeSuccess => {}
+                    _ => {
+                        return Err(ConnectError::IronRdpError(SessionError::new(
+                            "handle_rdp_channel_ids error",
+                            SessionErrorKind::General,
+                        )));
+                    }
+                };
+            };
+
             let x224_processor = x224::Processor::new(
                 swap_hashmap_kv(connection_result.static_channels),
                 connection_result.user_channel_id,
@@ -214,7 +230,7 @@ impl Client {
                     ironrdp_pdu::Action::FastPath => {
                         let go_ref = self.go_ref;
                         match unsafe {
-                            handle_remote_fx_frame(go_ref, frame.as_mut_ptr(), frame.len() as u32)
+                            handle_fastpath_pdu(go_ref, frame.as_mut_ptr(), frame.len() as u32)
                         } {
                             CGOErrCode::ErrCodeSuccess => continue,
                             err => {

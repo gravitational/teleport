@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type kubeCreds interface {
@@ -65,13 +66,7 @@ type staticKubeCreds struct {
 	kubeClient *kubernetes.Clientset
 	// clientRestCfg is the Kubernetes Rest config for the cluster.
 	clientRestCfg *rest.Config
-	transport     httpTransport
-}
-
-type httpTransport struct {
-	// h2Transport is the HTTP/2 transport used for requests that can be sent
-	// via HTTP/2.
-	transport http.RoundTripper
+	transport     http.RoundTripper
 }
 
 func (s *staticKubeCreds) getTLSConfig() *tls.Config {
@@ -79,7 +74,7 @@ func (s *staticKubeCreds) getTLSConfig() *tls.Config {
 }
 
 func (s *staticKubeCreds) getTransport() http.RoundTripper {
-	return s.transport.transport
+	return s.transport
 }
 
 func (s *staticKubeCreds) getTransportConfig() *transport.Config {
@@ -159,6 +154,7 @@ type dynamicKubeCreds struct {
 	client      dynamicCredsClient
 	checker     servicecfg.ImpersonationPermissionsChecker
 	clock       clockwork.Clock
+	component   KubeServiceType
 	sync.RWMutex
 	wg sync.WaitGroup
 }
@@ -171,6 +167,8 @@ type dynamicCredsConfig struct {
 	checker              servicecfg.ImpersonationPermissionsChecker
 	clock                clockwork.Clock
 	initialRenewInterval time.Duration
+	resourceMatchers     []services.ResourceMatcher
+	component            KubeServiceType
 }
 
 func (d *dynamicCredsConfig) checkAndSetDefaults() error {
@@ -209,6 +207,7 @@ func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicK
 		renewTicker: cfg.clock.NewTicker(cfg.initialRenewInterval),
 		checker:     cfg.checker,
 		clock:       cfg.clock,
+		component:   cfg.component,
 	}
 
 	if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
@@ -288,7 +287,7 @@ func (d *dynamicKubeCreds) renewClientset(cluster types.KubeCluster) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	creds, err := extractKubeCreds(d.ctx, cluster.GetName(), restConfig, d.log, d.checker)
+	creds, err := extractKubeCreds(d.ctx, d.component, cluster.GetName(), restConfig, d.log, d.checker)
 	if err != nil {
 		return trace.Wrap(err)
 	}

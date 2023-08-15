@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -31,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+const DestinationDirectoryType = "directory"
 
 // DestinationDirectory is a Destination that writes to the local filesystem
 type DestinationDirectory struct {
@@ -143,7 +146,7 @@ func mkdir(p string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Init(subdirs []string) error {
+func (dd *DestinationDirectory) Init(_ context.Context, subdirs []string) error {
 	// Create the directory if needed.
 	if err := mkdir(dd.Path); err != nil {
 		return trace.Wrap(err)
@@ -183,8 +186,8 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 		return trace.Wrap(err)
 	}
 
-	// Make sure it's worth warning about ACLs for this destination. If ACLs
-	// are disabled, unsupported, or the destination is owned by the bot
+	// Make sure it's worth warning about ACLs for this Destination. If ACLs
+	// are disabled, unsupported, or the Destination is owned by the bot
 	// (implying the user is not trying to use ACLs), just bail.
 	if dd.ACLs == botfs.ACLOff || !aclsSupported || ownedByBot {
 		return nil
@@ -212,11 +215,11 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 	return nil
 }
 
-func (dd *DestinationDirectory) Write(name string, data []byte) error {
+func (dd *DestinationDirectory) Write(_ context.Context, name string, data []byte) error {
 	return trace.Wrap(botfs.Write(filepath.Join(dd.Path, name), data, dd.Symlinks))
 }
 
-func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
+func (dd *DestinationDirectory) Read(_ context.Context, name string) ([]byte, error) {
 	data, err := botfs.Read(filepath.Join(dd.Path, name), dd.Symlinks)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -226,7 +229,7 @@ func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
 }
 
 func (dd *DestinationDirectory) String() string {
-	return fmt.Sprintf("directory %s", dd.Path)
+	return fmt.Sprintf("%s: %s", DestinationDirectoryType, dd.Path)
 }
 
 func (dd *DestinationDirectory) TryLock() (func() error, error) {
@@ -235,4 +238,9 @@ func (dd *DestinationDirectory) TryLock() (func() error, error) {
 	// ACLs has been completed.
 	unlock, err := utils.FSTryWriteLock(filepath.Join(dd.Path, "lock"))
 	return unlock, trace.Wrap(err)
+}
+
+func (dm DestinationDirectory) MarshalYAML() (interface{}, error) {
+	type raw DestinationDirectory
+	return withTypeHeader(raw(dm), DestinationDirectoryType)
 }

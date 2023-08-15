@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
 type athenaContext struct {
@@ -431,6 +432,7 @@ func (ac *athenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 		querierConfig: querierConfig{
 			getQueryResultsInterval: 100 * time.Millisecond,
 			clock:                   ac.clock,
+			tracer:                  tracing.NoopTracer(teleport.ComponentAthena),
 		},
 	}
 	err = q.waitForSuccess(ctx, aws.ToString(startQueryExecResp.QueryExecutionId))

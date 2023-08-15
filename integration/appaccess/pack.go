@@ -30,7 +30,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -45,7 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -702,19 +702,19 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-x-teleport-api-error",
 						},
 						{
-							Name:  forward.XForwardedFor,
+							Name:  reverseproxy.XForwardedFor,
 							Value: "rewritten-x-forwarded-for-header",
 						},
 						{
-							Name:  forward.XForwardedHost,
+							Name:  reverseproxy.XForwardedHost,
 							Value: "rewritten-x-forwarded-host-header",
 						},
 						{
-							Name:  forward.XForwardedProto,
+							Name:  reverseproxy.XForwardedProto,
 							Value: "rewritten-x-forwarded-proto-header",
 						},
 						{
-							Name:  forward.XForwardedServer,
+							Name:  reverseproxy.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
 						{
@@ -722,7 +722,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-x-forwarded-ssl-header",
 						},
 						{
-							Name:  forward.XForwardedPort,
+							Name:  reverseproxy.XForwardedPort,
 							Value: "rewritten-x-forwarded-port-header",
 						},
 						// Make sure we can insert JWT token in custom header.
@@ -753,7 +753,7 @@ func (p *Pack) startRootAppServers(t *testing.T, count int, opts AppTestOptions)
 	return servers
 }
 
-func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, hostUUID string, apps []servicecfg.App) {
+func waitForAppServer(t *testing.T, tunnel reversetunnelclient.Server, name string, hostUUID string, apps []servicecfg.App) {
 	// Make sure that the app server is ready to accept connections.
 	// The remote site cache needs to be filled with new registered application services.
 	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
@@ -845,19 +845,19 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-x-teleport-api-error",
 						},
 						{
-							Name:  forward.XForwardedFor,
+							Name:  reverseproxy.XForwardedFor,
 							Value: "rewritten-x-forwarded-for-header",
 						},
 						{
-							Name:  forward.XForwardedHost,
+							Name:  reverseproxy.XForwardedHost,
 							Value: "rewritten-x-forwarded-host-header",
 						},
 						{
-							Name:  forward.XForwardedProto,
+							Name:  reverseproxy.XForwardedProto,
 							Value: "rewritten-x-forwarded-proto-header",
 						},
 						{
-							Name:  forward.XForwardedServer,
+							Name:  reverseproxy.XForwardedServer,
 							Value: "rewritten-x-forwarded-server-header",
 						},
 						{
@@ -865,7 +865,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 							Value: "rewritten-x-forwarded-ssl-header",
 						},
 						{
-							Name:  forward.XForwardedPort,
+							Name:  reverseproxy.XForwardedPort,
 							Value: "rewritten-x-forwarded-port-header",
 						},
 					},
@@ -891,7 +891,7 @@ func (p *Pack) startLeafAppServers(t *testing.T, count int, opts AppTestOptions)
 	return servers
 }
 
-func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnel.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
+func waitForAppRegInRemoteSiteCache(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, cfgApps []servicecfg.App, hostUUID string) {
 	require.Eventually(t, func() bool {
 		site, err := tunnel.GetSite(clusterName)
 		require.NoError(t, err)

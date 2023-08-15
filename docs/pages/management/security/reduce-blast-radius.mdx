@@ -22,7 +22,7 @@ Teleport lets you make it mandatory for a user to enroll an MFA device when they
 To do so, make the following changes depending on your environment:
 
 <Tabs>
-<TabItem label="Self-hosted" scope={["oss","enterprise"]}>
+<TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
 
 Ensure that the value of `auth_service.authentication.second_factor` is `otp`,
 `webauthn`, or `on`:
@@ -34,7 +34,7 @@ auth_service:
 ```
 
 </TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
+<TabItem label="Cloud-Hosted" scope={["cloud","team"]}>
 
 Obtain your existing `cluster_auth_preference` resource:
 
@@ -99,7 +99,7 @@ auth_service:
     require_session_mfa: yes
 ```
 </TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
+<TabItem label="Cloud-Hosted" scope={["cloud", "team"]}>
 Create the following `cluster_auth_preference` dynamic resource:
 
 ```yaml

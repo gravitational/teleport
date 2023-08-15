@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -43,11 +42,6 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Do the ALPN handshake test to decide if connection upgrades are required
-	// for TLS Routing. Only do the test once Ping verifies the cluster is
-	// reachable.
-	c.clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(ctx, c.clusterClient.WebProxyAddr, c.clusterClient.InsecureSkipVerify)
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
@@ -190,12 +184,17 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 	c.clusterClient.LocalAgent().UpdateUsername(key.Username)
 	c.clusterClient.Username = key.Username
 
-	if err := c.clusterClient.ActivateKey(ctx, key); err != nil {
+	proxyClient, rootAuthClient, err := c.clusterClient.ConnectToRootCluster(ctx, key)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		rootAuthClient.Close()
+		proxyClient.Close()
+	}()
 
 	// Attempt device login. This activates a fresh key if successful.
-	if err := c.clusterClient.AttemptDeviceLogin(ctx, key); err != nil {
+	if err := c.clusterClient.AttemptDeviceLogin(ctx, key, rootAuthClient); err != nil {
 		return trace.Wrap(err)
 	}
 
