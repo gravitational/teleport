@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom';
 import { ButtonPrimary } from 'design';
 
 import cfg from 'teleport/config';
+import { SearchResource } from 'teleport/Discover/SelectResource';
 
 export default function AgentButtonAdd(props: Props) {
   const { canCreate, isLeafCluster, onClick, agent, beginsWithVowel } = props;
@@ -58,17 +59,10 @@ export default function AgentButtonAdd(props: Props) {
   );
 }
 
-export type AddButtonResourceKind =
-  | 'server'
-  | 'application'
-  | 'desktop'
-  | 'kubernetes'
-  | 'database';
-
 export type Props = {
   isLeafCluster: boolean;
   canCreate: boolean;
   onClick?: () => void;
-  agent: AddButtonResourceKind;
+  agent: SearchResource;
   beginsWithVowel: boolean;
 };

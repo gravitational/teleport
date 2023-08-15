@@ -1,20 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render with URL loc state set to "server" 1`] = `
-.c8 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 18px;
-}
-
-.c19 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 22px;
-}
-
 .c0 {
   box-sizing: border-box;
   margin-top: 24px;
@@ -28,6 +14,20 @@ exports[`render with URL loc state set to "server" 1`] = `
 
 .c15 {
   box-sizing: border-box;
+}
+
+.c8 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 18px;
+}
+
+.c19 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
 }
 
 .c1 {
@@ -630,13 +630,6 @@ exports[`render with URL loc state set to "server" 1`] = `
 `;
 
 exports[`render with all access 1`] = `
-.c15 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 22px;
-}
-
 .c0 {
   box-sizing: border-box;
   margin-top: 24px;
@@ -650,6 +643,13 @@ exports[`render with all access 1`] = `
 
 .c12 {
   box-sizing: border-box;
+}
+
+.c15 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
 }
 
 .c1 {
@@ -2492,13 +2492,6 @@ exports[`render with all access 1`] = `
 `;
 
 exports[`render with no access 1`] = `
-.c17 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 22px;
-}
-
 .c0 {
   box-sizing: border-box;
   margin-top: 24px;
@@ -2512,6 +2505,13 @@ exports[`render with no access 1`] = `
 
 .c12 {
   box-sizing: border-box;
+}
+
+.c17 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
 }
 
 .c1 {
@@ -4483,13 +4483,6 @@ exports[`render with no access 1`] = `
 `;
 
 exports[`render with partial access 1`] = `
-.c15 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 22px;
-}
-
 .c0 {
   box-sizing: border-box;
   margin-top: 24px;
@@ -4503,6 +4496,13 @@ exports[`render with partial access 1`] = `
 
 .c12 {
   box-sizing: border-box;
+}
+
+.c15 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
 }
 
 .c1 {
