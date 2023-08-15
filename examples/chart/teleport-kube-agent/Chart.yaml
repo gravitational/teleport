@@ -1,4 +1,4 @@
-.version: &version "12.4.14-tshfix.4"
+.version: &version "12.4.14-tshfix.5"
 
 name: teleport-kube-agent
 apiVersion: v2
