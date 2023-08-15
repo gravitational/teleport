@@ -57,9 +57,11 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	// "tsh device enroll" command.
 	root.enroll.CmdClause = parentCmd.Command(
 		"enroll", "Enroll this device as a trusted device. Requires Teleport Enterprise.")
-	root.enroll.Flag("token", "Device enrollment token").
-		Required().
-		StringVar(&root.enroll.token)
+	root.enroll.Flag(
+		"current-device",
+		"Attempts to register and enroll the current device. Requires device admin privileges.").
+		BoolVar(&root.enroll.currentDevice)
+	root.enroll.Flag("token", "Device enrollment token").StringVar(&root.enroll.token)
 
 	// "tsh device" hidden debug commands.
 	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
@@ -78,16 +80,24 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 type deviceEnrollCommand struct {
 	*kingpin.CmdClause
 
-	token string
+	currentDevice bool
+	token         string
 }
 
 func (c *deviceEnrollCommand) run(cf *CLIConf) error {
+	if c.token == "" && !c.currentDevice {
+		// Mimic our required flag error.
+		// We don't want to suggest --current-device casually.
+		return trace.BadParameter("required flag --token not provided")
+	}
+
 	teleportClient, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var dev *devicepb.Device
+	var outcome enroll.RunAdminOutcome
 	ctx := cf.Context
 	if err := client.RetryWithRelogin(ctx, teleportClient, func() error {
 		proxyClient, err := teleportClient.ConnectToProxy(ctx)
@@ -101,18 +111,36 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer authClient.Close()
-
 		devices := authClient.DevicesClient()
-		dev, err = enroll.RunCeremony(ctx, devices, cf.Debug, c.token)
+
+		enrollCeremony := enroll.NewCeremony()
+		if c.currentDevice {
+			dev, outcome, err = enrollCeremony.RunAdmin(ctx, devices, cf.Debug)
+			// err handled below.
+		} else {
+			dev, err = enrollCeremony.Run(ctx, devices, cf.Debug, c.token)
+			if err == nil {
+				outcome = enroll.DeviceEnrolled
+			}
+			// err handled below.
+		}
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
 	}
 
+	var action string
+	switch outcome {
+	case enroll.DeviceRegisteredAndEnrolled:
+		action = "registered and enrolled"
+	case enroll.DeviceRegistered:
+		action = "registered"
+	case enroll.DeviceEnrolled:
+		action = "enrolled"
+	}
 	fmt.Printf(
-		"Device %q/%v enrolled\n",
-		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType),
-	)
+		"Device %q/%v %v\n",
+		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType), action)
 	return nil
 }
 
