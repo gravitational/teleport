@@ -47,6 +47,8 @@ type KubeServer interface {
 	String() string
 	// Copy returns a copy of this kube server object.
 	Copy() KubeServer
+	// CloneResource returns a copy of the KubeServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 	// GetCluster returns the Kubernetes Cluster this kube server proxies.
 	GetCluster() KubeCluster
 	// SetCluster sets the kube cluster this kube server server proxies.
@@ -280,6 +282,11 @@ func (s *KubernetesServerV3) SetStaticLabels(sl map[string]string) {
 // Copy returns a copy of this kube server object.
 func (s *KubernetesServerV3) Copy() KubeServer {
 	return utils.CloneProtoMsg(s)
+}
+
+// CloneResource returns a copy of this kube server object.
+func (s *KubernetesServerV3) CloneResource() ResourceWithLabels {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

@@ -1599,7 +1599,7 @@
     "teleport": {
       "major_version": "14",
       "version": "14.0.0-dev",
-      "golang": "1.21",
+      "golang": "1.20",
       "plugin": {
         "version": "12.1.1"
       },

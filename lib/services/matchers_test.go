@@ -432,8 +432,15 @@ func TestMatchResourceByFilters(t *testing.T) {
 			filters: MatchResourceFilter{ResourceKind: types.KindNode},
 		},
 		{
-			name:     "unsupported resource kind",
-			resource: func() types.ResourceWithLabels { return nil },
+			name: "unsupported resource kind",
+			resource: func() types.ResourceWithLabels {
+				badResource, err := types.NewConnectionDiagnosticV1("123", map[string]string{},
+					types.ConnectionDiagnosticSpecV1{
+						Message: types.DiagnosticMessageSuccess,
+					})
+				require.NoError(t, err)
+				return badResource
+			},
 			filters: MatchResourceFilter{
 				ResourceKind:   "unsupported",
 				SearchKeywords: []string{"nothing"},
