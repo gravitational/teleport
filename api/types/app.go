@@ -42,8 +42,6 @@ type Application interface {
 	GetDynamicLabels() map[string]CommandLabel
 	// SetDynamicLabels sets the app dynamic labels.
 	SetDynamicLabels(map[string]CommandLabel)
-	// LabelsString returns all labels as a string.
-	LabelsString() string
 	// String returns string representation of the app.
 	String() string
 	// GetDescription returns the app description.
@@ -199,11 +197,6 @@ func (a *AppV3) GetLabel(key string) (value string, ok bool) {
 // GetAllLabels returns the app combined static and dynamic labels.
 func (a *AppV3) GetAllLabels() map[string]string {
 	return CombineLabels(a.Metadata.Labels, a.Spec.DynamicLabels)
-}
-
-// LabelsString returns all app labels as a string.
-func (a *AppV3) LabelsString() string {
-	return LabelsAsString(a.Metadata.Labels, a.Spec.DynamicLabels)
 }
 
 // GetDescription returns the app description.

@@ -447,6 +447,10 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceR
 		TaskRoleArn:      &req.TaskRoleARN,
 		ExecutionRoleArn: &req.TaskRoleARN,
 		ContainerDefinitions: []ecsTypes.ContainerDefinition{{
+			Environment: []ecsTypes.KeyValuePair{{
+				Name:  aws.String(types.InstallMethodAWSOIDCDeployServiceEnvVar),
+				Value: aws.String("true"),
+			}},
 			Command: []string{
 				"start",
 				"--config-string",

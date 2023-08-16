@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
+	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -179,7 +180,7 @@ type CLIConf struct {
 	ProxyJump string
 	// --local flag for ssh
 	LocalExec bool
-	// SiteName specifies remote site go login to
+	// SiteName specifies remote site to login to.
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
@@ -189,6 +190,9 @@ type CLIConf struct {
 	DaemonCertsDir string
 	// DaemonPrehogAddr is the URL where prehog events should be submitted.
 	DaemonPrehogAddr string
+	// DaemonKubeconfigsDir is the directory "Directory containing kubeconfig
+	// for Kubernetes Access.
+	DaemonKubeconfigsDir string
 	// DaemonPid is the PID to be stopped
 	DaemonPid int
 	// DatabaseService specifies the database proxy server to log into.
@@ -722,6 +726,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
+	daemonStart.Flag("kubeconfigs-dir", "Directory containing kubeconfig for Kubernetes Access").StringVar(&cf.DaemonKubeconfigsDir)
 	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
@@ -908,6 +913,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	clusters := app.Command("clusters", "List available Teleport clusters.")
 	clusters.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
+	clusters.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
@@ -968,6 +974,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchExecKube.Flag("container", "Selects the container to exec into.").StringVar(&benchKubeOpts.container)
 	benchExecKube.Flag("interactive", "Create interactive Kube session").BoolVar(&cf.BenchInteractive)
 
+	benchPostgres := bench.Command("postgres", "Run PostgreSQL database benchmark tests").Hidden()
+	benchPostgres.Flag("db-user", "Database user used to connect to the target database. The user must have enough permissions on the database to execute all the benchmark queries.").StringVar(&cf.DatabaseUser)
+	benchPostgres.Flag("db-name", "Database name where benchmark queries will be executed.").StringVar(&cf.DatabaseName)
+	benchPostgres.Arg("database", "Teleport target database name or the direct database URI. Available databases can be retrieved by running `tsh db ls`. When using direct connection, the benchmark will issue connections directly to this database, and no Teleport is involved in the testing. It must contain all the connection information, including authentication credentials.").StringVar(&cf.DatabaseService)
+
+	benchMySQL := bench.Command("mysql", "Run MySQL database benchmark tests").Hidden()
+	benchMySQL.Flag("db-user", "Database user used to connect to the target database. The user must have enough permissions on the database to execute all the benchmark queries.").StringVar(&cf.DatabaseUser)
+	benchMySQL.Flag("db-name", "Database name where benchmark queries will be executed.").StringVar(&cf.DatabaseName)
+	benchMySQL.Arg("database", "Teleport target database name or the direct database URI. Available databases can be retrieved by running `tsh db ls`. When using direct connection, the benchmark will issue connections directly to this database, and no Teleport is involved in the testing. It must contain all the connection information, including authentication credentials.").StringVar(&cf.DatabaseService)
+
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout.").Hidden()
 	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
@@ -1027,6 +1043,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
 	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
+	reqSearch.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&cf.Verbose)
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
@@ -1272,6 +1289,26 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				PodName:       benchKubeOpts.pod,
 				ContainerName: benchKubeOpts.container,
 				Interactive:   cf.BenchInteractive,
+			},
+		)
+	case benchPostgres.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmarkdb.PostgresBenchmark{
+				DBService:          cf.DatabaseService,
+				DBUser:             cf.DatabaseUser,
+				DBName:             cf.DatabaseName,
+				InsecureSkipVerify: cf.InsecureSkipVerify,
+			},
+		)
+	case benchMySQL.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmarkdb.MySQLBenchmark{
+				DBService:          cf.DatabaseService,
+				DBUser:             cf.DatabaseUser,
+				DBName:             cf.DatabaseName,
+				InsecureSkipVerify: cf.InsecureSkipVerify,
 			},
 		)
 	case join.FullCommand():
@@ -1832,23 +1869,14 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
-	// If the cluster is using single-sign on, providing the user name
-	// with --user is likely a mistake, so display a warning.
-	if cf.Username != "" {
-		displayIgnoreUserWarning := false
-		if cf.AuthConnector != "" && cf.AuthConnector != constants.LocalConnector && cf.AuthConnector != constants.PasswordlessConnector {
-			displayIgnoreUserWarning = true
-		} else if cf.AuthConnector == "" {
-			// Get the Ping so we check if the default Auth type is SSO
-			pr, err := tc.Ping(cf.Context)
-			if err != nil {
-				return trace.Wrap(err, "Teleport proxy not available at %s.", tc.WebProxyAddr)
-			}
-			if pr.Auth.Type != constants.LocalConnector && pr.Auth.Type != constants.PasswordlessConnector {
-				displayIgnoreUserWarning = true
-			}
+	// If the cluster is using single-sign on, providing the user name with --user
+	// is likely a mistake, so display a warning.
+	if cf.Username != "" && !slices.Contains(constants.LocalConnectors, cf.AuthConnector) {
+		pr, err := tc.Ping(cf.Context)
+		if err != nil {
+			return trace.Wrap(err, "Teleport proxy not available at %s.", tc.WebProxyAddr)
 		}
-		if displayIgnoreUserWarning {
+		if !slices.Contains(constants.LocalConnectors, pr.Auth.Type) {
 			fmt.Fprintf(os.Stderr, "WARNING: Ignoring Teleport user (%v) for Single Sign-On (SSO) login.\nProvide the user name during the SSO flow instead. Use --auth=local if you did not intend to login with SSO.\n", cf.Username)
 		}
 	}
@@ -2588,10 +2616,11 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 		row = append(row, proxy, cluster)
 	}
 
+	labels := common.FormatLabels(node.GetAllLabels(), verbose)
 	if verbose {
-		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), node.LabelsString())
+		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), labels)
 	} else {
-		row = append(row, node.GetHostname(), getAddr(node), sortedLabels(node.GetAllLabels()))
+		row = append(row, node.GetHostname(), getAddr(node), labels)
 	}
 	return row
 }
@@ -2617,28 +2646,6 @@ func printNodesAsText(output io.Writer, nodes []types.Server, verbose bool) erro
 	}
 
 	return nil
-}
-
-func sortedLabels(labels map[string]string) string {
-	var teleportNamespaced []string
-	var namespaced []string
-	var result []string
-	for key, val := range labels {
-		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
-			teleportNamespaced = append(teleportNamespaced, key)
-			continue
-		}
-		if strings.Contains(key, "/") {
-			namespaced = append(namespaced, fmt.Sprintf("%s=%s", key, val))
-			continue
-		}
-		result = append(result, fmt.Sprintf("%s=%s", key, val))
-	}
-	sort.Strings(result)
-	sort.Strings(namespaced)
-	sort.Strings(teleportNamespaced)
-	namespaced = append(namespaced, teleportNamespaced...)
-	return strings.Join(append(result, namespaced...), ",")
 }
 
 func showApps(apps []types.Application, active []tlsca.RouteToApp, format string, verbose bool) error {
@@ -2686,10 +2693,11 @@ func getAppRow(proxy, cluster string, app types.Application, active []tlsca.Rout
 		}
 	}
 
+	labels := common.FormatLabels(app.GetAllLabels(), verbose)
 	if verbose {
-		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels)
 	} else {
-		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), sortedLabels(app.GetAllLabels()))
+		row = append(row, name, app.GetDescription(), app.GetProtocol(), app.GetPublicAddr(), labels)
 	}
 
 	return row
@@ -2845,23 +2853,15 @@ func formatUsersForDB(database types.Database, accessChecker services.AccessChec
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDiscoveredName(r types.ResourceWithLabels) (string, bool) {
-	name, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
-	return name, ok
-}
-
 func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
 	name := database.GetName()
-	printName := name
-	if d, ok := getDiscoveredName(database); ok && !verbose && d != name {
-		printName = d
-	}
+	displayName := common.FormatResourceName(database, verbose)
 	var connect string
 	for _, a := range active {
 		if a.ServiceName == name {
-			a.ServiceName = printName
-			// format the db name with the print name
-			printName = formatActiveDB(a)
+			a.ServiceName = displayName
+			// format the db name with the display name
+			displayName = formatActiveDB(a)
 			// then revert it for connect string
 			a.ServiceName = name
 			switch a.Protocol {
@@ -2880,23 +2880,24 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		row = append(row, proxy, cluster)
 	}
 
+	labels := common.FormatLabels(database.GetAllLabels(), verbose)
 	if verbose {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			database.GetProtocol(),
 			database.GetType(),
 			database.GetURI(),
 			formatUsersForDB(database, accessChecker),
-			database.LabelsString(),
+			labels,
 			connect,
 		)
 	} else {
 		row = append(row,
-			printName,
+			displayName,
 			database.GetDescription(),
 			formatUsersForDB(database, accessChecker),
-			formatDatabaseLabels(database),
+			labels,
 			connect,
 		)
 	}
@@ -2946,14 +2947,6 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 		)
 	}
 	fmt.Println(t.AsBuffer().String())
-}
-
-func formatDatabaseLabels(database types.Database) string {
-	labels := database.GetAllLabels()
-	// Hide the origin and discovered-name labels unless printing verbose table.
-	delete(labels, types.OriginLabel)
-	delete(labels, types.DiscoveredNameLabel)
-	return sortedLabels(labels)
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
@@ -3010,22 +3003,30 @@ func onListClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(4)
-		} else {
-			t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"})
+		header := []string{"Cluster Name", "Status", "Cluster Type", "Labels", "Selected"}
+		rows := [][]string{
+			{rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName)},
 		}
-
-		t.AddRow([]string{
-			rootClusterName, teleport.RemoteClusterStatusOnline, "root", "", showSelected(rootClusterName),
-		})
 		for _, cluster := range leafClusters {
-			labels := sortedLabels(cluster.GetMetadata().Labels)
-			t.AddRow([]string{
+			labels := common.FormatLabels(cluster.GetAllLabels(), cf.Verbose)
+			rows = append(rows, []string{
 				cluster.GetName(), cluster.GetConnectionStatus(), "leaf", labels, showSelected(cluster.GetName()),
 			})
 		}
+
+		var t asciitable.Table
+		switch {
+		case cf.Quiet:
+			t = asciitable.MakeHeadlessTable(4)
+			for _, row := range rows {
+				t.AddRow(row)
+			}
+		case cf.Verbose:
+			t = asciitable.MakeTable(header, rows...)
+		default:
+			t = asciitable.MakeTableWithTruncatedColumn(header, rows, "Labels")
+		}
+
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
 		rootClusterInfo := clusterInfo{
@@ -3040,7 +3041,7 @@ func onListClusters(cf *CLIConf) error {
 				ClusterName: leaf.GetName(),
 				Status:      leaf.GetConnectionStatus(),
 				ClusterType: "leaf",
-				Labels:      leaf.GetMetadata().Labels,
+				Labels:      leaf.GetAllLabels(),
 				Selected:    isSelected(leaf.GetName()),
 			})
 		}
@@ -3299,13 +3300,13 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
-	fmt.Printf("\n")
-	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
-	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
+	fmt.Fprintf(cf.Stdout(), "\n")
+	fmt.Fprintf(cf.Stdout(), "* Requests originated: %v\n", result.RequestsOriginated)
+	fmt.Fprintf(cf.Stdout(), "* Requests failed: %v\n", result.RequestsFailed)
 	if result.LastError != nil {
-		fmt.Printf("* Last error: %v\n", result.LastError)
+		fmt.Fprintf(cf.Stdout(), "* Last error: %v\n", result.LastError)
 	}
-	fmt.Printf("\nHistogram\n\n")
+	fmt.Fprintf(cf.Stdout(), "\nHistogram\n\n")
 	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
 		t.AddRow([]string{
@@ -3313,16 +3314,16 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
-	if _, err := io.Copy(os.Stdout, t.AsBuffer()); err != nil {
+	if _, err := io.Copy(cf.Stdout(), t.AsBuffer()); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("\n")
+	fmt.Fprintf(cf.Stdout(), "\n")
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
-			fmt.Printf("latency profile saved: %v\n", path)
+			fmt.Fprintf(cf.Stdout(), "latency profile saved: %v\n", path)
 		}
 	}
 	return nil
@@ -4235,6 +4236,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		}
 	}
 
+	selectedKubeCluster, _ := kubeconfig.SelectedKubeCluster("", p.Cluster)
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
@@ -4244,7 +4246,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Traits:             p.Traits,
 		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster(p.Cluster, ""),
+		KubernetesCluster:  selectedKubeCluster,
 		KubernetesUsers:    p.KubeUsers,
 		KubernetesGroups:   p.KubeGroups,
 		Databases:          p.DatabaseServices(),
@@ -4711,7 +4713,7 @@ func onEnvironment(cf *CLIConf) error {
 			fmt.Printf("unset %v\n", kubeClusterEnvVar)
 			fmt.Printf("unset %v\n", teleport.EnvKubeConfig)
 		case !cf.unsetEnvironment:
-			kubeName := selectedKubeCluster(profile.Cluster, "")
+			kubeName, _ := kubeconfig.SelectedKubeCluster("", profile.Cluster)
 			fmt.Printf("export %v=%v\n", proxyEnvVar, profile.ProxyURL.Host)
 			fmt.Printf("export %v=%v\n", clusterEnvVar, profile.Cluster)
 			if kubeName != "" {
@@ -4736,7 +4738,7 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		proxyEnvVar:   profile.ProxyURL.Host,
 		clusterEnvVar: profile.Cluster,
 	}
-	kubeName := selectedKubeCluster(profile.Cluster, "")
+	kubeName, _ := kubeconfig.SelectedKubeCluster("", profile.Cluster)
 	if kubeName != "" {
 		env[kubeClusterEnvVar] = kubeName
 		env[teleport.EnvKubeConfig] = profile.KubeConfigPath(kubeName)
@@ -4874,7 +4876,15 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	err := updateKubeConfig(cf, tc, "" /* update the default kubeconfig */, "" /* do not override the context name */)
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// update the default kubeconfig
+	kubeConfigPath := ""
+	// do not override the context name
+	overrideContextName := ""
+	err = updateKubeConfig(cf, tc, kubeConfigPath, overrideContextName, kubeStatus)
 	return trace.Wrap(err)
 }
 

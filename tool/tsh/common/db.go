@@ -1452,7 +1452,7 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 	// port, a local proxy must be used so the TLS routing request can be
 	// upgraded, regardless whether Proxy is in single or separate port mode.
 	if tc.TLSRoutingConnUpgradeRequired && tc.DoesDatabaseUseWebProxyHostPort(route) {
-		out.addLocalProxy("Teleport Proxy is behind a load balancer")
+		out.addLocalProxy("Teleport Proxy is behind a layer 7 load balancer or reverse proxy")
 	}
 
 	switch route.Protocol {
@@ -1586,7 +1586,8 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 	showDatabasesAsText(&sb, cf.SiteName, matchedDBs, activeDBs, checker, verbose)
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
-	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String())
+	fullNameExample := matchedDBs[0].GetName()
+	return formatAmbiguityErrTemplate(cf, selectors, listCommand, sb.String(), fullNameExample)
 }
 
 // resourceSelectors is a helper struct for gathering up the selectors for a
@@ -1616,15 +1617,21 @@ func (r resourceSelectors) String() string {
 	return strings.TrimSpace(out)
 }
 
+// IsEmpty returns whether the selectors (except kind) are empty.
+func (r resourceSelectors) IsEmpty() bool {
+	return r.name == "" && r.labels == "" && r.query == ""
+}
+
 // formatAmbiguityErrTemplate is a helper func that formats an ambiguous
 // resource error message.
-func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable string) string {
+func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable, fullNameExample string) string {
 	data := map[string]any{
 		"command":     cf.CommandWithBinary(),
 		"selectors":   strings.TrimSpace(selectors.String()),
 		"listCommand": strings.TrimSpace(listCommand),
 		"kind":        strings.TrimSpace(selectors.kind),
 		"matchTable":  strings.TrimSpace(matchTable),
+		"example":     strings.TrimSpace(fullNameExample),
 	}
 	var sb strings.Builder
 	_ = ambiguityErrTemplate.Execute(&sb, data)
@@ -1692,7 +1699,7 @@ You can start a local proxy for database GUI clients:
 {{ .matchTable }}
 
 Hint: use '{{ .listCommand }} -v' or '{{ .listCommand }} --format=[json|yaml]' to list all {{ .kind }}s with full details.
-Hint: try selecting the {{ .kind }} with a more specific name (ex: {{ .command }} full-{{ .kind }}-name).
+Hint: try selecting the {{ .kind }} with a more specific name (ex: {{ .command }} {{ .example }}).
 Hint: try selecting the {{ .kind }} with additional --labels or --query predicate.
 `))
 )

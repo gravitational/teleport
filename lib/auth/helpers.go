@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -78,7 +79,7 @@ type TestAuthServerConfig struct {
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
 	AuthPreferenceSpec *types.AuthPreferenceSpecV2
 	// Embedder is required to enable the assist in the auth server.
-	Embedder ai.Embedder
+	Embedder embedding.Embedder
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -194,7 +195,7 @@ func WithClock(clock clockwork.Clock) ServerOption {
 }
 
 // WithEmbedder is a functional server option that sets the server's embedder.
-func WithEmbedder(embedder ai.Embedder) ServerOption {
+func WithEmbedder(embedder embedding.Embedder) ServerOption {
 	return func(s *Server) error {
 		s.embedder = embedder
 		return nil
@@ -372,6 +373,21 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
+
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(srv.AuthServer.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Client:       srv.AuthServer,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: srv.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
@@ -822,6 +838,9 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 		I: authz.BuiltinRole{
 			Role:     role,
 			Username: serverID,
+			Identity: tlsca.Identity{
+				Username: serverID,
+			},
 		},
 	}
 }
@@ -1186,6 +1205,6 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 // noopEmbedder is a no op implementation of the Embedder interface.
 type noopEmbedder struct{}
 
-func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]ai.Vector64, error) {
-	return []ai.Vector64{}, nil
+func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedding.Vector64, error) {
+	return []embedding.Vector64{}, nil
 }

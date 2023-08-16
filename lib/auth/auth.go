@@ -31,6 +31,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
 	insecurerand "math/rand"
@@ -69,9 +70,11 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -116,6 +119,16 @@ const (
 
 	// mfaDeviceNameMaxLen is the maximum length of a device name.
 	mfaDeviceNameMaxLen = 30
+)
+
+const (
+	OSSDesktopsCheckPeriod  = 5 * time.Minute
+	OSSDesktopsAlertID      = "oss-desktops"
+	OSSDesktopsAlertMessage = "Your cluster is beyond its allocation of 5 non-Active Directory Windows desktops. " +
+		"Reach out for unlimited desktops with Teleport Enterprise."
+
+	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
+	OSSDesktopsLimit    = 5
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -414,6 +427,7 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.AccessLists
+	services.UserLoginStates
 	services.Assistant
 	services.Embeddings
 	services.UserPreferences
@@ -441,6 +455,11 @@ func (r *Services) OktaClient() services.Okta {
 
 // AccessListClient returns the access list client.
 func (r *Services) AccessListClient() services.AccessLists {
+	return r
+}
+
+// UserLoginStateClient returns the user login state client.
+func (r *Services) UserLoginStateClient() services.UserLoginStates {
 	return r
 }
 
@@ -627,6 +646,10 @@ type Server struct {
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
 
+	// UnifiedResourceCache is a cache of multiple resource kinds to be presented
+	// in a unified manner in the web UI.
+	UnifiedResourceCache *services.UnifiedResourceCache
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -685,7 +708,7 @@ type Server struct {
 	embeddingsRetriever *ai.SimpleRetriever
 
 	// embedder is an embedder client used to generate embeddings.
-	embedder ai.Embedder
+	embedder embedding.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -781,7 +804,13 @@ func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
 }
 
-// SetLockWatcher sets the lock watcher.
+// SetUnifiedResourcesCache sets the unified resource cache.
+func (a *Server) SetUnifiedResourcesCache(unifiedResourcesCache *services.UnifiedResourceCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.UnifiedResourceCache = unifiedResourcesCache
+}
+
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -925,6 +954,17 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer instancePeriodics.Stop()
 
+	var ossDesktopsCheck <-chan time.Time
+	if modules.GetModules().BuildType() == modules.BuildOSS {
+		ossDesktopsCheck = interval.New(interval.Config{
+			Duration:      OSSDesktopsCheckPeriod,
+			FirstDuration: utils.HalfJitter(time.Second * 10),
+			Jitter:        retryutils.NewHalfJitter(),
+		}).Next()
+	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertID); err != nil && !trace.IsNotFound(err) {
+		log.Warnf("Can't delete OSS non-AD desktops limit alert: %v", err)
+	}
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -985,6 +1025,8 @@ func (a *Server) runPeriodicOperations() {
 			// instance periodics are rate-limited and may be time-consuming in large
 			// clusters, so launch them in the background.
 			go a.doInstancePeriodics(ctx)
+		case <-ossDesktopsCheck:
+			a.syncDesktopsLimitAlert(ctx)
 		}
 	}
 }
@@ -1330,6 +1372,7 @@ func (a *Server) Close() error {
 			errs = append(errs, err)
 		}
 	}
+
 	return trace.NewAggregate(errs...)
 }
 
@@ -2827,7 +2870,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 		}
 
 		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_Webauthn{
-			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
+			Webauthn: wantypes.CredentialCreationToProto(credentialCreation),
 		}}, nil
 
 	default:
@@ -3136,7 +3179,7 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
 		User:             req.username,
 		DeviceName:       req.newDeviceName,
-		CreationResponse: wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
+		CreationResponse: wantypes.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
 		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	return dev, trace.Wrap(err)
@@ -4306,6 +4349,16 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 	return lease, nil
 }
 
+func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
+	if err := a.Services.DeleteWindowsDesktop(ctx, hostID, name); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := a.desktopsLimitExceeded(ctx); err != nil {
+		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+	}
+	return nil
+}
+
 // CreateWindowsDesktop implements [services.WindowsDesktops] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
@@ -4352,6 +4405,70 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 	})
 
 	return nil
+}
+
+func (a *Server) streamWindowsDesktops(ctx context.Context, startKey string) stream.Stream[types.WindowsDesktop] {
+	var done bool
+	return stream.PageFunc(func() ([]types.WindowsDesktop, error) {
+		if done {
+			return nil, io.EOF
+		}
+		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			Limit:    50,
+			StartKey: startKey,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		startKey = resp.NextKey
+		done = startKey == ""
+		return resp.Desktops, nil
+	})
+}
+
+func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
+	exceeded, err := a.desktopsLimitExceeded(ctx)
+	if err != nil {
+		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+	}
+	if !exceeded {
+		return
+	}
+	alert, err := types.NewClusterAlert(OSSDesktopsAlertID, OSSDesktopsAlertMessage,
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertPermitAll, "yes"),
+		types.WithAlertLabel(types.AlertLink, OSSDesktopAlertLink),
+		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
+	if err != nil {
+		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)
+	}
+	if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+		log.Warnf("Can't upsert OSS non-AD desktops limit alert: %v", err)
+	}
+}
+
+// desktopsLimitExceeded checks if number of non-AD desktops exceeds limit for OSS distribution. Returns always false for Enterprise.
+func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
+	if modules.GetModules().BuildType() != modules.BuildOSS {
+		return false, nil
+	}
+
+	desktops := stream.FilterMap(
+		a.streamWindowsDesktops(ctx, ""),
+		func(d types.WindowsDesktop) (struct{}, bool) {
+			return struct{}{}, d.NonAD()
+		},
+	)
+	count := 0
+	for desktops.Next() {
+		count++
+		if count > OSSDesktopsLimit {
+			desktops.Done()
+			return true, nil
+		}
+	}
+	return false, trace.Wrap(desktops.Done())
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
@@ -5057,7 +5174,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 			return nil, trace.Wrap(err)
 		}
 		return &proto.MFAAuthenticateChallenge{
-			WebauthnChallenge: wanlib.CredentialAssertionToProto(assertion),
+			WebauthnChallenge: wantypes.CredentialAssertionToProto(assertion),
 		}, nil
 	}
 
@@ -5089,7 +5206,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		challenge.WebauthnChallenge = wanlib.CredentialAssertionToProto(assertion)
+		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
 	}
 
 	return challenge, nil
@@ -5152,7 +5269,7 @@ func (a *Server) validateMFAAuthResponse(
 			return nil, "", trace.Wrap(err)
 		}
 
-		assertionResp := wanlib.CredentialAssertionResponseFromProto(res.Webauthn)
+		assertionResp := wantypes.CredentialAssertionResponseFromProto(res.Webauthn)
 		var dev *types.MFADevice
 		if passwordless {
 			webLogin := &wanlib.PasswordlessFlow{
@@ -5166,7 +5283,7 @@ func (a *Server) validateMFAAuthResponse(
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, err = webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
 		if err != nil {
 			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
@@ -5432,6 +5549,31 @@ func (a *Server) getProxyPublicAddr() string {
 		}
 	}
 	return ""
+}
+
+// GetNodeStream streams a list of registered servers.
+func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	var done bool
+	startKey := ""
+	return stream.PageFunc(func() ([]types.Server, error) {
+		if done {
+			return nil, io.EOF
+		}
+		resp, err := a.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        apidefaults.DefaultChunkSize,
+			StartKey:     startKey,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		startKey = resp.NextKey
+		done = startKey == ""
+		resources := types.ResourcesWithLabels(resp.Resources)
+		servers, err := resources.AsServers()
+		return servers, trace.Wrap(err)
+	})
 }
 
 // authKeepAliver is a keep aliver using auth server directly

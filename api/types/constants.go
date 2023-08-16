@@ -138,7 +138,7 @@ const (
 	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
 	SubKindOpenSSHNode = "openssh"
 
-	// SubKindOpenSSHEC2InstanceConnectEndpointNode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
+	// SubKindOpenSSHEICENode is a registered OpenSSH (agentless) node that doesn't require trust in Teleport CA.
 	// For each session an SSH Key is created and uploaded to the target host using a side-channel.
 	//
 	// For Amazon EC2 Instances, it uploads the key using:
@@ -146,7 +146,11 @@ const (
 	// This Key is valid for 60 seconds.
 	//
 	// It uses the private key created above to SSH into the host.
-	SubKindOpenSSHEC2InstanceConnectEndpointNode = "openssh-ec2-ice"
+	SubKindOpenSSHEICENode = "openssh-ec2-ice"
+
+	// KindUnifiedResource is a meta Kind that is used for the unified resource search present on
+	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
+	KindUnifiedResource = "unified_resource"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -564,6 +568,10 @@ const (
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
 
+	// OriginDiscoveryKubernetes indicates that the resource was imported
+	// from kubernetes cluster by discovery service.
+	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
+
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
 
@@ -657,6 +665,15 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+
+	// DiscoveredResourceNode identifies a discovered SSH node.
+	DiscoveredResourceNode = "node"
+	// DiscoveredResourceDatabase identifies a discovered database.
+	DiscoveredResourceDatabase = "db"
+	// DiscoveredResourceKubernetes identifies a discovered kubernetes cluster.
+	DiscoveredResourceKubernetes = "k8s"
+	// DiscoveredResourceAgentlessNode identifies a discovered agentless SSH node.
+	DiscoveredResourceAgentlessNode = "node.openssh"
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
@@ -855,6 +872,12 @@ const (
 	// that's used by reverse tunnel agents to know which proxies in each proxy
 	// group they should attempt to be connected to.
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
+)
+
+const (
+	// InstallMethodAWSOIDCDeployServiceEnvVar is the env var used to detect if the agent was installed
+	// using the DeployService action of the AWS OIDC integration.
+	InstallMethodAWSOIDCDeployServiceEnvVar = "TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
