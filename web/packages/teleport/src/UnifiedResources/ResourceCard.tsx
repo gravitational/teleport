@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonBorder, ButtonLink, Flex, Label, Text } from 'design';
+import { Box, ButtonLink, Flex, Label, Text } from 'design';
 
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
@@ -33,6 +33,8 @@ import {
   UnifiedResource,
   UnifiedResourceKind,
 } from 'teleport/services/agents';
+
+import { ResourceActionButton } from './ResourceActionButton';
 
 // Since we do a lot of manual resizing and some absolute positioning, we have
 // to put some layout constants in place here.
@@ -55,22 +57,22 @@ type Props = {
   onLabelClick?: (label: AgentLabel) => void;
 };
 
-export const ResourceCard = ({ resource, onLabelClick }: Props) => {
+export function ResourceCard({ resource, onLabelClick }: Props) {
   const name = resourceName(resource);
   const resIcon = resourceIconName(resource);
   const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
 
-  const labelsInnerContainer = React.useRef(null);
+  const labelsInnerContainer = useRef(null);
 
-  const [showMoreLabelsButton, setShowMoreLabelsButton] = React.useState(false);
-  const [showAllLabels, setShowAllLabels] = React.useState(false);
-  const [numMoreLabels, setNumMoreLabels] = React.useState(0);
+  const [showMoreLabelsButton, setShowMoreLabelsButton] = useState(false);
+  const [showAllLabels, setShowAllLabels] = useState(false);
+  const [numMoreLabels, setNumMoreLabels] = useState(0);
 
   // This effect installs a resize observer whose purpose is to detect the size
   // of the component that contains all the labels. If this component is taller
   // than the height of a single label row, we show a "+x more" button.
-  React.useLayoutEffect(() => {
+  useLayoutEffect(() => {
     if (!labelsInnerContainer.current) return;
 
     const observer = new ResizeObserver(entries => {
@@ -134,7 +136,7 @@ export const ResourceCard = ({ resource, onLabelClick }: Props) => {
             <SingleLineBox flex="1" title={name}>
               <Text typography="h5">{name}</Text>
             </SingleLineBox>
-            <ButtonBorder size="small">Connect</ButtonBorder>
+            <ResourceActionButton resource={resource} />
           </Flex>
           <Flex flexDirection="row" alignItems="center">
             <ResTypeIconBox>
@@ -189,7 +191,7 @@ export const ResourceCard = ({ resource, onLabelClick }: Props) => {
       </CardInnerContainer>
     </CardContainer>
   );
-};
+}
 
 function resourceName(resource: UnifiedResource) {
   return resource.kind === 'node' ? resource.hostname : resource.name;
@@ -289,7 +291,7 @@ const CardInnerContainer = styled(Flex)`
 
   transition: all 150ms;
 
-  &:hover {
+  ${CardContainer}:hover & {
     background-color: ${props => props.theme.colors.levels.elevated};
     border-color: ${props => props.theme.colors.levels.elevated};
     box-shadow: ${props => props.theme.boxShadow[1]};
@@ -358,7 +360,7 @@ const MoreLabelsButton = styled(ButtonLink)`
   transition: visibility 0s;
   transition: background 150ms;
 
-  ${CardContainer}:hover & {
+  .grv-unified-resource-card:hover & {
     background-color: ${props => props.theme.colors.levels.elevated};
   }
 `;
