@@ -1,5 +1,8 @@
 import React from 'react';
 
+import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+
 import { Questionnaire } from './Questionnaire';
 
 export default {
@@ -8,5 +11,11 @@ export default {
 };
 
 export const Full = () => {
-  return <Questionnaire onboard={false} />;
+  return (
+    <WelcomeWrapper>
+      <OnboardCard>
+        <Questionnaire onboard={false} />
+      </OnboardCard>
+    </WelcomeWrapper>
+  );
 };

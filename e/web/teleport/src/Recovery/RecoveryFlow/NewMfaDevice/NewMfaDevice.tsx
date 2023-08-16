@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Card, ButtonPrimary, Text, Flex, Image, Box, Link } from 'design';
+import { ButtonPrimary, Text, Flex, Image, Box, Link } from 'design';
 import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
@@ -11,6 +11,8 @@ import {
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
 import secKeyGraphic from 'design/assets/images/sec-key-graphic.svg';
+
+import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 import useNewMfaDevice, { State, Props } from './useNewMfaDevice';
 
@@ -76,7 +78,7 @@ export function NewMfaDevice({
   }
 
   return (
-    <Card as="form" mx="auto" width="512px">
+    <OnboardCard>
       <Validation>
         {({ validator }) => (
           <>
@@ -177,6 +179,6 @@ export function NewMfaDevice({
           </>
         )}
       </Validation>
-    </Card>
+    </OnboardCard>
   );
 }

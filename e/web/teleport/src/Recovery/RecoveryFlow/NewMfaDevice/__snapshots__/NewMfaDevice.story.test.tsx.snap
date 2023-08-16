@@ -69,16 +69,6 @@ exports[`render correct form to add TOTP device 1`] = `
   cursor: auto;
 }
 
-.c0 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  width: 512px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
-  background-color: #222C59;
-}
-
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -359,6 +349,18 @@ exports[`render correct form to add TOTP device 1`] = `
   color: #FFFFFF;
 }
 
+.c0 {
+  box-sizing: border-box;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+  width: 600px;
+  padding: 24px;
+  text-align: left;
+  margin: 40px auto auto auto;
+  overflow-y: auto;
+}
+
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -372,9 +374,21 @@ exports[`render correct form to add TOTP device 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-<form
+@media screen and (max-width:800px) {
+  .c0 {
+    width: auto;
+    margin: 20px;
+  }
+}
+
+@media screen and (max-height:760px) {
+  .c0 {
+    height: calc(100vh - 250px);
+  }
+}
+
+<div
   class="c0"
-  width="512px"
 >
   <div
     class="c1"
@@ -541,7 +555,7 @@ exports[`render correct form to add TOTP device 1`] = `
       Continue
     </button>
   </div>
-</form>
+</div>
 `;
 
 exports[`render correct form to add Webauthn device 1`] = `
@@ -607,16 +621,6 @@ exports[`render correct form to add Webauthn device 1`] = `
   cursor: auto;
 }
 
-.c0 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  width: 512px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
-  background-color: #222C59;
-}
-
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -880,6 +884,18 @@ exports[`render correct form to add Webauthn device 1`] = `
   color: #FFFFFF;
 }
 
+.c0 {
+  box-sizing: border-box;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+  width: 600px;
+  padding: 24px;
+  text-align: left;
+  margin: 40px auto auto auto;
+  overflow-y: auto;
+}
+
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -893,9 +909,21 @@ exports[`render correct form to add Webauthn device 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-<form
+@media screen and (max-width:800px) {
+  .c0 {
+    width: auto;
+    margin: 20px;
+  }
+}
+
+@media screen and (max-height:760px) {
+  .c0 {
+    height: calc(100vh - 250px);
+  }
+}
+
+<div
   class="c0"
-  width="512px"
 >
   <div
     class="c1"
@@ -1024,7 +1052,7 @@ exports[`render correct form to add Webauthn device 1`] = `
       Continue
     </button>
   </div>
-</form>
+</div>
 `;
 
 exports[`render correct form to add with multi option 1`] = `
@@ -1090,16 +1118,6 @@ exports[`render correct form to add with multi option 1`] = `
   cursor: auto;
 }
 
-.c0 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  width: 512px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
-  background-color: #222C59;
-}
-
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1363,6 +1381,18 @@ exports[`render correct form to add with multi option 1`] = `
   color: #FFFFFF;
 }
 
+.c0 {
+  box-sizing: border-box;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+  width: 600px;
+  padding: 24px;
+  text-align: left;
+  margin: 40px auto auto auto;
+  overflow-y: auto;
+}
+
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -1376,9 +1406,21 @@ exports[`render correct form to add with multi option 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-<form
+@media screen and (max-width:800px) {
+  .c0 {
+    width: auto;
+    margin: 20px;
+  }
+}
+
+@media screen and (max-height:760px) {
+  .c0 {
+    height: calc(100vh - 250px);
+  }
+}
+
+<div
   class="c0"
-  width="512px"
 >
   <div
     class="c1"
@@ -1507,7 +1549,7 @@ exports[`render correct form to add with multi option 1`] = `
       Continue
     </button>
   </div>
-</form>
+</div>
 `;
 
 exports[`render failed state for form to add with multi option 1`] = `
@@ -1593,16 +1635,6 @@ exports[`render failed state for form to add with multi option 1`] = `
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
-}
-
-.c0 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  width: 512px;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
-  border-radius: 8px;
-  background-color: #222C59;
 }
 
 .c1 {
@@ -1868,6 +1900,18 @@ exports[`render failed state for form to add with multi option 1`] = `
   color: #FFFFFF;
 }
 
+.c0 {
+  box-sizing: border-box;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
+  width: 600px;
+  padding: 24px;
+  text-align: left;
+  margin: 40px auto auto auto;
+  overflow-y: auto;
+}
+
 .c5 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -1881,9 +1925,21 @@ exports[`render failed state for form to add with multi option 1`] = `
   background: rgba(255,255,255,0.07);
 }
 
-<form
+@media screen and (max-width:800px) {
+  .c0 {
+    width: auto;
+    margin: 20px;
+  }
+}
+
+@media screen and (max-height:760px) {
+  .c0 {
+    height: calc(100vh - 250px);
+  }
+}
+
+<div
   class="c0"
-  width="512px"
 >
   <div
     class="c1"
@@ -2019,5 +2075,5 @@ exports[`render failed state for form to add with multi option 1`] = `
       Continue
     </button>
   </div>
-</form>
+</div>
 `;
