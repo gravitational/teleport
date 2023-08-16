@@ -74,6 +74,8 @@ type Features struct {
 	DeviceTrust DeviceTrustFeature
 	// FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
 	FeatureHiding bool
+	// AccessRequests holds its namesake feature settings.
+	AccessRequests AccessRequestsFeature
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -87,6 +89,15 @@ type DeviceTrustFeature struct {
 	// Meant for usage-based accounts, like Teleport Team. Has no effect if
 	// [Features.IsUsageBasedBilling] is `false`.
 	DevicesUsageLimit int
+}
+
+// AccessRequestsFeature holds the Access Requests feature general and usage-based settings.
+type AccessRequestsFeature struct {
+	// MonthlyRequestLimit is the usage-based limit for the number of
+	// access requests created in a calendar month.
+	// Meant for usage-based accounts, like Teleport Team. Has no effect if
+	// [Features.IsUsageBasedBilling] is `false`.
+	MonthlyRequestLimit int
 }
 
 // ToProto converts Features into proto.Features
@@ -111,6 +122,9 @@ func (f Features) ToProto() *proto.Features {
 		DeviceTrust: &proto.DeviceTrustFeature{
 			Enabled:           f.DeviceTrust.Enabled,
 			DevicesUsageLimit: int32(f.DeviceTrust.DevicesUsageLimit),
+		},
+		AccessRequests: &proto.AccessRequestsFeature{
+			MonthlyRequestLimit: int32(f.AccessRequests.MonthlyRequestLimit),
 		},
 	}
 }
