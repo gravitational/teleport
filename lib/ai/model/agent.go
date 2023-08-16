@@ -238,7 +238,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		if err != nil {
 			action := &AgentAction{
 				Action: actionException,
-				Log:    "Invalid or incomplete reponse: " + err.Error(),
+				Log:    "Invalid or incomplete response: " + err.Error(),
 			}
 
 			return stepOutput{action: action, observation: action.Log}, nil

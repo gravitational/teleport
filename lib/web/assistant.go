@@ -41,10 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
-// We can not know how many tokens we will consume in advance.
-// Try to consume a small number of tokens first.
-const lookaheadTokens = 100
-
 const (
 	// actionSSHGenerateCommand is a name of the action for generating SSH commands.
 	actionSSHGenerateCommand = "ssh-cmdgen"

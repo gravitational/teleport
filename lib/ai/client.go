@@ -58,6 +58,7 @@ func (client *Client) NewChat(toolContext *model.ToolContext) *Chat {
 
 	// The following tools are only available in the enterprise build. They will fail
 	// if included in OSS due to the lack of the required backend APIs.
+	//nolint:staticcheck
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
 		tools = append(tools, &model.AccessRequestCreateTool{},
 			&model.AccessRequestsListTool{},
