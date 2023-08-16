@@ -44,6 +44,7 @@ const cfg = {
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   isUsageBasedBilling: false,
+  hideInaccessibleFeatures: false,
 
   configDir: '$HOME/.config',
 
@@ -90,6 +91,7 @@ const cfg = {
     accountPassword: '/web/account/password',
     accountMfaDevices: '/web/account/twofactor',
     roles: '/web/roles',
+    deviceTrust: `/web/devices`,
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
