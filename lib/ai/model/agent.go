@@ -28,8 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 const (
