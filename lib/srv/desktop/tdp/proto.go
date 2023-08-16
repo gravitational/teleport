@@ -74,6 +74,7 @@ const (
 	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypePNG2Frame                     = MessageType(27)
 	TypeNotification                  = MessageType(28)
+	TypeSyncKeys                      = MessageType(32)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -120,6 +121,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeMouseWheel(in)
 	case TypeKeyboardButton:
 		return decodeKeyboardButton(in)
+	case TypeSyncKeys:
+		return decodeSyncKeys(in)
 	case TypeClientUsername:
 		return decodeClientUsername(in)
 	case TypeClipboardData:
@@ -343,6 +346,24 @@ func (k KeyboardButton) Encode() ([]byte, error) {
 
 func decodeKeyboardButton(in byteReader) (KeyboardButton, error) {
 	var k KeyboardButton
+	err := binary.Read(in, binary.BigEndian, &k)
+	return k, trace.Wrap(err)
+}
+
+// | message type (32) | caps_lock_state byte |
+type SyncKeys struct {
+	CapsLockState ButtonState
+}
+
+func (k SyncKeys) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSyncKeys))
+	buf.WriteByte(byte(k.CapsLockState))
+	return buf.Bytes(), nil
+}
+
+func decodeSyncKeys(in byteReader) (SyncKeys, error) {
+	var k SyncKeys
 	err := binary.Read(in, binary.BigEndian, &k)
 	return k, trace.Wrap(err)
 }

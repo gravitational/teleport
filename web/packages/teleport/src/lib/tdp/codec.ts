@@ -56,6 +56,7 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
   NOTIFICATION = 28,
+  SYNC_KEYS = 32,
   __LAST, // utility value
 }
 
@@ -515,6 +516,17 @@ export default class Codec {
     view.setUint8(0, MessageType.KEYBOARD_BUTTON);
     view.setUint32(1, scanCode);
     view.setUint8(5, state);
+    return buffer;
+  }
+
+  // encodeSyncKeys synchronizes the state of keyboard's modifier keys (caps lock)
+  // and resets the server key state to all keys up.
+  // | message type (32) | caps_lock_state byte |
+  encodeSyncKeys(state: ButtonState): Message {
+    const buffer = new ArrayBuffer(2);
+    const view = new DataView(buffer);
+    view.setUint8(0, MessageType.SYNC_KEYS);
+    view.setUint8(1, state);
     return buffer;
   }
 

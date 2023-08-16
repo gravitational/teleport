@@ -487,6 +487,14 @@ export default class Client extends EventEmitterWebAuthnSender {
     if (msg) this.send(msg);
   }
 
+  /**
+   * ButtonState.DOWN means caps lock is on.
+   * ButtonState.UP means caps lock is off.
+   */
+  sendSyncKeys(state: ButtonState) {
+    this.send(this.codec.encodeSyncKeys(state));
+  }
+
   sendClipboardData(clipboardData: ClipboardData) {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }

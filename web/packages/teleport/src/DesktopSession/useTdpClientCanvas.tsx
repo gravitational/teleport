@@ -51,6 +51,23 @@ export default function useTdpClientCanvas(props: Props) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
 
+  /**
+   * Tracks the state of the CapsLock key.
+   *
+   * ButtonState.UP means CapsLock is off.
+   * ButtonState.DOWN means CapsLock is on.
+   */
+  const capsLockState = useRef(ButtonState.UP);
+  /**
+   * Tracks whether the next keydown or keyup event should sync the
+   * local key state to the remote machine.
+   *
+   * Set to true:
+   * - On component initialization, so keys are synced before the first keydown/keyup event.
+   * - On focusout, so keys are synced when the user returns to the window.
+   */
+  const syncBeforeNextKey = useRef(true);
+
   useEffect(() => {
     const { width, height } = getDisplaySize();
 
@@ -131,6 +148,45 @@ export default function useTdpClientCanvas(props: Props) {
     setWsConnection('open');
   };
 
+  /**
+   * Called before every keydown or keyup event.
+   * If syncBeforeNextKey is true, this function
+   * sets the current caps lock state and then
+   * synchronizes the keys to the remote machine.
+   */
+  const handleSyncBeforeNextKey = (cli: TdpClient, e: KeyboardEvent) => {
+    if (syncBeforeNextKey.current === true) {
+      // Set the current caps lock state based on getModifierState.
+      if (e.getModifierState('CapsLock')) {
+        capsLockState.current = ButtonState.DOWN;
+      } else {
+        capsLockState.current = ButtonState.UP;
+      }
+
+      // Sync the keys to the remote machine.
+      syncKeys(cli);
+
+      // Unset the syncBeforeNextKey flag.
+      syncBeforeNextKey.current = false;
+    }
+  };
+
+  /**
+   * Sends the current caps lock state to the remote machine and
+   * resets the server key state to all keys up.
+   */
+  const syncKeys = (cli: TdpClient) => {
+    cli.sendSyncKeys(capsLockState.current);
+  };
+
+  const toggleCapsLockState = () => {
+    if (capsLockState.current === ButtonState.DOWN) {
+      capsLockState.current = ButtonState.UP;
+    } else {
+      capsLockState.current = ButtonState.DOWN;
+    }
+  };
+
   const { isMac } = getPlatform();
   /**
    * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
@@ -143,18 +199,43 @@ export default function useTdpClientCanvas(props: Props) {
    * The remote Windows machine also treats CapsLock like a normal key, and
    * expects a DOWN-UP whenever it's pressed.
    */
-  const handleCapsLock = (cli: TdpClient, e: KeyboardEvent): boolean => {
-    if (e.code === 'CapsLock' && isMac) {
-      cli.sendKeyboardInput(e.code, ButtonState.DOWN);
-      cli.sendKeyboardInput(e.code, ButtonState.UP);
+  const handleCapsLock = (
+    cli: TdpClient,
+    e: KeyboardEvent,
+    state: ButtonState
+  ): boolean => {
+    if (e.code === 'CapsLock') {
+      if (isMac) {
+        // On Mac, every UP or DOWN given to us by the browser corresponds
+        // to a DOWN + UP on the remote machine.
+        cli.sendKeyboardInput(e.code, ButtonState.DOWN);
+        cli.sendKeyboardInput(e.code, ButtonState.UP);
+
+        // And we keep track of the internal caps lock state by toggling it.
+        toggleCapsLockState();
+      } else {
+        // On Windows or Linux, we just pass the event through normally to the server.
+        cli.sendKeyboardInput(e.code, state);
+        if (state === ButtonState.UP) {
+          // If we got a caps lock UP, we assume that we previously got a caps lock DOWN.
+          // Thus we assume this corresponds to a caps lock DOWN + UP being completed, and
+          // so we toggle the internal caps lock state.
+          toggleCapsLockState();
+        }
+      }
+
+      // Return true to let caller know that we've handled the event.
       return true;
     }
+
+    // Return false to let caller know that we haven't handled the event.
     return false;
   };
 
   const onKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
-    if (handleCapsLock(cli, e)) return;
+    handleSyncBeforeNextKey(cli, e);
+    if (handleCapsLock(cli, e, ButtonState.DOWN)) return;
     cli.sendKeyboardInput(e.code, ButtonState.DOWN);
 
     // The key codes in the if clause below are those that have been empirically determined not
@@ -176,9 +257,20 @@ export default function useTdpClientCanvas(props: Props) {
 
   const onKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
-    if (handleCapsLock(cli, e)) return;
+    handleSyncBeforeNextKey(cli, e);
+    if (handleCapsLock(cli, e, ButtonState.UP)) return;
 
     cli.sendKeyboardInput(e.code, ButtonState.UP);
+  };
+
+  const onFocusOut = (cli: TdpClient) => {
+    // When the window loses focus, we want to sync the key state to the remote machine
+    // so that the remote machine doesn't think any keys are still pressed.
+    syncKeys(cli);
+    // We also want to set the syncBeforeNextKey flag to true, so that when the user returns
+    // to the window, the next keydown or keyup event will sync the key state to the remote machine.
+    // This is necessary in case the user toggles caps lock while the window is out of focus.
+    syncBeforeNextKey.current = true;
   };
 
   const onMouseMove = (
@@ -251,6 +343,7 @@ export default function useTdpClientCanvas(props: Props) {
     onWsOpen,
     onKeyDown,
     onKeyUp,
+    onFocusOut,
     onMouseMove,
     onMouseDown,
     onMouseUp,

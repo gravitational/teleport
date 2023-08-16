@@ -236,6 +236,7 @@ function Session({
   onWsOpen,
   onKeyDown,
   onKeyUp,
+  onFocusOut,
   onMouseMove,
   onMouseDown,
   onMouseUp,
@@ -303,6 +304,7 @@ function Session({
         tdpCliOnWsOpen={onWsOpen}
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
+        onFocusOut={onFocusOut}
         onMouseMove={onMouseMove}
         onMouseDown={onMouseDown}
         onMouseUp={onMouseUp}

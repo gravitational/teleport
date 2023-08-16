@@ -443,6 +443,14 @@ func (c *Client) start() {
 						m.KeyCode, m.State, errCode)
 					return
 				}
+			case tdp.SyncKeys:
+				if errCode := C.client_write_sync_keys(c.rustClient, C.CGOSyncKeys{
+					caps_lock_down: m.CapsLockState == tdp.ButtonPressed,
+				}); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Warningf("SyncKeys: client_write_sync_keys caps_lock_down=%v: %v",
+						m.CapsLockState == tdp.ButtonPressed, errCode)
+					return
+				}
 			case tdp.ClipboardData:
 				if len(m) > 0 {
 					data, err := utils.UnsafeSliceData(m)

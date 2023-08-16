@@ -1470,6 +1470,33 @@ pub unsafe extern "C" fn write_rdp_keyboard(
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct CGOSyncKeys {
+    pub caps_lock_down: bool,
+}
+
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn client_write_sync_keys(
+    client_ptr: *mut Client,
+    keys: CGOSyncKeys,
+) -> CGOErrCode {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+    // TODO(zmb3): implement 2.2.8.1.1.3.1.1.5 Synchronize Event (TS_SYNC_EVENT)
+    // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/6c5d0ef9-4653-4d69-9ba9-09ba3acd660f
+    debug!("client_write_sync_keys");
+    CGOErrCode::ErrCodeSuccess
+}
+
 /// # Safety
 ///
 /// client_ptr must be a valid pointer to a Client.
