@@ -169,6 +169,10 @@ const colors = {
     active: '#FFCD66',
   },
 
+  notice: {
+    background: '#344179', // elevated
+  },
+
   action: {
     active: '#FFFFFF',
     hover: 'rgba(255, 255, 255, 0.1)',
@@ -246,8 +250,6 @@ const theme = {
   regular: fontWeights.regular,
   bold: fontWeights.bold,
   ...sharedStyles,
-  // disabled media queries for styled-system
-  breakpoints: [],
 };
 
 export default theme;

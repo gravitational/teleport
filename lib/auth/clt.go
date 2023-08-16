@@ -32,9 +32,9 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -250,11 +250,6 @@ func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.Use
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GetNodeStream not implemented: can only be called locally
-func (c *Client) GetNodeStream(_ context.Context, _ string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
-}
-
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
@@ -427,10 +422,6 @@ func (c *Client) DeleteAllLocks(context.Context) error {
 
 func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
 func (c *Client) GetLicense(ctx context.Context) (string, error) {
@@ -852,6 +843,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	UserLoginStateClient() services.UserLoginStates
+
+	// ResourceUsageClient returns a resource usage service client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

@@ -23,7 +23,18 @@ import { AgentFilter, AgentLabel } from 'teleport/services/agents';
 
 import { encodeUrlQueryParams } from './encodeUrlQueryParams';
 
-export function useUrlFiltering(initialSort: SortType) {
+export interface UrlFilteringState {
+  isSearchEmpty: boolean;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
+  pathname: string;
+  setSort: (sort: SortType) => void;
+  onLabelClick: (label: AgentLabel) => void;
+  replaceHistory: (path: string) => void;
+  search: string;
+}
+
+export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
   const { search, pathname } = useLocation();
   const [params, setParams] = useState<AgentFilter>({
     sort: initialSort,
@@ -43,7 +54,13 @@ export function useUrlFiltering(initialSort: SortType) {
 
     setParams({ ...params, search: '', query: queryAfterLabelClick });
     replaceHistory(
-      encodeUrlQueryParams(pathname, queryAfterLabelClick, params.sort, true)
+      encodeUrlQueryParams(
+        pathname,
+        queryAfterLabelClick,
+        params.sort,
+        params.kinds,
+        true /*isAdvancedSearch*/
+      )
     );
   };
 
@@ -68,6 +85,7 @@ export default function getResourceUrlQueryParams(
   const query = searchParams.get('query');
   const search = searchParams.get('search');
   const sort = searchParams.get('sort');
+  const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
 
   const sortParam = sort ? sort.split(':') : null;
 
@@ -82,6 +100,7 @@ export default function getResourceUrlQueryParams(
   return {
     query,
     search,
+    kinds,
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
   };

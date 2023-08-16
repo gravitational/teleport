@@ -44,6 +44,7 @@ const cfg = {
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   isUsageBasedBilling: false,
+  hideInaccessibleFeatures: false,
 
   configDir: '$HOME/.config',
 
@@ -96,6 +97,7 @@ const cfg = {
     clusters: '/web/clusters',
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
+    unifiedResources: '/web/cluster/:clusterId/resources',
     nodes: '/web/cluster/:clusterId/nodes',
     sessions: '/web/cluster/:clusterId/sessions',
     recordings: '/web/cluster/:clusterId/recordings',
@@ -124,6 +126,7 @@ const cfg = {
     integrationEnroll: '/web/integrations/new/:type?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
+    requests: '/web/requests/:requestId?',
 
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
@@ -152,6 +155,8 @@ const cfg = {
     userStatusPath: '/v1/webapi/user/status',
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
+    unifiedResourcesPath:
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
@@ -248,6 +253,9 @@ const cfg = {
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
     userPreferencesPath: '/v1/webapi/user/preferences',
+
+    // Assist needs some access request info to exist in OSS
+    accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -333,6 +341,10 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getUnifiedResourcesRoute(clusterId: string) {
+    return generatePath(cfg.routes.unifiedResources, { clusterId });
   },
 
   getDatabasesRoute(clusterId: string) {
@@ -521,6 +533,13 @@ const cfg = {
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
+  },
+
+  getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.unifiedResourcesPath, {
+      clusterId,
+      ...params,
+    });
   },
 
   getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {
@@ -732,6 +751,25 @@ const cfg = {
     );
   },
 
+  getAssistActionWebSocketUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    action: string
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('action', action);
+
+    return (
+      generatePath(cfg.api.assistConversationWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
   getAssistConversationHistoryUrl(conversationId: string) {
     return generatePath(cfg.api.assistConversationHistoryPath, {
       conversationId,
@@ -759,6 +797,14 @@ const cfg = {
 
   getAssistConversationUrl(conversationId: string) {
     return generatePath(cfg.routes.assist, { conversationId });
+  },
+
+  getAccessRequestUrl(requestId?: string) {
+    return generatePath(cfg.api.accessRequestPath, { requestId });
+  },
+
+  getAccessRequestRoute(requestId?: string) {
+    return generatePath(cfg.routes.requests, { requestId });
   },
 
   init(backendConfig = {}) {
@@ -845,6 +891,8 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+  // TODO(bl-nero): Remove this once filters are expressed as advanced search.
+  kinds?: string[];
 }
 
 export interface UrlIntegrationExecuteRequestParams {

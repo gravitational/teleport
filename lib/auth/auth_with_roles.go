@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
@@ -48,6 +47,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -344,6 +344,15 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 func (a *ServerWithRoles) AccessListClient() services.AccessLists {
 	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
 		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
+}
+
+// ResourceUsageClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
+	return resourceusagepb.NewResourceUsageServiceClient(
+		utils.NewGRPCDummyClientConnection("ResourceUsageClient() should not be called on ServerWithRoles"),
+	)
 }
 
 // UserLoginStateClient allows ServerWithRoles to implement ClientI.
@@ -1491,34 +1500,6 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	return node, nil
 }
 
-func stringCompare(a string, b string, isDesc bool) bool {
-	if isDesc {
-		return a > b
-	}
-	return a < b
-}
-
-func unifiedNameCompare(a types.ResourceWithLabels, b types.ResourceWithLabels, isDesc bool) bool {
-	var nameA, nameB string
-	resourceA, ok := a.(types.Server)
-	if ok {
-		nameA = resourceA.GetHostname()
-	} else {
-		nameA = a.GetName()
-	}
-
-	resourceB, ok := b.(types.Server)
-	if ok {
-		nameB = resourceB.GetHostname()
-	} else {
-		nameB = b.GetName()
-	}
-
-	return stringCompare(nameA, nameB, isDesc)
-}
-
-// MakePaginatedResources converts a list of ResourceWithLabels to a PaginatedResource used in
-// grpc responses.
 func (s *ServerWithRoles) MakePaginatedResources(requestType string, resources []types.ResourceWithLabels) ([]*proto.PaginatedResource, error) {
 	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
 	for _, resource := range resources {
@@ -1630,8 +1611,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	var (
 		elapsedFetch      time.Duration
 		elapsedFilter     time.Duration
-		unifiedResources  []types.ResourceWithLabels
-		filteredResources []types.ResourceWithLabels
+		unifiedResources  types.ResourcesWithLabels
+		filteredResources types.ResourcesWithLabels
 	)
 
 	defer func() {
@@ -1726,18 +1707,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	elapsedFilter = time.Since(startFilter)
 
 	if req.SortBy.Field != "" {
-		isDesc := req.SortBy.IsDesc
-		switch req.SortBy.Field {
-		case types.ResourceMetadataName:
-			sort.SliceStable(filteredResources, func(i, j int) bool {
-				return unifiedNameCompare(filteredResources[i], filteredResources[j], isDesc)
-			})
-		case types.ResourceSpecType:
-			sort.SliceStable(filteredResources, func(i, j int) bool {
-				return stringCompare(filteredResources[i].GetKind(), filteredResources[j].GetKind(), isDesc)
-			})
-		default:
-			return nil, trace.NotImplemented("sorting by field %q for unified resource %q is not supported", req.SortBy.Field, types.KindUnifiedResource)
+		if err := filteredResources.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err, "sorting unified resources")
 		}
 	}
 
@@ -1803,10 +1774,6 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
 
 	return filteredNodes, nil
-}
-
-func (a *ServerWithRoles) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
-	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
 // authContextForSearch returns an extended authz.Context which should be used

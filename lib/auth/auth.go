@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
+	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -4073,6 +4074,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		return req, nil
 	}
 
+	if err := a.verifyAccessRequestMonthlyLimit(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
 
 	if _, err := a.Services.CreateAccessRequestV2(ctx, req); err != nil {
@@ -5532,6 +5537,33 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 	return headlessAuthn, trace.Wrap(err)
 }
 
+// getAccessRequestMonthlyUsage returns the number of access requests that have been created this month.
+func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
+	return resourceusage.GetAccessRequestMonthlyUsage(ctx, a.Services.AuditLogSessionStreamer, a.clock.Now().UTC())
+}
+
+// verifyAccessRequestMonthlyLimit checks whether the cluster has exceeded the monthly access request limit.
+// If so, it returns an error. This is only applicable on usage-based billing plans.
+func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
+	f := modules.GetModules().Features()
+	if !f.IsUsageBasedBilling {
+		return nil // unlimited
+	}
+	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
+
+	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
+
+	usage, err := a.getAccessRequestMonthlyUsage(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if usage >= monthlyLimit {
+		return trace.AccessDenied(limitReachedMessage)
+	}
+
+	return nil
+}
+
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
 // finds, or empty otherwise.
 func (a *Server) getProxyPublicAddr() string {
@@ -5549,6 +5581,31 @@ func (a *Server) getProxyPublicAddr() string {
 		}
 	}
 	return ""
+}
+
+// GetNodeStream streams a list of registered servers.
+func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	var done bool
+	startKey := ""
+	return stream.PageFunc(func() ([]types.Server, error) {
+		if done {
+			return nil, io.EOF
+		}
+		resp, err := a.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        apidefaults.DefaultChunkSize,
+			StartKey:     startKey,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		startKey = resp.NextKey
+		done = startKey == ""
+		resources := types.ResourcesWithLabels(resp.Resources)
+		servers, err := resources.AsServers()
+		return servers, trace.Wrap(err)
+	})
 }
 
 // authKeepAliver is a keep aliver using auth server directly
