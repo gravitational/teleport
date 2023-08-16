@@ -234,7 +234,8 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 		fmt.Sprintf("--task-role=%s", taskRole),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs: strings.Join(argsList, " "),
+		TeleportArgs:   strings.Join(argsList, " "),
+		SuccessMessage: "Success! You can now go back to the browser to complete the database enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

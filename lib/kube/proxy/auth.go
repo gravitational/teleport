@@ -129,18 +129,19 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			f.log.WithError(err).Warnf("failed to create KubernetesClusterV3 from credentials for cluster %q.", cluster)
 			continue
 		}
+
 		details, err := newClusterDetails(ctx,
 			clusterDetailsConfig{
 				cluster:   kubeCluster,
 				kubeCreds: clusterCreds,
-				log:       f.log.WithField("cluster", cluster),
+				log:       f.log.WithField("cluster", kubeCluster.GetName()),
 				checker:   f.cfg.CheckImpersonationPermissions,
 				component: serviceType,
 				clock:     f.cfg.Clock,
 			})
 		if err != nil {
 			f.log.WithError(err).Warnf("Failed to create cluster details for cluster %q.", cluster)
-			return trace.Wrap(err, "setting up details for cluster %q", cluster)
+			return trace.Wrap(err)
 		}
 		f.clusterDetails[cluster] = details
 	}
