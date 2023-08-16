@@ -88,10 +88,8 @@ func TestChat_PromptTokens(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			responses := []string{
-				generateCommandResponse(),
+				generateCommandResponse(t),
 			}
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/event-stream")
@@ -140,8 +138,8 @@ func TestChat_Complete(t *testing.T) {
 
 	responses := [][]byte{
 		[]byte(generateTextResponse()),
-		[]byte(generateCommandResponse()),
-		[]byte(generateAccessRequestResponse()),
+		[]byte(generateCommandResponse(t)),
+		[]byte(generateAccessRequestResponse(t)),
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -236,7 +234,7 @@ func generateTextResponse() string {
 }
 
 // generateCommandResponse generates a response for the command "df -h" on the node "localhost"
-func generateCommandResponse() string {
+func generateCommandResponse(t *testing.T) string {
 	dataBytes := []byte{}
 	dataBytes = append(dataBytes, []byte("event: message\n")...)
 
@@ -249,7 +247,7 @@ func generateCommandResponse() string {
 	}
 	actionJson, err := json.Marshal(actionObj)
 	if err != nil {
-		panic(err)
+		require.NoError(t, err)
 	}
 
 	obj := struct {
@@ -261,7 +259,7 @@ func generateCommandResponse() string {
 	}
 	json, err := json.Marshal(obj)
 	if err != nil {
-		panic(err)
+		require.NoError(t, err)
 	}
 
 	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":%v}]}`, string(json))
@@ -273,7 +271,7 @@ func generateCommandResponse() string {
 	return string(dataBytes)
 }
 
-func generateAccessRequestResponse() string {
+func generateAccessRequestResponse(t *testing.T) string {
 	dataBytes := []byte{}
 	dataBytes = append(dataBytes, []byte("event: message\n")...)
 
@@ -293,7 +291,7 @@ func generateAccessRequestResponse() string {
 	}
 	actionJson, err := json.Marshal(actionObj)
 	if err != nil {
-		panic(err)
+		require.NoError(t, err)
 	}
 
 	obj := struct {
@@ -305,7 +303,7 @@ func generateAccessRequestResponse() string {
 	}
 	json, err := json.Marshal(obj)
 	if err != nil {
-		panic(err)
+		require.NoError(t, err)
 	}
 
 	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":%v}]}`, string(json))

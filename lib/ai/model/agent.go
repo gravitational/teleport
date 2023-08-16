@@ -181,6 +181,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		return stepOutput{finish: finish}, nil
 	}
 
+	// we check against repeat actions to get the LLM out of confusion loops faster.
 	if state.isRepeatAction(action) {
 		return stepOutput{action: action, observation: "You've already ran this tool with this input."}, nil
 	}

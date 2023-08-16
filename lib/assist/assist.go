@@ -46,8 +46,10 @@ const (
 	// MessageKindCommandResult is the type of Assist message that contains the command execution result.
 	MessageKindCommandResult MessageType = "COMMAND_RESULT"
 	// MessageKindAccessRequest is the type of Assist message that contains the access request.
+	// Sent by the backend when it wants the frontend to display a prompt to the user.
 	MessageKindAccessRequest MessageType = "ACCESS_REQUEST"
 	// MessageKindAccessRequestCreated is a marker message to indicate that an access request was created.
+	// Sent by the frontend to the backend to indicate that it was created to future loads of the conversation.
 	MessageKindAccessRequestCreated MessageType = "ACCESS_REQUEST_CREATED"
 	// MessageKindCommandResultSummary is the type of message that is optionally
 	// emitted after a command and contains a summary of the command output.
