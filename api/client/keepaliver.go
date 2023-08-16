@@ -20,8 +20,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -35,7 +36,7 @@ func (c *Client) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	stream, err := c.grpc.SendKeepAlives(cancelCtx)
 	if err != nil {
 		cancel()
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 	k := &streamKeepAliver{
 		stream:      stream,
@@ -70,7 +71,7 @@ func (k *streamKeepAliver) forwardKeepAlives() {
 		case keepAlive := <-k.keepAlivesC:
 			err := k.stream.Send(&keepAlive)
 			if err != nil {
-				k.closeWithError(trail.FromGRPC(err))
+				k.closeWithError(trace.Wrap(err))
 				return
 			}
 		}
@@ -93,7 +94,7 @@ func (k *streamKeepAliver) Done() <-chan struct{} {
 // server, otherwise no errors will be propagated
 func (k *streamKeepAliver) recv() {
 	err := k.stream.RecvMsg(&emptypb.Empty{})
-	k.closeWithError(trail.FromGRPC(err))
+	k.closeWithError(trace.Wrap(err))
 }
 
 func (k *streamKeepAliver) closeWithError(err error) {
