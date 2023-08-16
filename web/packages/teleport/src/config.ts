@@ -733,6 +733,25 @@ const cfg = {
     );
   },
 
+  getAssistActionWebSocketUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    action: string
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('action', action);
+
+    return (
+      generatePath(cfg.api.assistConversationWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
   getAssistConversationHistoryUrl(conversationId: string) {
     return generatePath(cfg.api.assistConversationHistoryPath, {
       conversationId,
