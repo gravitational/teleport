@@ -200,42 +200,34 @@ your terminal, and manually adjust `/etc/teleport.yaml`.
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
+<ScopedBlock scope={["oss", "enterprise"]}>
 ```code
-$ teleport db configure create \
+$ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="proxy-address" /> \
+   --proxy=<Var name="teleport.example.com" />:443 \
    --name=example-opensearch \
    --protocol=opensearch \
    --uri=your-opensearch-domain-url.eu-central-1.es.amazonaws.com:443 \
    --aws-account-id=(=aws.aws_access_key=)  \
    --labels=env=dev
 ```
-
-<Tabs>
-<TabItem label="Package Manager">
-
-On the host where you will run {{ service }}, start Teleport:
-
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
 ```code
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=<Var name="mytenant.teleport.sh" />:443 \
+   --name=example-opensearch \
+   --protocol=opensearch \
+   --uri=your-opensearch-domain-url.eu-central-1.es.amazonaws.com:443 \
+   --aws-account-id=(=aws.aws_access_key=)  \
+   --labels=env=dev
 ```
+</ScopedBlock>
 
-</TabItem>
-<TabItem label="TAR Archive">
-
-On the host where you will run {{ service }}, create a systemd service
-configuration for Teleport, enable the Teleport service, and start Teleport:
-
-```code
-$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 </TabItem>
 

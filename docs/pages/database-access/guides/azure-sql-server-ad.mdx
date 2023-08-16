@@ -188,7 +188,7 @@ Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=teleport.example.com \
+   --proxy=<Var name="teleport.example.com" />:443 \
    --azure-sqlserver-discovery=eastus
 ```
 
@@ -198,7 +198,7 @@ $ teleport db configure create \
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=mytenant.teleport.sh:443 \
+   --proxy=<Var name="mytenant.teleport.sh" />:443 \
    --azure-sqlserver-discovery=eastus
 ```
 </ScopedBlock>
@@ -228,7 +228,7 @@ available databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=alice
 $ tsh db ls
 Name                Description                       Allowed Users Labels Connect
 ------------------ ---------------------------------- ------------- ------ -------
@@ -240,7 +240,7 @@ sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=alice
 $ tsh db ls
 Name                Description                       Allowed Users Labels Connect
 ------------------ ---------------------------------- ------------- ------ -------
