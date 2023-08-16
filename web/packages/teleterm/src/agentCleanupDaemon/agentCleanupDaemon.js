@@ -83,7 +83,7 @@ const logger = createLogger({
       maxsize: 4194304, // 4 MB - max size of a single file
       maxFiles: 5,
       dirname: logsDir,
-      filename: `cleanup.log`,
+      filename: 'cleanup.log',
     }),
   ],
 }).child({
@@ -97,7 +97,7 @@ const logger = createLogger({
 // closed. Since we don't explicitly close the channel at any point, this means that the parent got
 // unexpectedly terminated.
 process.on('disconnect', async () => {
-  logger.info(`Disconnected from the parent.`);
+  logger.info('Disconnected from the parent.');
   await terminateAgent();
 });
 
@@ -111,7 +111,7 @@ process.send(null, undefined, undefined, () => {
   // We handle the IPC channel being closed below with process.connected.
 });
 
-logger.info(`Spawned and ready.`);
+logger.info('Spawned and ready.');
 
 postLaunchChecks();
 
@@ -122,7 +122,7 @@ async function postLaunchChecks() {
   // In that scenario, the 'disconnect' event will never be fired and the event loop will no longer
   // have any work to perform.
   if (!process.connected) {
-    logger.error(`The parent got terminated during setup.`);
+    logger.error('The parent got terminated during setup.');
     await terminateAgent();
     // 41 is a custom exit code so that we don't collide with Node.js exit codes.
     // https://nodejs.org/docs/latest-v18.x/api/process.html#exit-codes
@@ -131,7 +131,7 @@ async function postLaunchChecks() {
   }
 
   if (!isRunning(agentPid)) {
-    logger.error(`The agent got terminated during setup, exiting.`);
+    logger.error('The agent got terminated during setup, exiting.');
     process.removeAllListeners('disconnect');
     // 42 is a custom exit code so that we don't collide with Node.js exit codes.
     // https://nodejs.org/docs/latest-v18.x/api/process.html#exit-codes
@@ -142,7 +142,7 @@ async function postLaunchChecks() {
 
 async function terminateAgent() {
   try {
-    logger.info(`Sending SIGTERM to the agent.`);
+    logger.info('Sending SIGTERM to the agent.');
     // SIGTERM should cause a fast shutdown of the agent.
     process.kill(agentPid, 'SIGTERM');
 
@@ -153,11 +153,11 @@ async function terminateAgent() {
     }
 
     // Follow up with SIGKILL in case the agent is still running after receiving SIGTERM.
-    logger.info(`Sending SIGKILL to the agent.`);
+    logger.info('Sending SIGKILL to the agent.');
     process.kill(agentPid, 'SIGKILL');
   } catch (error) {
     if (error.code === 'ESRCH') {
-      logger.error(`No agent process found.`);
+      logger.error('No agent process found.');
       return;
     }
     throw error;
