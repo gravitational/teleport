@@ -123,7 +123,7 @@ func makeOpenSearchDomain(t *testing.T, tagMap map[string][]*opensearchservice.T
 
 	tagMap[aws.StringValue(domain.ARN)] = tags
 
-	database, err := services.NewDatabaseFromOpenSearchDomain(domain, tags)
+	database, err := services.NewDatabasesFromOpenSearchDomain(domain, tags)
 	require.NoError(t, err)
 
 	return domain, database

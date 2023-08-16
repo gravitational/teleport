@@ -1007,8 +1007,8 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	})
 }
 
-// NewDatabaseFromOpenSearchDomain creates a database resource from an OpenSearch domain.
-func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
+// NewDatabasesFromOpenSearchDomain creates a database resource from an OpenSearch domain.
+func NewDatabasesFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
 	var databases types.Databases
 
 	if aws.StringValue(domain.Endpoint) != "" {
