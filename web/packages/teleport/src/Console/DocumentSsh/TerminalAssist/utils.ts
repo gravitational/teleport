@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
+import { getPlatform } from 'design/theme/utils';
+
 export function getMetaKeySymbol() {
-  if (
-    navigator.userAgentData?.platform === 'macOS' ||
-    navigator.platform.includes('Mac') // deprecated but Safari doesn't support navigator.userAgentData
-  ) {
+  const platform = getPlatform();
+
+  if (platform.isMac) {
     return '⌘';
   }
 
