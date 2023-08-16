@@ -121,7 +121,7 @@ type AccessListSpec struct {
 	// grants describes the access granted by membership to this access list.
 	Grants *AccessListGrants `protobuf:"bytes,6,opt,name=grants,proto3" json:"grants,omitempty"`
 	// members describes the current members of the access list.
-	// TODO(mdwn): Remove this once members are indepdent objects.
+	// TODO(mdwn): Remove this once members are independent objects.
 	Members []*AccessListMember `protobuf:"bytes,7,rep,name=members,proto3" json:"members,omitempty"`
 }
 
@@ -431,7 +431,7 @@ func (x *AccessListGrants) GetTraits() []*v11.Trait {
 }
 
 // AccessListMember describes a member of an access list.
-// TODO(mdwn): Remove this once members are indepdent objects.
+// TODO(mdwn): Remove this once members are independent objects.
 type AccessListMember struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
