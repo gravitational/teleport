@@ -6160,8 +6160,8 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
-    "build") > "/go/vars/release-environment.txt"
+  - (CC=gcc go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote"
+    || echo "build") > "/go/vars/release-environment.txt"
   depends_on:
   - Check out code
 - name: Publish Teleport to stable/${DRONE_TAG} apt repo
@@ -8521,8 +8521,8 @@ steps:
   - git checkout -qf "${DRONE_TAG}"
   - mkdir -pv $(dirname "/go/vars/release-is-prerelease")
   - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag $DRONE_TAG -check prerelease &> /dev/null || echo 'Version
-    is a prerelease' > "/go/vars/release-is-prerelease"
+  - CC=gcc go run ./cmd/check -tag $DRONE_TAG -check prerelease &> /dev/null || echo
+    'Version is a prerelease' > "/go/vars/release-is-prerelease"
   - printf 'Version is '; [ ! -f "/go/vars/release-is-prerelease" ] && printf 'not
     '; echo 'a prerelease'
 - name: Wait for docker
@@ -17069,6 +17069,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: a0cd6e281f864553c31bf642861283cdfa54275907721fcbd1949b3ca239a3e1
+hmac: 54c72179e16cb5f8c2c7bfecdb28ce2bfcbe73c671b555b610a9e353f656abd3
 
 ...
