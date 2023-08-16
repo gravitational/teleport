@@ -806,7 +806,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 // is active in profile and no labels or predicate query are given.
 // Otherwise, the ListDatabases endpoint is called.
 func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient) (*databaseInfo, error) {
-	haveSelectors := len(tc.Labels) > 0 || tc.PredicateExpression != ""
+	haveSelectors := tc.DatabaseService != "" || len(tc.Labels) > 0 || tc.PredicateExpression != ""
 	if !haveSelectors {
 		// if selectors are given, we might incur an extra ListDatabases API
 		// call here to match against an active database.
