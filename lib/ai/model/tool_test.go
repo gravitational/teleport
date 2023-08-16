@@ -121,14 +121,15 @@ labels:
 				require.NoError(t, err)
 			}
 
-			e := &embeddingRetrievalTool{
-				nodeClient:        &mockNodeGetter{nodes: nodes},
-				userAccessChecker: &mockAccessChecker{allowAccess: tt.hasAccess},
-				currentUser:       testUser,
+			toolCtx := &ToolContext{
+				User:          testUser,
+				AccessChecker: &mockAccessChecker{allowAccess: tt.hasAccess},
+				NodeWatcher:   &mockNodeGetter{nodes: nodes},
 			}
 
 			// Doing the real test
-			ok, output, err := e.tryNodeLookupFromProxyCache(ctx)
+			tool := EmbeddingRetrievalTool{}
+			ok, output, err := tool.tryNodeLookupFromProxyCache(ctx, toolCtx)
 			require.NoError(t, err)
 			tt.assertLookupSuccessful(t, ok)
 			require.Equal(t, tt.expectedOutput, output)

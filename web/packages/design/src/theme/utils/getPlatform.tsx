@@ -14,19 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export default function getPlatform() {
+export enum Platform {
+  PLATFORM_WINDOWS = 'Windows',
+  PLATFORM_MACINTOSH = 'Macintosh',
+  PLATFORM_LINUX = 'Linux',
+  PLATFORM_WIN32 = 'win32',
+  PLATFORM_DARWIN = 'darwin',
+}
+
+type PlatformType = {
+  isWin: boolean;
+  isMac: boolean;
+  isLinux: boolean;
+};
+
+export default function getPlatform(): PlatformType {
   if (typeof window !== 'undefined') {
     const userAgent = window.navigator.userAgent;
 
     return {
-      isWin: userAgent.indexOf('Windows') >= 0,
-      isMac: userAgent.indexOf('Macintosh') >= 0,
-      isLinux: userAgent.indexOf('Linux') >= 0,
+      isWin: userAgent.indexOf(Platform.PLATFORM_WINDOWS) >= 0,
+      isMac: userAgent.indexOf(Platform.PLATFORM_MACINTOSH) >= 0,
+      isLinux: userAgent.indexOf(Platform.PLATFORM_LINUX) >= 0,
     };
   } else {
     const platform = process.platform;
-    const isWin = platform === 'win32';
-    const isMac = platform === 'darwin';
+    const isWin = platform === Platform.PLATFORM_WIN32;
+    const isMac = platform === Platform.PLATFORM_DARWIN;
 
     return {
       isWin,
