@@ -74,7 +74,7 @@ const Wrapper = styled.div`
   overflow: hidden;
   width: 100%;
   border-radius: 200px;
-  height: 32px;
+  height: 100%;
   background: transparent;
 `;
 
@@ -82,15 +82,14 @@ const WrapperBackground = styled.div`
   background: ${props => props.theme.colors.levels.sunken};
   border-radius: 200px;
   width: 100%;
-  height: 32px;
+  height: ${props => props.theme.space[8]}px;
 `;
 
 const StyledInput = styled.input`
   border: none;
   outline: none;
   box-sizing: border-box;
-  height: 100%;
-  font-size: 12px;
+  font-size: ${props => props.theme.fontSizes[3]}px;
   width: 100%;
   transition: all 0.2s;
   ${color}
@@ -98,4 +97,5 @@ const StyledInput = styled.input`
   ${height}
   background: ${props => props.theme.colors.spotBackground[0]};
   padding-right: 184px;
+  padding-left: ${props => props.theme.space[5]}px;
 `;
