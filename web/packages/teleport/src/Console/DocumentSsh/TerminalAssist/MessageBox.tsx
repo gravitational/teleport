@@ -24,8 +24,8 @@ interface MessageBoxProps {
 }
 
 const Container = styled.div`
-  padding: 0 ${p => p.theme.space[2]}px ${p => p.theme.space[2] - 2}px
-    ${p => p.theme.space[2]}px;
+  padding: 0 ${p => p.theme.space[2]}px
+    ${p => p.theme.space[2] + p.theme.space[1]}px ${p => p.theme.space[2]}px;
 `;
 
 const Input = styled.input`
