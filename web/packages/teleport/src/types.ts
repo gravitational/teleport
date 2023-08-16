@@ -45,6 +45,7 @@ export enum NavTitle {
   Desktops = 'Desktops',
   AccessRequests = 'Access Requests',
   ActiveSessions = 'Active Sessions',
+  Resources = 'Resources',
 
   // Management
   //  Access
@@ -152,6 +153,8 @@ export interface FeatureFlags {
   locks: boolean;
   newLocks: boolean;
   assist: boolean;
+  // Whether or not the management section should be available.
+  managementSection: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

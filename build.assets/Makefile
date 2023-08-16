@@ -30,9 +30,9 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
-include images.mk
-include grpcbox.mk
 include versions.mk
+include images.mk
+include grpcbox.mk # Requires images.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would

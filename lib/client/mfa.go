@@ -30,9 +30,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wanwin "github.com/gravitational/teleport/lib/auth/webauthnwin"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -247,8 +247,8 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				// Customize Windows prompt directly.
 				// Note that the platform popup is a modal and will only go away if
 				// canceled.
-				webauthnwin.PromptPlatformMessage = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
-				defer webauthnwin.ResetPromptPlatformMessage()
+				wanwin.PromptPlatformMessage = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
+				defer wanwin.ResetPromptPlatformMessage()
 
 			default: // Webauthn only
 				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
@@ -258,7 +258,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				otpWait.Wait()
 			}}
 
-			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
+			resp, _, err := promptWebauthn(ctx, origin, wantypes.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
 				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
@@ -294,7 +294,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 type MFAAuthenticateChallenge struct {
 	// WebauthnChallenge contains a WebAuthn credential assertion used for
 	// login/authentication ceremonies.
-	WebauthnChallenge *wanlib.CredentialAssertion `json:"webauthn_challenge"`
+	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
 	TOTPChallenge bool `json:"totp_challenge"`
 }
@@ -305,7 +305,7 @@ func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *MFAAu
 		TOTPChallenge: protoChal.GetTOTP() != nil,
 	}
 	if protoChal.GetWebauthnChallenge() != nil {
-		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
 	}
 	return chal
 }
@@ -317,7 +317,7 @@ type TOTPRegisterChallenge struct {
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
 	// Webauthn contains webauthn challenge.
-	Webauthn *wanlib.CredentialCreation `json:"webauthn"`
+	Webauthn *wantypes.CredentialCreation `json:"webauthn"`
 	// TOTP contains TOTP challenge.
 	TOTP *TOTPRegisterChallenge `json:"totp"`
 }
@@ -333,7 +333,7 @@ func MakeRegisterChallenge(protoChal *proto.MFARegisterChallenge) *MFARegisterCh
 		}
 	case *proto.MFARegisterChallenge_Webauthn:
 		return &MFARegisterChallenge{
-			Webauthn: wanlib.CredentialCreationFromProto(protoChal.GetWebauthn()),
+			Webauthn: wantypes.CredentialCreationFromProto(protoChal.GetWebauthn()),
 		}
 	}
 	return nil

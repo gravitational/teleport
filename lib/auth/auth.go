@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/circleci"
@@ -646,6 +647,10 @@ type Server struct {
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
 
+	// UnifiedResourceCache is a cache of multiple resource kinds to be presented
+	// in a unified manner in the web UI.
+	UnifiedResourceCache *services.UnifiedResourceCache
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -800,7 +805,13 @@ func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
 }
 
-// SetLockWatcher sets the lock watcher.
+// SetUnifiedResourcesCache sets the unified resource cache.
+func (a *Server) SetUnifiedResourcesCache(unifiedResourcesCache *services.UnifiedResourceCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.UnifiedResourceCache = unifiedResourcesCache
+}
+
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -1362,6 +1373,7 @@ func (a *Server) Close() error {
 			errs = append(errs, err)
 		}
 	}
+
 	return trace.NewAggregate(errs...)
 }
 
@@ -2859,7 +2871,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 		}
 
 		return &proto.MFARegisterChallenge{Request: &proto.MFARegisterChallenge_Webauthn{
-			Webauthn: wanlib.CredentialCreationToProto(credentialCreation),
+			Webauthn: wantypes.CredentialCreationToProto(credentialCreation),
 		}}, nil
 
 	default:
@@ -3168,7 +3180,7 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 	dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
 		User:             req.username,
 		DeviceName:       req.newDeviceName,
-		CreationResponse: wanlib.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
+		CreationResponse: wantypes.CredentialCreationResponseFromProto(regResp.GetWebauthn()),
 		Passwordless:     req.deviceUsage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 	})
 	return dev, trace.Wrap(err)
@@ -5167,7 +5179,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 			return nil, trace.Wrap(err)
 		}
 		return &proto.MFAAuthenticateChallenge{
-			WebauthnChallenge: wanlib.CredentialAssertionToProto(assertion),
+			WebauthnChallenge: wantypes.CredentialAssertionToProto(assertion),
 		}, nil
 	}
 
@@ -5199,7 +5211,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		challenge.WebauthnChallenge = wanlib.CredentialAssertionToProto(assertion)
+		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
 	}
 
 	return challenge, nil
@@ -5262,7 +5274,7 @@ func (a *Server) validateMFAAuthResponse(
 			return nil, "", trace.Wrap(err)
 		}
 
-		assertionResp := wanlib.CredentialAssertionResponseFromProto(res.Webauthn)
+		assertionResp := wantypes.CredentialAssertionResponseFromProto(res.Webauthn)
 		var dev *types.MFADevice
 		if passwordless {
 			webLogin := &wanlib.PasswordlessFlow{
@@ -5276,7 +5288,7 @@ func (a *Server) validateMFAAuthResponse(
 				Webauthn: webConfig,
 				Identity: a.Services,
 			}
-			dev, err = webLogin.Finish(ctx, user, wanlib.CredentialAssertionResponseFromProto(res.Webauthn))
+			dev, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn))
 		}
 		if err != nil {
 			return nil, "", trace.AccessDenied("MFA response validation failed: %v", err)
@@ -5569,6 +5581,31 @@ func (a *Server) getProxyPublicAddr() string {
 		}
 	}
 	return ""
+}
+
+// GetNodeStream streams a list of registered servers.
+func (a *Server) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	var done bool
+	startKey := ""
+	return stream.PageFunc(func() ([]types.Server, error) {
+		if done {
+			return nil, io.EOF
+		}
+		resp, err := a.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    namespace,
+			Limit:        apidefaults.DefaultChunkSize,
+			StartKey:     startKey,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		startKey = resp.NextKey
+		done = startKey == ""
+		resources := types.ResourcesWithLabels(resp.Resources)
+		servers, err := resources.AsServers()
+		return servers, trace.Wrap(err)
+	})
 }
 
 // authKeepAliver is a keep aliver using auth server directly

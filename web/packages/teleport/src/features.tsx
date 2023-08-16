@@ -26,6 +26,7 @@ import {
   Users as UsersIcon,
   ClipboardUser,
   ShieldCheck,
+  Laptop,
   Lock,
   AddCircle,
   CirclePlay,
@@ -39,6 +40,8 @@ import {
 
 import cfg from 'teleport/config';
 
+import localStorage from 'teleport/services/localStorage';
+
 import {
   ManagementSection,
   NavigationCategory,
@@ -51,6 +54,7 @@ import type { TeleportFeature, FeatureFlags } from './types';
 const Audit = lazy(() => import('./Audit'));
 const Nodes = lazy(() => import('./Nodes'));
 const Sessions = lazy(() => import('./Sessions'));
+const UnifiedResources = lazy(() => import('./UnifiedResources'));
 const Account = lazy(() => import('./Account'));
 const Applications = lazy(() => import('./Apps'));
 const Kubes = lazy(() => import('./Kubes'));
@@ -59,6 +63,7 @@ const Clusters = lazy(() => import('./Clusters'));
 const Trust = lazy(() => import('./TrustedClusters'));
 const Users = lazy(() => import('./Users'));
 const Roles = lazy(() => import('./Roles'));
+const DeviceTrust = lazy(() => import('./DeviceTrust'));
 const Recordings = lazy(() => import('./Recordings'));
 const AuthConnectors = lazy(() => import('./AuthConnectors'));
 const Locks = lazy(() => import('./LocksV2/Locks'));
@@ -96,6 +101,30 @@ export class FeatureNodes implements TeleportFeature {
 
   hasAccess(flags: FeatureFlags) {
     return flags.nodes;
+  }
+}
+
+export class FeatureUnifiedResources implements TeleportFeature {
+  route = {
+    title: 'Resources',
+    path: cfg.routes.unifiedResources,
+    exact: true,
+    component: UnifiedResources,
+  };
+
+  navigationItem = {
+    title: NavTitle.Resources,
+    icon: <Server />,
+    exact: true,
+    getLink(clusterId: string) {
+      return cfg.getUnifiedResourcesRoute(clusterId);
+    },
+  };
+
+  category = NavigationCategory.Resources;
+
+  hasAccess() {
+    return true;
   }
 }
 
@@ -532,6 +561,30 @@ export class FeatureTrust implements TeleportFeature {
   };
 }
 
+class FeatureDeviceTrust implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+  route = {
+    title: 'Manage Trusted Devices',
+    path: cfg.routes.deviceTrust,
+    exact: true,
+    component: DeviceTrust,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.deviceTrust;
+  }
+
+  navigationItem = {
+    title: NavTitle.TrustedDevices,
+    icon: <Laptop />,
+    exact: true,
+    getLink() {
+      return cfg.routes.deviceTrust;
+    },
+  };
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -579,8 +632,13 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 }
 
 export function getOSSFeatures(): TeleportFeature[] {
+  const unifiedResources = localStorage.areUnifiedResourcesEnabled()
+    ? [new FeatureUnifiedResources()]
+    : [];
+
   return [
     // Resources
+    ...unifiedResources,
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),
@@ -593,6 +651,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureRoles(),
+    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureLocks(),
     new FeatureNewLock(),

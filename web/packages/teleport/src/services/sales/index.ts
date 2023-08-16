@@ -15,7 +15,9 @@
  */
 
 import { CtaEvent } from 'teleport/services/userEvent';
-const SALES_URL = 'https://goteleport.com/r/upgrade-team';
+
+const UPGRADE_TEAM_URL = 'https://goteleport.com/r/upgrade-team';
+const UPGRADE_COMMUNITY_URL = 'https://goteleport.com/r/upgrade-community';
 
 function getParams(
   version: string,
@@ -30,8 +32,10 @@ function getParams(
 export function getSalesURL(
   version: string,
   isEnterprise: boolean,
+  isUsageBased: boolean,
   event?: CtaEvent
 ) {
+  const url = isUsageBased ? UPGRADE_TEAM_URL : UPGRADE_COMMUNITY_URL;
   const params = getParams(version, isEnterprise, event);
-  return `${SALES_URL}?${params}`;
+  return `${url}?${params}`;
 }
