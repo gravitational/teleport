@@ -45,6 +45,7 @@ export enum NavTitle {
   Desktops = 'Desktops',
   AccessRequests = 'Access Requests',
   ActiveSessions = 'Active Sessions',
+  Resources = 'Resources',
 
   // Management
   //  Access

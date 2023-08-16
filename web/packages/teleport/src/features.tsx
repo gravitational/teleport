@@ -40,6 +40,8 @@ import {
 
 import cfg from 'teleport/config';
 
+import localStorage from 'teleport/services/localStorage';
+
 import {
   ManagementSection,
   NavigationCategory,
@@ -52,6 +54,7 @@ import type { TeleportFeature, FeatureFlags } from './types';
 const Audit = lazy(() => import('./Audit'));
 const Nodes = lazy(() => import('./Nodes'));
 const Sessions = lazy(() => import('./Sessions'));
+const UnifiedResources = lazy(() => import('./UnifiedResources'));
 const Account = lazy(() => import('./Account'));
 const Applications = lazy(() => import('./Apps'));
 const Kubes = lazy(() => import('./Kubes'));
@@ -98,6 +101,30 @@ export class FeatureNodes implements TeleportFeature {
 
   hasAccess(flags: FeatureFlags) {
     return flags.nodes;
+  }
+}
+
+export class FeatureUnifiedResources implements TeleportFeature {
+  route = {
+    title: 'Resources',
+    path: cfg.routes.unifiedResources,
+    exact: true,
+    component: UnifiedResources,
+  };
+
+  navigationItem = {
+    title: NavTitle.Resources,
+    icon: <Server />,
+    exact: true,
+    getLink(clusterId: string) {
+      return cfg.getUnifiedResourcesRoute(clusterId);
+    },
+  };
+
+  category = NavigationCategory.Resources;
+
+  hasAccess() {
+    return true;
   }
 }
 
@@ -605,8 +632,13 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 }
 
 export function getOSSFeatures(): TeleportFeature[] {
+  const unifiedResources = localStorage.areUnifiedResourcesEnabled()
+    ? [new FeatureUnifiedResources()]
+    : [];
+
   return [
     // Resources
+    ...unifiedResources,
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),
