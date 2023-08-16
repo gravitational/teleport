@@ -20,9 +20,7 @@ import process from 'node:process';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
-// inheritStdio makes it so that processes spawned during the test will inherit stdio of the process
-// running the tests. Useful for debugging.
-const inheritStdio = false;
+const stdio = 'pipe'; // Change to 'inherit' for easier debugging.
 
 let logsDir: string;
 
@@ -55,7 +53,7 @@ describe('agentCleanupDaemon', () => {
       const parent = childProcess.fork(
         path.join(__dirname, 'parentTestProcess.mjs'),
         [logsDir, ...parentArgs],
-        { stdio: (inheritStdio && 'inherit') || 'pipe' }
+        { stdio }
       );
       addPidToCleanup(parent.pid);
 
@@ -91,7 +89,7 @@ describe('agentCleanupDaemon', () => {
       const parent = childProcess.fork(
         path.join(__dirname, 'parentTestProcess.mjs'),
         [logsDir, 'sendPidsImmediately'],
-        { stdio: (inheritStdio && 'inherit') || 'pipe' }
+        { stdio }
       );
       addPidToCleanup(parent.pid);
 
@@ -120,7 +118,7 @@ describe('agentCleanupDaemon', () => {
       const parent = childProcess.fork(
         path.join(__dirname, 'parentTestProcess.mjs'),
         [logsDir],
-        { stdio: (inheritStdio && 'inherit') || 'pipe' }
+        { stdio }
       );
       addPidToCleanup(parent.pid);
 
