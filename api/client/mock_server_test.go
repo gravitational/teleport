@@ -17,32 +17,45 @@ limitations under the License.
 package client
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"net"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // mockServer mocks an Auth Server.
 type mockServer struct {
-	addr string
-	grpc *grpc.Server
+	addr      string
+	grpc      *grpc.Server
+	clientTLS *tls.Config
+	serverTLS *tls.Config
 }
 
 func newMockServer(t *testing.T, addr string, service proto.AuthServiceServer) *mockServer {
 	t.Helper()
 	m := &mockServer{
 		addr: addr,
-		grpc: grpc.NewServer(),
 	}
+
+	m.generateTestCerts(t)
+
+	m.grpc = grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(m.serverTLS)),
+	)
 
 	proto.RegisterAuthServiceServer(m.grpc, service)
 	return m
@@ -75,27 +88,102 @@ func (m *mockServer) clientCfg() Config {
 		DialTimeout: time.Second,
 		Addrs:       []string{m.addr},
 		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+			LoadTLS(m.clientTLS),
 		},
 	}
 }
 
-// mockInsecureCredentials mocks insecure Client credentials.
-// it returns a nil tlsConfig which allows the client to run in insecure mode.
-// TODO(Joerger) replace insecure credentials with proper TLS credentials.
-type mockInsecureTLSCredentials struct{}
+func (m *mockServer) generateTestCerts(t *testing.T) {
+	t.Helper()
 
-func (mc *mockInsecureTLSCredentials) Dialer(cfg Config) (ContextDialer, error) {
-	return nil, trace.NotImplemented("no dialer")
+	caKey, caCert := generateCA(t)
+	m.serverTLS = generateChildTLSConfigFromCA(t, caKey, caCert)
+	m.clientTLS = generateChildTLSConfigFromCA(t, caKey, caCert)
 }
 
-func (mc *mockInsecureTLSCredentials) TLSConfig() (*tls.Config, error) {
-	return nil, nil
+func generateCA(t *testing.T) (*keys.PrivateKey, *x509.Certificate) {
+	t.Helper()
+
+	caPub, caPriv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	caKey, err := keys.NewPrivateKey(caPriv, nil)
+	require.NoError(t, err)
+
+	// Create a self signed certificate.
+
+	notBefore := time.Now()
+	notAfter := notBefore.Add(time.Minute)
+	entity := pkix.Name{
+		Organization: []string{"teleport"},
+		CommonName:   "localhost",
+	}
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber:          serialNumber,
+		Issuer:                entity,
+		Subject:               entity,
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageCertSign,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+
+	caCertDER, err := x509.CreateCertificate(rand.Reader, template, template, caPub, caKey)
+	require.NoError(t, err)
+
+	x509Cert, err := x509.ParseCertificate(caCertDER)
+	require.NoError(t, err)
+
+	return caKey, x509Cert
 }
 
-func (mc *mockInsecureTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return nil, trace.NotImplemented("no ssh config")
+func generateChildTLSConfigFromCA(t *testing.T, caKey *keys.PrivateKey, caCert *x509.Certificate) *tls.Config {
+	t.Helper()
+
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	key, err := keys.NewPrivateKey(priv, nil)
+	require.NoError(t, err)
+
+	// Create a certificate signed by the CA.
+
+	notBefore := time.Now()
+	notAfter := notBefore.Add(time.Minute)
+	entity := pkix.Name{
+		Organization: []string{"teleport"},
+		CommonName:   "localhost",
+	}
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber:          serialNumber,
+		Subject:               entity,
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		BasicConstraintsValid: true,
+		DNSNames:              []string{constants.APIDomain},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, caCert, pub, caKey)
+	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+
+	tlsCert, err := key.TLSCertificate(certPEM)
+	require.NoError(t, err)
+
+	pool := x509.NewCertPool()
+	pool.AddCert(caCert)
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+		RootCAs:      pool,
+	}
 }
