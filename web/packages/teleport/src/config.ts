@@ -44,6 +44,7 @@ const cfg = {
   recoveryCodesEnabled: false,
   // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
   isUsageBasedBilling: false,
+  hideInaccessibleFeatures: false,
 
   configDir: '$HOME/.config',
 
@@ -96,6 +97,7 @@ const cfg = {
     clusters: '/web/clusters',
     trustedClusters: '/web/trust',
     audit: '/web/cluster/:clusterId/audit',
+    unifiedResources: '/web/cluster/:clusterId/resources',
     nodes: '/web/cluster/:clusterId/nodes',
     sessions: '/web/cluster/:clusterId/sessions',
     recordings: '/web/cluster/:clusterId/recordings',
@@ -152,6 +154,8 @@ const cfg = {
     userStatusPath: '/v1/webapi/user/status',
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
+    unifiedResourcesPath:
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
@@ -333,6 +337,10 @@ const cfg = {
 
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getUnifiedResourcesRoute(clusterId: string) {
+    return generatePath(cfg.routes.unifiedResources, { clusterId });
   },
 
   getDatabasesRoute(clusterId: string) {
@@ -521,6 +529,13 @@ const cfg = {
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
+  },
+
+  getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.unifiedResourcesPath, {
+      clusterId,
+      ...params,
+    });
   },
 
   getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {
@@ -723,6 +738,25 @@ const cfg = {
 
     searchParams.set('access_token', accessToken);
     searchParams.set('conversation_id', conversationId);
+
+    return (
+      generatePath(cfg.api.assistConversationWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
+  getAssistActionWebSocketUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    action: string
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('action', action);
 
     return (
       generatePath(cfg.api.assistConversationWebSocketPath, {

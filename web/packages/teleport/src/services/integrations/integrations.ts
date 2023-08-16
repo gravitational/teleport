@@ -93,7 +93,7 @@ export const integrationService = {
         body = {
           ...req,
           rdsType: 'cluster',
-          engines: ['aurora', 'aurora-mysql'],
+          engines: ['aurora-mysql'],
         };
         break;
       case 'aurora-postgres':

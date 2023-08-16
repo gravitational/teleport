@@ -23,7 +23,18 @@ import { AgentFilter, AgentLabel } from 'teleport/services/agents';
 
 import { encodeUrlQueryParams } from './encodeUrlQueryParams';
 
-export function useUrlFiltering(initialSort: SortType) {
+export interface UrlFilteringState {
+  isSearchEmpty: boolean;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
+  pathname: string;
+  setSort: (sort: SortType) => void;
+  onLabelClick: (label: AgentLabel) => void;
+  replaceHistory: (path: string) => void;
+  search: string;
+}
+
+export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
   const { search, pathname } = useLocation();
   const [params, setParams] = useState<AgentFilter>({
     sort: initialSort,
