@@ -490,7 +490,7 @@ This function is often paired with an external variable, for example:
 
 - **Type**: Variable
 - **Description**: Returns the Azure identities defined in Teleport available to
-  the user. Azure identities can set for a specific user or defined in a role [(1)].
+  the user. Azure identities can set for a specific user or defined in a role.
 - **Example**: `{{internal.azure_identities}}` -> `"/subscriptions/0000.../.../id1"`
 
 #### `{{internal.db_names}}`
@@ -542,83 +542,32 @@ This function is often paired with an external variable, for example:
 - **Description**: List of allowed Windows logins.
 - **Example**: `{{internal.windows_logins}}` -> `["user1", "user2"]`
 
-### External Variables
+### External variables
 
-These variables provide context from an Identity Provider or other external data source. We can't predict every variable an external data source will provide, but these are common values expected from SAML and OIDC identity providers.
+External variables provide user traits from an Identity Provider or another
+external data source. 
 
-#### `{{external.logins}}`
+In role templates, you can refer to these variables using the following two
+formats, where `trait` is the name of the trait:
 
-- **Type**: Variable
-- **Provider**: Common across several IdPs
+- `{{external.trait}}`
+- `{{external["trait"]}}`
 
-#### `{{external.username}}`
+You can specify an external trait in the first syntax if it begins with a letter
+and contains only letters, numbers, and underscores. Otherwise, you must use the
+second syntax to specify a trait.
 
-- **Type**: Variable
-- **Provider**: Common across several IdPs
+Common examples of external traits available through an identity provider
+include the following:
 
-#### `{{external.access["label"]}}`
+- `{{external.logins}}`
+- `{{external.username}}`
+- `{{external.access["label"]}}`
+- `{{external.env}}`
 
-- **Type**: Variable
-- **Provider**: Common across several IdPs
+{/* TODO: nested traits, e.g., external.access["label"]? */}
+{/* TODO: talk about the value a trait can have: scalar and composite? Strings,
+objects, and lists? Or is it always a map[string][]string as in Interpolate?*/}
 
-#### `{{external.env}}`
-
-- **Type**: Variable
-- **Provider**: Common across several IdPs
-
-#### `{{external.first_name}}`
-
-- **Type**: Variable
-- **Description**: Fetches the user's first name from the SSO provider.
-- **Example**: `{{external.first_name}}` -> `"Alice"`
-- **Provider**: OIDC/SAML
-
-**Note**: Per OIDC specifications this value may be given as `given_name`.
-
-#### `{{external.last_name}}`
-
-- **Type**: Variable
-- **Description**: Fetches the user's last name from the SSO provider.
-- **Example**: `{{external.last_name}}` -> `"Smith"`
-- **Provider**: OIDC/SAML
-
-**Note**: Per OIDC specifications this value may be given as `family_name`.
-
-#### `{{external.email}}`
-
-- **Type**: Variable
-- **Description**: Fetches the user's email address from the SSO provider.
-- **Example**: `{{external.email}}` -> `"alice@example.com"`
-- **Provider**: OIDC/SAML
-
-#### `{{external.groups}}`
-
-- **Type**: Variable
-- **Description**: Fetches the user's group membership from the SSO provider.
-- **Example**: `{{external.groups}}` -> `["group1", "group2"]`
-- **Provider**: OIDC/SAML
-
-#### `{{external.azure_identities}}`
-
-- **Type**: Variable
-- **Description**: Fetches the user's Azure identities from the SSO provider [(2)].
-- **Example**: `{{external.azure_identities}}` -> `["identity1"]`
-- **Provider**: OIDC/SAML
-
-#### `{{external.databases}}`
-
-- **Type**: Variable
-- **Description**: Fetches the user's allowed database names from the SSO provider [(3)].
-- **Example**: `{{external.databases}}` -> `["db1", "db2"]`
-- **Provider**: OIDC/SAML
-
-#### `{{external["custom_attribute"]}}`
-
-- **Type**: Variable
-- **Provider**: OIDC/SAML
-
-Please note that the `{{external.*}}` values and the `{{external["abcxyz"]}}` syntax are provider-dependent, as they rely on information from the SSO provider such as OIDC or SAML. Make sure to refer to your specific provider's documentation for the complete list of available variables and attributes.
-
-[(1)]: ../../application-access/controls/#enabling-a-user-to-access-azure-managed-identities
-[(2)]: ../../application-access/cloud-apis/azure/#denying-access-to-azure-identities
-[(3)]: ../../database-access/rbac/#template-variables
+Refer to your specific provider's documentation for the complete list of
+available variables and attributes.
