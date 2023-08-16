@@ -55,9 +55,13 @@ these options:
 #### Using `cert-manager`
 
 You can use `cert-manager` to provision and automatically renew TLS credentials
-by completing ACME challenges via Let's Encrypt. We recommend this approach if
-you require CLI access to web applications using client certificates via
-the Teleport Application Service.
+by completing ACME challenges via Let's Encrypt.
+
+You can also use `cert-manager` with AWS Private Certificate Authority (PCA) in EKS using the
+`aws-privateca-issuer` plugin.
+
+This method uses a Kubernetes `LoadBalancer`, which will provision an underlying AWS Network Load
+Balancer (NLB) to handle incoming traffic.
 
 #### Using AWS Certificate Manager
 
@@ -300,6 +304,15 @@ highAvailability:
 podSecurityPolicy:
   enabled: false
 ```
+<Admonition type="note">
+If using an AWS PCA with cert-manager, you will need to 
+[ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
+`highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
+upload the full certificate chain to a secret, and 
+[reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
+with `tls.existingCASecretName` in the values file.
+</Admonition>
 </TabItem>
 <TabItem label="AWS Certificate Manager">
 ```yaml
@@ -354,6 +367,15 @@ enterprise: true                                  # Indicate that this is a Tele
 podSecurityPolicy:
   enabled: false
 ```
+<Admonition type="note">
+If using an AWS PCA with cert-manager, you will need to 
+[ensure you set](../../reference/helm-reference/teleport-cluster.mdx#highavailabilitycertmanageraddcommonname)
+`highAvailability.certManager.addCommonName: true` in your values file.  You will also need to get the certificate authority
+certificate for the CA (`aws acm-pca get-certificate-authority-certificate --certificate-authority-arn <arn>`), 
+upload the full certificate chain to a secret, and 
+[reference the secret](../../reference/helm-reference/teleport-cluster.mdx#tlsexistingcasecretname)
+with `tls.existingCASecretName` in the values file.
+</Admonition>
 </TabItem>
 <TabItem label="AWS Certificate Manager">
 ```yaml
