@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// TODO(bl-nero): use a CSS var for sidebar width and make the breakpoints work
+// by changing the minimum width on a per-view basis (Main.tsx).
+const sidebarWidth = 256;
+
 // Styles that are shared by all themes.
 export const sharedStyles = {
   boxShadow: [
@@ -21,4 +25,9 @@ export const sharedStyles = {
     '0px 5px 5px -3px rgba(0, 0, 0, 0.2), 0px 8px 10px 1px rgba(0, 0, 0, 0.14), 0px 3px 14px 2px rgba(0, 0, 0, 0.12)',
     '0px 3px 5px -1px rgba(0, 0, 0, 0.2), 0px 6px 10px rgba(0, 0, 0, 0.14), 0px 1px 18px rgba(0, 0, 0, 0.12)',
   ],
+  breakpoints: {
+    mobile: 400 + sidebarWidth,
+    tablet: 800 + sidebarWidth,
+    desktop: 1200 + sidebarWidth,
+  },
 };
