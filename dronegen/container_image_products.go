@@ -98,7 +98,7 @@ func readToolsVersions() (map[string]string, error) {
 	}
 
 	versions := make(map[string]string)
-	versionsRe := regexp.MustCompile(`^(\w+)_VERSION\s*=\s*(\S+)$`)
+	versionsRe := regexp.MustCompile(`^(\w+)_VERSION\s*\??=\s*(\S+)$`)
 	for _, line := range regexp.MustCompile("\r?\n").Split(string(versionsMk), -1) {
 		matches := versionsRe.FindStringSubmatch(line)
 		if len(matches) == 3 {
