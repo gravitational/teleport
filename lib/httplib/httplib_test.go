@@ -319,7 +319,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"form-action":     "'self'",
 				"frame-ancestors": "'none'",
 				"object-src":      "'none'",
-				"script-src":      "'wasm-unsafe-eval'",
+				"script-src":      "'self' 'wasm-unsafe-eval'",
 				"style-src":       "'self' 'unsafe-inline'",
 				"img-src":         "'self' data: blob:",
 				"font-src":        "'self' data:",
