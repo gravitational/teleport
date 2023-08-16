@@ -1007,11 +1007,20 @@ func listDatabasesByName(ctx context.Context, tc *client.TeleportClient, name st
 	return listDatabasesWithPredicate(ctx, tc, predicate)
 }
 
+// makePrefixPredicate returns a predicate expression that matches resources
+// by prefix name.
+func makePrefixPredicate(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+	return fmt.Sprintf(`hasPrefix(name, %q)`, prefix)
+}
+
 // listDatabasesByPrefix lists databases that match a given name prefix.
 func listDatabasesByPrefix(ctx context.Context, tc *client.TeleportClient, prefix string) (types.Databases, error) {
-	predicate := fmt.Sprintf(`hasPrefix(name, %q)`, prefix)
+	predicate := makePrefixPredicate(prefix)
 	databases, err := listDatabasesWithPredicate(ctx, tc, predicate)
-	if err == nil || !utils.IsPredicateError(err) {
+	if err == nil || !utils.IsPredicateError(err) || predicate == "" {
 		return databases, trace.Wrap(err)
 	}
 	// predicate error from using hasPrefix expression.
@@ -1034,23 +1043,35 @@ func listDatabasesByPrefix(ctx context.Context, tc *client.TeleportClient, prefi
 // a given additional predicate expression. If the teleport client already
 // has a predicate expression, the predicates are combined with a logical AND.
 func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, predicate string) (types.Databases, error) {
-	if predicate == "" {
-		predicate = tc.PredicateExpression
-	} else if tc.PredicateExpression != "" {
-		predicate = fmt.Sprintf("(%v) && (%v)", predicate, tc.PredicateExpression)
-	}
 	var databases []types.Database
 	err := client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
 		databases, err = tc.ListDatabases(ctx, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			ResourceType:        types.KindDatabaseServer,
-			PredicateExpression: predicate,
+			PredicateExpression: combinePredicateExpressions(predicate, tc.PredicateExpression),
 			Labels:              tc.Labels,
 		})
 		return trace.Wrap(err)
 	})
 	return databases, trace.Wrap(err)
+}
+
+// combinePredicateExpressions combines two predicate expressions into one
+// expression as a conjunction (logical AND) of the expressions.
+func combinePredicateExpressions(a, b string) string {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	case a == b:
+		return a
+	default:
+		return fmt.Sprintf("(%v) && (%v)", a, b)
+	}
 }
 
 func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
