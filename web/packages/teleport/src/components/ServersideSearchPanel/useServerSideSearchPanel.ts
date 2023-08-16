@@ -54,6 +54,7 @@ export default function useServersideSearchPanel({
         pathname,
         searchString,
         params.sort,
+        params.kinds,
         isAdvancedSearch
       )
     );

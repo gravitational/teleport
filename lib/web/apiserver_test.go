@@ -1186,7 +1186,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
 
 	// test sort type ascend
-	query := url.Values{"sort": []string{"type:asc"}}
+	query := url.Values{"sort": []string{"kind:asc"}}
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res := clusterNodesGetResponse{}
@@ -1194,12 +1194,12 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
 
 	// test sort type desc
-	query = url.Values{"sort": []string{"type:desc"}}
+	query = url.Values{"sort": []string{"kind:desc"}}
 	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindWindowsDesktop, res.Items[0].Kind)
+	require.Equal(t, types.KindNode, res.Items[0].Kind)
 
 	// test with no access
 	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
@@ -1232,7 +1232,6 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 8)
 	require.Equal(t, "", res.StartKey)
-
 }
 
 type clusterAlertsGetResponse struct {

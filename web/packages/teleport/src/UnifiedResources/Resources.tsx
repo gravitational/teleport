@@ -30,6 +30,7 @@ import useTeleport from 'teleport/useTeleport';
 import { useResources } from './useResources';
 import { ResourceCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
+import { FilterPanel } from './FilterPanel';
 
 export function Resources() {
   const teleCtx = useTeleport();
@@ -37,7 +38,7 @@ export function Resources() {
     attempt,
     fetchedData,
     fetchMore,
-    filtering: { pathname, params, setParams, replaceHistory },
+    filtering: { pathname, params, setParams, setSort, replaceHistory },
   } = useResources(teleCtx);
   const observed = React.useRef(null);
 
@@ -61,6 +62,13 @@ export function Resources() {
       <SearchPanel
         params={params}
         setParams={setParams}
+        pathname={pathname}
+        replaceHistory={replaceHistory}
+      />
+      <FilterPanel
+        params={params}
+        setParams={setParams}
+        setSort={setSort}
         pathname={pathname}
         replaceHistory={replaceHistory}
       />

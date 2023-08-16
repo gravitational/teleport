@@ -54,7 +54,13 @@ export function useUrlFiltering(initialSort: SortType): UrlFilteringState {
 
     setParams({ ...params, search: '', query: queryAfterLabelClick });
     replaceHistory(
-      encodeUrlQueryParams(pathname, queryAfterLabelClick, params.sort, true)
+      encodeUrlQueryParams(
+        pathname,
+        queryAfterLabelClick,
+        params.sort,
+        params.kinds,
+        true /*isAdvancedSearch*/
+      )
     );
   };
 
@@ -79,6 +85,7 @@ export default function getResourceUrlQueryParams(
   const query = searchParams.get('query');
   const search = searchParams.get('search');
   const sort = searchParams.get('sort');
+  const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
 
   const sortParam = sort ? sort.split(':') : null;
 
@@ -93,6 +100,7 @@ export default function getResourceUrlQueryParams(
   return {
     query,
     search,
+    kinds,
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
   };
