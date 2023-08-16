@@ -175,7 +175,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 			sftpEvent.UserMetadata = userMeta
 			sftpEvent.ConnectionMetadata = connectionMeta
 
-			if err := serverCtx.GetServer().EmitAuditEvent(ctx, &sftpEvent); err != nil {
+			if err := serverCtx.GetServer().EmitAuditEvent(&sftpEvent); err != nil {
 				log.WithError(err).Warn("Failed to emit SFTP event.")
 			}
 		}

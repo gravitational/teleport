@@ -40,14 +40,10 @@ func NewChannelEmitter(capacity int) *ChannelEmitter {
 	}
 }
 
-func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (e *ChannelEmitter) EmitAuditEvent(event apievents.AuditEvent) error {
 	e.log.Infof("EmitAuditEvent(%v)", event)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case e.events <- event:
-		return nil
-	}
+	e.events <- event
+	return nil
 }
 
 func (e *ChannelEmitter) C() <-chan apievents.AuditEvent {

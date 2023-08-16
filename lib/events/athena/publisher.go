@@ -99,7 +99,7 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 // Events are marshaled as oneOf from apievents and encoded using base64.
 // For large events, payload is publihsed to S3, and on SNS there is only passed
 // location on S3.
-func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+func (p *publisher) EmitAuditEvent(in apievents.AuditEvent) error {
 	// Teleport emitter layer above makes sure that they are filled.
 	// We fill it just to be sure in case some problems with layer above, it's
 	// better to generate it, then skip event.
@@ -118,7 +118,7 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	ctx := context.Background()
 	b64Encoded := base64.StdEncoding.EncodeToString(marshaledProto)
 	if len(b64Encoded) > maxSNSMessageSize {
 		if uint64(len(b64Encoded)) > maxS3BasedSize {

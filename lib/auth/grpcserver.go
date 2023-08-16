@@ -159,7 +159,7 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.EmitAuditEvent(ctx, event)
+	err = auth.EmitAuditEvent(event)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -300,7 +300,7 @@ func (g *GRPCServer) CreateAuditStream(stream authpb.AuthService_CreateAuditStre
 					},
 					SessionURL: sessionData.URL,
 				}
-				if err := g.Emitter.EmitAuditEvent(auth.CloseContext(), event); err != nil {
+				if err := g.Emitter.EmitAuditEvent(event); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -2279,7 +2279,7 @@ func (g *GRPCServer) AddMFADevice(stream authpb.AuthService_AddMFADeviceServer) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := g.Emitter.EmitAuditEvent(g.serverContext(), &apievents.MFADeviceAdd{
+	if err := g.Emitter.EmitAuditEvent(&apievents.MFADeviceAdd{
 		Metadata: apievents.Metadata{
 			Type:        events.MFADeviceAddEvent,
 			Code:        events.MFADeviceAddEventCode,

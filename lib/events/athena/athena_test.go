@@ -435,7 +435,7 @@ func TestPublisherConsumer(t *testing.T) {
 			// we need to clone input because it's used for assertions and
 			// EmitAuditEvent modifies input in case id/time is empty.
 			clonedInput := apiutils.CloneProtoMsg(tt.input)
-			err := p.EmitAuditEvent(ctx, clonedInput)
+			err := p.EmitAuditEvent(clonedInput)
 			require.NoError(t, err)
 
 			// wait for event to be propagated.

@@ -177,7 +177,7 @@ type mockEmitter struct {
 	failAfterNCalls int
 }
 
-func (m *mockEmitter) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+func (m *mockEmitter) EmitAuditEvent(in apievents.AuditEvent) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failAfterNCalls > 0 && len(m.events) >= m.failAfterNCalls {
@@ -189,12 +189,9 @@ func (m *mockEmitter) EmitAuditEvent(ctx context.Context, in apievents.AuditEven
 	// less iterations in tests to generate checkpoint file from all workers.
 	// Without it, in rare cases after 50 events still some worker were not able
 	// to read message because of other processing it immediately.
-	select {
-	case <-time.After(time.Duration(rand.Intn(50)+50) * time.Microsecond):
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+
+	<-time.After(time.Duration(rand.Intn(50)+50) * time.Microsecond)
+	return nil
 }
 
 // requireEventsEqualInAnyOrder compares slices of auditevents ignoring order.

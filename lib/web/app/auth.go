@@ -57,7 +57,7 @@ func (h *Handler) handleAuth(w http.ResponseWriter, r *http.Request, p httproute
 	if err := checkSubjectToken(subjectCookieValue, ws); err != nil {
 		h.log.Warnf("Request failed: %v.", err)
 
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.c.AuthClient.EmitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,

@@ -40,13 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-var (
-	userSessionLimitHitCount = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricUserMaxConcurrentSessionsHit,
-			Help: "Number of times a user exceeded their max concurrent ssh connections",
-		},
-	)
+var userSessionLimitHitCount = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricUserMaxConcurrentSessionsHit,
+		Help: "Number of times a user exceeded their max concurrent ssh connections",
+	},
 )
 
 func init() {
@@ -318,7 +316,7 @@ func (s *SessionController) emitRejection(ctx context.Context, userMetadata apie
 	ctx, span := s.cfg.tracer.Start(emitCtx, "SessionController/emitRejection")
 	defer span.End()
 
-	if err := s.cfg.Emitter.EmitAuditEvent(ctx, &apievents.SessionReject{
+	if err := s.cfg.Emitter.EmitAuditEvent(&apievents.SessionReject{
 		Metadata: apievents.Metadata{
 			Type: events.SessionRejectedEvent,
 			Code: events.SessionRejectedCode,

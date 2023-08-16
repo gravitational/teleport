@@ -250,7 +250,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			},
 			SessionURL: uploadData.URL,
 		}
-		err = u.cfg.AuditLog.EmitAuditEvent(ctx, session)
+		err = u.cfg.AuditLog.EmitAuditEvent(session)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -354,7 +354,7 @@ loop:
 	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
+	if err := u.cfg.AuditLog.EmitAuditEvent(sessionEndEvent); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -59,7 +59,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+	if err := s.emitter.EmitAuditEvent(&apievents.UserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
@@ -101,7 +101,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+	if err := s.emitter.EmitAuditEvent(&apievents.UserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
@@ -150,7 +150,7 @@ func (s *Server) UpsertUser(user types.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserCreate{
+	if err := s.emitter.EmitAuditEvent(&apievents.UserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
@@ -194,7 +194,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		connectorName = new.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserCreate{
+	if err := s.emitter.EmitAuditEvent(&apievents.UserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
@@ -245,7 +245,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	// If the user was successfully deleted, emit an event.
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserDelete{
+	if err := s.emitter.EmitAuditEvent(&apievents.UserDelete{
 		Metadata: apievents.Metadata{
 			Type: events.UserDeleteEvent,
 			Code: events.UserDeleteCode,

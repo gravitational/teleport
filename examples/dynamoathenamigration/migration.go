@@ -155,7 +155,7 @@ type s3downloader interface {
 }
 
 type eventsEmitter interface {
-	EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
+	EmitAuditEvent(in apievents.AuditEvent) error
 }
 
 func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, error) {
@@ -841,7 +841,7 @@ func (t *task) emitEvents(ctx context.Context, eventsC <-chan apievents.AuditEve
 					if !ok {
 						return nil
 					}
-					if err := t.eventsEmitter.EmitAuditEvent(workerCtx, e); err != nil {
+					if err := t.eventsEmitter.EmitAuditEvent(e); err != nil {
 						return trace.Wrap(err)
 					} else {
 						mu.Lock()

@@ -73,7 +73,7 @@ func TestLogRotation(t *testing.T) {
 			Metadata:     apievents.Metadata{Type: "resize", Time: now},
 			TerminalSize: "10:10",
 		}
-		err := alog.EmitAuditEvent(ctx, event)
+		err := alog.EmitAuditEvent(event)
 		require.NoError(t, err)
 		logfile := alog.CurrentFile()
 
@@ -169,7 +169,7 @@ func TestExternalLog(t *testing.T) {
 	defer alog.Close()
 
 	evt := &apievents.SessionConnect{}
-	require.NoError(t, alog.EmitAuditEvent(context.Background(), evt))
+	require.NoError(t, alog.EmitAuditEvent(evt))
 
 	require.Len(t, m.Emitter.Events(), 1)
 	require.Equal(t, m.Emitter.Events()[0], evt)

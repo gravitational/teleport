@@ -437,7 +437,7 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 		},
 		Reason: reason,
 	}
-	return trace.Wrap(w.Emitter.EmitAuditEvent(w.Context, event))
+	return trace.Wrap(w.Emitter.EmitAuditEvent(event))
 }
 
 func (w *Monitor) handleLockInForce(lockErr error) {

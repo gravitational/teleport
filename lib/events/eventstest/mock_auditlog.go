@@ -50,6 +50,6 @@ func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, 
 	return events, errors
 }
 
-func (m *MockAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	return m.Emitter.EmitAuditEvent(ctx, event)
+func (m *MockAuditLog) EmitAuditEvent(event apievents.AuditEvent) error {
+	return m.Emitter.EmitAuditEvent(event)
 }

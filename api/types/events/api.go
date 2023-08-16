@@ -74,7 +74,7 @@ type AuditEvent interface {
 // Emitter emits audit events.
 type Emitter interface {
 	// EmitAuditEvent emits a single audit event.
-	EmitAuditEvent(context.Context, AuditEvent) error
+	EmitAuditEvent(AuditEvent) error
 }
 
 // PreparedSessionEvent is an event that has been prepared by

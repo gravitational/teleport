@@ -3042,7 +3042,7 @@ func TestSearchClusterEvents(t *testing.T) {
 	})
 
 	for _, e := range sessionEvents {
-		require.NoError(t, s.proxyClient.EmitAuditEvent(s.ctx, e))
+		require.NoError(t, s.proxyClient.EmitAuditEvent(e))
 	}
 
 	sort.Sort(sort.Reverse(byTimeAndIndex(sessionEvents)))

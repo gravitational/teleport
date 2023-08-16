@@ -748,8 +748,8 @@ func (m *mockRecorder) Done() <-chan struct{} {
 	return ch
 }
 
-func (m *mockRecorder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	return m.emitter.EmitAuditEvent(ctx, event)
+func (m *mockRecorder) EmitAuditEvent(event apievents.AuditEvent) error {
+	return m.emitter.EmitAuditEvent(event)
 }
 
 type trackerService struct {

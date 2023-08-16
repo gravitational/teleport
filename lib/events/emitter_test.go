@@ -118,15 +118,12 @@ func TestProtoStreamer(t *testing.T) {
 }
 
 func TestWriterEmitter(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
 	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 0})
 	buf := &bytes.Buffer{}
 	emitter := events.NewWriterEmitter(utils.NopWriteCloser(buf))
 
 	for _, event := range evts {
-		err := emitter.EmitAuditEvent(ctx, event)
+		err := emitter.EmitAuditEvent(event)
 		require.NoError(t, err)
 	}
 
@@ -151,7 +148,7 @@ func TestAsyncEmitter(t *testing.T) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		for _, event := range evts {
-			err := emitter.EmitAuditEvent(ctx, event)
+			err := emitter.EmitAuditEvent(event)
 			require.NoError(t, err)
 		}
 		require.NoError(t, ctx.Err())
@@ -166,10 +163,8 @@ func TestAsyncEmitter(t *testing.T) {
 
 		require.NoError(t, err)
 		defer emitter.Close()
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
-		defer cancel()
 		for _, event := range evts {
-			err := emitter.EmitAuditEvent(ctx, event)
+			err := emitter.EmitAuditEvent(event)
 			require.NoError(t, err)
 		}
 
@@ -192,13 +187,10 @@ func TestAsyncEmitter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
-		defer cancel()
-
 		emitsDoneC := make(chan struct{}, len(evts))
 		for _, e := range evts {
 			go func(event apievents.AuditEvent) {
-				emitter.EmitAuditEvent(ctx, event)
+				emitter.EmitAuditEvent(event)
 				emitsDoneC <- struct{}{}
 			}(e)
 		}

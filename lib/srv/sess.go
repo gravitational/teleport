@@ -906,7 +906,7 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 	if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to record session start event.")
 	}
-	if err := s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
+	if err := s.emitAuditEvent(preparedEvent.GetAuditEvent()); err != nil {
 		s.log.WithError(err).Warn("Failed to emit session start event.")
 	}
 }
@@ -940,7 +940,7 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
 			s.log.WithError(err).Warn("Failed to record session join event.")
 		}
-		if err := s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
+		if err := s.emitAuditEvent(preparedEvent.GetAuditEvent()); err != nil {
 			s.log.WithError(err).Warn("Failed to emit session join event.")
 		}
 	} else {
@@ -985,7 +985,7 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
 			s.log.WithError(err).Warn("Failed to record session leave event.")
 		}
-		if err := s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
+		if err := s.emitAuditEvent(preparedEvent.GetAuditEvent()); err != nil {
 			s.log.WithError(err).Warn("Failed to emit session leave event.")
 		}
 	} else {
@@ -1060,7 +1060,7 @@ func (s *session) emitSessionEndEvent() {
 		if err := s.recordEvent(ctx.srv.Context(), preparedEvent); err != nil {
 			s.log.WithError(err).Warn("Failed to record session end event.")
 		}
-		if err := s.emitAuditEvent(ctx.srv.Context(), preparedEvent.GetAuditEvent()); err != nil {
+		if err := s.emitAuditEvent(preparedEvent.GetAuditEvent()); err != nil {
 			s.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	} else {
@@ -2045,8 +2045,8 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 }
 
 // emitAuditEvent emits audit events.
-func (s *session) emitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	return s.emitter.EmitAuditEvent(ctx, event)
+func (s *session) emitAuditEvent(event apievents.AuditEvent) error {
+	return s.emitter.EmitAuditEvent(event)
 }
 
 func (s *session) recordEvent(ctx context.Context, event apievents.PreparedSessionEvent) error {

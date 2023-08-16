@@ -909,12 +909,12 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 }
 
 // EmitAuditEvent sends an auditable event to the auth server.
-func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+func (c *Client) EmitAuditEvent(event events.AuditEvent) error {
 	grpcEvent, err := events.ToOneOf(event)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.grpc.EmitAuditEvent(ctx, grpcEvent)
+	_, err = c.grpc.EmitAuditEvent(context.Background(), grpcEvent)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}

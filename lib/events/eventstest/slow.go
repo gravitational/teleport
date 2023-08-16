@@ -17,7 +17,6 @@ limitations under the License.
 package eventstest
 
 import (
-	"context"
 	"time"
 
 	"github.com/gravitational/teleport/api/types/events"
@@ -37,11 +36,7 @@ type slowEmitter struct {
 	delay time.Duration
 }
 
-func (s *slowEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	select {
-	case <-time.After(s.delay):
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+func (s *slowEmitter) EmitAuditEvent(event events.AuditEvent) error {
+	<-time.After(s.delay)
+	return nil
 }

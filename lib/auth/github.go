@@ -135,7 +135,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 	if err := a.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorCreate{
+	if err := a.emitter.EmitAuditEvent(&apievents.GithubConnectorCreate{
 		Metadata: apievents.Metadata{
 			Type: events.GithubConnectorCreatedEvent,
 			Code: events.GithubConnectorCreatedCode,
@@ -289,7 +289,7 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 		return trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorDelete{
+	if err := a.emitter.EmitAuditEvent(&apievents.GithubConnectorDelete{
 		Metadata: apievents.Metadata{
 			Type: events.GithubConnectorDeletedEvent,
 			Code: events.GithubConnectorDeletedCode,
@@ -395,7 +395,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		event.Status.Error = trace.Unwrap(err).Error()
 		event.Status.UserMessage = err.Error()
 
-		if err := emitter.EmitAuditEvent(ctx, event); err != nil {
+		if err := emitter.EmitAuditEvent(event); err != nil {
 			log.WithError(err).Warn("Failed to emit GitHub login failed event.")
 		}
 		return nil, trace.Wrap(err)
@@ -407,7 +407,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 	event.Status.Success = true
 	event.User = auth.Username
 
-	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
+	if err := emitter.EmitAuditEvent(event); err != nil {
 		log.WithError(err).Warn("Failed to emit GitHub login event.")
 	}
 
@@ -935,7 +935,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			if err := c.authServer.emitter.EmitAuditEvent(c.authServer.closeCtx, &apievents.UserLogin{
+			if err := c.authServer.emitter.EmitAuditEvent(&apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserSSOLoginFailureCode,

@@ -169,7 +169,7 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 
 		userMeta := identity.GetUserMetadata()
 		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.c.AuthClient.EmitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
@@ -406,7 +406,7 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 
 		userMeta := identity.GetUserMetadata()
 		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.c.AuthClient.EmitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
@@ -446,7 +446,7 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	}
 	if ws.GetBearerToken() != subjectValue {
 		err := trace.AccessDenied("subject session token does not match")
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.c.AuthClient.EmitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,

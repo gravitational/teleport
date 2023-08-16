@@ -35,7 +35,7 @@ func (e *MockRecorderEmitter) Write(_ []byte) (int, error) {
 }
 
 // EmitAuditEvent emits audit event
-func (e *MockRecorderEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (e *MockRecorderEmitter) EmitAuditEvent(event apievents.AuditEvent) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.events = append(e.events, event)

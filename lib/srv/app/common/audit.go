@@ -230,7 +230,7 @@ func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 	var emitErr error
 	// AppSessionRequest events should only go to session recording
 	if event.GetType() != events.AppSessionRequestEvent {
-		emitErr = a.cfg.Emitter.EmitAuditEvent(ctx, event)
+		emitErr = a.cfg.Emitter.EmitAuditEvent(event)
 	}
 
 	return trace.NewAggregate(recErr, emitErr)

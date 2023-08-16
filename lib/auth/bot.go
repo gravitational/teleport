@@ -430,7 +430,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 
 		// Emit an audit event.
 		userMetadata := authz.ClientUserMetadata(ctx)
-		if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
+		if err := s.emitter.EmitAuditEvent(&apievents.RenewableCertificateGenerationMismatch{
 			Metadata: apievents.Metadata{
 				Type: events.RenewableCertificateGenerationMismatchEvent,
 				Code: events.RenewableCertificateGenerationMismatchCode,

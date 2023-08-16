@@ -248,7 +248,7 @@ func (a *Server) generateCertsBot(
 			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
 		}
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
+	if err := a.emitter.EmitAuditEvent(joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit bot join event.")
 	}
 	return certs, nil
@@ -320,7 +320,7 @@ func (a *Server) generateCerts(
 			log.WithError(err).Warn("Unable to encode join attributes for audit event.")
 		}
 	}
-	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
+	if err := a.emitter.EmitAuditEvent(joinEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit instance join event.")
 	}
 	return certs, nil

@@ -40,7 +40,7 @@ func TestSearchEventsLimiter(t *testing.T) {
 		})
 		require.NoError(t, err)
 		for i := 0; i < 20; i++ {
-			require.NoError(t, s.EmitAuditEvent(context.Background(), &apievents.AccessRequestCreate{}))
+			require.NoError(t, s.EmitAuditEvent(&apievents.AccessRequestCreate{}))
 		}
 	})
 
@@ -181,6 +181,6 @@ func (m *mockAuditLogger) SearchSessionEvents(ctx context.Context, req events.Se
 	return m.searchEventsRespFn()
 }
 
-func (m *mockAuditLogger) EmitAuditEvent(context.Context, apievents.AuditEvent) error {
+func (m *mockAuditLogger) EmitAuditEvent(apievents.AuditEvent) error {
 	return m.emitAuditEventRespFn()
 }

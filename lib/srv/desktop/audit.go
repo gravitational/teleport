@@ -513,7 +513,7 @@ func (s *WindowsService) onSharedDirectoryWriteResponse(
 }
 
 func (s *WindowsService) emit(ctx context.Context, event events.AuditEvent) {
-	if err := s.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
+	if err := s.cfg.Emitter.EmitAuditEvent(event); err != nil {
 		s.cfg.Log.WithError(err).Errorf("Failed to emit audit event %v", event)
 	}
 }

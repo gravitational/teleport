@@ -123,7 +123,7 @@ type FileLog struct {
 }
 
 // EmitAuditEvent adds a new event to the log.
-func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (l *FileLog) EmitAuditEvent(event apievents.AuditEvent) error {
 	l.rw.RLock()
 	defer l.rw.RUnlock()
 

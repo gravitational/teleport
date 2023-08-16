@@ -61,7 +61,6 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	page, err := apiclient.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](r.Context(), clt, req)
-
 	if err != nil {
 		// If the error returned is due to types.KindAppOrSAMLIdPServiceProvider being unsupported, then fallback to attempting to just fetch types.AppServers.
 		// This is for backwards compatibility with leaf clusters that don't support this new type yet.
@@ -293,7 +292,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			AppName:       result.App.GetName(),
 		},
 	}
-	if err := h.cfg.Emitter.EmitAuditEvent(h.cfg.Context, appSessionStartEvent); err != nil {
+	if err := h.cfg.Emitter.EmitAuditEvent(appSessionStartEvent); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

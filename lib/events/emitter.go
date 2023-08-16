@@ -93,7 +93,7 @@ func (a *AsyncEmitter) forward() {
 		case <-a.ctx.Done():
 			return
 		case event := <-a.eventsCh:
-			err := a.cfg.Inner.EmitAuditEvent(a.ctx, event)
+			err := a.cfg.Inner.EmitAuditEvent(event)
 			if err != nil {
 				log.WithError(err).Errorf("Failed to emit audit event.")
 			}
@@ -103,12 +103,10 @@ func (a *AsyncEmitter) forward() {
 
 // EmitAuditEvent emits audit event without blocking the caller. It will start
 // losing events on buffer overflow, but it never fails.
-func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (a *AsyncEmitter) EmitAuditEvent(event apievents.AuditEvent) error {
 	select {
 	case a.eventsCh <- event:
 		return nil
-	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "context canceled or closed")
 	default:
 		log.Errorf("Failed to emit audit event %v(%v). This server's connection to the auth service appears to be slow.", event.GetType(), event.GetCode())
 		return nil
@@ -160,14 +158,14 @@ func (w *CheckingEmitterConfig) CheckAndSetDefaults() error {
 }
 
 // EmitAuditEvent emits audit event
-func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (r *CheckingEmitter) EmitAuditEvent(event apievents.AuditEvent) error {
 	auditEmitEvent.Inc()
 	if err := checkAndSetEventFields(event, r.Clock, r.UIDGenerator, r.ClusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event.")
 		AuditFailedEmit.Inc()
 		return trace.Wrap(err)
 	}
-	if err := r.Inner.EmitAuditEvent(ctx, event); err != nil {
+	if err := r.Inner.EmitAuditEvent(event); err != nil {
 		AuditFailedEmit.Inc()
 		log.WithError(err).Errorf("Failed to emit audit event of type: %s.", event.GetType())
 		return trace.Wrap(err)
@@ -229,7 +227,7 @@ func (w *WriterEmitter) Close() error {
 }
 
 // EmitAuditEvent writes the event to the writer
-func (w *WriterEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (w *WriterEmitter) EmitAuditEvent(event apievents.AuditEvent) error {
 	// line is the text to be logged
 	line, err := utils.FastMarshal(event)
 	if err != nil {
@@ -250,7 +248,7 @@ type LoggingEmitter struct{}
 
 // EmitAuditEvent logs audit event, skips session print events, session
 // disk events and app session request events, because they are very verbose.
-func (*LoggingEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (*LoggingEmitter) EmitAuditEvent(event apievents.AuditEvent) error {
 	switch event.GetType() {
 	case ResizeEvent, SessionDiskEvent, SessionPrintEvent, AppSessionRequestEvent, "":
 		return nil
@@ -286,10 +284,10 @@ type MultiEmitter struct {
 }
 
 // EmitAuditEvent emits audit event to all emitters
-func (m *MultiEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (m *MultiEmitter) EmitAuditEvent(event apievents.AuditEvent) error {
 	var errors []error
 	for i := range m.emitters {
-		err := m.emitters[i].EmitAuditEvent(ctx, event)
+		err := m.emitters[i].EmitAuditEvent(event)
 		if err != nil {
 			errors = append(errors, err)
 		}

@@ -181,7 +181,7 @@ func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	if err := a.cfg.Recorder.RecordEvent(ctx, preparedEvent); err != nil {
 		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
 	}
-	if err := a.cfg.Emitter.EmitAuditEvent(ctx, preparedEvent.GetAuditEvent()); err != nil {
+	if err := a.cfg.Emitter.EmitAuditEvent(preparedEvent.GetAuditEvent()); err != nil {
 		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
 	}
 }

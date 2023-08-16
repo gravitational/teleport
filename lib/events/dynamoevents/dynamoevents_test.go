@@ -119,7 +119,7 @@ func TestSizeBreak(t *testing.T) {
 
 	const eventCount int = 10
 	for i := 0; i < eventCount; i++ {
-		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := tt.suite.Log.EmitAuditEvent(&apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: "bob"},
@@ -193,7 +193,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 
 	const eventCount = 4000
 	for i := 0; i < eventCount; i++ {
-		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := tt.suite.Log.EmitAuditEvent(&apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: "bob"},
@@ -266,7 +266,7 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 		},
 		DatabaseQuery: strings.Repeat("A", maxItemSize),
 	}
-	err := tt.suite.Log.EmitAuditEvent(ctx, dbQueryEvent)
+	err := tt.suite.Log.EmitAuditEvent(dbQueryEvent)
 	require.NoError(t, err)
 
 	result, _, err := tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -285,7 +285,7 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 		},
 		Path: strings.Repeat("A", maxItemSize),
 	}
-	err = tt.suite.Log.EmitAuditEvent(ctx, appReqEvent)
+	err = tt.suite.Log.EmitAuditEvent(appReqEvent)
 	require.ErrorContains(t, err, "ValidationException: Item size has exceeded the maximum allowed size")
 }
 

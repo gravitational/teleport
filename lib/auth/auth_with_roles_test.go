@@ -4709,7 +4709,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 			})
 
 			t.Run("EmitAuditEvent", func(t *testing.T) {
-				err := s.EmitAuditEvent(ctx, &apievents.UserLogin{
+				err := s.EmitAuditEvent(&apievents.UserLogin{
 					Metadata: apievents.Metadata{
 						Type: events.UserLoginEvent,
 						Code: events.UserLocalLoginFailureCode,

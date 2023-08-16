@@ -43,7 +43,7 @@ func TestFileLogPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = log.EmitAuditEvent(ctx, &events.SessionJoin{
+	err = log.EmitAuditEvent(&events.SessionJoin{
 		Metadata: events.Metadata{
 			ID:   "a",
 			Type: SessionJoinEvent,
@@ -55,7 +55,7 @@ func TestFileLogPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = log.EmitAuditEvent(ctx, &events.SessionJoin{
+	err = log.EmitAuditEvent(&events.SessionJoin{
 		Metadata: events.Metadata{
 			ID:   "b",
 			Type: SessionJoinEvent,
@@ -67,7 +67,7 @@ func TestFileLogPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = log.EmitAuditEvent(ctx, &events.SessionJoin{
+	err = log.EmitAuditEvent(&events.SessionJoin{
 		Metadata: events.Metadata{
 			ID:   "c",
 			Type: SessionJoinEvent,
@@ -116,7 +116,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	require.Nil(t, err)
 	clock.Advance(1 * time.Minute)
 
-	require.NoError(t, log.EmitAuditEvent(ctx, &events.SessionEnd{
+	require.NoError(t, log.EmitAuditEvent(&events.SessionEnd{
 		Metadata: events.Metadata{
 			ID:   "a",
 			Type: SessionEndEvent,
@@ -137,7 +137,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	require.Equal(t, result[0].GetID(), "a")
 
 	// emit a non-session event, it should not show up in the next query
-	require.NoError(t, log.EmitAuditEvent(ctx, &events.SessionJoin{
+	require.NoError(t, log.EmitAuditEvent(&events.SessionJoin{
 		Metadata: events.Metadata{
 			ID:   "b",
 			Type: SessionJoinEvent,
@@ -158,7 +158,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	require.Equal(t, result[0].GetID(), "a")
 
 	// emit a desktop session event, it should show up in the next query
-	require.NoError(t, log.EmitAuditEvent(ctx, &events.WindowsDesktopSessionEnd{
+	require.NoError(t, log.EmitAuditEvent(&events.WindowsDesktopSessionEnd{
 		Metadata: events.Metadata{
 			ID:   "c",
 			Type: WindowsDesktopSessionEndEvent,
@@ -239,7 +239,6 @@ func TestLargeEvent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
 			clock := clockwork.NewFakeClockAt(time.Now())
 
 			log, err := NewFileLog(FileLogConfig{
@@ -254,7 +253,7 @@ func TestLargeEvent(t *testing.T) {
 
 			for _, v := range tc.in {
 				v.SetTime(clock.Now().UTC())
-				log.EmitAuditEvent(ctx, v)
+				log.EmitAuditEvent(v)
 			}
 			events := mustSearchEvent(t, log, start)
 			for _, ch := range tc.checks {

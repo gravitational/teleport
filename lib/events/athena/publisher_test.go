@@ -93,7 +93,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 					Uploader:     tt.uploader,
 				},
 			}
-			err := p.EmitAuditEvent(context.Background(), tt.in)
+			err := p.EmitAuditEvent(tt.in)
 			require.NoError(t, err)
 			out := fq.dequeue()
 			tt.wantCheck(t, out)

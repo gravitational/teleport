@@ -101,7 +101,7 @@ type mockEmitter struct {
 	t            *testing.T
 }
 
-func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+func (me *mockEmitter) EmitAuditEvent(event events.AuditEvent) error {
 	if me.eventHandler != nil {
 		me.eventHandler(me.t, event, me.server)
 	}

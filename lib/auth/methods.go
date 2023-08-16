@@ -171,7 +171,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 			return nil, trace.Wrap(err)
 		}
 	}
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
+	if err := s.emitter.EmitAuditEvent(event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
 	}
 	return user, trace.Wrap(err)
@@ -685,7 +685,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 
 // emitNoLocalAuthEvent creates and emits a local authentication is disabled message.
 func (s *Server) emitNoLocalAuthEvent(username string) {
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.AuthAttempt{
+	if err := s.emitter.EmitAuditEvent(&apievents.AuthAttempt{
 		Metadata: apievents.Metadata{
 			Type: events.AuthAttemptEvent,
 			Code: events.AuthAttemptFailureCode,

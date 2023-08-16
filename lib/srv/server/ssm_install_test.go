@@ -56,7 +56,7 @@ type mockEmitter struct {
 	events []events.AuditEvent
 }
 
-func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+func (me *mockEmitter) EmitAuditEvent(event events.AuditEvent) error {
 	me.events = append(me.events, event)
 	return nil
 }

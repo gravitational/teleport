@@ -56,7 +56,7 @@ func (d *DiscardAuditLog) SearchSessionEvents(ctx context.Context, req SearchSes
 	return make([]apievents.AuditEvent, 0), "", nil
 }
 
-func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (d *DiscardAuditLog) EmitAuditEvent(event apievents.AuditEvent) error {
 	return nil
 }
 
@@ -138,7 +138,7 @@ func NewDiscardEmitter() *DiscardEmitter {
 type DiscardEmitter struct{}
 
 // EmitAuditEvent discards audit event
-func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (*DiscardEmitter) EmitAuditEvent(event apievents.AuditEvent) error {
 	log.WithFields(log.Fields{
 		"event_id":    event.GetID(),
 		"event_type":  event.GetType(),

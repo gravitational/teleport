@@ -33,7 +33,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+	if err := a.emitter.EmitAuditEvent(&apievents.RoleCreate{
 		Metadata: apievents.Metadata{
 			Type: events.RoleCreatedEvent,
 			Code: events.RoleCreatedCode,
@@ -86,7 +86,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleDelete{
+	if err := a.emitter.EmitAuditEvent(&apievents.RoleDelete{
 		Metadata: apievents.Metadata{
 			Type: events.RoleDeletedEvent,
 			Code: events.RoleDeletedCode,
@@ -108,7 +108,7 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 	}
 
 	um := authz.ClientUserMetadata(ctx)
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockCreate{
+	if err := a.emitter.EmitAuditEvent(&apievents.LockCreate{
 		Metadata: apievents.Metadata{
 			Type: events.LockCreatedEvent,
 			Code: events.LockCreatedCode,
@@ -131,7 +131,7 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockDelete{
+	if err := a.emitter.EmitAuditEvent(&apievents.LockDelete{
 		Metadata: apievents.Metadata{
 			Type: events.LockDeletedEvent,
 			Code: events.LockDeletedCode,

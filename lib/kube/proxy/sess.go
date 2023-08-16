@@ -567,7 +567,7 @@ func (s *session) launch() error {
 		if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to record session start event.")
 		}
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent.GetAuditEvent()); err != nil {
+		if err := s.emitter.EmitAuditEvent(sessionStartEvent.GetAuditEvent()); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to emit session start event.")
 		}
 	} else {
@@ -786,7 +786,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 		}
 
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
+		if err := s.emitter.EmitAuditEvent(execEvent); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to emit exec event.")
 		}
 
@@ -806,7 +806,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			BytesReceived: s.io.CountWritten(),
 		}
 
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
+		if err := s.emitter.EmitAuditEvent(sessionDataEvent); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to emit session data event.")
 		}
 
@@ -833,7 +833,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
 				s.forwarder.log.WithError(err).Warn("Failed to record session end event.")
 			}
-			if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent.GetAuditEvent()); err != nil {
+			if err := s.emitter.EmitAuditEvent(sessionEndEvent.GetAuditEvent()); err != nil {
 				s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
 			}
 		} else {
@@ -894,7 +894,7 @@ func (s *session) join(p *party) error {
 		},
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionJoinEvent); err != nil {
+	if err := s.emitter.EmitAuditEvent(sessionJoinEvent); err != nil {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 
@@ -1030,7 +1030,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		},
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionLeaveEvent); err != nil {
+	if err := s.emitter.EmitAuditEvent(sessionLeaveEvent); err != nil {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 

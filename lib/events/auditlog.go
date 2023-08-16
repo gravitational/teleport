@@ -853,17 +853,17 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 }
 
 // EmitAuditEvent adds a new event to the local file log
-func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (l *AuditLog) EmitAuditEvent(event apievents.AuditEvent) error {
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
-	var emitAuditEvent func(ctx context.Context, event apievents.AuditEvent) error
+	var emitAuditEvent func(event apievents.AuditEvent) error
 
 	if l.ExternalLog != nil {
 		emitAuditEvent = l.ExternalLog.EmitAuditEvent
 	} else {
 		emitAuditEvent = l.getLocalLog().EmitAuditEvent
 	}
-	err := emitAuditEvent(ctx, event)
+	err := emitAuditEvent(event)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -305,7 +305,7 @@ func New(cfg EventsConfig) (*Log, error) {
 }
 
 // EmitAuditEvent emits audit event
-func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+func (l *Log) EmitAuditEvent(in apievents.AuditEvent) error {
 	data, err := utils.FastMarshal(in)
 	if err != nil {
 		return trace.Wrap(err)

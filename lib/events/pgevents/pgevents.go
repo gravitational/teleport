@@ -293,7 +293,7 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 var _ events.AuditLogger = (*Log)(nil)
 
 // EmitAuditEvent implements [events.AuditLogger].
-func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (l *Log) EmitAuditEvent(event apievents.AuditEvent) error {
 	var sessionID uuid.UUID
 	if s := events.GetSessionID(event); s != "" {
 		u, err := uuid.Parse(s)
@@ -309,7 +309,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 	}
 
 	eventID := uuid.New()
-
+	ctx := context.Background()
 	// if an event with the same event_id exists, it means that we inserted it
 	// and then failed to receive the success reply from the commit
 	if _, err := pgcommon.RetryIdempotent(ctx, l.log, func() (struct{}, error) {

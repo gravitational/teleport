@@ -904,7 +904,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	if err := s.EmitAuditEvent(s.closeContext, &apievents.PortForward{
+	if err := s.EmitAuditEvent(&apievents.PortForward{
 		Metadata: apievents.Metadata{
 			Type: events.PortForwardEvent,
 			Code: events.PortForwardCode,
@@ -1269,7 +1269,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			s.replyError(ch, req, err)
 			err = nil
 		}
-		if err := s.EmitAuditEvent(ctx, event); err != nil {
+		if err := s.EmitAuditEvent(event); err != nil {
 			s.log.WithError(err).Warn("Failed to emit x11-forward event.")
 		}
 	}()

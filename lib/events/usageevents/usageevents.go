@@ -17,8 +17,6 @@ limitations under the License.
 package usageevents
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -45,7 +43,7 @@ var _ apievents.Emitter = (*UsageLogger)(nil)
 // reportAuditEvent tries to convert the audit event into a usage event, and
 // submits the usage event if successful, but silently ignores events if no
 // reporter is configured.
-func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (u *UsageLogger) reportAuditEvent(event apievents.AuditEvent) error {
 	if u.reporter == nil {
 		return nil
 	}
@@ -57,15 +55,15 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 	return nil
 }
 
-func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	if err := u.reportAuditEvent(ctx, event); err != nil {
+func (u *UsageLogger) EmitAuditEvent(event apievents.AuditEvent) error {
+	if err := u.reportAuditEvent(event); err != nil {
 		// We don't ever want this to fail or bubble up errors, so the best we
 		// can do is complain to the logs.
 		u.Warnf("Failed to filter audit event: %+v", err)
 	}
 
 	if u.inner != nil {
-		return u.inner.EmitAuditEvent(ctx, event)
+		return u.inner.EmitAuditEvent(event)
 	}
 
 	return nil

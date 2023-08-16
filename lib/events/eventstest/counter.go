@@ -17,7 +17,6 @@ limitations under the License.
 package eventstest
 
 import (
-	"context"
 	"sync/atomic"
 
 	"github.com/gravitational/teleport/api/types/events"
@@ -33,7 +32,7 @@ type CounterEmitter struct {
 	count int64
 }
 
-func (c *CounterEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+func (c *CounterEmitter) EmitAuditEvent(event events.AuditEvent) error {
 	atomic.AddInt64(&c.count, 1)
 	return nil
 }

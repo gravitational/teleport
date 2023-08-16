@@ -418,8 +418,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	return l, nil
 }
 
-func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
-	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
+func (l *Log) EmitAuditEvent(in apievents.AuditEvent) error {
+	return trace.Wrap(l.publisher.EmitAuditEvent(in))
 }
 
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {

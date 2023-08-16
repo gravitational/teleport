@@ -76,7 +76,7 @@ func TestAuthPOST(t *testing.T) {
 		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
 	)
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC))
 	clusterName := "test-cluster"
 	publicAddr := "proxy.goteleport.com:443"
 
@@ -330,7 +330,7 @@ func TestMatchApplicationServers(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC))
 	authClient := &mockAuthClient{
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr),
@@ -449,7 +449,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 0o5, 10, 18, 53, 0, 0, time.UTC))
 			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
 			authClient := &mockAuthClient{
 				clusterName: clusterName,
@@ -607,7 +607,7 @@ type mockClusterName struct {
 	name string
 }
 
-func (c *mockAuthClient) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (c *mockAuthClient) EmitAuditEvent(event apievents.AuditEvent) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 	c.emittedEvents = append(c.emittedEvents, event)
@@ -665,7 +665,6 @@ func (r *fakeRemoteListener) Accept() (net.Conn, error) {
 	}
 
 	return conn, nil
-
 }
 
 func (r *fakeRemoteListener) Close() error {

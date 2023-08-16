@@ -1241,7 +1241,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.
-				if err := s.EmitAuditEvent(s.ctx, &apievents.SessionReject{
+				if err := s.EmitAuditEvent(&apievents.SessionReject{
 					Metadata: apievents.Metadata{
 						Type: events.SessionRejectedEvent,
 						Code: events.SessionRejectedCode,
@@ -1413,7 +1413,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 
 	// Emit a port forwarding event if the command exited successfully.
 	if err := cmd.Wait(); err == nil {
-		if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
+		if err := s.EmitAuditEvent(&apievents.PortForward{
 			Metadata: apievents.Metadata{
 				Type: events.PortForwardEvent,
 				Code: events.PortForwardCode,
@@ -1799,7 +1799,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			s.replyError(ch, req, err)
 			err = nil
 		}
-		if err := s.EmitAuditEvent(s.ctx, event); err != nil {
+		if err := s.EmitAuditEvent(event); err != nil {
 			s.Logger.WithError(err).Warn("Failed to emit x11-forward event.")
 		}
 	}()

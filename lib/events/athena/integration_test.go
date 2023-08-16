@@ -133,7 +133,7 @@ func TestIntegrationAthenaLargeEvents(t *testing.T) {
 			Time:  ac.clock.Now().UTC(),
 		},
 	}
-	err := ac.log.EmitAuditEvent(ctx, in)
+	err := ac.log.EmitAuditEvent(in)
 	require.NoError(t, err)
 
 	var history []apievents.AuditEvent
@@ -508,11 +508,11 @@ type eventuallyConsitentAuditLogger struct {
 	emitWasAfterLastDelay bool
 }
 
-func (e *eventuallyConsitentAuditLogger) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+func (e *eventuallyConsitentAuditLogger) EmitAuditEvent(in apievents.AuditEvent) error {
 	e.mu.Lock()
 	e.emitWasAfterLastDelay = true
 	e.mu.Unlock()
-	return e.inner.EmitAuditEvent(ctx, in)
+	return e.inner.EmitAuditEvent(in)
 }
 
 func (e *eventuallyConsitentAuditLogger) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {

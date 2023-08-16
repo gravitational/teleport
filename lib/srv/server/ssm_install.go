@@ -156,5 +156,5 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		Status:     aws.StringValue(cmdOut.Status),
 	}
 
-	return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, &event))
+	return trace.Wrap(si.Emitter.EmitAuditEvent(&event))
 }

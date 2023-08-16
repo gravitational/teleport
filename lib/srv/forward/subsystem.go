@@ -150,7 +150,7 @@ func (r *remoteSubsystem) emitAuditEvent(err error) {
 		subsystemEvent.Code = events.SubsystemCode
 	}
 
-	if err := srv.EmitAuditEvent(srv.Context(), subsystemEvent); err != nil {
+	if err := srv.EmitAuditEvent(subsystemEvent); err != nil {
 		r.log.WithError(err).Warn("Failed to emit subsystem audit event.")
 	}
 }

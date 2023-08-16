@@ -92,7 +92,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	names := []string{"bob", "jack", "daisy", "evan"}
 
 	for i, name := range names {
-		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := s.Log.EmitAuditEvent(&apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
@@ -215,7 +215,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	baseTime2 := time.Date(2019, time.August, 10, 14, 43, 47, 0, time.UTC)
 
 	for _, name := range names {
-		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := s.Log.EmitAuditEvent(&apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
@@ -261,7 +261,7 @@ Outer:
 func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	loginTime := s.Clock.Now().UTC()
 	// Bob has logged in
-	err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+	err := s.Log.EmitAuditEvent(&apievents.UserLogin{
 		Method:       events.LoginMethodSAML,
 		Status:       apievents.Status{Success: true},
 		UserMetadata: apievents.UserMetadata{User: "bob"},
@@ -301,7 +301,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	// sessionStartTime must be greater than loginTime, because in search we assume
 	// order.
 	sessionStartTime := loginTime.Add(1 * time.Minute)
-	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionStart{
+	err = s.Log.EmitAuditEvent(&apievents.SessionStart{
 		Metadata: apievents.Metadata{
 			ID:    uuid.NewString(),
 			Time:  sessionStartTime,
@@ -318,7 +318,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	sessionEndTime := s.Clock.Now().Add(time.Hour).UTC()
-	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionEnd{
+	err = s.Log.EmitAuditEvent(&apievents.SessionEnd{
 		Metadata: apievents.Metadata{
 			ID:    uuid.NewString(),
 			Time:  sessionEndTime,
@@ -417,7 +417,7 @@ func (s *EventsSuite) SearchSessionEventsBySessionID(t *testing.T) {
 				SessionID: id,
 			},
 		}
-		err := s.Log.EmitAuditEvent(context.Background(), event)
+		err := s.Log.EmitAuditEvent(event)
 		require.NoError(t, err)
 	}
 	from := time.Time{}

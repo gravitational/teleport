@@ -178,7 +178,6 @@ func (s *Server) authorize(ctx context.Context) (*authz.Context, error) {
 // the roles used to perform the search.
 func (s *Server) emitAuditEvent(ctx context.Context, userContext *authz.Context, req *proto.ListKubernetesResourcesRequest) error {
 	err := s.cfg.Emitter.EmitAuditEvent(
-		ctx,
 		&apievents.AccessRequestResourceSearch{
 			Metadata: apievents.Metadata{
 				Type: events.AccessRequestResourceSearch,

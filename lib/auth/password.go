@@ -144,7 +144,7 @@ func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		return trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.UserPasswordChange{
+	if err := s.emitter.EmitAuditEvent(&apievents.UserPasswordChange{
 		Metadata: apievents.Metadata{
 			Type: events.UserPasswordChangeEvent,
 			Code: events.UserPasswordChangeCode,

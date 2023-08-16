@@ -991,7 +991,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	if !c.srv.UseTunnel() {
 		sessionDataEvent.ConnectionMetadata.LocalAddr = c.ServerConn.LocalAddr().String()
 	}
-	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
+	if err := c.GetServer().EmitAuditEvent(sessionDataEvent); err != nil {
 		c.WithError(err).Warn("Failed to emit session data event.")
 	}
 

@@ -1836,7 +1836,7 @@ func (a *ServerWithRoles) authContextForSearch(ctx context.Context, req *proto.L
 
 	// Only emit the event if the role list actually changed
 	if len(extendedContext.Checker.RoleNames()) != len(a.context.Checker.RoleNames()) {
-		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.AccessRequestResourceSearch{
+		if err := a.authServer.emitter.EmitAuditEvent(&apievents.AccessRequestResourceSearch{
 			Metadata: apievents.Metadata{
 				Type: events.AccessRequestResourceSearch,
 				Code: events.AccessRequestResourceSearchCode,
@@ -2330,7 +2330,7 @@ func emitTokenEvent(
 	joinMethod types.JoinMethod,
 ) {
 	userMetadata := authz.ClientUserMetadata(ctx)
-	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
+	if err := e.EmitAuditEvent(&apievents.ProvisionTokenCreate{
 		Metadata: apievents.Metadata{
 			Type: events.ProvisionTokenCreateEvent,
 			Code: events.ProvisionTokenCreateCode,
@@ -2344,7 +2344,7 @@ func emitTokenEvent(
 	for _, role := range roles {
 		if role == types.RoleTrustedCluster {
 			//nolint:staticcheck // Emit a deprecated event.
-			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
+			if err := e.EmitAuditEvent(&apievents.TrustedClusterTokenCreate{
 				Metadata: apievents.Metadata{
 					Type: events.TrustedClusterTokenCreateEvent,
 					Code: events.TrustedClusterTokenCreateCode,
@@ -2756,7 +2756,7 @@ func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(&apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -2787,7 +2787,7 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.context.User.GetName(), name)
 			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(&apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -3199,7 +3199,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			if err != nil {
 				log.Warning(err)
 				err := trace.AccessDenied("user %q has requested role impersonation for %q", a.context.User.GetName(), accessInfo.Roles)
-				if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.UserLogin{
+				if err := a.authServer.emitter.EmitAuditEvent(&apievents.UserLogin{
 					Metadata: apievents.Metadata{
 						Type: events.UserLoginEvent,
 						Code: events.UserLocalLoginFailureCode,
@@ -3226,7 +3226,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if err != nil {
 			log.Warning(err)
 			err := trace.AccessDenied("user %q has requested to generate certs for %q.", a.context.User.GetName(), accessInfo.Roles)
-			if err := a.authServer.emitter.EmitAuditEvent(a.CloseContext(), &apievents.UserLogin{
+			if err := a.authServer.emitter.EmitAuditEvent(&apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
 					Code: events.UserLocalLoginFailureCode,
@@ -3766,7 +3766,7 @@ func (a *ServerWithRoles) ValidateGithubAuthCallback(ctx context.Context, q url.
 }
 
 // EmitAuditEvent emits a single audit event
-func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (a *ServerWithRoles) EmitAuditEvent(event apievents.AuditEvent) error {
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3784,7 +3784,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
 	}
-	return a.authServer.emitter.EmitAuditEvent(ctx, event)
+	return a.authServer.emitter.EmitAuditEvent(event)
 }
 
 // CreateAuditStream creates audit event stream
@@ -3885,7 +3885,7 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 	}
 
 	// emit a session recording view event for the audit log
-	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+	if err := a.authServer.emitter.EmitAuditEvent(&apievents.SessionRecordingAccess{
 		Metadata: apievents.Metadata{
 			Type: events.SessionRecordingAccessEvent,
 			Code: events.SessionRecordingAccessCode,
@@ -5535,7 +5535,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
 	shouldEmitAuditEvent := !isTeleportServer
 	if shouldEmitAuditEvent {
-		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+		if err := a.authServer.emitter.EmitAuditEvent(&apievents.SessionRecordingAccess{
 			Metadata: apievents.Metadata{
 				Type: events.SessionRecordingAccessEvent,
 				Code: events.SessionRecordingAccessCode,
@@ -6317,7 +6317,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		}
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreate{
+	if emitErr := a.authServer.emitter.EmitAuditEvent(&apievents.SAMLIdPServiceProviderCreate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLIdPServiceProviderCreateEvent,
 			Code: code,
@@ -6347,7 +6347,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		}
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdate{
+	if emitErr := a.authServer.emitter.EmitAuditEvent(&apievents.SAMLIdPServiceProviderUpdate{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLIdPServiceProviderUpdateEvent,
 			Code: code,
@@ -6387,7 +6387,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		}
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDelete{
+	if emitErr := a.authServer.emitter.EmitAuditEvent(&apievents.SAMLIdPServiceProviderDelete{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLIdPServiceProviderDeleteEvent,
 			Code: code,
@@ -6417,7 +6417,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 		}
 	}
 
-	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleteAll{
+	if emitErr := a.authServer.emitter.EmitAuditEvent(&apievents.SAMLIdPServiceProviderDeleteAll{
 		Metadata: apievents.Metadata{
 			Type: events.SAMLIdPServiceProviderDeleteAllEvent,
 			Code: code,
@@ -6811,7 +6811,7 @@ func emitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, me
 		code = events.UserSSOTestFlowLoginFailureCode
 	}
 
-	emitErr := emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
+	emitErr := emitter.EmitAuditEvent(&apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 			Code: code,

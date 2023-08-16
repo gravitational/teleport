@@ -169,7 +169,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterCreate{
+	if err := a.emitter.EmitAuditEvent(&apievents.TrustedClusterCreate{
 		Metadata: apievents.Metadata{
 			Type: events.TrustedClusterCreateEvent,
 			Code: events.TrustedClusterCreateCode,
@@ -237,7 +237,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterDelete{
+	if err := a.emitter.EmitAuditEvent(&apievents.TrustedClusterDelete{
 		Metadata: apievents.Metadata{
 			Type: events.TrustedClusterDeleteEvent,
 			Code: events.TrustedClusterDeleteCode,
