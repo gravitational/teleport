@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -28,15 +29,17 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
+	"net"
 	"sync"
 )
 
 type WatchedIdentityFileCreds struct {
-	mu      sync.RWMutex
-	tlsCert *tls.Certificate
-	pool    *x509.CertPool
-	sshCert *ssh.Certificate
-	sshKey  crypto.Signer
+	mu            sync.RWMutex
+	tlsCert       *tls.Certificate
+	pool          *x509.CertPool
+	sshCert       *ssh.Certificate
+	sshKey        crypto.Signer
+	sshKnownHosts []ssh.PublicKey
 
 	path        string
 	clusterName string
@@ -83,9 +86,7 @@ func (d *WatchedIdentityFileCreds) Reload() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cc, err := sshutils.ProxyClientSSHConfig(
-		sshCert, sshPrivateKey, id.CACerts.SSH...,
-	)
+	knownHosts, err := sshutils.ParseKnownHosts(id.CACerts.SSH)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -95,6 +96,7 @@ func (d *WatchedIdentityFileCreds) Reload() error {
 	d.tlsCert = &cert
 	d.sshCert = sshCert
 	d.sshKey = sshPrivateKey
+	d.sshKnownHosts = knownHosts
 	d.mu.Unlock()
 	return nil
 }
@@ -109,6 +111,9 @@ func (d *WatchedIdentityFileCreds) Dialer(
 
 // TLSConfig returns TLS configuration.
 func (d *WatchedIdentityFileCreds) TLSConfig() (*tls.Config, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
 	cfg := &tls.Config{
 		// GetClientCertificate is used instead of the static Certificates
 		// field.
@@ -129,7 +134,7 @@ func (d *WatchedIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 		InsecureSkipVerify: true,
 		VerifyConnection: func(state tls.ConnectionState) error {
 			// This VerifyConnection callback is based on the standard library
-			// implementation of verifyServerCertificate in the tls package.
+			// implementation of verifyServerCertificate in the `tls` package.
 			// We provide our own implementation so we can dynamically handle
 			// a changing CA Roots pool.
 			d.mu.RLock()
@@ -170,6 +175,8 @@ func (d *WatchedIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns SSH configuration.
 func (d *WatchedIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	// Build a "dynamic" ssh config. Based roughly on
 	// `sshutils.ProxyClientSSHConfig` with modifications to make it work with
 	// dynamically changing credentials.
@@ -178,7 +185,7 @@ func (d *WatchedIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
 				d.mu.RLock()
-				defer d.mu.Unlock()
+				defer d.mu.RUnlock()
 
 				sshSigner, err := sshutils.SSHSigner(d.sshCert, d.sshKey)
 				if err != nil {
@@ -187,6 +194,25 @@ func (d *WatchedIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 				return []ssh.Signer{sshSigner}, nil
 			}),
 		},
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			d.mu.RLock()
+			defer d.mu.RUnlock()
+			hostKeyCallback, err := sshutils.HostKeyCallback(
+				d.sshKnownHosts,
+				false,
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return hostKeyCallback(hostname, remote, key)
+		},
+		Timeout: defaults.DefaultIOTimeout,
+	}
+
+	// We can only really set the user once
+	cfg.User = d.sshCert.KeyId
+	if len(d.sshCert.ValidPrincipals) > 0 {
+		cfg.User = d.sshCert.ValidPrincipals[0]
 	}
 
 	return cfg, nil
