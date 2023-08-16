@@ -30,7 +30,13 @@ import (
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+)
+
+const (
+	// defaultAccessListPageSize is the default page size to be used.
+	defaultAccessListPageSize = 100
 )
 
 // ignoreFieldsDuringUpsert will be used to ignore fields that are allowed to be modified
@@ -103,9 +109,83 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // GetAccessLists returns a list of all access lists.
 func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessListsRequest) (*accesslistv1.GetAccessListsResponse, error) {
+	// We don't return these errors right away because this endpoint can still return results based on the calling user's
+	// ownership/membership to particular access lists.
 	results, getErr := s.accessLists.GetAccessLists(ctx)
 	_, authErr := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbRead, types.VerbList)
 
+	var err error
+	results, err = s.filterResults(ctx, results, false, getErr, authErr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessLists := make([]*accesslistv1.AccessList, len(results))
+	for i, r := range results {
+		// Clear out membership information, as we're only interested in the metadata for lists of lists.
+		r.Spec.Members = nil
+		accessLists[i] = conv.ToProto(r)
+	}
+
+	return &accesslistv1.GetAccessListsResponse{
+		AccessLists: accessLists,
+	}, nil
+}
+
+// ListAccessLists returns a paginated list of all access lists.
+func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsRequest) (*accesslistv1.ListAccessListsResponse, error) {
+	pageSize := int(req.PageSize)
+
+	if pageSize == 0 {
+		pageSize = defaultAccessListPageSize
+	}
+	// We don't return the auth error right away because this endpoint can still return results based on the calling user's
+	// ownership/membership to particular access lists.
+	_, authErr := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbRead, types.VerbList)
+
+	var results []*accesslist.AccessList
+	nextToken := req.NextToken
+	for {
+		var page []*accesslist.AccessList
+		var getErr error
+		page, nextToken, getErr = s.accessLists.ListAccessLists(ctx, 0 /* default page size in backend */, nextToken)
+
+		var err error
+		page, err = s.filterResults(ctx, page, true, getErr, authErr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		results = append(results, page...)
+		if len(results) >= (pageSize+1) || nextToken == "" {
+			break
+		}
+	}
+
+	// Truncate the results.
+	if len(results) > pageSize {
+		nextToken = backend.GetPaginationKey(results[pageSize])
+		results = results[:pageSize]
+	}
+
+	accessLists := make([]*accesslistv1.AccessList, len(results))
+	for i, r := range results {
+		// Clear out membership information, as we're only interested in the metadata for lists of lists.
+		r.Spec.Members = nil
+		accessLists[i] = conv.ToProto(r)
+	}
+
+	return &accesslistv1.ListAccessListsResponse{
+		AccessLists: accessLists,
+		NextToken:   nextToken,
+	}, nil
+}
+
+// filterResults will return the following:
+// * If the user has RBAC access to the access lists (authErr == nil), the access lists will be returned as is.
+// * If the user owns any access lists, these will be returned with membership information retained.
+// * IF the user is a member of any access lists, these will be returned with membership information stripped.
+func (s *Service) filterResults(ctx context.Context, results []*accesslist.AccessList, isPaginated bool, getErr, authErr error) ([]*accesslist.AccessList, error) {
 	if getErr != nil && authErr != nil {
 		// There was an error getting the access lists and an auth error, so return the auth error.
 		return nil, trace.Wrap(authErr)
@@ -124,18 +204,17 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 			if err := services.IsOwner(identity, result); err == nil {
 				filteredResults = append(filteredResults, result)
 			} else if err := services.IsMember(identity, s.clock, result); err == nil {
-				// Clear out membership information of the user is only a member of the list.
-				result.Spec.Members = nil
 				filteredResults = append(filteredResults, result)
 			}
 		}
 
-		// The user owns no access lists and received an auth err earlier.
-		if len(filteredResults) == 0 {
-			return nil, trace.Wrap(authErr)
-		}
-
 		results = filteredResults
+	}
+
+	// The user owns no access lists and received an auth err earlier. Also, we're not looking
+	// at paginated lists.
+	if len(results) == 0 && isPaginated {
+		return nil, trace.Wrap(authErr)
 	}
 
 	// We've confirmed that the user should have access to this, so now it's okay to return the
@@ -144,14 +223,7 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 		return nil, trace.Wrap(getErr)
 	}
 
-	accessLists := make([]*accesslistv1.AccessList, len(results))
-	for i, r := range results {
-		accessLists[i] = conv.ToProto(r)
-	}
-
-	return &accesslistv1.GetAccessListsResponse{
-		AccessLists: accessLists,
-	}, nil
+	return results, nil
 }
 
 // GetAccessList returns the specified access list resource.

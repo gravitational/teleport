@@ -89,6 +89,11 @@ func TestGetAccessLists(t *testing.T) {
 	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a3)})
 	require.NoError(t, err)
 
+	// members should always be stripped from getall/list endpoints
+	a1.Spec.Members = []accesslist.Member{}
+	a2.Spec.Members = []accesslist.Member{}
+	a3.Spec.Members = []accesslist.Member{}
+
 	getResp, err = svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
@@ -109,6 +114,100 @@ func TestGetAccessLists(t *testing.T) {
 	getResp, err = svc.GetAccessLists(memberCtx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3}, mustFromProtoAll(t, getResp.AccessLists...), cmpOpts...))
+}
+
+func TestListAccessLists(t *testing.T) {
+	t.Parallel()
+
+	ctx, ownerCtx, svc, clock := initSvc(t)
+
+	accessLists := listAccessLists(ctx, t, svc, 1)
+	require.Empty(t, accessLists)
+
+	a1 := newAccessList(t, "1", clock)
+	a2 := newAccessList(t, "2", clock)
+	a3 := newAccessList(t, "3", clock)
+	a4 := newAccessList(t, "4", clock)
+	a5 := newAccessList(t, "5", clock)
+
+	// a2 will only have member1 as a member.
+	a2.Spec.Members = []accesslist.Member{
+		{
+			Name:    member1,
+			Joined:  clock.Now().UTC(),
+			Expires: clock.Now().UTC().Add(24 * time.Hour),
+			Reason:  "because",
+			AddedBy: testUser,
+		},
+	}
+
+	// a3 will have different ownership requirements.
+	a3.Spec.OwnershipRequires.Roles = []string{"non-existent-role1"}
+
+	_, err := svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a1)})
+	require.NoError(t, err)
+
+	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a2)})
+	require.NoError(t, err)
+
+	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a3)})
+	require.NoError(t, err)
+
+	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a4)})
+	require.NoError(t, err)
+
+	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a5)})
+	require.NoError(t, err)
+
+	// members should always be stripped from getall/list endpoints
+	a1.Spec.Members = []accesslist.Member{}
+	a2.Spec.Members = []accesslist.Member{}
+	a3.Spec.Members = []accesslist.Member{}
+	a4.Spec.Members = []accesslist.Member{}
+	a5.Spec.Members = []accesslist.Member{}
+
+	accessLists = listAccessLists(ctx, t, svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5}, accessLists, cmpOpts...))
+
+	// owner should only see a1, a2, a4, a5
+	accessLists = listAccessLists(ownerCtx, t, svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4, a5}, accessLists, cmpOpts...))
+
+	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+	accessLists = listAccessLists(memberCtx, t, svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
+
+	// Use the page size defaults
+	accessLists = listAccessLists(memberCtx, t, svc, 0)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
+}
+
+func listAccessLists(ctx context.Context, t *testing.T, svc *Service, pageSize int) []*accesslist.AccessList {
+	t.Helper()
+
+	var nextToken string
+	var accessLists []*accesslist.AccessList
+	for {
+		resp, err := svc.ListAccessLists(ctx, &accesslistv1.ListAccessListsRequest{
+			PageSize:  int32(pageSize),
+			NextToken: nextToken,
+		})
+		require.NoError(t, err)
+
+		for _, accessList := range resp.AccessLists {
+			accessLists = append(accessLists, mustFromProto(t, accessList))
+		}
+
+		nextToken = resp.NextToken
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return accessLists
 }
 
 func TestUpsertAccessList(t *testing.T) {
@@ -317,6 +416,11 @@ func TestDeleteAllAccessLists(t *testing.T) {
 
 	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(a3)})
 	require.NoError(t, err)
+
+	// members should always be stripped from getall/list endpoints
+	a1.Spec.Members = []accesslist.Member{}
+	a2.Spec.Members = []accesslist.Member{}
+	a3.Spec.Members = []accesslist.Member{}
 
 	getResp, err = svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
