@@ -41,12 +41,12 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
+  Header,
   HeaderSubtitle,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
-  Header,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
@@ -63,7 +63,13 @@ export default function Container(props: AgentStepProps) {
     // This outer CatchError and Suspense handles
     // join token api fetch error and loading states.
     <CatchError
-      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
+      onRetry={() =>
+        clearCachedJoinTokenResult(
+          ResourceKind.Kubernetes,
+          ResourceKind.Application,
+          ResourceKind.Discovery
+        )
+      }
       fallbackFn={fallbackProps => (
         <Box>
           <Heading />
@@ -147,9 +153,11 @@ export function HelmChart(
     setClusterName(c: string): void;
   }
 ) {
-  const { joinToken, reloadJoinToken } = useJoinTokenSuspender(
-    ResourceKind.Kubernetes
-  );
+  const { joinToken, reloadJoinToken } = useJoinTokenSuspender([
+    ResourceKind.Kubernetes,
+    ResourceKind.Application,
+    ResourceKind.Discovery,
+  ]);
 
   return (
     <Box>
@@ -337,7 +345,7 @@ const generateCmd = (data: {
   }
 
   return `cat << EOF > prod-cluster-values.yaml
-roles: kube
+roles: kube,app,discovery
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}

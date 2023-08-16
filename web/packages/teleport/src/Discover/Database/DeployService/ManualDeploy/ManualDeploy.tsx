@@ -143,7 +143,7 @@ export function ManualDeploy(props: {
 
   // Fetches join token.
   const { joinToken } = useJoinTokenSuspender(
-    ResourceKind.Database,
+    [ResourceKind.Database],
     props.labels
   );
 
