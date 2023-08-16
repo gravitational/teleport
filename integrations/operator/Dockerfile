@@ -8,7 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     unzip \
     build-essential \
+    libc6-armel-cross \
+    libc6-dev-armel-cross \
+    linux-libc-dev-armhf-cross \
+    libc6-dev-arm64-cross \
+    libc6-dev-i386-cross \
     gcc-arm-linux-gnueabi \
+    gcc-i686-linux-gnu \
     binutils-arm-linux-gnueabi \
     gcc-aarch64-linux-gnu \
     binutils-aarch64-linux-gnu
@@ -23,8 +29,8 @@ ENV GOPATH="/go" \
     PATH="$PATH:/opt/go/bin:/go/bin"
 
 # Install protoc.
-ARG PROTOC_VER # eg, "3.20.2"
-RUN VERSION="$PROTOC_VER" && \
+ARG PROTOC_VERSION # eg, "3.20.2"
+RUN VERSION="$PROTOC_VERSION" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
   curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
