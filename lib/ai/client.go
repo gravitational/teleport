@@ -58,7 +58,6 @@ func (client *Client) NewChat(toolContext *model.ToolContext) *Chat {
 
 	// The following tools are only available in the enterprise build. They will fail
 	// if included in OSS due to the lack of the required backend APIs.
-	//nolint:staticcheck
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
 		tools = append(tools, &model.AccessRequestCreateTool{},
 			&model.AccessRequestsListTool{},
@@ -77,12 +76,7 @@ func (client *Client) NewChat(toolContext *model.ToolContext) *Chat {
 		// Initialize a tokenizer for prompt token accounting.
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
-		agent: model.NewAgent(toolContext, &model.CommandExecutionTool{},
-			&model.EmbeddingRetrievalTool{},
-			&model.AccessRequestCreateTool{},
-			&model.AccessRequestsListTool{},
-			&model.AccessRequestListRequestableRolesTool{},
-			&model.AccessRequestListRequestableResourcesTool{}),
+		agent:     model.NewAgent(toolContext, tools...),
 	}
 }
 
