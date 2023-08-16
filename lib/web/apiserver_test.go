@@ -98,7 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -728,7 +728,7 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 	})
 	require.NoError(t, err)
 
-	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 	// use passwordless as auth method
 	device, err := mocku2f.Create()
@@ -744,7 +744,7 @@ func (s *WebSuite) authPackWithMFA(t *testing.T, name string, roles ...types.Rol
 		NewPassword: []byte(password),
 		NewMFARegisterResponse: &authproto.MFARegisterResponse{
 			Response: &authproto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 			},
 		},
 	})
@@ -1134,14 +1134,12 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, res, res2)
 }
 
-func TestUnifiedResourcesGet_WithSort(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  modules.Features{SAML: true, Kubernetes: true},
-	})
+func TestUnifiedResourcesGet(t *testing.T) {
+	t.Parallel()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil)
+
 	// Add nodes
 	for i := 0; i < 20; i++ {
 		name := fmt.Sprintf("server-%d", i)
@@ -1152,28 +1150,6 @@ func TestUnifiedResourcesGet_WithSort(t *testing.T) {
 		_, err = env.server.Auth().UpsertNode(context.Background(), node)
 		require.NoError(t, err)
 	}
-
-	// Get nodes from endpoint.
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
-
-	// add kubes
-	cluster2, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: "test-kube2",
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-	server2, err := types.NewKubernetesServerV3FromCluster(
-		cluster2,
-		"test-kube2-hostname",
-		"test-kube2-hostid",
-	)
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertKubernetesServer(context.Background(), server2)
-	require.NoError(t, err)
-
 	// add db
 	db, err := types.NewDatabaseV3(types.Metadata{
 		Name: "dbdb",
@@ -1193,90 +1169,6 @@ func TestUnifiedResourcesGet_WithSort(t *testing.T) {
 		Database: db,
 	})
 	require.NoError(t, err)
-
-	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
-	require.NoError(t, err)
-
-	// should return ascending sorted types
-	query := url.Values{"sort": []string{"kind"}, "limit": []string{"15"}}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-	res := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
-
-	// should return descending sorted types
-	query = url.Values{"sort": []string{"kind:desc"}, "limit": []string{"15"}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-	res = clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Equal(t, types.KindNode, res.Items[0].Kind)
-}
-
-func TestUnifiedResourcesGet_WithNoAccess(t *testing.T) {
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-
-	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
-	require.NoError(t, err)
-	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
-
-	clusterName := env.server.ClusterName()
-	endpoint := noAccessPack.clt.Endpoint("webapi", "sites", clusterName, "resources")
-
-	// shouldnt get any results with no access
-	query := url.Values{"sort": []string{"name"}, "limit": []string{"1"}}
-	re, err := noAccessPack.clt.Get(context.Background(), endpoint, query)
-	require.NoError(t, err)
-	res := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
-	require.Len(t, res.Items, 0)
-}
-
-func TestUnifiedResourcesGet_WithPages(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures:  modules.Features{SAML: true, Kubernetes: true},
-	})
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	pack := proxy.authPack(t, "test-user@example.com", nil)
-	// Add nodes
-	for i := 0; i < 20; i++ {
-		name := fmt.Sprintf("server-%d", i)
-		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
-			Hostname: name,
-		})
-		require.NoError(t, err)
-		_, err = env.server.Auth().UpsertNode(context.Background(), node)
-		require.NoError(t, err)
-	}
-
-	// Get nodes from endpoint.
-	clusterName := env.server.ClusterName()
-	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
-
-	// add db
-	db, err := types.NewDatabaseV3(types.Metadata{
-		Name: "dbdb",
-		Labels: map[string]string{
-			"env": "prod",
-		},
-	}, types.DatabaseSpecV3{
-		Protocol: "test-protocol",
-		URI:      "test-uri",
-	})
-	require.NoError(t, err)
-	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "dddb1",
-	}, types.DatabaseServerSpecV3{
-		Hostname: "dddb1",
-		HostID:   uuid.NewString(),
-		Database: db,
-	})
-	require.NoError(t, err)
-
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
 	require.NoError(t, err)
 
@@ -1290,11 +1182,43 @@ func TestUnifiedResourcesGet_WithPages(t *testing.T) {
 	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
 	require.NoError(t, err)
 
-	// should return first page and have a second page
-	query := url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	// test sort type ascend
+	query := url.Values{"sort": []string{"kind:asc"}}
 	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 	res := clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindDatabase, res.Items[0].Kind)
+
+	// test sort type desc
+	query = url.Values{"sort": []string{"kind:desc"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Equal(t, types.KindNode, res.Items[0].Kind)
+
+	// test with no access
+	noAccessRole, err := types.NewRole(services.RoleNameForUser("test-no-access@example.com"), types.RoleSpecV6{})
+	require.NoError(t, err)
+	noAccessPack := proxy.authPack(t, "test-no-access@example.com", []types.Role{noAccessRole})
+
+	// shouldnt get any results with no access
+	query = url.Values{}
+	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+	require.Len(t, res.Items, 0)
+
+	// should return first page and have a second page
+	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
 	require.Len(t, res.Items, 15)
 	require.NotEqual(t, "", res.StartKey)
@@ -1315,7 +1239,6 @@ type clusterAlertsGetResponse struct {
 }
 
 func TestClusterAlertsGet(t *testing.T) {
-	t.Parallel()
 	env := newWebPack(t, 1)
 
 	// generate alert
@@ -2099,11 +2022,11 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			},
 			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
 				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
+					WebauthnChallenge: wantypes.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
 				require.NoError(t, err)
 
-				webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+				webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 				require.NoError(t, err)
 
 				envelope := &Envelope{
@@ -2310,7 +2233,7 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 	mfaChallange, err := tdp.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
+		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
 	err = tdp.NewConn(&WebsocketIO{Conn: ws}).WriteMessage(tdp.MFA{
@@ -4682,7 +4605,7 @@ func TestAddMFADevice(t *testing.T) {
 		name            string
 		deviceName      string
 		getTOTPCode     func() string
-		getWebauthnResp func() *wanlib.CredentialCreationResponse
+		getWebauthnResp func() *wantypes.CredentialCreationResponse
 	}{
 		{
 			name:       "new TOTP device",
@@ -4704,7 +4627,7 @@ func TestAddMFADevice(t *testing.T) {
 		{
 			name:       "new Webauthn device",
 			deviceName: "new-webauthn",
-			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
+			getWebauthnResp: func() *wantypes.CredentialCreationResponse {
 				// Get webauthn register challenge.
 				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
@@ -4715,7 +4638,7 @@ func TestAddMFADevice(t *testing.T) {
 				_, regRes, err := auth.NewTestDeviceFromChallenge(res)
 				require.NoError(t, err)
 
-				return wanlib.CredentialCreationResponseFromProto(regRes.GetWebauthn())
+				return wantypes.CredentialCreationResponseFromProto(regRes.GetWebauthn())
 			},
 		},
 	}
@@ -4725,7 +4648,7 @@ func TestAddMFADevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var totpCode string
-			var webauthnRegResp *wanlib.CredentialCreationResponse
+			var webauthnRegResp *wantypes.CredentialCreationResponse
 
 			if tc.getWebauthnResp != nil {
 				webauthnRegResp = tc.getWebauthnResp()
@@ -5639,7 +5562,7 @@ func TestChangeUserAuthentication_settingDefaultClusterAuthPreference(t *testing
 		})
 		require.NoError(t, err)
 
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		// use passwordless as auth method
 		device, err := mocku2f.Create()
@@ -9429,7 +9352,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		res, err := moderator.device.SolveAuthn(challenge)
 		require.NoError(t, err)
 
-		webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+		webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 		require.NoError(t, err)
 
 		envelope := &Envelope{
@@ -9463,11 +9386,11 @@ func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.Test
 	require.NoError(t, json.Unmarshal([]byte(env.Payload), &challenge))
 
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge),
+		WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
 	})
 	require.NoError(t, err)
 
-	webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+	webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 	require.NoError(t, err)
 
 	envelope := &Envelope{

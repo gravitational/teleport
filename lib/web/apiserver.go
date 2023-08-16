@@ -67,7 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -941,6 +941,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		SuggestedReviewers: res.SuggestedReviewers,
 	}
 
+	userContext.AllowedSearchAsRoles = accessChecker.GetAllowedSearchAsRoles()
+
 	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1466,16 +1468,17 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	webCfg := webclient.WebConfig{
-		Auth:                 authSettings,
-		CanJoinSessions:      canJoinSessions,
-		IsCloud:              clusterFeatures.GetCloud(),
-		TunnelPublicAddress:  tunnelPublicAddr,
-		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
-		UI:                   h.getUIConfig(r.Context()),
-		IsDashboard:          isDashboard(clusterFeatures),
-		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
-		AutomaticUpgrades:    clusterFeatures.GetAutomaticUpgrades(),
-		AssistEnabled:        assistEnabled,
+		Auth:                     authSettings,
+		CanJoinSessions:          canJoinSessions,
+		IsCloud:                  clusterFeatures.GetCloud(),
+		TunnelPublicAddress:      tunnelPublicAddr,
+		RecoveryCodesEnabled:     clusterFeatures.GetRecoveryCodes(),
+		UI:                       h.getUIConfig(r.Context()),
+		IsDashboard:              isDashboard(clusterFeatures),
+		IsUsageBasedBilling:      clusterFeatures.GetIsUsageBased(),
+		AutomaticUpgrades:        clusterFeatures.GetAutomaticUpgrades(),
+		AssistEnabled:            assistEnabled,
+		HideInaccessibleFeatures: clusterFeatures.GetFeatureHiding(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2087,7 +2090,7 @@ type changeUserAuthenticationRequest struct {
 	// Password is user password string converted to bytes.
 	Password []byte `json:"password"`
 	// WebauthnCreationResponse is the signed credential creation response.
-	WebauthnCreationResponse *wanlib.CredentialCreationResponse `json:"webauthnCreationResponse"`
+	WebauthnCreationResponse *wantypes.CredentialCreationResponse `json:"webauthnCreationResponse"`
 }
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2105,7 +2108,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	case req.WebauthnCreationResponse != nil:
 		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
+				Webauthn: wantypes.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
 			},
 		}
 	case req.SecondFactorToken != "":

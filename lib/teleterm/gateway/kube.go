@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -57,9 +58,9 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 
 	k := &kube{base}
 
-	// A key is required here for generating local CAs. It can be any key.
-	// Reading the provided key path to avoid generating a new one.
-	key, err := keys.LoadPrivateKey(k.cfg.KeyPath)
+	// Generate a new private key for the proxy. The client's existing private key may be
+	// a hardware-backed private key, which cannot be added to the local proxy kube config.
+	key, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

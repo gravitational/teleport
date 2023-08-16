@@ -47,23 +47,34 @@ const (
 	finalResponseHeader = "<FINAL RESPONSE>"
 )
 
-// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
-func NewAgent(username string, config ToolsConfig) (*Agent, error) {
-	err := config.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
+// NewExecutionTool creates a new execution tool. The execution tool is responsible for executing commands.
+func NewExecutionTool() Tool {
+	return &commandExecutionTool{}
+}
+
+// NewGenerateTool creates a new generation tool. The generation tool is responsible for generating Bash commands.
+func NewGenerateTool() Tool {
+	return &commandGenerationTool{}
+}
+
+// NewRetrievalTool creates a new retrieval tool. The retrieval tool is responsible for retrieving embeddings.
+func NewRetrievalTool(assistClient assist.AssistEmbeddingServiceClient,
+	nodeClient NodeGetter,
+	userAccessChecker services.AccessChecker,
+	currentUser string,
+) Tool {
+	return &embeddingRetrievalTool{
+		assistClient:      assistClient,
+		currentUser:       currentUser,
+		nodeClient:        nodeClient,
+		userAccessChecker: userAccessChecker,
 	}
+}
 
-	tools := []Tool{&commandExecutionTool{}}
-
-	if !config.DisableEmbeddingsTool {
-		tools = append(tools,
-			&embeddingRetrievalTool{
-				assistClient:      config.EmbeddingsClient,
-				currentUser:       username,
-				nodeClient:        config.NodeClient,
-				userAccessChecker: config.AccessChecker,
-			})
+// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
+func NewAgent(tools ...Tool) (*Agent, error) {
+	if len(tools) == 0 {
+		return nil, trace.BadParameter("at least one tool is required")
 	}
 
 	return &Agent{
@@ -261,6 +272,25 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		}
 
 		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
+		return stepOutput{finish: &agentFinish{output: completion}}, nil
+	}
+
+	if tool, ok := tool.(*commandGenerationTool); ok {
+		input, err := tool.parseInput(action.Input)
+		if err != nil {
+			action := &AgentAction{
+				Action: actionException,
+				Input:  observationPrefix + "Invalid or incomplete response",
+				Log:    thoughtPrefix + err.Error(),
+			}
+
+			return stepOutput{action: action, observation: action.Input}, nil
+		}
+		completion := &GeneratedCommand{
+			Command: input.Command,
+		}
+
+		log.Tracef("agent decided on command generation, let's translate to an agentFinish")
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
