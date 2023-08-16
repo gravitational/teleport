@@ -17,9 +17,8 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonBorder, Flex, Label, Text } from 'design';
+import { Box, ButtonBorder, ButtonLink, Flex, Label, Text } from 'design';
 
-import { CheckboxInput } from 'design/Checkbox';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import {
   ApplicationsIcon,
@@ -29,18 +28,17 @@ import {
   ServersIcon,
 } from 'design/SVGIcon';
 
-import { UnifiedResource, UnifiedResourceKind } from 'teleport/services/agents';
+import {
+  AgentLabel,
+  UnifiedResource,
+  UnifiedResourceKind,
+} from 'teleport/services/agents';
 
-const SingleLineBox = styled(Box)`
-  overflow: hidden;
-  white-space: nowrap;
-`;
-
-const TruncatingLabel = styled(Label)`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
+// Since we do a lot of manual resizing and some absolute positioning, we have
+// to put some layout constants in place here.
+const labelRowHeight = 26; // px
+const labelVerticalMargin = 1; // px
+const labelHeight = labelRowHeight - 2 * labelVerticalMargin;
 
 /**
  * This box serves twofold purpose: first, it prevents the underlying icon from
@@ -54,60 +52,141 @@ const ResTypeIconBox = styled(Box)`
 
 type Props = {
   resource: UnifiedResource;
+  onLabelClick?: (label: AgentLabel) => void;
 };
-export const ResourceCard = ({ resource }: Props) => {
+
+export const ResourceCard = ({ resource, onLabelClick }: Props) => {
   const name = resourceName(resource);
   const resIcon = resourceIconName(resource);
   const ResTypeIcon = resourceTypeIcon(resource.kind);
   const description = resourceDescription(resource);
+
+  const labelsInnerContainer = React.useRef(null);
+
+  const [showMoreLabelsButton, setShowMoreLabelsButton] = React.useState(false);
+  const [showAllLabels, setShowAllLabels] = React.useState(false);
+  const [numMoreLabels, setNumMoreLabels] = React.useState(0);
+
+  // This effect installs a resize observer whose purpose is to detect the size
+  // of the component that contains all the labels. If this component is taller
+  // than the height of a single label row, we show a "+x more" button.
+  React.useLayoutEffect(() => {
+    if (!labelsInnerContainer.current) return;
+
+    const observer = new ResizeObserver(entries => {
+      const container = entries[0];
+
+      // We're taking labelRowHeight * 1.5 just in case some glitch adds or
+      // removes a pixel here and there.
+      const moreThanOneRow =
+        container.contentBoxSize[0].blockSize > labelRowHeight * 1.5;
+      setShowMoreLabelsButton(moreThanOneRow);
+
+      // Count number of labels in the first row. This will let us calculate and
+      // show the number of labels left out from the view.
+      const labelElements = [
+        ...entries[0].target.querySelectorAll('[data-is-label]'),
+      ];
+      const firstLabelPos = labelElements[0]?.getBoundingClientRect().top;
+      // Find the first one below.
+      const firstLabelInSecondRow = labelElements.findIndex(
+        e => e.getBoundingClientRect().top > firstLabelPos
+      );
+
+      setNumMoreLabels(
+        firstLabelInSecondRow > 0
+          ? labelElements.length - firstLabelInSecondRow
+          : 0
+      );
+    });
+
+    observer.observe(labelsInnerContainer.current);
+    return () => {
+      observer.disconnect();
+    };
+  });
+
+  const onMoreLabelsClick = () => {
+    setShowAllLabels(true);
+  };
+
   return (
-    <CardContainer p={3} alignItems="start">
-      <CheckboxInput type="checkbox" mx={0}></CheckboxInput>
-      <ResourceIcon
-        alignSelf="center"
-        name={resIcon}
-        width="45px"
-        height="45px"
-        ml={2}
-      />
-      {/* MinWidth is important to prevent descriptions from overflowing. */}
-      <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
-        <Flex flexDirection="row" alignItems="start">
-          <SingleLineBox flex="1" title={name}>
-            <Text typography="h5">{name}</Text>
-          </SingleLineBox>
-          <ButtonBorder size="small">Connect</ButtonBorder>
-        </Flex>
-        <Flex flexDirection="row" alignItems="center">
-          <ResTypeIconBox>
-            <ResTypeIcon size={18} />
-          </ResTypeIconBox>
-          {description.primary && (
-            <SingleLineBox ml={1} title={description.primary}>
-              <Text typography="body2" color="text.slightlyMuted">
-                {description.primary}
-              </Text>
+    <CardContainer>
+      <CardInnerContainer
+        p={3}
+        alignItems="start"
+        showAllLabels={showAllLabels}
+        onMouseLeave={() => setShowAllLabels(false)}
+      >
+        <ResourceIcon
+          name={resIcon}
+          width="45px"
+          height="45px"
+          ml={2}
+          // We would love to just vertical-center-align this one, but then it
+          // would move down along with expanding the labels. So we apply a
+          // carefully measured top margin instead.
+          mt="16px"
+        />
+        {/* MinWidth is important to prevent descriptions from overflowing. */}
+        <Flex flexDirection="column" flex="1" minWidth="0" ml={3} gap={1}>
+          <Flex flexDirection="row" alignItems="start">
+            <SingleLineBox flex="1" title={name}>
+              <Text typography="h5">{name}</Text>
             </SingleLineBox>
-          )}
-          {description.secondary && (
-            <SingleLineBox ml={2} title={description.secondary}>
-              <Text typography="body2" color="text.muted">
-                {description.secondary}
-              </Text>
-            </SingleLineBox>
-          )}
+            <ButtonBorder size="small">Connect</ButtonBorder>
+          </Flex>
+          <Flex flexDirection="row" alignItems="center">
+            <ResTypeIconBox>
+              <ResTypeIcon size={18} />
+            </ResTypeIconBox>
+            {description.primary && (
+              <SingleLineBox ml={1} title={description.primary}>
+                <Text typography="body2" color="text.slightlyMuted">
+                  {description.primary}
+                </Text>
+              </SingleLineBox>
+            )}
+            {description.secondary && (
+              <SingleLineBox ml={2} title={description.secondary}>
+                <Text typography="body2" color="text.muted">
+                  {description.secondary}
+                </Text>
+              </SingleLineBox>
+            )}
+          </Flex>
+          <LabelsContainer showAll={showAllLabels}>
+            <LabelsInnerContainer ref={labelsInnerContainer}>
+              <MoreLabelsButton
+                style={{
+                  visibility:
+                    showMoreLabelsButton && !showAllLabels
+                      ? 'visible'
+                      : 'hidden',
+                }}
+                onClick={onMoreLabelsClick}
+              >
+                + {numMoreLabels} more
+              </MoreLabelsButton>
+              {resource.labels.map((label, i) => {
+                const { name, value } = label;
+                const labelText = `${name}: ${value}`;
+                return (
+                  <ResourceLabel
+                    key={JSON.stringify([name, value, i])}
+                    title={labelText}
+                    onClick={() => onLabelClick?.(label)}
+                    kind="secondary"
+                    data-is-label=""
+                  >
+                    {labelText}
+                  </ResourceLabel>
+                );
+              })}
+            </LabelsInnerContainer>
+          </LabelsContainer>
         </Flex>
-        <Flex gap={1}>
-          {resource.labels.map(({ name, value }) => {
-            const label = `${name}: ${value}`;
-            return (
-              <TruncatingLabel key={label} title={label} kind="secondary">
-                {label}
-              </TruncatingLabel>
-            );
-          })}
-        </Flex>
-      </Flex>
+      </CardInnerContainer>
     </CardContainer>
   );
 };
@@ -175,12 +254,111 @@ function resourceTypeIcon(kind: UnifiedResourceKind) {
   }
 }
 
-export const CardContainer = styled(Flex)`
+/**
+ * The outer container's purpose is to reserve horizontal space on the resource
+ * grid. It holds the inner container that normally holds a regular layout of
+ * the card, and is fully contained inside the outer container.  Once the user
+ * clicks the "more" button, the inner container "pops out" by changing its
+ * position to absolute.
+ *
+ * TODO(bl-nero): Known issue: this doesn't really work well with one-column
+ * layout; we may need to globally set the card height to fixed size on the
+ * outer container.
+ */
+const CardContainer = styled(Box)`
+  position: relative;
+`;
+
+/**
+ * The inner container that normally holds a regular layout of the card, and is
+ * fully contained inside the outer container.  Once the user clicks the "more"
+ * button, the inner container "pops out" by changing its position to absolute.
+ *
+ * TODO(bl-nero): Known issue: this doesn't really work well with one-column
+ * layout; we may need to globally set the card height to fixed size on the
+ * outer container.
+ */
+const CardInnerContainer = styled(Flex)`
   border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
+  background-color: ${props => props.theme.colors.levels.sunken};
+
+  ${props =>
+    props.showAllLabels
+      ? 'position: absolute; left: 0; right: 0; z-index: 1;'
+      : ''}
+
+  transition: all 150ms;
+
+  &:hover {
+    background-color: ${props => props.theme.colors.levels.elevated};
+    border-color: ${props => props.theme.colors.levels.elevated};
+    box-shadow: ${props => props.theme.boxShadow[1]};
+  }
 
   @media (min-width: ${props => props.theme.breakpoints.tablet}px) {
     border: ${props => props.theme.borders[2]}
       ${props => props.theme.colors.spotBackground[0]};
     border-radius: ${props => props.theme.radii[3]}px;
+  }
+`;
+
+const SingleLineBox = styled(Box)`
+  overflow: hidden;
+  white-space: nowrap;
+`;
+
+/**
+ * The outer labels container is resized depending on whether we want to show a
+ * single row, or all labels. It hides the internal container's overflow if more
+ * than one row of labels exist, but is not yet visible.
+ */
+const LabelsContainer = styled(Box)`
+  ${props => (props.showAll ? '' : `height: ${labelRowHeight}px;`)}
+  overflow: hidden;
+`;
+
+const ResourceLabel = styled(Label)`
+  height: ${labelHeight}px;
+  margin: 1px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+`;
+
+/**
+ * The inner labels container always adapts to the size of labels.  Its height
+ * is measured by the resize observer.
+ */
+const LabelsInnerContainer = styled(Flex)`
+  position: relative;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: ${props => props.theme.space[1]}px;
+`;
+
+/**
+ * It's important for this button to use absolute positioning; otherwise, its
+ * presence in the layout may itself influence the resize logic, potentially
+ * causing a feedback loop.
+ */
+const MoreLabelsButton = styled(ButtonLink)`
+  position: absolute;
+  right: 0;
+
+  height: ${labelHeight}px;
+  margin: ${labelVerticalMargin}px 0;
+  min-height: 0;
+
+  background-color: ${props => props.theme.colors.levels.sunken};
+  color: ${props => props.theme.colors.text.slightlyMuted};
+  font-style: italic;
+  border-radius: 0;
+
+  transition: visibility 0s;
+  transition: background 150ms;
+
+  ${CardContainer}:hover & {
+    background-color: ${props => props.theme.colors.levels.elevated};
   }
 `;

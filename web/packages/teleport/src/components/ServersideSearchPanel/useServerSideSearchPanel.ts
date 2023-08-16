@@ -69,7 +69,7 @@ export default function useServersideSearchPanel({
       setIsAdvancedSearch(false);
       setSearchString(decodeUrlQueryParam(params.search));
     }
-  }, []);
+  }, [params.query, params.search]);
 
   useEffect(() => {
     if (!isInitialLoad) {
