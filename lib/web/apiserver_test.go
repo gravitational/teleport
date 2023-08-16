@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -7733,11 +7734,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 
 	sshGRPCServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
+			interceptors.GRPCServerUnaryErrorInterceptor,
 			otelgrpc.UnaryServerInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
+			interceptors.GRPCServerStreamErrorInterceptor,
 			otelgrpc.StreamServerInterceptor(),
 		),
 		grpc.Creds(creds),

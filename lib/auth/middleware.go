@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -478,7 +479,7 @@ func (a *Middleware) UnaryInterceptors() []grpc.UnaryServerInterceptor {
 	}
 
 	return append(is,
-		utils.GRPCServerUnaryErrorInterceptor,
+		interceptors.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
 		a.withAuthenticatedUserUnaryInterceptor,
 	)
@@ -495,7 +496,7 @@ func (a *Middleware) StreamInterceptors() []grpc.StreamServerInterceptor {
 	}
 
 	return append(is,
-		utils.GRPCServerStreamErrorInterceptor,
+		interceptors.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
 		a.withAuthenticatedUserStreamInterceptor,
 	)
