@@ -961,14 +961,37 @@ func testFilterActiveDatabases(t *testing.T) {
 		dbNamePrefix,
 		labels,
 		query string
-		wantAPICall bool
-		wantRoutes  []tlsca.RouteToDatabase
+		wantAPICall                 bool
+		overrideActiveRoutes        []tlsca.RouteToDatabase
+		overrideAPIDatabasesCheckFn func(t *testing.T, databases types.Databases)
+		wantRoutes                  []tlsca.RouteToDatabase
 	}{
 		{
 			name:         "by exact name that is a prefix of others",
 			dbNamePrefix: fooRoute1.ServiceName,
 			wantAPICall:  false,
 			wantRoutes:   []tlsca.RouteToDatabase{fooRoute1},
+		},
+		{
+			name:         "by exact name of inactive route that is a prefix of active routes",
+			dbNamePrefix: fooRoute1.ServiceName,
+			overrideActiveRoutes: []tlsca.RouteToDatabase{
+				fooRoute2, fooRoute3,
+				barRoute1, barRoute2,
+				bazRoute1, bazRoute2,
+			},
+			wantAPICall: true,
+			overrideAPIDatabasesCheckFn: func(t *testing.T, databases types.Databases) {
+				t.Helper()
+				require.NotNil(t, databases)
+				databasesByName := databases.ToMap()
+				require.Contains(t, databasesByName, fooRoute1.ServiceName)
+				require.Contains(t, databasesByName, fooRoute2.ServiceName)
+				require.Contains(t, databasesByName, fooRoute3.ServiceName)
+			},
+			// the inactive route got filtered out, but active routes shouldn't
+			// have been matched by prefix either.
+			wantRoutes: nil,
 		},
 		{
 			name:         "by exact name that is not a prefix of others",
@@ -986,7 +1009,7 @@ func testFilterActiveDatabases(t *testing.T) {
 		{
 			name:         "by name prefix",
 			dbNamePrefix: "ba",
-			wantAPICall:  false,
+			wantAPICall:  true,
 			wantRoutes:   []tlsca.RouteToDatabase{barRoute1, barRoute2, bazRoute1, bazRoute2},
 		},
 		{
@@ -1046,12 +1069,24 @@ func testFilterActiveDatabases(t *testing.T) {
 			}
 			tc, err := makeClient(cf)
 			require.NoError(t, err)
-			routes, dbs, err := filterActiveDatabases(ctx, tc, routes)
+			activeRoutes := routes
+			if tt.overrideActiveRoutes != nil {
+				activeRoutes = tt.overrideActiveRoutes
+			}
+			gotRoutes, dbs, err := filterActiveDatabases(ctx, tc, activeRoutes)
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.wantRoutes, routes))
+			require.Empty(t, cmp.Diff(tt.wantRoutes, gotRoutes))
 			if tt.wantAPICall {
-				require.Equal(t, len(routes), len(dbs),
-					"returned routes should have corresponding types.Databases")
+				if tt.overrideAPIDatabasesCheckFn != nil {
+					tt.overrideAPIDatabasesCheckFn(t, dbs)
+				} else {
+					require.Equal(t, len(tt.wantRoutes), len(dbs),
+						"returned routes should have corresponding types.Databases")
+					for i := range tt.wantRoutes {
+						require.Equal(t, gotRoutes[i].ServiceName, dbs[i].GetName(),
+							"route %v does not match corresponding types.Database", i)
+					}
+				}
 				return
 			}
 			require.Zero(t, len(dbs), "unexpected API call to ListDatabases")
