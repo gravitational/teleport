@@ -1525,6 +1525,11 @@ func (r resourceSelectors) String() string {
 	return strings.TrimSpace(out)
 }
 
+// IsEmpty returns whether the selectors (except kind) are empty.
+func (r resourceSelectors) IsEmpty() bool {
+	return r.name == "" && r.labels == "" && r.query == ""
+}
+
 // formatAmbiguityErrTemplate is a helper func that formats an ambiguous
 // resource error message.
 func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable string) string {
