@@ -72,6 +72,30 @@ type Prompt struct {
 	WebauthnSupported bool
 }
 
+// PromptOpt applies configuration options to a prompt.
+type PromptOpt func(*Prompt)
+
+// WithQuiet sets the prompt's Quiet field.
+func WithQuiet() PromptOpt {
+	return func(p *Prompt) {
+		p.Quiet = true
+	}
+}
+
+// WithHintBeforePrompt sets the prompt's HintBeforePrompt field.
+func WithHintBeforePrompt(hint string) PromptOpt {
+	return func(p *Prompt) {
+		p.HintBeforePrompt = hint
+	}
+}
+
+// WithPromptDevicePrefix sets the prompt's PromptDevicePrefix field.
+func WithPromptDevicePrefix(prefix string) PromptOpt {
+	return func(p *Prompt) {
+		p.PromptDevicePrefix = prefix
+	}
+}
+
 // NewPrompt creates a new prompt with standard behavior.
 // If you want to customize [Prompt], for example for testing purposes, you may
 // create or configure an instance directly, without calling this method.
@@ -101,7 +125,12 @@ func (p *Prompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) 
 	if p.HintBeforePrompt != "" {
 		fmt.Fprintln(writer, p.HintBeforePrompt)
 	}
+
 	promptDevicePrefix := p.PromptDevicePrefix
+	if promptDevicePrefix != "" {
+		promptDevicePrefix += " "
+	}
+
 	quiet := p.Quiet
 
 	hasTOTP := chal.TOTP != nil

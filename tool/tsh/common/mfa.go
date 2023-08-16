@@ -363,9 +363,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		defer wanwin.ResetPromptPlatformMessage()
 		wanwin.PromptPlatformMessage = registeredMsg
 
-		authResp, err := tc.NewMFAPrompt(func(p *mfa.Prompt) {
-			p.PromptDevicePrefix = "*registered* "
-		})(ctx, authChallenge)
+		authResp, err := tc.NewMFAPrompt(mfa.WithPromptDevicePrefix("*registered*"))(ctx, authChallenge)
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -461,9 +461,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 			KubernetesCluster: kubeCluster,
 			RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
 		},
-		tc.NewMFAPrompt(func(p *mfa.Prompt) {
-			p.HintBeforePrompt = hint
-		}),
+		tc.NewMFAPrompt(mfa.WithHintBeforePrompt(hint)),
 		client.WithMFARequired(&mfaRequired),
 	)
 	if err != nil {

@@ -195,9 +195,7 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 			return trace.Wrap(err)
 		}
 
-		go RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFAPrompt(func(p *mfa.Prompt) {
-			p.Quiet = true
-		}))
+		go RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
 	}
 
 	return nil

@@ -25,18 +25,18 @@ import (
 	"github.com/gravitational/teleport/lib/client/mfa"
 )
 
-// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
+// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
 // promptWebauthn provides indirection for tests.
 var promptWebauthn func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 
 // hasPlatformSupport is used to mock wancli.HasPlatformSupport for tests.
 var hasPlatformSupport = wancli.HasPlatformSupport
 
-// PromptMFAFunc matches the signature of [mfa.NewPrompt().Run].
+// PromptMFAFunc matches the signature of [mfa.Prompt.Run].
 type PromptMFAFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
 // NewMFAPrompt creates a new MFA prompt from client settings.
-func (tc *TeleportClient) NewMFAPrompt(opts ...func(*mfa.Prompt)) PromptMFAFunc {
+func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) PromptMFAFunc {
 	if tc.PromptMFAFunc != nil {
 		return tc.PromptMFAFunc
 	}
@@ -46,7 +46,7 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...func(*mfa.Prompt)) PromptMFAFunc 
 	prompt.PreferOTP = tc.PreferOTP
 	prompt.AllowStdinHijack = tc.AllowStdinHijack
 
-	// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
+	// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
 	if promptWebauthn != nil {
 		prompt.WebauthnLogin = promptWebauthn
 		prompt.WebauthnSupported = true

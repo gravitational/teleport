@@ -443,7 +443,7 @@ type Config struct {
 
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
-	// Defaults to [dtauthn.RunCeremony].
+	// Defaults to "dtauthn.NewCeremony().Run()".
 	DTAuthnRunCeremony DTAuthnRunCeremonyFunc
 
 	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
@@ -456,7 +456,7 @@ type Config struct {
 	// Defaults to [dtenroll.AutoEnroll].
 	dtAutoEnroll dtAutoEnrollFunc
 
-	// MFAPrompt allows tests to override the default MFA prompt function.
+	// PromptMFAFunc allows tests to override the default MFA prompt function.
 	// Defaults to [mfa.NewPrompt().Run].
 	PromptMFAFunc PromptMFAFunc
 }
@@ -993,7 +993,7 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 	}
 }
 
-// DTAuthnRunCeremonyFunc matches the signature of [dtauthn.NewCeremony().Run].
+// DTAuthnRunCeremonyFunc matches the signature of [dtauthn.Ceremony.Run].
 type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
 
 // dtAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
@@ -1321,7 +1321,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // (according to RBAC), IssueCertsWithMFA will:
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
-func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPromptOpts ...func(p *mfa.Prompt)) (*Key, error) {
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPromptOpts ...mfa.PromptOpt) (*Key, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/IssueUserCertsWithMFA",
@@ -1932,9 +1932,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFAPrompt(func(p *mfa.Prompt) {
-					p.Quiet = true
-				}))
+				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
 			}
 		}
 	}

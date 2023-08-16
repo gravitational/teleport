@@ -543,7 +543,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
 
-	// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
+	// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
 	webauthnLogin := wancli.Login
 	if promptWebauthn != nil {
 		webauthnLogin = promptWebauthn
@@ -882,7 +882,7 @@ func SSHAgentPasswordlessLoginWeb(ctx context.Context, login SSHLoginPasswordles
 		prompt = wancli.NewDefaultPrompt(ctx, stderr)
 	}
 
-	// TODO (Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
+	// TODO(Joerger): remove this once the exported PromptWebauthn function is no longer used in tests.
 	webauthnLogin := wancli.Login
 	if promptWebauthn != nil {
 		webauthnLogin = promptWebauthn
