@@ -77,6 +77,18 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
     FuzzParseProxyHost fuzz_parse_proxy_host
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParseLabelSpec fuzz_parse_label_spec
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParseSearchKeywords fuzz_parse_search_keywords
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParsePortForwardSpec fuzz_parse_port_forward_spec
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
+    FuzzParseDynamicPortForwardSpec fuzz_parse_dynamic_port_forward_spec
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/regular \
     FuzzParseProxySubsys fuzz_parse_proxy_subsys
 
@@ -91,9 +103,6 @@ build_teleport_fuzzers() {
 
 # compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth \
 #   FuzzParseAndVerifyIID fuzz_parse_and_verify_iid
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
-    FuzzParseLabelSpec fuzz_parse_label_spec
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
     FuzzMSSQLLogin fuzz_mssql_login
