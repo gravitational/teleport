@@ -40,6 +40,7 @@ export class AgentRunner {
 
   constructor(
     private settings: RuntimeSettings,
+    private agentCleanupDaemonPath: string,
     private sendProcessState: (
       rootClusterUri: RootClusterUri,
       state: AgentProcessState
@@ -166,7 +167,7 @@ export class AgentRunner {
     agent: ChildProcess
   ) {
     agent.once('spawn', () => {
-      const cleanupDaemon = fork(this.settings.agentCleanupDaemonPath, [
+      const cleanupDaemon = fork(this.agentCleanupDaemonPath, [
         // agent.pid can in theory be null if the agent gets terminated before the execution gets to
         // this point. In that case, the cleanup daemon is going to exit early.
         agent.pid?.toString(),

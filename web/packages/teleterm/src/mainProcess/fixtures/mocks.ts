@@ -114,7 +114,6 @@ export const makeRuntimeSettings = (
   sessionDataDir: '',
   tempDataDir: '',
   agentBinaryPath: '',
-  agentCleanupDaemonPath: '',
   binDir: '',
   certsDir: '',
   kubeConfigsDir: '',

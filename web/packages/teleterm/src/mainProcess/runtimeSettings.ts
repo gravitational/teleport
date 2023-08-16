@@ -114,7 +114,6 @@ export function getRuntimeSettings(): RuntimeSettings {
     defaultShell: getDefaultShell(),
     kubeConfigsDir: getKubeConfigsDir(),
     logsDir,
-    agentCleanupDaemonPath: getAgentCleanupDaemonPath(),
     platform: process.platform,
     installationId: loadInstallationId(
       path.resolve(app.getPath('userData'), 'installation_id')
@@ -259,21 +258,4 @@ function getUnixSocketNetworkAddress(socketName: string) {
   }
 
   return `unix://${path.resolve(app.getPath('userData'), socketName)}`;
-}
-
-function getAgentCleanupDaemonPath() {
-  if (app.isPackaged) {
-    // Escape from build/app/dist/main to build/app/dist/agentCleanupDaemon.
-    // electron-builder copies agentCleanupDaemon.mjs to build/app/dist/agentCleanupDaemon when
-    // packaging the app.
-    // prettier-ignore
-    return path.join(__dirname, '..',
-      'agentCleanupDaemon', 'agentCleanupDaemon.js'
-    );
-  }
-
-  // Escape build/app/dist/main first.
-  // prettier-ignore
-  return path.join(__dirname, '..', '..', '..', '..',
-    'src', 'agentCleanupDaemon', 'agentCleanupDaemon.js');
 }
