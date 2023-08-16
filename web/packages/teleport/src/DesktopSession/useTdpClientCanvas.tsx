@@ -52,13 +52,6 @@ export default function useTdpClientCanvas(props: Props) {
   const latestClipboardDigest = useRef('');
 
   /**
-   * Tracks the state of the CapsLock key.
-   *
-   * ButtonState.UP means CapsLock is off.
-   * ButtonState.DOWN means CapsLock is on.
-   */
-  const capsLockState = useRef(ButtonState.UP);
-  /**
    * Tracks whether the next keydown or keyup event should sync the
    * local key state to the remote machine.
    *
@@ -150,40 +143,20 @@ export default function useTdpClientCanvas(props: Props) {
 
   /**
    * Called before every keydown or keyup event.
+   *
    * If syncBeforeNextKey is true, this function
-   * sets the current caps lock state and then
    * synchronizes the keys to the remote machine.
    */
   const handleSyncBeforeNextKey = (cli: TdpClient, e: KeyboardEvent) => {
     if (syncBeforeNextKey.current === true) {
       // Set the current caps lock state based on getModifierState.
+      let state = ButtonState.UP;
       if (e.getModifierState('CapsLock')) {
-        capsLockState.current = ButtonState.DOWN;
-      } else {
-        capsLockState.current = ButtonState.UP;
+        state = ButtonState.DOWN;
       }
 
-      // Sync the keys to the remote machine.
-      syncKeys(cli);
-
-      // Unset the syncBeforeNextKey flag.
+      cli.sendSyncKeys(state);
       syncBeforeNextKey.current = false;
-    }
-  };
-
-  /**
-   * Sends the current caps lock state to the remote machine and
-   * resets the server key state to all keys up.
-   */
-  const syncKeys = (cli: TdpClient) => {
-    cli.sendSyncKeys(capsLockState.current);
-  };
-
-  const toggleCapsLockState = () => {
-    if (capsLockState.current === ButtonState.DOWN) {
-      capsLockState.current = ButtonState.UP;
-    } else {
-      capsLockState.current = ButtonState.DOWN;
     }
   };
 
@@ -210,18 +183,9 @@ export default function useTdpClientCanvas(props: Props) {
         // to a DOWN + UP on the remote machine.
         cli.sendKeyboardInput(e.code, ButtonState.DOWN);
         cli.sendKeyboardInput(e.code, ButtonState.UP);
-
-        // And we keep track of the internal caps lock state by toggling it.
-        toggleCapsLockState();
       } else {
         // On Windows or Linux, we just pass the event through normally to the server.
         cli.sendKeyboardInput(e.code, state);
-        if (state === ButtonState.UP) {
-          // If we got a caps lock UP, we assume that we previously got a caps lock DOWN.
-          // Thus we assume this corresponds to a caps lock DOWN + UP being completed, and
-          // so we toggle the internal caps lock state.
-          toggleCapsLockState();
-        }
       }
 
       // Return true to let caller know that we've handled the event.
@@ -265,11 +229,17 @@ export default function useTdpClientCanvas(props: Props) {
 
   const onFocusOut = (cli: TdpClient) => {
     // When the window loses focus, we want to sync the key state to the remote machine
-    // so that the remote machine doesn't think any keys are still pressed.
-    syncKeys(cli);
-    // We also want to set the syncBeforeNextKey flag to true, so that when the user returns
-    // to the window, the next keydown or keyup event will sync the key state to the remote machine.
-    // This is necessary in case the user toggles caps lock while the window is out of focus.
+    // so that the remote machine doesn't think any keys are still pressed. This is necessary
+    // so that when the user returns to the window, the remote machine doesn't think (for
+    // example) that the alt key is still pressed, and then interpret the next click as an
+    // alt-click.
+    //
+    // We can just send whatever value we want for the caps lock state, since we also set
+    // syncBeforeNextKey.current = true below. This means that, when the user returns to
+    // the window, before the next key press, we will send a sync keys event with the
+    // real caps lock state, and thus the remote machine will have the correct caps lock
+    // setting before anything is typed out.
+    cli.sendSyncKeys(ButtonState.UP);
     syncBeforeNextKey.current = true;
   };
 
