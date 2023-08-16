@@ -124,6 +124,8 @@ async function postLaunchChecks() {
   if (!process.connected) {
     logger.error(`The parent got terminated during setup.`);
     await terminateAgent();
+    // 41 is a custom exit code so that we don't collide with Node.js exit codes.
+    // https://nodejs.org/docs/latest-v18.x/api/process.html#exit-codes
     process.exitCode = 41;
     return;
   }
@@ -131,6 +133,8 @@ async function postLaunchChecks() {
   if (!isRunning(agentPid)) {
     logger.error(`The agent got terminated during setup, exiting.`);
     process.removeAllListeners('disconnect');
+    // 42 is a custom exit code so that we don't collide with Node.js exit codes.
+    // https://nodejs.org/docs/latest-v18.x/api/process.html#exit-codes
     process.exitCode = 42;
     return;
   }
