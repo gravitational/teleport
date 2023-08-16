@@ -16,8 +16,8 @@ import type {
   AgentLabel,
   AgentFilter,
   AgentResponse,
-  AgentKind,
   AgentIdKind,
+  UnifiedResource,
 } from 'teleport/services/agents';
 
 const pageSize = 10;
@@ -29,9 +29,9 @@ export function useNewRequest(ctx: Ctx) {
     isLeafCluster ? 'node' : 'role'
   );
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [fetchedData, setFetchedData] = useState<AgentResponse<AgentKind>>(
-    getEmptyFetchedDataState()
-  );
+  const [fetchedData, setFetchedData] = useState<
+    AgentResponse<UnifiedResource>
+  >(getEmptyFetchedDataState());
 
   const [addedAll, setAddedAll] = useState(getDefaultAddedAll());
   const addAllFetchAttempt = useAttempt('');
@@ -253,7 +253,7 @@ export function useNewRequest(ctx: Ctx) {
     setAgentFilter({ ...agentFilter, search: '', query });
   }
 
-  function addAgents(agents: AgentKind[]) {
+  function addAgents(agents: UnifiedResource[]) {
     switch (selectedResource) {
       case 'node':
         (agents as Node[]).forEach(

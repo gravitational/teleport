@@ -5,6 +5,7 @@ import { ContextProvider } from 'teleport';
 import { within, waitFor } from '@testing-library/react';
 
 import makeUserContext from 'teleport/services/user/makeUserContext';
+import { Node } from 'teleport/services/nodes/types';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 
@@ -298,11 +299,12 @@ const userContext = makeUserContext({
   },
 });
 
-const nodes = [
+const nodes: Node[] = [
   {
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '1',
+    kind: 'node',
     clusterId: 'one',
     hostname: 'node1',
     addr: 'node1-addr',
@@ -317,6 +319,7 @@ const nodes = [
     tunnel: true,
     sshLogins: ['dev', 'root'],
     id: '2',
+    kind: 'node',
     clusterId: 'one',
     hostname: 'node2',
     addr: 'node2-addr',
@@ -332,6 +335,7 @@ const nodes = [
 const appsFirstPage: App[] = [
   {
     id: 'dummy-3834740555',
+    kind: 'app',
     name: 'dummy-746715940',
     uri: 'http://kizuud.im/het',
     publicAddr: 'http://div.az/busihuj',
@@ -350,6 +354,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-735596623',
+    kind: 'app',
     name: 'dummy-3881558958',
     uri: 'http://ima.sd/ivdijwah',
     publicAddr: 'http://kav.cl/zi',
@@ -368,6 +373,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-61474169',
+    kind: 'app',
     name: 'dummy-2813408209',
     uri: 'http://borrepci.mk/cunnenoc',
     publicAddr: 'http://luwop.km/pagmot',
@@ -386,6 +392,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-19793371',
+    kind: 'app',
     name: 'dummy-2395663666',
     uri: 'http://mipduzok.ml/figinal',
     publicAddr: 'http://zo.in/kasarot',
@@ -404,6 +411,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-526000410',
+    kind: 'app',
     name: 'dummy-1390659234',
     uri: 'http://sus.pm/pumpul',
     publicAddr: 'http://ofu.pw/wesa',
@@ -422,6 +430,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-2992909050',
+    kind: 'app',
     name: 'dummy-88922302',
     uri: 'http://zad.br/cita',
     publicAddr: 'http://sothaki.gov/evgos',
@@ -440,6 +449,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-886097749',
+    kind: 'app',
     name: 'dummy-2613789701',
     uri: 'http://zuftukuw.sb/jiducdo',
     publicAddr: 'http://fu.ro/cehbiucu',
@@ -458,6 +468,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-2279168647',
+    kind: 'app',
     name: 'dummy-127659030',
     uri: 'http://ugnob.gr/wi',
     publicAddr: 'http://aru.cd/adeficap',
@@ -476,6 +487,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-3694860682',
+    kind: 'app',
     name: 'dummy-3936077543',
     uri: 'http://uvu.ar/fezok',
     publicAddr: 'http://siffe.nc/buvu',
@@ -494,6 +506,7 @@ const appsFirstPage: App[] = [
   },
   {
     id: 'dummy-2592544769',
+    kind: 'app',
     name: 'dummy-2726596285',
     uri: 'http://kofare.net/bilishow',
     publicAddr: 'http://fuzejad.bi/suvecisiz',
@@ -515,6 +528,7 @@ const appsFirstPage: App[] = [
 const allApps: App[] = [
   {
     id: 'dummy-3834740555',
+    kind: 'app',
     name: 'dummy-746715940',
     uri: 'http://kizuud.im/het',
     publicAddr: 'http://div.az/busihuj',
@@ -533,6 +547,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-735596623',
+    kind: 'app',
     name: 'dummy-3881558958',
     uri: 'http://ima.sd/ivdijwah',
     publicAddr: 'http://kav.cl/zi',
@@ -551,6 +566,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-61474169',
+    kind: 'app',
     name: 'dummy-2813408209',
     uri: 'http://borrepci.mk/cunnenoc',
     publicAddr: 'http://luwop.km/pagmot',
@@ -569,6 +585,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-19793371',
+    kind: 'app',
     name: 'dummy-2395663666',
     uri: 'http://mipduzok.ml/figinal',
     publicAddr: 'http://zo.in/kasarot',
@@ -587,6 +604,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-526000410',
+    kind: 'app',
     name: 'dummy-1390659234',
     uri: 'http://sus.pm/pumpul',
     publicAddr: 'http://ofu.pw/wesa',
@@ -605,6 +623,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-2992909050',
+    kind: 'app',
     name: 'dummy-88922302',
     uri: 'http://zad.br/cita',
     publicAddr: 'http://sothaki.gov/evgos',
@@ -623,6 +642,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-886097749',
+    kind: 'app',
     name: 'dummy-2613789701',
     uri: 'http://zuftukuw.sb/jiducdo',
     publicAddr: 'http://fu.ro/cehbiucu',
@@ -641,6 +661,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-2279168647',
+    kind: 'app',
     name: 'dummy-127659030',
     uri: 'http://ugnob.gr/wi',
     publicAddr: 'http://aru.cd/adeficap',
@@ -659,6 +680,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-3694860682',
+    kind: 'app',
     name: 'dummy-3936077543',
     uri: 'http://uvu.ar/fezok',
     publicAddr: 'http://siffe.nc/buvu',
@@ -677,6 +699,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-2592544769',
+    kind: 'app',
     name: 'dummy-2726596285',
     uri: 'http://kofare.net/bilishow',
     publicAddr: 'http://fuzejad.bi/suvecisiz',
@@ -695,6 +718,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-2070848380',
+    kind: 'app',
     name: 'dummy-1656249156',
     uri: 'http://kismucle.sc/zipikpa',
     publicAddr: 'http://utofodil.bb/josug',
@@ -713,6 +737,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-1041383074',
+    kind: 'app',
     name: 'dummy-3538024861',
     uri: 'http://hawisi.yt/moiki',
     publicAddr: 'http://ni.hm/gilemte',
@@ -731,6 +756,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-310160582',
+    kind: 'app',
     name: 'dummy-3473759171',
     uri: 'http://ep.cv/urahec',
     publicAddr: 'http://wocim.dz/johhuk',
@@ -749,6 +775,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-531607002',
+    kind: 'app',
     name: 'dummy-1290775270',
     uri: 'http://lenet.re/beshoize',
     publicAddr: 'http://waiduroh.br/kar',
@@ -767,6 +794,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-1649180430',
+    kind: 'app',
     name: 'dummy-3998870487',
     uri: 'http://wer.za/jegnezes',
     publicAddr: 'http://jihkogsi.om/takzogu',
@@ -785,6 +813,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-393072968',
+    kind: 'app',
     name: 'dummy-1165467974',
     uri: 'http://voholju.cn/otru',
     publicAddr: 'http://asmetme.ai/pawpagur',
@@ -803,6 +832,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-2826879942',
+    kind: 'app',
     name: 'dummy-1336558313',
     uri: 'http://ka.ni/wut',
     publicAddr: 'http://jorge.rs/li',
@@ -821,6 +851,7 @@ const allApps: App[] = [
   },
   {
     id: 'dummy-3147977584',
+    kind: 'app',
     name: 'dummy-434510897',
     uri: 'http://su.vg/gotu',
     publicAddr: 'http://viste.cc/eli',
@@ -842,6 +873,7 @@ const allApps: App[] = [
 const appsWithUserGroups: App[] = [
   {
     id: 'dummy-3834740555',
+    kind: 'app',
     name: 'dummy-746715940',
     uri: 'http://kizuud.im/het',
     publicAddr: 'http://div.az/busihuj',
@@ -860,6 +892,7 @@ const appsWithUserGroups: App[] = [
   },
   {
     id: 'dummy-735596623',
+    kind: 'app',
     name: 'dummy-3881558958',
     uri: 'http://ima.sd/ivdijwah',
     publicAddr: 'http://kav.cl/zi',
@@ -878,6 +911,7 @@ const appsWithUserGroups: App[] = [
   },
   {
     id: 'dummy-61474169',
+    kind: 'app',
     name: 'dummy-2813408209',
     uri: 'http://borrepci.mk/cunnenoc',
     publicAddr: 'http://luwop.km/pagmot',
@@ -896,6 +930,7 @@ const appsWithUserGroups: App[] = [
   },
   {
     id: 'dummy-3147977584',
+    kind: 'app',
     name: 'dummy-434510897',
     uri: 'http://su.vg/gotu',
     publicAddr: 'http://viste.cc/eli',

@@ -63,6 +63,7 @@ const props: Props = {
 const apps: App[] = [
   {
     name: 'aws-console-1',
+    kind: 'app',
     uri: 'https://console.aws.amazon.com/ec2/v2/home',
     publicAddr: 'awsconsole-1.teleport-proxy.com',
     addrWithProtocol: 'https://awsconsole-1.teleport-proxy.com',
@@ -87,6 +88,7 @@ const apps: App[] = [
 const nodes: Node[] = [
   {
     tunnel: false,
+    kind: 'node',
     sshLogins: ['dev', 'root'],
     id: '104',
     clusterId: 'one',
@@ -104,6 +106,7 @@ const nodes: Node[] = [
 const dbs: Database[] = [
   {
     name: 'aurora',
+    kind: 'db',
     description: 'PostgreSQL 11.6: AWS Aurora ',
     hostname: 'aurora-hostname',
     type: 'RDS PostgreSQL',
@@ -115,6 +118,7 @@ const dbs: Database[] = [
 const desktops: Desktop[] = [
   {
     os: 'windows',
+    kind: 'windows_desktop',
     name: 'bb8411a4-ba50-537c-89b3-226a00447bc6',
     addr: 'host.com',
     labels: [{ name: 'foo', value: 'bar' }],
@@ -125,17 +129,20 @@ const desktops: Desktop[] = [
 const kubes: Kube[] = [
   {
     name: 'tele.logicoma.dev-prod',
+    kind: 'kube_cluster',
     labels: [{ name: 'env', value: 'prod' }],
   },
 ];
 
 const userGroups: UserGroup[] = [
   {
+    kind: 'user_group',
     name: 'group id 1',
     description: 'user group',
     labels: [{ name: 'env', value: 'prod' }],
   },
   {
+    kind: 'user_group',
     name: 'group id 2',
     description: 'admin group',
     labels: [{ name: 'env', value: 'dev' }],

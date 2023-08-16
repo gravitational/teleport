@@ -20,8 +20,8 @@ import type {
   AgentLabel,
   AgentFilter as WeakAgentFilter,
   AgentResponse,
-  AgentKind,
   AgentIdKind,
+  UnifiedResource,
 } from 'teleport/services/agents';
 
 const pageSize = 10;
@@ -39,9 +39,9 @@ export default function useNewRequest() {
 
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [fetchedData, setFetchedData] = useState<AgentResponse<AgentKind>>(
-    getEmptyFetchedDataState()
-  );
+  const [fetchedData, setFetchedData] = useState<
+    AgentResponse<UnifiedResource>
+  >(getEmptyFetchedDataState());
   const requestableRoles = loggedInUser?.requestableRolesList || [];
   const [selectedResource, setSelectedResource] =
     useState<ResourceKind>('node');
