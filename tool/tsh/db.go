@@ -385,6 +385,9 @@ func makeLogoutMessage(cf *CLIConf, logout, activeRoutes []tlsca.RouteToDatabase
 			labels: cf.Labels,
 			query:  cf.PredicateExpression,
 		}
+		if selectors.IsEmpty() {
+			return "", trace.NotFound("Not logged into any databases")
+		}
 		return "", trace.NotFound("Not logged into %v", selectors)
 	case 1:
 		return fmt.Sprintf("Logged out of database %v", logout[0].ServiceName), nil
@@ -1527,10 +1530,12 @@ func (r resourceSelectors) String() string {
 func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable string) string {
 	data := map[string]any{
 		"command":     cf.CommandWithBinary(),
-		"selectors":   strings.TrimSpace(selectors.String()),
 		"listCommand": strings.TrimSpace(listCommand),
 		"kind":        strings.TrimSpace(selectors.kind),
 		"matchTable":  strings.TrimSpace(matchTable),
+	}
+	if !selectors.IsEmpty() {
+		data["selectors"] = strings.TrimSpace(selectors.String())
 	}
 	var sb strings.Builder
 	_ = ambiguityErrTemplate.Execute(&sb, data)
@@ -1593,7 +1598,11 @@ You can start a local proxy for database GUI clients:
 
 	// ambiguityErrTemplate is the error message printed when a resource is
 	// specified ambiguously by name prefix and/or labels.
-	ambiguityErrTemplate = template.Must(template.New("").Parse("{{ .selectors }} matches multiple {{ .kind }}s:" + `
+	ambiguityErrTemplate = template.Must(template.New("").Parse(`{{if .selectors -}}
+{{ .selectors }} matches multiple {{ .kind }}s:
+{{- else -}}
+multiple {{ .kind }}s are available:
+{{- end }}
 
 {{ .matchTable }}
 
