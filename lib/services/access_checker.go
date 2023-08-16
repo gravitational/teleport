@@ -853,8 +853,8 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 
 	roleSet := make([]types.Role, len(a.RoleSet))
 	copy(roleSet, a.RoleSet)
-	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) bool {
-		return strings.Compare(a.GetName(), b.GetName()) == -1
+	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) int {
+		return strings.Compare(a.GetName(), b.GetName())
 	})
 
 	seenSudoers := make(map[string]struct{})

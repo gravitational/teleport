@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -33,13 +33,13 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 
 	switch typ {
 	case defaults.WebsocketWebauthnChallenge:
-		var webauthnResponse wanlib.CredentialAssertionResponse
+		var webauthnResponse wantypes.CredentialAssertionResponse
 		if err := json.Unmarshal(b, &webauthnResponse); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		resp = &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(&webauthnResponse),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(&webauthnResponse),
 			},
 		}
 

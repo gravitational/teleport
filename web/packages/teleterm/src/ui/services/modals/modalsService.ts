@@ -198,6 +198,7 @@ export interface DialogHeadlessAuthentication {
   rootClusterUri: RootClusterUri;
   headlessAuthenticationId: string;
   headlessAuthenticationClientIp: string;
+  skipConfirm: boolean;
   onSuccess(): void;
   onCancel(): void;
 }

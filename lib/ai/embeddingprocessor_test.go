@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -62,6 +63,35 @@ func (m *MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]e
 	return result, nil
 }
 
+type mockNodeStreamer struct {
+	mu    sync.Mutex
+	nodes []types.Server
+}
+
+func (m *mockNodeStreamer) UpsertNode(_ context.Context, node types.Server) (*types.KeepAlive, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i, n := range m.nodes {
+		// update
+		if n.GetName() == node.GetName() {
+			m.nodes[i] = node
+			return nil, nil
+		}
+	}
+
+	// insert
+	m.nodes = append(m.nodes, node)
+	return nil, nil
+}
+
+func (m *mockNodeStreamer) GetNodeStream(_ context.Context, _ string) stream.Stream[types.Server] {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	nodes := make([]types.Server, 0, len(m.nodes))
+	nodes = append(nodes, m.nodes...)
+	return stream.Slice(nodes)
+}
+
 func TestNodeEmbeddingGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -81,7 +111,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	embedder := MockEmbedder{
 		timesCalled: make(map[string]int),
 	}
-	presence := local.NewPresenceService(bk)
+	presence := &mockNodeStreamer{}
 	embeddings := local.NewEmbeddingsService(bk)
 
 	processor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{

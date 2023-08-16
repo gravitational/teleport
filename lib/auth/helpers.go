@@ -374,6 +374,21 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(srv.AuthServer.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Client:       srv.AuthServer,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: srv.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
+
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
 	})
@@ -718,10 +733,6 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
-
-	// Go 1.21 changed the default behavior of TLS servers.
-	// See https://go.dev/doc/go1.21#crypto/tls.
-	tlsConfig.SessionTicketsDisabled = true
 
 	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.AuditLog)
 	if err != nil {
