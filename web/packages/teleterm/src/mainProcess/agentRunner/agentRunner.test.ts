@@ -22,16 +22,26 @@ import { tmpdir } from 'node:os';
 import Logger, { NullService } from 'teleterm/logger';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { makeRuntimeSettings } from '../fixtures/mocks';
-import { AgentProcessState } from '../types';
+import * as mocks from '../fixtures/mocks';
+import { AgentProcessState, RuntimeSettings } from '../types';
 
 import { AgentRunner } from './agentRunner';
+
+const makeRuntimeSettings = (settings?: Partial<RuntimeSettings>) =>
+  mocks.makeRuntimeSettings({
+    agentBinaryPath,
+    agentCleanupDaemonPath,
+    userDataDir,
+    logsDir,
+    ...settings,
+  });
 
 beforeAll(async () => {
   // Create a temp dir for user data dir. The cleanup daemon is going to store logs there.
   userDataDir = await fs.mkdtemp(
     path.join(tmpdir(), 'agent-cleanup-daemon-test-logs')
   );
+  logsDir = path.join(userDataDir, 'logs');
 });
 
 afterAll(async () => {
@@ -48,6 +58,7 @@ afterEach(() => {
 });
 
 let userDataDir: string;
+let logsDir: string;
 const agentBinaryPath = path.join(__dirname, 'agentTestProcess.mjs');
 const agentCleanupDaemonPath = path.join(
   __dirname,
@@ -59,14 +70,7 @@ const agentCleanupDaemonPath = path.join(
 const rootClusterUri: RootClusterUri = '/clusters/cluster.local';
 
 test('agent process and cleanup daemon start with correct arguments', async () => {
-  const agentRunner = new AgentRunner(
-    makeRuntimeSettings({
-      agentBinaryPath,
-      agentCleanupDaemonPath,
-      userDataDir,
-    }),
-    () => {}
-  );
+  const agentRunner = new AgentRunner(makeRuntimeSettings(), () => {});
 
   try {
     const agentProcess = await agentRunner.start(rootClusterUri);
@@ -88,7 +92,7 @@ test('agent process and cleanup daemon start with correct arguments', async () =
       agentProcess.pid.toString(),
       process.pid.toString(),
       rootClusterUri,
-      `${userDataDir}/logs`,
+      logsDir,
     ]);
   } finally {
     await agentRunner.killAll();
@@ -96,13 +100,7 @@ test('agent process and cleanup daemon start with correct arguments', async () =
 });
 
 test('previous agent process is killed when a new one is started', async () => {
-  const agentRunner = new AgentRunner(
-    makeRuntimeSettings({
-      agentBinaryPath,
-      userDataDir,
-    }),
-    () => {}
-  );
+  const agentRunner = new AgentRunner(makeRuntimeSettings(), () => {});
 
   try {
     const firstProcess = await agentRunner.start(rootClusterUri);
@@ -116,13 +114,7 @@ test('previous agent process is killed when a new one is started', async () => {
 
 test('status updates are sent on a successful start', async () => {
   const updateSender = jest.fn();
-  const agentRunner = new AgentRunner(
-    makeRuntimeSettings({
-      agentBinaryPath,
-      userDataDir,
-    }),
-    updateSender
-  );
+  const agentRunner = new AgentRunner(makeRuntimeSettings(), updateSender);
 
   try {
     expect(agentRunner.getState(rootClusterUri)).toBeUndefined();
@@ -163,7 +155,6 @@ test('status updates are sent on a failed start', async () => {
   const agentRunner = new AgentRunner(
     makeRuntimeSettings({
       agentBinaryPath: nonExisingPath,
-      userDataDir,
     }),
     updateSender
   );
@@ -185,14 +176,7 @@ test('status updates are sent on a failed start', async () => {
 });
 
 test('cleanup daemon stops together with agent process', async () => {
-  const agentRunner = new AgentRunner(
-    makeRuntimeSettings({
-      agentBinaryPath,
-      agentCleanupDaemonPath,
-      userDataDir,
-    }),
-    () => {}
-  );
+  const agentRunner = new AgentRunner(makeRuntimeSettings(), () => {});
 
   try {
     const agent = await agentRunner.start(rootClusterUri);
@@ -225,7 +209,6 @@ test('agent cleanup daemon is not spawned on failed agent start', async () => {
   const agentRunner = new AgentRunner(
     makeRuntimeSettings({
       agentBinaryPath: nonExisingPath,
-      userDataDir,
     }),
     () => {}
   );
@@ -244,14 +227,7 @@ test('agent cleanup daemon is not spawned on failed agent start', async () => {
 // It'd be nice to test a situation where the cleanup daemon fails to spawn, but it's unclear how to
 // test it when using `fork` to spawn the cleanup daemon.
 test('agent is killed if cleanup daemon exits', async () => {
-  const agentRunner = new AgentRunner(
-    makeRuntimeSettings({
-      agentBinaryPath,
-      agentCleanupDaemonPath,
-      userDataDir,
-    }),
-    () => {}
-  );
+  const agentRunner = new AgentRunner(makeRuntimeSettings(), () => {});
 
   try {
     const agentProcess = await agentRunner.start(rootClusterUri);

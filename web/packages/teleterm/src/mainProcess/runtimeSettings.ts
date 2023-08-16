@@ -59,6 +59,10 @@ export function getRuntimeSettings(): RuntimeSettings {
   const { binDir, tshBinPath } = getBinaryPaths();
   const { username } = os.userInfo();
   const hostname = os.hostname();
+  // TODO(ravicious): Replace with app.getPath('logs'). We started storing logs under a custom path.
+  // Before switching to the recommended path, we need to investigate the impact of this change.
+  // https://www.electronjs.org/docs/latest/api/app#appgetpathname
+  const logsDir = path.join(userDataDir, 'logs');
 
   const tshd = {
     insecure: isInsecure,
@@ -109,6 +113,7 @@ export function getRuntimeSettings(): RuntimeSettings {
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
     kubeConfigsDir: getKubeConfigsDir(),
+    logsDir,
     agentCleanupDaemonPath: getAgentCleanupDaemonPath(),
     platform: process.platform,
     installationId: loadInstallationId(
