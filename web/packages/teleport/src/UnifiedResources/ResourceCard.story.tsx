@@ -16,11 +16,13 @@
 
 import React from 'react';
 import { Meta, StoryObj } from '@storybook/react';
+import { MemoryRouter } from 'react-router';
 
 import styled from 'styled-components';
 
 import { gap } from 'design/system';
 
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 
@@ -29,6 +31,7 @@ import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { ResourceCard as ResourceCard } from './ResourceCard';
 
@@ -85,19 +88,24 @@ type Story = StoryObj<typeof ResourceCard>;
 
 export const Cards: Story = {
   render() {
+    const ctx = createTeleportContext();
     return (
-      <Grid gap={2}>
-        {[
-          ...apps,
-          ...databases,
-          ...kubes,
-          ...nodes,
-          ...additionalResources,
-          ...desktops,
-        ].map(res => (
-          <ResourceCard resource={res} />
-        ))}
-      </Grid>
+      <MemoryRouter>
+        <TeleportContextProvider ctx={ctx}>
+          <Grid gap={2}>
+            {[
+              ...apps,
+              ...databases,
+              ...kubes,
+              ...nodes,
+              ...additionalResources,
+              ...desktops,
+            ].map((res, i) => (
+              <ResourceCard key={i} resource={res} />
+            ))}
+          </Grid>
+        </TeleportContextProvider>
+      </MemoryRouter>
     );
   },
 };
