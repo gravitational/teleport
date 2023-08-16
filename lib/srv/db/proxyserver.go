@@ -442,9 +442,9 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	var labels prometheus.Labels
 	if len(proxyCtx.Servers) > 0 {
-		labels = getLabelsFromDb(proxyCtx.Servers[0].GetDatabase())
+		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
 	} else {
-		labels = getLabelsFromDb(nil)
+		labels = getLabelsFromDB(nil)
 	}
 
 	labels["available_db_servers"] = strconv.Itoa(len(proxyCtx.Servers))
@@ -519,9 +519,9 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 
 	var labels prometheus.Labels
 	if len(proxyCtx.Servers) > 0 {
-		labels = getLabelsFromDb(proxyCtx.Servers[0].GetDatabase())
+		labels = getLabelsFromDB(proxyCtx.Servers[0].GetDatabase())
 	} else {
-		labels = getLabelsFromDb(nil)
+		labels = getLabelsFromDB(nil)
 	}
 
 	activeConnections.With(labels).Inc()
@@ -598,7 +598,7 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 // getConfigForServer returns TLS config used for establishing connection
 // to a remote database server over reverse tunnel.
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
-	defer observeLatency(tlsConfigTime.With(getLabelsFromDb(server.GetDatabase())))()
+	defer observeLatency(tlsConfigTime.With(getLabelsFromDB(server.GetDatabase())))()
 
 	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
@@ -674,7 +674,7 @@ func observeLatency(o prometheus.Observer) func() {
 
 var commonLabels = []string{teleport.ComponentLabel, "db_protocol", "db_type"}
 
-func getLabelsFromDb(db types.Database) prometheus.Labels {
+func getLabelsFromDB(db types.Database) prometheus.Labels {
 	if db != nil {
 		return map[string]string{
 			teleport.ComponentLabel: proxyServerComponent,
