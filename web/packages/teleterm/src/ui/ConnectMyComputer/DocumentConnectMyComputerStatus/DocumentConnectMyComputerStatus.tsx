@@ -274,7 +274,7 @@ function prettifyAgentState(agentState: AgentState): {
     case 'process-error': {
       return {
         Icon: StyledWarning,
-        title: 'An error occurred to the agent process.',
+        title: 'An error occurred to the agent process',
         error: agentState.message,
       };
     }
