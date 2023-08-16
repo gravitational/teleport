@@ -15,7 +15,11 @@
  */
 
 import api from 'teleport/services/api';
-import cfg from 'teleport/config';
+import cfg, { UrlResourcesParams } from 'teleport/config';
+
+import { UnifiedResource, AgentResponse } from '../agents';
+
+import { makeUnifiedResource } from './makeUnifiedResource';
 
 import { makeResource, makeResourceList } from './';
 
@@ -24,6 +28,24 @@ class ResourceService {
     return api
       .get(cfg.getTrustedClustersUrl())
       .then(res => makeResourceList<'trusted_cluster'>(res));
+  }
+
+  fetchUnifiedResources(
+    clusterId?: string,
+    params?: UrlResourcesParams,
+    signal?: AbortSignal
+  ): Promise<AgentResponse<UnifiedResource>> {
+    return api
+      .get(cfg.getUnifiedResourcesUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
+
+        return {
+          agents: items.map(makeUnifiedResource),
+          startKey: json?.startKey,
+          totalCount: json?.totalCount,
+        };
+      });
   }
 
   fetchGithubConnectors() {
