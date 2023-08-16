@@ -344,7 +344,7 @@ requested earlier:
 ```code
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=minikube \
-  --set roles="kube\,app\,discovery"
+  --set roles="kube\,app\,discovery" \
   --set proxyAddr=<Var name="proxy-address" /> \
   --set authToken=<Var name="token" /> \
   --create-namespace \
