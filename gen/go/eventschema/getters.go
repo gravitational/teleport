@@ -25,6 +25,8 @@ import (
 	events2 "github.com/gravitational/teleport/lib/events"
 )
 
+// GetEventSchemaFromType takes an event type, looks up the corresponding
+// protobuf message, and returns the message schema.
 func GetEventSchemaFromType(eventType string) (*Event, error) {
 	fields := events2.EventFields{"event": eventType}
 	eventStruct, err := events2.FromEventFields(fields)
@@ -39,6 +41,8 @@ func GetEventSchemaFromType(eventType string) (*Event, error) {
 	return event, nil
 }
 
+// getMessageName takes a message struct and returns its name.
+// The struct name is also the protobuf message name.
 func getMessageName(eventStruct interface{}) string {
 	if t := reflect.TypeOf(eventStruct); t.Kind() == reflect.Ptr {
 		return t.Elem().Name()
@@ -47,7 +51,15 @@ func getMessageName(eventStruct interface{}) string {
 	}
 }
 
-func TableList() (string, error) {
+// QueryableEventList generates a CSV list of all user-exposed event types that can be
+// queried in Athena and their descriptions
+// The list looks like
+//
+//	table_name, description
+//	user.login, records a successfully or failed user login event
+//	database.session.query, is emitted when a user executes a database query
+//	...
+func QueryableEventList() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("table_name, description\n")
 	for _, name := range eventTypes {
@@ -60,6 +72,10 @@ func TableList() (string, error) {
 	return sb.String(), nil
 }
 
+// TableSchema returns a CSV description of the event table schema.
+// This explains to the query writer which field are available.
+// This must not be confused with ViewSchema which returns the Athena SQL
+// statements used to build a view extracting content from raw event_data.
 func (event *Event) TableSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("column_name, column_type, description\n")
@@ -76,6 +92,8 @@ func (event *Event) TableSchema() (string, error) {
 	return sb.String(), trace.Wrap(err)
 }
 
+// TableSchema returns a CSV description of the EventField schema.
+// This explains to the query writer which field are available.
 func (field *EventField) TableSchema(path []string) (string, error) {
 	sb := strings.Builder{}
 	switch field.Type {
@@ -92,13 +110,15 @@ func (field *EventField) TableSchema(path []string) (string, error) {
 			return "", trace.Wrap(err)
 		}
 	case "string", "integer", "boolean", "date-time", "array":
-		sb.WriteString(tableSchemaLine(viewFieldName(path), field.dmlType(), field.Description))
+		sb.WriteString(tableSchemaLine(sqlFieldName(path), field.dmlType(), field.Description))
 	default:
 		return "", trace.NotImplemented("field type '%s' not supported", field.Type)
 	}
 	return sb.String(), nil
 }
 
+// ViewSchema returns the AthenaSQL statement used to build a view extracting
+// content from the raw event data.
 func (event *Event) ViewSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("SELECT\n")
@@ -114,6 +134,8 @@ func (event *Event) ViewSchema() (string, error) {
 	return sb.String(), trace.Wrap(err)
 }
 
+// ViewSchema returns the AthenaSQL statement used to build a view extracting
+// content from the raw event data.
 func (field *EventField) ViewSchema(path []string) (string, error) {
 	sb := strings.Builder{}
 	switch field.Type {
@@ -130,7 +152,7 @@ func (field *EventField) ViewSchema(path []string) (string, error) {
 			return "", trace.Wrap(err)
 		}
 	case "string", "integer", "boolean", "date-time", "array":
-		sb.WriteString(viewSchemaLine(jsonFieldName(path), viewFieldName(path), field.dmlType()))
+		sb.WriteString(viewSchemaLine(jsonFieldName(path), sqlFieldName(path), field.dmlType()))
 	default:
 		return "", trace.NotImplemented("field type '%s' not supported", field.Type)
 	}
@@ -173,7 +195,7 @@ func (field *EventField) dmlType() string {
 
 // We use the $["foo"]["bar"] syntax instead of the $.foo.bar syntax because
 // foo and bar can contain dots and the second syntax would break (and we do
-// have event fields with got in their name)
+// have event field with got in their name)
 func jsonFieldName(path []string) string {
 	sb := strings.Builder{}
 	sb.WriteString("$")
@@ -183,7 +205,11 @@ func jsonFieldName(path []string) string {
 	return sb.String()
 }
 
-func viewFieldName(path []string) string {
+// sqlFieldName builds the field name from its path. Path components are
+// joined with `_` and dots are replaced with `_`. Technically we could face a
+// conflict if we had both a field named "addr.local" and nested fields "addr"
+// and "local".
+func sqlFieldName(path []string) string {
 	return strings.ReplaceAll(strings.Join(path, "_"), ".", "_")
 }
 
@@ -191,7 +217,7 @@ func viewSchemaLine(jsonField, viewField, fieldType string) string {
 	return fmt.Sprintf("  , CAST(json_extract(event_data, '%s') AS %s) as %s\n", jsonField, fieldType, viewField)
 }
 
-// iterateOverFields iterates over Event or EventField fields while ensuring
+// iterateOverFields iterates over Event or EventField field while ensuring
 // the field order is consistent.
 func iterateOverFields(fields map[string]*EventField, fn func(name string, prop *EventField) error) error {
 	fieldNames := make([]string, 0, len(fields))
