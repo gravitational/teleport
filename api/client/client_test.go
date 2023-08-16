@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
 // mockServer mocks an Auth Server.
@@ -52,9 +53,14 @@ type mockServer struct {
 func newMockServer(addr string) *mockServer {
 	m := &mockServer{
 		addr:                           addr,
-		grpc:                           grpc.NewServer(),
 		UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
 	}
+
+	m.grpc = grpc.NewServer(
+		grpc.UnaryInterceptor(interceptors.GRPCServerUnaryErrorInterceptor),
+		grpc.StreamInterceptor(interceptors.GRPCServerStreamErrorInterceptor),
+	)
+
 	proto.RegisterAuthServiceServer(m.grpc, m)
 	return m
 }
