@@ -516,6 +516,16 @@ func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, 
 		return trace.Wrap(err)
 	}
 
+	var labels prometheus.Labels
+	if len(proxyCtx.Servers) > 0 {
+		labels = getLabelsFromDb(proxyCtx.Servers[0].GetDatabase())
+	} else {
+		labels = getLabelsFromDb(nil)
+	}
+
+	activeConnections.With(labels).Inc()
+	defer activeConnections.With(labels).Dec()
+
 	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
 }
 
@@ -735,7 +745,17 @@ var (
 		commonLabels,
 	)
 
+	activeConnections = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "proxy_db",
+			Name:      "active_connections_total",
+			Help:      "Number of currently active connections to DB service from Proxy service.",
+		},
+		commonLabels,
+	)
+
 	prometheusCollectors = []prometheus.Collector{
-		connectionSetupTime, tlsConfigTime, dialAttempts, dialFailures, dialAttemptedServers,
+		connectionSetupTime, tlsConfigTime, dialAttempts, dialFailures, dialAttemptedServers, activeConnections,
 	}
 )
