@@ -34,6 +34,8 @@ import (
 )
 
 type WatchedIdentityFileCreds struct {
+	// mu protects the fields that may change if the underlying identity file
+	// is reloaded.
 	mu            sync.RWMutex
 	tlsCert       *tls.Certificate
 	pool          *x509.CertPool
@@ -139,7 +141,6 @@ func (d *WatchedIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 			// a changing CA Roots pool.
 			d.mu.RLock()
 			defer d.mu.RUnlock()
-
 			opts := x509.VerifyOptions{
 				DNSName:       state.ServerName,
 				Intermediates: x509.NewCertPool(),
@@ -180,13 +181,11 @@ func (d *WatchedIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 	// Build a "dynamic" ssh config. Based roughly on
 	// `sshutils.ProxyClientSSHConfig` with modifications to make it work with
 	// dynamically changing credentials.
-	// TODO: Handle changing host certs
 	cfg := &ssh.ClientConfig{
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
 				d.mu.RLock()
 				defer d.mu.RUnlock()
-
 				sshSigner, err := sshutils.SSHSigner(d.sshCert, d.sshKey)
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -209,7 +208,7 @@ func (d *WatchedIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) 
 		Timeout: defaults.DefaultIOTimeout,
 	}
 
-	// We can only really set the user once
+	// TODO: Evaluate if this needs to be made "dynamic"
 	cfg.User = d.sshCert.KeyId
 	if len(d.sshCert.ValidPrincipals) > 0 {
 		cfg.User = d.sshCert.ValidPrincipals[0]
