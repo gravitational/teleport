@@ -147,10 +147,11 @@ func TestService_DeleteAssistantConversations(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		username string
-		req      *assistpb.DeleteAssistantConversationRequest
-		wantErr  assert.ErrorAssertionFunc
+		name        string
+		username    string
+		req         *assistpb.DeleteAssistantConversationRequest
+		wantConvErr assert.ErrorAssertionFunc
+		wantErr     assert.ErrorAssertionFunc
 	}{
 		{
 			name:     "success",
@@ -158,7 +159,8 @@ func TestService_DeleteAssistantConversations(t *testing.T) {
 			req: &assistpb.DeleteAssistantConversationRequest{
 				Username: defaultUser,
 			},
-			wantErr: assert.NoError,
+			wantConvErr: assert.NoError,
+			wantErr:     assert.NoError,
 		},
 		{
 			name:     "access denies - RBAC",
@@ -166,7 +168,8 @@ func TestService_DeleteAssistantConversations(t *testing.T) {
 			req: &assistpb.DeleteAssistantConversationRequest{
 				Username: noAccessUser,
 			},
-			wantErr: assert.Error,
+			wantConvErr: assert.Error,
+			wantErr:     assert.Error,
 		},
 		{
 			name:     "access denied - different user",
@@ -174,7 +177,8 @@ func TestService_DeleteAssistantConversations(t *testing.T) {
 			req: &assistpb.DeleteAssistantConversationRequest{
 				Username: noAccessUser,
 			},
-			wantErr: assert.Error,
+			wantConvErr: assert.NoError,
+			wantErr:     assert.Error,
 		},
 	}
 
@@ -187,7 +191,7 @@ func TestService_DeleteAssistantConversations(t *testing.T) {
 				Username:    tt.username,
 				CreatedTime: timestamppb.Now(),
 			})
-			require.NoError(t, err)
+			tt.wantConvErr(t, err)
 
 			conversationID := convMsg.GetId()
 
@@ -203,10 +207,11 @@ func TestService_InsertAssistantMessage(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		username string
-		req      *assistpb.CreateAssistantMessageRequest
-		wantErr  assert.ErrorAssertionFunc
+		name        string
+		username    string
+		req         *assistpb.CreateAssistantMessageRequest
+		wantConvErr assert.ErrorAssertionFunc
+		wantErr     assert.ErrorAssertionFunc
 	}{
 		{
 			name:     "success",
@@ -219,7 +224,8 @@ func TestService_InsertAssistantMessage(t *testing.T) {
 					Payload:     "Blah",
 				},
 			},
-			wantErr: assert.NoError,
+			wantConvErr: assert.NoError,
+			wantErr:     assert.NoError,
 		},
 		{
 			name:     "access denies - RBAC",
@@ -227,7 +233,8 @@ func TestService_InsertAssistantMessage(t *testing.T) {
 			req: &assistpb.CreateAssistantMessageRequest{
 				Username: noAccessUser,
 			},
-			wantErr: assert.Error,
+			wantConvErr: assert.Error,
+			wantErr:     assert.Error,
 		},
 		{
 			name:     "access denied - different user",
@@ -235,7 +242,8 @@ func TestService_InsertAssistantMessage(t *testing.T) {
 			req: &assistpb.CreateAssistantMessageRequest{
 				Username: noAccessUser,
 			},
-			wantErr: assert.Error,
+			wantConvErr: assert.NoError,
+			wantErr:     assert.Error,
 		},
 	}
 
@@ -248,7 +256,7 @@ func TestService_InsertAssistantMessage(t *testing.T) {
 				Username:    tt.username,
 				CreatedTime: timestamppb.Now(),
 			})
-			require.NoError(t, err)
+			tt.wantConvErr(t, err)
 
 			conversationID := convMsg.GetId()
 
