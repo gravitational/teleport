@@ -23,7 +23,7 @@ ARCH ?= amd64
 GOLANG_VERSION ?= go1.20.6
 
 # Sync with devbox.json.
-NODE_VERSION ?= 16.18.1
+NODE_VERSION ?= 18.17.1
 
 # Sync any version changes below with devbox.json.
 # run lint-rust check locally before merging code after you bump this
@@ -173,7 +173,6 @@ buildbox-centos7:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -192,7 +191,6 @@ buildbox-centos7-fips:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
@@ -604,7 +602,6 @@ build-multiarch:
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg UID=$(shell id -u) \
 		--build-arg GID=$(shell id -g) \
 		--tag $(BUILDBOX) \
