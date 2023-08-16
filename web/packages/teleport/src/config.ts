@@ -126,6 +126,7 @@ const cfg = {
     integrationEnroll: '/web/integrations/new/:type?',
     locks: '/web/locks',
     newLock: '/web/locks/new',
+    requests: '/web/requests/:requestId?',
 
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
@@ -252,6 +253,9 @@ const cfg = {
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
     userPreferencesPath: '/v1/webapi/user/preferences',
+
+    // Assist needs some access request info to exist in OSS
+    accessRequestPath: '/v1/enterprise/accessrequest/:requestId?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -793,6 +797,14 @@ const cfg = {
 
   getAssistConversationUrl(conversationId: string) {
     return generatePath(cfg.routes.assist, { conversationId });
+  },
+
+  getAccessRequestUrl(requestId?: string) {
+    return generatePath(cfg.api.accessRequestPath, { requestId });
+  },
+
+  getAccessRequestRoute(requestId?: string) {
+    return generatePath(cfg.routes.requests, { requestId });
   },
 
   init(backendConfig = {}) {
