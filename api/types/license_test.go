@@ -37,6 +37,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 		License.GetSupportsModeratedSessions,
 		License.GetSupportsMachineID,
 		License.GetSupportsResourceAccessRequests,
+		License.GetSupportsFeatureHiding,
 		License.GetTrial,
 	}
 
@@ -119,6 +120,12 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			unsetFields: unsetFields(License.GetSupportsResourceAccessRequests),
 		},
 		{
+			name:        "Set Feature Hiding Support",
+			setter:      License.SetSupportsFeatureHiding,
+			getter:      License.GetSupportsFeatureHiding,
+			unsetFields: unsetFields(License.GetSupportsFeatureHiding),
+		},
+		{
 			name:        "Set Trial Support",
 			setter:      License.SetTrial,
 			getter:      License.GetTrial,
@@ -154,6 +161,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	require.False(t, bool(license.GetSupportsModeratedSessions()))
 	require.False(t, bool(license.GetSupportsMachineID()))
 	require.False(t, bool(license.GetSupportsResourceAccessRequests()))
+	require.False(t, bool(license.GetSupportsFeatureHiding()))
 	require.False(t, bool(license.GetTrial()))
 }
 

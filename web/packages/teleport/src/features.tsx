@@ -26,6 +26,7 @@ import {
   Users as UsersIcon,
   ClipboardUser,
   ShieldCheck,
+  Laptop,
   Lock,
   AddCircle,
   CirclePlay,
@@ -62,6 +63,7 @@ const Clusters = lazy(() => import('./Clusters'));
 const Trust = lazy(() => import('./TrustedClusters'));
 const Users = lazy(() => import('./Users'));
 const Roles = lazy(() => import('./Roles'));
+const DeviceTrust = lazy(() => import('./DeviceTrust'));
 const Recordings = lazy(() => import('./Recordings'));
 const AuthConnectors = lazy(() => import('./AuthConnectors'));
 const Locks = lazy(() => import('./LocksV2/Locks'));
@@ -559,6 +561,30 @@ export class FeatureTrust implements TeleportFeature {
   };
 }
 
+class FeatureDeviceTrust implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+  route = {
+    title: 'Manage Trusted Devices',
+    path: cfg.routes.deviceTrust,
+    exact: true,
+    component: DeviceTrust,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.deviceTrust;
+  }
+
+  navigationItem = {
+    title: NavTitle.TrustedDevices,
+    icon: <Laptop />,
+    exact: true,
+    getLink() {
+      return cfg.routes.deviceTrust;
+    },
+  };
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -625,6 +651,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     // - Access
     new FeatureUsers(),
     new FeatureRoles(),
+    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureLocks(),
     new FeatureNewLock(),

@@ -70,39 +70,7 @@ In the webhook settings page, make sure that the webhook will only send Issue Up
 
 ## Step 4/6. Install the plugin
 
-We recommend installing Teleport plugins alongside the Teleport Proxy. This is an ideal
-location as plugins have a low memory footprint, and will require both public internet access
-and Teleport Auth Service access.
-
-<Tabs>
-<TabItem label="Download">
-  ```code
-  $ curl -L -O https://get.gravitational.com/teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-access-jira
-  $ ./install
-  ```
-</TabItem>
-<TabItem label="From Source">
-  To install from source you need `git` and `go` installed. If you do not have Go installed, visit the Go [downloads page](https://go.dev/dl/).
-
-  ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/jira
-  $ make
-  ```
-Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/usr/local/bin` on the server installation.
-</TabItem>
-<TabItem label="Docker">
-  ```code
-  $ docker pull public.ecr.aws/gravitational/teleport-plugin-jira:(=teleport.plugin.version=)
-  ```
-</TabItem>
-<TabItem label="Helm Chart">
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/install-access-request.mdx name="jira"!)
 
 ## Step 5/6. Configure the plugin
 
@@ -212,10 +180,6 @@ Save this as `teleport-jira.service`. Make sure the `teleport-jira start` comman
 
 The plugin will let anyone with access to the Jira board approve/deny requests so it's
 important to review Teleport's audit log.
-
-## Feedback
-
-If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).
 
 ## Next steps
 

@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,7 +58,7 @@ type AuthenticateUserRequest struct {
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
-	Webauthn *wanlib.CredentialAssertionResponse `json:"webauthn,omitempty"`
+	Webauthn *wantypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
@@ -234,7 +234,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		authenticateFn = func() (*types.MFADevice, error) {
 			mfaResponse := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(req.Webauthn),
+					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 				},
 			}
 			dev, _, err := s.validateMFAAuthResponse(ctx, mfaResponse, user, passwordless)
@@ -328,7 +328,7 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, string, error) {
 	mfaResponse := &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(req.Webauthn),
+			Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
 		},
 	}
 	dev, user, err := s.validateMFAAuthResponse(ctx, mfaResponse, "", true /* passwordless */)

@@ -25,7 +25,6 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 &&
     make clean
 
 # Install libcbor.
-# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     cd libcbor && \
     [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
@@ -39,7 +38,6 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.10 && \
     cd openssl && \
     [ "$(git rev-parse HEAD)" = '245cb0291e0db99d9ccf3692fa76f440b2b054c2' ] && \
@@ -257,13 +255,11 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-# Keep the version below synced with devbox.json
 RUN curl -fsSL https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
     rm -r bats-core-1.2.1
 
 # Install shellcheck.
-# Keep the version below synced with devbox.json
 RUN scversion='v0.9.0' && \
     curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
@@ -308,20 +304,16 @@ ARG GOGO_PROTO_TAG # eg, "v1.3.2"
 RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # Install addlicense.
-# Keep the version below synced with devbox.json
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-# Keep the version below synced with devbox.json
 RUN go install github.com/daixiang0/gci@v0.11.0
 
 # Install gotestsum.
-# Keep the version below synced with devbox.json
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-# Keep the version below synced with devbox.json
-RUN TAG='v1.54.0' && \
+RUN TAG='v1.54.1' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
