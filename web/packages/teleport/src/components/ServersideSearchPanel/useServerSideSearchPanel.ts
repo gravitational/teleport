@@ -20,11 +20,12 @@ import { AgentFilter } from 'teleport/services/agents';
 
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 
-import type { PageIndicators } from '../hooks/useServersidePagination';
-
-export default function useServersideSearchPanel(props: Props) {
-  const { pathname, params, setParams, replaceHistory } = props;
-
+export default function useServersideSearchPanel({
+  pathname,
+  params,
+  setParams,
+  replaceHistory,
+}: HookProps) {
   const [searchString, setSearchString] = useState('');
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -53,6 +54,7 @@ export default function useServersideSearchPanel(props: Props) {
         pathname,
         searchString,
         params.sort,
+        params.kinds,
         isAdvancedSearch
       )
     );
@@ -82,7 +84,6 @@ export default function useServersideSearchPanel(props: Props) {
     isAdvancedSearch,
     setIsAdvancedSearch,
     onSubmitSearch,
-    ...props,
   };
 }
 
@@ -95,13 +96,11 @@ function decodeUrlQueryParam(param: string) {
   return decodedQuery;
 }
 
-export type Props = {
+export type HookProps = {
   pathname: string;
   replaceHistory: (path: string) => void;
   params: AgentFilter;
   setParams: (params: AgentFilter) => void;
-  pageIndicators: PageIndicators;
-  disabled?: boolean;
 };
 
-export type State = ReturnType<typeof useServersideSearchPanel>;
+export type SearchPanelState = ReturnType<typeof useServersideSearchPanel>;

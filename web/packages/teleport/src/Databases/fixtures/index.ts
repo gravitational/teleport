@@ -18,6 +18,7 @@ import { Database } from 'teleport/services/databases';
 
 export const databases: Database[] = [
   {
+    kind: 'db',
     name: 'aurora',
     description: 'PostgreSQL 11.6: AWS Aurora ',
     type: 'RDS PostgreSQL',
@@ -29,6 +30,7 @@ export const databases: Database[] = [
     hostname: 'aurora-hostname',
   },
   {
+    kind: 'db',
     name: 'postgres-gcp',
     description: 'PostgreSQL 9.6: Google Cloud SQL',
     type: 'Cloud SQL PostgreSQL',
@@ -40,6 +42,7 @@ export const databases: Database[] = [
     hostname: 'postgres-hostname',
   },
   {
+    kind: 'db',
     name: 'mysql-aurora-56',
     description: 'MySQL 5.6: AWS Aurora Longname For SQL',
     type: 'Self-hosted MySQL',
