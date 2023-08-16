@@ -30,7 +30,8 @@ import { Transition } from 'react-transition-group';
 
 import { makeLabelTag } from 'teleport/components/formatters';
 import { MenuIcon } from 'shared/components/MenuAction';
-import { Laptop } from 'design/Icon';
+import { CircleCheck, Laptop, Moon, Warning } from 'design/Icon';
+import Indicator from 'design/Indicator';
 
 import {
   AgentState,
@@ -45,6 +46,7 @@ import { useAgentProperties } from '../useAgentProperties';
 import { StackTrace } from '../StackTrace';
 
 import type * as tsh from 'teleterm/services/tshd/types';
+import type { IconProps } from 'design/Icon/Icon';
 
 interface DocumentConnectMyComputerStatusProps {
   visible: boolean;
@@ -140,7 +142,8 @@ export function DocumentConnectMyComputerStatus(
             </LabelsContainer>
           )}
         </Transition>
-        <Flex mt={3} mb={2} display="flex" alignItems="center">
+        <Flex mt={3} mb={2} gap={1} display="flex" alignItems="center">
+          {prettyAgentState.Icon && <prettyAgentState.Icon size="medium" />}
           {prettyAgentState.title}
         </Flex>
         {prettyAgentState.error && (
@@ -196,6 +199,7 @@ function renderLabels(labelsList: tsh.Label[]): JSX.Element[] {
 }
 
 function prettifyAgentState(agentState: AgentState): {
+  Icon: React.FC<IconProps>;
   title: string;
   error?: string;
   stackTrace?: string;
@@ -203,17 +207,32 @@ function prettifyAgentState(agentState: AgentState): {
   switch (agentState.status) {
     case 'downloading': {
       //TODO(gzdunek) add progress
-      return { title: '🔄 Verifying binary' };
+      return {
+        Icon: StyledIndicator,
+        title: 'Verifying binary',
+      };
     }
     case 'starting':
-      return { title: '🔄 Starting' };
+      return {
+        Icon: StyledIndicator,
+        title: 'Starting',
+      };
     case 'killing':
-      return { title: '🔄 Stopping' };
+      return {
+        Icon: StyledIndicator,
+        title: 'Stopping',
+      };
     case 'process-not-started': {
-      return { title: '🔘 Agent not running' };
+      return {
+        Icon: Moon,
+        title: 'Agent not running',
+      };
     }
     case 'process-running': {
-      return { title: '🟢 Agent running' };
+      return {
+        Icon: props => <CircleCheck {...props} color="success" />,
+        title: 'Agent running',
+      };
     }
     case 'process-exited': {
       const { code, signal, exitedSuccessfully } = agentState;
@@ -226,44 +245,56 @@ function prettifyAgentState(agentState: AgentState): {
         .join(' ');
 
       return {
-        title: [
-          exitedSuccessfully ? '🔘' : '🔴',
-          `Agent process exited with ${codeOrSignal}`,
-        ].join('\n'),
+        Icon: exitedSuccessfully ? Moon : StyledWarning,
+        title: [`Agent process exited with ${codeOrSignal}`].join('\n'),
         stackTrace: agentState.stackTrace,
       };
     }
     case 'download-error': {
       return {
-        title: '🔴 Failed to download agent',
+        Icon: StyledWarning,
+        title: 'Failed to download agent',
         error: agentState.message,
       };
     }
     case 'kill-error': {
       return {
-        title: '🔴 Failed to kill agent',
+        Icon: StyledWarning,
+        title: 'Failed to kill agent',
         error: agentState.message,
       };
     }
     case 'join-error': {
       return {
-        title: '🔴 Failed to join cluster',
+        Icon: StyledWarning,
+        title: 'Failed to join cluster',
         error: agentState.message,
       };
     }
     case 'process-error': {
       return {
-        title: '🔴 An error occurred to the agent process.',
+        Icon: StyledWarning,
+        title: 'An error occurred to the agent process.',
         error: agentState.message,
       };
     }
     default: {
       return {
+        Icon: null,
         title: '',
       };
     }
   }
 }
+
+const StyledWarning = styled(Warning).attrs({
+  color: 'error.main',
+})``;
+
+const StyledIndicator = styled(Indicator).attrs({ delay: 'none' })`
+  color: inherit;
+  display: inline-flex;
+`;
 
 const LabelsContainer = styled(Flex)`
   &.entering {
