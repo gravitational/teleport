@@ -382,6 +382,7 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetHeadlessAuthentication(); r != nil {
 		out.Resource = r
+		return &out, nil
 	} else if r := in.GetUserLoginState(); r != nil {
 		out.Resource, err = userloginstatev1conv.FromProto(r)
 		if err != nil {
