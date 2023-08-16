@@ -1,30 +1,52 @@
 ---
 title: Deploying Machine ID
-description: How to deploy Machine ID in your environment
+description: How to deploy Machine ID for your environment
 ---
 
 Teleport Machine ID provides authentication for machine access to Teleport. This
 allows unattended machines (e.g CI/CD workflows) to access resources protected
-by Teleport and configure Teleport itself.
+by Teleport and configure Teleport itself. By using Machine ID, you benefit from
+the same rich auditing, fine-grained access control and short-lived certificates
+that Teleport provides for human access.
 
-At the core of Machine ID is the `tbot` agent. This authenticates to your
-Teleport cluster using a **join method** and produces outputs such as
-credentials and configuration files that other tools can use to access Teleport.
+## Background
 
-EXPLAIN BOT USER, EXPLAIN ROLES, EXPLAIN BOT CREATION
+Machine ID operates through the `tbot` agent. This agent outputs artifacts such
+as certificates and configuration files to destinations. These artifacts can
+then be read by other tools from the destination and used to access Teleport
+resources.
 
-## Deploying `tbot` to your environment
+`tbot` authenticates to the Teleport Cluster using a **join token** which is
+associated with a **Bot User**. The **Bot User** is assigned a **Bot Role**
+which grants it the ability to generate certificates for a specified set of
+roles through a process known as role impersonation. This means that credentials
+output by Machine ID can be limited to a specific Teleport role - providing a
+basis for implementing the principle of least access.
 
-Something something talk about persistence and ephemerality. Then deep dive
-on the specific pages with examples of systemd files or kubernetes manifests.
+Any Machine ID implementation typically consists of two major parts:
+configuring `tbot` for your environment and then configuring outputs to produce
+credentials which will grant access to resources your want your machines to
+access.
 
-- CI/CD
-- Kubernetes
-- Linux Host (SystemD)
+## Configuring `tbot` for your environment
 
-## Configuring access
+### CI/CD
 
+### Kubernetes
 
+### Linux Hosts
+
+## Configuring outputs
+
+### SSH Access
+
+### Kubernetes Access
+
+### Application Access
+
+### Database Access
+
+### SSH Host Certificates
 
 ## Next Steps
 
