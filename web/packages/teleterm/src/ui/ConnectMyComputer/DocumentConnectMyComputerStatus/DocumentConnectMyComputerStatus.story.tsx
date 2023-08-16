@@ -102,6 +102,12 @@ const doc: types.DocumentConnectMyComputerStatus = {
   rootClusterUri: cluster.uri,
   kind: 'doc.connect_my_computer_status',
 };
+const workspace: types.Workspace = {
+  localClusterUri: cluster.uri,
+  documents: [doc],
+  location: doc.uri,
+  accessRequests: undefined,
+};
 
 function ShowState(props: {
   agentProcessState: AgentProcessState;
@@ -147,12 +153,7 @@ function ShowState(props: {
   appContext.clustersService.state.clusters.set(cluster.uri, cluster);
   appContext.workspacesService.setState(draftState => {
     draftState.rootClusterUri = cluster.uri;
-    draftState.workspaces[cluster.uri] = {
-      localClusterUri: cluster.uri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: undefined,
-    };
+    draftState.workspaces[cluster.uri] = workspace;
   });
 
   return (
