@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Platform } from 'design/theme/utils';
+
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
@@ -72,6 +74,9 @@ export interface ResourceSpec {
   // the type of this resource (e.g. server v. kubernetes),
   // used for usage reporting.
   event: DiscoverEventResource;
+  // platform indicates a particular platform the resource is associated with.
+  // Set this value if the resource should be prioritized based on the platform.
+  platform?: Platform;
 }
 
 export enum SearchResource {

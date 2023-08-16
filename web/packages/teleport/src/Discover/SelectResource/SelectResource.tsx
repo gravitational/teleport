@@ -21,6 +21,8 @@ import * as Icons from 'design/Icon';
 import styled from 'styled-components';
 import { Box, Flex, Link, Text } from 'design';
 
+import { getPlatform, Platform } from 'design/theme/utils';
+
 import useTeleport from 'teleport/useTeleport';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl } from 'teleport/services/user';
@@ -350,6 +352,9 @@ export function sortResources(
 
   const sortedResources = [...resources];
   sortedResources.sort((a, b) => {
+    if (!a.hasAccess) return -1;
+    if (!b.hasAccess) return -1;
+
     let aPreferred,
       bPreferred = false;
     if (hasPreferredResources && !selectedAllResources) {
@@ -361,22 +366,46 @@ export function sortResources(
       );
     }
 
-    if (aPreferred && a.hasAccess && !bPreferred && b.hasAccess) {
+    let platform: string;
+    const platformType = getPlatform();
+    if (platformType.isMac) {
+      platform = Platform.PLATFORM_MACINTOSH;
+    }
+    if (platformType.isLinux) {
+      platform = Platform.PLATFORM_LINUX;
+    }
+    if (platformType.isWin) {
+      platform = Platform.PLATFORM_WINDOWS;
+    }
+
+    // Display platform resources first
+    if (a.platform === platform && b.platform !== platform) {
       return -1;
     }
-    if (!aPreferred && a.hasAccess && bPreferred && b.hasAccess) {
+    if (a.platform !== platform && b.platform === platform) {
       return 1;
     }
 
-    if (!a.unguidedLink && a.hasAccess && !b.unguidedLink && b.hasAccess) {
-      return a.name.localeCompare(b.name);
-    }
-    if (!b.unguidedLink && b.hasAccess) {
-      return 1;
-    }
-    if (!a.unguidedLink && a.hasAccess) {
+    // Display preferred resources second
+    if (aPreferred && !bPreferred) {
       return -1;
     }
+    if (!aPreferred && bPreferred) {
+      return 1;
+    }
+
+    // Display guided resources third
+    if (!a.unguidedLink && !b.unguidedLink) {
+      return a.name.localeCompare(b.name);
+    }
+    if (!b.unguidedLink) {
+      return 1;
+    }
+    if (!a.unguidedLink) {
+      return -1;
+    }
+
+    // Alpha
     return a.name.localeCompare(b.name);
   });
 
