@@ -80,6 +80,22 @@ func TestAccessListUnmarshal(t *testing.T) {
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
+			Members: []accesslist.Member{
+				{
+					Name:    "member1",
+					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+					Reason:  "because",
+					AddedBy: "test-user1",
+				},
+				{
+					Name:    "member2",
+					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+					Reason:  "because again",
+					AddedBy: "test-user2",
+				},
+			},
 		},
 	)
 	require.NoError(t, err)
@@ -130,6 +146,22 @@ func TestAccessListMarshal(t *testing.T) {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+			},
+			Members: []accesslist.Member{
+				{
+					Name:    "member1",
+					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+					Expires: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+					Reason:  "because",
+					AddedBy: "test-user1",
+				},
+				{
+					Name:    "member2",
+					Joined:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+					Expires: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+					Reason:  "because again",
+					AddedBy: "test-user2",
 				},
 			},
 		},
@@ -469,6 +501,17 @@ spec:
       gtrait2:
       - gvalue3
       - gvalue4
+  members:
+  - name: member1
+    joined: 2023-01-01T00:00:00Z
+    expires: 2024-01-01T00:00:00Z
+    reason: "because"
+    added_by: "test-user1"
+  - name: member2
+    joined: 2022-01-01T00:00:00Z
+    expires: 2025-01-01T00:00:00Z
+    reason: "because again"
+    added_by: "test-user2"
 `
 
 var accessListMemberYAML = `---
