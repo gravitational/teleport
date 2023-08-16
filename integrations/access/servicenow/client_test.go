@@ -46,7 +46,6 @@ func TestCreateIncident(t *testing.T) {
 
 	c, err := NewClient(ClientConfig{
 		APIEndpoint: testServer.URL,
-		ClusterName: "someClusterName",
 	})
 	require.NoError(t, err)
 
@@ -83,7 +82,6 @@ func TestPostReviewNote(t *testing.T) {
 
 	c, err := NewClient(ClientConfig{
 		APIEndpoint: testServer.URL,
-		ClusterName: "someClusterName",
 	})
 	require.NoError(t, err)
 
@@ -119,7 +117,6 @@ func TestResolveIncident(t *testing.T) {
 
 	c, err := NewClient(ClientConfig{
 		APIEndpoint: testServer.URL,
-		ClusterName: "someClusterName",
 	})
 	require.NoError(t, err)
 

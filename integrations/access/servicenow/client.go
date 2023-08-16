@@ -72,8 +72,6 @@ type ClientConfig struct {
 	// WebProxyURL is the Teleport address used when building the bodies of the incidents
 	// allowing links to the access requests to be built
 	WebProxyURL *url.URL
-	// ClusterName is the name of the Teleport cluster
-	ClusterName string
 
 	// Username is the username used by the client for basic auth.
 	Username string
@@ -109,13 +107,13 @@ func errWrapper(statusCode int, body string) error {
 	case http.StatusForbidden:
 		return trace.AccessDenied("servicenow API access denied: status code %v: %q", statusCode, body)
 	case http.StatusRequestTimeout:
-		return trace.ConnectionProblem(nil, "connecting to servicenow API :status code %v: %q", statusCode, body)
+		return trace.ConnectionProblem(nil, "request to servicenow API failed: status code %v: %q", statusCode, body)
 	}
-	return trace.Errorf("connecting to servicenow API status code %v: %q", statusCode, body)
+	return trace.Errorf("request to servicenow API failed: status code %d: %q", statusCode, body)
 }
 
 // CreateIncident creates an servicenow incident.
-func (snc Client) CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error) {
+func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error) {
 	bodyDetails, err := buildIncidentBody(snc.WebProxyURL, reqID, reqData)
 	if err != nil {
 		return Incident{}, trace.Wrap(err)
@@ -132,7 +130,6 @@ func (snc Client) CreateIncident(ctx context.Context, reqID string, reqData Requ
 		SetBody(body).
 		SetResult(&result).
 		Post("/api/now/v1/table/incident")
-
 	if err != nil {
 		return Incident{}, trace.Wrap(err)
 	}
@@ -144,7 +141,7 @@ func (snc Client) CreateIncident(ctx context.Context, reqID string, reqData Requ
 }
 
 // PostReviewNote posts a note once a new request review appears.
-func (snc Client) PostReviewNote(ctx context.Context, incidentID string, review types.AccessReview) error {
+func (snc *Client) PostReviewNote(ctx context.Context, incidentID string, review types.AccessReview) error {
 	note, err := buildReviewNoteBody(review)
 	if err != nil {
 		return trace.Wrap(err)
@@ -168,7 +165,7 @@ func (snc Client) PostReviewNote(ctx context.Context, incidentID string, review 
 }
 
 // ResolveIncident resolves an incident and posts a note with resolution details.
-func (snc Client) ResolveIncident(ctx context.Context, incidentID string, resolution Resolution) error {
+func (snc *Client) ResolveIncident(ctx context.Context, incidentID string, resolution Resolution) error {
 	note, err := buildResolutionNoteBody(resolution)
 	if err != nil {
 		return trace.Wrap(err)
@@ -194,7 +191,7 @@ func (snc Client) ResolveIncident(ctx context.Context, incidentID string, resolu
 }
 
 // GetOnCall returns the current users on-call for the given rota ID.
-func (snc Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error) {
+func (snc *Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error) {
 	formattedTime := time.Now().Format(DateTimeFormat)
 	var result onCallResult
 	resp, err := snc.client.NewRequest().
@@ -213,7 +210,7 @@ func (snc Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error
 		return nil, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	if len(result.Result) == 0 {
-		return nil, trace.NotFound("no user found for given rota")
+		return nil, trace.NotFound("no user found for given rota: %q", rotaID)
 	}
 	var emails []string
 	for _, result := range result.Result {
@@ -227,7 +224,7 @@ func (snc Client) GetOnCall(ctx context.Context, rotaID string) ([]string, error
 }
 
 // GetUserEmail returns the email address for the given user ID
-func (snc Client) GetUserEmail(ctx context.Context, userID string) (string, error) {
+func (snc *Client) GetUserEmail(ctx context.Context, userID string) (string, error) {
 	var result userResult
 	resp, err := snc.client.NewRequest().
 		SetContext(ctx).
