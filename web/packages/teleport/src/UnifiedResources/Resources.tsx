@@ -29,10 +29,16 @@ import useTeleport from 'teleport/useTeleport';
 
 import { useResources } from './useResources';
 import { ResourceCard } from './ResourceCard';
+import SearchPanel from './SearchPanel';
 
 export function Resources() {
   const teleCtx = useTeleport();
-  const { attempt, fetchedData, fetchMore } = useResources(teleCtx);
+  const {
+    attempt,
+    fetchedData,
+    fetchMore,
+    filtering: { pathname, params, setParams, replaceHistory },
+  } = useResources(teleCtx);
   const observed = React.useRef(null);
 
   React.useEffect(() => {
@@ -52,6 +58,12 @@ export function Resources() {
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
       </FeatureHeader>
+      <SearchPanel
+        params={params}
+        setParams={setParams}
+        pathname={pathname}
+        replaceHistory={replaceHistory}
+      />
       {attempt.status === 'failed' && (
         <ErrorMessage message={attempt.statusText} />
       )}

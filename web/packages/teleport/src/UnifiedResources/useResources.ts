@@ -22,17 +22,14 @@ import Ctx from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
-import {
-  AgentFilter,
-  AgentResponse,
-  UnifiedResource,
-} from 'teleport/services/agents';
+import { AgentResponse, UnifiedResource } from 'teleport/services/agents';
+import { UrlFilteringState } from 'teleport/components/hooks/useUrlFiltering/useUrlFiltering';
 
 export interface ResourcesState {
   fetchedData: AgentResponse<UnifiedResource>;
-  params: AgentFilter;
   fetchMore: () => void;
   attempt: Attempt;
+  filtering: UrlFilteringState;
 }
 
 /**
@@ -43,10 +40,11 @@ export interface ResourcesState {
 export function useResources(ctx: Ctx): ResourcesState {
   const { clusterId } = useStickyClusterId();
 
-  const { params, search, ...filteringProps } = useUrlFiltering({
+  const filtering = useUrlFiltering({
     fieldName: 'name',
     dir: 'ASC',
   });
+  const { params, search } = filtering;
 
   const { fetchInitial, fetchedData, attempt, fetchMore } = useInfiniteScroll({
     fetchFunc: ctx.resourceService.fetchUnifiedResources,
@@ -59,10 +57,9 @@ export function useResources(ctx: Ctx): ResourcesState {
   }, [clusterId, search]);
 
   return {
-    ...filteringProps,
     fetchedData,
-    params,
     fetchMore,
     attempt,
+    filtering,
   };
 }
