@@ -27,11 +27,15 @@ import {
 
 import { KeysEnum, LocalStorageSurvey } from './types';
 
+import type { RecommendFeature } from 'teleport/types';
+
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
+  KeysEnum.RECOMMEND_FEATURE,
+  KeysEnum.UNIFIED_RESOURCES_ENABLED,
 ];
 
 const storage = {
@@ -171,9 +175,36 @@ const storage = {
     window.localStorage.removeItem(KeysEnum.THEME);
   },
 
+  /**
+   * Returns `true` if the unified resources feature should be visible in the
+   * navigation.
+   *
+   * TODO(bl-nero): remove this setting once unified resources are released.
+   */
+  areUnifiedResourcesEnabled(): boolean {
+    return (
+      window.localStorage.getItem(KeysEnum.UNIFIED_RESOURCES_ENABLED) === 'true'
+    );
+  },
+
   broadcast(messageType, messageBody) {
     window.localStorage.setItem(messageType, messageBody);
     window.localStorage.removeItem(messageType);
+  },
+
+  // setRecommendFeature persists states used to determine if
+  // given feature needs to be recommended to the user.
+  // Currently, it only shows a red dot in the side navigation menu.
+  setRecommendFeature(d: RecommendFeature) {
+    window.localStorage.setItem(KeysEnum.RECOMMEND_FEATURE, JSON.stringify(d));
+  },
+
+  getFeatureRecommendationStatus(): RecommendFeature {
+    const item = window.localStorage.getItem(KeysEnum.RECOMMEND_FEATURE);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return null;
   },
 };
 

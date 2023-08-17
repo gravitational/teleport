@@ -162,7 +162,13 @@ func CheckSAMLEntityDescriptor(entityDescriptor string) ([]*x509.Certificate, er
 
 	for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
 		for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
-			certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
+			// The certificate is base64 encoded and can be split into multiple lines.
+			// Each line can be padded with spaces/tabs, so we need to remove them first
+			// before decoding otherwise we'll get an error.
+			// We need to run this through strings.Fields to remove spaces/tabs
+			// from each line and then join them back with newlines.
+			// The last step isn't strictly necessary, but it makes payload more readable.
+			certData, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(samlCert.Data), "\n"))
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to decode certificate defined in entity_descriptor")
 			}

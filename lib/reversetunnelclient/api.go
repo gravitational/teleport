@@ -79,9 +79,6 @@ type DialParams struct {
 	// a peer proxy.
 	FromPeerProxy bool
 
-	// TeleportVersion shows version of the target node, if we know that it's teleport node.
-	TeleportVersion string
-
 	// OriginalClientDstAddr is used in PROXY headers to show where client originally contacted Teleport infrastructure
 	OriginalClientDstAddr net.Addr
 }

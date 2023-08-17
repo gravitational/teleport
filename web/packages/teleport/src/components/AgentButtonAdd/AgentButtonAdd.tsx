@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom';
 import { ButtonPrimary } from 'design';
 
 import cfg from 'teleport/config';
+import { SearchResource } from 'teleport/Discover/SelectResource';
 
 export default function AgentButtonAdd(props: Props) {
   const { canCreate, isLeafCluster, onClick, agent, beginsWithVowel } = props;
@@ -42,7 +43,7 @@ export default function AgentButtonAdd(props: Props) {
     <Link
       to={{
         pathname: `${cfg.routes.root}/discover`,
-        state: { entity: agent },
+        state: { entity: agent !== 'unified_resource' ? agent : null },
       }}
       style={{ textDecoration: 'none' }}
     >
@@ -52,23 +53,16 @@ export default function AgentButtonAdd(props: Props) {
         width="240px"
         onClick={onClick}
       >
-        Add {agent}
+        {agent === 'unified_resource' ? 'Enroll New Resource' : `Add ${agent}`}
       </ButtonPrimary>
     </Link>
   );
 }
 
-export type AddButtonResourceKind =
-  | 'server'
-  | 'application'
-  | 'desktop'
-  | 'kubernetes'
-  | 'database';
-
 export type Props = {
   isLeafCluster: boolean;
   canCreate: boolean;
   onClick?: () => void;
-  agent: AddButtonResourceKind;
+  agent: SearchResource;
   beginsWithVowel: boolean;
 };

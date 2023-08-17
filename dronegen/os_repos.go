@@ -42,6 +42,13 @@ func promoteBuildOsRepoPipeline() pipeline {
 			packageNameFilter: `teleport-ent-updater*`,
 			displayName:       "teleport-ent-updater",
 		},
+		// Rolling release pipelines
+		{
+			versionChannel:    "rolling",
+			packageNameFilter: `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`,
+			packageToTest:     "teleport-ent",
+			displayName:       "Teleport",
+		},
 	}
 
 	return buildPromoteOsPackagePipelines(packageDeployments)
@@ -52,10 +59,11 @@ func buildPromoteOsPackagePipelines(packageDeployments []osPackageDeployment) pi
 	clonePath := "/go/src/github.com/gravitational/teleport"
 
 	ghaBuild := ghaBuildType{
-		trigger:      triggerPromote,
-		pipelineName: "publish-os-package-repos",
-		checkoutPath: clonePath,
-		workflows:    buildWorkflows(releaseEnvironmentFilePath, packageDeployments),
+		trigger:                    triggerPromote,
+		pipelineName:               "publish-os-package-repos",
+		checkoutPath:               clonePath,
+		workflows:                  buildWorkflows(releaseEnvironmentFilePath, packageDeployments),
+		enableParallelWorkflowRuns: true,
 	}
 	setupSteps := []step{
 		{
@@ -64,7 +72,7 @@ func buildPromoteOsPackagePipelines(packageDeployments []osPackageDeployment) pi
 			Commands: []string{
 				fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
 				fmt.Sprintf("mkdir -pv %q", path.Dir(releaseEnvironmentFilePath)),
-				fmt.Sprintf(`(go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
+				fmt.Sprintf(`(CGO_ENABLED=0 go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
 			},
 		},
 	}
@@ -97,6 +105,7 @@ func buildWorkflows(releaseEnvironmentFilePath string, packageDeployments []osPa
 				timeout:           12 * time.Hour, // DR takes a long time
 				shouldTagWorkflow: true,
 				seriesRun:         true,
+				seriesRunFilter:   fmt.Sprintf(".*%s.*", repoType),
 				inputs:            inputs,
 			})
 		}

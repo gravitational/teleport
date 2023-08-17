@@ -34,10 +34,12 @@ export function makeDatabase(json: any): Database {
         region: aws.rds?.region,
         subnets: aws.rds?.subnets || [],
       },
+      iamPolicyStatus: aws.iam_policy_status,
     };
   }
 
   return {
+    kind: 'db',
     name,
     description: desc,
     type: formatDatabaseInfo(type, protocol).title,

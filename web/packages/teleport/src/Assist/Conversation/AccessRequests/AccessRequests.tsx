@@ -19,14 +19,12 @@ import styled from 'styled-components';
 import Flex from 'design/Flex';
 import { ButtonPrimary, ButtonSecondary } from 'design';
 
-import { AccessRequestEvent, AccessRequestStatus } from 'teleport/Assist/types';
-import { TimelineItem } from 'teleport/Assist/Conversation/AccessRequests/TimelineItem';
+import { AccessRequestStatus } from 'teleport/Assist/types';
 
 interface AccessRequestsProps {
   status: AccessRequestStatus;
   summary: string;
   username: string;
-  events: AccessRequestEvent[];
   created: Date;
 }
 
@@ -147,10 +145,6 @@ export function AccessRequests(props: AccessRequestsProps) {
     setExpanded(true);
   }
 
-  const events = props.events.map((event, index) => (
-    <TimelineItem key={index} event={event} />
-  ));
-
   return (
     <Container expanded={expanded} onClick={handleExpand}>
       <Overview>
@@ -158,8 +152,6 @@ export function AccessRequests(props: AccessRequestsProps) {
       </Overview>
       <Timeline>
         <TimelineTrack />
-
-        {events}
 
         <CommentBox>
           <Textarea placeholder="Add an optional comment" />

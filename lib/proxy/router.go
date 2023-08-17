@@ -21,18 +21,18 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -194,10 +194,8 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
-// configuration is not set to route to the most recent an error is returned. Also returns teleport version of the
-// target server if it's a teleport server
-// DELETE IN 14.0: remove returning teleport version, it was needed for compatibility
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
+// configuration is not set to route to the most recent an error is returned.
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -214,12 +212,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		span.End()
 	}()
 
-	var targetTeleportVersion string
 	site := r.localSite
 	if clusterName != r.clusterName {
 		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
 		if err != nil {
-			return nil, targetTeleportVersion, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		site = remoteSite
 	}
@@ -227,7 +224,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	span.AddEvent("looking up server")
 	target, err := r.serverResolver(ctx, host, port, remoteSite{site})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	span.AddEvent("retrieved target server")
 
@@ -255,15 +252,13 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		case serverAddr != "":
 			h, _, err := net.SplitHostPort(serverAddr)
 			if err != nil {
-				return nil, "", trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 
 			principals = append(principals, h)
 		case serverAddr == "" && target.GetUseTunnel():
 			serverAddr = reversetunnelclient.LocalNode
 		}
-
-		targetTeleportVersion = target.GetTeleportVersion()
 	} else {
 		if port == "" || port == "0" {
 			port = strconv.Itoa(defaults.SSHServerListenPort)
@@ -280,11 +275,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	if isAgentlessNode {
 		client, err := r.GetSiteClient(ctx, clusterName)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		sshSigner, err = signer(ctx, client)
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		agentGetter = nil
 	}
@@ -299,15 +294,14 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		Principals:            principals,
 		ServerID:              serverID,
 		ProxyIDs:              proxyIDs,
-		TeleportVersion:       targetTeleportVersion,
 		ConnType:              types.NodeTunnel,
 		TargetServer:          target,
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), targetTeleportVersion, trace.Wrap(err)
+	return newProxiedMetricConn(conn), trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
@@ -381,48 +375,31 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	}
 
 	strategy := types.RoutingStrategy_UNAMBIGUOUS_MATCH
+	var caseInsensitiveRouting bool
 	if cfg, err := site.GetClusterNetworkingConfig(ctx); err == nil {
 		strategy = cfg.GetRoutingStrategy()
+		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	_, err := uuid.Parse(host)
-	dialByID := err == nil || utils.IsEC2NodeID(host)
+	routeMatcher := apiutils.NewSSHRouteMatcher(host, port, caseInsensitiveRouting)
 
-	ips, _ := net.LookupHost(host)
-
-	var unambiguousIDMatch bool
 	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
-		if unambiguousIDMatch {
-			return false
-		}
-
-		// if host is a UUID or EC2 ID match only
-		// by server name and treat matches as unambiguous
-		if dialByID && server.GetName() == host {
-			unambiguousIDMatch = true
-			return true
-		}
-
-		// if the server has connected over a reverse tunnel
-		// then match only by hostname
-		if server.GetUseTunnel() {
-			return host == server.GetHostname()
-		}
-
-		ip, nodePort, err := net.SplitHostPort(server.GetAddr())
-		if err != nil {
-			return false
-		}
-
-		if (host == ip || host == server.GetHostname() || slices.Contains(ips, ip)) &&
-			(port == "" || port == "0" || port == nodePort) {
-			return true
-		}
-
-		return false
+		return routeMatcher.RouteToServer(server)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if routeMatcher.MatchesServerIDs() && len(matches) > 1 {
+		// if a dial request for an id-like target creates multiple matches,
+		// give precedence to the exact match if one exists. If not, handle
+		// multiple matchers per-usual below.
+		for _, m := range matches {
+			if m.GetName() == host {
+				matches = []types.Server{m}
+				break
+			}
+		}
 	}
 
 	var server types.Server
@@ -439,9 +416,9 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 		server = matches[0]
 	}
 
-	if dialByID && server == nil {
+	if routeMatcher.MatchesServerIDs() && server == nil {
 		idType := "UUID"
-		if utils.IsEC2NodeID(host) {
+		if aws.IsEC2NodeID(host) {
 			idType = "EC2"
 		}
 

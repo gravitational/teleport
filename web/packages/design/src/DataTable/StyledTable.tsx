@@ -20,8 +20,6 @@ import { space, borderRadius } from 'design/system';
 
 import { decomposeColor, emphasize } from 'design/theme/utils/colorManipulator';
 
-import Icon from '../Icon';
-
 export const StyledTable = styled.table(
   props => `
   background: ${props.theme.colors.levels.surface};
@@ -65,10 +63,8 @@ export const StyledTable = styled.table(
     text-transform: uppercase;
     white-space: nowrap;
 
-    ${Icon} {
-      font-weight: bold;
-      font-size: 8px;
-      margin-left: 8px;
+    svg {
+      height: 12px;
     }
   }
 

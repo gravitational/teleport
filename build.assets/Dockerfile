@@ -25,7 +25,6 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.3 &&
     make clean
 
 # Install libcbor.
-# Keep the version below synced with devbox.json
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     cd libcbor && \
     [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
@@ -39,10 +38,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-# Keep the version below synced with devbox.json
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.10 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
+    [ "$(git rev-parse HEAD)" = '245cb0291e0db99d9ccf3692fa76f440b2b054c2' ] && \
     ./config --release --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -174,10 +172,10 @@ RUN apt-get -y update && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install osslsigncode for Windows Code Signing. The format of our 
+# Install osslsigncode for Windows Code Signing. The format of our
 # Code Signing Certificate needs us to use osslsigncode >= 2.6, which
 # allows the use of legacy OpenSSL algorithms. This is not yet provided
-# by Ubuntu, so we will have to fetch it ourselves.   
+# by Ubuntu, so we will have to fetch it ourselves.
 RUN --mount=type=bind,target=/context \
     curl -L https://github.com/mtrojnar/osslsigncode/releases/download/2.6/osslsigncode-2.6-ubuntu-22.04.zip -o osslsigncode.zip \
     && sha256sum --strict -c /context/download-hashes/osslsigncode.sha256 \
@@ -185,7 +183,7 @@ RUN --mount=type=bind,target=/context \
     && install -m 0755 /tmp/osslsigncode/bin/osslsigncode /usr/bin \
     && rm -rf /tmp/osslsigncode \
     && rm osslsigncode.zip
-    
+
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
@@ -257,13 +255,11 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-# Keep the version below synced with devbox.json
 RUN curl -fsSL https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
     rm -r bats-core-1.2.1
 
 # Install shellcheck.
-# Keep the version below synced with devbox.json
 RUN scversion='v0.9.0' && \
     curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
@@ -308,20 +304,16 @@ ARG GOGO_PROTO_TAG # eg, "v1.3.2"
 RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # Install addlicense.
-# Keep the version below synced with devbox.json
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-# Keep the version below synced with devbox.json
-RUN go install github.com/daixiang0/gci@v0.9.1
+RUN go install github.com/daixiang0/gci@v0.11.0
 
 # Install gotestsum.
-# Keep the version below synced with devbox.json
 RUN go install gotest.tools/gotestsum@v1.10.1
 
 # Install golangci-lint.
-# Keep the version below synced with devbox.json
-RUN TAG='v1.53.3' && \
+RUN TAG='v1.54.1' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 

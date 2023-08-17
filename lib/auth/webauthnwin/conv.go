@@ -22,9 +22,11 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
+
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
-func assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
+func assertOptionsToCType(in wantypes.PublicKeyCredentialRequestOptions, loginOpts *LoginOpts) (*webauthnAuthenticatorGetAssertionOptions, error) {
 	allowCredList, err := credentialsExToCType(in.AllowedCredentials)
 	if err != nil {
 		return nil, err
@@ -53,7 +55,7 @@ func assertOptionsToCType(in protocol.PublicKeyCredentialRequestOptions, loginOp
 	}, nil
 }
 
-func rpToCType(in protocol.RelyingPartyEntity) (*webauthnRPEntityInformation, error) {
+func rpToCType(in wantypes.RelyingPartyEntity) (*webauthnRPEntityInformation, error) {
 	if in.ID == "" {
 		return nil, trace.BadParameter("missing RelyingPartyEntity.Id")
 	}
@@ -68,22 +70,14 @@ func rpToCType(in protocol.RelyingPartyEntity) (*webauthnRPEntityInformation, er
 	if err != nil {
 		return nil, err
 	}
-	var icon *uint16
-	if in.Icon != "" {
-		icon, err = utf16PtrFromString(in.Icon)
-		if err != nil {
-			return nil, err
-		}
-	}
 	return &webauthnRPEntityInformation{
 		dwVersion: 1,
 		pwszID:    id,
 		pwszName:  name,
-		pwszIcon:  icon,
 	}, nil
 }
 
-func userToCType(in protocol.UserEntity) (*webauthnUserEntityInformation, error) {
+func userToCType(in wantypes.UserEntity) (*webauthnUserEntityInformation, error) {
 	if len(in.ID) == 0 {
 		return nil, trace.BadParameter("missing UserEntity.Id")
 	}
@@ -102,24 +96,16 @@ func userToCType(in protocol.UserEntity) (*webauthnUserEntityInformation, error)
 			return nil, err
 		}
 	}
-	var icon *uint16
-	if in.Icon != "" {
-		icon, err = utf16PtrFromString(in.Icon)
-		if err != nil {
-			return nil, err
-		}
-	}
 	return &webauthnUserEntityInformation{
 		dwVersion:       1,
 		cbID:            uint32(len(in.ID)),
 		pbID:            &in.ID[0],
 		pwszName:        name,
 		pwszDisplayName: displayName,
-		pwszIcon:        icon,
 	}, nil
 }
 
-func credParamToCType(in []protocol.CredentialParameter) (*webauthnCoseCredentialParameters, error) {
+func credParamToCType(in []wantypes.CredentialParameter) (*webauthnCoseCredentialParameters, error) {
 	if len(in) == 0 {
 		return nil, trace.BadParameter("missing CredentialParameter")
 	}
@@ -174,7 +160,7 @@ func clientDataToCType(challenge, origin, cdType string) (*webauthnClientData, [
 	}, jsonCD, nil
 }
 
-func credentialsExToCType(in []protocol.CredentialDescriptor) (*webauthnCredentialList, error) {
+func credentialsExToCType(in []wantypes.CredentialDescriptor) (*webauthnCredentialList, error) {
 	exCredList := make([]*webauthnCredentialEX, 0, len(in))
 	for _, e := range in {
 		if e.Type == "" {
@@ -270,7 +256,7 @@ func userVerificationToCType(in protocol.UserVerificationRequirement) uint32 {
 	}
 }
 
-func requirePreferResidentKey(in protocol.AuthenticatorSelection) (requireRK bool, preferRK bool) {
+func requirePreferResidentKey(in wantypes.AuthenticatorSelection) (requireRK bool, preferRK bool) {
 	switch in.ResidentKey {
 	case protocol.ResidentKeyRequirementRequired:
 		return true, false
@@ -286,7 +272,7 @@ func requirePreferResidentKey(in protocol.AuthenticatorSelection) (requireRK boo
 	}
 }
 
-func makeCredOptionsToCType(in protocol.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
+func makeCredOptionsToCType(in wantypes.PublicKeyCredentialCreationOptions) (*webauthnAuthenticatorMakeCredentialOptions, error) {
 	exCredList, err := credentialsExToCType(in.CredentialExcludeList)
 	if err != nil {
 		return nil, err
