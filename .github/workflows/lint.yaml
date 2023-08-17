@@ -63,6 +63,16 @@ jobs:
           version: latest
           working-directory: build.assets/tooling
 
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: latest
+      - uses: bufbuild/buf-lint-action@v1
+      # Breaking changes against master.
+      - uses: bufbuild/buf-breaking-action@v1
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+        with:
+          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
+
       - name: Run (non-action) linters
         run: make lint-no-actions
 
@@ -74,21 +84,6 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
 
-      # The `buf breaking` check is twofold: we always check for compatibility
-      # breaks against the base of the PR, and in backports we check for
-      # compatibility breaks _from_ the tip of master. It's possible to add
-      # fields just to release branches and not master, but it requires
-      # reserving the appropriate field numbers and field names in master (as it
-      # should!).
-
-      # We run a separate fetch because even with a fetch-depth of 0 in
-      # actions/checkout I'm not sure that we're guaranteed to have all the refs
-      # we need (especially the tip of master in backports), but it's a shallow
-      # fetch for a specific tree by hash, so it should be pretty fast.
-
+      # TODO(codingllama): Do this using the Buf action.
       - name: Check protos for breakage against parent
         run: buf breaking . --against "https://github.com/${{ github.repository }}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
-
-      - name: Check protos for breakage from master
-        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
-        run: buf breaking "https://github.com/${{ github.repository }}.git#branch=master" --against .
