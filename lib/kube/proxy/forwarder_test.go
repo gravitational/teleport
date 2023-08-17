@@ -1024,8 +1024,9 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	require.Nil(t, f.getClientCreds(authCtx))
 }
 
-// TestKubeFwdHTTPProxyEnv ensures that kube forwarder doesn't respect HTTPS_PROXY env
-// and Kubernetes API is called directly.
+// TestKubeFwdHTTPProxyEnv ensures that Teleport only respects the `[HTTP(S)|NO]_PROXY`
+// env variables when dialing directly to the EKS cluster and doesn't respect
+// them when dialing via reverse tunnel to other Teleport services.
 func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
