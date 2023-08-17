@@ -59,4 +59,4 @@ tsh-version:
 
 .PHONY:validate-semver
 validate-semver:
-	cd build.assets/tooling && go run ./cmd/check -check valid -tag v$(VERSION)
+	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag v$(VERSION)
