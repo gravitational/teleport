@@ -1075,7 +1075,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		{
 			name: "newDirectTransports",
 			rtBuilder: func(t *testing.T) http.RoundTripper {
-				rt, err := newDirectTransports("test", &tls.Config{
+				rt, err := newDirectTransport("test", &tls.Config{
 					InsecureSkipVerify: true,
 				},
 					&transport.Config{

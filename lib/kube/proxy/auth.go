@@ -183,7 +183,7 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
 	}
 
-	transport, err := newDirectTransports(component, tlsConfig, transportConfig)
+	transport, err := newDirectTransport(component, tlsConfig, transportConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate transport from kubeconfig: %v", err)
 	}
@@ -199,10 +199,10 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 	}, nil
 }
 
-// newDirectTransports creates a new http.Transport that will be used to connect to the Kubernetes API server.
-// It is a direct connection, not going through a proxy. The transport used respects HTTP_PROXY, HTTPS_PROXY,
-// and NO_PROXY environment variables.
-func newDirectTransports(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (http.RoundTripper, error) {
+// newDirectTransport creates a new http.Transport that will be used to connect to the Kubernetes API server.
+// It is a direct connection, not going through a Teleport proxy.
+// The transport used respects HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables.
+func newDirectTransport(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (http.RoundTripper, error) {
 	h2HTTPTransport, err := newH2Transport(tlsConfig, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
