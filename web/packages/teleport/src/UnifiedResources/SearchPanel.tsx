@@ -64,7 +64,7 @@ export function SearchPanel({
 const ToggleWrapper = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-around;
-  padding-inline: ${props => props.theme.space[3]}px;
+  justify-content: space-between;
+  padding-inline: ${props => props.theme.space[4]}px;
   width: 120px;
 `;
