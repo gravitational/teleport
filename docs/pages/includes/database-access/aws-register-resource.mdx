@@ -1,0 +1,23 @@
+{{ partialSuffix="" }}
+
+There are several ways to register {{ type }} databases in your Teleport cluster:
+
+<Tabs>
+
+<TabItem label="Using Auto-Discovery">
+(!docs/pages/includes/database-access/aws-register-resource-discovery.mdx type="{{type}}" matcher="{{matcher}}" !)
+</TabItem>
+
+<TabItem label="Using static config">
+(!docs/pages/includes/database-access/aws-register-resource-static.mdx example="{{example}}" !)
+</TabItem>
+
+<TabItem label="Using tctl">
+(!docs/pages/includes/database-access/aws-register-resource-tctl{{partialSuffix}}.mdx matcher="{{matcher}}" protocol="{{protocol}}" example="{{example}}" !)
+</TabItem>
+
+<TabItem label="Using Terraform">
+(!docs/pages/includes/database-access/aws-register-resource-terraform{{partialSuffix}}.mdx matcher="{{matcher}}" protocol="{{protocol}}" example="{{example}}" !)
+</TabItem>
+
+</Tabs>

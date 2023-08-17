@@ -1,0 +1,26 @@
+You can manage database resources with `tctl`. First define the database in
+`db.yaml`:
+```
+$ cat > db.yaml <<EOF
+kind: db
+version: v3
+metadata:
+  name: {{ matcher }}-database
+
+  # Database resource description.
+  description: "Example database"
+
+  # Match database resource tags where tag:env=prod
+  labels:
+    "env": "prod"
+spec:
+  protocol: "{{ protocol }}"
+  uri: "<Var name="{{ example }}" />"
+EOF
+```
+
+To create the resource:
+```code
+$ tctl create -f db.yaml
+```
+

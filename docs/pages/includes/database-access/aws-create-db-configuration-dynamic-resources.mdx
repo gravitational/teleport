@@ -1,0 +1,28 @@
+Generate a Database Service configuration that monitors the dynamic database
+resources created by {{ source }}:
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+```code
+$ teleport db configure create \
+   -o file \
+   --proxy=teleport.example.com:3080\
+   --token=/tmp/token \
+   --dynamic-resources-labels env=prod  
+```
+</TabItem>
+<TabItem scope={["cloud", "team"]} label="Teleport Enterprise Cloud">
+
+```code
+$ teleport db configure create \
+   -o file \
+   --proxy=mytenant.teleport.sh:3080\
+   --token=/tmp/token \
+   --dynamic-resources-labels env=prod  
+```
+
+</TabItem>
+</Tabs>
+
+This command will place the Database Service configuration at the
+`/etc/teleport.yaml` location.

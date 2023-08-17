@@ -1,0 +1,40 @@
+{{ partialSuffix="" }}
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+On the node that is running the Database Service, create a configuration file
+depending how the database is registered:
+
+<Tabs>
+
+<TabItem label="Using Auto-Discovery">
+(!docs/pages/includes/database-access/aws-create-db-configuration-dynamic-resources.mdx source="the Discovery Service" !)
+
+(!docs/pages/includes/database-access/aws-create-db-configuration-assume-role.mdx!)
+</TabItem>
+
+<TabItem label="Using static config">
+(!docs/pages/includes/database-access/aws-create-db-configuration-static{{partialSuffix}}.mdx matcher="{{matcher}}" protocol="&lt;Var name&equals;&quot;{{protocol}}&quot;&sol;&gt;" example="{{example}}" !)
+
+(!docs/pages/includes/database-access/aws-create-db-configuration-assume-role.mdx!)
+</TabItem>
+
+<TabItem label="Using tctl">
+(!docs/pages/includes/database-access/aws-create-db-configuration-dynamic-resources.mdx source="tctl" !)
+
+(!docs/pages/includes/database-access/aws-create-db-configuration-assume-role.mdx!)
+</TabItem>
+
+<TabItem label="Using Terraform">
+(!docs/pages/includes/database-access/aws-create-db-configuration-dynamic-resources.mdx source="Terraform" !)
+
+(!docs/pages/includes/database-access/aws-create-db-configuration-assume-role.mdx!)
+</TabItem>
+
+<TabItem label="Modifying existing Database Service">
+(!docs/pages/includes/database-access/aws-create-db-configuration-modify{{partialSuffix}}.mdx matcher="{{matcher}}" protocol="&lt;Var name&equals;&quot;{{protocol}}&quot;&sol;&gt;" example="{{example}}" !)
+</TabItem>
+
+</Tabs>
