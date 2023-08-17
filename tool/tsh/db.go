@@ -809,7 +809,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 // is active in profile and no labels or predicate query are given.
 // Otherwise, the ListDatabases endpoint is called.
 func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient) (*databaseInfo, error) {
-	haveSelectors := len(tc.Labels) > 0 || tc.PredicateExpression != ""
+	haveSelectors := tc.DatabaseService != "" || len(tc.Labels) > 0 || tc.PredicateExpression != ""
 	if !haveSelectors {
 		// if selectors are given, we might incur an extra ListDatabases API
 		// call here to match against an active database.
@@ -1222,49 +1222,53 @@ func pickActiveDatabase(cf *CLIConf, tc *client.TeleportClient) (*tlsca.RouteToD
 // filtered out - this is to avoid requiring additional selectors
 // when a user gives an exact database name.
 func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activeRoutes []tlsca.RouteToDatabase) ([]tlsca.RouteToDatabase, types.Databases, error) {
+	if len(activeRoutes) == 0 {
+		// nothing to filter
+		return nil, nil, nil
+	}
 	prefix := tc.DatabaseService
-	if prefix == "" && len(activeRoutes) == 1 {
-		prefix = activeRoutes[0].ServiceName
-	}
-
-	haveSelectors := len(tc.Labels) > 0 || tc.PredicateExpression != ""
-	var selectedRoutes []tlsca.RouteToDatabase
-	for _, db := range activeRoutes {
-		if db.ServiceName == prefix && !haveSelectors {
-			// short-circuit to select the exact match when we don't have
-			// label or predicate selectors.
-			return []tlsca.RouteToDatabase{db}, nil, nil
+	if len(tc.Labels) == 0 && tc.PredicateExpression == "" {
+		if prefix == "" && len(activeRoutes) == 1 {
+			return activeRoutes, nil, nil
 		}
-		if strings.HasPrefix(db.ServiceName, prefix) {
-			selectedRoutes = append(selectedRoutes, db)
+		// when we have a name but don't have label or predicate query, look for
+		// a route that matches the name exactly to maybe avoid calling
+		// ListDatabases API below.
+		for _, route := range activeRoutes {
+			if route.ServiceName == prefix {
+				return []tlsca.RouteToDatabase{route}, nil, nil
+			}
 		}
 	}
-	if len(selectedRoutes) == 0 || !haveSelectors {
-		// nothing to filter further, avoid making API call.
-		return selectedRoutes, nil, nil
-	}
 
-	// make a ListDatabases API call and match on full database name.
+	// make a ListDatabases API call filtered by prefix name
 	databases, err := listDatabasesByPrefix(ctx, tc, prefix)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	selectedRoutes = nil
+	databasesByName := databases.ToMap()
+
+	// when a database matches the prefix fully, look for a
+	// corresponding active route.
+	if db, ok := databasesByName[prefix]; ok {
+		for _, route := range activeRoutes {
+			if route.ServiceName == db.GetName() {
+				return []tlsca.RouteToDatabase{route}, types.Databases{db}, nil
+			}
+		}
+		// no active route, but return the fetched databases if the caller is
+		// interested.
+		return nil, databases, nil
+	}
+
+	// otherwise, just filter routes to those that match the names of the
+	// databases.
+	var selectedRoutes []tlsca.RouteToDatabase
 	var activeDBs types.Databases
 	for _, route := range activeRoutes {
-		for _, db := range databases {
-			if db.GetName() == route.ServiceName {
-				if db.GetName() == prefix {
-					// when label/query selectors are used and multiple
-					// databases come back, but one of them matches the prefix
-					// exactly, short-circuit to return just that db.
-					// We can't do that before calling the API because the
-					// labels/query might not actually match the active db.
-					return []tlsca.RouteToDatabase{route}, types.Databases{db}, nil
-				}
-				selectedRoutes = append(selectedRoutes, route)
-				activeDBs = append(activeDBs, db)
-			}
+		if db, ok := databasesByName[route.ServiceName]; ok {
+			selectedRoutes = append(selectedRoutes, route)
+			activeDBs = append(activeDBs, db)
 		}
 	}
 	return selectedRoutes, activeDBs, nil
