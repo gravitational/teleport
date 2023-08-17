@@ -67,16 +67,15 @@ func TestKubeGateway(t *testing.T) {
 	proxy := mustStartMockProxyWithKubeAPI(t, identity)
 	gateway, err := New(
 		Config{
-			Clock:              clock,
-			TargetName:         kubeClusterName,
-			TargetURI:          uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName),
-			CertPath:           proxy.clientCertPath(),
-			KeyPath:            proxy.clientKeyPath(),
-			WebProxyAddr:       proxy.webProxyAddr,
-			ClusterName:        teleportClusterName,
-			CLICommandProvider: mockCLICommandProvider{},
-			Username:           identity.Username,
-			KubeconfigsDir:     t.TempDir(),
+			Clock:          clock,
+			TargetName:     kubeClusterName,
+			TargetURI:      uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName),
+			CertPath:       proxy.clientCertPath(),
+			KeyPath:        proxy.clientKeyPath(),
+			WebProxyAddr:   proxy.webProxyAddr,
+			ClusterName:    teleportClusterName,
+			Username:       identity.Username,
+			KubeconfigsDir: t.TempDir(),
 			RootClusterCACertPoolFunc: func(_ context.Context) (*x509.CertPool, error) {
 				return proxy.certPool(), nil
 			},

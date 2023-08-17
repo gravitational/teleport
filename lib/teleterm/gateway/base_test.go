@@ -19,9 +19,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -32,27 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-func TestCLICommandPreviewReturnsRelativeCommandWithEnv(t *testing.T) {
-	gateway := base{
-		cfg: &Config{
-			TargetName:            "foo",
-			TargetSubresourceName: "bar",
-			Protocol:              defaults.ProtocolPostgres,
-			CLICommandProvider:    mockCLICommandProvider{},
-			TCPPortAllocator:      &gatewaytest.MockTCPPortAllocator{},
-		},
-	}
-
-	command, err := gateway.CLICommand()
-	require.NoError(t, err)
-
-	args := strings.Split(command.Preview, " ")
-	env := args[0]
-	path := args[1]
-	require.Equal(t, "FOO=bar", env)
-	require.Equal(t, "postgres", path)
-}
 
 func TestGatewayStart(t *testing.T) {
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
@@ -72,16 +48,15 @@ func TestGatewayStart(t *testing.T) {
 
 	gateway, err := New(
 		Config{
-			TargetName:         "foo",
-			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo"),
-			TargetUser:         "alice",
-			Protocol:           defaults.ProtocolPostgres,
-			CertPath:           keyPairPaths.CertPath,
-			KeyPath:            keyPairPaths.KeyPath,
-			Insecure:           true,
-			WebProxyAddr:       hs.Listener.Addr().String(),
-			CLICommandProvider: mockCLICommandProvider{},
-			TCPPortAllocator:   &gatewaytest.MockTCPPortAllocator{},
+			TargetName:       "foo",
+			TargetURI:        uri.NewClusterURI("bar").AppendDB("foo"),
+			TargetUser:       "alice",
+			Protocol:         defaults.ProtocolPostgres,
+			CertPath:         keyPairPaths.CertPath,
+			KeyPath:          keyPairPaths.KeyPath,
+			Insecure:         true,
+			WebProxyAddr:     hs.Listener.Addr().String(),
+			TCPPortAllocator: &gatewaytest.MockTCPPortAllocator{},
 		},
 	)
 	require.NoError(t, err)
@@ -146,27 +121,6 @@ func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
 	require.ErrorContains(t, err, expectedErrMessage)
 }
 
-type mockCLICommandProvider struct{}
-
-func (m mockCLICommandProvider) GetCommand(gateway Gateway) (*exec.Cmd, error) {
-	absPath, err := filepath.Abs(gateway.Protocol())
-	if err != nil {
-		return nil, err
-	}
-	arg := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
-	// Call exec.Command with a relative path so that cmd.Args[0] is a relative path.
-	// Then replace cmd.Path with an absolute path to simulate gateway.Protocol() being resolved to
-	// an absolute path. This way we can later verify that gateway.CLICommand doesn't use the absolute
-	// path.
-	//
-	// This also ensures that exec.Command behaves the same way on different devices, no matter
-	// whether a command like postgres is installed on the system or not.
-	cmd := exec.Command(gateway.Protocol(), arg)
-	cmd.Path = absPath
-	cmd.Env = []string{"FOO=bar"}
-	return cmd, nil
-}
-
 func createAndServeGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) Gateway {
 	gateway := createGateway(t, tcpPortAllocator)
 	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
@@ -192,16 +146,15 @@ func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) Gateway {
 
 	gateway, err := New(
 		Config{
-			TargetName:         "foo",
-			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo"),
-			TargetUser:         "alice",
-			Protocol:           defaults.ProtocolPostgres,
-			CertPath:           keyPairPaths.CertPath,
-			KeyPath:            keyPairPaths.KeyPath,
-			Insecure:           true,
-			WebProxyAddr:       hs.Listener.Addr().String(),
-			CLICommandProvider: mockCLICommandProvider{},
-			TCPPortAllocator:   tcpPortAllocator,
+			TargetName:       "foo",
+			TargetURI:        uri.NewClusterURI("bar").AppendDB("foo"),
+			TargetUser:       "alice",
+			Protocol:         defaults.ProtocolPostgres,
+			CertPath:         keyPairPaths.CertPath,
+			KeyPath:          keyPairPaths.KeyPath,
+			Insecure:         true,
+			WebProxyAddr:     hs.Listener.Addr().String(),
+			TCPPortAllocator: tcpPortAllocator,
 		},
 	)
 	require.NoError(t, err)

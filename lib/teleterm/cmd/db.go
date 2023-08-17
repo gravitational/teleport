@@ -19,38 +19,19 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// DBCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
-// fresh profile state from the disk.
-type DBCLICommandProvider struct {
-	storage StorageByResourceURI
-	execer  dbcmd.Execer
+// NewDBCLICommand creates CLI commands for database gateway.
+func NewDBCLICommand(cluster *clusters.Cluster, gateway gateway.Gateway) (*exec.Cmd, error) {
+	cmd, err := newDBCLICommandWithExecer(cluster, gateway, dbcmd.SystemExecer{})
+	return cmd, trace.Wrap(err)
 }
 
-type StorageByResourceURI interface {
-	GetByResourceURI(uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error)
-}
-
-func NewDBCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DBCLICommandProvider {
-	return DBCLICommandProvider{
-		storage: storage,
-		execer:  execer,
-	}
-}
-
-func (d DBCLICommandProvider) GetCommand(gateway gateway.Gateway) (*exec.Cmd, error) {
-	cluster, _, err := d.storage.GetByResourceURI(gateway.TargetURI())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func newDBCLICommandWithExecer(cluster *clusters.Cluster, gateway gateway.Gateway, execer dbcmd.Execer) (*exec.Cmd, error) {
 	routeToDb := tlsca.RouteToDatabase{
 		ServiceName: gateway.TargetName(),
 		Protocol:    gateway.Protocol(),
@@ -64,7 +45,7 @@ func (d DBCLICommandProvider) GetCommand(gateway gateway.Gateway) (*exec.Cmd, er
 		dbcmd.WithNoTLS(),
 		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),
-		dbcmd.WithExecer(d.execer),
+		dbcmd.WithExecer(execer),
 	).GetConnectCommand()
 	if err != nil {
 		return nil, trace.Wrap(err)

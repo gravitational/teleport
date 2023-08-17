@@ -19,11 +19,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -33,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -77,7 +80,6 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		KeyPath:               keyPairPaths.KeyPath,
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
-		CLICommandProvider:    params.CLICommandProvider,
 		TCPPortAllocator:      m.tcpPortAllocator,
 		KubeconfigsDir:        m.t.TempDir(),
 	})
@@ -617,4 +619,90 @@ func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotif
 func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
 	c.sendPendingHeadlessAuthenticationCount.Add(1)
 	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
+}
+
+func TestGetGatewayCLICommand(t *testing.T) {
+	t.Parallel()
+
+	daemon, err := New(Config{
+		Storage: fakeStorage{},
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+		KubeconfigsDir: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		inputGateway gateway.Gateway
+		checkError   require.ErrorAssertionFunc
+		checkCmd     func(*testing.T, *exec.Cmd)
+	}{
+		{
+			name: "unsupported gateway",
+			inputGateway: fakeGateway{
+				targetURI: uri.NewClusterURI("profile").AppendServer("server"),
+			},
+			checkError: require.Error,
+			checkCmd:   func(*testing.T, *exec.Cmd) {},
+		},
+		{
+			name: "database gateway",
+			inputGateway: fakeGateway{
+				targetURI:       uri.NewClusterURI("profile").AppendDB("db"),
+				subresourceName: "subresource-name",
+			},
+			checkError: require.NoError,
+			checkCmd: func(t *testing.T, cmd *exec.Cmd) {
+				t.Helper()
+				require.Len(t, cmd.Args, 2)
+				require.Contains(t, cmd.Args[1], "subresource-name")
+			},
+		},
+		{
+			name: "kube gateway",
+			inputGateway: fakeGateway{
+				targetURI: uri.NewClusterURI("profile").AppendKube("kube"),
+			},
+			checkError: require.NoError,
+			checkCmd: func(t *testing.T, cmd *exec.Cmd) {
+				t.Helper()
+				require.Equal(t, []string{"KUBECONFIG=test.kubeconfig"}, cmd.Env)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd, err := daemon.GetGatewayCLICommand(test.inputGateway)
+			test.checkError(t, err)
+			test.checkCmd(t, cmd)
+		})
+	}
+}
+
+type fakeGateway struct {
+	gateway.Gateway
+	targetURI       uri.ResourceURI
+	subresourceName string
+}
+
+func (m fakeGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
+func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbName() + m.targetURI.GetKubeName() }
+func (m fakeGateway) TargetUser() string            { return "alice" }
+func (m fakeGateway) TargetSubresourceName() string { return m.subresourceName }
+func (m fakeGateway) Protocol() string              { return defaults.ProtocolMongoDB }
+func (m fakeGateway) Log() *logrus.Entry            { return nil }
+func (m fakeGateway) LocalAddress() string          { return "localhost" }
+func (m fakeGateway) LocalPortInt() int             { return 8888 }
+func (m fakeGateway) LocalPort() string             { return "8888" }
+func (m fakeGateway) KubeconfigPath() string        { return "test.kubeconfig" }
+
+type fakeStorage struct {
+	Storage
+}
+
+func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
+	return &clusters.Cluster{}, &client.TeleportClient{}, nil
 }

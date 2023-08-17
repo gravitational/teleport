@@ -64,6 +64,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -692,7 +693,7 @@ func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
 	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
 }
 
-func mustConnectDatabaseGateway(t *testing.T, gw gateway.Gateway) {
+func mustConnectDatabaseGateway(t *testing.T, _ *daemon.Service, gw gateway.Gateway) {
 	t.Helper()
 
 	dbGateway, err := gateway.AsDatabase(gw)

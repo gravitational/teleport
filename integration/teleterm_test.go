@@ -599,6 +599,7 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 
 	daemonService, err := daemon.New(daemon.Config{
+		Clock:          fakeClock,
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
 	})
