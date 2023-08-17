@@ -53,6 +53,8 @@ Unlike the agent version discovery model, there will not be an endpoint to ident
 
 A single version of the Teleport client tools will be stored in the user's $HOME directory. Teleport already makes use of a .tsh directory for storing tsh config. Cached versions of tsh/tctl will also live within this directory under ` $HOME/.tsh/bin/{tsh,tctl}`. Whenever a new version of the client tools are available, the existing cached version will be replaced.
 
+The .tsh directory is only accessilbe to the user and we should make sure the new `bin` directory also only has user permissions.
+
 Everytime `login` or `status` command is executed, tsh will compare the currently cached version of the client tools with the current cloud-stable version of Teleport. If the cached version is behind or ahead of the current stable version, a new version of the client tools will be downloaded to replace the existing ones. When downloading the Teleport client tools, the binaries will be downloaded directly. We need to make sure to download a version that is compatible with the system.
 
 Because only a single version of the client tools will be cached at a time, we do not need to worry about cleaning up the cache.
@@ -69,6 +71,22 @@ Another downside to this approach would be that upgrades would require sudo/admi
 
 Automatic updates for client tools can be configured through tsh configuration. If `DISABLE_AUTO_UPDATE=true`, then auto updates for client tools will be disabled. If `DISABLE_UPDATE_PROMPT=true`, then the user will not be prompted to confirm the update. Both values will default to false.
 
+### Binary Execution
+
+The client tools will need a way to execute the cached binaries. When tsh/tctl is executed, it will now need to decide whether to execute the command as usual, or fork a new process using the cached binary.
+
+One way to handle execution of cached binaries is to use the os.Executable function. os.Executable give us the path of the binary executable. The flow might look something like:
+- If executing `tsh login` execute as usual (cached tsh binary will not support TouchID on macOS)
+- If executable is in cache directory (.tsh/bin/tsh), then execute command as usual
+- Else try to execute tsh from cache if exists
+
+An alternative method could be use to a flag like `--no-cache` to determine if a cached version should be executed. The flow might look something like:
+- If `--no-cache=true`, execute as usual
+- If `--no-cache=false`, try to execute tsh from cache with `--no-cache=true`
+- If tsh does not exist in cache, execute as usual
+
+Another option could be to have users update their `PATH` env with `export PATH=$HOME/.tsh/bin:$PATH`. Users would then execute the cached binary directly. This seems like a simpler approach then the above methods. The problem is that this requries an extra step for the users, and the cached binary would not support TouchID for macOS users.
+
 ## UX
 
 Ideally, we'd like this feature to be integrated seamlessly. Users of the Teleport client tools should not need to search for documentation and spend time figuring out how to enable auto updates for their cleint tools.
@@ -81,7 +99,7 @@ If a user opts out of auto updates, the user will still be prompted with the fir
 
 We should provide some observability into the download status. Whenever a new cloud-stable version is available for download, the progress of the update will be output to stdout. e.g. `New cloud-stable version of Teleport detected`, `Downloading latest version of tsh/tctl... `, `Updated tsh/tctl to version v13.2.3!`.
 
-To avoid breaking existing scripts, a `--skip-auto-update` flag will be included. If the flag is enabled, auto updates will be skipped and the prompts will also be skipped.
+To avoid breaking existing scripts, a `--[no-]auto-update` flag will be included. Without the flag given, when a tty is detected and an update is available, the user will be prompted to update. If the flag is not provided and a tty is not detected, updates will be skipped to avoid breaking scripts.
 
 ## Documentation
 
@@ -91,4 +109,16 @@ The documentation should include a basic overview of how auto updates works for 
 
 ## Security Considerations
 
-All downloads will be verified using the provided sha256 checksums. As long as our CDN is secure, the update process should be secure.
+### Downloads
+
+Teleport provides sha256 checksums at `https://get.gravitational.com/teleport-ent-<version>-<os>-<arch>-bin.tar.gz.sha256`, which can be used to verify the tarball downloads. We could also consider sending sha256 checksums in the ping response.
+
+For added security, one option to consider is to sign the binaries and have tsh/tctl validate the signatures before finishing an update. This would allow us to serve binaries, hashes and signatures from the same CDN. Because even if the CDN is compromised, the attacker would not be able to craft valid signatures.
+
+### Tampering
+
+Once the binary has been downloaded, it could be susceptible to bit rot or tampering.
+
+To protect against this, we could keep a hash on disk to verify integrity on every invocation. Someone with enough rights to tamper with the client tools binary will also have the rights to tamper with the hash, so we'd also need to store the signature as well.
+
+We do not believe that moving the client tools executable under the users control significantly increases any local attacks, so we may keep this out of scope for this RFD.
