@@ -59,7 +59,9 @@ class TeleportEContext extends TeleportContext {
       localStorage.clearOnboardSurvey();
     }
 
-    if (cfg.isUsageBasedBilling) {
+    // fetchNonBillableSummaryInformation will do an auth check on the backend for the billing role,
+    // we should only fetch if the user has the correct permissions.
+    if (cfg.isUsageBasedBilling && this.getFeatureFlags().billing) {
       // retrieve feature recommendation state from local storage.
       // if grv_recommend_feature is undefined, or a given feature recommendation state is
       // not 'DONE', we check with backend for usage summary and set state to 'NOTIFY'
@@ -72,16 +74,21 @@ class TeleportEContext extends TeleportContext {
         recommendFeature?.TrustedDevices !== RecommendationStatus.Done
       ) {
         // TODO(sshah): update to status 'DONE' once user completes desired CTA.
-        const nonBillableUsage =
-          await this.cloudService.fetchNonBillableSummaryInformation();
+        try {
+          const nonBillableUsage =
+            await this.cloudService.fetchNonBillableSummaryInformation();
 
-        const trustedDevicesNotificationStatus = nonBillableUsage
-          .trustedDeviceUsage.devicesInUse
-          ? RecommendationStatus.Done
-          : RecommendationStatus.Notify;
-        localStorage.setRecommendFeature({
-          TrustedDevices: trustedDevicesNotificationStatus,
-        });
+          const trustedDevicesNotificationStatus = nonBillableUsage
+            .trustedDeviceUsage.devicesInUse
+            ? RecommendationStatus.Done
+            : RecommendationStatus.Notify;
+          localStorage.setRecommendFeature({
+            TrustedDevices: trustedDevicesNotificationStatus,
+          });
+        } catch (err) {
+          // log error instead of bubbling it up and crashing the app
+          console.error(err);
+        }
       }
     }
   }
