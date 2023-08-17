@@ -560,7 +560,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	}
 
 	span.AddEvent("prompting user with mfa challenge")
-	assertion, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	assertion, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -598,18 +598,15 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(
-	stream *TerminalStream,
-	codec mfaCodec,
-) client.PromptMFAChallengeHandler {
-	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+func promptMFAChallenge(stream *TerminalStream, codec mfaCodec) client.PromptMFAFunc {
+	return func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
 
 		// Convert from proto to JSON types.
 		switch {
-		case c.GetWebauthnChallenge() != nil:
+		case chal.GetWebauthnChallenge() != nil:
 			challenge = &client.MFAAuthenticateChallenge{
-				WebauthnChallenge: wantypes.CredentialAssertionFromProto(c.WebauthnChallenge),
+				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			}
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
