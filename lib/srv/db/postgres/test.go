@@ -443,17 +443,6 @@ func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend
 		return trace.Wrap(err)
 	}
 
-	// the slow version would look like this.
-	// it works, but makes the benchmark useless,
-	// as sending messages like this is super slow,
-	// and therefore dominates the benchmark time.
-
-	// for i := 0; i < repeats; i++ {
-	// 	err = client.Send(mm.singleMessage)
-	// 	if err != nil {
-	// 		return trace.Wrap(err)
-	// 	}
-	// }
 
 	// epilogue
 	err = client.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 100")})
