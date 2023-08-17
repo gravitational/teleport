@@ -1,0 +1,8 @@
+clusterName: test-cluster-name
+operator:
+  enabled: true
+installCRDs: true
+auth:
+  extraVolumeMounts:
+  - name: teleport-join-tokens
+    mountPath: /etc/teleport-join-tokens

@@ -516,6 +516,17 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.containers[1]
 
+  - it: should add an extra volume to the operator side-car when operator and extra volume are enabled
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/operator-extravolume.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].volumeMounts[3].name
+          value: teleport-join-tokens
+      - matchSnapshot:
+          path: spec.template.spec.containers[1].volumeMounts[3]
+
   - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
     template: auth/deployment.yaml
     values:

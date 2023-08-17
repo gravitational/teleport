@@ -262,6 +262,9 @@ spec:
           name: auth-serviceaccount-token
           readOnly: true
   {{- end }}
+{{- if .Values.auth.extraVolumeMounts }}
+  {{- toYaml .Values.auth.extraVolumeMounts | nindent 8 }}
+{{- end }}
 {{ end }}
 {{- if $projectedServiceAccountToken }}
       automountServiceAccountToken: false
