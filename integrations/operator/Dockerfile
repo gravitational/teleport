@@ -7,17 +7,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     unzip \
+    # x86_64 dependencies and build tools
     build-essential \
-    libc6-armel-cross \
-    libc6-dev-armel-cross \
-    linux-libc-dev-armhf-cross \
+    # ARM dependencies
+    libc6-dev-armhf-cross \
+    gcc-arm-linux-gnueabihf \
+    # ARM64 dependencies
     libc6-dev-arm64-cross \
-    libc6-dev-i386-cross \
-    gcc-arm-linux-gnueabi \
-    gcc-i686-linux-gnu \
-    binutils-arm-linux-gnueabi \
     gcc-aarch64-linux-gnu \
-    binutils-aarch64-linux-gnu
+    # i386 dependencies
+    libc6-dev-i386-cross \
+    gcc-i686-linux-gnu
 
 # Install Go.
 ARG GOLANG_VERSION

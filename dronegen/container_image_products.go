@@ -138,7 +138,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 			case "armhf":
 			case "arm":
 				buildboxName += "-arm"
-				compilerName = "arm-linux-gnueabi-gcc"
+				compilerName = "arm-linux-gnueabihf-gcc"
 			}
 
 			buildboxName = fmt.Sprintf("%s:teleport%d", buildboxName, branchMajorVersion)

@@ -42,7 +42,7 @@ else ifeq ("$(TARGETARCH)","386")
 COMPILER ?= i686-linux-gnu-gcc
 PLATFORM_BUILDBOX ?= $(BUILDBOX)
 else ifeq ("$(TARGETARCH)","arm")
-COMPILER ?= arm-linux-gnueabi-gcc
+COMPILER ?= arm-linux-gnueabihf-gcc
 PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
 else ifeq ("$(TARGETARCH)","arm64")
 COMPILER ?= aarch64-linux-gnu-gcc
@@ -138,7 +138,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 docker-build: ## Build docker image with the manager.
 	docker buildx build --platform="$(OS)/$(ARCH)" \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg PROTOC_VERSION=$(PROTOC_VER) \
+		--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 		--build-arg BUILDARCH=$(ARCH) \
 		--build-arg TARGETARCH=$(TARGETARCH) \
 		--build-arg COMPILER_NAME=$(COMPILER) -t ${IMG} --load ../.. -f ./Dockerfile
