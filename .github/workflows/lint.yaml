@@ -23,8 +23,6 @@ jobs:
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport14
-      env:
-        GO_LINT_FLAGS: --timeout=15m
 
     steps:
       - name: Checkout
@@ -37,8 +35,36 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
 
-      - name: Run linter
-        run: make lint
+      # Run various golangci-lint checks.
+      # TODO(codingllama): Using go.work could save a bunch of repetition here.
+      - name: golangci-lint (api)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: api
+      - name: golangci-lint (teleport)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --build-tags libfido2,piv
+      - name: golangci-lint (kube-agent-updater)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: integrations/kube-agent-updater
+      - name: golangci-lint (assets/backport)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: assets/backport
+      - name: golangci-lint (build.assets/tooling)
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: build.assets/tooling
+
+      - name: Run (non-action) linters
+        run: make lint-no-actions
 
       - name: Check if protos are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
