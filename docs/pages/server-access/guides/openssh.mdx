@@ -188,7 +188,8 @@ generated earlier.
 First, make sure you are running OpenSSH's `ssh-agent` and have logged
 in to your Teleport cluster:
 
-<ScopedBlock scope={["oss","enterprise"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 $ tsh status
@@ -200,12 +201,25 @@ $ tsh status
   Kubernetes:         enabled
   Valid until:        2022-05-06 22:54:01 -0400 EDT [valid for 11h53m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-$ eval `ssh-agent`
-Agent pid 5931
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
+
+```code
+$ tsh status
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       myuser
+  Cluster:            teleport.example.com
+  Roles:              access, auditor, editor, reviewer, host-certifier
+  Logins:             ubuntu, root
+  Kubernetes:         enabled
+  Valid until:        2022-05-06 22:54:01 -0400 EDT [valid for 11h53m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh status
@@ -221,7 +235,9 @@ $ eval `ssh-agent`
 Agent pid 5931
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 The `ssh-agent` command prints additional commands to export the `SSH_AUTH_SOCK`
 and `SSH_AGENT_PID` environment variables. These variables allow OpenSSH clients
@@ -323,7 +339,8 @@ First, define environment variables for the address of your Teleport cluster,
 the username you will use to log in to your `sshd` host, and the port on your
 `sshd` host you are using for SSH traffic:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # See the available logins you can use to access your sshd host
@@ -334,8 +351,8 @@ $ CLUSTER=teleport.example.com
 $ PORT=22
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # See the available logins you can use to access your sshd host
@@ -346,7 +363,9 @@ $ CLUSTER=mytenant.teleport.sh
 $ PORT=22
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, SSH in to your remote host:
 

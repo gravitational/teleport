@@ -261,7 +261,8 @@ Edit your `values.yaml` file to refer to the name of your secret:
 
 ## Step 4/6. Set values to configure the cluster
 
-<ScopedBlock scope="enterprise">
+<Tabs>
+<TabItem scope="enterprise" label="Teleport Enterprise">
 
 Before you can install Teleport in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
@@ -275,12 +276,15 @@ this secret as long as your file is named `license.pem`.
 $ kubectl -n teleport create secret generic license --from-file=license.pem
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, configure the `teleport-cluster` Helm chart to use the `aws` mode. Create
 a file called `aws-values.yaml` and write the values you've chosen above to it:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -341,8 +345,8 @@ podSecurityPolicy:
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -405,7 +409,9 @@ podSecurityPolicy:
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Install the chart with the values from your `aws-values.yaml` file using this command:
 
@@ -638,3 +644,4 @@ users and setting up RBAC.
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.
 
 Read the [`cert-manager` documentation](https://cert-manager.io/docs/).
+

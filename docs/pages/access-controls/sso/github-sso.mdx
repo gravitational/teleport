@@ -224,7 +224,8 @@ Here is an example role configuration snippet using the trait variable:
 You can now log in with Teleport using GitHub SSO. Run the following to log out
 of Teleport and log in again using GitHub SSO.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh logout
@@ -234,8 +235,8 @@ If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh logout
@@ -245,7 +246,9 @@ If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 You can also log to the web UI using GitHub by clicking **Other sign-in options** at the login screen.
 
@@ -278,9 +281,9 @@ You will receive the details of your user session within the CLI:
   Extensions:         permit-port-forwarding, permit-pty, private-key-policy
 ```
 
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 > Profile URL:        https://mytenant.teleport.sh:443
@@ -295,7 +298,9 @@ You will receive the details of your user session within the CLI:
   Extensions:         permit-port-forwarding, permit-pty, private-key-policy
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Step 4/4. Configure authentication preference
 
@@ -351,3 +356,4 @@ After logging out of `tsh`, you can log back in without specifying
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+

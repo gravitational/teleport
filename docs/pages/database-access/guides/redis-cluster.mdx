@@ -11,12 +11,15 @@ This guide will help you to:
 - Configure mutual TLS authentication between Teleport and Redis Cluster.
 - Connect to Redis through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redis Cluster Self-Hosted](../../../img/database-access/guides/rediscluster_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud","team"]}>
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Teleport Cloud">
 ![Teleport Database Access Redis Cluster Cloud](../../../img/database-access/guides/rediscluster_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -209,3 +212,4 @@ communicating with Redis Cluster:
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

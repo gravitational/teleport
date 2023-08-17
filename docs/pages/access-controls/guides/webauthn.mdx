@@ -195,7 +195,7 @@ $ tsh login --proxy=example.com
 #   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
 
 <ScopedBlock scope={["cloud"]}>
 
@@ -213,7 +213,9 @@ $ tsh login --proxy=mytenant.teleport.sh
 #   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition type="note">
   WebAuthn for logging in to Teleport is only required for [local users](
@@ -254,7 +256,8 @@ auth_service:
 
 The migrated WebAuthn configuration is:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 <Tabs>
   <TabItem label="Static Config">
 
@@ -299,9 +302,9 @@ The migrated WebAuthn configuration is:
 
   </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```yaml
 kind: cluster_auth_preference
@@ -322,9 +325,12 @@ spec:
     - "/path/to/u2f_attestation_ca.pem"
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Next steps
 
 - [Passwordless](./passwordless.mdx)
 - [Set up per-session MFA checks](./per-session-mfa.mdx)
+
