@@ -236,6 +236,9 @@ type InitConfig struct {
 	// AccessLists is a service that manages access list resources.
 	AccessLists services.AccessLists
 
+	// UserLoginStates is a service that manages user login states.
+	UserLoginState services.UserLoginStates
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
