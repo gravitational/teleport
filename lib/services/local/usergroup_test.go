@@ -47,14 +47,12 @@ func TestUserGroupCRUD(t *testing.T) {
 	g1, err := types.NewUserGroup(
 		types.Metadata{
 			Name: "g1",
-		},
-	)
+		}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 	g2, err := types.NewUserGroup(
 		types.Metadata{
 			Name: "g2",
-		},
-	)
+		}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 
 	// Initially we expect no user groups.

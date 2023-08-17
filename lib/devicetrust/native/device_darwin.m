@@ -237,9 +237,33 @@ end:
   return res;
 }
 
+// Duplicate a CFString or CFData `ref` as a C string.
+const char *refToCString(CFTypeRef ref) {
+  NSData *data = NULL;  // managed by ARC.
+  NSString *str = NULL; // managed by ARC.
+  CFTypeID id;
+
+  if (!ref) {
+    return NULL;
+  }
+
+  id = CFGetTypeID(ref);
+  if (id == CFStringGetTypeID()) {
+    str = (__bridge NSString *)ref;
+  } else if (id == CFDataGetTypeID()) {
+    data = (__bridge NSData *)ref;
+    str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+  } else {
+    return NULL;
+  }
+
+  return strdup([str UTF8String]);
+}
+
 int32_t DeviceCollectData(DeviceData *out) {
-  CFStringRef cfSerialNumber = NULL; // managed via bridge
-  NSString *serialNumber = NULL;     // managed by ARC
+  CFMutableDictionaryRef cfIODict = NULL; // manually released
+  NSProcessInfo *info = NULL;             // managed by ARC
+  NSOperatingSystemVersion osVersion;
   int32_t res = 0;
 
   io_service_t platformExpert = IOServiceGetMatchingService(
@@ -249,17 +273,32 @@ int32_t DeviceCollectData(DeviceData *out) {
     goto end;
   }
 
-  cfSerialNumber = IORegistryEntryCreateCFProperty(
-      platformExpert, CFSTR(kIOPlatformSerialNumberKey), kCFAllocatorDefault,
-      0 /* options */);
-  if (!cfSerialNumber) {
+  // For a quick reference, see `ioreg -c IOPlatformExpertDevice -d 2`.
+  IORegistryEntryCreateCFProperties(platformExpert, &cfIODict,
+                                    kCFAllocatorDefault, 0 /* options */);
+  if (!cfIODict) {
     res = kErrIORegistryEntryFailed;
     goto end;
   }
-  serialNumber = (__bridge_transfer NSString *)cfSerialNumber;
-  out->serial_number = strdup([serialNumber UTF8String]);
+
+  // Serial number and model from IORegistry.
+  out->serial_number = refToCString(
+      CFDictionaryGetValue(cfIODict, CFSTR(kIOPlatformSerialNumberKey)));
+  out->model = refToCString(CFDictionaryGetValue(cfIODict, CFSTR("model")));
+
+  // OS version numbers.
+  info = [NSProcessInfo processInfo];
+  osVersion = [info operatingSystemVersion];
+  out->os_version_string =
+      strdup([[info operatingSystemVersionString] UTF8String]);
+  out->os_major = osVersion.majorVersion;
+  out->os_minor = osVersion.minorVersion;
+  out->os_patch = osVersion.patchVersion;
 
 end:
+  if (cfIODict) {
+    CFRelease(cfIODict);
+  }
   if (platformExpert) {
     IOObjectRelease(platformExpert);
   }

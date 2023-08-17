@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -36,6 +37,12 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentKubeClient,
 })
+
+const (
+	// teleportKubeClusterNameExtension is the name of the extension that
+	// contains the Teleport Kube cluster name.
+	teleportKubeClusterNameExtension = "teleport.kube.name"
+)
 
 // Values are Teleport user data needed to generate kubeconfig entries.
 type Values struct {
@@ -76,6 +83,10 @@ type Values struct {
 	// SelectCluster is the name of the kubernetes cluster to set in
 	// current-context.
 	SelectCluster string
+	// OverrideContext is the name of the context to set when adding a new cluster.
+	// If empty, the context name will be generated from the {teleport-cluster}-{kube-cluster}.
+	// It can only be used when adding a single cluster.
+	OverrideContext string
 }
 
 // ExecValues contain values for configuring tsh as an exec auth plugin in
@@ -96,6 +107,11 @@ type ExecValues struct {
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
 func Update(path string, v Values, storeAllCAs bool) error {
+	contextTmpl, err := parseContextOverrideTemplate(v.OverrideContext)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -134,6 +150,11 @@ func Update(path string, v Values, storeAllCAs bool) error {
 		for _, c := range v.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
 			authName := contextName
+			if contextTmpl != nil {
+				if contextName, err = executeKubeContextTemplate(contextTmpl, v.TeleportClusterName, c); err != nil {
+					return trace.Wrap(err)
+				}
+			}
 			execArgs := []string{
 				"kube", "credentials",
 				fmt.Sprintf("--kube-cluster=%s", c),
@@ -159,10 +180,15 @@ func Update(path string, v Values, storeAllCAs bool) error {
 			}
 			config.AuthInfos[authName] = authInfo
 
-			setContext(config.Contexts, contextName, clusterName, authName, v.Namespace)
+			setContext(config.Contexts, contextName, clusterName, authName, c, v.Namespace)
 		}
 		if v.SelectCluster != "" {
 			contextName := ContextName(v.TeleportClusterName, v.SelectCluster)
+			if contextTmpl != nil {
+				if contextName, err = executeKubeContextTemplate(contextTmpl, v.TeleportClusterName, v.SelectCluster); err != nil {
+					return trace.Wrap(err)
+				}
+			}
 			if _, ok := config.Contexts[contextName]; !ok {
 				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.SelectCluster)
 			}
@@ -180,9 +206,9 @@ func Update(path string, v Values, storeAllCAs bool) error {
 
 		clusterName := v.TeleportClusterName
 		contextName := clusterName
-
+		var kubeClusterName string
 		if len(v.KubeClusters) == 1 {
-			kubeClusterName := v.KubeClusters[0]
+			kubeClusterName = v.KubeClusters[0]
 			contextName = ContextName(clusterName, kubeClusterName)
 		}
 
@@ -203,7 +229,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 				ClientCertificateData: v.Credentials.TLSCert,
 				ClientKeyData:         rsaKeyPEM,
 			}
-			setContext(config.Contexts, contextName, clusterName, contextName, v.Namespace)
+			setContext(config.Contexts, contextName, clusterName, contextName, kubeClusterName, v.Namespace)
 			setSelectedExtension(config.Contexts, config.CurrentContext, clusterName)
 			config.CurrentContext = contextName
 		} else if !trace.IsBadParameter(err) {
@@ -215,7 +241,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 	return Save(path, *config)
 }
 
-func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth string, namespace string) {
+func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth, kubeName, namespace string) {
 	lastContext := contexts[name]
 	newContext := &clientcmdapi.Context{
 		Cluster:  cluster,
@@ -224,6 +250,16 @@ func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth s
 	if lastContext != nil {
 		newContext.Namespace = lastContext.Namespace
 		newContext.Extensions = lastContext.Extensions
+	}
+
+	if newContext.Extensions == nil {
+		newContext.Extensions = make(map[string]runtime.Object)
+	}
+	if kubeName != "" {
+		newContext.Extensions[teleportKubeClusterNameExtension] = &runtime.Unknown{
+			// We need to wrap the kubeName in quotes to make sure it is parsed as a string.
+			Raw: []byte(fmt.Sprintf("%q", kubeName)),
+		}
 	}
 
 	// If a user specifies the default namespace we should override it.
@@ -257,7 +293,7 @@ func removeByClusterName(config *clientcmdapi.Config, clusterName string) {
 	maps.DeleteFunc(
 		config.Contexts,
 		func(key string, val *clientcmdapi.Context) bool {
-			if !strings.HasPrefix(key, clusterName) {
+			if !strings.HasPrefix(key, clusterName) && val.Cluster != clusterName {
 				return false
 			}
 			delete(config.AuthInfos, val.AuthInfo)
@@ -376,13 +412,29 @@ func ContextName(teleportCluster, kubeCluster string) string {
 
 // KubeClusterFromContext extracts the kubernetes cluster name from context
 // name generated by this package.
-func KubeClusterFromContext(contextName, teleportCluster string) string {
-	// If context name doesn't start with teleport cluster name, it was not
+func KubeClusterFromContext(contextName string, ctx *clientcmdapi.Context, teleportCluster string) string {
+	switch {
+	// If the context name starts with teleport cluster name, it was
 	// generated by tsh.
-	if !strings.HasPrefix(contextName, teleportCluster+"-") {
+	case strings.HasPrefix(contextName, teleportCluster+"-"):
+		return strings.TrimPrefix(contextName, teleportCluster+"-")
+		// If the context cluster matches teleport cluster, it was generated by
+		// tsh using --set-context-override flag.
+	case ctx != nil && ctx.Cluster == teleportCluster:
+		if v, ok := ctx.Extensions[teleportKubeClusterNameExtension]; ok {
+			if raw, ok := v.(*runtime.Unknown); ok && trimQuotes(string(raw.Raw)) != "" {
+				// The value is a JSON string, so we need to trim the quotes.
+				return trimQuotes(string(raw.Raw))
+			}
+		}
+		return contextName
+	default:
 		return ""
 	}
-	return strings.TrimPrefix(contextName, teleportCluster+"-")
+}
+
+func trimQuotes(s string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(s, "\""), "\"")
 }
 
 // SelectContext switches the active kubeconfig context to point to the
@@ -456,7 +508,10 @@ func SelectedKubeCluster(path, teleportCluster string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	if kubeCluster := KubeClusterFromContext(kubeconfig.CurrentContext, teleportCluster); kubeCluster != "" {
+	if kubeCluster := KubeClusterFromContext(
+		kubeconfig.CurrentContext,
+		kubeconfig.Contexts[kubeconfig.CurrentContext],
+		teleportCluster); kubeCluster != "" {
 		return kubeCluster, nil
 	}
 	return "", trace.NotFound("default context does not belong to Teleport")

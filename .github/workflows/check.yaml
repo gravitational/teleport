@@ -49,7 +49,7 @@ jobs:
           path: .github/shared-workflows
           ref: main
       - name: Installing Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version-file: .github/shared-workflows/bot/go.mod
         # Run "check" subcommand on bot.

@@ -21,7 +21,7 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
-import { Close } from 'design/Icon';
+import { Cross } from 'design/Icon';
 
 interface DocumentsReopenProps {
   onCancel(): void;
@@ -56,13 +56,13 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
           <ButtonIcon
             type="button"
             onClick={props.onCancel}
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
-            <Close fontSize={5} />
+            <Cross size="medium" />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text typography="body1" color="text.secondary">
+          <Text typography="body1" color="text.slightlyMuted">
             Do you want to reopen tabs from the previous session?
           </Text>
         </DialogContent>

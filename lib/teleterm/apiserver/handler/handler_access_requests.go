@@ -179,6 +179,7 @@ func resourceIDToString(id *api.ResourceID) string {
 
 func newAPIResourceDetails(details clusters.ResourceDetails) *api.ResourceDetails {
 	return &api.ResourceDetails{
-		Hostname: details.Hostname,
+		Hostname:     details.Hostname,
+		FriendlyName: details.FriendlyName,
 	}
 }

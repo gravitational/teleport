@@ -170,6 +170,9 @@ db_service:
   resources:
     - labels:
         "*": "*"
+      aws:
+        assume_role_arn: "arn:aws:iam::123456789012:role/DBAccess"
+        external_id: "externalID123"
   azure:
     - subscriptions: ["sub1", "sub2"]
       resource_groups: ["group1", "group2"]

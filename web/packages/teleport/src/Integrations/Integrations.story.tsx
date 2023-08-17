@@ -16,8 +16,14 @@
 
 import React from 'react';
 
+import {
+  IntegrationKind,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
+
 import { IntegrationList } from './IntegrationList';
-import { DeleteIntegrationDialog } from './DeleteIntegrationDialog';
+import { DeleteIntegrationDialog } from './RemoveIntegrationDialog';
+import { EditIntegrationDialog } from './EditIntegrationDialog';
 import { plugins, integrations } from './fixtures';
 
 export default {
@@ -31,9 +37,25 @@ export function List() {
 export function DeleteDialog() {
   return (
     <DeleteIntegrationDialog
-      onClose={() => null}
-      onDelete={() => null}
+      close={() => null}
+      remove={() => null}
       name="some-integration-name"
+    />
+  );
+}
+
+export function EditDialog() {
+  return (
+    <EditIntegrationDialog
+      close={() => null}
+      edit={() => null}
+      integration={{
+        resourceType: 'integration',
+        kind: IntegrationKind.AwsOidc,
+        name: 'some-integration-name',
+        spec: { roleArn: 'arn:aws:iam::123456789012:roles/johndoe' },
+        statusCode: IntegrationStatusCode.Running,
+      }}
     />
   );
 }

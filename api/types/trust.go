@@ -47,10 +47,14 @@ const (
 	// SAMLIDPCA identifies the certificate authority that will be used by the
 	// SAML identity provider.
 	SAMLIDPCA CertAuthType = "saml_idp"
+	// OIDCIdPCA (OpenID Connect Identity Provider Certificate Authority) identifies
+	// the certificate authority that will be used by the OIDC Identity Provider.
+	// Similar to JWTSigner, it doesn't issue Certificates but signs JSON Web Tokens.
+	OIDCIdPCA CertAuthType = "oidc_idp"
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner, SAMLIDPCA}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner, SAMLIDPCA, OIDCIdPCA}
 
 // NewlyAdded should return true for CA types that were added in the current
 // major version, so that we can avoid erroring out when a potentially older
@@ -64,7 +68,7 @@ func (c CertAuthType) addedInMajorVer() int64 {
 	switch c {
 	case DatabaseCA:
 		return 9
-	case OpenSSHCA, SAMLIDPCA:
+	case OpenSSHCA, SAMLIDPCA, OIDCIdPCA:
 		return 12
 	default:
 		// We don't care about other CAs added before v4.0.0

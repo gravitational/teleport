@@ -16,8 +16,8 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Text, Image } from 'design';
-import awsIcon from 'design/assets/images/icons/aws.svg';
+import { Text, Box } from 'design';
+import { AWSIcon } from 'design/SVGIcon';
 
 import cfg from 'teleport/config';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
@@ -41,8 +41,11 @@ export function IntegrationTiles({
           ? cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)
           : null
       }
+      data-testid="tile-aws-oidc"
     >
-      <Image mt={3} mb={2} src={awsIcon} width="80px" height="80px" />
+      <Box mt={3} mb={2}>
+        <AWSIcon size={80} />
+      </Box>
       <Text>
         Amazon Web Services
         <br />
@@ -50,7 +53,13 @@ export function IntegrationTiles({
       </Text>
       {!hasAccess && (
         <ToolTipNoPermBadge
-          children={`You do not have access to create integrations`}
+          children={
+            <div>
+              You don’t have sufficient permissions to create an integration.
+              Reach out to your Teleport administrator to request additional
+              permissions.
+            </div>
+          }
         />
       )}
     </IntegrationTile>

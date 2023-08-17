@@ -33,7 +33,7 @@ package webauthn;
 
 import "gogoproto/gogo.proto";
 
-option go_package = "github.com/gravitational/teleport/api/types/webauthn";
+option go_package = "github.com/gravitational/teleport/api/types/webauthn;webauthnpb";
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
@@ -256,8 +256,9 @@ message CredentialParameter {
 message RelyingPartyEntity {
   string id = 1;
   string name = 2;
-  // URL to the icon of the Relying Party.
-  string icon = 3;
+
+  reserved 3; // string icon
+  reserved "icon";
 }
 
 // User information.
@@ -273,6 +274,7 @@ message UserEntity {
   // Human-palatable name for the user account, intended only for display.
   // The Relying Party _should_ let the user choose this value.
   string display_name = 3;
-  // URL to a resource which can be the avatar image for the user.
-  string icon = 4;
+
+  reserved 4; // string icon
+  reserved "icon";
 }

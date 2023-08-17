@@ -18,8 +18,6 @@ package prehog.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/prehog/v1;prehogv1";
-
 message UserActivityReport {
   // randomly generated UUID for this specific report, 16 bytes (in string order)
   bytes report_uuid = 1;
@@ -53,13 +51,16 @@ message UserActivityRecord {
   uint64 desktop_sessions = 7;
   // counter of app.session.start events (only TCP)
   uint64 app_tcp_sessions = 8;
-  // counter of port events
-  uint64 ssh_port_sessions = 9;
-
+  // counter of port events (both SSH and Kube)
+  uint64 ssh_port_sessions = 9 [deprecated = true];
   // counter of kube.request events
   uint64 kube_requests = 10;
   // counter of sftp events
   uint64 sftp_events = 11;
+  // counter of port events (only SSH)
+  uint64 ssh_port_v2_sessions = 12;
+  // counter of port events (only Kube)
+  uint64 kube_port_sessions = 13;
 }
 
 message SubmitUsageReportsRequest {

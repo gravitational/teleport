@@ -21,7 +21,7 @@ terminal for the CLI reference.
 ## Introduction
 
 For the impatient, here's an example of how a user would typically use
-[`tsh`](../reference/cli.mdx#tsh):
+[`tsh`](../reference/cli/tsh.mdx):
 
 <ScopedBlock scope={["oss","enterprise"]}>
 
@@ -76,13 +76,31 @@ $ tsh logout
 
 In other words, Teleport was designed to be fully compatible with existing
 SSH-based workflows and does not require users to learn anything new, other than
-to call [`tsh login`](../reference/cli.mdx#tsh-login) in the beginning.
+to call [`tsh login`](../reference/cli/tsh.mdx#tsh-login) in the beginning.
 
 ## Installing tsh
 
-Follow [these install instructions](../installation.mdx) to obtain the `tsh`
-binary. Ideally, install `tsh` of the same version as the version used in your
-Teleport cluster.
+Follow the instructions below to install the `tsh` binary. 
+
+We recommend installing `tsh` of the same major version as the version used in
+your Teleport cluster. 
+
+To find the version number, either:
+
+- In the Web UI, select your username in the upper right, then click
+  **Help & Support**. You will see the version of your Teleport
+  cluster under **CLUSTER INFORMATION**.
+
+- Use `curl` and `jq`. Replace <Var name="teleport.example.com" />
+  with your Proxy Service address (e.g. `mytenant.teleport.sh` for Teleport
+  Enterprise Cloud):
+  
+  ```code
+  $ curl https://<Var name="teleport.example.com" />/webapi/find | jq '.server_version'
+  "(=teleport.version=)"
+  ```
+
+(!docs/pages/includes/install-tsh.mdx!)
 
 ## User identities
 
@@ -114,7 +132,7 @@ $ tsh ssh --proxy=mytenant.teleport.sh --user=joe root@node
 
 </ScopedBlock>
 
-[CLI Docs - tsh ssh](../reference/cli.mdx#tsh-ssh)
+[CLI Docs - tsh ssh](../reference/cli/tsh.mdx#tsh-ssh)
 
 ## Logging in
 
@@ -145,11 +163,11 @@ $ tsh login --proxy=mytenant.teleport.sh
 
 </ScopedBlock>
 
-[CLI Docs - tsh login](../reference/cli.mdx#tsh-login)
+[CLI Docs - tsh login](../reference/cli/tsh.mdx#tsh-login)
 
 | Port | Description |
 | - | - |
-| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `3080`). |
+| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `443` and `3080`). |
 
 The login command retrieves a user's certificate and stores it in `~/.tsh`
 directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) if there is one running.
@@ -160,7 +178,7 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
   type="tip"
   title="Tip"
 >
-  It is recommended to always use [`tsh login`](../reference/cli.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
+  It is recommended to always use [`tsh login`](../reference/cli/tsh.mdx#tsh-login) before using any other `tsh` commands. This allows users to omit `--proxy` flag in subsequent tsh commands. For example `tsh ssh user@host` will work.
 </Admonition>
 
 A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../access-controls/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
@@ -213,7 +231,7 @@ $ tsh login --proxy=mytenant.teleport.sh --browser=none
 In this situation, a link will be printed on the screen. You can copy and paste this link into
 a browser of your choice to continue the login flow.
 
-[CLI Docs - tsh login](../reference/cli.mdx#tsh-login)
+[CLI Docs - tsh login](../reference/cli/tsh.mdx#tsh-login)
 
 ### Inspecting an SSH certificate
 
@@ -253,7 +271,7 @@ $ tsh status
 
 </ScopedBlock>
 
-[CLI Docs - tsh status](../reference/cli.mdx#tsh-status)
+[CLI Docs - tsh status](../reference/cli/tsh.mdx#tsh-status)
 
 ### SSH agent support
 
@@ -274,7 +292,7 @@ variable to `false` in your shell profile to make this permanent.
 
 ### Identity files
 
-[`tsh login`](../reference/cli.mdx#tsh-login) can also save the user certificate into a
+[`tsh login`](../reference/cli/tsh.mdx#tsh-login) can also save the user certificate into a
 file:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -338,8 +356,13 @@ Regular users of Teleport must request an auto-expiring SSH certificate, usually
 every day. This doesn't work for non-interactive scripts, like cron jobs or a
 CI/CD pipeline.
 
-For this kind of automation, it is recommended to create a separate Teleport
-user for bots and request a certificate for them with a long time to live (TTL).
+The most secure way to generate certificates for automation purposes is to use
+[Machine ID](../machine-id/introduction.mdx). This ensures that your automation
+is taking advantage of the security properties of short-lived credentials.
+
+If Machine ID does not support your preferred CI/CD platform, you can create a
+local user for use in automation and request a long-lived certificate for that
+user.
 
 In this example, we're creating a certificate with a TTL of one hour for the
 `jenkins` user and storing it in a `jenkins.pem` file, which can be later used with
@@ -366,17 +389,13 @@ $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 
 </ScopedBlock>
 
-[CLI Docs - tctl auth sign](../reference/cli.mdx#tctl-auth-sign)
+[CLI Docs - tctl auth sign](../reference/cli/tctl.mdx#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the Jenkins server and passed to the `-i`
 (identity file) flag of `tsh`.
 
 `tctl auth sign` is an admin's equivalent of `tsh login --out` and allows for
 unrestricted certificate TTL values.
-
-For non-production usage, you can use
-[Machine ID](../machine-id/introduction.mdx), currently in preview, to
-provide your bot user with automatically updated, short-lived credentials.
 
 ## Exploring the cluster
 
@@ -395,7 +414,7 @@ $ tsh ls
 # graviton      10.1.0.7:3022      os:osx
 ```
 
-[CLI Docs - tsh ls](../reference/cli.mdx#tsh-ls)
+[CLI Docs - tsh ls](../reference/cli/tsh.mdx#tsh-ls)
 
 `tsh ls` can apply a filter based on the node labels.
 
@@ -408,9 +427,9 @@ $ tsh ls os=osx
 # graviton      33333333-aaaa-1284     10.1.0.7:3022      os:osx
 ```
 
-[CLI Docs -tsh ls](../reference/cli.mdx#tsh-ls)
+[CLI Docs -tsh ls](../reference/cli/tsh.mdx#tsh-ls)
 
-<Details title="Not seeing Nodes?" opened={false}>
+<Details title="Not seeing Nodes?">
 
 (!docs/pages/includes/node-logins.mdx!)
 
@@ -510,9 +529,9 @@ $ tsh ssh -L 5000:google.com:80 --local node curl http://localhost:5000
 
 This command:
 
-1. Connects to `node`.
-2. Binds the local port `5000` to port `80` on `google.com`.
-3. Executes `curl` command locally, which results in `curl` hitting `google.com:80` via `node`.
+- Connects to `node`.
+- Binds the local port `5000` to port `80` on `google.com`.
+- Executes `curl` command locally, which results in `curl` hitting `google.com:80` via `node`.
 
 ### SSH jump host
 
@@ -542,9 +561,9 @@ Known limitations:
 
 `tsh` supports multiple methods to resolve remote Node names.
 
-1. **Traditional**: by IP address or via DNS.
-2. **Nodename setting**: the `teleport` daemon supports the` nodename` flag, which allows Teleport administrators to assign alternative Node names.
-3. **Labels**: you can address a Node by `name=value` pair.
+- **Traditional**: by IP address or via DNS.
+- **Nodename setting**: the `teleport` daemon supports the` nodename` flag, which allows Teleport administrators to assign alternative Node names.
+- **Labels**: you can address a Node by `name=value` pair.
 
 If we have two Node, one with `os:linux` label and one Node with `os:osx`, we
 can log in to the OSX Node with:
@@ -597,7 +616,7 @@ $ scp -P 61122 -r files root@node:/path/to/dest
 
 Starting from Teleport 9 the SCP and SFTP protocols are both supported by Server
 Access. OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
-if desired. 
+if desired.
 
 ## Sharing sessions
 
@@ -679,7 +698,7 @@ $ tsh --proxy=mytenant.teleport.sh clusters
 
 </ScopedBlock>
 
-[CLI Docs - tsh clusters](../reference/cli.mdx#tsh-clusters)
+[CLI Docs - tsh clusters](../reference/cli/tsh.mdx#tsh-clusters)
 
 Now you can use the `--cluster` flag with any `tsh` command. For example, to list SSH nodes that are members of the `production` cluster, simply run:
 
@@ -769,7 +788,7 @@ $ tsh status
 
 ## Custom aliases and defaults
 
-You can configure `tsh` to define aliases, custom commands and command-specific flag defaults. Using aliases, you can run frequently used `tsh` commands more easily. 
+You can configure `tsh` to define aliases, custom commands and command-specific flag defaults. Using aliases, you can run frequently used `tsh` commands more easily.
 
 Aliases are defined in configuration files using the following syntax:
 
@@ -810,7 +829,7 @@ aliases:
     "connect": "bash -c 'tsh login $0 && tsh ssh $1'"
 ```
 
-The example above demonstrates the usage of variables `$0` and `$1`. They represent arguments provided to the alias. With the definition above, `tsh connect foo bar` resolves to `bash -c 'tsh login foo && tsh ssh bar'`. 
+The example above demonstrates the usage of variables `$0` and `$1`. They represent arguments provided to the alias. With the definition above, `tsh connect foo bar` resolves to `bash -c 'tsh login foo && tsh ssh bar'`.
 
 The alias can use as many arguments as needed. If the alias is invoked with too few arguments, `tsh` will report an error. Conversely, providing additional arguments is *not* an error. `tsh` will append any additional arguments to the end of an alias definition.
 
@@ -850,11 +869,11 @@ The time range can be customized with the `--last`, `--from-utc`, and `--to-utc`
 
 ```code
 $ tsh recordings ls
-ID                                   Type Participants Hostname Timestamp           
------------------------------------- ---- ------------ -------- ------------------- 
-b0a04442-70dc-4be8-9308-7b7901d2d600 ssh  jeff         dev       Nov 26 16:36:16 UTC 
-c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC 
-d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16 UTC 
+ID                                   Type Participants Hostname Timestamp
+------------------------------------ ---- ------------ -------- -------------------
+b0a04442-70dc-4be8-9308-7b7901d2d600 ssh  jeff         dev       Nov 26 16:36:16 UTC
+c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC
+d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16 UTC
 ```
 
 To play sessions, use the `tsh play <sessionid>` command. The screen will reset playing the interactive session with the timestamp in the upper right.
@@ -877,5 +896,11 @@ exit
 end of session playback
 ```
 
+## Uninstalling tsh
+
+To remove `tsh` and associated user data see
+[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
+
 ## Further reading
 - [CLI Reference](../reference/cli.mdx).
+

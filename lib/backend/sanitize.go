@@ -162,3 +162,7 @@ func (s *Sanitizer) Clock() clockwork.Clock {
 func (s *Sanitizer) CloseWatchers() {
 	s.backend.CloseWatchers()
 }
+
+func (s *Sanitizer) GetName() string {
+	return s.backend.GetName()
+}

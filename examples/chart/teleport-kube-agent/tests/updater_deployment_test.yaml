@@ -25,11 +25,11 @@ tests:
     values:
       - ../.lint/updater.yaml
     set:
-      image: repo.example.com/gravitaional/teleport
+      image: repo.example.com/gravitational/teleport-distroless
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--base-image=repo.example.com/gravitaional/teleport"
+          content: "--base-image=repo.example.com/gravitational/teleport-distroless"
   - it: sets the updater base entreprise image
     values:
       - ../.lint/updater.yaml
@@ -38,7 +38,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--base-image=public.ecr.aws/gravitational/teleport-ent"
+          content: "--base-image=public.ecr.aws/gravitational/teleport-ent-distroless"
   - it: sets the updater agent name
     values:
       - ../.lint/updater.yaml
@@ -70,7 +70,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--release-channel=custom/preview"
+          content: "--version-channel=custom/preview"
   #
   # Kubernetes-related tests
   #
@@ -135,11 +135,11 @@ tests:
     values:
       - ../.lint/updater.yaml
     set:
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport-kube-agent-updater:8.3.4
+          value: public.ecr.aws/gravitational/teleport-kube-agent-updater:12.2.1
   - it: sets the updater container imagePullPolicy
     values:
       - ../.lint/updater.yaml

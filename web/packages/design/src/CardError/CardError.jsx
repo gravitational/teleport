@@ -23,7 +23,7 @@ import { Text, Alert, Card } from 'design';
 export default function CardError(props) {
   return (
     <Card
-      color="text.primary"
+      color="text.main"
       bg="levels.elevated"
       width="540px"
       mx="auto"

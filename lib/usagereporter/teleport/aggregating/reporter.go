@@ -262,8 +262,10 @@ Ingest:
 				userRecord(te.UserName).DbSessions++
 			case string(types.WindowsDesktopSessionKind):
 				userRecord(te.UserName).DesktopSessions++
-			case usagereporter.PortSessionType:
-				userRecord(te.UserName).SshPortSessions++
+			case usagereporter.PortSSHSessionType:
+				userRecord(te.UserName).SshPortV2Sessions++
+			case usagereporter.PortKubeSessionType:
+				userRecord(te.UserName).KubePortSessions++
 			case usagereporter.TCPSessionType:
 				userRecord(te.UserName).AppTcpSessions++
 			}

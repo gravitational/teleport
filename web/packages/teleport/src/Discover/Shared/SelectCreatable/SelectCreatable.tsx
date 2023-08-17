@@ -17,6 +17,7 @@
 import React from 'react';
 import { useTheme } from 'styled-components';
 import ReactSelectCreatable from 'react-select/creatable';
+import { Cross } from 'design/Icon';
 
 const styles = theme => ({
   multiValue: (base, state) => {
@@ -24,7 +25,7 @@ const styles = theme => ({
   },
   multiValueLabel: (base, state) => {
     if (state.data.isFixed) {
-      return { ...base, color: theme.colors.text.primary, paddingRight: 6 };
+      return { ...base, color: theme.colors.text.main, paddingRight: 6 };
     }
 
     if (state.isDisabled) {
@@ -81,6 +82,7 @@ export const SelectCreatable = ({
       className="react-select"
       components={{
         DropdownIndicator: null,
+        CrossIcon: () => <Cross />,
       }}
       styles={styles(theme)}
       {...rest}

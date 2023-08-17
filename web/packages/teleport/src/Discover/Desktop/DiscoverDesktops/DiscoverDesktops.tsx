@@ -84,7 +84,7 @@ const ContentBox = styled.div`
 
 const ViewLink = styled(NavLink)`
   background: ${props => props.theme.colors.buttons.link.default};
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   border-radius: 5px;
   margin-top: 10px;
   text-decoration: none;

@@ -107,7 +107,9 @@ Just like roles, role templates are valid YAML and validate both the structure
 and types.
 
 The role template `devs` is using the `internal` notation to refer to the local user's
-traits `logins` and `kubernetes_groups`.
+traits `logins` and `kubernetes_groups`. The `internal` notation only supports a limited
+set of predefined traits.  Use the `external.<trait-name>` syntax if using a custom trait
+with a local user.
 
 Use `tctl` to create a role template:
 
@@ -330,7 +332,7 @@ spec:
 
     # Functions transform variables.
     database_users: ['{{email.local(external.email)}}']
-    database_labels:
+    db_labels:
       'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
 
     # Labels can mix template and hard-coded values.
@@ -370,7 +372,7 @@ spec:
     database_users: ['alice']
 
     # The function regexp.replace will transform and filter only matching values.
-    database_labels:
+    db_labels:
       'env': 'staging'
 
     # Node labels have 'env' replaced from a variable and 'region' hard-coded.

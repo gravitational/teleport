@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"reflect"
 	"unicode"
@@ -213,7 +214,7 @@ func ReadYAML(reader io.Reader) (interface{}, error) {
 		var val interface{}
 		err := decoder.Decode(&val)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				if len(values) == 0 {
 					return nil, trace.BadParameter("no resources found, empty input?")
 				}

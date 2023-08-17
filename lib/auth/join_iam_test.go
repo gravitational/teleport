@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func responseFromAWSIdentity(id awsIdentity) string {
@@ -134,7 +135,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		tokenName                string
 		requestTokenName         string
 		tokenSpec                types.ProvisionTokenSpecV2
-		stsClient                stsClient
+		stsClient                utils.HTTPDoClient
 		iamRegisterOptions       []iamRegisterOption
 		challengeResponseOptions []challengeResponseOption
 		challengeResponseErr     error
@@ -490,6 +491,9 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
+			// Set mock client.
+			a.httpClientForAWSSTS = tc.stsClient
+
 			// add token to auth server
 			token, err := types.NewProvisionTokenFromSpec(
 				tc.tokenName,
@@ -503,7 +507,6 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 
 			requestContext := context.Background()
 			requestContext = authz.ContextWithClientAddr(requestContext, &net.IPAddr{})
-			requestContext = context.WithValue(requestContext, stsClientKey{}, tc.stsClient)
 
 			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 				templateInput := defaultIdentityRequestTemplateInput(challenge)

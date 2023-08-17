@@ -93,6 +93,13 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      lock: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       recordedSessions: {
         list: false,
         read: false,
@@ -205,6 +212,20 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      assist: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      samlIdpServiceProvider: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       clipboardSharingEnabled: true,
       desktopSessionRecordingEnabled: true,
       directorySharingEnabled: true,
@@ -224,6 +245,7 @@ test('undefined values in context response gives proper default values', async (
     accessStrategy: { type: 'optional', prompt: '' },
     // Test undefined roles and reviewers are set to empty arrays.
     accessCapabilities: { requestableRoles: [], suggestedReviewers: [] },
+    allowedSearchAsRoles: [],
   });
 });
 

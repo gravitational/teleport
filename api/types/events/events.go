@@ -16,7 +16,18 @@ limitations under the License.
 
 package events
 
-import "github.com/gogo/protobuf/proto"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/utils"
+)
 
 func trimN(s string, n int) string {
 	// Starting at 2 to leave room for quotes at the begging and end.
@@ -50,7 +61,7 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 		return m
 	}
 
-	out := proto.Clone(m).(*DatabaseSessionQuery)
+	out := utils.CloneProtoMsg(m)
 	out.DatabaseQuery = ""
 	out.DatabaseQueryParameters = nil
 
@@ -88,7 +99,7 @@ func (e *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 		return e
 	}
 
-	out := proto.Clone(e).(*SessionStart)
+	out := utils.CloneProtoMsg(e)
 	out.InitialCommand = nil
 
 	// Use 10% max size ballast + message size without InitialCommand
@@ -114,7 +125,7 @@ func (e *Exec) TrimToMaxSize(maxSize int) AuditEvent {
 		return e
 	}
 
-	out := proto.Clone(e).(*Exec)
+	out := utils.CloneProtoMsg(e)
 	out.Command = ""
 
 	// Use 10% max size ballast + message size without Command
@@ -137,7 +148,7 @@ func (e *UserLogin) TrimToMaxSize(maxSize int) AuditEvent {
 		return e
 	}
 
-	out := proto.Clone(e).(*UserLogin)
+	out := utils.CloneProtoMsg(e)
 	out.Status.Error = ""
 	out.Status.UserMessage = ""
 
@@ -151,4 +162,55 @@ func (e *UserLogin) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Status.UserMessage = trimN(e.Status.UserMessage, maxFieldSize)
 
 	return out
+}
+
+// ToUnstructured converts the event stored in the AuditEvent interface
+// to unstructured.
+// If the event is a session print event, it is converted to a plugins printEvent struct
+// which is then converted to structpb.Struct. Otherwise the event is marshaled directly.
+func ToUnstructured(evt AuditEvent) (*auditlogpb.EventUnstructured, error) {
+	payload, err := json.Marshal(evt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	id := computeEventID(evt, payload)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	str := &structpb.Struct{}
+	if str.UnmarshalJSON(payload); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the event is a session print event, convert it to a printEvent struct
+	// to include the `data` field in the JSON.
+	if p, ok := evt.(*SessionPrint); ok {
+		const printEventDataKey = "data"
+		// append the `data` field to the unstructured event
+		str.Fields[printEventDataKey], err = structpb.NewValue(p.Data)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &auditlogpb.EventUnstructured{
+		Type:         evt.GetType(),
+		Index:        evt.GetIndex(),
+		Time:         timestamppb.New(evt.GetTime()),
+		Id:           id,
+		Unstructured: str,
+	}, nil
+}
+
+// computeEventID computes the ID of the event. If the event already has an ID, it is returned.
+// Otherwise, the event is marshaled to JSON and the SHA256 hash of the JSON is returned.
+func computeEventID(evt AuditEvent, payload []byte) string {
+	id := evt.GetID()
+	if id != "" {
+		return id
+	}
+
+	hash := sha256.Sum256(payload)
+	return hex.EncodeToString(hash[:])
 }

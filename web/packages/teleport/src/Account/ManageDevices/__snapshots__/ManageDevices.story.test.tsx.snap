@@ -42,7 +42,7 @@ exports[`render device dashboard 1`] = `
   cursor: auto;
 }
 
-.c16 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -61,7 +61,7 @@ exports[`render device dashboard 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -69,32 +69,31 @@ exports[`render device dashboard 1`] = `
   padding: 0px 16px;
 }
 
-.c16:hover,
-.c16:focus {
+.c15:hover,
+.c15:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
-.c16:active {
+.c15:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c16:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
 .c14 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
+}
+
+.c13 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c1 {
@@ -143,6 +142,7 @@ exports[`render device dashboard 1`] = `
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -195,10 +195,8 @@ exports[`render device dashboard 1`] = `
   white-space: nowrap;
 }
 
-.c11 > thead > tr > th .c13 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c11 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c11 > tbody > tr > td {
@@ -207,7 +205,7 @@ exports[`render device dashboard 1`] = `
 }
 
 .c11 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c11 tbody tr:hover {
@@ -292,7 +290,7 @@ exports[`render device dashboard 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -365,21 +363,52 @@ exports[`render device dashboard 1`] = `
             Device Name
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Registered
               <span
-                class="c13 c14 icon icon-chevron-down "
+                class="c13 icon icon-chevrondown"
                 title="sort items desc"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Last Used
               <span
-                class="c13 c14 icon icon-chevrons-expand-vertical "
+                class="c13 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -396,7 +425,7 @@ exports[`render device dashboard 1`] = `
             title="iphone 12"
           >
             <div
-              class="c15"
+              class="c14"
               style="max-width: 96px; white-space: nowrap;"
             >
               iphone 12
@@ -412,7 +441,7 @@ exports[`render device dashboard 1`] = `
             align="right"
           >
             <button
-              class="c16"
+              class="c15"
               kind="border"
               title=""
             >
@@ -428,7 +457,7 @@ exports[`render device dashboard 1`] = `
             title="solokey"
           >
             <div
-              class="c15"
+              class="c14"
               style="max-width: 96px; white-space: nowrap;"
             >
               solokey
@@ -444,7 +473,7 @@ exports[`render device dashboard 1`] = `
             align="right"
           >
             <button
-              class="c16"
+              class="c15"
               kind="border"
               title=""
             >
@@ -460,7 +489,7 @@ exports[`render device dashboard 1`] = `
             title="backup yubikey"
           >
             <div
-              class="c15"
+              class="c14"
               style="max-width: 96px; white-space: nowrap;"
             >
               backup yubikey
@@ -476,7 +505,7 @@ exports[`render device dashboard 1`] = `
             align="right"
           >
             <button
-              class="c16"
+              class="c15"
               kind="border"
               title=""
             >
@@ -492,7 +521,7 @@ exports[`render device dashboard 1`] = `
             title="yubikey"
           >
             <div
-              class="c15"
+              class="c14"
               style="max-width: 96px; white-space: nowrap;"
             >
               yubikey
@@ -508,7 +537,7 @@ exports[`render device dashboard 1`] = `
             align="right"
           >
             <button
-              class="c16"
+              class="c15"
               kind="border"
               title=""
             >
@@ -586,7 +615,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   cursor: auto;
 }
 
-.c17 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -605,7 +634,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -613,32 +642,31 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   padding: 0px 16px;
 }
 
-.c17:hover,
-.c17:focus {
+.c16:hover,
+.c16:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
-.c17:active {
+.c16:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c17:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
 .c15 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
+}
+
+.c14 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .c1 {
@@ -687,6 +715,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -739,10 +768,8 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   white-space: nowrap;
 }
 
-.c12 > thead > tr > th .c14 {
-  font-weight: bold;
-  font-size: 8px;
-  margin-left: 8px;
+.c12 > thead > tr > th svg {
+  height: 12px;
 }
 
 .c12 > tbody > tr > td {
@@ -751,7 +778,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 }
 
 .c12 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c12 tbody tr:hover {
@@ -836,7 +863,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -915,21 +942,52 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             Device Name
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Registered
               <span
-                class="c14 c15 icon icon-chevron-down "
+                class="c14 icon icon-chevrondown"
                 title="sort items desc"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    clip-rule="evenodd"
+                    d="M3.96967 8.46967C4.26256 8.17678 4.73744 8.17678 5.03033 8.46967L12 15.4393L18.9697 8.46967C19.2626 8.17678 19.7374 8.17678 20.0303 8.46967C20.3232 8.76256 20.3232 9.23744 20.0303 9.53033L12.5303 17.0303C12.2374 17.3232 11.7626 17.3232 11.4697 17.0303L3.96967 9.53033C3.67678 9.23744 3.67678 8.76256 3.96967 8.46967Z"
+                    fill-rule="evenodd"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th>
-            <a>
+            <a
+              style="display: flex; align-items: center;"
+            >
               Last Used
               <span
-                class="c14 c15 icon icon-chevrons-expand-vertical "
+                class="c14 icon icon-chevronsvertical"
                 title="sort items"
-              />
+              >
+                <svg
+                  fill="currentColor"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  width="24"
+                >
+                  <path
+                    d="M12.5303 2.46967C12.2374 2.17678 11.7626 2.17678 11.4697 2.46967L6.96967 6.96967C6.67678 7.26256 6.67678 7.73744 6.96967 8.03033C7.26256 8.32322 7.73744 8.32322 8.03033 8.03033L12 4.06066L15.9697 8.03033C16.2626 8.32322 16.7374 8.32322 17.0303 8.03033C17.3232 7.73744 17.3232 7.26256 17.0303 6.96967L12.5303 2.46967Z"
+                  />
+                  <path
+                    d="M8.03033 15.9697C7.73744 15.6768 7.26256 15.6768 6.96967 15.9697C6.67678 16.2626 6.67678 16.7374 6.96967 17.0303L11.4697 21.5303C11.7626 21.8232 12.2374 21.8232 12.5303 21.5303L17.0303 17.0303C17.3232 16.7374 17.3232 16.2626 17.0303 15.9697C16.7374 15.6768 16.2626 15.6768 15.9697 15.9697L12 19.9393L8.03033 15.9697Z"
+                  />
+                </svg>
+              </span>
             </a>
           </th>
           <th
@@ -946,7 +1004,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             title="iphone 12"
           >
             <div
-              class="c16"
+              class="c15"
               style="max-width: 96px; white-space: nowrap;"
             >
               iphone 12
@@ -962,7 +1020,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             align="right"
           >
             <button
-              class="c17"
+              class="c16"
               kind="border"
               title=""
             >
@@ -978,7 +1036,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             title="solokey"
           >
             <div
-              class="c16"
+              class="c15"
               style="max-width: 96px; white-space: nowrap;"
             >
               solokey
@@ -994,7 +1052,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             align="right"
           >
             <button
-              class="c17"
+              class="c16"
               kind="border"
               title=""
             >
@@ -1010,7 +1068,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             title="backup yubikey"
           >
             <div
-              class="c16"
+              class="c15"
               style="max-width: 96px; white-space: nowrap;"
             >
               backup yubikey
@@ -1026,7 +1084,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             align="right"
           >
             <button
-              class="c17"
+              class="c16"
               kind="border"
               title=""
             >
@@ -1042,7 +1100,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             title="yubikey"
           >
             <div
-              class="c16"
+              class="c15"
               style="max-width: 96px; white-space: nowrap;"
             >
               yubikey
@@ -1058,7 +1116,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             align="right"
           >
             <button
-              class="c17"
+              class="c16"
               kind="border"
               title=""
             >

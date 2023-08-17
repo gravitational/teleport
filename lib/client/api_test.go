@@ -1138,3 +1138,24 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 		})
 	}
 }
+
+func TestConnectToProxyCancelledContext(t *testing.T) {
+	cfg := MakeDefaultConfig()
+
+	cfg.Agent = &mockAgent{}
+	cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
+	cfg.AddKeysToAgent = AddKeysToAgentNo
+	cfg.WebProxyAddr = "dummy"
+	cfg.KeysDir = t.TempDir()
+	cfg.TLSRoutingEnabled = true
+
+	clt, err := NewClient(cfg)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	proxy, err := clt.ConnectToProxy(ctx)
+	require.Nil(t, proxy)
+	require.Error(t, err)
+}

@@ -290,7 +290,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport-distroless"
+        },
+        "enterpriseImage": {
+            "$id": "#/properties/enterpriseImage",
+            "type": "string",
+            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -573,6 +578,11 @@
             "type": "array",
             "default": []
         },
+        "hostAliases": {
+            "$id": "#/properties/hostAliases",
+            "type": "array",
+            "default": []
+        },
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",
@@ -602,6 +612,34 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
+        },
+        "kubernetesDiscovery": {
+            "$id": "#/properties/kubernetesDiscovery",
+            "type": "array",
+            "default": [],
+            "properties": {
+                "types": {
+                    "$id": "#/properties/kubernetesDiscovery/types",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "namespaces": {
+                    "$id": "#/properties/kubernetesDiscovery/namespaces",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "labels": {
+                    "$id": "#/properties/kubernetesDiscovery/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
         }
     }
 }

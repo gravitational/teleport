@@ -583,17 +583,29 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 		return trace.Wrap(err)
 	}
 
-	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
-		return nil
-	}
-
 	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	state := accessChecker.GetAccessState(authPref)
 	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+
+	// we don't need to check the RBAC for the node if they are only allowed to join sessions
+	if osUser == teleport.SSHSessionJoinPrincipal &&
+		auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+
+		// allow joining if cluster wide MFA is not required
+		if state.MFARequired != services.MFARequiredAlways {
+			return nil
+		}
+
+		// only allow joining if the MFA ceremony was completed
+		// first if cluster wide MFA is enabled
+		if state.MFAVerified {
+			return nil
+		}
+	}
+
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 

@@ -46,13 +46,13 @@ export const ToolTipNoPermBadge: React.FC<Props> = ({
         onMouseLeave={handlePopoverClose}
         borderTopRightRadius={borderRadius}
         borderBottomLeftRadius={borderRadius}
-        bg="red"
         css={`
           position: absolute;
           padding: 0px 6px;
           top: 0px;
           right: 0px;
           font-size: 10px;
+          background-color: ${p => p.theme.colors.error.main};
         `}
       >
         Lacking Permissions

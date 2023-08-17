@@ -19,13 +19,15 @@ import { Text, Box } from 'design';
 
 import { ResourceKind } from '../Shared';
 
+import { ResourceSpec } from './types';
+
 export function PermissionsErrorMessage({
-  resourceKind,
+  resource,
 }: PermissionsErrorMessageProps) {
   let action = 'add new';
   let productName = '';
 
-  switch (resourceKind) {
+  switch (resource.kind) {
     case ResourceKind.Application:
       action = `${action} Applications`;
       productName = 'Access Application';
@@ -51,8 +53,8 @@ export function PermissionsErrorMessage({
 
       break;
     default:
-      action = 'unimplemented';
-      productName = 'unimplemented';
+      action = `${action} ${resource.name}s`;
+      productName = `adding ${resource.name}s`;
   }
 
   return (
@@ -75,5 +77,5 @@ export function PermissionsErrorMessage({
 }
 
 interface PermissionsErrorMessageProps {
-  resourceKind: ResourceKind;
+  resource: ResourceSpec;
 }

@@ -19,7 +19,6 @@ import styled from 'styled-components';
 import { Indicator, Flex, Box } from 'design';
 
 import NodeList from 'teleport/components/NodeList';
-import QuickLaunch from 'teleport/components/QuickLaunch';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import Document from 'teleport/Console/Document';
 
@@ -67,10 +66,6 @@ export default function DocumentNodes(props: Props) {
     }
   }
 
-  function onQuickLaunchEnter(login: string, serverId: string) {
-    createSshSession(login, serverId);
-  }
-
   function onLoginMenuOpen(serverId: string) {
     return getNodeSshLogins(serverId);
   }
@@ -90,7 +85,6 @@ export default function DocumentNodes(props: Props) {
             mr="20px"
             onChange={onChangeCluster}
           />
-          <QuickLaunch width="240px" onPress={onQuickLaunchEnter} />
         </Flex>
         {attempt.status === 'processing' && (
           <Box textAlign="center" m={10}>
@@ -128,6 +122,7 @@ const Container = styled(Box)`
   display: flex;
   flex: 1;
   max-width: 1024px;
+  height: fit-content;
   ::after {
     content: ' ';
     padding-bottom: 24px;

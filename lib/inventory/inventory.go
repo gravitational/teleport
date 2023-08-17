@@ -18,6 +18,8 @@ package inventory
 
 import (
 	"context"
+	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -32,16 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
-)
-
-// we use dedicated global jitters for all the intervals/retires in this
-// package. we do this because our jitter usage in this package can scale by
-// the number of concurrent connections to auth, making dedicated jitters a
-// poor choice (high memory usage for all the rngs).
-var (
-	seventhJitter = retryutils.NewShardedSeventhJitter()
-	halfJitter    = retryutils.NewShardedHalfJitter()
-	fullJitter    = retryutils.NewShardedFullJitter()
 )
 
 // DownstreamCreateFunc is a function that creates a downstream inventory control stream.
@@ -68,6 +60,8 @@ type DownstreamHandle interface {
 	CloseContext() context.Context
 	// Close closes the downstream handle.
 	Close() error
+	// GetUpstreamLabels gets the labels received from upstream.
+	GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string
 }
 
 // DownstreamSender is a send-only reference to the downstream half of an inventory control stream. Components that
@@ -115,12 +109,13 @@ func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.Invent
 }
 
 type downstreamHandle struct {
-	mu           sync.Mutex
-	handlerNonce uint64
-	pingHandlers map[uint64]DownstreamPingHandler
-	senderC      chan DownstreamSender
-	closeContext context.Context
-	cancel       context.CancelFunc
+	mu                sync.Mutex
+	handlerNonce      uint64
+	pingHandlers      map[uint64]DownstreamPingHandler
+	senderC           chan DownstreamSender
+	closeContext      context.Context
+	cancel            context.CancelFunc
+	upstreamSSHLabels map[string]string
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -208,7 +203,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	defer stream.Close()
 	// send upstream hello
 	if err := stream.Send(h.closeContext, upstreamHello); err != nil {
-		if trace.IsEOF(err) {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		return trace.Errorf("failed to send upstream hello: %v", err)
@@ -225,7 +220,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 			return trace.BadParameter("expected downstream hello, got %T", msg)
 		}
 	case <-stream.Done():
-		if trace.IsEOF(stream.Error()) {
+		if errors.Is(stream.Error(), io.EOF) {
 			return nil
 		}
 		return trace.Wrap(stream.Error())
@@ -245,11 +240,13 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 				return trace.BadParameter("unexpected downstream hello")
 			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
+			case proto.DownstreamInventoryUpdateLabels:
+				h.handleUpdateLabels(m)
 			default:
 				return trace.BadParameter("unexpected downstream message type: %T", m)
 			}
 		case <-stream.Done():
-			if trace.IsEOF(stream.Error()) {
+			if errors.Is(stream.Error(), io.EOF) {
 				return nil
 			}
 			return trace.Wrap(stream.Error())
@@ -282,6 +279,23 @@ func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (u
 		defer h.mu.Unlock()
 		delete(h.pingHandlers, nonce)
 	}
+}
+
+func (h *downstreamHandle) handleUpdateLabels(msg proto.DownstreamInventoryUpdateLabels) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if msg.Kind == proto.LabelUpdateKind_SSHServerCloudLabels {
+		h.upstreamSSHLabels = msg.Labels
+	}
+}
+
+func (h *downstreamHandle) GetUpstreamLabels(kind proto.LabelUpdateKind) map[string]string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if kind == proto.LabelUpdateKind_SSHServerCloudLabels {
+		return h.upstreamSSHLabels
+	}
+	return nil
 }
 
 func (h *downstreamHandle) Sender() <-chan DownstreamSender {
@@ -332,6 +346,8 @@ type UpstreamHandle interface {
 	// immediately locking the instanceStateTracker will likely result in observing the
 	// pre-heartbeat state.
 	HeartbeatInstance()
+	// UpdateLabels updates the labels on the instance.
+	UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error
 }
 
 // instanceStateTracker tracks the state of a connected instance from the point of view of
@@ -383,10 +399,6 @@ type instanceStateTracker struct {
 	// will be nil if the instance only recently connected or joined. Operations that expect to be able to
 	// observe the committed state of the instance control log should skip instances for which this field is nil.
 	lastHeartbeat types.Instance
-
-	// lastRawHeartbeat is the raw backend value associated with LastHeartbeat. Used to
-	// enabled CompareAndSwap based updates.
-	lastRawHeartbeat []byte
 
 	// retryHeartbeat is set to true if an unexpected error is hit. We retry exactly once, closing
 	// the stream if the retry does not succeede.
@@ -455,11 +467,12 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
 func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
-		Version:  vc.Normalize(hello.Version),
-		Services: hello.Services,
-		Hostname: hello.Hostname,
-		AuthID:   authID,
-		LastSeen: now.UTC(),
+		Version:          vc.Normalize(hello.Version),
+		Services:         hello.Services,
+		Hostname:         hello.Hostname,
+		AuthID:           authID,
+		LastSeen:         now.UTC(),
+		ExternalUpgrader: hello.ExternalUpgrader,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -568,4 +581,12 @@ func (h *upstreamHandle) HasService(service types.SystemRole) bool {
 		}
 	}
 	return false
+}
+
+func (h *upstreamHandle) UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error {
+	req := proto.DownstreamInventoryUpdateLabels{
+		Kind:   kind,
+		Labels: labels,
+	}
+	return trace.Wrap(h.Send(ctx, req))
 }

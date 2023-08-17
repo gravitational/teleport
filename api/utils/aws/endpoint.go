@@ -74,6 +74,11 @@ func IsKeyspacesEndpoint(uri string) bool {
 	return hasCassandraPrefix && IsAWSEndpoint(uri)
 }
 
+// IsOpenSearchEndpoint returns true if input URI is an OpenSearch endpoint.
+func IsOpenSearchEndpoint(uri string) bool {
+	return isAWSServiceEndpoint(uri, OpenSearchServiceName)
+}
+
 // RDSEndpointDetails contains information about an RDS endpoint.
 type RDSEndpointDetails struct {
 	// InstanceID is the identifier of an RDS instance.
@@ -352,6 +357,13 @@ const (
 	MemoryDBClusterEndpoint = "cluster"
 	// MemoryDBNodeEndpoint is the endpoint of an individual MemoryDB node.
 	MemoryDBNodeEndpoint = "node"
+
+	// OpenSearchDefaultEndpoint is the default endpoint for domain.
+	OpenSearchDefaultEndpoint = "default"
+	// OpenSearchCustomEndpoint is the custom endpoint configured for domain.
+	OpenSearchCustomEndpoint = "custom"
+	// OpenSearchVPCEndpoint is the VPC endpoint for domain.
+	OpenSearchVPCEndpoint = "vpc"
 )
 
 // ParseElastiCacheEndpoint extracts the details from the provided

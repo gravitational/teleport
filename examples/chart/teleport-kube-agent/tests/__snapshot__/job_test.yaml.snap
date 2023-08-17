@@ -1,3 +1,150 @@
+should create ServiceAccount for post-delete hook by default:
+  1: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      annotations:
+        helm.sh/hook: post-delete
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-weight: "-4"
+      name: RELEASE-NAME-delete-hook
+      namespace: NAMESPACE
+? should inherit ServiceAccount name from values and not create serviceAccount if
+  serviceAccount.create is false and serviceAccount.name is set
+: 1: |
+    containers:
+    - args:
+      - kube-state
+      - delete
+      command:
+      - teleport
+      env:
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      imagePullPolicy: IfNotPresent
+      name: post-delete-job
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+    restartPolicy: OnFailure
+    serviceAccountName: lint-serviceaccount
+should not create ServiceAccount for post-delete hook if serviceAccount.create is false:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      annotations:
+        helm.sh/hook: post-delete
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-weight: "-3"
+      name: RELEASE-NAME-delete-hook
+      namespace: NAMESPACE
+    rules:
+    - apiGroups:
+      - ""
+      resources:
+      - secrets
+      verbs:
+      - get
+      - delete
+      - list
+  2: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      annotations:
+        helm.sh/hook: post-delete
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-weight: "-2"
+      name: RELEASE-NAME-delete-hook
+      namespace: NAMESPACE
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: RELEASE-NAME-delete-hook
+    subjects:
+    - kind: ServiceAccount
+      name: RELEASE-NAME-delete-hook
+      namespace: NAMESPACE
+  3: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      annotations:
+        helm.sh/hook: post-delete
+        helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+        helm.sh/hook-weight: "-1"
+      name: RELEASE-NAME-delete-hook
+      namespace: NAMESPACE
+    spec:
+      template:
+        metadata:
+          name: RELEASE-NAME-delete-hook
+        spec:
+          containers:
+          - args:
+            - kube-state
+            - delete
+            command:
+            - teleport
+            env:
+            - name: KUBE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RELEASE_NAME
+              value: RELEASE-NAME
+            image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+            imagePullPolicy: IfNotPresent
+            name: post-delete-job
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - all
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+          restartPolicy: OnFailure
+          serviceAccountName: lint-serviceaccount
+should not create ServiceAccount, Role or RoleBinding for post-delete hook if serviceAccount.create and rbac.create are false:
+  1: |
+    containers:
+    - args:
+      - kube-state
+      - delete
+      command:
+      - teleport
+      env:
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      imagePullPolicy: IfNotPresent
+      name: post-delete-job
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+    restartPolicy: OnFailure
+    serviceAccountName: lint-serviceaccount
 should set nodeSelector in post-delete hook:
   1: |
     containers:
@@ -13,7 +160,7 @@ should set nodeSelector in post-delete hook:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:
@@ -43,7 +190,7 @@ should set securityContext in post-delete hook:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:

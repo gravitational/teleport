@@ -20,12 +20,12 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
   AgentResponse,
-  AgentKind,
+  UnifiedResource,
   AgentFilter,
 } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
-export function useServerSidePagination<T extends AgentKind>({
+export function useServerSidePagination<T extends UnifiedResource>({
   fetchFunc,
   clusterId,
   params,
@@ -51,6 +51,7 @@ export function useServerSidePagination<T extends AgentKind>({
   }
 
   function fetch() {
+    setFetchStatus('loading');
     setAttempt({ status: 'processing' });
     fetchFunc(clusterId, { ...params, limit: pageSize })
       .then(res => {
@@ -70,6 +71,7 @@ export function useServerSidePagination<T extends AgentKind>({
       .catch((err: Error) => {
         setAttempt({ status: 'failed', statusText: err.message });
         setFetchedData({ ...fetchedData, agents: [], totalCount: 0 });
+        setFetchStatus('');
       });
   }
 
@@ -136,7 +138,7 @@ export function useServerSidePagination<T extends AgentKind>({
   };
 }
 
-type Props<T extends AgentKind> = {
+type Props<T extends UnifiedResource> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams
@@ -146,7 +148,7 @@ type Props<T extends AgentKind> = {
   pageSize?: number;
 };
 
-type State<T extends AgentKind> = {
+type State<T extends UnifiedResource> = {
   pageIndicators: PageIndicators;
   fetch: () => void;
   fetchNext: (() => void) | null;

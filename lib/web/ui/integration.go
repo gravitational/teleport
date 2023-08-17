@@ -102,3 +102,103 @@ func MakeIntegration(ig types.Integration) Integration {
 		},
 	}
 }
+
+// AWSOIDCListDatabasesRequest is a request to ListDatabases using the AWS OIDC Integration.
+type AWSOIDCListDatabasesRequest struct {
+	// RDSType is either `instance` or `cluster`.
+	RDSType string `json:"rdsType"`
+	// Engines filters the returned Databases based on their engine.
+	// Eg, mysql, postgres, mariadb, aurora, aurora-mysql, aurora-postgresql
+	Engines []string `json:"engines"`
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListDatabasesResponse contains a list of databases and a next token if more pages are available.
+type AWSOIDCListDatabasesResponse struct {
+	// Databases contains the page of Databases
+	Databases []Database `json:"databases"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCDeployServiceRequest contains the required fields to perform a DeployService request.
+type AWSOIDCDeployServiceRequest struct {
+	// Region is the AWS Region for the Service.
+	Region string `json:"region"`
+
+	// AccountID is the AWS Account ID.
+	// Optional. sts.GetCallerIdentity is used if the value is not provided.
+	AccountID string `json:"accountId"`
+
+	// SubnetIDs associated with the Service.
+	// If deploying a Database Service, you should use the SubnetIDs returned by the List Database API call.
+	SubnetIDs []string `json:"subnetIds"`
+
+	// ClusterName is the ECS Cluster to be used.
+	// Optional.
+	// Defaults to <teleport-cluster-name>-teleport, eg. acme-teleport
+	ClusterName *string `json:"clusterName"`
+
+	// ServiceName is the ECS Service that should be used.
+	// Optional.
+	// Defaults to <teleport-cluster-name>-teleport-service, eg acme-teleport-service
+	ServiceName *string `json:"serviceName"`
+
+	// TaskName is the ECS Task Definition family name.
+	// Optional.
+	// Defaults to <teleport-cluster-name>-teleport-<deployment-mode>, eg acme-teleport-database-service
+	TaskName *string `json:"taskName"`
+
+	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
+	// Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.
+	// This can be either the ARN or the short name of the AWS Role.
+	TaskRoleARN string `json:"taskRoleArn"`
+
+	// DeploymentMode is the deployment configuration for the service.
+	// This indicates what set of services should be deployed.
+	DeploymentMode string `json:"deploymentMode"`
+
+	// DatabaseAgentMatcherLabels are the labels to be used when deploying a Database Service.
+	// Those are the resource labels that the Service will monitor and proxy connections to.
+	DatabaseAgentMatcherLabels []Label `json:"databaseAgentMatcherLabels"`
+}
+
+// AWSOIDCDeployServiceResponse contains the resources that were used to deploy a Teleport Service.
+type AWSOIDCDeployServiceResponse struct {
+	// ClusterARN is the Amazon ECS Cluster ARN where the task was started.
+	ClusterARN string `json:"clusterArn"`
+
+	// ServiceARN is the Amazon ECS Cluster Service ARN created to run the task.
+	ServiceARN string `json:"serviceArn"`
+
+	// TaskDefinitionARN is the Amazon ECS Task Definition ARN created to run the Service.
+	TaskDefinitionARN string `json:"taskDefinitionArn"`
+
+	// ServiceDashboardURL is a link to the service's Dashboard URL in Amazon Console.
+	ServiceDashboardURL string `json:"serviceDashboardUrl"`
+}
+
+// AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
+type AWSOIDCListEC2Request struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListEC2Response contains a list of Servers and a next token if more pages are available.
+type AWSOIDCListEC2Response struct {
+	// Servers contains the page of Servers
+	Servers []Server `json:"servers"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}

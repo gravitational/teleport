@@ -132,8 +132,10 @@ export type MfaJson = {
 };
 
 // | message type (11) | completion_id uint32 | directory_id uint32 | name_length uint32 | name []byte |
+// TODO(isaiah): The discard here is a copy-paste error, but we need to keep it
+// for now in order that the proxy stay compatible with previous versions of the wds.
 export type SharedDirectoryAnnounce = {
-  completionId: number;
+  discard: number;
   directoryId: number;
   name: string;
 };
@@ -601,7 +603,9 @@ export default class Codec {
     let offset = 0;
 
     view.setUint8(offset++, MessageType.SHARED_DIRECTORY_ANNOUNCE);
-    view.setUint32(offset, sharedDirAnnounce.completionId);
+    // TODO(isaiah): The discard here is a copy-paste error, but we need to keep it
+    // for now in order that the proxy stay compatible with previous versions of the wds.
+    view.setUint32(offset, sharedDirAnnounce.discard);
     offset += uint32Length;
     view.setUint32(offset, sharedDirAnnounce.directoryId);
     offset += uint32Length;

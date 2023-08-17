@@ -1,0 +1,7 @@
+type: ssh_host
+destination:
+  type: memory
+roles:
+  - access
+principals:
+  - host.example.com

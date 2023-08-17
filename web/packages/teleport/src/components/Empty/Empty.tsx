@@ -20,12 +20,12 @@ import { Link } from 'react-router-dom';
 import { Text, Box, Flex, ButtonPrimary, ButtonBorder } from 'design';
 import Image from 'design/Image';
 
-import cfg from 'teleport/config';
+import application from 'design/assets/resources/appplication.png';
+import database from 'design/assets/resources/database.png';
+import desktop from 'design/assets/resources/desktop.png';
+import stack from 'design/assets/resources/stack.png';
 
-import application from './assets/appplication.png';
-import database from './assets/database.png';
-import desktop from './assets/desktop.png';
-import stack from './assets/stack.png';
+import cfg from 'teleport/config';
 
 type ResourceType =
   | 'application'
@@ -58,7 +58,7 @@ export default function Empty(props: Props) {
         mx="auto"
         maxWidth="664px"
         textAlign="center"
-        color="text.primary"
+        color="text.main"
         borderRadius="12px"
       >
         <Text typography="h2" mb="3">

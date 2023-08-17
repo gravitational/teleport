@@ -31,8 +31,7 @@ func newAzurePostgresFlexServerFetcher(config azureFetcherConfig) (common.Fetche
 }
 
 // newAzurePostgresFlexServerFetcher implements azureFetcherPlugin for Azure PostgreSQL Flexible server.
-type azurePostgresFlexServerFetcher struct {
-}
+type azurePostgresFlexServerFetcher struct{}
 
 // GetListClient returns a server-listing client for Azure PostgreSQL Flexible server.
 func (f *azurePostgresFlexServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.PostgresFlexServersClient, error) {

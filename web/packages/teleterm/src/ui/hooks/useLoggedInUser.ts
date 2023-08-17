@@ -25,8 +25,7 @@ import { LoggedInUser } from 'teleterm/services/tshd/types';
  * It should be used within components that reside outside of WorkspaceContext, typically anything
  * that's outside of Document-type components.
  *
- * It might return undefined if there's no active workspace or during the logout procedure because
- * ClustersService state is cleared up before WorkspacesService state.
+ * It might return undefined if there's no active workspace.
  */
 export function useLoggedInUser(): LoggedInUser | undefined {
   const { clustersService, workspacesService } = useAppContext();
@@ -51,10 +50,8 @@ export function useLoggedInUser(): LoggedInUser | undefined {
  * rendered inside of them.
  *
  * In general, the callsite should always assume that this function might return undefined.
- * One case where it will for sure return undefined is during the logout process as
- * ClustersService state is cleared up before WorkspacesService state. On top of that, each
- * workspace is always rendered, even when the cluster is not connected, with at least the default
- * document. In that scenario useWorkspaceLoggedInUser could return undefined when used within the
+ * Each workspace is always rendered, even when the cluster is not connected, with at least the default
+ * document. In that scenario, useWorkspaceLoggedInUser could return undefined when used within the
  * default document.
  */
 export function useWorkspaceLoggedInUser(): LoggedInUser | undefined {

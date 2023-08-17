@@ -4,14 +4,7 @@ description: How to configure Teleport for large-scale deployments
 ---
 
 This section explains the recommended configuration settings for large-scale
-deployments of Teleport.
-
-<ScopedBlock scope="cloud">
-
-For Teleport Cloud customers, the settings in this guide are configured
-automatically.
-
-</ScopedBlock>
+self-hosted deployments of Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -40,6 +33,21 @@ teleport:
   connection_limits:
     max_connections: 65000
     max_users: 1000
+```
+
+## Agent configuration
+
+Agents cache roles and other configuration locally in order to make access-control decisions quickly.
+By default agents are fairly aggressive in trying to re-initialize their caches if they lose connectivity
+to the Auth Service. In very large clusters, this can contribute to a "thundering herd" effect,
+where control plane elements experience excess load immediately after restart. Setting the `max_backoff`
+parameter to something in the 8-16 minute range can help mitigate this effect:
+
+```yaml
+teleport:
+  cache:
+    enabled: yes
+    max_backoff: 12m
 ```
 
 ## Kernel parameters

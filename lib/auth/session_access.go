@@ -24,6 +24,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -187,7 +188,7 @@ func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
 func RoleSupportsModeratedSessions(roles []types.Role) bool {
 	for _, role := range roles {
 		switch role.GetVersion() {
-		case types.V5, types.V6:
+		case types.V5, types.V6, types.V7:
 			return true
 		}
 	}
@@ -216,7 +217,7 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.Sess
 		if e.matchesJoin(allowPolicy) {
 			for _, modeString := range allowPolicy.Modes {
 				mode := types.SessionParticipantMode(modeString)
-				if !SliceContainsMode(modes, mode) {
+				if !slices.Contains(modes, mode) {
 					modes = append(modes, mode)
 				}
 			}
@@ -224,15 +225,6 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.Sess
 	}
 
 	return modes
-}
-
-func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticipantMode) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
 }
 
 // PolicyOptions is a set of settings for the session determined by the matched required policy.
@@ -310,7 +302,7 @@ policySetLoop:
 
 			// Check every participant against the policy.
 			for _, participant := range participants {
-				if !SliceContainsMode(requireModes, participant.Mode) {
+				if !slices.Contains(requireModes, participant.Mode) {
 					continue
 				}
 

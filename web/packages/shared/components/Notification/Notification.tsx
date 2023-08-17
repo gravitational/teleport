@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 import { ButtonIcon, Flex, Link, Text } from 'design';
-import { Close } from 'design/Icon';
+import { Cross } from 'design/Icon';
 
 import type { NotificationItem, NotificationItemContent } from './types';
 
@@ -89,7 +89,7 @@ export function Notification(props: NotificationProps) {
         onRemove();
       }}
     >
-      <Close />
+      <Cross size="small" />
     </ButtonIcon>
   );
 
@@ -112,7 +112,7 @@ export function Notification(props: NotificationProps) {
       {...styleProps}
     >
       <Flex alignItems="center" mr={1} minWidth="0" width="100%">
-        <Icon color={getColor(theme)} mr={3} fontSize={16} />
+        <Icon color={getColor(theme)} mr={3} size="medium" />
         {getRenderedContent(item.content, isExpanded, removeIcon)}
       </Flex>
     </Container>
@@ -172,7 +172,7 @@ function getRenderedContent(
         <Text
           fontSize={13}
           lineHeight={20}
-          color="text.secondary"
+          color="text.slightlyMuted"
           css={longerTextCss}
         >
           {content.list && <List items={content.list} />}
@@ -232,11 +232,11 @@ const shortTextCss = css`
 const Container = styled(Flex)`
   flex-direction: row;
   justify-content: space-between;
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.levels.elevated};
   min-height: 40px;
   width: 320px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   border-radius: 4px;
   cursor: pointer;
 `;

@@ -1,6 +1,8 @@
 teleport:
-  address: "myinstance.teleport.sh:443"              # Teleport Cloud proxy HTTPS address
-  identityFromSecret: teleport-plugin-jira-identity  # Secret containing identity
+  # Teleport HTTPS Proxy web address, for Teleport Enterprise Cloud should be in the form "your-account.teleport.sh:443"
+  address: "teleport.example.com:443"
+  # Secret containing identity
+  identitySecretName: teleport-plugin-jira-identity
 
 jira:
   url: https://jira.example.com/  # URL of the Jira instance

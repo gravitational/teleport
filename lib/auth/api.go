@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -36,11 +37,11 @@ type Announcer interface {
 
 	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(s types.Server) error
+	UpsertProxy(ctx context.Context, s types.Server) error
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(s types.Server) error
+	UpsertAuthServer(ctx context.Context, s types.Server) error
 
 	// UpsertKubernetesServer registers a kubernetes server
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
@@ -695,6 +696,11 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
+
+	// GetApps returns all application resources.
+	GetApps(context.Context) ([]types.Application, error)
+	// GetApp returns the specified application resource.
+	GetApp(ctx context.Context, name string) (types.Application, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -719,6 +725,18 @@ type DiscoveryAccessPoint interface {
 	UpdateDatabase(ctx context.Context, database types.Database) error
 	// DeleteDatabase deletes a database resource.
 	DeleteDatabase(ctx context.Context, name string) error
+	// UpsertServerInfo upserts a server info resource.
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+
+	// CreateApp creates a new application resource.
+	CreateApp(context.Context, types.Application) error
+	// UpdateApp updates an existing application resource.
+	UpdateApp(context.Context, types.Application) error
+	// DeleteApp removes the specified application resource.
+	DeleteApp(ctx context.Context, name string) error
+
+	// SubmitUsageEvent submits an external usage event.
+	SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -803,10 +821,9 @@ type OktaAccessPoint interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 
-	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-	// will be updated if possible.
-	UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error)
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
 
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
@@ -1007,6 +1024,16 @@ type Cache interface {
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
 
+	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
+	// GetOktaAssignment returns the specified Okta assignment resources.
+	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+
+	// ListUserGroups returns a paginated list of all user group resources.
+	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
 }
@@ -1172,6 +1199,18 @@ func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoi
 	}
 }
 
+func (w *DiscoveryWrapper) CreateApp(ctx context.Context, app types.Application) error {
+	return w.NoCache.CreateApp(ctx, app)
+}
+
+func (w *DiscoveryWrapper) UpdateApp(ctx context.Context, app types.Application) error {
+	return w.NoCache.UpdateApp(ctx, app)
+}
+
+func (w *DiscoveryWrapper) DeleteApp(ctx context.Context, name string) error {
+	return w.NoCache.DeleteApp(ctx, name)
+}
+
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (w *DiscoveryWrapper) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	return w.NoCache.CreateKubernetesCluster(ctx, cluster)
@@ -1200,6 +1239,16 @@ func (w *DiscoveryWrapper) UpdateDatabase(ctx context.Context, database types.Da
 // DeleteDatabase deletes a database resource.
 func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) error {
 	return w.NoCache.DeleteDatabase(ctx, name)
+}
+
+// UpsertServerInfo upserts a server info resource.
+func (w *DiscoveryWrapper) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	return w.NoCache.UpsertServerInfo(ctx, si)
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (w *DiscoveryWrapper) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+	return w.NoCache.SubmitUsageEvent(ctx, req)
 }
 
 // Close closes all associated resources
@@ -1263,11 +1312,10 @@ func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types
 	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
 }
 
-// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-// will be updated if possible.
-func (w *OktaWrapper) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
-	return w.NoCache.UpdateOktaAssignmentActionStatuses(ctx, name, status)
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
+	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status, timeHasPassed)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.

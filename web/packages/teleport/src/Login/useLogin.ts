@@ -38,6 +38,12 @@ export default function useLogin() {
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();
   const isLocalAuthEnabled = cfg.getLocalAuthFlag();
+  const motd = cfg.getMotd();
+  const [showMotd, setShowMotd] = useState(!!motd);
+
+  function acknowledgeMotd() {
+    setShowMotd(false);
+  }
 
   function onLogin(email, password, token) {
     attemptActions.start();
@@ -87,6 +93,9 @@ export default function useLogin() {
     isPasswordlessEnabled: cfg.isPasswordlessEnabled(),
     primaryAuthType: cfg.getPrimaryAuthType(),
     privateKeyPolicyEnabled,
+    motd,
+    showMotd,
+    acknowledgeMotd,
   };
 }
 

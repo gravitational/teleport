@@ -37,9 +37,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -120,7 +120,7 @@ func (f *fakeGCPKMSServer) CreateCryptoKey(ctx context.Context, req *kmspb.Creat
 	keyName := req.Parent + "/cryptoKeys/" + req.CryptoKeyId
 	keyVersionName := keyName + "/cryptoKeyVersions/1"
 
-	cryptoKey := proto.Clone(req.CryptoKey).(*kmspb.CryptoKey)
+	cryptoKey := apiutils.CloneProtoMsg(req.CryptoKey)
 	cryptoKey.Name = keyName
 
 	cryptoKeyVersion := &kmspb.CryptoKeyVersion{

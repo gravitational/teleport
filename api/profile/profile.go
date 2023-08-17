@@ -71,9 +71,6 @@ type Profile struct {
 	// SiteName is equivalent to the --cluster flag
 	SiteName string `yaml:"cluster,omitempty"`
 
-	// ForwardedPorts is the list of ports to forward to the target node.
-	ForwardedPorts []string `yaml:"forward_ports,omitempty"`
-
 	// DynamicForwardedPorts is a list of ports to use for dynamic port
 	// forwarding (SOCKS5).
 	DynamicForwardedPorts []string `yaml:"dynamic_forward_ports,omitempty"`
@@ -143,6 +140,12 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
 	}, nil
+}
+
+// RequireKubeLocalProxy returns true if this profile indicates a local proxy
+// is required for kube access.
+func (p *Profile) RequireKubeLocalProxy() bool {
+	return p.KubeProxyAddr == p.WebProxyAddr && p.TLSRoutingConnUpgradeRequired
 }
 
 func certPoolFromProfile(p *Profile) (*x509.CertPool, error) {
@@ -313,7 +316,15 @@ func FullProfilePath(dir string) string {
 
 // defaultProfilePath retrieves the default path of the TSH profile.
 func defaultProfilePath() string {
-	home := os.TempDir()
+	// start with UserHomeDir, which is the fastest option as it
+	// relies only on environment variables and does not perform
+	// a user lookup (which can be very slow on large AD environments)
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		return filepath.Join(home, profileDir)
+	}
+
+	home = os.TempDir()
 	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
 		home = u.HomeDir
 	}

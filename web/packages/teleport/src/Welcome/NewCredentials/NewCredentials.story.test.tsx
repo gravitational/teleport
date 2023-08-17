@@ -48,3 +48,28 @@ test('story.MfaDeviceOn', () => {
   const { container } = render(<story.MfaDeviceOn />);
   expect(container.firstChild).toMatchSnapshot();
 });
+
+test('story.SuccessRegister', () => {
+  const { container } = render(<story.SuccessRegister />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+test('story.SuccessReset', () => {
+  const { container } = render(<story.SuccessReset />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+test('story.SuccessAndPrivateKeyEnabledRegister', () => {
+  const { container } = render(<story.SuccessAndPrivateKeyEnabledRegister />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+test('story.SuccessAndPrivateKeyEnabledReset', () => {
+  const { container } = render(<story.SuccessAndPrivateKeyEnabledReset />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+test('story.SuccessRegisterDashboard', () => {
+  const { container } = render(<story.SuccessRegisterDashboard />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+test('story.SuccessResetDashboard', () => {
+  const { container } = render(<story.SuccessResetDashboard />);
+  expect(container.firstChild).toMatchSnapshot();
+});

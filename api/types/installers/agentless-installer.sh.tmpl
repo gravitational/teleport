@@ -4,43 +4,35 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-(
-  flock -n 9 || exit 1
-  if grep -q "Section created by 'teleport join openssh'" "$SSHD_CONFIG"; then
-    exit 0
-  fi
+run_teleport() {
+  TOKEN="$1"
+  PRINCIPALS="$2"
+  LABELS="$3"
+  ADDRESS="$4"
 
-  . /etc/os-release
+  sudo /usr/local/bin/teleport join openssh \
+    --openssh-config="${SSHD_CONFIG}" \
+    --join-method=iam \
+    --token="$TOKEN" \
+    --proxy-server="{{ .PublicProxyAddr }}" \
+    --additional-principals="$PRINCIPALS" \
+    --labels="$LABELS" \
+    --address="$ADDRESS":22 \
+    --restart-sshd
+}
 
-  if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
-    # old versions of ubuntu require that keys get added by `apt-key add`, without
-    # adding the key apt shows a key signing error when installing teleport.
-    if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
-      curl -o /tmp/teleport-pubkey.asc https://deb.releases.teleport.dev/teleport-pubkey.asc
-      cat /tmp/teleport-pubkey.asc | sudo apt-key add -
-      echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
-      rm /tmp/teleport-pubkey.asc
-    else
-      curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo tee /usr/share/keyrings/teleport-archive-keyring.asc
-      echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
-    fi
-    sudo apt-get update
-    sudo apt-get install -y {{ .TeleportPackage }}
-  elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
-    if [ "$ID" = "rhel" ]; then
-      VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
-    fi
-    sudo yum-config-manager --add-repo \
-      "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
-    sudo yum install -y {{ .TeleportPackage }}
-  else
-    echo "Unsupported distro: $ID"
-    exit 1
-  fi
+get_metadata_item() {
+  IMDS_TOKEN="$1"
+  ENDPOINT="$2"
 
-  IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-  LOCAL_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/local-ipv4)
-  PUBLIC_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/public-ipv4 || echo "")
+  curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" "http://169.254.169.254/latest/meta-data/$ENDPOINT"
+}
+
+get_principals() {
+  IMDS_TOKEN="$1"
+
+  LOCAL_IP="$(get_metadata_item "$IMDS_TOKEN" local-ipv4)"
+  PUBLIC_IP="$(get_metadata_item "$IMDS_TOKEN" public-ipv4 || echo "")"
 
   PRINCIPALS=""
   if [ ! "$LOCAL_IP" = "" ]; then
@@ -50,12 +42,92 @@ set -o nounset
     PRINCIPALS="$PUBLIC_IP,$PRINCIPALS"
   fi
 
-  sudo /usr/bin/teleport join openssh \
-    --openssh-config="${SSHD_CONFIG}" \
-    --join-method=iam \
-    --token="$1" \
-    --proxy-server="{{ .PublicProxyAddr }}" \
-    --additional-principals="$PRINCIPALS" \
-    --restart-sshd
+  echo "$PRINCIPALS"
+}
+
+get_address() {
+  IMDS_TOKEN="$1"
+
+  PUBLIC_IP=$(get_metadata_item "$IMDS_TOKEN" public-ipv4 || echo "")
+  if [ ! "$PUBLIC_IP" = "" ]; then
+    echo "$PUBLIC_IP"
+    return 0
+  fi
+
+  LOCAL_IP="$(get_metadata_item "$IMDS_TOKEN" local-ipv4)"
+  if [ ! "$LOCAL_IP" = "" ]; then
+    echo "$LOCAL_IP"
+    return 0
+  fi
+
+  echo "Failed to retreive an IP address to connect to, which is a required parameter"
+  return 1
+}
+
+get_labels() {
+  IMDS_TOKEN="$1"
+
+  INSTANCE_INFO=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/dynamic/instance-identity/document)
+
+  ACCOUNT_ID="$(echo "$INSTANCE_INFO" | jq -r .accountId)"
+  INSTANCE_ID="$(echo "$INSTANCE_INFO" | jq -r .instanceId)"
+  REGION="$(echo "$INSTANCE_INFO" | jq -r .region)"
+
+  LABELS="teleport.dev/instance-id=${INSTANCE_ID},teleport.dev/account-id=${ACCOUNT_ID},teleport.dev/aws-region=${REGION}"
+
+  echo "$LABELS"
+}
+
+install_teleport() {
+  # shellcheck disable=SC1091
+  . /etc/os-release
+
+  PACKAGE_LIST="jq {{ .TeleportPackage }}"
+  # shellcheck disable=SC2050
+  if [[ "{{ .AutomaticUpgrades }}" == "true" ]]; then
+    PACKAGE_LIST="${PACKAGE_LIST} {{ .TeleportPackage }}-updater"
+  fi
+
+  if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
+    # old versions of ubuntu require that keys get added by `apt-key add`, without
+    # adding the key apt shows a key signing error when installing teleport.
+    if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
+      curl -o /tmp/teleport-pubkey.asc https://apt.releases.teleport.dev/gpg
+      sudo apt-key add /tmp/teleport-pubkey.asc
+      echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
+      rm /tmp/teleport-pubkey.asc
+    else
+      curl https://apt.releases.teleport.dev/gpg | sudo tee /usr/share/keyrings/teleport-archive-keyring.asc
+      echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+    fi
+    sudo apt-get update
+    sudo apt-get install -y ${PACKAGE_LIST}
+  elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
+    if [ "$ID" = "rhel" ]; then
+      VERSION_ID=${VERSION_ID//\.*/} # convert version numbers like '7.2' to only include the major version
+    fi
+    sudo yum-config-manager --add-repo \
+      "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
+    sudo yum install -y ${PACKAGE_LIST}
+  else
+    echo "Unsupported distro: $ID"
+    exit 1
+  fi
+}
+
+(
+  flock -n 9 || exit 1
+
+  TOKEN="$1"
+
+  if ! test -f /usr/local/bin/teleport; then
+    install_teleport
+  fi
+
+  IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+  PRINCIPALS="$(get_principals "$IMDS_TOKEN")"
+  LABELS="$(get_labels "$IMDS_TOKEN")"
+  ADDRESS="$(get_address "$IMDS_TOKEN")"
+  run_teleport "$TOKEN" "$PRINCIPALS" "$LABELS" "$ADDRESS"
 
 ) 9>/var/lock/teleport_install.lock

@@ -29,10 +29,6 @@ const (
 	// ProductionRegistry is the production image registry that hosts are customer facing container images.
 	ProductionRegistry = "public.ecr.aws"
 
-	// ProductionRegistryQuay is the production image registry that hosts images on quay.io. Will be deprecated in the future.
-	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
-	ProductionRegistryQuay = "quay.io"
-
 	// Go version used by internal tools
 	GoVersion = "1.18"
 
@@ -157,6 +153,7 @@ type buildType struct {
 	fips            bool
 	centos7         bool
 	windowsUnsigned bool
+	buildConnect    bool
 }
 
 // Description provides a human-facing description of the artifact, e.g.:

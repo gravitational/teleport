@@ -21,7 +21,7 @@ import DialogConfirmation, {
   DialogHeader,
 } from 'design/DialogConfirmation';
 import { ButtonIcon, ButtonPrimary, ButtonSecondary, Link, Text } from 'design';
-import { Close } from 'design/Icon';
+import { Cross } from 'design/Icon';
 
 interface UsageDataProps {
   onCancel(): void;
@@ -58,17 +58,17 @@ export function UsageData(props: UsageDataProps) {
           <ButtonIcon
             type="button"
             onClick={props.onCancel}
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
-            <Close fontSize={5} />
+            <Cross size="medium" />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text typography="body1" color="text.secondary">
+          <Text typography="body1" color="text.slightlyMuted">
             Do you agree to Teleport Connect collecting anonymized usage data?
             This will help us improve the product.
           </Text>
-          <Text typography="body1" color="text.secondary">
+          <Text typography="body1" color="text.slightlyMuted">
             To learn more, see{' '}
             <Link
               href="https://goteleport.com/docs/faq/#teleport-connect"

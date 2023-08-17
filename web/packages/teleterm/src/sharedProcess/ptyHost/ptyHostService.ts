@@ -33,10 +33,12 @@ export function createPtyHostService(): IPtyHostServer {
       const ptyId = unique();
       try {
         const ptyProcess = new PtyProcess({
-          ...ptyOptions,
-          ptyId,
+          path: ptyOptions.path,
           args: ptyOptions.argsList,
+          cwd: ptyOptions.cwd,
+          ptyId,
           env: call.request.getEnv()?.toJavaScript() as Record<string, string>,
+          initMessage: ptyOptions.initMessage,
         });
         ptyProcesses.set(ptyId, ptyProcess);
       } catch (error) {

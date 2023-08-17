@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
@@ -36,35 +35,6 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentConnectProxy,
 })
-
-// dialWithDeadline works around the case when net.DialWithTimeout
-// succeeds, but key exchange hangs. Setting deadline on connection
-// prevents this case from happening
-func dialWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	dialer := &net.Dialer{
-		Timeout: config.Timeout,
-	}
-
-	conn, err := dialer.DialContext(ctx, network, addr)
-	if err != nil {
-		return nil, err
-	}
-	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
-}
-
-// dialALPNWithDeadline allows connecting to Teleport in single-port mode. SSH protocol is wrapped into
-// TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
-// incoming connection to ReverseTunnel proxy service.
-func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	ctx, span := tracing.DefaultProvider().Tracer("dialer").Start(ctx, "directDial/dialALPNWithDeadline")
-	defer span.End()
-
-	tlsConn, err := d.alpnDialer.DialContext(ctx, network, addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tracessh.NewClientConnWithDeadline(ctx, tlsConn, addr, config)
-}
 
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {
@@ -78,22 +48,21 @@ type Dialer interface {
 type directDial struct {
 	// alpnDialer is the dialer used for TLS routing.
 	alpnDialer apiclient.ContextDialer
+	// proxyHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
+	// Used by proxy's web server to make calls on behalf of connected clients.
+	proxyHeaderGetter apiclient.PROXYHeaderGetter
 }
 
-// Dial calls ssh.Dial directly.
+// Dial returns traced SSH client connection
 func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	if d.alpnDialer != nil {
-		client, err := d.dialALPNWithDeadline(ctx, network, addr, config)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return client, nil
-	}
-	client, err := dialWithDeadline(ctx, network, addr, config)
+	conn, err := d.DialTimeout(ctx, network, addr, config.Timeout)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return client, nil
+
+	// Works around the case when net.DialWithTimeout succeeds, but key exchange hangs.
+	// Setting deadline on connection prevents this case from happening
+	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -103,15 +72,12 @@ func (d directDial) DialTimeout(ctx context.Context, network, address string, ti
 		return conn, trace.Wrap(err)
 	}
 
-	dialer := &net.Dialer{
+	dialer := apiclient.NewPROXYHeaderDialer(&net.Dialer{
 		Timeout: timeout,
-	}
+	}, d.proxyHeaderGetter)
 
 	conn, err := dialer.DialContext(ctx, network, address)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conn, nil
+	return conn, trace.Wrap(err)
 }
 
 type proxyDial struct {
@@ -119,6 +85,9 @@ type proxyDial struct {
 	proxyURL *url.URL
 	// insecure is whether to skip certificate validation.
 	insecure bool
+	// proxyHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
+	// Used by proxy's web server to make calls on behalf of connected clients.
+	proxyHeaderGetter apiclient.PROXYHeaderGetter
 	// alpnDialer is the dialer used for TLS routing.
 	alpnDialer apiclient.ContextDialer
 }
@@ -138,7 +107,8 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 		return tlsConn, trace.Wrap(err)
 	}
 
-	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address, apiclient.WithInsecureSkipVerify(d.insecure))
+	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address, apiclient.WithInsecureSkipVerify(d.insecure),
+		apiclient.WithPROXYHeaderGetter(d.proxyHeaderGetter))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -178,6 +148,8 @@ type dialerOptions struct {
 	insecureSkipTLSVerify bool
 	// alpnDialer is the dialer used for TLS routing.
 	alpnDialer apiclient.ContextDialer
+
+	proxyHeaderGetter apiclient.PROXYHeaderGetter
 }
 
 // DialerOptionFunc allows setting options as functional arguments to DialerFromEnvironment
@@ -194,6 +166,13 @@ func WithALPNDialer(alpnDialerConfig apiclient.ALPNDialerConfig) DialerOptionFun
 func WithInsecureSkipTLSVerify(insecure bool) DialerOptionFunc {
 	return func(options *dialerOptions) {
 		options.insecureSkipTLSVerify = insecure
+	}
+}
+
+// WithPROXYHeaderGetter adds PROXY headers getter, which is used to propagate client's real IP
+func WithPROXYHeaderGetter(proxyHeaderGetter apiclient.PROXYHeaderGetter) DialerOptionFunc {
+	return func(options *dialerOptions) {
+		options.proxyHeaderGetter = proxyHeaderGetter
 	}
 }
 
@@ -215,14 +194,16 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	if proxyURL == nil {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
-			alpnDialer: options.alpnDialer,
+			alpnDialer:        options.alpnDialer,
+			proxyHeaderGetter: options.proxyHeaderGetter,
 		}
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyURL)
 	return proxyDial{
-		proxyURL:   proxyURL,
-		insecure:   options.insecureSkipTLSVerify,
-		alpnDialer: options.alpnDialer,
+		proxyURL:          proxyURL,
+		insecure:          options.insecureSkipTLSVerify,
+		alpnDialer:        options.alpnDialer,
+		proxyHeaderGetter: options.proxyHeaderGetter,
 	}
 }
 

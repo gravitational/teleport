@@ -24,6 +24,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
@@ -52,17 +54,27 @@ func RegisterEngine(fn EngineFn, names ...string) {
 }
 
 // GetEngine returns a new engine for the provided configuration.
-func GetEngine(name string, conf EngineConfig) (Engine, error) {
+func GetEngine(db types.Database, conf EngineConfig) (Engine, error) {
 	if err := conf.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	conf.Auth = newReportingAuth(db, conf.Auth)
 	enginesMu.RLock()
+	name := db.GetProtocol()
 	engineFn := engines[name]
 	enginesMu.RUnlock()
 	if engineFn == nil {
 		return nil, trace.NotFound("database engine %q is not registered", name)
 	}
-	return engineFn(conf), nil
+	engine, err := newReportingEngine(reporterConfig{
+		engine:    engineFn(conf),
+		component: teleport.ComponentDatabase,
+		database:  db,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return engine, nil
 }
 
 // CheckEngines checks if provided engine names are registered.
@@ -101,6 +113,8 @@ type EngineConfig struct {
 	Users Users
 	// DataDir is the Teleport data directory
 	DataDir string
+	// GetUserProvisioner is automatic database users creation handler.
+	GetUserProvisioner func(AutoUsers) *UserProvisioner
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

@@ -35,7 +35,10 @@ import (
 // selectConnectionUpgrade selects the requested upgrade type and returns the
 // corresponding handler.
 func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHandler, error) {
-	upgrades := r.Header.Values(constants.WebAPIConnUpgradeHeader)
+	upgrades := append(
+		r.Header.Values(constants.WebAPIConnUpgradeTeleportHeader),
+		r.Header.Values(constants.WebAPIConnUpgradeHeader)...,
+	)
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
 		case constants.WebAPIConnUpgradeTypeALPNPing:
@@ -130,6 +133,8 @@ func (h *Handler) startPing(ctx context.Context, pingConn *pingconn.PingConn) {
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 	header := make(http.Header)
 	header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
+	header.Add(constants.WebAPIConnUpgradeTeleportHeader, upgradeType)
+	header.Add(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
 	response := &http.Response{
 		Status:     http.StatusText(http.StatusSwitchingProtocols),
 		StatusCode: http.StatusSwitchingProtocols,

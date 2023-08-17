@@ -100,3 +100,63 @@ func TestLockConfiguration_CheckAndSetDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestRunWhileLockedConfigCheckAndSetDefaults(t *testing.T) {
+	type mockBackend struct {
+		Backend
+	}
+	lockName := "lock"
+	ttl := 1 * time.Minute
+	minimumValidConfig := RunWhileLockedConfig{
+		LockConfiguration: LockConfiguration{
+			Backend:  mockBackend{},
+			LockName: lockName,
+			TTL:      ttl,
+		},
+	}
+	tests := []struct {
+		name    string
+		input   func() RunWhileLockedConfig
+		want    RunWhileLockedConfig
+		wantErr string
+	}{
+		{
+			name: "minimum valid config",
+			input: func() RunWhileLockedConfig {
+				return minimumValidConfig
+			},
+			want: RunWhileLockedConfig{
+				LockConfiguration: LockConfiguration{
+					Backend:       mockBackend{},
+					LockName:      lockName,
+					TTL:           ttl,
+					RetryInterval: 250 * time.Millisecond,
+				},
+				ReleaseCtxTimeout: 300 * time.Millisecond,
+				// defaults to halft of TTL.
+				RefreshLockInterval: 30 * time.Second,
+			},
+		},
+		{
+			name: "errors from LockConfiguration is passed",
+			input: func() RunWhileLockedConfig {
+				cfg := minimumValidConfig
+				cfg.LockName = ""
+				return cfg
+			},
+			wantErr: "missing LockName",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.input()
+			err := cfg.CheckAndSetDefaults()
+			if tt.wantErr == "" {
+				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
+				require.Empty(t, cmp.Diff(tt.want, cfg))
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
+}

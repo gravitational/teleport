@@ -22,7 +22,7 @@ import { SelectAsync } from 'shared/components/Select';
 
 const ValueContainer = ({ children, ...props }) => (
   <components.ValueContainer {...props}>
-    <Flex alignItems="center" color="text.primary">
+    <Flex alignItems="center" color="text.main">
       <Text typography="h6" fontWeight="regular" mr="2">
         CLUSTER:
       </Text>
@@ -131,20 +131,20 @@ const StyledSelectAsync = styled(SelectAsync)`
     height: 42px;
 
     .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.secondary};
+      color: ${props => props.theme.colors.text.slightlyMuted};
     }
 
     &:focus,
     &:active {
       background: ${props => props.theme.colors.levels.surface};
-      border-color: ${props => props.theme.colors.text.primary};
+      border-color: ${props => props.theme.colors.text.main};
     }
     &:hover {
       background: ${props => props.theme.colors.levels.surface};
-      border-color: ${props => props.theme.colors.text.primary};
+      border-color: ${props => props.theme.colors.text.main};
 
       .react-select__dropdown-indicator {
-        color: ${props => props.theme.colors.text.primary};
+        color: ${props => props.theme.colors.text.main};
       }
     }
   }
@@ -152,18 +152,18 @@ const StyledSelectAsync = styled(SelectAsync)`
   .react-select__indicator,
   .react-select__dropdown-indicator {
     padding: 4px 16px;
-    color: ${props => props.theme.colors.text.secondary};
+    color: ${props => props.theme.colors.text.slightlyMuted};
     &:hover {
-      color: ${props => props.theme.colors.text.primary};
+      color: ${props => props.theme.colors.text.main};
     }
   }
 
   .react-select__control--menu-is-open {
     .react-select__indicator,
     .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.primary};
+      color: ${props => props.theme.colors.text.main};
       &:hover {
-        color: ${props => props.theme.colors.text.primary};
+        color: ${props => props.theme.colors.text.main};
       }
     }
   }

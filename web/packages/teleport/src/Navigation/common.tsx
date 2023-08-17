@@ -28,11 +28,19 @@ export const Icon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  svg {
+    height: 24px;
+    width: 24px;
+  }
 `;
 
 export const SmallIcon = styled(Icon)`
   flex: 0 0 14px;
   margin-right: 10px;
+  svg {
+    height: 18px;
+    width: 18px;
+  }
 `;
 
 interface LinkContentProps {
@@ -57,7 +65,7 @@ export const LinkContent = styled.div<LinkContentProps>`
 export const commonNavigationItemStyles = css`
   display: flex;
   position: relative;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   text-decoration: none;
   user-select: none;
   font-size: 14px;

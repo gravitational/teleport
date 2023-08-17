@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Label } from 'teleport/types';
+
 /**
  * type Integration v. type Plugin:
  *
@@ -90,7 +92,21 @@ export function getStatusCodeDescription(
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
-export type PluginKind = 'slack';
+// PluginKind represents the type of the plugin
+// and should be the same value as defined in the backend (check master branch for the latest):
+// https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
+export type PluginKind =
+  | 'slack'
+  | 'openai'
+  | 'pagerduty'
+  | 'email'
+  | 'jira'
+  | 'discord'
+  | 'mattermost'
+  | 'msteams'
+  | 'opsgenie'
+  | 'okta'
+  | 'jamf';
 
 export type IntegrationCreateRequest = {
   name: string;
@@ -137,24 +153,97 @@ export const awsRegionMap = {
 };
 
 export type Regions = keyof typeof awsRegionMap;
-export type IntegrationExecuteRequest = {
+
+// RdsEngine are the expected backend string values,
+// used when requesting lists of rds databases of the
+// specified engine.
+export type RdsEngine =
+  | 'aurora-mysql' // (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
+  | 'aurora-postgresql'
+  | 'mariadb'
+  | 'mysql'
+  | 'postgres';
+
+// RdsEngineIdentifier are the name of engines
+// used to determine the grouping of similar RdsEngines.
+// eg: if `aurora-mysql` then the grouping of RdsEngines
+// is 'aurora, aurora-mysql`, they are both mysql but
+// refer to different versions. This type is used solely
+// for frontend.
+export type RdsEngineIdentifier =
+  | 'mysql'
+  | 'postgres'
+  | 'aurora-mysql'
+  | 'aurora-postgres';
+
+export type AwsOidcListDatabasesRequest = {
+  // engines is used as a filter to get a list of specified engines only.
+  engines: RdsEngine[];
   region: Regions;
   // nextToken is the start key for the next page
   nextToken?: string;
+  // rdsType describes the type of RDS dbs to request.
+  // `cluster` is used for requesting aurora related
+  // engines, and `instance` for rest of engines.
+  rdsType: 'instance' | 'cluster';
 };
 
-export type AwsDatabase = {
-  // engine of the database. Eg, sqlserver-ex
-  engine: string;
+export type AwsRdsDatabase = {
+  // engine of the database. eg. aurora-mysql
+  engine: RdsEngine;
   // name is the the Database's name.
   name: string;
-  // endpoint contains the URI for connecting to this Database
-  endpoint: string;
+  // uri contains the endpoint with port for connecting to this Database.
+  uri: string;
+  // resourceId is the AWS Region-unique, immutable identifier for the DB.
+  resourceId: string;
+  // accountId is the AWS account id.
+  accountId: string;
+  // labels contains this Instance tags.
+  labels: Label[];
+  // subnets is a list of subnets for the RDS instance.
+  subnets: string[];
+  // region is the AWS cloud region that this database is from.
+  region: Regions;
+  // status contains this Instance status.
+  // There is a lot of status states available so only a select few were
+  // hard defined to use to determine the status color.
+  // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
+  status: 'available' | 'failed' | 'deleting';
 };
 
-export type ListAwsDatabaseResponse = {
-  databases: AwsDatabase[];
+export type ListAwsRdsDatabaseResponse = {
+  databases: AwsRdsDatabase[];
   // nextToken is the start key for the next page.
   // Empty value means last page.
   nextToken?: string;
+};
+
+export type IntegrationUpdateRequest = {
+  awsoidc: {
+    roleArn: string;
+  };
+};
+
+export type AwsOidcDeployServiceRequest = {
+  deploymentMode: 'database-service';
+  region: Regions;
+  subnetIds: string[];
+  taskRoleArn: string;
+  databaseAgentMatcherLabels: Label[];
+};
+
+export type AwsOidcDeployServiceResponse = {
+  // clusterArn is the Amazon ECS Cluster ARN
+  // where the task was started.
+  clusterArn: string;
+  // serviceArn is the Amazon ECS Cluster Service
+  // ARN created to run the task.
+  serviceArn: string;
+  // taskDefinitionArn is the Amazon ECS Task Definition
+  // ARN created to run the Service.
+  taskDefinitionArn: string;
+  // serviceDashboardUrl is a link to the service's Dashboard
+  // URL in Amazon Console.
+  serviceDashboardUrl: string;
 };

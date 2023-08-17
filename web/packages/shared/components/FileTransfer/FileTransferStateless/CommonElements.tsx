@@ -56,10 +56,6 @@ export const PathInput = forwardRef<
 
 const StyledFieldInput = styled(FieldInput)`
   input {
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: transparent;
-    color: white;
-    box-shadow: none;
     font-size: 14px;
     height: 32px;
   }

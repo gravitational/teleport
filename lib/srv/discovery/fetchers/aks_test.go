@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestAKSFetcher(t *testing.T) {
@@ -211,6 +212,7 @@ func aksClustersToResources(t *testing.T, clusters ...*azure.AKSCluster) types.R
 		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
 		require.NoError(t, err)
 		require.True(t, kubeCluster.IsAzure())
+		common.ApplyAKSNameSuffix(kubeCluster)
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
 	return kubeClusters.AsResources()

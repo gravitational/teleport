@@ -17,6 +17,12 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import {
+  Integration,
+  IntegrationKind,
+  IntegrationStatusCode,
+} from 'teleport/services/integrations';
+
 import { FirstStageInstructions } from './FirstStageInstructions';
 import { SecondStageInstructions } from './SecondStageInstructions';
 import { ThirdStageInstructions } from './ThirdStageInstructions';
@@ -27,6 +33,9 @@ import {
   SeventhStageInstructions,
   SuccessfullyAddedIntegrationDialog,
 } from './SeventhStageInstructions';
+
+import type { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import type { CommonInstructionsProps } from './common';
 
 export default {
   title: 'Teleport/Integrations/Enroll/AwsOidc/Instructions',
@@ -40,29 +49,47 @@ export const Step5 = () => <FifthStageInstructions {...props} />;
 export const Step6 = () => <SixthStageInstructions {...props} />;
 export const Step7 = () => (
   <MemoryRouter>
-    <SeventhStageInstructions />
+    <SeventhStageInstructions {...props} emitEvent={() => null} />
   </MemoryRouter>
 );
 
 export const ConfirmDialog = () => (
   <MemoryRouter>
     <SuccessfullyAddedIntegrationDialog
-      discoverEventId=""
-      integrationName="some-integration-name"
+      integration={mockIntegration}
+      emitEvent={() => null}
     />
   </MemoryRouter>
 );
 
 export const ConfirmDialogFromDiscover = () => (
-  <MemoryRouter>
+  <MemoryRouter
+    initialEntries={[{ state: { discover: {} } as DiscoverUrlLocationState }]}
+  >
     <SuccessfullyAddedIntegrationDialog
-      discoverEventId="some-event-id"
-      integrationName="some-integration-name"
+      integration={mockIntegration}
+      emitEvent={() => null}
     />
   </MemoryRouter>
 );
 
-const props = {
+const props: CommonInstructionsProps = {
   onNext: () => null,
+  onPrev: () => null,
+  awsOidc: {
+    thumbprint: 'thumbprint',
+    roleArn: 'arn',
+    integrationName: 'name',
+  },
   clusterPublicUri: 'gravitationalwashington.cloud.gravitional.io:4444',
+};
+
+const mockIntegration: Integration = {
+  kind: IntegrationKind.AwsOidc,
+  name: 'aws-oidc-integration',
+  resourceType: 'integration',
+  spec: {
+    roleArn: 'arn-123',
+  },
+  statusCode: IntegrationStatusCode.Running,
 };

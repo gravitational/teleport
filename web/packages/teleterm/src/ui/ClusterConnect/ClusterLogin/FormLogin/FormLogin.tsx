@@ -229,7 +229,7 @@ const Divider = () => (
     justifyContent="center"
     flexDirection="column"
     borderBottom={1}
-    borderColor="text.placeholder"
+    borderColor="text.muted"
     mx={4}
     mt={4}
     mb={4}
@@ -243,7 +243,7 @@ const FlexBordered = props => (
 );
 
 const StyledOr = styled.div`
-  background: ${props => props.theme.colors.levels.surfaceSecondary};
+  background: ${props => props.theme.colors.levels.surface};
   display: flex;
   align-items: center;
   font-size: 10px;

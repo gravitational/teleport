@@ -36,11 +36,23 @@ rules:
   resources:
     - secrets
   verbs:
-    - get
     - watch
     - list
+- apiGroups:
+    - ""
+  resources:
+    - secrets
+  verbs:
+    - get
   resourceNames:
     - {{ .Release.Name }}-shared-state
+- apiGroups:
+    - ""
+  resources:
+    - events
+  verbs:
+    - create
+    - patch
 # the controller in the updater must be able to watch deployments and
 # statefulsets and get the one it should reconcile
 - apiGroups:
@@ -64,5 +76,20 @@ rules:
     - update
   resourceNames:
     - {{ .Release.Name }}
+- apiGroups:
+    - coordination.k8s.io
+  resources:
+    - leases
+  verbs:
+    - create
+- apiGroups:
+    - coordination.k8s.io
+  resourceNames:
+    - {{ .Release.Name }}
+  resources:
+    - leases
+  verbs:
+    - get
+    - update
 {{- end -}}
 {{- end -}}

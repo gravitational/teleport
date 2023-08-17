@@ -63,6 +63,7 @@ func TestWatcher(t *testing.T) {
 		Fetchers: []Fetcher{appFetcher, noAuthFetcher, dbFetcher},
 		Interval: time.Hour,
 		Clock:    clock,
+		Origin:   types.OriginCloud,
 	})
 	require.NoError(t, err)
 	go watcher.Start()
@@ -98,9 +99,11 @@ func (m *mockFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error
 	}
 	return m.resources, nil
 }
+
 func (m *mockFetcher) ResourceType() string {
 	return m.resourceType
 }
+
 func (m *mockFetcher) Cloud() string {
 	return m.cloud
 }

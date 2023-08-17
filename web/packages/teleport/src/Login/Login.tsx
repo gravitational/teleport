@@ -22,6 +22,7 @@ import FormLogin from 'teleport/components/FormLogin';
 import Logo from 'teleport/components/LogoHero';
 
 import useLogin, { State } from './useLogin';
+import Motd from './Motd';
 
 export default function Container() {
   const state = useLogin();
@@ -41,25 +42,32 @@ export function Login({
   isPasswordlessEnabled,
   primaryAuthType,
   privateKeyPolicyEnabled,
+  motd,
+  showMotd,
+  acknowledgeMotd,
 }: State) {
   return (
     <>
       <Logo src={logoSrc} />
-      <FormLogin
-        title={'Sign in to Teleport'}
-        authProviders={authProviders}
-        auth2faType={auth2faType}
-        preferredMfaType={preferredMfaType}
-        isLocalAuthEnabled={isLocalAuthEnabled}
-        onLoginWithSso={onLoginWithSso}
-        onLoginWithWebauthn={onLoginWithWebauthn}
-        onLogin={onLogin}
-        attempt={attempt}
-        clearAttempt={clearAttempt}
-        isPasswordlessEnabled={isPasswordlessEnabled}
-        primaryAuthType={primaryAuthType}
-        privateKeyPolicyEnabled={privateKeyPolicyEnabled}
-      />
+      {showMotd ? (
+        <Motd message={motd} onClick={acknowledgeMotd} />
+      ) : (
+        <FormLogin
+          title={'Sign in to Teleport'}
+          authProviders={authProviders}
+          auth2faType={auth2faType}
+          preferredMfaType={preferredMfaType}
+          isLocalAuthEnabled={isLocalAuthEnabled}
+          onLoginWithSso={onLoginWithSso}
+          onLoginWithWebauthn={onLoginWithWebauthn}
+          onLogin={onLogin}
+          attempt={attempt}
+          clearAttempt={clearAttempt}
+          isPasswordlessEnabled={isPasswordlessEnabled}
+          primaryAuthType={primaryAuthType}
+          privateKeyPolicyEnabled={privateKeyPolicyEnabled}
+        />
+      )}
     </>
   );
 }

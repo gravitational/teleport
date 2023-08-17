@@ -103,32 +103,6 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, d
 	}
 }
 
-func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo {
-	registryOrg := ProductionRegistryOrg
-	if configureForPRTestingOnly {
-		dockerUsername = testingSecretPrefix + dockerUsername
-		dockerPassword = testingSecretPrefix + dockerPassword
-		registryOrg = testingQuayRegistryOrg
-	}
-
-	return &ContainerRepo{
-		Name:        "Quay",
-		IsImmutable: false,
-		EnvironmentVars: map[string]value{
-			"QUAY_USERNAME":      {fromSecret: dockerUsername},
-			"QUAY_PASSWORD":      {fromSecret: dockerPassword},
-			"DOCKERHUB_USERNAME": {fromSecret: "DOCKERHUB_USERNAME"},
-			"DOCKERHUB_PASSWORD": {fromSecret: "DOCKERHUB_READONLY_TOKEN"},
-		},
-		RegistryDomain: ProductionRegistryQuay,
-		RegistryOrg:    registryOrg,
-		LoginCommands: []string{
-			fmt.Sprintf("docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" %q", ProductionRegistryQuay),
-			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin`,
-		},
-	}
-}
-
 func NewLocalContainerRepo() *ContainerRepo {
 	return &ContainerRepo{
 		Name:           "Local Registry",
@@ -148,7 +122,6 @@ func GetStagingContainerRepo(uniqueStagingTag bool) *ContainerRepo {
 
 func GetProductionContainerRepos() []*ContainerRepo {
 	return []*ContainerRepo{
-		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
 		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET",
 			"PRODUCTION_TELEPORT_DRONE_ECR_AWS_ROLE", ProductionRegistry, "production", true, false, false),
 	}

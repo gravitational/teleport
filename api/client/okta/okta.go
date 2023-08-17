@@ -16,9 +16,11 @@ package okta
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -152,15 +154,15 @@ func (c *Client) UpdateOktaAssignment(ctx context.Context, assignment types.Okta
 	return resp, trail.FromGRPC(err)
 }
 
-// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-// will be updated if possible.
-func (c *Client) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
-	resp, err := c.grpcClient.UpdateOktaAssignmentActionStatuses(ctx, &oktapb.UpdateOktaAssignmentActionStatusesRequest{
-		Name:   name,
-		Status: types.OktaAssignmentActionStatusToProto(status),
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (c *Client) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
+	_, err := c.grpcClient.UpdateOktaAssignmentStatus(ctx, &oktapb.UpdateOktaAssignmentStatusRequest{
+		Name:          name,
+		Status:        types.OktaAssignmentStatusToProto(status),
+		TimeHasPassed: durationpb.New(timeHasPassed),
 	})
-	return resp, trail.FromGRPC(err)
+	return trail.FromGRPC(err)
 }
 
 // DeleteOktaAssignmentremoves the specified Okta assignment resource.

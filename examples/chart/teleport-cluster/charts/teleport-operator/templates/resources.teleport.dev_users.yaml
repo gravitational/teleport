@@ -36,7 +36,7 @@ spec:
             description: User resource definition v2 from Teleport
             properties:
               github_identities:
-                description: GithubIdentities list associated GitHub OAuth2 identities
+                description: GithubIdentities list associated Github OAuth2 identities
                   that let user log in using externally verified identity
                 items:
                   properties:
@@ -96,6 +96,14 @@ spec:
                   administrator for local accounts. Traits are used to populate role
                   variables.
                 type: object
+              trusted_device_ids:
+                description: TrustedDeviceIDs contains the IDs of trusted devices
+                  enrolled by the user. Managed by the Device Trust subsystem, avoid
+                  manual edits.
+                items:
+                  type: string
+                nullable: true
+                type: array
             type: object
           status:
             description: TeleportUserStatus defines the observed state of TeleportUser

@@ -66,7 +66,7 @@ export const StyledSelect = styled.div`
     font-size: 14px;
     outline: none;
     width: 100%;
-    color: ${props => props.theme.colors.text.primary};
+    color: ${props => props.theme.colors.text.main};
     background-color: transparent;
     margin-bottom: 0px;
     border-radius: 4px;
@@ -76,7 +76,7 @@ export const StyledSelect = styled.div`
     outline: none;
     min-height: 40px;
     height: fit-content;
-    border: 1px solid ${props => props.theme.colors.text.placeholder};
+    border: 1px solid ${props => props.theme.colors.text.muted};
     border-radius: 4px;
     background-color: transparent;
     box-shadow: none;
@@ -91,18 +91,18 @@ export const StyledSelect = styled.div`
     }}
 
     .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.placeholder};
+      color: ${props => props.theme.colors.text.muted};
     }
 
     &:hover,
     &:focus,
     &:active {
-      border: 1px solid ${props => props.theme.colors.text.secondary};
+      border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
       background-color: ${props => props.theme.colors.spotBackground[0]};
       cursor: pointer;
 
       .react-select__dropdown-indicator {
-        color: ${props => props.theme.colors.text.primary};
+        color: ${props => props.theme.colors.text.main};
       }
     }
 
@@ -111,37 +111,37 @@ export const StyledSelect = styled.div`
       &:hover,
       &:focus,
       &:active {
-        color: ${props => props.theme.colors.text.primary};
+        color: ${props => props.theme.colors.text.main};
       }
     }
   }
 
   .react-select__control--is-focused {
-    border-color: ${props => props.theme.colors.text.secondary};
+    border-color: ${props => props.theme.colors.text.slightlyMuted};
     background-color: ${props => props.theme.colors.spotBackground[0]};
     cursor: pointer;
 
     .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.primary};
+      color: ${props => props.theme.colors.text.main};
     }
   }
 
   .react-select__single-value {
-    color: ${props => props.theme.colors.text.primary};
+    color: ${props => props.theme.colors.text.main};
   }
 
   .react-select__placeholder {
-    color: ${props => props.theme.colors.text.placeholder};
+    color: ${props => props.theme.colors.text.muted};
   }
 
   .react-select__multi-value {
     background-color: ${props => props.theme.colors.spotBackground[1]};
     .react-select__multi-value__label {
-      color: ${props => props.theme.colors.text.primary};
+      color: ${props => props.theme.colors.text.main};
       padding: 0 6px;
     }
     .react-select__multi-value__remove {
-      color: ${props => props.theme.colors.text.primary};
+      color: ${props => props.theme.colors.text.main};
       &:hover {
         background-color: ${props => props.theme.colors.spotBackground[0]};
         color: ${props => props.theme.colors.error.main};
@@ -175,7 +175,7 @@ export const StyledSelect = styled.div`
   }
 
   .react-select__clear-indicator {
-    color: ${props => props.theme.colors.text.secondary};
+    color: ${props => props.theme.colors.text.slightlyMuted};
     &:hover,
     &:focus {
       background-color: ${props => props.theme.colors.spotBackground[0]};
@@ -220,6 +220,10 @@ export const StyledSelect = styled.div`
     .react-select__indicator {
       color: ${props => props.theme.colors.text.disabled};
     }
+  }
+
+  .react-select__input {
+    color: ${props => props.theme.colors.text.main};
   }
 
   ${width}

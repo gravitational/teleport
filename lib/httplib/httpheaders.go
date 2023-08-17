@@ -21,9 +21,113 @@ package httplib
 import (
 	"fmt"
 	"net/http"
+	"regexp"
+	"sort"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/utils"
 )
+
+// Mutex protected cache for memoizing functions which construct the CSP header string.
+// This is necessary because the CSP header is constructed on every request to the web UI,
+// so caching here has a significant performance impact.
+type cspCache struct {
+	sync.RWMutex
+	entries map[string]string
+}
+
+func (c *cspCache) get(key string) (string, bool) {
+	c.RLock()
+	defer c.RUnlock()
+
+	val, ok := c.entries[key]
+	return val, ok
+}
+
+func (c *cspCache) set(key, value string) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.entries[key] = value
+}
+
+func newCSPCache() *cspCache {
+	return &cspCache{
+		entries: make(map[string]string),
+	}
+}
+
+type cspMap map[string][]string
+
+var defaultContentSecurityPolicy = cspMap{
+	"default-src": {"'self'"},
+	// specify CSP directives not covered by `default-src`
+	"base-uri":        {"'self'"},
+	"form-action":     {"'self'"},
+	"frame-ancestors": {"'none'"},
+	// additional default restrictions
+	"object-src": {"'none'"},
+	"img-src":    {"'self'", "data:", "blob:"},
+	"style-src":  {"'self'", "'unsafe-inline'"},
+}
+
+var defaultFontSrc = cspMap{"font-src": {"'self'", "data:"}}
+var defaultConnectSrc = cspMap{"connect-src": {"'self'", "wss:"}}
+
+var stripeSecurityPolicy = cspMap{
+	// auto-pay plans in Cloud use stripe.com to manage billing information
+	"script-src": {"'self'", "https://js.stripe.com"},
+	"frame-src":  {"https://js.stripe.com"},
+}
+
+var wasmSecurityPolicy = cspMap{
+	"script-src": {"'self'", "'wasm-unsafe-eval'"},
+}
+
+// combineCSPMaps combines multiple CSP maps into a single map.
+// When multiple of the input cspMaps have the same key, their
+// respective lists are concatenated.
+func combineCSPMaps(cspMaps ...cspMap) cspMap {
+	combinedMap := make(cspMap)
+
+	for _, cspMap := range cspMaps {
+		for key, value := range cspMap {
+			combinedMap[key] = append(combinedMap[key], value...)
+			combinedMap[key] = utils.Deduplicate(combinedMap[key])
+		}
+	}
+
+	return combinedMap
+}
+
+// getContentSecurityPolicyString combines multiple CSP maps into a single
+// CSP string, alphabetically sorted by the directive key.
+// When multiple of the input cspMaps have the same key, their
+// respective lists are concatenated.
+func getContentSecurityPolicyString(cspMaps ...cspMap) string {
+	combined := combineCSPMaps(cspMaps...)
+
+	keys := make([]string, 0, len(combined))
+	for k := range combined {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var cspStringBuilder strings.Builder
+	for _, k := range keys {
+		cspStringBuilder.WriteString(k)
+		for _, v := range combined[k] {
+			cspStringBuilder.WriteString(" ")
+			cspStringBuilder.WriteString(v)
+		}
+		cspStringBuilder.WriteString("; ")
+	}
+
+	return strings.TrimSpace(cspStringBuilder.String())
+}
 
 // SetNoCacheHeaders tells proxies and browsers do not cache the content
 func SetNoCacheHeaders(h http.Header) {
@@ -61,50 +165,97 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 }
 
-// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header) {
-	var cspValue = strings.Join([]string{
-		GetDefaultContentSecurityPolicy(),
-		// 'unsafe-inline' is required by CSS-in-JS to work
-		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob:",
-		"font-src 'self' data:",
-		"connect-src 'self' wss:",
-	}, ";")
+func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
+	cspMaps := []cspMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
 
-	h.Set("Content-Security-Policy", cspValue)
+	if withStripe {
+		cspMaps = append(cspMaps, stripeSecurityPolicy)
+	}
+
+	if withWasm {
+		cspMaps = append(cspMaps, wasmSecurityPolicy)
+	}
+
+	return combineCSPMaps(cspMaps...)
+}
+
+// desktopSessionRe is a regex that matches /web/cluster/:clusterId/desktops/:desktopName/:username
+// which is a route to a desktop session that uses WASM.
+var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
+
+var indexCSPStringCache *cspCache = newCSPCache()
+
+func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
+	// Check for result with this cfg and urlPath in cache
+	withStripe := cfg.GetCloud() && cfg.GetIsUsageBased()
+	key := fmt.Sprintf("%v-%v", withStripe, urlPath)
+	if cspString, ok := indexCSPStringCache.get(key); ok {
+		return cspString
+	}
+
+	// Nothing found in cache, calculate regex and result
+	withWasm := desktopSessionRe.MatchString(urlPath)
+	cspString := getContentSecurityPolicyString(
+		getIndexContentSecurityPolicy(withStripe, withWasm),
+	)
+	// Add result to cache
+	indexCSPStringCache.set(key, cspString)
+
+	return cspString
+}
+
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
+func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath string) {
+	cspString := getIndexContentSecurityPolicyString(cfg, urlPath)
+	h.Set("Content-Security-Policy", cspString)
+}
+
+var appLaunchCSPStringCache *cspCache = newCSPCache()
+
+func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
+	if cspString, ok := appLaunchCSPStringCache.get(applicationURL); ok {
+		return cspString
+	}
+
+	cspString := getContentSecurityPolicyString(
+		defaultContentSecurityPolicy,
+		defaultFontSrc,
+		cspMap{
+			"connect-src": {"'self'", applicationURL},
+		},
+	)
+	appLaunchCSPStringCache.set(applicationURL, cspString)
+
+	return cspString
 }
 
 // SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
 func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
-	var cspValue = strings.Join([]string{
-		GetDefaultContentSecurityPolicy(),
-		// 'unsafe-inline' is required by CSS-in-JS to work
-		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob:",
-		"font-src 'self' data:",
-		fmt.Sprintf("connect-src 'self' %s", applicationURL),
-	}, ";")
-
-	h.Set("Content-Security-Policy", cspValue)
+	cspString := getAppLaunchContentSecurityPolicyString(applicationURL)
+	h.Set("Content-Security-Policy", cspString)
 }
 
-// GetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
-func GetDefaultContentSecurityPolicy() string {
-	return strings.Join([]string{
-		"default-src 'self'",
-		// specify CSP directives not covered by `default-src`
-		"base-uri 'self'",
-		"form-action 'self'",
-		"frame-ancestors 'none'",
-		// additional default restrictions
-		"object-src 'none'",
-	}, ";")
+var redirectCSPStringCache *cspCache = newCSPCache()
+
+func getRedirectPageContentSecurityPolicyString(scriptSrc string) string {
+	if cspString, ok := redirectCSPStringCache.get(scriptSrc); ok {
+		return cspString
+	}
+
+	cspString := getContentSecurityPolicyString(
+		defaultContentSecurityPolicy,
+		cspMap{
+			"script-src": {"'" + scriptSrc + "'"},
+		},
+	)
+	redirectCSPStringCache.set(scriptSrc, cspString)
+
+	return cspString
 }
 
-// SetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
-func SetDefaultContentSecurityPolicy(h http.Header) {
-	h.Set("Content-Security-Policy", GetDefaultContentSecurityPolicy())
+func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
+	cspString := getRedirectPageContentSecurityPolicyString(scriptSrc)
+	h.Set("Content-Security-Policy", cspString)
 }
 
 // SetWebConfigHeaders sets headers for webConfig.js

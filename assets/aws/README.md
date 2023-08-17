@@ -51,4 +51,15 @@ make oss
 
 ## Usage instructions
 
-To use the AMI, see the [AMI guide](https://gravitational.com/teleport/docs/aws_oss_guide/#single-oss-teleport-amis-manual-gui-setup) in the docs. 
+To see how to use your Teleport AMI to run a single-instance Teleport cluster,
+read our [Getting Started Guide](https://goteleport.com/docs/get-started).
+
+You can use your Teleport AMI to deploy EC2 instances running any Teleport
+service. To read how to join your instance to a Teleport cluster in order to
+protect resources in your infrastructure, see our [Joining Services to a
+Cluster](https://goteleport.com/docs/management/join-services-to-your-cluster/)
+guides. 
+
+If you are hosting the Teleport Auth and Proxy Services yourself, [read our
+guide](https://goteleport.com/docs/deploy-a-cluster/high-availability/) to
+designing a high-availability architecture for your Teleport deployment.

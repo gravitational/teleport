@@ -134,10 +134,171 @@ Groups will not be cleaned up and will be created once and be reused
 this is to avoid files created with specified groups will remain
 accessible between sessions to users in those groups.
 
+
 ### Multiple matching roles
 
 Automatic user provisioning will require that all roles matching a
 node via `labels` have `create_host_user=true`
+
+
+## Update: allow host users to not be deleted after session end
+
+This will deprecate the current `create_host_user` option and replace
+it with an option called `create_host_user_mode`. The new option will
+have 3 possible settings:
+- `off`: disables host user creation
+- `drop`: deletes users after the session ends (current behaviour)
+- `keep`: leaves host users after the session ends.
+
+If the deprecated `create_host_user` option is specified and
+`create_host_user_mode` is not, it will default to using `drop` when
+it is true, and `off` when it is false.
+
+If `create_host_user_mode` is set, its setting will always be used
+instead of the `create_host_user` setting.
+
+If multiple roles matching a node specify the `create_host_user_mode`
+option with both `drop` and `keep`, teleport will default to `keep`
+
+Once `create_host_user` is to be removed, a role migration will be
+triggered and any roles including `create_host_user` will be migrated
+to use `create_host_user_mode` setting it to `drop` if
+`create_host_user` was set.
+
+### Examples
+
+#### Behaviour using the deprecated option will remain the same as it is currently:
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-user-groups
+spec:
+  options:
+    # allow auto provisioning of users.
+    create_host_user: true
+  allow:
+    # username from external okta attribute
+    logins: [ "{{external.username}}" ]
+```
+
+will be equivalent to:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-user-groups
+spec:
+  options:
+    # allow auto provisioning of users, drop them at session end.
+    create_host_user_mode: drop
+  allow:
+    # username from external okta attribute
+    logins: [ "{{external.username}}" ]
+```
+
+#### User will not be deleted at session end
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-user-groups
+spec:
+  options:
+    # allow auto provisioning of users and for them to remain after session ends.
+    create_host_user_mode: keep
+  allow:
+    # username from external okta attribute
+    logins: [ "{{external.username}}" ]
+```
+
+#### Multiple roles specify `create_host_user_mode`:
+
+Multiple roles specify `create_host_user_mode`, teleport will default to `keep`
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-user-groups
+spec:
+  options:
+    # allow auto provisioning of users and for them to remain after session ends.
+    create_host_user_mode: keep
+  allow:
+    # username from external okta attribute
+    logins: [ "{{external.username}}" ]
+```
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-user-groups-other
+spec:
+  options:
+    # allow auto provisioning of users, drop them at session end.
+    create_host_user_mode: drop
+  allow:
+    # username from external okta attribute
+    logins: [ "{{external.username}}" ]
+```
+
+## Update: allow the UID and GID of the created user to be specified
+
+This will require adding new traits to users -- `teleport.dev/uid` and
+`teleport.dev/gid`. These will be settable manually or automatically
+via an SSO provider attributes if one is setup.
+
+Creating a user with a specific GID requires that a group with that
+GID already exists, if it does not yet exist for the specified GID, a
+group with that GID will be created with the same name as the user
+logging in.
+
+### Example of setting the uid/gid
+
+Role configuration remains the same:
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-user-groups
+spec:
+  options:
+    # allow auto provisioning of users.
+    create_host_user_mode: drop
+  allow:
+    logins: [ "{{internal.username}}" ]
+```
+
+```yaml
+kind: user
+metadata:
+  name: alex.mcgrath@goteleport.com
+spec:
+  created_by:
+    connector:
+      id: okta
+      identity: user@okta.com
+      type: saml
+  roles:
+  - editor
+  - access
+  - auditor
+  saml_identities:
+  - connector_id: okta
+    username: ...
+  traits:
+    # new traits included will be used when specifying --gid and --uid in useradd
+    teleport.dev/gid:
+    - "1239"
+    teleport.dev/uid:
+    - "1239"
+```
+
+When set like this, the user created upon login will have the `--gid`
+and `--uid` options specified when calling `useradd`
 
 ## UX Examples
 
@@ -209,7 +370,8 @@ spec:
 
 ### Teleport admin wants to prohibit some nodes from auto-creating users
 
-Include the below config for the Teleport node that should not allow automatic user creation:
+Include the below config for the Teleport node that should not allow
+automatic user creation:
 
 ```yaml
 ssh_service:

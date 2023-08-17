@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -573,8 +574,22 @@ func (s *Server) Serve() {
 		return
 	}
 
+	// OpenSSH nodes don't support moderated sessions, send an error to
+	// the user and gracefully fail the user is attempting to create one.
+	if s.targetServer != nil && s.targetServer.GetSubKind() == types.SubKindOpenSSHNode {
+		policySets := s.identityContext.AccessChecker.SessionPolicySets()
+		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
+		if evaluator.IsModerated() {
+			s.rejectChannel(chans, "Moderated sessions cannot be created for OpenSSH nodes")
+			sconn.Close()
+
+			s.log.Debugf("Dropping connection to %s@%s that needs moderation", sconn.User(), s.clientConn.RemoteAddr())
+			return
+		}
+	}
+
 	// Connect and authenticate to the remote node.
-	s.log.Debugf("Creating remote connection to %v@%v", sconn.User(), s.clientConn.RemoteAddr().String())
+	s.log.Debugf("Creating remote connection to %s@%s", sconn.User(), s.clientConn.RemoteAddr())
 	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User())
 	if err != nil {
 		// Reject the connection with an error so the client doesn't hang then
@@ -957,9 +972,13 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 
 	scx.RemoteClient = s.remoteClient
 	scx.ChannelType = teleport.ChanSession
+	// Allow file copying at the server level as controlling node-wide
+	// file copying isn't supported for OpenSSH nodes. Users not allowed
+	// to copy files will still get checked and denied properly.
+	scx.SetAllowFileCopying(true)
 	defer scx.Close()
 
-	// Create a "session" channel on the remote host.  Note that we
+	// Create a "session" channel on the remote host. Note that we
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
@@ -1161,6 +1180,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		ctx.AddCloser(userAgent)
 	}
 
 	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
@@ -1281,6 +1301,13 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 		return trace.Wrap(err)
 	}
 
+	// if SFTP was requested, check that
+	if subsystem.subsytemName == teleport.SFTPSubsystem {
+		if err := serverContext.CheckSFTPAllowed(s.sessionRegistry); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// start the requested subsystem, if it fails to start return result right away
 	err = subsystem.Start(ctx, ch)
 	if err != nil {
@@ -1318,6 +1345,16 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
+	if isTeleportEnv(e.Name) {
+		// As a forwarder we want to capture the Teleport environment variables
+		// set by the caller. Environment variables are used to pass existing
+		// session IDs (Assist) and other flags like enabling non-interactive
+		// session recording.
+		// We want to save the environment variables even if the ssh server rejects
+		// them, as we still need their information (e.g. the session ID).
+		scx.SetEnv(e.Name, e.Value)
+	}
+
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
@@ -1338,6 +1375,18 @@ func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Reques
 	var envs map[string]string
 	if err := json.Unmarshal(raw.EnvsJSON, &envs); err != nil {
 		return trace.Wrap(err, "failed to unmarshal envs")
+	}
+
+	for envName, envValue := range envs {
+		if isTeleportEnv(envName) {
+			// As a forwarder we want to capture the Teleport environment variables
+			// set by the caller. Environment variables are used to pass existing
+			// session IDs (Assist) and other flags like enabling non-interactive
+			// session recording.
+			// We want to save the environment variables even if the ssh server rejects
+			// them, as we still need their information (e.g. the session ID).
+			scx.SetEnv(envName, envValue)
+		}
 	}
 
 	if err := scx.RemoteSession.SetEnvs(ctx, envs); err != nil {
@@ -1393,4 +1442,20 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
 	req.WantReply = false
 	return nil
+}
+
+// teleportVarPrefixes contains the list of prefixes used by Teleport environment
+// variables. Matching variables are saved in the session context when forwarding
+// the calls to a remote SSH server as they can contain Teleport-specific
+// information used to process the session properly (e.g. TELEPORT_SESSION or
+// SSH_TELEPORT_RECORD_NON_INTERACTIVE)
+var teleportVarPrefixes = []string{"TELEPORT_", "SSH_TELEPORT_"}
+
+func isTeleportEnv(varName string) bool {
+	for _, prefix := range teleportVarPrefixes {
+		if strings.HasPrefix(varName, prefix) {
+			return true
+		}
+	}
+	return false
 }

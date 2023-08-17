@@ -1,6 +1,6 @@
 should add an operator side-car when operator is enabled:
   1: |
-    image: public.ecr.aws/gravitational/teleport-operator:13.0.0-dev
+    image: public.ecr.aws/gravitational/teleport-operator:14.0.0-dev
     imagePullPolicy: IfNotPresent
     livenessProbe:
       httpGet:
@@ -34,7 +34,7 @@ should add an operator side-car when operator is enabled:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -88,6 +88,16 @@ should add an operator side-car when operator is enabled:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -157,7 +167,7 @@ should set nodeSelector when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -214,6 +224,16 @@ should set nodeSelector when set in values:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -244,7 +264,7 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -305,6 +325,16 @@ should set resources when set in values:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -320,7 +350,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -381,6 +411,16 @@ should set securityContext when set in values:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -406,7 +446,7 @@ should use OSS image and not mount license when enterprise is not set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:8.3.4
+      image: public.ecr.aws/gravitational/teleport-distroless:12.2.1
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -460,6 +500,16 @@ should use OSS image and not mount license when enterprise is not set in values:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config

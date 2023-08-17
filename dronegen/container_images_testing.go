@@ -39,12 +39,11 @@ package main
 // 1. Publish the branch you're working on
 // 2. Set `prBranch` to the name of the branch in (1)
 // 3. Set `configureForPRTestingOnly` to true
-// 4. Create a public and private ECR, Quay repos for "teleport", "teleport-ent", "teleport-operator", "teleport-lab"
-// 5. Set `testingQuayRegistryOrg` and `testingECRRegistryOrg` to the org name(s) used in (4)
+// 4. Create a public and private ECR repos for "teleport", "teleport-ent", "teleport-operator", "teleport-lab"
+// 5. Set `testingECRRegistryOrg` to the org name(s) used in (4)
 // 6. Set the `ECRTestingDomain` to the domain used for the private ECR repos
 // 7. Create two separate IAM users, each with full access to either the public ECR repo OR the private ECR repo
-// 8. Create a Quay "robot account" with write permissions for the created Quay repos
-// 9. Set the Drone secrets for the secret names listed in "GetContainerRepos" to the credentials in (7, 8), prefixed by the value of `testingSecretPrefix`
+// 8. Set the Drone secrets for the secret names listed in "GetContainerRepos" to the credentials in (7, 8), prefixed by the value of `testingSecretPrefix`
 //
 // On each commit, after running `make dronegen``, run the following commands and resign the file:
 // # Pull the current branch instead of v11 so the appropriate dockerfile gets loaded
@@ -57,7 +56,6 @@ package main
 const (
 	configureForPRTestingOnly bool   = false
 	testingSecretPrefix       string = "TEST_"
-	testingQuayRegistryOrg    string = "" // "fred_heinecke"
 	testingECRRegistryOrg     string = "u8j2q1d9"
 	testingECRRegion          string = "us-east-2"
 	prBranch                  string = "" // "fred/multiarch-teleport-actual-container-images"

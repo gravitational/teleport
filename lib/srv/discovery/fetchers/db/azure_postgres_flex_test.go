@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // TestAzurePostgresFlexFetchers tests Azure PostgreSQL Flexible server fetchers.
@@ -35,7 +36,7 @@ func TestAzurePostgresFlexFetchers(t *testing.T) {
 
 	azureSub := makeAzureSubscription(t, "sub123")
 	azPostgresFlexServer, azPostgresFlexDB := makeAzurePostgresFlexServer(t, "postgres-flex", "sub123", "group 1", "East US", map[string]string{"env": "prod"})
-	azureMatchers := []services.AzureMatcher{{
+	azureMatchers := []types.AzureMatcher{{
 		Types:        []string{services.AzureMatcherPostgres},
 		ResourceTags: types.Labels{"env": []string{"prod"}},
 		Regions:      []string{"eastus"},
@@ -86,5 +87,6 @@ func makeAzurePostgresFlexServer(t *testing.T, name, subscription, group, region
 	}
 	database, err := services.NewDatabaseFromAzurePostgresFlexServer(server)
 	require.NoError(t, err)
+	common.ApplyAzureDatabaseNameSuffix(database, services.AzureMatcherPostgres)
 	return server, database
 }

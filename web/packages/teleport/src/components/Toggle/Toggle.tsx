@@ -22,9 +22,10 @@ export default function Toggle({
   onToggle,
   children,
   disabled,
+  className,
 }: Props) {
   return (
-    <StyledWrapper disabled={disabled}>
+    <StyledWrapper disabled={disabled} className={className}>
       <StyledInput
         checked={isToggled}
         onChange={onToggle}
@@ -41,6 +42,7 @@ type Props = {
   onToggle: () => void;
   children?: ReactNode;
   disabled?: boolean;
+  className?: string;
 };
 
 const StyledWrapper = styled.label`

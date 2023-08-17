@@ -14,6 +14,9 @@ Once the Kubernetes cluster is registered for the first time, the agent will sto
 its Teleport identity in a Kubernetes secret. The agent will use this identity
 to automatically join the cluster on subsequent restarts.
 
+Support for joining a cluster with the Proxy Service behind a layer 7 load
+balancer or reverse proxy is available in Teleport 13.0+.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -254,6 +257,15 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --create-namespace \
   --namespace=<Var name="teleport-agent"/> \
   --version (=teleport.version=)
+```
+
+Make sure that the Teleport agent pod is running. You should see one Teleport
+agent pod pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME               READY   STATUS    RESTARTS   AGE
+teleport-agent-0   1/1     Running   0          32s
 ```
 
 List connected clusters using `tsh kube ls` and switch between

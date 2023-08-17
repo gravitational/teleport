@@ -28,10 +28,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/fixtures"
+	"github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
@@ -39,10 +41,12 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		serverProtos   []string
-		insecure       bool
-		expectedResult bool
+		name             string
+		serverProtos     []string
+		dialOpts         []DialOption
+		skipProxyURLTest bool
+		insecure         bool
+		expectedResult   bool
 	}{
 		{
 			name:           "upgrade required (handshake success)",
@@ -63,6 +67,18 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 			expectedResult: true,
 		},
 		{
+			name: "upgrade required (unadvertised ALPN error)",
+			dialOpts: []DialOption{
+				// Use a fake dialer to simulate this error.
+				withBaseDialer(ContextDialerFunc(func(context.Context, string, string) (net.Conn, error) {
+					return nil, trace.Errorf("tls: server selected unadvertised ALPN protocol")
+				})),
+			},
+			serverProtos:     []string{"h2"}, // Doesn't matter here since not hitting server.
+			expectedResult:   true,
+			skipProxyURLTest: true,
+		},
+		{
 			name:           "upgrade not required (other handshake error)",
 			serverProtos:   []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 			insecure:       false, // to cause handshake error
@@ -70,10 +86,27 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
+	forwardProxy, forwardProxyURL := mustStartForwardProxy(t)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server := mustStartMockALPNServer(t, test.serverProtos)
-			require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), test.insecure))
+
+			t.Run("direct", func(t *testing.T) {
+				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(ctx, server.Addr().String(), test.insecure, test.dialOpts...))
+			})
+
+			if test.skipProxyURLTest {
+				return
+			}
+
+			t.Run("with ProxyURL", func(t *testing.T) {
+				countBeforeTest := forwardProxy.Count()
+				dialOpts := append(test.dialOpts, withProxyURL(forwardProxyURL))
+				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(ctx, server.Addr().String(), test.insecure, dialOpts...))
+				require.Equal(t, countBeforeTest+1, forwardProxy.Count())
+			})
 		})
 	}
 }
@@ -160,22 +193,48 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 			pool.AddCert(server.Certificate())
 
 			tlsConfig := &tls.Config{RootCAs: pool}
-			preDialer := newDirectDialer(0, 5*time.Second)
-			dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig, test.withPing)
-			conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
-			if test.wantError {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			defer conn.Close()
+			directDialer := newDirectDialer(0, 5*time.Second)
 
-			data := make([]byte, 100)
-			n, err := conn.Read(data)
-			require.NoError(t, err)
-			require.Equal(t, string(data[:n]), "hello")
+			t.Run("direct", func(t *testing.T) {
+				dialer := newALPNConnUpgradeDialer(directDialer, tlsConfig, test.withPing)
+				conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
+				if test.wantError {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+				defer conn.Close()
+
+				mustReadConnData(t, conn, "hello")
+			})
+
+			t.Run("with ProxyURL", func(t *testing.T) {
+				forwardProxy, forwardProxyURL := mustStartForwardProxy(t)
+				countBeforeTest := forwardProxy.Count()
+
+				proxyURLDialer := newProxyURLDialer(forwardProxyURL, directDialer)
+				dialer := newALPNConnUpgradeDialer(proxyURLDialer, tlsConfig, test.withPing)
+				conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
+				if test.wantError {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+				defer conn.Close()
+
+				mustReadConnData(t, conn, "hello")
+				require.Equal(t, countBeforeTest+1, forwardProxy.Count())
+			})
 		})
 	}
+}
+
+func mustReadConnData(t *testing.T, conn net.Conn, wantText string) {
+	data := make([]byte, len(wantText)*2)
+	n, err := conn.Read(data)
+	require.NoError(t, err)
+	require.Equal(t, len(wantText), n)
+	require.Equal(t, string(data[:n]), wantText)
 }
 
 type mockALPNServer struct {
@@ -240,6 +299,8 @@ func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, constants.WebAPIConnUpgrade, r.URL.Path)
 		require.Equal(t, upgradeType, r.Header.Get(constants.WebAPIConnUpgradeHeader))
+		require.Equal(t, upgradeType, r.Header.Get(constants.WebAPIConnUpgradeTeleportHeader))
+		require.Equal(t, constants.WebAPIConnUpgradeConnectionType, r.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
 
 		hj, ok := w.(http.Hijacker)
 		require.True(t, ok)
@@ -271,4 +332,21 @@ func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http
 			require.NoError(t, err)
 		}
 	})
+}
+
+func mustStartForwardProxy(t *testing.T) (*testhelpers.ProxyHandler, *url.URL) {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		listener.Close()
+	})
+
+	url, err := url.Parse("http://" + listener.Addr().String())
+	require.NoError(t, err)
+
+	handler := &testhelpers.ProxyHandler{}
+	go http.Serve(listener, handler)
+	return handler, url
 }

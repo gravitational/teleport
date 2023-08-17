@@ -181,8 +181,8 @@ func (u *UIDiscoverIntegrationAWSOIDCConnectEvent) Anonymize(a utils.Anonymizer)
 type UIDiscoverDatabaseRDSEnrollEvent prehogv1a.UIDiscoverDatabaseRDSEnrollEvent
 
 func (u *UIDiscoverDatabaseRDSEnrollEvent) CheckAndSetDefaults() error {
-	if u.SelectedResourcesCount <= 0 {
-		return trace.BadParameter("selected resources count must be 1 or more")
+	if u.SelectedResourcesCount < 0 {
+		return trace.BadParameter("selected resources count must be 0 or more")
 	}
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
@@ -224,8 +224,10 @@ func (u *UIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) prehogv1a.S
 					Id:       u.Metadata.Id,
 					UserName: a.AnonymizeString(u.Metadata.UserName),
 				},
-				Resource: u.Resource,
-				Status:   u.Status,
+				Resource:     u.Resource,
+				Status:       u.Status,
+				DeployMethod: u.DeployMethod,
+				DeployType:   u.DeployType,
 			},
 		},
 	}

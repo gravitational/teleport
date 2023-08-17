@@ -56,6 +56,11 @@ const (
 	promptReason = "authenticate user"
 )
 
+const (
+	kLAErrorDomain       = "com.apple.LocalAuthentication"
+	kLAErrorSystemCancel = -4
+)
+
 type parsedLabel struct {
 	rpID, user string
 }
@@ -88,11 +93,33 @@ type touchIDImpl struct{}
 func (touchIDImpl) Diag() (*DiagResult, error) {
 	var resC C.DiagResult
 	C.RunDiag(&resC)
+	defer func() {
+		C.free(unsafe.Pointer(resC.la_error_domain))
+		C.free(unsafe.Pointer(resC.la_error_description))
+	}()
 
 	signed := (bool)(resC.has_signature)
 	entitled := (bool)(resC.has_entitlements)
 	passedLA := (bool)(resC.passed_la_policy_test)
 	passedEnclave := (bool)(resC.passed_secure_enclave_test)
+	laErrorCode := int64(resC.la_error_code)
+	laErrorDomain := C.GoString(resC.la_error_domain)
+	laErrorDescription := C.GoString(resC.la_error_description)
+	if !passedLA && laErrorDescription != "" {
+		log.Debugf("Touch ID: LAError description: %v", laErrorDescription)
+	}
+
+	isAvailable := signed && entitled && passedLA && passedEnclave
+	isClamshellFailure := !isAvailable &&
+		// LAContext test failed.
+		!passedLA &&
+		// Everything else worked.
+		signed &&
+		entitled &&
+		passedEnclave &&
+		// We got an LAErrorSystemCancel error.
+		laErrorDomain == kLAErrorDomain &&
+		laErrorCode == kLAErrorSystemCancel
 
 	return &DiagResult{
 		HasCompileSupport:       true,
@@ -100,7 +127,8 @@ func (touchIDImpl) Diag() (*DiagResult, error) {
 		HasEntitlements:         entitled,
 		PassedLAPolicyTest:      passedLA,
 		PassedSecureEnclaveTest: passedEnclave,
-		IsAvailable:             signed && entitled && passedLA && passedEnclave,
+		IsAvailable:             isAvailable,
+		isClamshellFailure:      isClamshellFailure,
 	}, nil
 }
 

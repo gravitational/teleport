@@ -159,7 +159,7 @@ func NewShared() (*Backend, error) {
 	return NewSharedWithClient(restClient)
 }
 
-// NewSharedWithClient returns a new instance of the shared kuberenetes secret store with the provided client (equivalent
+// NewSharedWithClient returns a new instance of the shared kubernetes secret store with the provided client (equivalent
 // to NewWithClient() except that this backend can be written to by any teleport agent within the helm release. used for propagating
 // relevant state to controllers).
 func NewSharedWithClient(restClient kubernetes.Interface) (*Backend, error) {
@@ -200,6 +200,10 @@ func NewWithConfig(conf Config) (*Backend, error) {
 	}, nil
 }
 
+func (b *Backend) GetName() string {
+	return "kubernetes"
+}
+
 // Exists checks if the secret already exists in Kubernetes.
 // It's used to determine if the agent never created a secret and might upgrade from
 // local SQLite database. In that case, the agent reads local database and
@@ -236,19 +240,6 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 	defer b.mu.Unlock()
 
 	return b.updateSecretContent(ctx, i)
-}
-
-// PutRange receives multiple items and upserts them into the Kubernetes Secret.
-// This function is only used when the Agent's Secret does not exist, but local SQLite database
-// has identity credentials.
-// TODO(tigrato): remove this once the compatibility layer between local storage and
-// Kube secret storage is no longer required!
-func (b *Backend) PutRange(ctx context.Context, items []backend.Item) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	_, err := b.updateSecretContent(ctx, items...)
-	return trace.Wrap(err)
 }
 
 // getSecret reads the secret from K8S API.

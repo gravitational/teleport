@@ -78,9 +78,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   return (
     <Box maxWidth="590px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
-        <Text typography="h3" color="text.secondary">
-          Database Connection
-        </Text>
+        <Text typography="h3">Database Connection</Text>
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
@@ -107,7 +105,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         </Validation>
       </Flex>
       <CliCommand
-        cliCommand={props.gateway.cliCommand}
+        cliCommand={props.gateway.gatewayCliCommand.preview}
         isLoading={isPortOrDbNameProcessing}
         onRun={props.runCliCommand}
       />

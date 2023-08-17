@@ -13,7 +13,6 @@ Jira tickets.
 
 - Jira Server or Jira Cloud installation with an owner privileges, specifically
   to set up webhooks, issue types, and workflows
-
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/6. Create a user and role for access
@@ -38,9 +37,9 @@ You'll need the project Jira key to configure the plugin.
 
 Create a new board for tasks in the permission management project. The board has to have at least these three columns:
 
-1. Pending
-2. Approved
-3. Denied
+- Pending
+- Approved
+- Denied
 
 Teleport's Jira plugin will create a new issue for each new permission request in the first available column on the board. When you drag the request task to the Approved column in Jira, the request will be approved. If you drag the request task to the Denied column in Jira, the request will be denied.
 
@@ -71,39 +70,7 @@ In the webhook settings page, make sure that the webhook will only send Issue Up
 
 ## Step 4/6. Install the plugin
 
-We recommend installing Teleport plugins alongside the Teleport Proxy. This is an ideal
-location as plugins have a low memory footprint, and will require both public internet access
-and Teleport Auth Service access.
-
-<Tabs>
-<TabItem label="Download">
-  ```code
-  $ curl -L -O https://get.gravitational.com/teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-access-jira
-  $ ./install
-  ```
-</TabItem>
-<TabItem label="From Source">
-  To install from source you need `git` and `go` installed. If you do not have Go installed, visit the Go [downloads page](https://go.dev/dl/).
-
-  ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/jira
-  $ make
-  ```
-Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/usr/local/bin` on the server installation.
-</TabItem>
-<TabItem label="Docker">
-  ```code
-  $ docker pull public.ecr.aws/gravitational/teleport-plugin-jira:(=teleport.plugin.version=)
-  ```
-</TabItem>
-<TabItem label="Helm Chart">
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/install-access-request.mdx name="jira"!)
 
 ## Step 5/6. Configure the plugin
 
@@ -159,10 +126,10 @@ plugin to Teleport.
 
 The `[jira]` section requires a few things:
 
-1. Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like `yourcompany.atlassian.net`.
-2. Your username on Jira, i.e. [ben@goteleport.com](mailto:ben@goteleport.com)
-3. Your Jira API token that you've created above.
-4. A Jira Project key, available in Project settings.
+- Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like `yourcompany.atlassian.net`.
+- Your username on Jira, i.e. [ben@goteleport.com](mailto:ben@goteleport.com)
+- Your Jira API token that you've created above.
+- A Jira Project key, available in Project settings.
 
 The `[http]` setting block describes how the plugin's HTTP server works. The HTTP server is responsible for listening for updates from Jira, and processing updates, like when someone drags a task from Inbox to Approved column.
 
@@ -213,10 +180,6 @@ Save this as `teleport-jira.service`. Make sure the `teleport-jira start` comman
 
 The plugin will let anyone with access to the Jira board approve/deny requests so it's
 important to review Teleport's audit log.
-
-## Feedback
-
-If you have any issues with this plugin please create an [issue here](https://github.com/gravitational/teleport-plugins/issues/new).
 
 ## Next steps
 

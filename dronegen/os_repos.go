@@ -20,72 +20,96 @@ import (
 	"time"
 )
 
-func buildOsRepoPipelines() []pipeline {
-	pipelines := promoteBuildOsRepoPipelines()
-
-	return pipelines
+type osPackageDeployment struct {
+	versionChannel    string
+	packageNameFilter string
+	packageToTest     string
+	displayName       string
 }
 
-func promoteBuildOsRepoPipelines() []pipeline {
-	pipelines := []pipeline{}
-
-	// Normal release pipelines
-	pipelines = append(pipelines, buildPromoteOsPackagePipelines("${DRONE_TAG}", `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`, "normal", "teleport-ent")...)
-
-	// teleport-ent-updater to stable/cloud only pipelines
-	pipelines = append(pipelines, buildPromoteOsPackagePipelines("cloud", "teleport-ent-updater*", "teleport-ent-updater", "")...)
-
-	return pipelines
-}
-
-func buildPromoteOsPackagePipelines(versionChannel, packageNameFilter, pipelineNameSuffix, packageToTest string) []pipeline {
-	return []pipeline{
-		buildPromoteOsPackagePipeline("apt", versionChannel, packageNameFilter, pipelineNameSuffix, packageToTest),
-		buildPromoteOsPackagePipeline("yum", versionChannel, packageNameFilter, pipelineNameSuffix, packageToTest),
+func promoteBuildOsRepoPipeline() pipeline {
+	packageDeployments := []osPackageDeployment{
+		// Normal release pipelines
+		{
+			versionChannel:    "${DRONE_TAG}",
+			packageNameFilter: `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`,
+			packageToTest:     "teleport-ent",
+			displayName:       "Teleport",
+		},
+		// teleport-ent-updater to stable/cloud only pipelines
+		{
+			versionChannel:    "cloud",
+			packageNameFilter: `teleport-ent-updater*`,
+			displayName:       "teleport-ent-updater",
+		},
+		// Rolling release pipelines
+		{
+			versionChannel:    "rolling",
+			packageNameFilter: `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`,
+			packageToTest:     "teleport-ent",
+			displayName:       "Teleport",
+		},
 	}
+
+	return buildPromoteOsPackagePipelines(packageDeployments)
 }
 
-func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, pipelineNameSuffix, packageToTest string) pipeline {
+func buildPromoteOsPackagePipelines(packageDeployments []osPackageDeployment) pipeline {
 	releaseEnvironmentFilePath := "/go/vars/release-environment.txt"
 	clonePath := "/go/src/github.com/gravitational/teleport"
 
-	inputs := map[string]string{
-		"repo-type":           repoType,
-		"environment":         fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
-		"artifact-tag":        "${DRONE_TAG}",
-		"release-channel":     "stable",
-		"version-channel":     versionChannel,
-		"package-name-filter": packageNameFilter,
+	ghaBuild := ghaBuildType{
+		trigger:                    triggerPromote,
+		pipelineName:               "publish-os-package-repos",
+		checkoutPath:               clonePath,
+		workflows:                  buildWorkflows(releaseEnvironmentFilePath, packageDeployments),
+		enableParallelWorkflowRuns: true,
 	}
-
-	if packageToTest != "" {
-		inputs["package-to-test"] = packageToTest
-	}
-
-	pipeline := ghaBuildPipeline(ghaBuildType{
-		trigger:           triggerPromote,
-		pipelineName:      fmt.Sprintf("publish-%s-%s-new-repos", pipelineNameSuffix, repoType),
-		ghaWorkflow:       "deploy-packages.yaml",
-		timeout:           12 * time.Hour, // DR takes a long time
-		workflowRef:       "refs/heads/master",
-		shouldTagWorkflow: true,
-		seriesRun:         true,
-		inputs:            inputs,
-	})
-
-	pipeline.Steps = []step{
-		pipeline.Steps[0],
+	setupSteps := []step{
 		{
 			Name:  "Determine if release should go to development or production",
 			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
 			Commands: []string{
 				fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
 				fmt.Sprintf("mkdir -pv %q", path.Dir(releaseEnvironmentFilePath)),
-				fmt.Sprintf(`(go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
+				fmt.Sprintf(`(CGO_ENABLED=0 go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
 			},
 		},
-		pipeline.Steps[1],
 	}
 
-	return pipeline
+	return ghaMultiBuildPipeline(setupSteps, ghaBuild)
+}
+
+func buildWorkflows(releaseEnvironmentFilePath string, packageDeployments []osPackageDeployment) []ghaWorkflow {
+	repoTypes := []string{"apt", "yum"}
+	workflows := make([]ghaWorkflow, 0, len(repoTypes)*len(packageDeployments))
+	for _, packageDeployment := range packageDeployments {
+		for _, repoType := range repoTypes {
+			inputs := map[string]string{
+				"repo-type":           repoType,
+				"environment":         fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
+				"artifact-tag":        "${DRONE_TAG}",
+				"release-channel":     "stable",
+				"version-channel":     packageDeployment.versionChannel,
+				"package-name-filter": packageDeployment.packageNameFilter,
+			}
+
+			if packageDeployment.packageToTest != "" {
+				inputs["package-to-test"] = packageDeployment.packageToTest
+			}
+
+			workflows = append(workflows, ghaWorkflow{
+				stepName:          fmt.Sprintf("Publish %s to stable/%s %s repo", packageDeployment.displayName, packageDeployment.versionChannel, repoType),
+				name:              "deploy-packages.yaml",
+				ref:               "refs/heads/master",
+				timeout:           12 * time.Hour, // DR takes a long time
+				shouldTagWorkflow: true,
+				seriesRun:         true,
+				seriesRunFilter:   fmt.Sprintf(".*%s.*", repoType),
+				inputs:            inputs,
+			})
+		}
+	}
+
+	return workflows
 }

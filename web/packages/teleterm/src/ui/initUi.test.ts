@@ -21,12 +21,6 @@ import { Dialog } from 'teleterm/ui/services/modals';
 
 import { initUi } from './initUi';
 
-jest.mock('teleterm/staticConfig', () => ({
-  staticConfig: {
-    prehogAddress: 'localhost',
-  },
-}));
-
 beforeAll(() => {
   Logger.init(new NullService());
 });

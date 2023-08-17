@@ -94,13 +94,6 @@ allow:
 			expectedSpec: &types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins: []string{"ubuntu", "root"},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Namespace: types.Wildcard,
-							Name:      types.Wildcard,
-						},
-					},
 				},
 			},
 		},
@@ -117,13 +110,6 @@ allow:
 					NodeLabels: map[string]apiutils.Strings{
 						"*": {"*"},
 					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Namespace: types.Wildcard,
-							Name:      types.Wildcard,
-						},
-					},
 				},
 			},
 		},
@@ -139,13 +125,6 @@ allow:
 				Allow: types.RoleConditions{
 					NodeLabels: map[string]apiutils.Strings{
 						"*": {"*"},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Namespace: types.Wildcard,
-							Name:      types.Wildcard,
-						},
 					},
 				},
 			},

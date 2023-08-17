@@ -23,6 +23,8 @@ import styled from 'styled-components';
 import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 export default function Container({
   children,
@@ -38,6 +40,7 @@ export default function Container({
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
+      showPremiumSupportCTA={ctx.lockedFeatures.premiumSupport}
       children={children}
     />
   );
@@ -51,6 +54,7 @@ export const Support = ({
   tunnelPublicAddress,
   isCloud,
   children,
+  showPremiumSupportCTA,
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
 
@@ -59,8 +63,8 @@ export const Support = ({
       <Card px={5} pt={1} pb={6}>
         <Flex justifyContent="space-between" flexWrap="wrap">
           <Box>
-            <Header title="Support" icon={<Icons.LocalPlay />} />
-            {isEnterprise && (
+            <Header title="Support" icon={<Icons.Headset />} />
+            {isEnterprise && !showPremiumSupportCTA && (
               <SupportLink
                 title="Create a Support Ticket"
                 url="https://support.goteleport.com"
@@ -78,9 +82,14 @@ export const Support = ({
               title="Send Product Feedback"
               url="mailto:support@goteleport.com"
             />
+            {isEnterprise && showPremiumSupportCTA && (
+              <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
+                Unlock Premium Support w/Enterprise
+              </ButtonLockedFeature>
+            )}
           </Box>
           <Box>
-            <Header title="Resources" icon={<Icons.ListCheck />} />
+            <Header title="Resources" icon={<Icons.BookOpenText />} />
             <SupportLink title="Quickstart Guide" url={docs.quickstart} />
             <SupportLink title="tsh User Guide" url={docs.userManual} />
             <SupportLink title="Admin Guide" url={docs.adminGuide} />
@@ -192,7 +201,7 @@ const StyledSupportLink = styled.a.attrs({
   rel: 'noreferrer',
 })`
   display: block;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   border-radius: 4px;
   text-decoration: none;
   margin-bottom: 8px;
@@ -219,10 +228,8 @@ export const DataItem = ({ title = '', data = null }) => (
 
 const Header = ({ title = '', icon = null }) => (
   <StyledHeader alignItems="center" mb={3} width={210} mt={4} pb={2}>
-    <Text pr={2} fontSize={18}>
-      {icon}
-    </Text>
-    <Text as="h5" caps>
+    {icon}
+    <Text as="h5" ml={2} caps>
       {title}
     </Text>
   </StyledHeader>
@@ -236,4 +243,5 @@ export type Props = {
   isCloud: boolean;
   tunnelPublicAddress?: string;
   children?: React.ReactNode;
+  showPremiumSupportCTA: boolean;
 };

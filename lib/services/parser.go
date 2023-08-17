@@ -262,7 +262,7 @@ func (l *LogAction) Log(level, format string, args ...interface{}) predicate.Boo
 // Context is a default rule context used in teleport
 type Context struct {
 	// User is currently authenticated user
-	User types.User
+	User UserState
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
@@ -324,7 +324,7 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 	switch fields[0] {
 	case UserIdentifier:
-		var user types.User
+		var user UserState
 		if ctx.User == nil {
 			user = emptyUser
 		} else {
@@ -741,6 +741,22 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			return predicate.Equals(a, b)
 		}
 	}
+	predPrefix := func(a interface{}, prefix string) predicate.BoolPredicate {
+		switch aval := a.(type) {
+		case label:
+			return func() bool {
+				return strings.HasPrefix(aval.value, prefix)
+			}
+		case string:
+			return func() bool {
+				return strings.HasPrefix(aval, prefix)
+			}
+		default:
+			return func() bool {
+				return false
+			}
+		}
+	}
 
 	p, err := predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{
@@ -753,7 +769,8 @@ func NewResourceParser(resource types.ResourceWithLabels) (BoolPredicateParser, 
 			},
 		},
 		Functions: map[string]interface{}{
-			"equals": predEquals,
+			"hasPrefix": predPrefix,
+			"equals":    predEquals,
 			// search allows fuzzy matching against select field values.
 			"search": func(searchVals ...string) predicate.BoolPredicate {
 				return func() bool {

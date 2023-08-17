@@ -135,6 +135,8 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 
 	if trace.IsAccessDenied(err) {
 		switch sessionCtx.Database.GetType() {
+		case types.DatabaseTypeElastiCache:
+			return createElastiCacheRedisAccessDeniedError(err, sessionCtx)
 		case types.DatabaseTypeRDS:
 			return createRDSAccessDeniedError(err, sessionCtx)
 		case types.DatabaseTypeRDSProxy:
@@ -145,6 +147,32 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// createElastiCacheRedisAccessDeniedError creates an error with help message
+// to setup IAM auth for ElastiCache Redis.
+func createElastiCacheRedisAccessDeniedError(err error, sessionCtx *Session) error {
+	policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
+	if getPolicyErr != nil {
+		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+	}
+
+	switch sessionCtx.Database.GetProtocol() {
+	case defaults.ProtocolRedis:
+		return trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that IAM auth is enabled for ElastiCache user %q and Teleport database
+agent's IAM policy has "elasticache:Connect" permissions (note that IAM changes may
+take a few minutes to propagate):
+
+%v
+`, err, sessionCtx.DatabaseUser, policy)
+
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // createRDSAccessDeniedError creates an error with help message to setup IAM

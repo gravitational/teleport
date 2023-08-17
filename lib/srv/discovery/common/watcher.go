@@ -43,6 +43,16 @@ type WatcherConfig struct {
 	Log logrus.FieldLogger
 	// Clock is used to control time.
 	Clock clockwork.Clock
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string
+	// Origin is used to specify what type of origin watcher's resources are
+	Origin string
 }
 
 // CheckAndSetDefaults validates the config.
@@ -58,6 +68,9 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.Fetchers) == 0 {
 		return trace.NotFound("missing fetchers")
+	}
+	if c.Origin == "" {
+		return trace.BadParameter("origin is not set")
 	}
 	return nil
 }
@@ -126,6 +139,27 @@ func (w *Watcher) fetchAndSend() {
 				// never return the error otherwise it will impact other watchers.
 				return nil
 			}
+
+			for _, r := range resources {
+				staticLabels := r.GetStaticLabels()
+				if staticLabels == nil {
+					staticLabels = make(map[string]string)
+				}
+
+				if w.cfg.DiscoveryGroup != "" {
+					// Add the discovery group name to the static labels of each resource.
+					staticLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
+				}
+
+				// Set the origin label to provide information where resource comes from
+				staticLabels[types.OriginLabel] = w.cfg.Origin
+				if c := lFetcher.Cloud(); c != "" {
+					staticLabels[types.CloudLabel] = c
+				}
+
+				r.SetStaticLabels(staticLabels)
+			}
+
 			fetchersLock.Lock()
 			newFetcherResources = append(newFetcherResources, resources...)
 			fetchersLock.Unlock()

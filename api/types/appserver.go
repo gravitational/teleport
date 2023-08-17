@@ -21,10 +21,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // AppServer represents a single proxied web app.
@@ -47,6 +47,9 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
+
+	// CloneResource returns a copy of the AppServer as a ResourceWithLabels
+	CloneResource() ResourceWithLabels
 	// GetApp returns the app this app server proxies.
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
@@ -289,7 +292,11 @@ func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
 
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
-	return proto.Clone(s).(*AppServerV3)
+	return utils.CloneProtoMsg(s)
+}
+
+func (s *AppServerV3) CloneResource() ResourceWithLabels {
+	return s.Copy()
 }
 
 // MatchSearch goes through select field values and tries to

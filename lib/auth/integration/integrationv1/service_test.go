@@ -26,6 +26,8 @@ import (
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,7 +37,10 @@ import (
 
 func TestIntegrationCRUD(t *testing.T) {
 	t.Parallel()
-	ctx, localClient, resourceSvc := initSvc(t, types.KindIntegration)
+	clusterName := "test-cluster"
+
+	ca := newCertAuthority(t, types.HostCA, clusterName)
+	ctx, localClient, resourceSvc := initSvc(t, types.KindIntegration, ca, clusterName)
 
 	noError := func(err error) bool {
 		return err == nil
@@ -316,7 +321,7 @@ type localClient interface {
 	CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error)
 }
 
-func initSvc(t *testing.T, kind string) (context.Context, localClient, *Service) {
+func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName string) (context.Context, localClient, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -356,7 +361,7 @@ func initSvc(t *testing.T, kind string) (context.Context, localClient, *Service)
 	require.NoError(t, err)
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "test-cluster",
+		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
 	})
@@ -365,10 +370,24 @@ func initSvc(t *testing.T, kind string) (context.Context, localClient, *Service)
 	localResourceService, err := local.NewIntegrationsService(backend)
 	require.NoError(t, err)
 
+	keystoreManager, err := keystore.NewManager(ctx, keystore.Config{
+		Software: keystore.SoftwareConfig{
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
+		},
+	})
+	require.NoError(t, err)
+
+	caGetter := &mockCAGetter{
+		domainName: clusterName,
+		ca:         ca,
+		keystore:   keystoreManager,
+	}
+
 	resourceSvc, err := NewService(&ServiceConfig{
 		Backend:    localResourceService,
 		Authorizer: authorizer,
 		Cache:      localResourceService,
+		CAGetter:   caGetter,
 	})
 	require.NoError(t, err)
 
@@ -381,4 +400,50 @@ func initSvc(t *testing.T, kind string) (context.Context, localClient, *Service)
 		IdentityService:     userSvc,
 		IntegrationsService: localResourceService,
 	}, resourceSvc
+}
+
+// mockCAGetter implements CAGetter.
+type mockCAGetter struct {
+	domainName string
+	ca         types.CertAuthority
+	keystore   *keystore.Manager
+}
+
+// GetDomainName returns local auth domain of the current auth server
+func (m *mockCAGetter) GetDomainName() (string, error) {
+	return m.domainName, nil
+}
+
+// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+// controls if signing keys are loaded
+func (m *mockCAGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	return m.ca, nil
+}
+
+// GetKeyStore returns the KeyStore used by the auth server
+func (m *mockCAGetter) GetKeyStore() *keystore.Manager {
+	return m.keystore
+}
+
+func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
+	t.Helper()
+
+	ta := testauthority.New()
+	pub, priv, err := ta.GenerateJWT()
+	require.NoError(t, err)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caType,
+		ClusterName: domain,
+		ActiveKeys: types.CAKeySet{
+			JWT: []*types.JWTKeyPair{{
+				PublicKey:      pub,
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	return ca
 }
