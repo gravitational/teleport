@@ -213,6 +213,41 @@ func TestNewKubeClusterFromGCPGKE(t *testing.T) {
 	require.False(t, actual.IsAWS())
 }
 
+func TestNewKubeClusterFromGCPGKEWithoutLabels(t *testing.T) {
+	expected, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name:        "cluster1",
+		Description: "desc1",
+		Labels: map[string]string{
+			types.DiscoveryLabelGCPLocation:  "central-1",
+			types.DiscoveryLabelGCPProjectID: "p1",
+			types.CloudLabel:                 types.CloudGCP,
+			types.OriginLabel:                types.OriginCloud,
+		},
+	}, types.KubernetesClusterSpecV3{
+		GCP: types.KubeGCP{
+			Name:      "cluster1",
+			ProjectID: "p1",
+			Location:  "central-1",
+		},
+	})
+	require.NoError(t, err)
+
+	cluster := gcp.GKECluster{
+		Name:        "cluster1",
+		Status:      containerpb.Cluster_RUNNING,
+		Labels:      nil,
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	}
+	actual, err := NewKubeClusterFromGCPGKE(cluster)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, actual))
+	require.True(t, actual.IsGCP())
+	require.False(t, actual.IsAzure())
+	require.False(t, actual.IsAWS())
+}
+
 var kubeServerYAML = `---
 kind: kube_server
 version: v3
