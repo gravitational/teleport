@@ -620,6 +620,7 @@ func (e *AssistNewConversationEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 
 type AssistAccessRequestEvent prehogv1a.AssistAccessRequestEvent
 
+// Anonymize anonymizes the event.
 func (e *AssistAccessRequestEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AssistAccessRequest{
@@ -636,6 +637,7 @@ func (e *AssistAccessRequestEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 
 type AssistActionEvent prehogv1a.AssistActionEvent
 
+// Anonymize anonymizes the event.
 func (e *AssistActionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AssistAction{
