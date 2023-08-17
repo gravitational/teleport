@@ -23,7 +23,7 @@ definitions in the document.
  * *Promotion* (n): The last step of _Delivery_, triggered manually once the
    Release Engineer is happy that the _artifacts_ produced by the _delivery
    process_ are fit for purpose. Officially publishes the _release_. 
- * *Release* (n): The finished product of the delivery process for a given
+ * *Release* (n): The aggregated product of the delivery process for a given
    version of our source code, e.g. all the artifacts Teleport v12.1.2.
 
 ## What
@@ -98,13 +98,12 @@ flowchart LR
     oss_arm32_deb(OSS arm7 32-bit Debian Package)
     oss_arm32_rpm(OSS arm7 32-bit RPM Package)
 
-    oss_darwin_amd64(OSS Darwin\namd64 Binaries)
-    style oss_darwin_amd64 stroke-width:2px,stroke-dasharray: 5 5
-    darwin_oss_pkg_installer(macOS .pkg Installer)
-    darwin_tsh_only_pkg_installer(tsh-only Signed\nmacOS .pkg Installer)
-    darwin_signed_tarball(OSS Darwin amd64\nSigned Tarball)
-    darwin_unsigned_tarball(OSS Darwin amd64\nUnsigned Tarball)
-    darwin_teleport_connect_dmg(Teleport Connect\n.dmg Installer)
+    oss_darwin_amd64(OSS Darwin signed\namd64 Tarball)
+    oss_darwin_arm64(OSS Darwin signed\narm64 Tarball)
+    oss_darwin_universal(OSS Darwin signed\nuniversal Tarball)
+    oss_darwin_teleport_pkg(OSS Darwin Teleport\nuniversal .pkg)
+    darwin_tsh_pkg(Darwin tsh-only\nuniversal .pkg)
+    darwin_teleport_connect_dmg(Darwin Teleport Connect\nuniversal .dmg)
 
     windows_amd64_teleport_connect_installer(Windows amd64\nTeleport Connect Installer)
     windows_amd64_tsh_only_tarball(Windows amd64\ntsh-only tarball)
@@ -138,12 +137,16 @@ flowchart LR
             oss_arm32_deb --> oss_arm32_oci
             oss_arm32_deb --> oss_multiarch_oci
         oss_binaries_linux_arm32 --> oss_arm32_rpm
+
     oss_src --> oss_darwin_amd64
-        oss_darwin_amd64 --> darwin_oss_pkg_installer
-        oss_darwin_amd64 --> darwin_tsh_only_pkg_installer
-        oss_darwin_amd64 --> darwin_signed_tarball
-        oss_darwin_amd64 --> darwin_unsigned_tarball
-        oss_darwin_amd64 --> darwin_teleport_connect_dmg
+    oss_src --> oss_darwin_arm64
+      oss_darwin_amd64 --> oss_darwin_universal
+      oss_darwin_arm64 --> oss_darwin_universal
+        oss_darwin_universal --> oss_darwin_teleport_pkg
+        oss_darwin_universal --> darwin_tsh_pkg
+          darwin_tsh_pkg --> darwin_teleport_connect_dmg 
+    oss_src --> darwin_teleport_connect_dmg
+
     oss_src --> oss_windows_amd64
         oss_windows_amd64 --> windows_amd64_teleport_connect_installer
         oss_windows_amd64 --> windows_amd64_tsh_only_tarball
@@ -156,7 +159,7 @@ flowchart LR
 Every single solid-line box in the above diagram is a release artifact
 that is available to customers. For every build. Across 3 active release
 branches, plus `master`. (The dashed-line boxes are partial-build artifacts
-that are not public, but are a useful internal ad/or logical grouping.) 
+that are not public, but are a useful internal and/or logical grouping.) 
 
 > I originally wanted to include a full trace of *all* of our artifacts, but
 the diagram became quickly too confusing to be useful. The actual number of
@@ -391,10 +394,13 @@ If at all possible, any even slightly complex task for either CI or
 the Delivery pipeline should be written in Go. Go is much less esoteric than
 `bash` or `make`, and less prone to subtle bugs. 
 
-Capturing processes _outside_ a third-party build orchestration system is also a useful goal. We have
-put a _lot_ of smarts about how to build a Teleport release into GitHub
-workflows. What happens when the GHA outages become too much, or GHA somehow
-becomes a liability rather than an asset?
+Capturing processes _outside_ a third-party build orchestration system is 
+also a useful goal in and of itself. 
+
+For example: We have put a _lot_ of smarts about how to build a Teleport
+release into GitHub workflows. What happens to that intelligence when the
+GHA outages become too much, or GHA somehow becomes a liability rather
+than an asset?
 
 #### **Examine creating a Release Engineering repo**
 
