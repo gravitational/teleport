@@ -380,31 +380,27 @@ message AssistNewConversationEvent {
 // AssistAccessRequest is an event that is emitted when a user requests access
 // to a resource via Assist.
 message AssistAccessRequest {
-  // UserName is anonymized user name
-  string user_name = 1;
   // ResourceType describes the type of resource the user is requesting access to, e.g. "node", "db", "k8s" or "role".
-  string resource_type = 2;
+  string resource_type = 1;
   // TotalTokens is the total amount of token used to generate the command summary
-  int64 total_tokens = 4;
+  int64 total_tokens = 2;
   // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
-  int64 prompt_tokens = 5;
+  int64 prompt_tokens = 3;
   // CompletionTokens is the amount of tokens that the summary completion response consists of
-  int64 completion_tokens = 6;
+  int64 completion_tokens = 4;
 }
 
 // AssistAction is an event that is emitted when a user triggers an action (SSH command generation, output explain, etc.)
 // via Assist.
 message AssistAction {
-  // UserName is anonymized user name
-  string user_name = 1;
   // Action is the action that was triggered, e.g. "ssh-explain", "ssh-command-generate", etc.
-  string action = 2;
+  string action = 1;
   // TotalTokens is the total amount of token used to generate the command summary
-  int64 total_tokens = 4;
+  int64 total_tokens = 2;
   // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
-  int64 prompt_tokens = 5;
+  int64 prompt_tokens = 3;
   // CompletionTokens is the amount of tokens that the summary completion response consists of
-  int64 completion_tokens = 6;
+  int64 completion_tokens = 4;
 }
 
 // IntegrationEnrollKind represents the types of integration that
