@@ -65,7 +65,7 @@ pub extern "C" fn init() {
 /// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
 /// to their corresponding parameters.
 #[no_mangle]
-pub unsafe extern "C" fn client_connect(go_ref: usize, params: CGOConnectParams) -> CGOClientOrError
+pub unsafe extern "C" fn client_connect(params: CGOConnectParams) -> u64
 where
     Client: Send + Sync,
 {
@@ -75,8 +75,7 @@ where
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
-    match Client::connect(
-        go_ref,
+   Client::connect(
         ConnectParams {
             addr,
             username,
@@ -88,19 +87,7 @@ where
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
-    ) {
-        Ok(client) => CGOClientOrError {
-            client,
-            err: CGOErrCode::ErrCodeSuccess,
-        },
-        Err(err) => {
-            error!("{:?}", err);
-            CGOClientOrError {
-                client: Client::null(),
-                err: CGOErrCode::ErrCodeFailure,
-            }
-        }
-    }
+    )
 }
 
 /// `client_update_clipboard` is called from Go, and caches data that was copied
@@ -557,7 +544,7 @@ pub struct CGOReadRdpOutputReturns {
 
 #[repr(C)]
 pub struct CGOClientOrError {
-    client: *const Client,
+    client: u64,
     err: CGOErrCode,
 }
 
