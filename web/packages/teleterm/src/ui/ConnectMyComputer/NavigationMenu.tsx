@@ -19,15 +19,16 @@ import styled, { css } from 'styled-components';
 import { Box, Button, Indicator, Menu, MenuItem } from 'design';
 import { Laptop, Warning } from 'design/Icon';
 
-import { Attempt } from 'shared/hooks/useAsync';
+import { Attempt, AttemptStatus } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ClusterUri } from 'teleterm/ui/uri';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { canUseConnectMyComputer } from './permissions';
 import {
-  AgentState,
+  CurrentAction,
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
 
@@ -35,15 +36,25 @@ interface NavigationMenuProps {
   clusterUri: ClusterUri;
 }
 
+/**
+ * IndicatorStatus combines a couple of different states into a single enum which dictates the
+ * decorative look of NavigationMenu.
+ */
+type IndicatorStatus = AttemptStatus;
+
 export function NavigationMenu(props: NavigationMenuProps) {
   const iconRef = useRef();
   const [isMenuOpened, setIsMenuOpened] = useState(false);
   const appCtx = useAppContext();
   const { documentsService, rootClusterUri } = useWorkspaceContext();
-  const { isAgentConfiguredAttempt, agentState } =
+  const { isAgentConfiguredAttempt, currentAction } =
     useConnectMyComputerContext();
   // DocumentCluster renders this component only if the cluster exists.
   const cluster = appCtx.clustersService.findCluster(props.clusterUri);
+  const indicatorStatus = getIndicatorStatus(
+    currentAction,
+    isAgentConfiguredAttempt
+  );
 
   // Don't show the navigation icon for leaf clusters.
   if (cluster.leaf) {
@@ -85,7 +96,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
   );
   const statusMenuItem = (
     <MenuItem onClick={openStatusDocument}>
-      {isInErrorState(agentState, isAgentConfiguredAttempt) && (
+      {indicatorStatus === 'error' && (
         <Warning size="small" color="error.main" mr={1} />
       )}
       Manage agent
@@ -95,8 +106,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
   return (
     <>
       <MenuIcon
-        agentState={agentState}
-        isSetupDoneAttempt={isAgentConfiguredAttempt}
+        indicatorStatus={indicatorStatus}
         onClick={toggleMenu}
         ref={iconRef}
       />
@@ -131,10 +141,42 @@ export function NavigationMenu(props: NavigationMenuProps) {
   );
 }
 
+function getIndicatorStatus(
+  currentAction: CurrentAction,
+  isAgentConfiguredAttempt: Attempt<boolean>
+): IndicatorStatus {
+  if (isAgentConfiguredAttempt.status === 'error') {
+    return 'error';
+  }
+
+  if (currentAction.kind === 'observe-process') {
+    switch (currentAction.agentProcessState.status) {
+      case 'not-started': {
+        return '';
+      }
+      case 'error': {
+        return 'error';
+      }
+      case 'exited': {
+        return currentAction.agentProcessState.exitedSuccessfully
+          ? ''
+          : 'error';
+      }
+      case 'running': {
+        return 'success';
+      }
+      default: {
+        assertUnreachable(currentAction.agentProcessState);
+      }
+    }
+  } else {
+    return currentAction.attempt.status;
+  }
+}
+
 interface MenuIconProps {
   onClick(): void;
-  agentState: AgentState;
-  isSetupDoneAttempt: Attempt<boolean>;
+  indicatorStatus: IndicatorStatus;
 }
 
 export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
@@ -148,23 +190,20 @@ export const MenuIcon = forwardRef<HTMLDivElement, MenuIconProps>(
         title="Open Connect My Computer"
       >
         <Laptop size="medium" />
-        {getStateIndicator(props.agentState, props.isSetupDoneAttempt)}
+        {indicatorStatusToStyledStatus(props.indicatorStatus)}
       </StyledButton>
     );
   }
 );
 
-function getStateIndicator(
-  agentState: AgentState,
-  isSetupDoneAttempt: Attempt<boolean>
-): JSX.Element {
-  if (isInErrorState(agentState, isSetupDoneAttempt)) {
-    return <StyledStatus bg="error.main" />;
-  }
-  switch (agentState.status) {
-    case 'downloading':
-    case 'starting':
-    case 'killing': {
+const indicatorStatusToStyledStatus = (
+  indicatorStatus: IndicatorStatus
+): JSX.Element => {
+  switch (indicatorStatus) {
+    case '': {
+      return null;
+    }
+    case 'processing': {
       return (
         <StyledStatus
           bg="success"
@@ -186,34 +225,14 @@ function getStateIndicator(
         />
       );
     }
-    case 'process-running': {
+    case 'error': {
+      return <StyledStatus bg="error.main" />;
+    }
+    case 'success': {
       return <StyledStatus bg="success" />;
     }
   }
-}
-
-function isInErrorState(
-  agentState: AgentState,
-  isSetupDoneAttempt: Attempt<boolean>
-): boolean {
-  if (isSetupDoneAttempt.status === 'error') {
-    return true;
-  }
-  switch (agentState.status) {
-    case 'kill-error':
-    case 'join-error':
-    case 'download-error':
-    case 'process-error': {
-      return true;
-    }
-    case 'process-exited': {
-      if (!agentState.exitedSuccessfully) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
+};
 
 const StyledButton = styled(Button)`
   position: relative;

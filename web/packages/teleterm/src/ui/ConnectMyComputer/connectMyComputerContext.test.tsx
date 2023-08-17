@@ -18,6 +18,7 @@ import { EventEmitter } from 'node:events';
 
 import React from 'react';
 import { renderHook, act } from '@testing-library/react-hooks';
+import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -71,8 +72,12 @@ test('runAgentAndWaitForNodeToJoin re-throws errors that are thrown while spawni
     [, error] = await result.current.startAgent();
   });
   expect(error).toBeInstanceOf(AgentProcessError);
-  expect(result.current.agentState).toStrictEqual({
-    status: 'process-error',
-    message: 'ENOENT',
+  expect(result.current.currentAction).toStrictEqual({
+    kind: 'start',
+    attempt: makeErrorAttempt(AgentProcessError.name),
+    agentProcessState: {
+      status: 'error',
+      message: 'ENOENT',
+    },
   });
 });
