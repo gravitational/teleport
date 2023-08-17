@@ -47,6 +47,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -76,8 +77,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -7817,6 +7818,8 @@ func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
 	cfg.Proxy.DisableWebService = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.SSH.Labels = map[string]string{"foo": "bar"}
+	clock := clockwork.NewFakeClock()
+	cfg.Clock = clock
 	teleInst := suite.NewTeleportWithConfig(t, nil, nil, cfg)
 
 	t.Cleanup(func() { require.NoError(t, teleInst.StopAll()) })
@@ -7866,6 +7869,7 @@ func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
 	timeout := time.After(5 * time.Second)
 	// Wait for server to receive updated labels.
 	for {
+		clock.Advance(15 * time.Minute)
 		select {
 		case <-timeout:
 			require.Fail(t, "Timed out waiting for server update")
@@ -8599,25 +8603,23 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			panic("this should not be called")
 		})
 
-	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+	oldStdin := prompt.Stdin()
+	prompt.SetStdin(inputReader)
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
-		*client.PromptWebauthn = oldWebauthn
 	})
 
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
 	device.SetPasswordless()
-
-	prompt.SetStdin(inputReader)
-	*client.PromptWebauthn = func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+	customWebauthnLogin := func(ctx context.Context, realOrigin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 		car, err := device.SignAssertion("https://127.0.0.1", assertion) // use the fake origin to prevent a mismatch
 		if err != nil {
 			return nil, "", err
 		}
 		return &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
 			},
 		}, "", nil
 	}
@@ -8688,7 +8690,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 		})
 		require.NoError(t, err)
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		ccr, err := device.SignCredentialCreation("https://127.0.0.1", cc)
 		require.NoError(t, err)
@@ -8697,7 +8699,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			NewPassword: []byte(password),
 			NewMFARegisterResponse: &proto.MFARegisterResponse{
 				Response: &proto.MFARegisterResponse_Webauthn{
-					Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+					Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 				},
 			},
 		})
@@ -8727,6 +8729,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			return
 		}
 
+		cl.WebauthnLogin = customWebauthnLogin
 		cl.Stdout = peerTerminal
 		cl.Stdin = peerTerminal
 		if err := cl.SSH(ctx, []string{}, false); err != nil {
@@ -8757,6 +8760,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			return
 		}
 
+		cl.WebauthnLogin = customWebauthnLogin
 		cl.Stdout = moderatorTerminal
 		cl.Stdin = moderatorTerminal
 		if err := cl.Join(ctx, types.SessionModeratorMode, defaults.Namespace, session.ID(sessionID), moderatorTerminal); err != nil {

@@ -34,13 +34,13 @@ import (
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
-	goredis "github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	mssql "github.com/microsoft/go-mssqldb"
 	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
+	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -2999,14 +2999,16 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 }
 
 type fakeDiscoveryResourceChecker struct {
-	errorsByName map[string]error
+	byName map[string]func(context.Context, types.Database) error
 }
 
-func (f *fakeDiscoveryResourceChecker) Check(_ context.Context, database types.Database) error {
-	if len(f.errorsByName) == 0 {
-		return nil
+func (f *fakeDiscoveryResourceChecker) Check(ctx context.Context, database types.Database) error {
+	if len(f.byName) > 0 {
+		if check := f.byName[database.GetName()]; check != nil {
+			return trace.Wrap(check(ctx, database))
+		}
 	}
-	return trace.Wrap(f.errorsByName[database.GetName()])
+	return nil
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{

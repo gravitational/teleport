@@ -8,13 +8,13 @@ edition = "2018"
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.3.3"
+bitflags = "2.4.0"
 byteorder = "1.4.3"
 env_logger = "0.10.0"
 iso7816 = "0.1.1"
 iso7816-tlv = "0.4.3"
 libc = "0.2.147"
-log = "0.4.19"
+log = "0.4.20"
 num-derive = "0.4.0"
 num-traits = "0.2.16"
 rand = { version = "0.8.5", features = ["getrandom"] }
@@ -27,7 +27,7 @@ png = "0.17.9"
 
 [build-dependencies]
 cbindgen = "0.24.5"
-tempfile = "3.7.0"
+tempfile = "3.7.1"
 
 [features]
 fips = ["rdp-rs/fips"]

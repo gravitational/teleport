@@ -29,6 +29,10 @@ import (
 
 // FromProto converts a v1 access list into an internal access list object.
 func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
+	if msg == nil {
+		return nil, trace.BadParameter("access list message is nil")
+	}
+
 	if msg.Spec == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}

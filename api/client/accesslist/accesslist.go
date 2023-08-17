@@ -93,7 +93,9 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 
 // UpsertAccessList creates or updates an access list resource.
 func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
-	resp, err := c.grpcClient.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{})
+	resp, err := c.grpcClient.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{
+		AccessList: conv.ToProto(accessList),
+	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

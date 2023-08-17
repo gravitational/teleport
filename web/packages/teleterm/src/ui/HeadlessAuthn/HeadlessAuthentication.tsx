@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -29,6 +29,7 @@ interface HeadlessAuthenticationProps {
   rootClusterUri: RootClusterUri;
   headlessAuthenticationId: string;
   clientIp: string;
+  skipConfirm: boolean;
   onCancel(): void;
   onSuccess(): void;
 }
@@ -68,18 +69,23 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
     }
   }
 
+  useEffect(() => {
+    if (props.skipConfirm && updateHeadlessStateAttempt.status === '') {
+      handleHeadlessApprove();
+    }
+  }, []);
+
   return (
     <HeadlessPrompt
       cluster={cluster}
       clientIp={props.clientIp}
+      skipConfirm={props.skipConfirm}
       onApprove={handleHeadlessApprove}
+      abortApproval={refAbortCtrl.current.abort}
       onReject={handleHeadlessReject}
       headlessAuthenticationId={props.headlessAuthenticationId}
       updateHeadlessStateAttempt={updateHeadlessStateAttempt}
-      onCancel={() => {
-        props.onCancel();
-        refAbortCtrl.current.abort();
-      }}
+      onCancel={props.onCancel}
     />
   );
 }

@@ -31,10 +31,9 @@ import (
 )
 
 const (
-	accessListPrefix = "access_list"
-	// We'll use a small page size here to minimize the potential for access lists with large member lists
-	// from hitting the gRPC receive limit.
-	accessListMaxPageSize = 4
+	accessListPrefix       = "access_list"
+	accessListMemberPrefix = "access_list_member"
+	accessListMaxPageSize  = 100
 )
 
 // AccessListService manages Access List resources in the Backend.
