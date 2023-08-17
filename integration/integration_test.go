@@ -8604,6 +8604,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		})
 
 	oldStdin := prompt.Stdin()
+	prompt.SetStdin(inputReader)
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
 	})
@@ -8622,8 +8623,6 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 			},
 		}, "", nil
 	}
-
-	prompt.SetStdin(inputReader)
 
 	// Enable web service.
 	cfg := suite.defaultServiceConfig()
