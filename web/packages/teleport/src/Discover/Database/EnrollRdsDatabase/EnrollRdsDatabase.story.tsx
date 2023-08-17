@@ -103,7 +103,7 @@ const fixtures: CheckedAwsRdsDatabase[] = [
   },
   {
     name: 'alpaca',
-    engine: 'aurora',
+    engine: 'aurora-mysql',
     uri: '',
     labels: [
       { name: 'env', value: 'prod' },
