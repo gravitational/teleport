@@ -146,6 +146,7 @@ This command creates an SSH configuration file at a nonstandard location in
 order to make it easier to clean up, but you can append the output of
 `tsh config` to the default SSH config file (`~/.ssh/config`) if you wish.
 
+
 <Details title="How does the config work?">
 
 Teleport implements an SSH server that includes several **subsystems**, or
@@ -206,6 +207,13 @@ authenticate the host via the certificate we generated earlier.
   $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
   ```
 
+</Details>
+
+<Details title="Dialing uppercase hostnames with OpenSSH">
+Routing in Teleport clusters is case-sensitive by default, but OpenSSH always lowercases hostnames. If you
+are using an OpenSSH client and have hosts with uppercase letters in their hostnames, you may need to set
+`case_insensitive_routing: true` in either the `auth_service` block of your Teleport config, or in the
+`cluster_networking_config` resource.
 </Details>
 
 <Admonition

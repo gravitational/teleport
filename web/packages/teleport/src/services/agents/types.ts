@@ -30,7 +30,8 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
-  | WindowsDesktopService;
+  | WindowsDesktopService
+  | UserGroup;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 

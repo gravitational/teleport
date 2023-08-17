@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import { Flex, Indicator, Box } from 'design';
+import React, { useEffect, useRef } from 'react';
+import { Box, Indicator, Flex } from 'design';
 
 import styled from 'styled-components';
 
@@ -26,45 +26,72 @@ import {
 } from 'teleport/components/Layout';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
+import { SearchResource } from 'teleport/Discover/SelectResource';
+import { useUrlFiltering } from 'teleport/components/hooks';
 
-import { useResources } from './useResources';
 import { ResourceCard } from './ResourceCard';
 import SearchPanel from './SearchPanel';
 import { FilterPanel } from './FilterPanel';
 
 export function Resources() {
+  const { isLeafCluster } = useStickyClusterId();
   const teleCtx = useTeleport();
-  const {
-    attempt,
-    fetchedData,
-    fetchMore,
-    filtering: {
-      pathname,
-      params,
-      setParams,
-      setSort,
-      replaceHistory,
-      onLabelClick,
-    },
-  } = useResources(teleCtx);
-  const observed = React.useRef(null);
+  const canCreate = teleCtx.storeUser.getTokenAccess().create;
+  const { clusterId } = useStickyClusterId();
 
-  React.useEffect(() => {
-    if (observed.current) {
+  const filtering = useUrlFiltering({
+    fieldName: 'name',
+    dir: 'ASC',
+  });
+  const {
+    params,
+    search,
+    setParams,
+    replaceHistory,
+    pathname,
+    setSort,
+    onLabelClick,
+  } = filtering;
+
+  const { fetchInitial, fetchedData, attempt, fetchMore } = useInfiniteScroll({
+    fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
+    clusterId,
+    params,
+  });
+
+  useEffect(() => {
+    fetchInitial();
+  }, [clusterId, search]);
+
+  const infiniteScrollDetector = useRef(null);
+
+  useEffect(() => {
+    if (infiniteScrollDetector.current) {
       const observer = new IntersectionObserver(entries => {
         if (entries[0]?.isIntersecting) {
           fetchMore();
         }
       });
-      observer.observe(observed.current);
+      observer.observe(infiniteScrollDetector.current);
       return () => observer.disconnect();
     }
-  }, [observed.current, fetchMore]);
+  });
 
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Resources</FeatureHeaderTitle>
+        <Flex alignItems="center">
+          <AgentButtonAdd
+            agent={SearchResource.UNIFIED_RESOURCE}
+            beginsWithVowel={false}
+            isLeafCluster={isLeafCluster}
+            canCreate={canCreate}
+          />
+        </Flex>
       </FeatureHeader>
       <SearchPanel
         params={params}
@@ -84,11 +111,11 @@ export function Resources() {
       )}
       <ResourcesContainer gap={2}>
         {fetchedData.agents.map((agent, i) => (
-          <ResourceCard key={i} resource={agent} onLabelClick={onLabelClick} />
+          <ResourceCard key={i} onLabelClick={onLabelClick} resource={agent} />
         ))}
       </ResourcesContainer>
       <div
-        ref={observed}
+        ref={infiniteScrollDetector}
         style={{
           visibility: attempt.status === 'processing' ? 'visible' : 'hidden',
         }}

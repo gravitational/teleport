@@ -43,7 +43,7 @@ export default function AgentButtonAdd(props: Props) {
     <Link
       to={{
         pathname: `${cfg.routes.root}/discover`,
-        state: { entity: agent },
+        state: { entity: agent !== 'unified_resource' ? agent : null },
       }}
       style={{ textDecoration: 'none' }}
     >
@@ -53,7 +53,7 @@ export default function AgentButtonAdd(props: Props) {
         width="240px"
         onClick={onClick}
       >
-        Add {agent}
+        {agent === 'unified_resource' ? 'Enroll New Resource' : `Add ${agent}`}
       </ButtonPrimary>
     </Link>
   );

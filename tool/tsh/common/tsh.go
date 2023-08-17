@@ -53,7 +53,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -104,8 +103,6 @@ const (
 	mfaModePlatform = "platform"
 	// mfaModeOTP utilizes only OTP devices.
 	mfaModeOTP = "otp"
-
-	hostnameOrIDPredicateTemplate = `resource.spec.hostname == "%[1]s" || resource.metadata.name == "%[1]s"`
 )
 
 // CLIConf stores command line arguments and flags:
@@ -2625,7 +2622,7 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 	return row
 }
 
-func printNodesAsText(output io.Writer, nodes []types.Server, verbose bool) error {
+func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool) error {
 	var rows [][]string
 	for _, n := range nodes {
 		rows = append(rows, getNodeRow("", "", n, verbose))
@@ -3089,32 +3086,27 @@ func accessRequestForSSH(ctx context.Context, _ *CLIConf, tc *client.TeleportCli
 	}
 	defer clt.Close()
 
-	// Match on hostname or host ID, user could have given either
-	expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
-
-	nodes, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, &proto.ListResourcesRequest{
-		Namespace:           apidefaults.Namespace,
-		ResourceType:        types.KindNode,
-		UseSearchAsRoles:    true,
-		PredicateExpression: expr,
+	rsp, err := clt.AuthClient.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: tc.Host,
+		Port: strconv.Itoa(tc.HostPort),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(nodes) > 1 {
+	if len(rsp.Servers) > 1 {
 		// Ambiguous hostname matches should have been handled by onSSH and
 		// would not make it here, this is a sanity check. Ambiguous host ID
 		// matches should be impossible.
 		return nil, trace.NotFound("hostname %q is ambiguous and matches multiple nodes, unable to request access", tc.Host)
 	}
-	if len(nodes) == 0 {
+	if len(rsp.Servers) == 0 {
 		// Did not find any nodes by hostname or ID.
 		return nil, trace.NotFound("node %q not found, unable to request access", tc.Host)
 	}
 
 	// At this point we have exactly 1 node.
-	node := nodes[0]
+	node := rsp.Servers[0]
 	requestResourceIDs := []types.ResourceID{{
 		ClusterName: tc.SiteName,
 		Kind:        types.KindNode,
@@ -3247,15 +3239,19 @@ func onSSH(cf *CLIConf) error {
 		})
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
-				// Match on hostname or host ID, user could have given either
-				expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
-				tc.PredicateExpression = expr
-				nodes, err := tc.ListNodesWithFilters(cf.Context)
+				clt, err := tc.ConnectToCluster(cf.Context)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				rsp, err := clt.AuthClient.GetSSHTargets(cf.Context, &proto.GetSSHTargetsRequest{
+					Host: tc.Host,
+					Port: strconv.Itoa(tc.HostPort),
+				})
 				if err != nil {
 					return trace.Wrap(err)
 				}
 				fmt.Fprintf(cf.Stderr(), "error: ambiguous host could match multiple nodes\n\n")
-				printNodesAsText(cf.Stderr(), nodes, true)
+				printNodesAsText(cf.Stderr(), rsp.Servers, true)
 				fmt.Fprintf(cf.Stderr(), "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 				fmt.Fprintf(cf.Stderr(), "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 				fmt.Fprintf(cf.Stderr(), "\n")
