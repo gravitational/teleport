@@ -28,12 +28,14 @@ import { EventType } from 'teleport/lib/term/enums';
 import NodeService from 'teleport/services/nodes';
 
 import {
+  ResolvedAccessRequestCreatedMessage,
   ResolvedAssistThoughtServerMessage,
   ServerMessageType,
   ThoughtMessagePayload,
 } from './types';
 
 import type {
+  AccessRequestPayload,
   CommandResultPayload,
   CommandResultSummaryPayload,
   Conversation,
@@ -43,6 +45,7 @@ import type {
   GenerateTitleResponse,
   GetConversationMessagesResponse,
   GetConversationsResponse,
+  ResolvedAccessRequestServerMessage,
   ResolvedCommandResultServerMessage,
   ResolvedCommandResultSummaryServerMessage,
   ResolvedCommandServerMessage,
@@ -68,6 +71,12 @@ export async function resolveServerMessage(
   clusterId: string
 ): Promise<ResolvedServerMessage> {
   switch (message.type) {
+    case ServerMessageType.AccessRequest:
+      return resolveAccessRequestMessage(message);
+
+    case ServerMessageType.AccessRequestCreated:
+      return resolveAccessRequestCreatedMessage(message);
+
     case ServerMessageType.Command:
       return resolveServerCommandMessage(message);
 
@@ -76,8 +85,10 @@ export async function resolveServerMessage(
 
     case ServerMessageType.CommandResultSummary:
       return resolveServerCommandResultSummaryMessage(message);
+
     case ServerMessageType.AssistThought:
       return resolveServerAssistThoughtMessage(message);
+
     case ServerMessageType.Assist:
     case ServerMessageType.User:
       return {
@@ -220,6 +231,31 @@ export function resolveServerCommandMessage(
     created: new Date(message.created_time),
     query,
     command: payload.command,
+  };
+}
+
+export function resolveAccessRequestMessage(
+  message: ServerMessage
+): ResolvedAccessRequestServerMessage {
+  const payload: AccessRequestPayload = JSON.parse(message.payload);
+
+  return {
+    type: ServerMessageType.AccessRequest,
+    created: new Date(message.created_time),
+    roles: payload.roles,
+    reason: payload.reason,
+    suggestedReviewers: payload.suggested_reviewers,
+    resources: payload.resources,
+  };
+}
+
+export function resolveAccessRequestCreatedMessage(
+  message: ServerMessage
+): ResolvedAccessRequestCreatedMessage {
+  return {
+    type: ServerMessageType.AccessRequestCreated,
+    accessRequestId: message.payload,
+    created: new Date(message.created_time),
   };
 }
 

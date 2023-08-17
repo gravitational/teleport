@@ -417,6 +417,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Opsgenie",
+              "slug": "/access-controls/access-request-plugins/opsgenie/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Jira",
               "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
@@ -1599,7 +1604,7 @@
     "teleport": {
       "major_version": "14",
       "version": "14.0.0-dev",
-      "golang": "1.21",
+      "golang": "1.20",
       "plugin": {
         "version": "12.1.1"
       },

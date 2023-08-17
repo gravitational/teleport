@@ -36,8 +36,8 @@ import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { ExecuteRemoteCommandEntry } from 'teleport/Assist/Conversation/ExecuteRemoteCommandEntry';
 import { CommandResultEntry } from 'teleport/Assist/Conversation/CommandResultEntry';
 import { CommandResultSummaryEntry } from 'teleport/Assist/Conversation/CommandResultSummaryEntry';
-import { AccessRequests } from 'teleport/Assist/Conversation/AccessRequests/AccessRequests';
-import { AccessRequest } from 'teleport/Assist/Conversation/AccessRequest';
+import { AccessRequest } from 'teleport/Assist/Conversation/AccessRequest/AccessRequest';
+import { AccessRequestCreated } from 'teleport/Assist/Conversation/AccessRequest/AccessRequestCreated';
 
 import type {
   ConversationMessage,
@@ -155,21 +155,17 @@ function createComponentForEntry(
         />
       );
 
-    case ServerMessageType.AccessRequests:
+    case ServerMessageType.AccessRequest:
       return (
-        <AccessRequests
-          events={entry.events}
-          username={entry.username}
-          status={entry.status}
-          summary={entry.summary}
-          created={entry.created}
+        <AccessRequest
+          resources={entry.resources}
+          reason={entry.reason}
+          roles={entry.roles}
         />
       );
 
-    case ServerMessageType.AccessRequest:
-      return (
-        <AccessRequest resources={entry.resources} reason={entry.reason} />
-      );
+    case ServerMessageType.AccessRequestCreated:
+      return <AccessRequestCreated accessRequestId={entry.accessRequestId} />;
   }
 }
 

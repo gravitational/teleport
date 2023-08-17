@@ -45,6 +45,7 @@ export enum NavTitle {
   Desktops = 'Desktops',
   AccessRequests = 'Access Requests',
   ActiveSessions = 'Active Sessions',
+  Resources = 'Resources',
 
   // Management
   //  Access
@@ -92,6 +93,7 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
+  hideFromNavigation?: boolean;
   // route defines react router Route fields.
   // This field can be left undefined to indicate
   // this feature is a parent to children features
@@ -152,6 +154,8 @@ export interface FeatureFlags {
   locks: boolean;
   newLocks: boolean;
   assist: boolean;
+  // Whether or not the management section should be available.
+  managementSection: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

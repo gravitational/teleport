@@ -44,6 +44,6 @@ test('search generates correct url params', () => {
   fireEvent.submit(screen.getByPlaceholderText(/SEARCH.../i));
 
   expect(replaceHistory).toHaveBeenCalledWith(
-    'test.com/cluster/one/kubes?search=test&sort=name:asc'
+    'test.com/cluster/one/kubes?search=test&sort=name%3Aasc'
   );
 });

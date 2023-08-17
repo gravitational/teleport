@@ -35,6 +35,7 @@ export type Aws = {
 };
 
 export interface Database {
+  kind: 'db';
   name: string;
   description: string;
   type: string;

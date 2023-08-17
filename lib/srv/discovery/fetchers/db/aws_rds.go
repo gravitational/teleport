@@ -195,7 +195,6 @@ func rdsInstanceEngines() []string {
 // only databases with engines Teleport supports.
 func auroraEngines() []string {
 	return []string{
-		services.RDSEngineAurora,
 		services.RDSEngineAuroraMySQL,
 		services.RDSEngineAuroraPostgres,
 	}

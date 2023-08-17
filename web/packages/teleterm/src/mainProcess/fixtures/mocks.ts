@@ -117,6 +117,7 @@ export const makeRuntimeSettings = (
   binDir: '',
   certsDir: '',
   kubeConfigsDir: '',
+  logsDir: '',
   defaultShell: '',
   tshd: {
     insecure: true,
