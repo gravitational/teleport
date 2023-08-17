@@ -199,7 +199,8 @@ the last known locks. This decision strategy is encoded as one of the two modes:
   guaranteed to be up to date
 - `best_effort` mode keeps relying on the most recent locks
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 The cluster-wide mode defaults to `best_effort`. You can set up the default
 locking mode via API or CLI using a `cluster_auth_preference` resource or static
@@ -240,8 +241,8 @@ configuration file:
   </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 The cluster-wide mode defaults to `best_effort`. You can set up the default
 locking mode via API or CLI using a `cluster_auth_preference` resource:
@@ -265,7 +266,9 @@ $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 It is also possible to configure the locking mode for a particular role:
 
@@ -285,3 +288,4 @@ there is no user involved, the mode is taken from the cluster-wide setting.
 With multiple potentially conflicting locking modes (the cluster-wide default
 and the individual per-role settings) a single occurrence of `strict` suffices
 for the local lock view to become evaluated strictly.
+

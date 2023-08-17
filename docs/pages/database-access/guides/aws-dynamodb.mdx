@@ -5,12 +5,15 @@ description: How to access AWS DynamoDB with Teleport database access
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="AWS DynamoDB" dbConfigure="AWS DynamoDB database with IAM authentication" dbName="AWS DynamoDB" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![DynamoDB Self-Hosted](../../../img/database-access/guides/aws-dynamodb_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![DynamoDB Cloud](../../../img/database-access/guides/aws-dynamodb_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -231,3 +234,4 @@ Type "help", "copyright", "credits" or "license" for more information.
 - See [Dynamic Database Registration](./dynamic-registration.mdx) to learn how
   to use resource labels to keep Teleport up to date with accessible databases in
   your infrastructure.
+
