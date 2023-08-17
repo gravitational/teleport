@@ -491,7 +491,8 @@ with `scope` set and `scopeOnly={false}`.
 Any Markdown and MDX components can be included within a `ScopedBlock`.
 
 ```jsx
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
   Here are some options for installing the Teleport Auth and Proxy Services on
   your own infrastructure.
@@ -500,7 +501,9 @@ Any Markdown and MDX components can be included within a `ScopedBlock`.
   {/* TabItems that vary between scopes */}
   </Tabs>
 
-</ScopedBlock>
+</TabItem>
+</Tabs>
+
 ```
 
 ## Scopes
@@ -714,3 +717,4 @@ To embed a video in a docs page, use the `video` tag:
 Your browser does not support the video tag.
 </video>
 ```
+
