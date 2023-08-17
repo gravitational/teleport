@@ -54,8 +54,7 @@ exports[`can create 1`] = `
       title=""
       width="240px"
     >
-      Add 
-      server
+      Add server
     </button>
   </a>
 </div>
@@ -116,8 +115,7 @@ exports[`cannot create 1`] = `
       title="You do not have access to add a server"
       width="240px"
     >
-      Add 
-      server
+      Add server
     </button>
   </a>
 </div>
@@ -178,8 +176,7 @@ exports[`cannot create when resource starts with vowel 1`] = `
       title="You do not have access to add an application"
       width="240px"
     >
-      Add 
-      application
+      Add application
     </button>
   </a>
 </div>
@@ -240,8 +237,7 @@ exports[`on leaf cluster 1`] = `
       title="Adding a server to a leaf cluster is not supported"
       width="240px"
     >
-      Add 
-      server
+      Add server
     </button>
   </a>
 </div>
@@ -302,8 +298,7 @@ exports[`on leaf cluster when resource starts with vowel 1`] = `
       title="Adding an server to a leaf cluster is not supported"
       width="240px"
     >
-      Add 
-      server
+      Add server
     </button>
   </a>
 </div>

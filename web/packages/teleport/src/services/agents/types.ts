@@ -30,7 +30,8 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
-  | WindowsDesktopService;
+  | WindowsDesktopService
+  | UserGroup;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
@@ -53,6 +54,8 @@ export type AgentFilter = {
   sort?: SortType;
   limit?: number;
   startKey?: string;
+  // TODO(bl-nero): Remove this once filters are expressed as advanced search.
+  kinds?: string[];
 };
 
 export type SortType = {

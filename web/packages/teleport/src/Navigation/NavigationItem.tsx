@@ -97,10 +97,6 @@ export function NavigationItem(props: NavigationItemProps) {
     hideFromNavigation,
   } = props.feature;
 
-  if (hideFromNavigation) {
-    return null;
-  }
-
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       switch (event.key) {
@@ -167,6 +163,10 @@ export function NavigationItem(props: NavigationItemProps) {
     },
     []
   );
+
+  if (hideFromNavigation) {
+    return null;
+  }
 
   // renderHighlightFeature returns red dot component if the feature recommendation state is 'NOTIFY'
   function renderHighlightFeature(featureName: NavTitle): JSX.Element {
