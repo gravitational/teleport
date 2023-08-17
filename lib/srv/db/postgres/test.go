@@ -443,7 +443,6 @@ func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend
 		return trace.Wrap(err)
 	}
 
-
 	// epilogue
 	err = client.Send(&pgproto3.CommandComplete{CommandTag: []byte("SELECT 100")})
 	if err != nil {
