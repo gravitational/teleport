@@ -68,28 +68,35 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 
-	// test unary interceptor
 	client := pb.NewEchoClient(conn)
-	resp, err := client.UnaryEcho(context.Background(), &pb.EchoRequest{Message: "Hi!"})
-	require.Nil(t, resp)
-	require.True(t, trace.IsNotFound(err))
-	require.Equal(t, err.Error(), "not found")
 
-	// test stream interceptor
-	stream, err := client.BidirectionalStreamingEcho(context.Background())
-	require.NoError(t, err)
+	t.Run("unary interceptor", func(t *testing.T) {
+		resp, err := client.UnaryEcho(context.Background(), &pb.EchoRequest{Message: "Hi!"})
+		require.Nil(t, resp)
+		require.True(t, trace.IsNotFound(err))
+		require.Equal(t, err.Error(), "not found")
+		_, ok := err.(*trace.TraceErr)
+		require.False(t, ok, "client error should not include traces originating in the middleware")
+	})
 
-	sendErr := stream.Send(&pb.EchoRequest{Message: "Hi!"})
+	t.Run("stream interceptor", func(t *testing.T) {
+		stream, err := client.BidirectionalStreamingEcho(context.Background())
+		require.NoError(t, err)
 
-	// io.EOF means the server closed the stream, which can
-	// happen depending in timing. In either case, it is
-	// still safe to recv from the stream and check for
-	// the already exists error.
-	if sendErr != nil && !errors.Is(sendErr, io.EOF) {
-		t.Fatalf("Unexpected error: %v", sendErr)
-	}
+		sendErr := stream.Send(&pb.EchoRequest{Message: "Hi!"})
 
-	_, err = stream.Recv()
-	require.True(t, trace.IsAlreadyExists(err))
-	require.Equal(t, err.Error(), "already exists")
+		// io.EOF means the server closed the stream, which can
+		// happen depending in timing. In either case, it is
+		// still safe to recv from the stream and check for
+		// the already exists error.
+		if sendErr != nil && !errors.Is(sendErr, io.EOF) {
+			t.Fatalf("Unexpected error: %v", sendErr)
+		}
+
+		_, err = stream.Recv()
+		require.True(t, trace.IsAlreadyExists(err))
+		require.Equal(t, err.Error(), "already exists")
+		_, ok := err.(*trace.TraceErr)
+		require.False(t, ok, "client error should not include traces originating in the middleware")
+	})
 }

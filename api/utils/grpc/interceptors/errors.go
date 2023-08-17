@@ -17,62 +17,63 @@ package interceptors
 import (
 	"context"
 
+	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
 )
 
 // grpcServerStreamWrapper wraps around the embedded grpc.ServerStream
-// and intercepts the RecvMsg and SendMsg method calls converting errors to the
-// appropriate grpc status error.
+// and intercepts the RecvMsg and SendMsg method calls converting errors
+// to the appropriate grpc status error.
 type grpcServerStreamWrapper struct {
 	grpc.ServerStream
 }
 
 // SendMsg wraps around ServerStream.SendMsg and adds metrics reporting
 func (s *grpcServerStreamWrapper) SendMsg(m interface{}) error {
-	return trail.FromGRPC(s.ServerStream.SendMsg(m))
+	return trace.Unwrap(trail.FromGRPC(s.ServerStream.SendMsg(m)))
 }
 
 // RecvMsg wraps around ServerStream.RecvMsg and adds metrics reporting
 func (s *grpcServerStreamWrapper) RecvMsg(m interface{}) error {
-	return trail.FromGRPC(s.ServerStream.RecvMsg(m))
+	return trace.Unwrap(trail.FromGRPC(s.ServerStream.RecvMsg(m)))
 }
 
 // grpcClientStreamWrapper wraps around the embedded grpc.ClientStream
-// and intercepts the RecvMsg and SendMsg method calls converting errors to the
-// appropriate grpc status error.
+// and intercepts the RecvMsg and SendMsg method calls converting errors
+// to the appropriate grpc status error.
 type grpcClientStreamWrapper struct {
 	grpc.ClientStream
 }
 
 // SendMsg wraps around ClientStream.SendMsg
 func (s *grpcClientStreamWrapper) SendMsg(m interface{}) error {
-	return trail.FromGRPC(s.ClientStream.SendMsg(m))
+	return trace.Unwrap(trail.FromGRPC(s.ClientStream.SendMsg(m)))
 }
 
 // RecvMsg wraps around ClientStream.RecvMsg
 func (s *grpcClientStreamWrapper) RecvMsg(m interface{}) error {
-	return trail.FromGRPC(s.ClientStream.RecvMsg(m))
+	return trace.Unwrap(trail.FromGRPC(s.ClientStream.RecvMsg(m)))
 }
 
 // GRPCServerUnaryErrorInterceptor is a GRPC unary server interceptor that
 // handles converting errors to the appropriate grpc status error.
 func GRPCServerUnaryErrorInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	resp, err := handler(ctx, req)
-	return resp, trail.ToGRPC(err)
+	return resp, trace.Unwrap(trail.ToGRPC(err))
 }
 
 // GRPCClientUnaryErrorInterceptor is a GRPC unary client interceptor that
 // handles converting errors to the appropriate grpc status error.
 func GRPCClientUnaryErrorInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	return trail.FromGRPC(invoker(ctx, method, req, reply, cc, opts...))
+	return trace.Unwrap(trail.FromGRPC(invoker(ctx, method, req, reply, cc, opts...)))
 }
 
 // GRPCServerStreamErrorInterceptor is a GRPC server stream interceptor that
 // handles converting errors to the appropriate grpc status error.
 func GRPCServerStreamErrorInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	serverWrapper := &grpcServerStreamWrapper{ss}
-	return trail.ToGRPC(handler(srv, serverWrapper))
+	return trace.Unwrap(trail.ToGRPC(handler(srv, serverWrapper)))
 }
 
 // GRPCClientStreamErrorInterceptor is GRPC client stream interceptor that
@@ -80,7 +81,7 @@ func GRPCServerStreamErrorInterceptor(srv interface{}, ss grpc.ServerStream, inf
 func GRPCClientStreamErrorInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 	s, err := streamer(ctx, desc, cc, method, opts...)
 	if err != nil {
-		return nil, trail.ToGRPC(err)
+		return nil, trace.Unwrap(trail.ToGRPC(err))
 	}
 	return &grpcClientStreamWrapper{s}, nil
 }
