@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -292,110 +291,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
 			require.NoError(t, err)
-		})
-	}
-}
-
-// TestTeleportClient_PromptMFAChallenge tests logic specific to the
-// TeleportClient's wrapper of PromptMFAChallenge.
-// Actual prompt and login behavior is tested by TestTeleportClient_Login_local.
-func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
-	oldPromptStandalone := client.PromptMFAStandalone
-	t.Cleanup(func() {
-		client.PromptMFAStandalone = oldPromptStandalone
-	})
-
-	const proxy1 = "proxy1.goteleport.com"
-	const proxy2 = "proxy2.goteleport.com"
-
-	defaultClient := &client.TeleportClient{
-		Config: client.Config{
-			WebProxyAddr: proxy1,
-			// MFA opts.
-			AuthenticatorAttachment: wancli.AttachmentAuto,
-			PreferOTP:               false,
-			Tracer:                  tracing.NoopProvider().Tracer("test"),
-		},
-	}
-
-	// client with non-default MFA options.
-	opinionatedClient := &client.TeleportClient{
-		Config: client.Config{
-			WebProxyAddr: proxy1,
-			// MFA opts.
-			AuthenticatorAttachment: wancli.AttachmentCrossPlatform,
-			PreferOTP:               true,
-			Tracer:                  tracing.NoopProvider().Tracer("test"),
-		},
-	}
-
-	// challenge contents not relevant for test
-	challenge := &proto.MFAAuthenticateChallenge{}
-
-	customizedOpts := &client.PromptMFAChallengeOpts{
-		HintBeforePrompt:        "some hint explaining the imminent prompt",
-		PromptDevicePrefix:      "llama",
-		Quiet:                   true,
-		AllowStdinHijack:        true,
-		AuthenticatorAttachment: wancli.AttachmentPlatform,
-		PreferOTP:               true,
-	}
-
-	ctx := context.Background()
-	tests := []struct {
-		name      string
-		tc        *client.TeleportClient
-		proxyAddr string
-		applyOpts func(*client.PromptMFAChallengeOpts)
-		wantProxy string
-		wantOpts  *client.PromptMFAChallengeOpts
-	}{
-		{
-			name:      "default TeleportClient",
-			tc:        defaultClient,
-			wantProxy: defaultClient.WebProxyAddr,
-			wantOpts: &client.PromptMFAChallengeOpts{
-				AuthenticatorAttachment: defaultClient.AuthenticatorAttachment,
-				PreferOTP:               defaultClient.PreferOTP,
-			},
-		},
-		{
-			name:      "opinionated TeleportClient",
-			tc:        opinionatedClient,
-			wantProxy: opinionatedClient.WebProxyAddr,
-			wantOpts: &client.PromptMFAChallengeOpts{
-				AuthenticatorAttachment: opinionatedClient.AuthenticatorAttachment,
-				PreferOTP:               opinionatedClient.PreferOTP,
-			},
-		},
-		{
-			name:      "custom proxyAddr and options",
-			tc:        defaultClient,
-			proxyAddr: proxy2,
-			applyOpts: func(opts *client.PromptMFAChallengeOpts) {
-				*opts = *customizedOpts
-			},
-			wantProxy: proxy2,
-			wantOpts:  customizedOpts,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			promptCalled := false
-			*client.PromptMFAStandalone = func(
-				gotCtx context.Context, gotChallenge *proto.MFAAuthenticateChallenge, gotProxy string,
-				gotOpts *client.PromptMFAChallengeOpts,
-			) (*proto.MFAAuthenticateResponse, error) {
-				promptCalled = true
-				assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
-				assert.Equal(t, test.wantProxy, gotProxy, "proxy mismatch")
-				assert.Equal(t, test.wantOpts, gotOpts, "opts mismatch")
-				return &proto.MFAAuthenticateResponse{}, nil
-			}
-
-			_, err := test.tc.PromptMFAChallenge(ctx, test.proxyAddr, challenge, test.applyOpts)
-			require.NoError(t, err, "PromptMFAChallenge errored")
-			require.True(t, promptCalled, "Mocked PromptMFAStandlone not called")
 		})
 	}
 }
