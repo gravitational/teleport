@@ -425,7 +425,6 @@ func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
 type PromptMFAChallengeHandler func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user.
-
 func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFA PromptMFAFunc) (*Key, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
