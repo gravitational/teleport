@@ -117,6 +117,7 @@ apiVersion: resources.teleport.dev/v5
 kind: TeleportRole
 metadata:
   name: myrole
+  namespace: teleport-cluster
 spec:
   allow:
     rules:
@@ -127,6 +128,7 @@ apiVersion: resources.teleport.dev/v2
 kind: TeleportUser
 metadata:
   name: myuser
+  namespace: teleport-cluster
 spec:
   roles: ['myrole']
 ```
@@ -140,18 +142,18 @@ $ kubectl apply -f teleport-resources.yaml
 List the created Kubernetes resources:
 
 ```code
-$ kubectl get teleportroles
+$ kubectl get teleportroles -n teleport-cluster
 # NAME     AGE
 # myrole   10m
 
-$ kubectl get teleportusers
+$ kubectl get teleportusers -n teleport-cluster
 # NAME     AGE
 # myuser   10m
 ```
 
 Check the user `myuser` has been created in Teleport and has been granted the role `myrole`:
 ```code
-$ AUTH_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ AUTH_POD=$(kubectl get po -l app=teleport-cluster -n teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 $ kubectl exec -it "$AUTH_POD" -c teleport -- tctl users ls
 # User                          Roles
 # ----------------------------- -----------------------------
@@ -204,7 +206,7 @@ If an error happens and the reconciliation loop is not successful, an item in `s
 went wrong. This allows users to diagnose errors by inspecting Kubernetes resources with `kubectl`:
 
 ```code
-$ kubectl get teleportusers myuser -o yaml
+$ kubectl get teleportusers myuser -n teleport-cluster -o yaml
 ```
 
 For example, if a user has been granted a nonexistent role the status will look like:
@@ -232,7 +234,7 @@ Here `SuccessfullyReconciled` is `False` and the error is `role my-non-existing-
 If the status is not present or does not give sufficient information to solve the issue, check the operator logs:
 
 ```shell
-$ kubectl logs "$AUTH_POD" -c operator
+$ kubectl logs "$AUTH_POD" -n teleport-cluster -c operator
 ```
 
 <Admonition type="note">
