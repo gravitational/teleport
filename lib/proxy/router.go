@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -159,13 +162,14 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // Router is used by the proxy to establish connections to both
 // nodes and other clusters.
 type Router struct {
-	clusterName    string
-	log            *logrus.Entry
-	clusterGetter  RemoteClusterGetter
-	localSite      reversetunnelclient.RemoteSite
-	siteGetter     SiteGetter
-	tracer         oteltrace.Tracer
-	serverResolver serverResolverFn
+	clusterName           string
+	log                   *logrus.Entry
+	clusterGetter         RemoteClusterGetter
+	localSite             reversetunnelclient.RemoteSite
+	siteGetter            SiteGetter
+	tracer                oteltrace.Tracer
+	serverResolver        serverResolverFn
+	permitUnlistedDialing bool
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -181,13 +185,14 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:    cfg.ClusterName,
-		log:            cfg.Log,
-		clusterGetter:  cfg.RemoteClusterGetter,
-		localSite:      localSite,
-		siteGetter:     cfg.SiteGetter,
-		tracer:         cfg.TracerProvider.Tracer("Router"),
-		serverResolver: cfg.serverResolver,
+		clusterName:           cfg.ClusterName,
+		log:                   cfg.Log,
+		clusterGetter:         cfg.RemoteClusterGetter,
+		localSite:             localSite,
+		siteGetter:            cfg.SiteGetter,
+		tracer:                cfg.TracerProvider.Tracer("Router"),
+		serverResolver:        cfg.serverResolver,
+		permitUnlistedDialing: os.Getenv("TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING") == "yes",
 	}, nil
 }
 
@@ -259,7 +264,15 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 			serverAddr = reversetunnelclient.LocalNode
 		}
 	} else {
-		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+		if !r.permitUnlistedDialing {
+			return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+		}
+		if port == "" || port == "0" {
+			port = strconv.Itoa(defaults.SSHServerListenPort)
+		}
+
+		serverAddr = net.JoinHostPort(host, port)
+		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
 	// if the node is a registered openssh node, create a signer for auth
