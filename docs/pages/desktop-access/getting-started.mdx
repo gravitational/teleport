@@ -210,9 +210,22 @@ To configure a role for desktop access:
 
 ## Step 4/4. Connect
 
-You can now connect to your Windows desktops from the Teleport Web UI:
+Now that you have configured a Linux server to run the Windows Desktop Service and
+created a role to allow a Teleport user to access a local Windows login, you can 
+use the Teleport user assigned the `windows-desktop-admins` role to connect to 
+Windows desktops from the Teleport Web UI.
 
-![Connecting to a Windows desktop from the Web UI](../../img/desktop-access/non-ad-connect.png)
+To connect to a Windows desktop:
+
+1. Sign in to the Teleport cluster using an account that's assigned the 
+`windows-desktop-admins` role.
+
+1. Under Resources, click **Desktops**.
+
+1. Click **Connect** for the Windows desktop you want to access, then select the 
+Windows login to use for the connection.
+   
+   ![Connect to a Windows desktop from the Teleport Web UI](../../img/desktop-access/non-ad-connect.png)
 
 ## Next steps
 
