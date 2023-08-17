@@ -1162,8 +1162,9 @@ func TestClusterSessionDial(t *testing.T) {
 	require.Equal(t, "addr1", sess.kubeAddress)
 }
 
-// TestKubeFwdHTTPProxyEnv ensures that kube forwarder doesn't respect HTTPS_PROXY env
-// and Kubernetes API is called directly.
+// TestKubeFwdHTTPProxyEnv ensures that Teleport only respects the `[HTTP(S)|NO]_PROXY`
+// env variables when dialing directly to the EKS cluster and doesn't respect
+// them when dialing via reverse tunnel to other Teleport services.
 func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1192,67 +1193,103 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
 	}
 
-	checkTransportProxy := func(rt http.RoundTripper) http.RoundTripper {
+	checkTransportProxyDirectDial := func(rt http.RoundTripper) http.RoundTripper {
 		tr, ok := rt.(*http.Transport)
 		require.True(t, ok)
-		require.Nil(t, tr.Proxy, "kube forwarder should not take into account HTTPS_PROXY env")
+		require.NotNil(t, tr.Proxy, "kube forwarder should take into account HTTPS_PROXY env when dialing to kubernetes API")
 		return rt
 	}
 
-	h2Transport, err := newH2Transport(&tls.Config{
-		InsecureSkipVerify: true,
-	}, nil)
-	require.NoError(t, err)
-	f.clusterDetails = map[string]*kubeDetails{
-		"local": {
-			kubeCreds: &staticKubeCreds{
-				targetAddr: mockKubeAPI.URL,
-				tlsConfig:  mockKubeAPI.TLS,
-				transportConfig: &transport.Config{
-					WrapTransport: checkTransportProxy,
-				},
-				transport: httpTransport{
-					h1Transport: newH1Transport(&tls.Config{
-						InsecureSkipVerify: true,
-					}, nil),
-					h2Transport: h2Transport,
-				},
-			},
-		},
+	checkTransportProxIndirectDialer := func(rt http.RoundTripper) http.RoundTripper {
+		tr, ok := rt.(*http.Transport)
+		require.True(t, ok)
+		require.Nil(t, tr.Proxy, "kube forwarder should not take into account HTTPS_PROXY env when dialing over tunnel")
+		return rt
 	}
-
-	authCtx.kubeClusterName = "local"
-	sess, err := f.newClusterSession(ctx, authCtx)
-	require.NoError(t, err)
-	t.Cleanup(sess.close)
-	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
-
-	sess.tlsConfig.InsecureSkipVerify = true
 
 	t.Setenv("HTTP_PROXY", "example.com:9999")
 	t.Setenv("HTTPS_PROXY", "example.com:9999")
 
-	// Set upgradeToHTTP2 to trigger h2 transport upgrade logic.
-	sess.upgradeToHTTP2 = true
-	fwd, err := f.makeSessionForwarder(sess)
-	require.NoError(t, err)
+	for _, test := range []struct {
+		name      string
+		rtBuilder func(t *testing.T) httpTransport
+		checkFunc func(t *testing.T, req *http.Request)
+	}{
+		{
+			name: "newDirectTransports",
+			rtBuilder: func(t *testing.T) httpTransport {
+				rts, err := newDirectTransports("test", &tls.Config{
+					InsecureSkipVerify: true,
+				},
+					&transport.Config{
+						WrapTransport: checkTransportProxyDirectDial,
+					})
+				require.NoError(t, err)
+				return rts
+			},
+		},
+		{
+			name: "newTransport",
+			rtBuilder: func(t *testing.T) httpTransport {
+				h1Transport, err := wrapTransport(newH1Transport(&tls.Config{
+					InsecureSkipVerify: true,
+				}, nil), &transport.Config{
+					WrapTransport: checkTransportProxIndirectDialer,
+				})
+				require.NoError(t, err)
+				h2HTTPTransport, err := newH2Transport(&tls.Config{
+					InsecureSkipVerify: true,
+				}, nil)
+				require.NoError(t, err)
+				h2Transport, err := wrapTransport(h2HTTPTransport, &transport.Config{
+					WrapTransport: checkTransportProxIndirectDialer,
+				})
+				require.NoError(t, err)
+				return httpTransport{
+					h2Transport: h2Transport,
+					h1Transport: h1Transport,
+				}
+			},
+		},
+	} {
 
-	// Create KubeProxy that uses fwd and forward incoming request to kubernetes API.
-	kubeProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL, err = url.Parse(mockKubeAPI.URL)
+		f.clusterDetails = map[string]*kubeDetails{
+			"local": {
+				kubeCreds: &staticKubeCreds{
+					targetAddr: mockKubeAPI.URL,
+					tlsConfig:  mockKubeAPI.TLS,
+					transport:  test.rtBuilder(t),
+				},
+			},
+		}
+
+		authCtx.kubeClusterName = "local"
+		sess, err := f.newClusterSession(ctx, authCtx)
 		require.NoError(t, err)
-		fwd.ServeHTTP(w, r)
-	}))
-	t.Cleanup(kubeProxy.Close)
+		t.Cleanup(sess.close)
 
-	req, err := http.NewRequest("GET", kubeProxy.URL, nil)
-	require.NoError(t, err)
+		// Set upgradeToHTTP2 to trigger h2 transport upgrade logic.
+		sess.upgradeToHTTP2 = true
+		fwd, err := f.makeSessionForwarder(sess)
+		require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, uint32(1), atomic.LoadUint32(&kubeAPICallCount))
-	require.NoError(t, resp.Body.Close())
+		// Create KubeProxy that uses fwd and forward incoming request to kubernetes API.
+		kubeProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.URL, err = url.Parse(mockKubeAPI.URL)
+			require.NoError(t, err)
+			fwd.ServeHTTP(w, r)
+		}))
+		t.Cleanup(kubeProxy.Close)
+
+		req, err := http.NewRequest("GET", kubeProxy.URL, nil)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	}
+	require.Equal(t, uint32(2), atomic.LoadUint32(&kubeAPICallCount))
 }
 
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
