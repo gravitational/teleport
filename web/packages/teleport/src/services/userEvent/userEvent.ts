@@ -76,7 +76,7 @@ export const userEventService = {
     });
   },
 
-  captureFeatureRecommendation(event: FeatureRecommendationEvent) {
+  captureFeatureRecommendationEvent(event: FeatureRecommendationEvent) {
     // using api.fetch instead of api.fetchJSON
     // because we are not expecting a JSON response
     void api.fetch(cfg.api.captureUserEventPath, {
