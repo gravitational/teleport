@@ -68,6 +68,16 @@ export function Resources() {
 
   const infiniteScrollDetector = useRef(null);
 
+  // Install the infinite scroll intersection observer.
+  //
+  // TODO(bl-nero): There's a known issue here. We need to have `fetchMore` in
+  // the list of hook dependencies, because using a stale `fetchMore` closure
+  // means we will fetch the same data over and over. However, as it's
+  // implemented now, every time `fetchMore` changes, we reinstall the observer.
+  // This is mitigated by `fetchMore` implementation, which doesn't spawn
+  // another request before the first one finishes, but it's still a potential
+  // for trouble in future. We need to decouple updating the `fetchMore` closure
+  // and installing the observer.
   useEffect(() => {
     if (infiniteScrollDetector.current) {
       const observer = new IntersectionObserver(entries => {

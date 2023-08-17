@@ -66,6 +66,7 @@ type Spec struct {
 	Grants Grants `json:"grants" yaml:"grants"`
 
 	// Members describes the current members of the access list.
+	// TODO(mdwn): Remove this.
 	Members []Member `json:"members" yaml:"members"`
 }
 
