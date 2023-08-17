@@ -13,6 +13,7 @@ jobs:
   deploy-vercel-preview:
     name: Deploy vercel preview
     runs-on: ubuntu-latest
+    environment: vercel
 
     steps:
       - name: Extract branch name
