@@ -1,3 +1,5 @@
+//go:build !debug
+
 /*
 Copyright 2023 Gravitational, Inc.
 
@@ -17,21 +19,11 @@ limitations under the License.
 package main
 
 import (
-	"os"
-
-	log "github.com/sirupsen/logrus"
+	plugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
+	"github.com/gogo/protobuf/vanity/command"
 )
 
-func main() {
-	log.SetLevel(log.DebugLevel)
-	log.SetOutput(os.Stderr)
-	req, err := readRequest()
-	if err != nil {
-		log.WithError(err).Error("Failed to read request")
-		os.Exit(-1)
-	}
-	if err := handleRequest(req); err != nil {
-		log.WithError(err).Error("Failed to generate schema")
-		os.Exit(-1)
-	}
+func readRequest() (*plugin.CodeGeneratorRequest, error) {
+	req := command.Read()
+	return req, nil
 }

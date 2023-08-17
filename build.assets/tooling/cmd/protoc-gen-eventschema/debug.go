@@ -15,8 +15,7 @@ limitations under the License.
 
 package main
 
-// This is an alternative main package that gets included when the `debug` tag
-// is set. When built with this debug tag, the protoc plugin reads its input
+// When built with this debug tag, the protoc plugin reads its input
 // from a file instead of stdin. This allows to easily attach a debugger and
 // inspect what is happening inside the plugin.
 
@@ -33,9 +32,7 @@ import (
 
 const pluginInputPathEnvironment = "TELEPORT_PROTOC_READ_FILE"
 
-func main() {
-	log.SetLevel(log.DebugLevel)
-	log.SetOutput(os.Stderr)
+func readRequest() (*plugin.CodeGeneratorRequest, error) {
 	inputPath := os.Getenv(pluginInputPathEnvironment)
 	if inputPath == "" {
 		log.Error(trace.BadParameter("When built with the 'debug' tag, the input path must be set through the environment variable: %s", pluginInputPathEnvironment))
@@ -48,10 +45,7 @@ func main() {
 		log.WithError(err).Error("error reading request from file")
 		os.Exit(-1)
 	}
-	if err := handleRequest(req); err != nil {
-		log.WithError(err).Error("Failed to generate schema")
-		os.Exit(-1)
-	}
+	return req, trace.Wrap(err)
 }
 
 func readRequestFromFile(inputPath string) (*plugin.CodeGeneratorRequest, error) {

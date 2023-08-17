@@ -33,6 +33,9 @@ type Forest struct {
 	messageMap map[*gogodesc.DescriptorProto]*Message
 }
 
+// NewForest creates a Forest of file trees wrapping the given Generator.
+// The Forest is used to keep track of trees built when processing proto
+// messages.
 func NewForest(gen *gogogen.Generator) *Forest {
 	return &Forest{
 		Generator:  gen,
@@ -40,7 +43,8 @@ func NewForest(gen *gogogen.Generator) *Forest {
 	}
 }
 
-// File is a wrapper for generator.FileDescriptor
+// File is a wrapper for generator.FileDescriptor which is used to keep track
+// of all seen messages.
 type File struct {
 	parent        *Forest
 	desc          *gogodesc.FileDescriptorProto

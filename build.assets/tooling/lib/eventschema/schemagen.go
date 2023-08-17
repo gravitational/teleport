@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
-	"github.com/gravitational/teleport/build.assets/tooling/lib/tree"
+	"github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
 )
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.

@@ -21,15 +21,17 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/eventschema"
-	"github.com/gravitational/teleport/build.assets/tooling/lib/tree"
+	"github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
 )
 
+const outputFileName = "zz_generated.eventschema.go"
+
 func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
-	if len(req.FileToGenerate) == 0 {
-		return trace.Errorf("no input file provided")
-	}
-	if len(req.FileToGenerate) > 1 {
-		return trace.Errorf("too many input files")
+	switch inputFileCount := len(req.FileToGenerate); {
+	case inputFileCount == 0:
+		return trace.BadParameter("no input file provided")
+	case inputFileCount > 1:
+		return trace.BadParameter("too many input files")
 	}
 
 	gen, err := newGenerator(req)
@@ -73,7 +75,7 @@ func generateSchema(file *tree.File, resp *gogoplugin.CodeGeneratorResponse) err
 		return trace.Wrap(err)
 	}
 
-	name := "zz_generated.eventschema.go"
+	name := outputFileName
 	content, err := gen.Render()
 	if err != nil {
 		return trace.Wrap(err)
