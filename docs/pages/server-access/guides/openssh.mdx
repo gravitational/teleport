@@ -88,7 +88,8 @@ authenticate the `sshd` host using the host certificate you generated earlier.
 
 First, make sure you have logged in to your Teleport cluster:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```code
 $ tsh status
@@ -102,8 +103,8 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```code
 $ tsh status
@@ -117,8 +118,8 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh status
@@ -132,7 +133,9 @@ $ tsh status
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 On your local machine, run the following `tsh` command. This will print a
 configuration block that tells your SSH client to use credentials managed by
@@ -238,7 +241,8 @@ First, define environment variables for the address of your Teleport cluster,
 the username you will use to log in to your `sshd` host, and the port on your
 `sshd` host you are using for SSH traffic:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # See the available logins you can use to access your sshd host
@@ -249,8 +253,8 @@ $ CLUSTER=teleport.example.com
 $ PORT=22
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # See the available logins you can use to access your sshd host
@@ -261,7 +265,9 @@ $ CLUSTER=mytenant.teleport.sh
 $ PORT=22
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, SSH in to your remote host:
 
@@ -340,3 +346,4 @@ the lock remains in force.
 
 For more information, read our
 [Session and Identity Locking Guide](../../access-controls/guides/locking.mdx).
+

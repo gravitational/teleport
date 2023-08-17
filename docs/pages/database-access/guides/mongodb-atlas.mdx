@@ -6,12 +6,15 @@ videoBanner: mu_ZKTjnFJ8
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="MongoDB Atlas cluster" dbConfigure="MongoDB Atlas with mutual TLS authentication or AWS IAM" dbName="MongoDB Atlas" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodbatlas_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access MongoDB Cloud](../../../img/database-access/guides/mongodbatlas_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -32,7 +35,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Next, start the Database Service.
 
-<ScopedBlock scope={["enterprise","oss"]}>
+<Tabs>
+<TabItem scope={["enterprise","oss"]} label="Self-Hosted">
 
 <Tabs>
 <TabItem label="Teleport CLI">
@@ -93,9 +97,9 @@ See the full [YAML reference](../reference/configuration.mdx) for details.
 
 </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 <Tabs>
 <TabItem label="Teleport CLI">
 
@@ -141,7 +145,9 @@ See the full [YAML reference](../reference/configuration.mdx) for details.
 
 </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 See below for details on how to configure the Teleport Database Service.
 
@@ -362,3 +368,4 @@ $ tsh db logout
 - [Which certificate authority signs MongoDB Atlas cluster TLS certificates?](https://docs.atlas.mongodb.com/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-cluster-tls-certificates-)
 - [Self-managed X.509 authentication](https://docs.atlas.mongodb.com/security-self-managed-x509/)
 - [AWS IAM authentication](https://www.mongodb.com/docs/atlas/security/passwordless-authentication/)
+
