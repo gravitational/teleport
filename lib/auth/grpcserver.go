@@ -108,7 +108,7 @@ var (
 	)
 )
 
-// GRPCServer is GPRC Auth Server API
+// GRPCServer is GRPC Auth Server API
 type GRPCServer struct {
 	auditlogpb.UnimplementedAuditLogServiceServer
 	*logrus.Entry

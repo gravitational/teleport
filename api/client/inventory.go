@@ -343,7 +343,7 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
 			}
-			var err error = trace.Wrap(stream.Send(&oneOf))
+			err := stream.Send(&oneOf)
 			sendMsg.errC <- err
 			if err != nil {
 				// preserve EOF errors
@@ -513,7 +513,7 @@ func (i *upstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStrea
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
 			}
-			var err error = trace.Wrap(stream.Send(&oneOf))
+			err := stream.Send(&oneOf)
 			sendMsg.errC <- err
 			if err != nil {
 				// preserve eof errors

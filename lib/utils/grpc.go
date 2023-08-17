@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
-// TODO (Joerger): Remove these aliases once /e no longer depends on them.
+// TODO(Joerger): Remove these aliases once /e no longer depends on them.
 var (
 	GRPCServerUnaryErrorInterceptor  = interceptors.GRPCServerUnaryErrorInterceptor
 	GRPCClientUnaryErrorInterceptor  = interceptors.GRPCClientUnaryErrorInterceptor

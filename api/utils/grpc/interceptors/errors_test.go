@@ -86,7 +86,7 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	// still safe to recv from the stream and check for
 	// the already exists error.
 	if sendErr != nil && !errors.Is(sendErr, io.EOF) {
-		require.FailNowf(t, "unexpected error", "%v", sendErr)
+		t.Fatalf("Unexpected error: %v", sendErr)
 	}
 
 	_, err = stream.Recv()

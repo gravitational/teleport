@@ -59,7 +59,7 @@ func (s *streamWrapper) decreaseCounter() {
 	})
 }
 
-// streamCounterInterceptor is GPRC client stream interceptor that
+// streamCounterInterceptor is GRPC client stream interceptor that
 // counts the number of current open streams for the purpose of
 // gracefully shutdown a draining grpc client.
 func streamCounterInterceptor(wg *sync.WaitGroup) grpc.StreamClientInterceptor {

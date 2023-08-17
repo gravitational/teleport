@@ -20,9 +20,8 @@ import (
 	"context"
 	"sync"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
