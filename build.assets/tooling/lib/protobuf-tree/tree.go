@@ -1,5 +1,5 @@
 /*
-Copyright 2021-2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -77,6 +77,10 @@ type Location struct {
 	loc *gogodesc.SourceCodeInfo_Location
 }
 
+// AddFile adds a proto file to the Forest. The function returns a *File
+// containing the location map (where each message is located in the source),
+// the list of Messages from the file, and Message indices by Descriptor and
+// name for easier lookups.
 func (forest *Forest) AddFile(fileDesc *gogodesc.FileDescriptorProto) *File {
 	locs := fileDesc.GetSourceCodeInfo().GetLocation()
 	msgs := fileDesc.GetMessageType()

@@ -83,7 +83,7 @@ Items: &EventField{
 // limitations under the License.
 
 package eventschema
-// Generated code, DO NOT EDIT
+{{ "// Code generated from protobuf, DO NOT EDIT." }}
 // To re-generate the file, go into build.assets/ and run "make generate-eventschema".
 
 type Event struct {
