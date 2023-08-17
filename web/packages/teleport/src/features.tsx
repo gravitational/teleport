@@ -644,10 +644,6 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 }
 
 export function getOSSFeatures(): TeleportFeature[] {
-  const unifiedResources = localStorage.areUnifiedResourcesEnabled()
-    ? [new FeatureUnifiedResources()]
-    : [];
-
   return [
     // Resources
     new FeatureUnifiedResources(),
