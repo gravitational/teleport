@@ -16,15 +16,15 @@ state: Draft
 To avoid ambiguity (thankyou, English!), I'm going to use the following
 definitions in the document.
 
- * *Artefact* (n): Any concrete product of the _Delivery_ process. A Debian 
+ * *artifact* (n): Any concrete product of the _Delivery_ process. A Debian 
    package, a tarball, a Docker image.
  * *Delivery*, *Delivery process* (n): The process for turning a given
-   revision of our source code into a collection of consumer-visible artefacts.
+   revision of our source code into a collection of consumer-visible artifacts.
  * *Promotion* (n): The last step of _Delivery_, triggered manually once the
-   Release Engineer is happy that the _artefacts_ produced by the _delivery
+   Release Engineer is happy that the _artifacts_ produced by the _delivery
    process_ are fit for purpose. Officially publishes the _release_. 
  * *Release* (n): The finished product of the delivery process for a given
-   version of our source code, e.g. all the artefacts Teleport v12.1.2.
+   version of our source code, e.g. all the artifacts Teleport v12.1.2.
 
 ## What
 
@@ -70,7 +70,7 @@ each release build - it does not include
  * documentation & website builds,
  * Teleport Labs images, etc
  
-It also doesn't attempt to capture the differing requirements for storing and/or publishing the various artefacts as they are built and promoted.
+It also doesn't attempt to capture the differing requirements for storing and/or publishing the various artifacts as they are built and promoted.
 
 ```mermaid
 flowchart LR
@@ -153,7 +153,7 @@ flowchart LR
     oss_arm32_oci --> oss_multiarch_oci
 ```
 
-Every single solid-line box in the above diagram is a release artefact
+Every single solid-line box in the above diagram is a release artifact
 that is available to customers. For every build. Across 3 active release
 branches, plus `master`. (The dashed-line boxes are partial-build artifacts
 that are not public, but are a useful internal ad/or logical grouping.) 
