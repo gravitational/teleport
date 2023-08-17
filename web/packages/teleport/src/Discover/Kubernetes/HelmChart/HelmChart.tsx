@@ -50,7 +50,7 @@ import {
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
-import type { JoinToken } from 'teleport/services/joinToken';
+import type { JoinRole, JoinToken } from 'teleport/services/joinToken';
 import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
 import type { Kube } from 'teleport/services/kube';
 
@@ -326,6 +326,7 @@ const generateCmd = (data: {
   isEnterprise: boolean;
   isCloud: boolean;
   automaticUpgradesEnabled: boolean;
+  roles: JoinRole[];
 }) => {
   let extraYAMLConfig = '';
 
@@ -344,8 +345,10 @@ const generateCmd = (data: {
     extraYAMLConfig += '        minAvailable: 1\n';
   }
 
+  const yamlRoles = data.roles.join(',').toLowerCase();
+
   return `cat << EOF > prod-cluster-values.yaml
-roles: kube,app,discovery
+roles: ${yamlRoles}
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
@@ -448,6 +451,7 @@ const InstallHelmChart = ({
     isEnterprise: ctx.isEnterprise,
     isCloud: ctx.isCloud,
     automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
+    roles: ['Kube', 'App', 'Discovery'],
   });
 
   return (
