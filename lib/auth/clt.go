@@ -479,6 +479,10 @@ func (c *Client) AccessListClient() services.AccessLists {
 	return c.APIClient.AccessListClient()
 }
 
+func (c *Client) UserLoginStateClient() services.UserLoginStates {
+	return c.APIClient.UserLoginStateClient()
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -872,6 +876,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessListClient() services.AccessLists
+
+	// UserLoginStateClient returns a user login state client.
+	// Clients connecting to  older Teleport versions, still get a user login state client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	UserLoginStateClient() services.UserLoginStates
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
