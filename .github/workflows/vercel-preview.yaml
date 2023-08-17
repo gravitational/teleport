@@ -1,0 +1,16 @@
+# This is a placeholder workflow and will be replaced once the appropriate
+# functionality passes code review.
+#
+# Dispatching workflow calls to a GHA workflow on a branch requires that a
+# workflow file with the correct name exists in the default branch, even
+# if that workflow bears no resemblance to the target workflow
+
+name: Deploy Vercel Preview
+on:
+  workflow_dispatch:
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Greeting
+        run: echo "This is a dummy build to placate GitHub."
