@@ -428,7 +428,8 @@ have a cluster using the legacy U2F support.
 
 ## Filter fields
 
-Here is an explanation of the fields used in the `where` and `filter` conditions within this guide.
+Here is an explanation of the fields used in the `where` and `filter` conditions
+within this guide:
 
 | Field                      | Description                                       |
 | -------------------------- | ------------------------------------------------- |
@@ -548,15 +549,15 @@ external data source.
 In role templates, you can refer to these variables using the following two
 formats, where `trait` is the name of the trait:
 
-- `{{external.trait}}`
-- `{{external["trait"]}}`
+- **Dot syntax:** `{{external.trait}}`
+- **Bracket syntax:** `{{external["trait"]}}`
 
 Teleport will expand the template variables above with the value of the SAML
 attribute or OIDC claim called `trait`.
 
 You can specify an external trait in the first syntax if it begins with a letter
-and contains only letters, numbers, and underscores. Otherwise, you must use the
-second syntax to specify a trait.
+and contains only letters, numbers, and underscores. Otherwise, you must use
+bracket syntax to specify a trait.
 
 Common examples of external traits available through an identity provider
 include the following:
