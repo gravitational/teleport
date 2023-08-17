@@ -39,6 +39,7 @@ BenchmarkPostgresReadLargeTable/size=8000-10       	       3	 215046472 ns/op
 // BenchmarkPostgresReadLargeTable is a benchmark for read-heavy usage of Postgres.
 // Depending on the message size we may get different performance, due to the way the respective engine is written.
 func BenchmarkPostgresReadLargeTable(b *testing.B) {
+	b.StopTimer()
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, b, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
 		db.SetStaticLabels(map[string]string{"foo": "bar"})
@@ -51,18 +52,22 @@ func BenchmarkPostgresReadLargeTable(b *testing.B) {
 
 	// Create user/role with the requested permissions.
 	testCtx.createUserAndRole(ctx, b, user, role, allow, allow)
-
 	for _, messageSize := range []int{11, 20, 100, 1000, 2000, 8000} {
+
+		// connect to the database
+		pgConn, err := testCtx.postgresClient(ctx, user, "postgres", "postgres", "postgres")
+		require.NoError(b, err)
+
+		// total bytes to be transmitted, approximate.
+		const totalBytes = 100 * 1024 * 1024
+		// calculate the number of messages required to reach totalBytes of transferred data.
+		rowCount := totalBytes / messageSize
+
+		// run first query without timer. the server will cache the message.
+		_, err = pgConn.Exec(ctx, fmt.Sprintf("SELECT * FROM bench_%v LIMIT %v", messageSize, rowCount)).ReadAll()
+		require.NoError(b, err)
+
 		b.Run(fmt.Sprintf("size=%v", messageSize), func(b *testing.B) {
-			// connect to the database
-			pgConn, err := testCtx.postgresClient(ctx, user, "postgres", "postgres", "postgres")
-			require.NoError(b, err)
-
-			// total bytes to be transmitted, approximate.
-			const totalBytes = 100 * 1024 * 1024
-			// calculate the number of messages required to reach totalBytes of transferred data.
-			rowCount := totalBytes / messageSize
-
 			for i := 0; i < b.N; i++ {
 				// Execute a query, count results.
 				q := pgConn.Exec(ctx, fmt.Sprintf("SELECT * FROM bench_%v LIMIT %v", messageSize, rowCount))
@@ -80,10 +85,10 @@ func BenchmarkPostgresReadLargeTable(b *testing.B) {
 				require.NoError(b, q.Close())
 				require.Equal(b, rowCount, rows)
 			}
-
-			// Disconnect.
-			err = pgConn.Close(ctx)
-			require.NoError(b, err)
 		})
+
+		// Disconnect.
+		err = pgConn.Close(ctx)
+		require.NoError(b, err)
 	}
 }

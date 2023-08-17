@@ -93,6 +93,9 @@ type TestServer struct {
 	pids map[uint32]*pidHandle
 	// pidMu is a lock protecting nextPid and pids.
 	pidMu sync.Mutex
+
+	// mmCache caches multiMessage for reuse in benchmark
+	mmCache map[string]*multiMessage
 }
 
 // pidHandle represents a fake pid handle that can cancel operations in progress.
@@ -145,6 +148,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		pids:             make(map[uint32]*pidHandle),
 		storedProcedures: make(map[string]string),
 		userEventsCh:     make(chan UserEvent, 100),
+		mmCache:          make(map[string]*multiMessage),
 	}, nil
 }
 
@@ -405,6 +409,19 @@ func (m *multiMessage) Backend() {
 
 var _ pgproto3.BackendMessage = (*multiMessage)(nil)
 
+func (s *TestServer) getMultiMessage(rowSize, repeats int) (*multiMessage, error) {
+	key := fmt.Sprintf("%v/%v", rowSize, repeats)
+	if mm, ok := s.mmCache[key]; ok {
+		return mm, nil
+	}
+	mm, err := newMultiMessage(rowSize, repeats)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.mmCache[key] = mm
+	return mm, nil
+}
+
 // handleBenchmarkQuery handles the query used for read benchmark. It will send a stream of messages of requested size and number.
 func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend) error {
 	// parse benchmark parameters
@@ -424,7 +441,7 @@ func (s *TestServer) handleBenchmarkQuery(query string, client *pgproto3.Backend
 		return trace.Wrap(err)
 	}
 
-	mm, err := newMultiMessage(messageSize-11, repeats)
+	mm, err := s.getMultiMessage(messageSize-11, repeats)
 	if err != nil {
 		return trace.Wrap(err)
 	}
