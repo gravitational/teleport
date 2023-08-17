@@ -40,8 +40,8 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/third_party/forked/golang/netutil"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -88,6 +88,8 @@ type roundTripperConfig struct {
 	// auth.TeleportImpersonateUserHeader and auth.TeleportImpersonateIPHeader
 	// headers instead of relying on the certificate to transport it.
 	useIdentityForwarding bool
+
+	proxier func(*http.Request) (*url.URL, error)
 }
 
 // NewSpdyRoundTripperWithDialer creates a new SpdyRoundTripper that will use
@@ -104,7 +106,7 @@ func (s *SpdyRoundTripper) TLSClientConfig() *tls.Config {
 
 // Dial implements k8s.io/apimachinery/pkg/util/net.Dialer.
 func (s *SpdyRoundTripper) Dial(req *http.Request) (net.Conn, error) {
-	conn, err := s.dial(req.URL)
+	conn, err := s.dial(req)
 	if err != nil {
 		return nil, err
 	}
@@ -118,37 +120,80 @@ func (s *SpdyRoundTripper) Dial(req *http.Request) (net.Conn, error) {
 }
 
 // dial dials the host specified by url, using TLS if appropriate.
-func (s *SpdyRoundTripper) dial(url *url.URL) (net.Conn, error) {
-	dialAddr := netutil.CanonicalAddr(url)
-
-	if url.Scheme == "http" {
-		switch {
-		case s.dialWithContext != nil:
-			return s.dialWithContext(s.ctx, "tcp", dialAddr)
-		default:
-			return net.Dial("tcp", dialAddr)
+func (s *SpdyRoundTripper) dial(req *http.Request) (conn net.Conn, err error) {
+	var proxyURL *url.URL
+	if s.proxier != nil {
+		proxyURL, err = s.proxier(req)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	// TODO validate the TLSClientConfig is set up?
-	var conn *tls.Conn
-	var err error
-	if s.dialWithContext == nil {
-		conn, err = tls.Dial("tcp", dialAddr, s.tlsConfig)
+	if proxyURL == nil {
+		conn, err = s.dialWithoutProxy(req.URL)
 	} else {
-		conn, err = utils.TLSDial(s.ctx, utils.DialWithContextFunc(s.dialWithContext), "tcp", dialAddr, s.tlsConfig)
+		conn, err = s.dialWithProxy(req, proxyURL)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if req.URL.Scheme == "https" {
+		return s.tlsConn(s.ctx, conn, netutil.CanonicalAddr(req.URL))
+	}
+	return conn, nil
+}
+
+func (s *SpdyRoundTripper) dialWithoutProxy(url *url.URL) (conn net.Conn, err error) {
+	dialAddr := netutil.CanonicalAddr(url)
+	switch {
+	case s.dialWithContext != nil:
+		conn, err = s.dialWithContext(s.ctx, "tcp", dialAddr)
+	default:
+		conn, err = net.Dial("tcp", dialAddr)
+	}
+	return conn, trace.Wrap(err)
+}
+
+// tlsConn returns a TLS client side connection using rwc as the underlying transport.
+func (s *SpdyRoundTripper) tlsConn(ctx context.Context, rwc net.Conn, targetHost string) (net.Conn, error) {
+	host, _, err := net.SplitHostPort(targetHost)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsConfig := s.tlsConfig
+	switch {
+	case tlsConfig == nil:
+		tlsConfig = &tls.Config{ServerName: host}
+	case len(tlsConfig.ServerName) == 0:
+		tlsConfig = tlsConfig.Clone()
+		tlsConfig.ServerName = host
+	}
+	tlsConn := tls.Client(rwc, tlsConfig)
+
 	// Client handshake will verify the server hostname and cert chain. That
 	// way we can err our before first read/write.
-	if err := conn.Handshake(); err != nil {
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
-	return conn, nil
+	return tlsConn, nil
+}
+
+// dialWithProxy dials the host specified by url through an http or an socks5 proxy.
+func (s *SpdyRoundTripper) dialWithProxy(req *http.Request, proxyURL *url.URL) (net.Conn, error) {
+	// ensure we use a canonical host with proxyReq
+	targetHost := netutil.CanonicalAddr(req.URL)
+
+	proxyDialConn, err := apiclient.DialProxyWithDialer(
+		s.ctx,
+		proxyURL,
+		targetHost,
+		apiclient.ContextDialerFunc(s.dialWithContext),
+	)
+	return proxyDialConn, trace.Wrap(err)
 }
 
 // RoundTrip executes the Request and upgrades it. After a successful upgrade,
@@ -193,7 +238,6 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 			conn,
 		),
 	)
-
 	resp, err := http.ReadResponse(responseReader, nil)
 	if err != nil {
 		if conn != nil {
