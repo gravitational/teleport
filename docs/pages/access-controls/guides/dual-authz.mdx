@@ -13,13 +13,10 @@ Here are the most common scenarios:
 In this guide, we will set up Teleport's Just-in-Time Access Requests to require the approval
 of two team members for a privileged role `dbadmin`.
 
-<ScopedBlock scope="oss">
 
-  This guide requires a commercial edition of Teleport. The open source
-  edition of Teleport only supports [GitHub](../../access-controls/sso/github-sso.mdx) as
-  an SSO provider.
-
-</ScopedBlock>
+This guide requires a commercial edition of Teleport. The open source edition of
+Teleport only supports [GitHub](../../access-controls/sso/github-sso.mdx) as an
+SSO provider.
 
 <Admonition title="Note" type="tip">
   The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../access-requests.mdx).
@@ -209,14 +206,9 @@ Bob can also assume granted Access Request roles using Web UI:
 
 ![Teleport Assume](../../../img/access-controls/dual-authz/teleport-7-bob-assume.png)
 
-
-{/* TODO: This H2 will show up in the table of contents when this section is invisible.
-We need a way to hide invisible H2s from the TOC. */}
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 ## Troubleshooting
 
-### Cert errors in self-hosted deployments
+### Certificate errors in self-hosted deployments
 
 You may be getting certificate errors if Teleport's Auth Service is missing an address in the server certificate:
 
@@ -234,5 +226,3 @@ To fix the problem, update the Auth Service with a public address, and restart T
 auth_service:
   public_addr: ['localhost:3025', 'example.com:3025']
 ```
-
-</ScopedBlock>

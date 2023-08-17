@@ -12,12 +12,15 @@ This guide will help you to:
 - Set up the Teleport Application Service to access the AWS Console and API.
 - Connect to your DynamoDB databases through the Teleport Application Service.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-![DynamoDB Self-Hosted](../../../img/database-access/guides/dynamodb_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-![DynamoDB Cloud](../../../img/database-access/guides/dynamodb_cloud.png)
-</ScopedBlock>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+![DynamoDB Self-Hosted](../../../img/application-access/guides/dynamodb_selfhosted.png)
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+![DynamoDB Cloud](../../../img/application-access/guides/dynamodb_cloud.png)
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -320,3 +323,4 @@ $ tsh apps logout aws-dynamodb
 ## Next steps
 - More information on [AWS Management and API with Teleport Application Access](../../application-access/guides/aws-console.mdx).
 - Learn more about [AWS service endpoints](https://docs.aws.amazon.com/general/latest/gr/rande.html).
+

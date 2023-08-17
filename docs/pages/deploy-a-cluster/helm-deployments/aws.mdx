@@ -328,7 +328,8 @@ Edit your `values.yaml` file to refer to the name of your secret:
 
 ## Step 5/7. Set values to configure the cluster
 
-<ScopedBlock scope="enterprise">
+<Tabs>
+<TabItem scope="enterprise" label="Teleport Enterprise">
 
 Before you can install Teleport in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
@@ -342,12 +343,15 @@ this secret as long as your file is named `license.pem`.
 $ kubectl -n teleport create secret generic license --from-file=license.pem
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Next, configure the `teleport-cluster` Helm chart to use the `aws` mode. Create
 a file called `aws-values.yaml` and write the values you've chosen above to it:
 
-<ScopedBlock scope={["oss", "cloud"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -399,8 +403,8 @@ podSecurityPolicy:
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -454,7 +458,9 @@ podSecurityPolicy:
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Install the chart with the values from your `aws-values.yaml` file using this command:
 

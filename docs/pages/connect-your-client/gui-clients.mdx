@@ -67,7 +67,8 @@ Ensure that your environment includes the following:
 
 ### Get connection information
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 <Tabs>
 <TabItem label="Authenticated Proxy">
@@ -144,8 +145,8 @@ TLS authentication.
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope="cloud">
+</TabItem>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 Use the following command to start a local TLS proxy your GUI database client
 will be connecting to:
@@ -164,7 +165,9 @@ Use the displayed local proxy host/port and credentials paths when configuring
 your GUI client below. When entering the hostname, use `localhost` rather than
 `127.0.0.1`.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## SQL Server with Azure Data Studio
 

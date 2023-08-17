@@ -302,7 +302,8 @@ Next, configure the `teleport-cluster` Helm chart to use the `gcp` mode. Create 
 file called `gcp-values.yaml` file and write the values you've chosen above to
 it:
 
-<ScopedBlock scope={["oss", "cloud"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 
 ```yaml
 chartMode: gcp
@@ -320,8 +321,8 @@ highAvailability:
     issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+</TabItem>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```yaml
 chartMode: gcp
@@ -340,7 +341,9 @@ highAvailability:
 enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Install the chart with the values from your `gcp-values.yaml` file using this command:
 

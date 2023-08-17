@@ -9,12 +9,15 @@ This guide will help you to:
 - Set up Teleport to access your self-hosted PostgreSQL.
 - Connect to your databases through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access PostgreSQL Self-Hosted](../../../img/database-access/guides/postgresqlselfhosted_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access PostgreSQL Cloud](../../../img/database-access/guides/postgresqlselfhosted_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -110,7 +113,8 @@ Install and configure Teleport where you will run the Teleport Database Service:
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=testuser
@@ -120,8 +124,8 @@ $ tsh db ls
 # example-postgres Example PostgreSQL env=dev
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=testuser
@@ -131,7 +135,9 @@ $ tsh db ls
 # example-postgres Example PostgreSQL env=dev
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Note that you will only be able to see databases your role has access to. See
 [RBAC](../rbac.mdx) section for more details.

@@ -23,7 +23,8 @@ terminal for the CLI reference.
 For the impatient, here's an example of how a user would typically use
 [`tsh`](../reference/cli/tsh.mdx):
 
-<ScopedBlock scope={["oss","enterprise"]}>
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 
 ```code
 # Log into a Teleport cluster. This command retrieves the user's certificates
@@ -47,8 +48,8 @@ $ ssh user@host
 $ tsh logout
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Login into a Teleport cluster. This command retrieves the user's certificates
@@ -72,7 +73,9 @@ $ ssh user@host
 $ tsh logout
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 In other words, Teleport was designed to be fully compatible with existing
 SSH-based workflows and does not require users to learn anything new, other than
@@ -95,7 +98,8 @@ login and the OS login. A Teleport identity will have to be passed via the
 `--user` flag while the OS login will be passed as `login@host` using syntax
 compatible with the traditional `ssh` command.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Authenticate against the "work" cluster as joe and then
@@ -103,8 +107,8 @@ compatible with the traditional `ssh` command.
 $ tsh ssh --proxy=work.example.com --user=joe root@node
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Authenticate against the "work" cluster as joe and then
@@ -112,7 +116,9 @@ $ tsh ssh --proxy=work.example.com --user=joe root@node
 $ tsh ssh --proxy=mytenant.teleport.sh --user=joe root@node
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 [CLI Docs - tsh ssh](../reference/cli/tsh.mdx#tsh-ssh)
 
@@ -120,7 +126,8 @@ $ tsh ssh --proxy=mytenant.teleport.sh --user=joe root@node
 
 To retrieve a user's certificate, execute:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Full form:
@@ -133,8 +140,8 @@ $ tsh login --proxy=work.example.com
 $ tsh login --proxy=work.example.com:5000
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Full form:
@@ -143,7 +150,9 @@ $ tsh login --proxy=proxy_host:<https_proxy_port>
 $ tsh login --proxy=mytenant.teleport.sh
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 [CLI Docs - tsh login](../reference/cli/tsh.mdx#tsh-login)
 
@@ -165,7 +174,8 @@ This allows you to authenticate just once, maybe at the beginning of the day. Su
 
 A Teleport cluster can be configured for multiple user identity sources. For example, a cluster may have a local user called `admin` while regular users should [authenticate via GitHub](../access-controls/sso/github-sso.mdx). In this case, you have to pass `--auth` flag to `tsh login` to specify which identity storage to use:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in using the local Teleport 'admin' user:
@@ -175,8 +185,8 @@ $ tsh --proxy=proxy.example.com --auth=local --user=admin login
 $ tsh --proxy=proxy.example.com --auth=github login
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in using the local Teleport 'admin' user:
@@ -186,29 +196,34 @@ $ tsh --proxy=mytenant.teleport.sh --auth=local --user=admin login
 $ tsh --proxy=mytenant.teleport.sh --auth=github login
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 When using an external identity provider to log in, `tsh` will need to open a
 web browser to complete the authentication flow. By default, `tsh` will use your
 system's default browser. If you wish to suppress this behavior, you can use the
 `--browser=none` flag:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Don't open the system default browser when logging in
 $ tsh login --proxy=work.example.com --browser=none
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Don't open the system default browser when logging in
 $ tsh login --proxy=mytenant.teleport.sh --browser=none
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 In this situation, a link will be printed on the screen. You can copy and paste this link into
 a browser of your choice to continue the login flow.
@@ -220,7 +235,8 @@ a browser of your choice to continue the login flow.
 To inspect the SSH certificates in `~/.tsh`, a user may execute the following
 command:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh status
@@ -235,8 +251,8 @@ $ tsh status
 #  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh status
@@ -251,7 +267,9 @@ $ tsh status
 #  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 [CLI Docs - tsh status](../reference/cli/tsh.mdx#tsh-status)
 
@@ -277,7 +295,8 @@ variable to `false` in your shell profile to make this permanent.
 [`tsh login`](../reference/cli/tsh.mdx#tsh-login) can also save the user certificate into a
 file:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Authenticate the user against proxy.example.com and save the user
@@ -288,8 +307,8 @@ $ tsh login --proxy=proxy.example.com --out=joe
 $ tsh ssh --proxy=proxy.example.com -i joe joe@db
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Authenticate the user against mytenant.teleport.sh and save the user
@@ -300,14 +319,17 @@ $ tsh login --proxy=mytenant.teleport.sh --out=joe
 $ tsh ssh --proxy=mytenant.teleport.sh -i joe joe@db
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 By default, the `--out` flag will create an identity file suitable for `tsh -i`.
 If compatibility with OpenSSH is needed, `--format=openssh` must be specified.
 In this case, the identity will be saved into two files, `joe` and
 `joe-cert.pub`:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=proxy.example.com --out=joe --format=openssh
@@ -318,8 +340,8 @@ $ ls -lh
 # -rw------- 1 joe staff 1.5K Aug 10 16:16 joe-cert.pub
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --out=joe --format=openssh
@@ -330,7 +352,9 @@ $ ls -lh
 # -rw------- 1 joe staff 1.5K Aug 10 16:16 joe-cert.pub
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### SSH certificates for automation
 
@@ -345,7 +369,8 @@ In this example, we're creating a certificate with a TTL of one hour for the
 `jenkins` user and storing it in a `jenkins.pem` file, which can be later used with
 `-i` (identity) flag for `tsh`.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -355,8 +380,8 @@ $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your Teleport Cloud cluster so you can use tctl locally.
@@ -364,7 +389,9 @@ $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
 $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 [CLI Docs - tctl auth sign](../reference/cli/tctl.mdx#tctl-auth-sign)
 
@@ -426,7 +453,8 @@ the most popular `ssh` flags like `-p`, `-l` or `-L`. For example, if you have
 the following alias defined in your `~/.bashrc`: `alias ssh="tsh ssh"` then you
 can continue using familiar SSH syntax:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Have this alias configured, perhaps via ~/.bashrc
@@ -442,8 +470,8 @@ $ ssh -o ForwardAgent=yes user@node
 $ ssh -o AddKeysToAgent=yes user@node
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Have this alias configured, perhaps via ~/.bashrc
@@ -459,9 +487,9 @@ $ ssh -o ForwardAgent=yes user@node
 $ ssh -o AddKeysToAgent=yes user@node
 ```
 
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ### Proxy ports
 
@@ -476,7 +504,9 @@ $ tsh --proxy=proxy.example.com:5000 <subcommand>
 
 This `tsh` command will use port `5000` of the Proxy Service.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Port forwarding
 
@@ -518,20 +548,23 @@ This command:
 
 While implementing `ProxyJump` for Teleport, we have extended the feature to `tsh`.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh ssh -J proxy.example.com telenode
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh ssh -J mytenant.teleport.sh telenode
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Known limitations:
 
@@ -648,7 +681,8 @@ tunnels from behind-firewall environments into a Teleport Proxy Service you have
 These features are called **Trusted Clusters**. Refer to [the Trusted Clusters guide](../management/admin/trustedclusters.mdx)
 to learn how a Trusted Cluster can be configured.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Assuming the Teleport Proxy Server called `work` is configured with a few Trusted
 Clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
@@ -662,8 +696,8 @@ $ tsh --proxy=work clusters
 # production       offline
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Assuming the Teleport Cloud tenant called `mytenant.teleport.sh` is configured with a few trusted
 clusters, a user may use the `tsh clusters` command to see a list of all Trusted Clusters on the server:
@@ -677,13 +711,16 @@ $ tsh --proxy=mytenant.teleport.sh clusters
 # production       offline
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 [CLI Docs - tsh clusters](../reference/cli/tsh.mdx#tsh-clusters)
 
 Now you can use the `--cluster` flag with any `tsh` command. For example, to list SSH nodes that are members of the `production` cluster, simply run:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh --proxy=work ls --cluster=production
@@ -694,8 +731,8 @@ $ tsh --proxy=work ls --cluster=production
 # db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh --proxy=mytenant.teleport.sh ls --cluster=production
@@ -706,11 +743,14 @@ $ tsh --proxy=mytenant.teleport.sh ls --cluster=production
 # db-2          xxxxxxxxx     10.0.20.41:3022    kernel:4.2
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Similarly, if you want to SSH into `db-1` inside the `production` cluster:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh --proxy=work ssh --cluster=production db-1
@@ -721,8 +761,8 @@ firewall without open ports. This works because the `production` cluster
 establishes a reverse SSH tunnel back into the Proxy Service called `work`, and
 this tunnel is used to establish inbound SSH connections.
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh --proxy=mytenant.teleport.sh ssh --cluster=production db-1
@@ -733,7 +773,9 @@ firewall without open ports. This works because the `production` cluster
 establishes a reverse SSH tunnel back into your Teleport Cloud tenant's Proxy
 Service, and this tunnel is used to establish inbound SSH connections.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## X11 forwarding
 

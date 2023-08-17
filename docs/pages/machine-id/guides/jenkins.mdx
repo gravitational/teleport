@@ -79,15 +79,16 @@ spec:
       "group": "api"
 ```
 
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 On your client machine, log in to Teleport using `tsh` before using `tctl`.
 
 ```code
 $ tctl create -f api-workers.yaml
 $ tctl bots add jenkins --roles=api-workers
 ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
+</TabItem>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 Connect to the Teleport Auth Server and use `tctl` to examine what roles exist on
 your system.
 
@@ -95,7 +96,9 @@ your system.
 $ tctl create -f api-workers.yaml
 $ tctl bots add jenkins --roles=api-workers
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Machine ID allows you to use Linux Access Control Lists (ACLs) to control
 access to certificates on disk. You will use this to limit the access Jenkins
@@ -201,3 +204,4 @@ steps {
 You are all set. You have provided Jenkins with short-lived certificates tied
 to a machine identity that can be rotated, audited, and controlled with all the
 familiar Teleport access controls.
+

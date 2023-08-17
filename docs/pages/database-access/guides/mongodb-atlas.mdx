@@ -10,12 +10,15 @@ In this guide, you will:
 - Configure MongoDB Atlas authentication.
 - Connect to your Atlas cluster through Teleport.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access MongoDB Self-Hosted](../../../img/database-access/guides/mongodbatlas_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access MongoDB Cloud](../../../img/database-access/guides/mongodbatlas_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -37,7 +40,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Next, start the Database Service.
 
-<ScopedBlock scope={["enterprise","oss"]}>
+<Tabs>
+<TabItem scope={["enterprise","oss"]} label="Self-Hosted">
 
 <Tabs>
 <TabItem label="Teleport CLI">
@@ -98,9 +102,9 @@ See the full [YAML reference](../reference/configuration.mdx) for details.
 
 </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["cloud"]}>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 <Tabs>
 <TabItem label="Teleport CLI">
 
@@ -148,7 +152,9 @@ See the full [YAML reference](../reference/configuration.mdx) for details.
 
 </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 See below for details on how to configure the Teleport Database Service.
 
