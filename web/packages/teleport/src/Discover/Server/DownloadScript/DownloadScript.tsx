@@ -56,7 +56,7 @@ const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 export default function Container(props: AgentStepProps) {
   return (
     <CatchError
-      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Server)}
+      onRetry={() => clearCachedJoinTokenResult([ResourceKind.Server])}
       fallbackFn={fbProps => (
         <Template prevStep={props.prevStep} nextStep={() => null}>
           <TextIcon mt={2} mb={3}>

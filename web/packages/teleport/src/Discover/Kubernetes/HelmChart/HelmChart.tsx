@@ -64,11 +64,11 @@ export default function Container(props: AgentStepProps) {
     // join token api fetch error and loading states.
     <CatchError
       onRetry={() =>
-        clearCachedJoinTokenResult(
+        clearCachedJoinTokenResult([
           ResourceKind.Kubernetes,
           ResourceKind.Application,
-          ResourceKind.Discovery
-        )
+          ResourceKind.Discovery,
+        ])
       }
       fallbackFn={fallbackProps => (
         <Box>

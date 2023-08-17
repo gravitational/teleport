@@ -82,7 +82,7 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
     <Validation>
       {({ validator }) => (
         <CatchError
-          onRetry={() => clearCachedJoinTokenResult(ResourceKind.Database)}
+          onRetry={() => clearCachedJoinTokenResult([ResourceKind.Database])}
           fallbackFn={fbProps => (
             <Box>
               {heading}

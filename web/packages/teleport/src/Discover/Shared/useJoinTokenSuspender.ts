@@ -37,7 +37,7 @@ interface SuspendResult {
 let abortController: AbortController;
 let joinTokenCache = new Map<string, SuspendResult>();
 
-export function clearCachedJoinTokenResult(...resourceKinds: ResourceKind[]) {
+export function clearCachedJoinTokenResult(resourceKinds: ResourceKind[]) {
   joinTokenCache.delete(resourceKinds.sort().join());
 }
 
