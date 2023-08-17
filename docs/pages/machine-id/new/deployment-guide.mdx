@@ -3,18 +3,25 @@ title: Deploying Machine ID
 description: How to deploy Machine ID for your environment
 ---
 
+(!docs/pages/includes/machine-id/v2-config-warning.mdx!)
+
+This guide covers background information necessary to understand the operation
+of Machine ID and covers specific guidance for deployment environments.
+
+For a quick overview of Machine ID, see the [Quick Start Guide](../getting-started.mdx).
+
+## Background
+
 Teleport Machine ID provides authentication for machine access to Teleport. This
 allows unattended machines (e.g CI/CD workflows) to access resources protected
 by Teleport and configure Teleport itself. By using Machine ID, you benefit from
 the same rich auditing, fine-grained access control and short-lived certificates
 that Teleport provides for human access.
 
-## Background
-
 Machine ID operates through the `tbot` agent. This agent outputs artifacts such
-as certificates and configuration files to destinations. These artifacts can
-then be read by other tools from the destination and used to access Teleport
-resources.
+as certificates and configuration files to destinations (such as a filesystem
+directory). These artifacts can then be read by other tools from the destination
+and used to access Teleport resources.
 
 `tbot` authenticates to the Teleport Cluster using a **join token** which is
 associated with a **Bot User**. The **Bot User** is assigned a **Bot Role**
@@ -23,22 +30,54 @@ roles through a process known as role impersonation. This means that credentials
 output by Machine ID can be limited to a specific Teleport role - providing a
 basis for implementing the principle of least access.
 
-Any Machine ID implementation typically consists of two major parts:
-configuring `tbot` for your environment and then configuring outputs to produce
-credentials which will grant access to resources your want your machines to
-access.
+## Creating a Bot User
 
 ## Configuring `tbot` for your environment
 
 ### CI/CD
 
-### Kubernetes
+Depending on the platform, `tbot` should either run in one-shot mode within the
+CI/CD pipeline itself (immediately before the pipeline needs to access any
+resources) or should run continually on the runner itself and the outputted
+artifacts should be made available to the CI/CD pipeline run environment.
+
+#### GitLab
+
+TODO: GitLab Specific
+TODO: Specific for others
+
 
 ### Linux Hosts
 
+Configuring `tbot` for a plain old Linux host involves making the following
+decisions:
+
+- Where `tbot` run and how the artifacts output by `tbot` be read by the client
+  which will consume them?
+- Which join method will be used to allow `tbot` to authenticate to your cluster?
+- Where `tbot` will persist it's own state if using the `token` join method
+- If `tbot` should be run continually in the background or
+
+#### GCP
+
+#### Azure
+
+#### AWS
+
+#### Other
+
+When running `tbot` on a Linux host other than those for which we have an
+integration, the `token` join method must be used.
+
 ## Configuring outputs
 
-### SSH Access
+An output defines a destination and the types of credentials that `tbot` should
+write to that destination. Depending on what tool you are using and what you
+are trying to access, a different output type should be used.
+
+### SSH
+
+Machine ID outputs artifacts that support connecting to SSH
 
 ### Kubernetes Access
 
@@ -47,6 +86,76 @@ access.
 ### Database Access
 
 ### SSH Host Certificates
+
+### Authenticating `tctl`
+
+To produce credentials to use with `tctl`, create an identity output. This
+will create an `identity` artifact which contains the necessary credentials
+for `tctl` to authenticate to your Teleport Auth Server.
+
+```yaml
+outputs:
+- type: identity
+  roles: ["editor"]
+  destination:
+    type: directory
+    path: ./my-output
+```
+
+The path to this identity file can then be specified to `tctl` using the `-i`
+flag, e.g
+
+```code
+$ tctl -i ./my-output/identity --auth-server example.teleport.sh:443 nodes ls
+```
+
+### Teleport API Client
+
+To produce credentials to use with the Teleport API client, create an identity
+output. This will create an `identity` artifact which contains the necessary
+credentials for the Teleport API client to authenticate to your Teleport Auth
+Server.
+
+```yaml
+outputs:
+- type: identity
+  roles: ["editor"]
+  destination:
+    type: directory
+    path: ./my-output
+```
+
+The path to this identity file can then be provided to the Teleport API client:
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	"github.com/gravitational/teleport/api/client"
+)
+
+func main() {
+	ctx := context.Background()
+	clt, err := client.New(ctx, client.Config{
+		Addrs: []string{
+			"example.teleport.sh:443",
+ 		},
+		Credentials: []client.Credentials{
+			client.LoadIdentityFile("./my-output/identity"),
+		},
+	})
+}
+```
+
+<Notice type="warning">
+`LoadIdentityFile` does not handle reloading the short-lived identity file
+automatically. If your custom automation is likely to run for a long period,
+ensure you recreate the client regularly to use the latest identity file that
+`tbot` has written.
+</Notice>
 
 ## Next Steps
 
