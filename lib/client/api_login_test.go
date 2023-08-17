@@ -54,6 +54,8 @@ import (
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
+	t.Parallel()
+
 	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -79,17 +81,11 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	cfg.InsecureSkipVerify = true
 
 	// Reset functions after tests.
-	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
-	oldHasPlatformSupport := *client.HasPlatformSupport
-	*client.HasPlatformSupport = func() bool {
-		return true
-	}
+	oldStdin := prompt.Stdin()
 	oldHasCredentials := *client.HasTouchIDCredentials
 
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
-		*client.PromptWebauthn = oldWebauthn
-		*client.HasPlatformSupport = oldHasPlatformSupport
 		*client.HasTouchIDCredentials = oldHasCredentials
 	})
 
@@ -261,14 +257,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			defer cancel()
 
 			prompt.SetStdin(test.inputReader)
-			*client.PromptWebauthn = func(
-				ctx context.Context,
-				origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
-			) (*proto.MFAAuthenticateResponse, string, error) {
-				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
-				return resp, "", err
-			}
-
 			*client.HasTouchIDCredentials = func(rpid, user string) bool {
 				return test.hasTouchIDCredentials
 			}
@@ -286,6 +274,14 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
 			tc.AuthenticatorAttachment = test.authenticatorAttachment
+
+			tc.WebauthnLogin = func(
+				ctx context.Context,
+				origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
+			) (*proto.MFAAuthenticateResponse, string, error) {
+				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
+				return resp, "", err
+			}
 
 			clock.Advance(30 * time.Second)
 			_, err = tc.Login(ctx)
