@@ -2354,6 +2354,59 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, <-pingErr)
 }
 
+func TestGetSSHTargets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "Foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	lower, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "foo",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	other, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
+		Hostname:  "bar",
+		UseTunnel: true,
+	}, nil)
+	require.NoError(t, err)
+
+	for _, node := range []types.Server{upper, lower, other} {
+		_, err = clt.UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+
+	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Len(t, rsp.Servers, 1)
+	require.Equal(t, rsp.Servers[0].GetHostname(), "foo")
+
+	cnc := types.DefaultClusterNetworkingConfig()
+	cnc.SetCaseInsensitiveRouting(true)
+	err = clt.SetClusterNetworkingConfig(ctx, cnc)
+	require.NoError(t, err)
+
+	rsp, err = clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: "foo",
+		Port: "0",
+	})
+	require.NoError(t, err)
+	require.Len(t, rsp.Servers, 2)
+	require.ElementsMatch(t, []string{rsp.Servers[0].GetHostname(), rsp.Servers[1].GetHostname()}, []string{"foo", "Foo"})
+}
+
 func TestNodesCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

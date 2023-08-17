@@ -1082,6 +1082,9 @@ type Auth struct {
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 
+	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
+	CaseInsensitiveRouting bool `yaml:"case_insensitive_routing,omitempty"`
+
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`

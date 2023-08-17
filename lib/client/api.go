@@ -194,6 +194,10 @@ type Config struct {
 	// PredicateExpression host to connect
 	PredicateExpression string
 
+	// UseSearchAsRoles modifies the behavior of resource loading to
+	// use search as roles feature.
+	UseSearchAsRoles bool
+
 	// Labels represent host Labels
 	Labels map[string]string
 
@@ -990,6 +994,7 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 		Labels:              c.Labels,
 		SearchKeywords:      c.SearchKeywords,
 		PredicateExpression: c.PredicateExpression,
+		UseSearchAsRoles:    c.UseSearchAsRoles,
 	}
 }
 

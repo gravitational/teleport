@@ -1951,7 +1951,7 @@ func TestTerminalNameResolution(t *testing.T) {
 			name:           "registered node by address",
 			target:         llama.Addr(),
 			serverID:       llama.ID(),
-			serverHostname: llama.Addr(),
+			serverHostname: "llama",
 		},
 		{
 			name:           "direct dial",
