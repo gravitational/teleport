@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { AgentLabel } from '../agents';
+import { ResourceLabel } from '../agents';
 
 export type JoinToken = {
   id: string;
@@ -22,7 +22,7 @@ export type JoinToken = {
   expiryText?: string;
   // suggestedLabels are labels that the resource should add when adding
   // itself to the cluster
-  suggestedLabels?: AgentLabel[];
+  suggestedLabels?: ResourceLabel[];
   // internalResourceId will be the unique id used to identify that
   // a resource was added using this join token.
   //
@@ -67,6 +67,6 @@ export type JoinTokenRequest = {
   // on resources. When an agent uses this token, the agent should
   // monitor resources that match those labels. For databases, this
   // means adding the labels to `db_service.resources.labels`.
-  suggestedAgentMatcherLabels?: AgentLabel[];
+  suggestedAgentMatcherLabels?: ResourceLabel[];
   method?: JoinMethod;
 };

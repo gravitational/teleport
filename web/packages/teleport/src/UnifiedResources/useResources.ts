@@ -23,14 +23,14 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
 import {
-  AgentFilter,
-  AgentResponse,
+  ResourceFilter,
+  ResourcesResponse,
   UnifiedResource,
 } from 'teleport/services/agents';
 
 export interface ResourcesState {
-  fetchedData: AgentResponse<UnifiedResource>;
-  params: AgentFilter;
+  fetchedData: ResourcesResponse<UnifiedResource>;
+  params: ResourceFilter;
   fetchMore: () => void;
   attempt: Attempt;
 }
