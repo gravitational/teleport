@@ -3,10 +3,7 @@
 Configure Teleport to use SAML authentication as the default instead of the local
 user database.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-You can either edit the Teleport Auth Service configuration file or create a dynamic
-resource.
-</ScopedBlock>
+Follow the instructions for your Teleport edition:
 
 <Tabs>
 <TabItem scope={["cloud", "team"]} label="Dynamic Resources (All Editions)">
@@ -56,3 +53,4 @@ auth_service:
 If you need to log in again before configuring your SAML provider, use the flag <nobr>`--auth=local`</nobr>.
 
 </Admonition>
+
