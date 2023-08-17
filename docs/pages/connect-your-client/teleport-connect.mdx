@@ -96,12 +96,20 @@ reflected in both the tab title and the status bar.
 1. Select the Kubes section.
 1. Look for the cluster you wish to connect to and click the Connect button to the right.
 
-A new local terminal tab will open which is preconfigured with the `$KUBECONFIG` environment variable
-pointing to a configuration for the specified cluster. Any tools that you have installed that respect
-the `$KUBECONFIG` environment variable (`kubectl`, `helm`, etc.) will work without additional configuration.
-To identify the path to this config for use in other tools, run `echo $KUBECONFIG`.
+Alternatively, you can look for the cluster in the search bar and press `Enter`
+to connect to it.
 
-Alternatively, you can look for the cluster in the search bar and press `Enter` to connect to it.
+A new local terminal tab will open which is preconfigured with the `KUBECONFIG`
+environment variable pointing to a configuration for the specified cluster. Any
+tools that respect the `KUBECONFIG` environment variable (`kubectl`, `helm`,
+etc.) will work without additional configuration. To identify the path to this
+config for use in other tools, inspect the value of the `KUBECONFIG`
+environment variable.
+
+The value of the `KUBECONFIG` environment variable will persist between app
+restarts, but this configuration file will not be available or usable when the
+Kubernetes cluster is removed from the connection list in the top left, or when
+Teleport Connect is closed.
 
 ## Connecting to a database
 
@@ -160,7 +168,7 @@ version of tsh for any actions performed within the app.
 Teleport Connect makes tsh available to use in your terminal of choice as well. Please note that at
 the moment tsh and Teleport Connect operate on different sets of profiles, as Teleport Connect sets
 a custom home location through [the `TELEPORT_HOME` environment
-variable](../reference/cli.mdx#tsh-environment-variables). For example, logging in to a new cluster
+variable](../reference/cli/tsh.mdx#tsh-environment-variables). For example, logging in to a new cluster
 through tsh will not make that cluster show up in Teleport Connect.
 
 <Tabs>
@@ -212,6 +220,7 @@ Below is the list of the supported config properties.
 | `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                   | Shortcut to open the cluster selector.                                 |
 | `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+I` on Windows/Linux                                                                   | Shortcut to open the profile selector.                                 |
 | `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+K` on Windows/Linux                                                                   | Shortcut to open the search bar.                                       |
+| `headless.skipConfirm` | false | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
 
 <Admonition
   type="note"

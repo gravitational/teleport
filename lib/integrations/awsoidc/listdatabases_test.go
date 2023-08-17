@@ -338,9 +338,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "invalid rds type",
@@ -350,9 +348,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 		{
 			name: "empty engines list",
@@ -362,9 +358,7 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{},
 				NextToken: "",
 			},
-			errCheck: func(err error) bool {
-				return trace.IsBadParameter(err)
-			},
+			errCheck: trace.IsBadParameter,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

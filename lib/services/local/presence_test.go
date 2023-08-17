@@ -862,7 +862,14 @@ func TestListResources_Helpers(t *testing.T) {
 				nodes, err := presence.GetNodes(ctx, namespace)
 				require.NoError(t, err)
 
-				return FakePaginate(types.Servers(nodes).AsResources(), req)
+				return FakePaginate(types.Servers(nodes).AsResources(), FakePaginateParams{
+					ResourceType:        req.ResourceType,
+					Limit:               req.Limit,
+					Labels:              req.Labels,
+					SearchKeywords:      req.SearchKeywords,
+					PredicateExpression: req.PredicateExpression,
+					StartKey:            req.StartKey,
+				})
 			},
 		},
 	}
@@ -1077,7 +1084,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				req := proto.ListResourcesRequest{
+				req := FakePaginateParams{
 					ResourceType:   types.KindNode,
 					Limit:          int32(tc.limit),
 					NeedTotalCount: true,
@@ -1111,7 +1118,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 
 	t.Run("total count with no match", func(t *testing.T) {
 		t.Parallel()
-		req := proto.ListResourcesRequest{
+		req := FakePaginateParams{
 			ResourceType:   types.KindNode,
 			Limit:          5,
 			NeedTotalCount: true,
@@ -1126,7 +1133,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 
 	t.Run("total count with all matches", func(t *testing.T) {
 		t.Parallel()
-		req := proto.ListResourcesRequest{
+		req := FakePaginateParams{
 			ResourceType:   types.KindNode,
 			Limit:          5,
 			NeedTotalCount: true,

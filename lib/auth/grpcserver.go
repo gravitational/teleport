@@ -50,6 +50,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -60,6 +61,7 @@ import (
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
@@ -69,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/joinserver"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -3776,7 +3779,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	app.SetOrigin(types.OriginDynamic)
+	if app.Origin() == "" {
+		app.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3789,7 +3794,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	app.SetOrigin(types.OriginDynamic)
+	if app.Origin() == "" {
+		app.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4323,6 +4330,17 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 	return &authpb.CRL{CRL: crl}, nil
 }
 
+// ListUnifiedResources retrieves a paginated list of unified resources.
+func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return auth.ListUnifiedResources(ctx, req)
+
+}
+
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -4335,112 +4353,31 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 		return nil, trace.Wrap(err)
 	}
 
+	paginatedResources, err := auth.MakePaginatedResources(req.ResourceType, resp.Resources)
+	if err != nil {
+		return nil, trace.Wrap(err, "making paginated resources")
+	}
 	protoResp := &authpb.ListResourcesResponse{
 		NextKey:    resp.NextKey,
-		Resources:  make([]*authpb.PaginatedResource, len(resp.Resources)),
+		Resources:  paginatedResources,
 		TotalCount: int32(resp.TotalCount),
 	}
 
-	for i, resource := range resp.Resources {
-		var protoResource *authpb.PaginatedResource
-		switch req.ResourceType {
-		case types.KindDatabaseServer:
-			database, ok := resource.(*types.DatabaseServerV3)
-			if !ok {
-				return nil, trace.BadParameter("database server has invalid type %T", resource)
-			}
+	return protoResp, nil
+}
 
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_DatabaseServer{DatabaseServer: database}}
-		case types.KindDatabaseService:
-			databaseService, ok := resource.(*types.DatabaseServiceV1)
-			if !ok {
-				return nil, trace.BadParameter("database service has invalid type %T", resource)
-			}
-
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
-		case types.KindAppServer:
-			app, ok := resource.(*types.AppServerV3)
-			if !ok {
-				return nil, trace.BadParameter("application server has invalid type %T", resource)
-			}
-
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_AppServer{AppServer: app}}
-		case types.KindNode:
-			srv, ok := resource.(*types.ServerV2)
-			if !ok {
-				return nil, trace.BadParameter("node has invalid type %T", resource)
-			}
-
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_Node{Node: srv}}
-		case types.KindKubeServer:
-			srv, ok := resource.(*types.KubernetesServerV3)
-			if !ok {
-				return nil, trace.BadParameter("kubernetes server has invalid type %T", resource)
-			}
-
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
-		case types.KindWindowsDesktop:
-			desktop, ok := resource.(*types.WindowsDesktopV3)
-			if !ok {
-				return nil, trace.BadParameter("windows desktop has invalid type %T", resource)
-			}
-
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_WindowsDesktop{WindowsDesktop: desktop}}
-		case types.KindWindowsDesktopService:
-			desktopService, ok := resource.(*types.WindowsDesktopServiceV3)
-			if !ok {
-				return nil, trace.BadParameter("windows desktop service has invalid type %T", resource)
-			}
-
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_WindowsDesktopService{WindowsDesktopService: desktopService}}
-		case types.KindKubernetesCluster:
-			cluster, ok := resource.(*types.KubernetesClusterV3)
-			if !ok {
-				return nil, trace.BadParameter("kubernetes cluster has invalid type %T", resource)
-			}
-
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_KubeCluster{KubeCluster: cluster}}
-		case types.KindUserGroup:
-			userGroup, ok := resource.(*types.UserGroupV1)
-			if !ok {
-				return nil, trace.BadParameter("user group has invalid type %T", resource)
-			}
-
-			protoResource = &authpb.PaginatedResource{Resource: &authpb.PaginatedResource_UserGroup{UserGroup: userGroup}}
-		case types.KindAppOrSAMLIdPServiceProvider:
-			switch appOrSP := resource.(type) {
-			case *types.AppServerV3:
-				protoResource = &authpb.PaginatedResource{
-					Resource: &authpb.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
-								AppServer: appOrSP,
-							},
-						},
-					},
-				}
-			case *types.SAMLIdPServiceProviderV1:
-				protoResource = &authpb.PaginatedResource{
-					Resource: &authpb.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-						AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-							Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
-								SAMLIdPServiceProvider: appOrSP,
-							},
-						},
-					},
-				}
-			default:
-				return nil, trace.BadParameter("expected types.SAMLIdPServiceProviderV1 or types.AppServerV3, got %T", resource)
-			}
-
-		default:
-			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
-		}
-
-		protoResp.Resources[i] = protoResource
+func (g *GRPCServer) GetSSHTargets(ctx context.Context, req *authpb.GetSSHTargetsRequest) (*authpb.GetSSHTargetsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return protoResp, nil
+	rsp, err := auth.ServerWithRoles.GetSSHTargets(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rsp, nil
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -5401,6 +5338,21 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	userpreferencespb.RegisterUserPreferencesServiceServer(server, userPreferencesSrv)
+
+	// Initialize and register the user login state service.
+	userLoginState, err := local.NewUserLoginStateService(cfg.AuthServer.bk)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userLoginStateServer, err := userloginstate.NewService(userloginstate.ServiceConfig{
+		Authorizer:      cfg.Authorizer,
+		UserLoginStates: userLoginState,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
 	return authServer, nil
 }

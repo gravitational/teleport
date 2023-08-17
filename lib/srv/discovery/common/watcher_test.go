@@ -63,6 +63,7 @@ func TestWatcher(t *testing.T) {
 		Fetchers: []Fetcher{appFetcher, noAuthFetcher, dbFetcher},
 		Interval: time.Hour,
 		Clock:    clock,
+		Origin:   types.OriginCloud,
 	})
 	require.NoError(t, err)
 	go watcher.Start()
