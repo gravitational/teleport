@@ -13,7 +13,7 @@ state: Draft
 
 ## Glossary
 
-To avoid ambiuguity (thankyou, English!), I'm going to use the following
+To avoid ambiguity (thankyou, English!), I'm going to use the following
 definitions in the document.
 
  * *Artefact* (n): Any concrete product of the _Delivery_ process. A Debian 
@@ -37,7 +37,7 @@ between.
 
 This RFD has three goals: 
 
- 1. To start a conversation about the aims, principles and structres we want 
+ 1. To start a conversation about the aims, principles and structures we want 
     to apply to our release process, 
  2. To record the outcome of that discussion, and
  3. To record some the deliberations of the discussion, so that in the future 
@@ -48,14 +48,14 @@ The scope of this document is not just to record actions to be taken at the
 time of release. We will also need to consider things like CI processes, developer
 builds, local testing and so on. Essentially, any task downstream from an engineer
 typing code into an editor must be considered to some extent, because all of these
-tasks have such a substantial overlap with release actiovities that to try and 
+tasks have such a substantial overlap with release activities that to try and 
 construct any sort of release process without considering them will produce an
 unworkable solution.
 
 ## Why
 
 The Teleport delivery process and its associated tooling has evolved largely 
-organically, and there are no over-arching principles that we adhere to when
+organically, and there are no overarching principles that we adhere to when
 making Release Engineering decisions. This makes it increasingly difficult
 to either change the release system, or to assess the impact of a proposed
 change.
@@ -214,7 +214,7 @@ build will draw assets from.
   - `./examples` - indended to show examples of configuring and running Teleport,
     some examples serve double duty
     - `etcd` keys and config used during CI
-    - `charts` providing sources for publiushed helm charts
+    - `charts` providing sources for published helm charts
     - Scripts and resources for testing Kubernetes cluster
 
 #### **Current Release Process**
@@ -302,7 +302,7 @@ sequenceDiagram
 > Bucket` are never actually read from anything. Release artifacts are served
 > from the `Release API Server`'s CloudFront-backed CDN. 
 >
-> This bucket _may_ be required for build tracability, but could just as easily
+> This bucket _may_ be required for build traceability, but could just as easily
 > exist for legacy reasons (i.e. no-one wanted to delete it incase it broke
 > something).
 
@@ -363,6 +363,7 @@ Some open questions are:
  - What tasks should an engineer be able to do at their desk?
    - Build binaries
    - Run Tests
+   - Kick off a dev build
  - Where is the boundary between
    - Desk/CI
    - Desk/Delivery
@@ -390,7 +391,7 @@ If at all possible, any even slightly complex task for either CI or
 the Delivery pipeline should be written in Go. Go is much less esoteric than
 `bash` or `make`, and less prone to subtle bugs. 
 
-Go also avoid locking us into a vendor's build ourchestration system. We have
+Capturing processes _outside_ a third-party build orchestration system is also a useful goal. We have
 put a _lot_ of smarts about how to build a Teleport release into GitHub
 workflows. What happens when the GHA outages become too much, or GHA somehow
 becomes a liability rather than an asset?
@@ -404,13 +405,13 @@ We chose `teleport.e` for GHA workflows because it was private, making it
 harder to leak secrets though CI/CD, but those workflows exist there only
 as an accident of history, not because that's the best place for them.
 
-Even if we *don't* separate our worklws and trooling out into a separate 
+Even if we *don't* separate our workflows and tooling out into a separate 
 repo, we should definitely think about a common pattern we can use to make
 sure that everyone takes a consistent approach.
 
 #### Separate CI, Delivery and test resources
 
 Each resource should have exactly one purpose, so that changing it has
-no unforeseen consquences.
+no unforeseen consequences.
 
 #### CI/CD Overlap
