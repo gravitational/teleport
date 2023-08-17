@@ -18,6 +18,7 @@ import { AgentLabel } from 'teleport/services/agents';
 
 // UserGroup is a remote user group.
 export type UserGroup = {
+  kind: 'user_group';
   // Name is name of the user group.
   name: string;
   // Description is the description of the user group.

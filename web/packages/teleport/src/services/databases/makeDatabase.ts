@@ -39,6 +39,7 @@ export function makeDatabase(json: any): Database {
   }
 
   return {
+    kind: 'db',
     name,
     description: desc,
     type: formatDatabaseInfo(type, protocol).title,

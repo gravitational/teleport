@@ -17,6 +17,7 @@
 import { AgentLabel } from 'teleport/services/agents';
 
 export interface App {
+  kind: 'app';
   id: string;
   name: string;
   description: string;

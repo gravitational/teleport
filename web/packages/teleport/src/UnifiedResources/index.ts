@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import QuickLaunch from './QuickLaunch';
-export default QuickLaunch;
+// export as default for use with React.lazy
+export { Resources as default } from './Resources';

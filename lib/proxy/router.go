@@ -21,18 +21,18 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -375,48 +375,31 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	}
 
 	strategy := types.RoutingStrategy_UNAMBIGUOUS_MATCH
+	var caseInsensitiveRouting bool
 	if cfg, err := site.GetClusterNetworkingConfig(ctx); err == nil {
 		strategy = cfg.GetRoutingStrategy()
+		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
 
-	_, err := uuid.Parse(host)
-	dialByID := err == nil || utils.IsEC2NodeID(host)
+	routeMatcher := apiutils.NewSSHRouteMatcher(host, port, caseInsensitiveRouting)
 
-	ips, _ := net.LookupHost(host)
-
-	var unambiguousIDMatch bool
 	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
-		if unambiguousIDMatch {
-			return false
-		}
-
-		// if host is a UUID or EC2 ID match only
-		// by server name and treat matches as unambiguous
-		if dialByID && server.GetName() == host {
-			unambiguousIDMatch = true
-			return true
-		}
-
-		// if the server has connected over a reverse tunnel
-		// then match only by hostname
-		if server.GetUseTunnel() {
-			return host == server.GetHostname()
-		}
-
-		ip, nodePort, err := net.SplitHostPort(server.GetAddr())
-		if err != nil {
-			return false
-		}
-
-		if (host == ip || host == server.GetHostname() || slices.Contains(ips, ip)) &&
-			(port == "" || port == "0" || port == nodePort) {
-			return true
-		}
-
-		return false
+		return routeMatcher.RouteToServer(server)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if routeMatcher.MatchesServerIDs() && len(matches) > 1 {
+		// if a dial request for an id-like target creates multiple matches,
+		// give precedence to the exact match if one exists. If not, handle
+		// multiple matchers per-usual below.
+		for _, m := range matches {
+			if m.GetName() == host {
+				matches = []types.Server{m}
+				break
+			}
+		}
 	}
 
 	var server types.Server
@@ -433,9 +416,9 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 		server = matches[0]
 	}
 
-	if dialByID && server == nil {
+	if routeMatcher.MatchesServerIDs() && server == nil {
 		idType := "UUID"
-		if utils.IsEC2NodeID(host) {
+		if aws.IsEC2NodeID(host) {
 			idType = "EC2"
 		}
 

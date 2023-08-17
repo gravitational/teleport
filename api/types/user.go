@@ -125,6 +125,10 @@ type User interface {
 	GetTrustedDeviceIDs() []string
 	// SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
 	SetTrustedDeviceIDs(ids []string)
+	// IsBot returns true if the user is a bot.
+	IsBot() bool
+	// BotGenerationLabel returns the bot generation label.
+	BotGenerationLabel() string
 }
 
 // NewUser creates new empty user
@@ -458,6 +462,17 @@ func (u UserV2) GetUserType() UserType {
 	}
 
 	return UserTypeSSO
+}
+
+// IsBot returns true if the user is a bot.
+func (u UserV2) IsBot() bool {
+	_, ok := u.GetMetadata().Labels[BotGenerationLabel]
+	return ok
+}
+
+// BotGenerationLabel returns the bot generation label.
+func (u UserV2) BotGenerationLabel() string {
+	return u.GetMetadata().Labels[BotGenerationLabel]
 }
 
 func (u *UserV2) String() string {

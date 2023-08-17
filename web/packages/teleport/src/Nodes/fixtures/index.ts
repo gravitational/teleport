@@ -18,6 +18,7 @@ import { Node } from 'teleport/services/nodes';
 
 export const nodes: Node[] = [
   {
+    kind: 'node',
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '104',
@@ -36,6 +37,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    kind: 'node',
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '170',
@@ -54,6 +56,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    kind: 'node',
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '192',
@@ -72,6 +75,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    kind: 'node',
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '64',
@@ -90,6 +94,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    kind: 'node',
     tunnel: false,
     sshLogins: ['dev', 'root'],
     id: '81',
@@ -108,6 +113,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    kind: 'node',
     tunnel: true,
     sshLogins: ['dev', 'root'],
     id: '81',
@@ -126,6 +132,7 @@ export const nodes: Node[] = [
     ],
   },
   {
+    kind: 'node',
     tunnel: true,
     sshLogins: ['dev', 'root'],
     id: '81',

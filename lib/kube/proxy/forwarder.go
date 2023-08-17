@@ -2262,8 +2262,11 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx 
 func (f *Forwarder) newClusterSessionSameCluster(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	// Try local creds first
 	sess, localErr := f.newClusterSessionLocal(ctx, authCtx)
-	if localErr == nil {
+	switch {
+	case localErr == nil:
 		return sess, nil
+	case trace.IsConnectionProblem(localErr):
+		return nil, trace.Wrap(localErr)
 	}
 
 	kubeServers := authCtx.kubeServers
@@ -2283,8 +2286,13 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	if err != nil {
 		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
+
+	codecFactory, rbacSupportedResources, err := details.getClusterSupportedResources()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	connCtx, cancel := context.WithCancel(ctx)
-	codecFactory, rbacSupportedResources := details.getClusterSupportedResources()
 	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
 		parent:                 f,
