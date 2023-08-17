@@ -437,7 +437,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 					log.Debug("Server connection closed.")
 					return
 				}
-				log.WithError(err).Errorf("Failed to receive message from server.")
+				log.WithError(err).Error("Failed to receive message from server.")
 				return
 			}
 
