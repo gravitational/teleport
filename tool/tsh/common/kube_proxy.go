@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
@@ -483,12 +484,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 			KubernetesCluster: kubeCluster,
 			RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
 		},
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, proxyAddr, c,
-				func(opts *client.PromptMFAChallengeOpts) {
-					opts.HintBeforePrompt = hint
-				})
-		},
+		tc.NewMFAPrompt(mfa.WithHintBeforePrompt(hint)),
 		client.WithMFARequired(&mfaRequired),
 	)
 	if err != nil {
