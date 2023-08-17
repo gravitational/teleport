@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 )
@@ -87,8 +88,8 @@ type namespaceCollection struct {
 }
 
 func (n *namespaceCollection) resources() (r []types.Resource) {
-	for _, resource := range n.namespaces {
-		r = append(r, &resource)
+	for i := range n.namespaces {
+		r = append(r, &n.namespaces[i])
 	}
 	return r
 }
@@ -143,7 +144,7 @@ func (s *serverCollection) resources() (r []types.Resource) {
 func (s *serverCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, se := range s.servers {
-		labels := stripInternalTeleportLabels(verbose, se.GetAllLabels())
+		labels := common.FormatLabels(se.GetAllLabels(), verbose)
 		rows = append(rows, []string{
 			se.GetHostname(), se.GetName(), se.GetAddr(), labels, se.GetTeleportVersion(),
 		})
@@ -482,7 +483,7 @@ func (a *appServerCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, server := range a.servers {
 		app := server.GetApp()
-		labels := stripInternalTeleportLabels(verbose, app.GetAllLabels())
+		labels := common.FormatLabels(app.GetAllLabels(), verbose)
 		rows = append(rows, []string{
 			server.GetHostname(), app.GetName(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion(),
 		})
@@ -521,7 +522,7 @@ func (c *appCollection) resources() (r []types.Resource) {
 func (c *appCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, app := range c.apps {
-		labels := stripInternalTeleportLabels(verbose, app.GetAllLabels())
+		labels := common.FormatLabels(app.GetAllLabels(), verbose)
 		rows = append(rows, []string{
 			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion(),
 		})
@@ -684,10 +685,10 @@ func (c *databaseServerCollection) resources() (r []types.Resource) {
 func (c *databaseServerCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, server := range c.servers {
-		labels := stripInternalTeleportLabels(verbose, server.GetDatabase().GetAllLabels())
+		labels := common.FormatLabels(server.GetDatabase().GetAllLabels(), verbose)
 		rows = append(rows, []string{
 			server.GetHostname(),
-			server.GetDatabase().GetName(),
+			common.FormatResourceName(server.GetDatabase(), verbose),
 			server.GetDatabase().GetProtocol(),
 			server.GetDatabase().GetURI(),
 			labels,
@@ -701,6 +702,8 @@ func (c *databaseServerCollection) writeText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by hostname then by name.
+	t.SortRowsBy([]int{0, 1}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -727,9 +730,12 @@ func (c *databaseCollection) resources() (r []types.Resource) {
 func (c *databaseCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, database := range c.databases {
-		labels := stripInternalTeleportLabels(verbose, database.GetAllLabels())
+		labels := common.FormatLabels(database.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			database.GetName(), database.GetProtocol(), database.GetURI(), labels,
+			common.FormatResourceName(database, verbose),
+			database.GetProtocol(),
+			database.GetURI(),
+			labels,
 		})
 	}
 	headers := []string{"Name", "Protocol", "URI", "Labels"}
@@ -739,6 +745,8 @@ func (c *databaseCollection) writeText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -806,7 +814,7 @@ func (c *windowsDesktopCollection) resources() (r []types.Resource) {
 func (c *windowsDesktopCollection) writeText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, d := range c.desktops {
-		labels := stripInternalTeleportLabels(verbose, d.GetAllLabels())
+		labels := common.FormatLabels(d.GetAllLabels(), verbose)
 		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
 	}
 	headers := []string{"Name", "Address", "AD Domain", "Labels"}
@@ -826,18 +834,6 @@ func (c *windowsDesktopCollection) writeYAML(w io.Writer) error {
 
 func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
 	return utils.WriteJSON(w, c.desktops)
-}
-
-func stripInternalTeleportLabels(verbose bool, labels map[string]string) string {
-	if verbose { // remove teleport.dev labels unless we're in verbose mode.
-		return types.LabelsAsString(labels, nil)
-	}
-	for key := range labels {
-		if strings.HasPrefix(key, types.TeleportNamespace+"/") {
-			delete(labels, key)
-		}
-	}
-	return types.LabelsAsString(labels, nil)
 }
 
 type tokenCollection struct {
@@ -879,10 +875,9 @@ func (c *kubeServerCollection) writeText(w io.Writer, verbose bool) error {
 		if kube == nil {
 			continue
 		}
-		labels := stripInternalTeleportLabels(verbose,
-			types.CombineLabels(kube.GetStaticLabels(), types.LabelsToV2(kube.GetDynamicLabels())))
+		labels := common.FormatLabels(kube.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			kube.GetName(),
+			common.FormatResourceName(kube, verbose),
 			labels,
 			server.GetTeleportVersion(),
 		})
@@ -895,6 +890,8 @@ func (c *kubeServerCollection) writeText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by cluster name.
+	t.SortRowsBy([]int{0}, true)
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -928,12 +925,12 @@ func (c *kubeClusterCollection) resources() (r []types.Resource) {
 // cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
 // If verbose is disabled, labels column can be truncated to fit into the console.
 func (c *kubeClusterCollection) writeText(w io.Writer, verbose bool) error {
-	sort.Sort(types.KubeClusters(c.clusters))
 	var rows [][]string
 	for _, cluster := range c.clusters {
-		labels := stripInternalTeleportLabels(verbose, cluster.GetAllLabels())
+		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			cluster.GetName(), labels,
+			common.FormatResourceName(cluster, verbose),
+			labels,
 		})
 	}
 	headers := []string{"Name", "Labels"}
@@ -943,6 +940,8 @@ func (c *kubeClusterCollection) writeText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

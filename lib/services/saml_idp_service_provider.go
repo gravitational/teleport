@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// SAMLIdPServiceProviderGetter defines interface for fetching SAMLIdPServiceProvider resources.
 type SAMLIdpServiceProviderGetter interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 }

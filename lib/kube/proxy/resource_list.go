@@ -22,7 +22,6 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
@@ -33,59 +32,47 @@ import (
 
 // listResources forwards the pod list request to the target server, captures
 // all output and filters accordingly to user roles resource access rules.
-func (f *Forwarder) listResources(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, req *http.Request) (resp any, err error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube.Forwarder/listPods",
+		"kube.Forwarder/listResources",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCMethodKey.String("listPods"),
+			semconv.RPCMethodKey.String("listResources"),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
 	defer span.End()
 
-	sess, err := f.newClusterSession(ctx, *authCtx)
-	if err != nil {
-		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
-		f.log.Errorf("Failed to create cluster session: %v.", err)
-		return nil, trace.Wrap(err)
+	req = req.WithContext(ctx)
+
+	isLocalKubeCluster := f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName)
+	supportsType := false
+	if isLocalKubeCluster {
+		_, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	}
 
-	sess.upgradeToHTTP2 = true
-	sess.forwarder, err = f.makeSessionForwarder(sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := f.setupForwardingHeaders(sess, req, true /* withImpersonationHeaders */); err != nil {
-		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
-		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
-		return nil, trace.Wrap(err)
-	}
 	// status holds the returned response code.
 	var status int
 	// Check if the target Kubernetes cluster is not served by the current service.
 	// If it's the case, forward the request to the target Kube Service where the
 	// filtering logic will be applied.
-	if !f.isLocalKubeCluster(sess) {
+	if !isLocalKubeCluster || !supportsType {
 		rw := httplib.NewResponseStatusRecorder(w)
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
 	} else {
-		allowedResources, deniedResources := authCtx.Checker.GetKubeResources(authCtx.kubeCluster)
+		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.
 		isWatch := isKubeWatchRequest(req, sess.authContext.apiResource)
 		if !isWatch {
-			// List pods and return immediately.
+			// List resources.
 			status, err = f.listResourcesList(req, w, sess, allowedResources, deniedResources)
 		} else {
 			// Creates a watch stream to the upstream target and applies filtering
-			// for each new frame that is received to exclude pods the user doesn't
+			// for each new frame that is received to exclude resources the user doesn't
 			// have access to.
 			status, err = f.listResourcesWatcher(req, w, sess, allowedResources, deniedResources)
 		}
@@ -94,13 +81,13 @@ func (f *Forwarder) listResources(authCtx *authContext, w http.ResponseWriter, r
 		}
 	}
 
-	f.emitAuditEvent(authCtx, req, sess, status)
+	f.emitAuditEvent(req, sess, status)
 	return nil, nil
 }
 
 // listResourcesList forwards the request into the target cluster and accumulates the
 // response into the memory. Once the request finishes, the memory buffer
-// data is parsed and pods the user does not have access to are excluded from
+// data is parsed and resources the user does not have access to are excluded from
 // the response. Finally, the filtered response is serialized and sent back to
 // the user with the appropriate headers.
 func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
@@ -109,15 +96,15 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	memBuffer := responsewriters.NewMemoryResponseWriter()
 	// Forward the request to the target cluster.
 	sess.forwarder.ServeHTTP(memBuffer, req)
-	resourceKind, ok := getTeleportResourceKindFromAPIResource(sess.apiResource)
+	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
 	}
 	verb := sess.requestVerb
-	// filterBuffer filters the response to exclude pods the user doesn't have access to.
+	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(resourceKind, verb, allowedResources, deniedResources, f.log),
+		newResourceFilterer(resourceKind, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -140,8 +127,8 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 // If it does not match, the watcher ignores the event and continues waiting
 // for the next event.
 func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
-	negotiator := newClientNegotiator()
-	resourceKind, ok := getTeleportResourceKindFromAPIResource(sess.apiResource)
+	negotiator := newClientNegotiator(sess.codecFactory)
+	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
 	}
@@ -152,6 +139,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 		newResourceFilterer(
 			resourceKind,
 			verb,
+			sess.codecFactory,
 			allowedResources,
 			deniedResources,
 			f.log,

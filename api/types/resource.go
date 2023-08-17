@@ -113,11 +113,6 @@ type ResourceWithLabels interface {
 	MatchSearch(searchValues []string) bool
 }
 
-// CloneAny is an interface used for resources that can clone themselves
-type CloneAny interface {
-	CloneAny() any
-}
-
 // ResourcesWithLabels is a list of labeled resources.
 type ResourcesWithLabels []ResourceWithLabels
 
@@ -483,11 +478,6 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	}
 	resourceKind := resource.GetKind()
 
-	for _, kind := range kinds {
-		if kind == resourceKind {
-			return true
-		}
-	}
 	return slices.Contains(kinds, resourceKind)
 }
 
@@ -587,11 +577,11 @@ func (r ResourcesWithLabels) SortByCustom(by SortBy) error {
 	isDesc := by.IsDesc
 	switch by.Field {
 	case ResourceMetadataName:
-		sort.Slice(r, func(i, j int) bool {
+		sort.SliceStable(r, func(i, j int) bool {
 			return unifiedNameCompare(r[i], r[j], isDesc)
 		})
 	case ResourceKind:
-		sort.Slice(r, func(i, j int) bool {
+		sort.SliceStable(r, func(i, j int) bool {
 			return unifiedKindCompare(r[i], r[j], isDesc)
 		})
 	default:

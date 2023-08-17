@@ -16,6 +16,7 @@ package proxy
 
 import (
 	"context"
+	"math/rand"
 	"net"
 	"testing"
 
@@ -99,6 +100,13 @@ func TestGetServers(t *testing.T) {
 		},
 	}
 
+	unambiguousInsensitiveCfg := types.ClusterNetworkingConfigV2{
+		Spec: types.ClusterNetworkingConfigSpecV2{
+			RoutingStrategy:        types.RoutingStrategy_UNAMBIGUOUS_MATCH,
+			CaseInsensitiveRouting: true,
+		},
+	}
+
 	hostID := uuid.NewString()
 	const ec2ID = "012345678901-i-01234567890abcdef"
 
@@ -167,6 +175,26 @@ func TestGetServers(t *testing.T) {
 			hostname: "lion",
 			addr:     "lion.roar",
 		},
+		{
+			name:     "platypus1",
+			hostname: "Platypus",
+			tunnel:   true,
+		},
+		{
+			name:     "platypus2",
+			hostname: "platypus",
+			tunnel:   true,
+		},
+		{
+			name:     "capybara1",
+			hostname: "Capybara",
+			tunnel:   true,
+		},
+	})
+
+	// ensure tests don't have order-dependence
+	rand.Shuffle(len(servers), func(i, j int) {
+		servers[i], servers[j] = servers[j], servers[i]
 	})
 
 	cases := []struct {
@@ -275,6 +303,27 @@ func TestGetServers(t *testing.T) {
 			site:         testSite{cfg: &unambiguousCfg, nodes: servers},
 			host:         "lion",
 			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.Empty(t, srv)
+			},
+		},
+		{
+			name:         "case-insensitive match",
+			site:         testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
+			host:         "capybara",
+			errAssertion: require.NoError,
+			serverAssertion: func(t *testing.T, srv types.Server) {
+				require.NotNil(t, srv)
+				require.Equal(t, "Capybara", srv.GetHostname())
+			},
+		},
+		{
+			name: "case-insensitive ambiguous",
+			site: testSite{cfg: &unambiguousInsensitiveCfg, nodes: servers},
+			host: "platypus",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.NotFound(teleport.NodeIsAmbiguous))
+			},
 			serverAssertion: func(t *testing.T, srv types.Server) {
 				require.Empty(t, srv)
 			},
@@ -470,7 +519,7 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, _, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
+			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
 
 			var params reversetunnelclient.DialParams
 			if tt.router.localSite != nil {

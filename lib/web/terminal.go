@@ -49,7 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -565,7 +565,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	}
 
 	span.AddEvent("prompting user with mfa challenge")
-	assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -603,18 +603,15 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(
-	stream *WSStream,
-	codec mfaCodec,
-) client.PromptMFAChallengeHandler {
-	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+func promptMFAChallenge(stream *WSStream, codec mfaCodec) client.PromptMFAFunc {
+	return func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
 
 		// Convert from proto to JSON types.
 		switch {
-		case c.GetWebauthnChallenge() != nil:
+		case chal.GetWebauthnChallenge() != nil:
 			challenge = &client.MFAAuthenticateChallenge{
-				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			}
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
@@ -746,11 +743,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				prompt := func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-					resp, err := promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})(ctx, proxyAddr, c)
-					return resp, trace.Wrap(err)
-				}
-				if err := client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), prompt, client.WithPresenceClock(t.clock)); err != nil {
+				if err := client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{}), client.WithPresenceClock(t.clock)); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}
@@ -782,7 +775,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
 func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
-	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
@@ -838,7 +831,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws WSConn
 	}
 
 	// connect to the node again with the new certs
-	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -47,6 +47,7 @@ type Services interface {
 
 	OktaClient() Okta
 	AccessListClient() AccessLists
+	UserLoginStateClient() UserLoginStates
 }
 
 // RotationGetter returns the rotation state.

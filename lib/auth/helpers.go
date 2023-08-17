@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -78,7 +79,7 @@ type TestAuthServerConfig struct {
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
 	AuthPreferenceSpec *types.AuthPreferenceSpecV2
 	// Embedder is required to enable the assist in the auth server.
-	Embedder ai.Embedder
+	Embedder embedding.Embedder
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -194,7 +195,7 @@ func WithClock(clock clockwork.Clock) ServerOption {
 }
 
 // WithEmbedder is a functional server option that sets the server's embedder.
-func WithEmbedder(embedder ai.Embedder) ServerOption {
+func WithEmbedder(embedder embedding.Embedder) ServerOption {
 	return func(s *Server) error {
 		s.embedder = embedder
 		return nil
@@ -373,7 +374,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	unifiedResourcesCache, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(srv.AuthServer.CloseContext(), services.UnifiedResourceCacheConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			QueueSize:    defaults.UnifiedResourcesQueueSize,
 			Component:    teleport.ComponentUnifiedResource,
@@ -388,7 +389,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.AuthServer.SetUnifiedResourcesCache(unifiedResourcesCache)
 
-	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(ctx, local.HeadlessAuthenticationWatcherConfig{
+	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(srv.AuthServer.CloseContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
 	})
 	if err != nil {
@@ -431,18 +432,22 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	userState, err := a.AuthServer.getUserOrLoginState(context.Background(), user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUserState(userState)
 	checker, err := services.NewAccessChecker(accessInfo, a.ClusterName, a.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	certs, err := a.AuthServer.generateUserCert(certRequest{
-		user:          user,
+		user:          userState,
 		ttl:           ttl,
 		compatibility: compatibility,
 		publicKey:     key,
 		checker:       checker,
-		traits:        user.GetTraits(),
+		traits:        userState.GetTraits(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -489,7 +494,11 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		accessInfo := services.AccessInfoFromUser(user)
+		userState, err := authServer.getUserOrLoginState(context.Background(), user.GetName())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		accessInfo := services.AccessInfoFromUserState(userState)
 		checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), authServer)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -500,12 +509,12 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 
 		certs, err := authServer.generateUserCert(certRequest{
 			publicKey:        pub,
-			user:             user,
+			user:             userState,
 			ttl:              identity.TTL,
 			usage:            identity.AcceptedUsage,
 			routeToCluster:   identity.RouteToCluster,
 			checker:          checker,
-			traits:           user.GetTraits(),
+			traits:           userState.GetTraits(),
 			renewable:        identity.Renewable,
 			generation:       identity.Generation,
 			deviceExtensions: DeviceExtensions(id.Identity.DeviceExtensions),
@@ -837,6 +846,9 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 		I: authz.BuiltinRole{
 			Role:     role,
 			Username: serverID,
+			Identity: tlsca.Identity{
+				Username: serverID,
+			},
 		},
 	}
 }
@@ -1201,6 +1213,6 @@ func CreateUserAndRoleWithoutRoles(clt clt, username string, allowedLogins []str
 // noopEmbedder is a no op implementation of the Embedder interface.
 type noopEmbedder struct{}
 
-func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]ai.Vector64, error) {
-	return []ai.Vector64{}, nil
+func (n noopEmbedder) ComputeEmbeddings(_ context.Context, _ []string) ([]embedding.Vector64, error) {
+	return []embedding.Vector64{}, nil
 }

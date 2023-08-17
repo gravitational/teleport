@@ -142,9 +142,6 @@ type ResourceSeenKey struct{ name, addr string }
 // is not provided but is provided for kind `KubernetesCluster`.
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
-	if resource == nil {
-		return false, trace.NotImplemented("resource cannot be nil")
-	}
 	resourceKind := resource.GetKind()
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
@@ -199,7 +196,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 	var match bool
 
-	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" && len(filter.Kinds) == 0 {
+	if filter.IsSimple() {
 		match = true
 	}
 
@@ -259,7 +256,7 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 //     modified in place with only the matched clusters
 //  3. only returns true if the service contained any matched cluster
 func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchResourceFilter) (bool, error) {
-	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
+	if filter.IsSimple() {
 		return true, nil
 	}
 
@@ -290,6 +287,15 @@ type MatchResourceFilter struct {
 	// It will filter out any kind not present in the list. If the list is not present or empty
 	// then all kinds are valid and will be returned (still subject to other included filters)
 	Kinds []string
+}
+
+// IsSimple is used to short-circuit matching when a filter doesn't specify anything more
+// specific than resource kind.
+func (m *MatchResourceFilter) IsSimple() bool {
+	return len(m.Labels) == 0 &&
+		len(m.SearchKeywords) == 0 &&
+		m.PredicateExpression == "" &&
+		len(m.Kinds) == 0
 }
 
 const (

@@ -67,7 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -137,6 +137,10 @@ type Handler struct {
 
 	// ClusterFeatures contain flags for supported and unsupported features.
 	ClusterFeatures proto.Features
+
+	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
+	// the proxy's cache and get nodes in real time.
+	nodeWatcher *services.NodeWatcher
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -259,6 +263,10 @@ type Config struct {
 
 	// OpenAIConfig provides config options for the OpenAI integration.
 	OpenAIConfig *openai.ClientConfig
+
+	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
+	// the proxy's cache and get nodes in real time.
+	NodeWatcher *services.NodeWatcher
 }
 
 type APIHandler struct {
@@ -424,6 +432,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 	}
 
+	if cfg.NodeWatcher != nil {
+		h.nodeWatcher = cfg.NodeWatcher
+	}
+
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// ensure security headers are set for all responses
 		httplib.SetDefaultSecurityHeaders(w.Header())
@@ -477,7 +489,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
 			} else {
-				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures)
+				httplib.SetIndexContentSecurityPolicy(w.Header(), cfg.ClusterFeatures, r.URL.Path)
 			}
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
@@ -631,6 +643,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
+	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
 
 	// Get applications.
 	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
@@ -764,6 +777,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
 	h.GET("/webapi/scripts/integrations/configure/deployservice-iam.sh", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2", h.WithClusterAuth(h.awsOIDCListEC2))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
@@ -926,6 +940,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		RequestableRoles:   res.RequestableRoles,
 		SuggestedReviewers: res.SuggestedReviewers,
 	}
+
+	userContext.AllowedSearchAsRoles = accessChecker.GetAllowedSearchAsRoles()
 
 	userContext.Cluster, err = ui.GetClusterDetails(r.Context(), site)
 	if err != nil {
@@ -1452,16 +1468,17 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	webCfg := webclient.WebConfig{
-		Auth:                 authSettings,
-		CanJoinSessions:      canJoinSessions,
-		IsCloud:              clusterFeatures.GetCloud(),
-		TunnelPublicAddress:  tunnelPublicAddr,
-		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
-		UI:                   h.getUIConfig(r.Context()),
-		IsDashboard:          isDashboard(clusterFeatures),
-		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
-		AutomaticUpgrades:    clusterFeatures.GetAutomaticUpgrades(),
-		AssistEnabled:        assistEnabled,
+		Auth:                     authSettings,
+		CanJoinSessions:          canJoinSessions,
+		IsCloud:                  clusterFeatures.GetCloud(),
+		TunnelPublicAddress:      tunnelPublicAddr,
+		RecoveryCodesEnabled:     clusterFeatures.GetRecoveryCodes(),
+		UI:                       h.getUIConfig(r.Context()),
+		IsDashboard:              isDashboard(clusterFeatures),
+		IsUsageBasedBilling:      clusterFeatures.GetIsUsageBased(),
+		AutomaticUpgrades:        clusterFeatures.GetAutomaticUpgrades(),
+		AssistEnabled:            assistEnabled,
+		HideInaccessibleFeatures: clusterFeatures.GetFeatureHiding(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2073,7 +2090,7 @@ type changeUserAuthenticationRequest struct {
 	// Password is user password string converted to bytes.
 	Password []byte `json:"password"`
 	// WebauthnCreationResponse is the signed credential creation response.
-	WebauthnCreationResponse *wanlib.CredentialCreationResponse `json:"webauthnCreationResponse"`
+	WebauthnCreationResponse *wantypes.CredentialCreationResponse `json:"webauthnCreationResponse"`
 }
 
 func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2091,7 +2108,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	case req.WebauthnCreationResponse != nil:
 		protoReq.NewMFARegisterResponse = &proto.MFARegisterResponse{
 			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
+				Webauthn: wantypes.CredentialCreationResponseToProto(req.WebauthnCreationResponse),
 			},
 		}
 	case req.SecondFactorToken != "":
@@ -2300,7 +2317,8 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.AccessDenied("invalid credentials")
 	}
-	return client.MakeAuthenticateChallenge(mfaChallenge), nil
+
+	return makeAuthenticateChallenge(mfaChallenge), nil
 }
 
 // mfaLoginFinish completes the MFA login ceremony, returning a new SSH
@@ -2968,88 +2986,30 @@ func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInf
 
 // findByHost return a host matching by the host name.
 func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
-	var host hostInfo
-
-	if _, err := uuid.Parse(serverName); err != nil {
-		// The requested server is either a hostname or an address. Get all
-		// servers that may fuzzily match by populating SearchKeywords
-		servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
-			ResourceType:   types.KindNode,
-			Namespace:      apidefaults.Namespace,
-			SearchKeywords: []string{serverName},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if len(servers) == 0 {
-			// If we didn't find the resource set host and port,
-			// so we can try direct dial.
-			host.hostName, host.port, err = serverHostPort(serverName)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			host.id = host.hostName
-		}
-
-		matches := 0
-		for _, server := range servers {
-			// match by hostname
-			if server.GetHostname() == serverName {
-				if matches > 0 {
-					matches++
-					continue
-				}
-
-				host.hostName = server.GetHostname()
-				host.id = server.GetName()
-				host.port = 0
-
-				matches++
-				continue
-			}
-
-			// exact match by address
-			if server.GetAddr() == serverName {
-				if matches > 0 {
-					matches++
-					continue
-				}
-
-				host.hostName = serverName
-				host.id = server.GetName()
-				host.port = 0
-
-				matches++
-				continue
-			}
-		}
-
-		// there was either at least one partial match or multiple
-		// exact matches on the server. connect with the resolved
-		// host and port of the requested server.
-		if matches > 1 || host.hostName == "" && host.id == "" {
-			host.hostName, host.port, err = serverHostPort(serverName)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			host.id = serverName
-		}
-	} else {
-		// Even though the UUID was provided and can be dialed directly, the UI
-		// requires the hostname to populate the title of the session window.
-		// Looking the node up directly by UUID is the most efficient we can be until
-		// the UI is modified to remember the hostname when the connect button is
-		// used to establish a session.
-		server, err := clt.GetNode(ctx, apidefaults.Namespace, serverName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		host.hostName = server.GetHostname()
-		host.port = 0
-		host.id = serverName
+	initialHost, initialPort, err := serverHostPort(serverName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	rsp, err := clt.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
+		Host: initialHost,
+		Port: strconv.Itoa(initialPort),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var host hostInfo
+	if len(rsp.Servers) == 1 {
+		host.hostName = rsp.Servers[0].GetHostname()
+		host.id = rsp.Servers[0].GetName()
+		host.port = 0
+	} else {
+		host.hostName = initialHost
+		host.id = initialHost
+		host.port = initialPort
+	}
+
 	return &host, nil
 }
 

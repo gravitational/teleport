@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -341,7 +341,7 @@ func TestWithRsync(t *testing.T) {
 					DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 				})
 				require.NoError(t, err)
-				cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+				cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 				device, err := mocku2f.Create()
 				require.NoError(t, err)
@@ -354,7 +354,7 @@ func TestWithRsync(t *testing.T) {
 					NewPassword: []byte(mockHeadlessPassword),
 					NewMFARegisterResponse: &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
-							Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+							Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 						},
 					},
 				})
@@ -673,7 +673,7 @@ func TestTSHProxyTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newTestSuite(t)
-	tshHome := mustLoginSetEnv(t, s)
+	tshHome, _ := mustLoginSetEnv(t, s)
 
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, tshConfigPath)
@@ -974,9 +974,9 @@ func setMockSSOLogin(t *testing.T, s *suite) CliOption {
 	}
 }
 
-func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
-	tshHome := t.TempDir()
-	kubeConfig := filepath.Join(t.TempDir(), teleport.KubeConfigFile)
+func mustLogin(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
+	tshHome = t.TempDir()
+	kubeConfig = filepath.Join(t.TempDir(), teleport.KubeConfigFile)
 	args = append([]string{
 		"login",
 		"--insecure",
@@ -989,24 +989,15 @@ func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
 		setKubeConfigPath(kubeConfig),
 	)
 	require.NoError(t, err)
-	return tshHome, kubeConfig
+	return
 }
 
 // login with new temp tshHome and set it in Env. This is useful
 // when running "ssh" commands with a tsh "ProxyCommand".
-func mustLoginSetEnv(t *testing.T, s *suite, args ...string) string {
-	tshHome := t.TempDir()
+func mustLoginSetEnv(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig string) {
+	tshHome, kubeConfig = mustLogin(t, s, args...)
 	t.Setenv(types.HomeEnvVar, tshHome)
-
-	args = append([]string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-	}, args...)
-	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
-	require.NoError(t, err)
-	return tshHome
+	return
 }
 
 func mustLoginIdentity(t *testing.T, s *suite, opts ...CliOption) string {
