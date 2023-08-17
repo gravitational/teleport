@@ -92,6 +92,7 @@ export default class MainProcess {
     this.windowsManager = opts.windowsManager;
     this.agentRunner = new AgentRunner(
       this.settings,
+      path.join(__dirname, 'agentCleanupDaemon.js'),
       (rootClusterUri, state) => {
         const window = this.windowsManager.getWindow();
         if (window.isDestroyed()) {
@@ -154,7 +155,7 @@ export default class MainProcess {
 
     createFileLoggerService({
       dev: this.settings.dev,
-      dir: this.settings.userDataDir,
+      dir: this.settings.logsDir,
       name: 'tshd',
       loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
@@ -174,7 +175,7 @@ export default class MainProcess {
 
     createFileLoggerService({
       dev: this.settings.dev,
-      dir: this.settings.userDataDir,
+      dir: this.settings.logsDir,
       name: 'shared',
       loggerNameColor: LoggerColor.Yellow,
       passThroughMode: true,
