@@ -40,9 +40,7 @@ To see the list of roles in a Teleport cluster, an administrator can execute:
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --user=myuser --proxy=teleport.example.com
+$ tsh login --user=myuser --proxy=<Var name="mytenant.teleport.sh" />
 $ tctl get roles
 ```
 
@@ -553,6 +551,9 @@ formats, where `trait` is the name of the trait:
 - `{{external.trait}}`
 - `{{external["trait"]}}`
 
+Teleport will expand the template variables above with the value of the SAML
+attribute or OIDC claim called `trait`.
+
 You can specify an external trait in the first syntax if it begins with a letter
 and contains only letters, numbers, and underscores. Otherwise, you must use the
 second syntax to specify a trait.
@@ -562,12 +563,12 @@ include the following:
 
 - `{{external.logins}}`
 - `{{external.username}}`
-- `{{external.access["label"]}}`
 - `{{external.env}}`
 
-{/* TODO: nested traits, e.g., external.access["label"]? */}
-{/* TODO: talk about the value a trait can have: scalar and composite? Strings,
-objects, and lists? Or is it always a map[string][]string as in Interpolate?*/}
+Refer to your specific identity provider's documentation for the complete list
+of available claims and attributes.
 
-Refer to your specific provider's documentation for the complete list of
-available variables and attributes.
+Teleport can only expand an `external` variable to a string or a list of
+strings. If you are using an OIDC-based SSO solution, ensure that you have
+configured your identity provider to include claims with values that have a
+supported data type.
