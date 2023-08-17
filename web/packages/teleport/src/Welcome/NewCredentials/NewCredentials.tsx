@@ -15,8 +15,11 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
-import { Card } from 'design';
 import { NewFlow, StepSlider } from 'design/StepSlider';
+
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+
+import { Box } from 'design';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
@@ -99,13 +102,13 @@ export function NewCredentials(props: NewCredentialsProps) {
     Questionnaire
   ) {
     return (
-      <Card mx="auto" maxWidth="600px" p="4">
+      <OnboardCard>
         <Questionnaire
           username={resetToken.user}
           onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
           onboard={true}
         />
-      </Card>
+      </OnboardCard>
     );
   }
 
@@ -144,7 +147,7 @@ export function NewCredentials(props: NewCredentialsProps) {
   }
 
   return (
-    <Card as="form" my={5} mx="auto" width={464}>
+    <Box as="form">
       <StepSlider<typeof loginFlows>
         flows={loginFlows}
         currFlow={flow}
@@ -155,6 +158,6 @@ export function NewCredentials(props: NewCredentialsProps) {
         password={password}
         updatePassword={updatePassword}
       />
-    </Card>
+    </Box>
   );
 }

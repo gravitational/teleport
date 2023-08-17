@@ -1,0 +1,29 @@
+teleport:
+  address: teleport.example.com:443
+  identitySecretName: ""
+  identitySecretName: teleport-plugin-email-identity
+
+mailgun:
+  enabled: false
+  domain: ""
+  privateKey: ""
+  privateKeyFromSecret: ""
+  privateKeySecretPath: "mailgunPrivateKey"
+
+smtp:
+  enabled: false
+  host: ""
+  port: 587
+  username: ""
+  password: ""
+  passwordFromSecret: ""
+  passwordSecretPath: "smtpPassword"
+  starttlsPolicy: "mandatory"
+
+delivery:
+  sender: ""
+  recipients: []
+
+roleToRecipients: {}
+
+secretVolumeName: "password-file"

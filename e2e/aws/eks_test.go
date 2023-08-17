@@ -13,12 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package integration
+package e2e
 
 import (
 	"context"
 	"os"
-	"os/user"
 	"strconv"
 	"testing"
 	"time"
@@ -28,11 +27,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -40,8 +37,6 @@ import (
 )
 
 var (
-	// Username used for the test.
-	username string
 	// kubernetes groups and users used for the test.
 	// discovery-ci-eks
 	// The kubernetes service IAM role can only impersonate the user and group listed below.
@@ -53,19 +48,22 @@ var (
 	kubeUsers  = []string{"alice@example.com"}
 )
 
-func init() {
-	me, err := user.Current()
-	if err != nil {
-		panic(err)
-	}
-	username = me.Username
+// checkRequiredKubeEnvVars ensures that the required environment variables are set.
+func checkRequiredKubeEnvVars(t *testing.T) {
+	t.Helper()
+	mustGetEnv(t, awsRegionEnv)
+	mustGetEnv(t, kubeSvcRoleARNEnv)
+	mustGetEnv(t, kubeDiscoverySvcRoleARNEnv)
+	mustGetEnv(t, eksClusterNameEnv)
 }
 
 func TestKube(t *testing.T) {
+	t.Parallel()
 	testEnabled := os.Getenv(teleport.KubeRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		t.Skip("Skipping Kubernetes test suite.")
 	}
+	checkRequiredKubeEnvVars(t)
 
 	t.Run("AWS EKS Discovery - Matched cluster", awsEKSDiscoveryMatchedCluster)
 	t.Run("AWS EKS Discovery - Unmatched cluster", awsEKSDiscoveryUnmatchedCluster)
@@ -75,11 +73,18 @@ func TestKube(t *testing.T) {
 // cluster and create a KubernetesCluster resource.
 func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 	t.Parallel()
-	teleport := createTeleportClusterWithDiscovery(
-		t,
-		types.Labels{
-			types.Wildcard: {types.Wildcard},
-		},
+	matcherLabels := mustGetDiscoveryMatcherLabels(t)
+	teleport := createTeleportCluster(t,
+		withKubeService(t, services.ResourceMatcher{
+			Labels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			AWS: services.ResourceMatcherAWS{
+				AssumeRoleARN: os.Getenv(kubeSvcRoleARNEnv),
+			},
+		}),
+		withKubeDiscoveryService(t, matcherLabels),
+		withFullKubeAccessUserRole(t),
 	)
 	// Get the auth server.
 	authC := teleport.Process.GetAuthServer()
@@ -97,7 +102,7 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 		// Fail fast if the discovery service creates more than one cluster.
 		assert.Equal(t, 1, len(clusters))
 		// Fail fast if the discovery service creates a cluster with a different name.
-		assert.Equal(t, os.Getenv(discoveredClusterNameEnv), clusters[0].GetName())
+		assert.Equal(t, os.Getenv(eksClusterNameEnv), clusters[0].GetName())
 		return true
 	}, 3*time.Minute, 10*time.Second, "wait for the discovery service to create a cluster")
 
@@ -139,12 +144,19 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 // selectors and therefore no KubernetesCluster resource is created.
 func awsEKSDiscoveryUnmatchedCluster(t *testing.T) {
 	t.Parallel()
-	teleport := createTeleportClusterWithDiscovery(
-		t,
-		types.Labels{
+	teleport := createTeleportCluster(t,
+		withKubeService(t, services.ResourceMatcher{
+			Labels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			AWS: services.ResourceMatcherAWS{
+				AssumeRoleARN: os.Getenv(kubeSvcRoleARNEnv),
+			},
+		}),
+		withKubeDiscoveryService(t, types.Labels{
 			// This label will not match the EKS cluster.
 			"env": {"tag_not_found"},
-		},
+		}),
 	)
 	// Get the auth server.
 	authC := teleport.Process.GetAuthServer()
@@ -159,183 +171,55 @@ func awsEKSDiscoveryUnmatchedCluster(t *testing.T) {
 	}, 2*time.Minute, 10*time.Second, "discovery service incorrectly created a kube_cluster")
 }
 
-const (
-	// awsRegionEnv is the environment variable that specifies the AWS region
-	// where the EKS cluster is running.
-	awsRegionEnv = "AWS_REGION"
-	// kubernetesServiceAssumeRoleEnv is the environment variable that specifies
-	// the IAM role that Teleport Kubernetes Service will assume to access the EKS cluster.
-	// This role needs to have the following permissions:
-	// - eks:DescribeCluster
-	// But it also requires the role to be mapped to a Kubernetes group with the following RBAC permissions:
-
-	//	apiVersion: rbac.authorization.k8s.io/v1
-	//	kind: ClusterRole
-	//	metadata:
-	//		name: teleport-role
-	//	rules:
-	//	- apiGroups:
-	//		- ""
-	//		resources:
-	//		- users
-	//		- groups
-	//		- serviceaccounts
-	//		verbs:
-	//		- impersonate
-	//	- apiGroups:
-	//		- ""
-	//		resources:
-	//		- pods
-	//		verbs:
-	//		- get
-	//	- apiGroups:
-	//		- "authorization.k8s.io"
-	//		resources:
-	//		- selfsubjectaccessreviews
-	//		- selfsubjectrulesreviews
-	//		verbs:
-	//		- create
-
-	// check modules/eks-discovery-ci/ from cloud-terraform repo for more details.
-	kubernetesServiceAssumeRoleEnv = "KUBERNETES_SERVICE_ASSUME_ROLE"
-	// discoveryServiceAssumeRoleEnv is the environment variable that specifies
-	// the IAM role that Teleport Discovery Service will assume to list the EKS clusters.
-	// This role needs to have the following permissions:
-	// - eks:DescribeCluster
-	// - eks:ListClusters
-	// check modules/eks-discovery-ci/ from cloud-terraform repo for more details.
-	discoveryServiceAssumeRoleEnv = "DISCOVERY_SERVICE_ASSUME_ROLE"
-	// discoveredClusterNameEnv is the environment variable that specifies the name of the EKS cluster
-	// that will be created by Teleport Discovery Service.
-	discoveredClusterNameEnv = "DISCOVERED_CLUSTER_NAME"
-)
-
-// checkRequiredEnvVars ensures that the required environment variables are set.
-func checkRequiredEnvVars(t *testing.T) {
-	require.NotEmpty(t, os.Getenv(awsRegionEnv), "AWS_REGION environment variable must be set")
-	require.NotEmpty(t, os.Getenv(kubernetesServiceAssumeRoleEnv), "KUBERNETES_SERVICE_ASSUME_ROLE environment variable must be set")
-	require.NotEmpty(t, os.Getenv(discoveryServiceAssumeRoleEnv), "DISCOVERY_SERVICE_ASSUME_ROLE environment variable must be set")
-	require.NotEmpty(t, os.Getenv(discoveredClusterNameEnv), "DISCOVERED_CLUSTER_NAME environment variable must be set")
-}
-
-// createTeleportClusterWithDiscovery creates a Teleport cluster with Discovery Service enabled for
-// the given EKS cluster tags.
-func createTeleportClusterWithDiscovery(t *testing.T, tags types.Labels) *helpers.TeleInstance {
-	// ensures that the required environment variables are set.
-	checkRequiredEnvVars(t)
-
-	// Create the CA authority that will be used in Auth.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	const (
-		host   = helpers.Host
-		site   = helpers.Site
-		hostID = helpers.HostID
-	)
-	log := utils.NewLoggerForTests()
-
-	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
-		ClusterName: site,
-		HostID:      host,
-		NodeName:    host,
-		Priv:        priv,
-		Pub:         pub,
-		Log:         log,
-	})
-
-	// Create a new role with full access to all resources.
-	role, err := types.NewRole(
-		"kubemaster",
-		types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				KubeGroups: kubeGroups,
-				KubeUsers:  kubeUsers,
-				KubernetesLabels: types.Labels{
-					types.Wildcard: {types.Wildcard},
-				},
-				KubernetesResources: []types.KubernetesResource{
-					{
-						Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
-					},
+// withFullKubeAccessUserRole creates a Teleport role with full access to kube
+// clusters.
+func withFullKubeAccessUserRole(t *testing.T) testOptionsFunc {
+	// Create a new role with full access to all kube clusters.
+	return withUserRole(t, "kubemaster", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubeGroups: kubeGroups,
+			KubeUsers:  kubeUsers,
+			KubernetesLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
 				},
 			},
 		},
-	)
-	require.NoError(t, err)
-
-	// Create a new user with the role created above.
-	teleport.AddUserWithRole(username, role)
-	// Create a new teleport instance with the auth server.
-	err = teleport.CreateEx(t, nil, newTeleportConfig(t, log, tags))
-	require.NoError(t, err)
-	// Start the teleport instance and wait for it to be ready.
-	err = teleport.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, teleport.StopAll())
 	})
-	return teleport
 }
 
-func newTeleportConfig(t *testing.T, log utils.Logger, tags types.Labels) *servicecfg.Config {
-	tconf := servicecfg.MakeDefaultConfig()
-	// Replace the default auth and proxy listeners with the ones so we can
-	// run multiple tests in parallel.
-	tconf.Auth.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerAuth, &(tconf.FileDescriptors)))
-	tconf.Proxy.WebAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyWeb, &(tconf.FileDescriptors)))
-	tconf.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &(tconf.FileDescriptors)))
-	tconf.DataDir = t.TempDir()
-	tconf.Console = nil
-	tconf.Log = log
-	tconf.SSH.Enabled = true
-	tconf.Proxy.DisableWebInterface = true
-	tconf.PollingPeriod = 500 * time.Millisecond
-	tconf.ClientTimeout = time.Second
-	tconf.ShutdownTimeout = 2 * tconf.ClientTimeout
-	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	// Enable kubernetes proxy
-	tconf.Proxy.Kube.Enabled = true
-
-	enableKubeService(t, tconf)
-	enableDiscoveryService(t, tconf, tags)
-	return tconf
-}
-
-// enableKubeService sets up the kubernetes service to watch for kubernetes
+// withKubeService sets up the kubernetes service to watch for kubernetes
 // clusters created by the discovery service.
-func enableKubeService(t *testing.T, cfg *servicecfg.Config) {
-	// set kubernetes specific parameters
-	cfg.Kube.Enabled = true
-	cfg.Kube.ListenAddr = utils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &(cfg.FileDescriptors)))
-	cfg.Kube.ResourceMatchers = []services.ResourceMatcher{
-		{
-			Labels: types.Labels{
-				types.Wildcard: []string{types.Wildcard},
-			},
-			AWS: services.ResourceMatcherAWS{
-				AssumeRoleARN: os.Getenv(kubernetesServiceAssumeRoleEnv),
-			},
-		},
+func withKubeService(t *testing.T, matchers ...services.ResourceMatcher) testOptionsFunc {
+	t.Helper()
+	mustGetEnv(t, kubeSvcRoleARNEnv)
+	return func(options *testOptions) {
+		options.serviceConfigFuncs = append(options.serviceConfigFuncs, func(cfg *servicecfg.Config) {
+			// Enable kubernetes proxy
+			cfg.Proxy.Kube.Enabled = true
+			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerProxyKube, &(cfg.FileDescriptors)))
+			// set kubernetes specific parameters
+			cfg.Kube.Enabled = true
+			cfg.Kube.ListenAddr = utils.MustParseAddr(helpers.NewListener(t, service.ListenerKube, &(cfg.FileDescriptors)))
+			cfg.Kube.ResourceMatchers = matchers
+		})
 	}
 }
 
-// enableDiscoveryService sets up the discovery service to watch for EKS clusters
-// in the AWS account.
-func enableDiscoveryService(t *testing.T, cfg *servicecfg.Config, tags types.Labels) {
-	cfg.Discovery.Enabled = true
-	cfg.Discovery.DiscoveryGroup = "e2e-test"
-	// Reduce the polling interval to speed up the test execution
-	// in the case of a failure of the first attempt.
-	// The default polling interval is 5 minutes.
-	cfg.Discovery.PollInterval = 1 * time.Minute
-	cfg.Discovery.AWSMatchers = []types.AWSMatcher{
-		{
-			Types:   []string{services.AWSMatcherEKS},
-			Tags:    tags,
-			Regions: []string{os.Getenv(awsRegionEnv)},
-			AssumeRole: &types.AssumeRole{
-				RoleARN: os.Getenv(discoveryServiceAssumeRoleEnv),
-			},
+func withKubeDiscoveryService(t *testing.T, tags types.Labels) testOptionsFunc {
+	t.Helper()
+	return withDiscoveryService(t, "kube-e2e-test", types.AWSMatcher{
+		Types:   []string{services.AWSMatcherEKS},
+		Tags:    tags,
+		Regions: []string{os.Getenv(awsRegionEnv)},
+		AssumeRole: &types.AssumeRole{
+			RoleARN: os.Getenv(kubeDiscoverySvcRoleARNEnv),
 		},
-	}
+	})
 }

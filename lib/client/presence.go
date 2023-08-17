@@ -53,7 +53,7 @@ func WithPresenceClock(clock clockwork.Clock) PresenceOption {
 
 // RunPresenceTask periodically performs and MFA ceremony to detect that a user is
 // still present and attentive.
-func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, promptMFAChallenge PromptMFAChallengeHandler, opts ...PresenceOption) error {
+func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, promptMFA PromptMFAFunc, opts ...PresenceOption) error {
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
 	o := &presenceOptions{
@@ -98,7 +98,7 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 			// We don't support TOTP for live presence.
 			challenge.TOTP = nil
 
-			solution, err := promptMFAChallenge(ctx, "" /* proxyAddr */, challenge)
+			solution, err := promptMFA(ctx, challenge)
 			if err != nil {
 				fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
 				return trace.Wrap(err)

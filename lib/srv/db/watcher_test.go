@@ -165,8 +165,20 @@ func TestWatcherDynamicResource(t *testing.T) {
 			reconcileCh <- d
 		},
 		DiscoveryResourceChecker: &fakeDiscoveryResourceChecker{
-			errorsByName: map[string]error{
-				"db-fail-check": trace.BadParameter("bad db"),
+			byName: map[string]func(context.Context, types.Database) error{
+				"db-fail-check": func(context.Context, types.Database) error {
+					return trace.BadParameter("bad db")
+				},
+				"db5": func(_ context.Context, db types.Database) error {
+					// Validate AssumeRoleARN and ExternalID matches above
+					// services.ResourceMatcherAWS,
+					meta := db.GetAWS()
+					if meta.AssumeRoleARN != "arn:aws:iam::123456789012:role/DBAccess" ||
+						meta.ExternalID != "external-id" {
+						return trace.CompareFailed("AssumeRoleARN/ExternalID does not match")
+					}
+					return nil
+				},
 			},
 		},
 	})
@@ -233,7 +245,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		// ResourceMatchers and has AssumeRoleARN set by the discovery service.
 		discoveredDB5, err := makeDiscoveryDatabase("db5", map[string]string{"group": "b"}, withRDSURL, withDiscoveryAssumeRoleARN)
 		require.NoError(t, err)
-		require.True(t, db4.IsRDS())
+		require.True(t, discoveredDB5.IsRDS())
 
 		err = testCtx.authServer.CreateDatabase(ctx, discoveredDB5)
 		require.NoError(t, err)

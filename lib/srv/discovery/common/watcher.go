@@ -51,6 +51,8 @@ type WatcherConfig struct {
 	// for all discovery services. If different agents are used to discover different
 	// sets of cloud resources, this field must be different for each set of agents.
 	DiscoveryGroup string
+	// Origin is used to specify what type of origin watcher's resources are
+	Origin string
 }
 
 // CheckAndSetDefaults validates the config.
@@ -66,6 +68,9 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	}
 	if len(c.Fetchers) == 0 {
 		return trace.NotFound("missing fetchers")
+	}
+	if c.Origin == "" {
+		return trace.BadParameter("origin is not set")
 	}
 	return nil
 }
@@ -146,9 +151,11 @@ func (w *Watcher) fetchAndSend() {
 					staticLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
 				}
 
-				// Set the origin to Cloud indicating that the resource was imported from a cloud provider.
-				staticLabels[types.OriginLabel] = types.OriginCloud
-				staticLabels[types.CloudLabel] = lFetcher.Cloud()
+				// Set the origin label to provide information where resource comes from
+				staticLabels[types.OriginLabel] = w.cfg.Origin
+				if c := lFetcher.Cloud(); c != "" {
+					staticLabels[types.CloudLabel] = c
+				}
 
 				r.SetStaticLabels(staticLabels)
 			}

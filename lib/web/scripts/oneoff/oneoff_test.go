@@ -85,6 +85,7 @@ func TestOneOffScript(t *testing.T) {
 			CDNBaseURL:      testServer.URL,
 			TeleportVersion: "v13.1.0",
 			TeleportArgs:    "version",
+			SuccessMessage:  "Test was a success.",
 		})
 		require.NoError(t, err)
 
@@ -108,6 +109,7 @@ func TestOneOffScript(t *testing.T) {
 
 		require.Contains(t, string(out), "> ./bin/teleport version")
 		require.Contains(t, string(out), teleportVersionOutput)
+		require.Contains(t, string(out), "Test was a success.")
 	})
 
 	t.Run("invalid OS", func(t *testing.T) {

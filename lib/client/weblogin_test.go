@@ -31,8 +31,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -115,6 +115,7 @@ func newServer(handler http.HandlerFunc, loopback bool) (*httptest.Server, error
 }
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {
+	t.Parallel()
 	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -133,20 +134,14 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
-	// Reset functions after tests.
-	oldWebauthn := *client.PromptWebauthn
-	t.Cleanup(func() {
-		*client.PromptWebauthn = oldWebauthn
-	})
-
-	solvePwdless := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	solvePwdless := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
 			return nil, err
 		}
 		resp := &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+				Webauthn: wantypes.CredentialAssertionResponseToProto(car),
 			},
 		}
 		resp.GetWebauthn().Response.UserHandle = webID
@@ -165,12 +160,12 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		customPromptWebauthn func(ctx context.Context, origin string, assert *wanlib.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+		customPromptWebauthn func(ctx context.Context, origin string, assert *wantypes.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
 		customPromptLogin    wancli.LoginPrompt
 	}{
 		{
 			name: "with custom prompt",
-			customPromptWebauthn: func(ctx context.Context, origin string, assert *wanlib.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+			customPromptWebauthn: func(ctx context.Context, origin string, assert *wantypes.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 				_, ok := p.(*customPromptLogin)
 				require.True(t, ok)
 				customPromptCalled = true
@@ -197,7 +192,7 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 		},
 		{
 			name: "without custom prompt",
-			customPromptWebauthn: func(ctx context.Context, origin string, assert *wanlib.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+			customPromptWebauthn: func(ctx context.Context, origin string, assert *wantypes.CredentialAssertion, p wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
 				_, ok := p.(*wancli.DefaultPrompt)
 				require.True(t, ok)
 				customPromptCalled = true
@@ -225,9 +220,9 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 			},
 			AuthenticatorAttachment: tc.AuthenticatorAttachment,
 			CustomPrompt:            test.customPromptLogin,
+			WebauthnLogin:           test.customPromptWebauthn,
 		}
 
-		*client.PromptWebauthn = test.customPromptWebauthn
 		_, err = client.SSHAgentPasswordlessLogin(ctx, req)
 		require.NoError(t, err)
 		require.True(t, customPromptCalled, "Custom prompt present but not called")

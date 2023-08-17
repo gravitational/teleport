@@ -9,6 +9,8 @@ SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
+# Teleport version - some targets require this to be set
+VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
 ADDFLAGS ?=
 BATSFLAGS :=
@@ -18,27 +20,6 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-
-# Sync with devbox.json.
-GOLANG_VERSION ?= go1.21.0
-
-# Sync with devbox.json.
-NODE_VERSION ?= 16.18.1
-
-# Sync any version changes below with devbox.json.
-# run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.71.0
-LIBBPF_VERSION ?= 1.0.1
-LIBPCSCLITE_VERSION ?= 1.9.9-teleport
-
-# Sync any version changes below with devbox.json.
-# Protogen related versions.
-BUF_VERSION ?= 1.25.1
-# Keep in sync with api/proto/buf.yaml (and buf.lock)
-GOGO_PROTO_TAG ?= v1.3.2
-NODE_GRPC_TOOLS_VERSION ?= 1.12.4
-NODE_PROTOC_TS_VERSION ?= 5.0.1
-PROTOC_VER ?= 3.20.3
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -51,8 +32,9 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
+include versions.mk
 include images.mk
-include grpcbox.mk
+include grpcbox.mk # Requires images.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
