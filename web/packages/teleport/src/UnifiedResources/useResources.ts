@@ -56,7 +56,7 @@ export function useResources(ctx: Ctx): ResourcesState {
 
   useEffect(() => {
     fetchInitial();
-  }, [clusterId, search]);
+  }, [clusterId, search, params]);
 
   return {
     ...filteringProps,
