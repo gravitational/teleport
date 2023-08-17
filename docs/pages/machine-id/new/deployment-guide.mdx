@@ -30,64 +30,111 @@ roles through a process known as role impersonation. This means that credentials
 output by Machine ID can be limited to a specific Teleport role - providing a
 basis for implementing the principle of least access.
 
-## Creating a Bot User
-
-## Configuring `tbot` for your environment
+## Configuring Machine ID for your platform
 
 ### CI/CD
 
-Depending on the platform, `tbot` should either run in one-shot mode within the
-CI/CD pipeline itself (immediately before the pipeline needs to access any
-resources) or should run continually on the runner itself and the outputted
-artifacts should be made available to the CI/CD pipeline run environment.
+Machine ID integrates with a number of common CI/CD platforms to provide
+secure and fine-grained joining for your bot to your Teleport Cluster.
+
+Typically, on CI/CD platforms, `tbot` should be run in one-shot mode at the
+start of a CI/CD pipeline and within the run environment.
 
 #### GitLab
 
-TODO: GitLab Specific
-TODO: Specific for others
+TODO
 
+#### GitHub
 
-### Linux Hosts
+TODO
 
-Configuring `tbot` for a plain old Linux host involves making the following
-decisions:
+#### CircleCI
 
-- Where `tbot` run and how the artifacts output by `tbot` be read by the client
-  which will consume them?
-- Which join method will be used to allow `tbot` to authenticate to your cluster?
-- Where `tbot` will persist it's own state if using the `token` join method
-- If `tbot` should be run continually in the background or
+TODO
+
+#### Jenkins
+
+TODO
+
+#### Other platforms
+
+Even if Machine ID does not have a distinct integration with your CI/CD
+platform, deployment is often still possible.
+
+For platforms where you manage the deployment of the CI/CD runners, follow the
+guidance for a Linux host where `tbot` runs as a background service.
+
+The output destination must then be made accessible to the CI/CD run
+environment. On non-containerised systems, this can be achieved using Linux
+filesystem permissions, on containerised systems, this can be achieved by
+mounting the destination directory from the host in to the CI/CD run container.
+
+For platforms where you do not manage the CI/CD runners, deployment of
+Machine ID can be more challenging. This is because the `token` join method
+relies on persistent state for `tbot` which conflicts with the commonly
+ephemeral nature of CI/CD run environments.
+
+### Linux hosts
+
+#### Generic
+
+TODO: Mention the limitations of the `token` join method in depth
+TODO: - Single use
+TODO: - Requires persistence of the bot state
+TODO: - One to one link between Bot User to tbot state
 
 #### GCP
 
+TODO
+
 #### Azure
+
+TODO
 
 #### AWS
 
-#### Other
-
-When running `tbot` on a Linux host other than those for which we have an
-integration, the `token` join method must be used.
+TODO
 
 ## Configuring outputs
 
-An output defines a destination and the types of credentials that `tbot` should
-write to that destination. Depending on what tool you are using and what you
-are trying to access, a different output type should be used.
+`tbot` is configured with a series of outputs. Each output specifies a
+destination that any artifacts should be written to and specifies the type
+of the output. When one-shot mode is enabled, `tbot` will generate each of the
+configured outputs and then exit.
+
+```yaml
+outputs:
+- type: identity
+  roles: ["editor"]
+  destination:
+    type: directory
+    path: /opt/machine-id
+```
+
+This example output configuration writes an output of type `identity` to the
+directory `/opt/machine-id`.
 
 ### SSH
 
-Machine ID outputs artifacts that support connecting to SSH
+TODO
 
 ### Kubernetes Access
 
+TODO
+
 ### Application Access
+
+TODO
 
 ### Database Access
 
-### SSH Host Certificates
+TODO
 
-### Authenticating `tctl`
+### Managing Teleport with `tctl`
+
+`tctl` is the Teleport Cluster management tool. When used in combination with
+simple scripting languages (e.g `bash`) and Machine ID for authentication, it is
+possible to build unattended automations to manage your Teleport cluster.
 
 To produce credentials to use with `tctl`, create an identity output. This
 will create an `identity` artifact which contains the necessary credentials
@@ -96,7 +143,6 @@ for `tctl` to authenticate to your Teleport Auth Server.
 ```yaml
 outputs:
 - type: identity
-  roles: ["editor"]
   destination:
     type: directory
     path: ./my-output
@@ -109,7 +155,10 @@ flag, e.g
 $ tctl -i ./my-output/identity --auth-server example.teleport.sh:443 nodes ls
 ```
 
-### Teleport API Client
+### Managing Teleport with the Teleport API Client
+
+For more advanced custom automations, the Teleport API client can be used to
+interact with your Teleport cluster.
 
 To produce credentials to use with the Teleport API client, create an identity
 output. This will create an `identity` artifact which contains the necessary
@@ -119,7 +168,6 @@ Server.
 ```yaml
 outputs:
 - type: identity
-  roles: ["editor"]
   destination:
     type: directory
     path: ./my-output
@@ -156,6 +204,13 @@ automatically. If your custom automation is likely to run for a long period,
 ensure you recreate the client regularly to use the latest identity file that
 `tbot` has written.
 </Notice>
+
+More advice on using the Teleport API client can be found in the
+[Teleport API documentation](../../api/introduction.mdx).
+
+### SSH Host Certificates
+
+TODO
 
 ## Next Steps
 
