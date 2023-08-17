@@ -113,7 +113,7 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type.
 // Returns the username of the authenticated user.
-func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (types.User, error) {
+func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (services.UserState, error) {
 	username := req.Username
 
 	mfaDev, actualUsername, err := s.authenticateUser(ctx, req)
@@ -614,7 +614,12 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo := services.AccessInfoFromUser(user)
+	userState, err := s.getUserOrLoginState(ctx, user.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessInfo := services.AccessInfoFromUserState(userState)
 	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -645,12 +650,12 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	}
 
 	certReq := certRequest{
-		user:                 user,
+		user:                 userState,
 		ttl:                  req.TTL,
 		publicKey:            req.PublicKey,
 		compatibility:        req.CompatibilityMode,
 		checker:              checker,
-		traits:               user.GetTraits(),
+		traits:               userState.GetTraits(),
 		routeToCluster:       req.RouteToCluster,
 		kubernetesCluster:    req.KubernetesCluster,
 		loginIP:              clientIP,
@@ -702,7 +707,7 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(ctx context.Context, user types.User, loginIP string) (types.WebSession, error) {
+func (s *Server) createUserWebSession(ctx context.Context, user services.UserState, loginIP string) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
 	return s.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{

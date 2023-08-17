@@ -760,6 +760,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			TunnelStrategy:                fc.Auth.TunnelStrategy,
 			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
 			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
+			CaseInsensitiveRouting:        fc.Auth.CaseInsensitiveRouting,
 		})
 		if err != nil {
 			return trace.Wrap(err)

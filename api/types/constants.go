@@ -973,6 +973,9 @@ const (
 
 	// ResourceSpecType refers to a resource field named "type".
 	ResourceSpecType = "type"
+
+	// ResourceKind refers to a resource field named "kind".
+	ResourceKind = "kind"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

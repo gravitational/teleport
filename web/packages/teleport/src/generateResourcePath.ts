@@ -31,7 +31,7 @@ export default function generateResourcePath(
         param
       ].dir.toLowerCase()}`;
     } else if (param === 'kinds') {
-      processedParams[param] = params[param].split(',').join('&kinds=');
+      processedParams[param] = (params[param] ?? []).join('&kinds=');
     } else
       processedParams[param] = params[param]
         ? encodeURIComponent(params[param])

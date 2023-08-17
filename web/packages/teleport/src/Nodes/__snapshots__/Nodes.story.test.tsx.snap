@@ -1970,8 +1970,7 @@ exports[`loaded 1`] = `
         title=""
         width="240px"
       >
-        Add 
-        server
+        Add server
       </button>
     </a>
   </div>

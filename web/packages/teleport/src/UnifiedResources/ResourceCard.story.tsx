@@ -16,11 +16,13 @@
 
 import React from 'react';
 import { Meta, StoryObj } from '@storybook/react';
+import { MemoryRouter } from 'react-router';
 
 import styled from 'styled-components';
 
 import { gap } from 'design/system';
 
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 
@@ -29,6 +31,7 @@ import { desktops } from 'teleport/Desktops/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 
 import makeApp from 'teleport/services/apps/makeApps';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { ResourceCard as ResourceCard } from './ResourceCard';
 
@@ -49,6 +52,24 @@ const additionalResources = [
     clusterId: 'one',
     fqdn: 'jenkins.one',
   }),
+  makeApp({
+    name: 'An application with a lot of labels',
+    uri: 'http://localhost/',
+    labels: [
+      { name: 'day1', value: 'a partridge in a pear tree' },
+      { name: 'day2', value: 'two turtle doves' },
+      { name: 'day3', value: 'three French hens' },
+      { name: 'day4', value: 'four calling birds' },
+      { name: 'day5', value: 'five gold rings' },
+      { name: 'day6', value: 'six geese a-laying' },
+      { name: 'day7', value: 'seven swans a-swimming' },
+      { name: 'day8', value: 'eight maids a-milking' },
+      { name: 'day9', value: 'nine ladies dancing' },
+      { name: 'day10', value: 'ten lords a-leaping' },
+      { name: 'day11', value: 'eleven pipers piping' },
+      { name: 'day12', value: 'twelve drummers drumming' },
+    ],
+  }),
 ];
 
 const meta: Meta<typeof ResourceCard> = {
@@ -67,19 +88,24 @@ type Story = StoryObj<typeof ResourceCard>;
 
 export const Cards: Story = {
   render() {
+    const ctx = createTeleportContext();
     return (
-      <Grid gap={2}>
-        {[
-          ...apps,
-          ...databases,
-          ...kubes,
-          ...nodes,
-          ...desktops,
-          ...additionalResources,
-        ].map(res => (
-          <ResourceCard resource={res} />
-        ))}
-      </Grid>
+      <MemoryRouter>
+        <TeleportContextProvider ctx={ctx}>
+          <Grid gap={2}>
+            {[
+              ...apps,
+              ...databases,
+              ...kubes,
+              ...nodes,
+              ...additionalResources,
+              ...desktops,
+            ].map((res, i) => (
+              <ResourceCard key={i} resource={res} />
+            ))}
+          </Grid>
+        </TeleportContextProvider>
+      </MemoryRouter>
     );
   },
 };
