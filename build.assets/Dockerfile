@@ -132,6 +132,7 @@ RUN apt-get -y update && \
         libc6-dev \
         libelf-dev \
         libpam-dev \
+        libpcsclite-dev \
         libsqlite3-0 \
         libssl-dev \
         llvm \
@@ -140,20 +141,19 @@ RUN apt-get -y update && \
         mingw-w64-x86-64-dev \
         net-tools \
         openssh-client \
+        pkg-config \
         python3-pip \
         python3-setuptools \
         python3-wheel \
-        pkg-config \
         # rsync is required for some integration tests
         rsync \
         softhsm2 \
         sudo \
         tree \
         unzip \
+        xauth \
         zip \
         zlib1g-dev \
-        xauth \
-        libpcsclite-dev \
         && \
     install -m 0755 -d /etc/apt/keyrings && \
     gpg --dearmor -o /etc/apt/keyrings/docker.gpg docker.gpg && \
