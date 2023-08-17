@@ -19,9 +19,12 @@ package services
 import (
 	"testing"
 
+	"cloud.google.com/go/container/apiv1/containerpb"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -75,6 +78,41 @@ func TestKubernetesServerMarshal(t *testing.T) {
 	actual, err := UnmarshalKubeServer(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+}
+
+func TestNewKubeClusterFromGCPGKEWithoutLabels(t *testing.T) {
+	expected, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name:        "cluster1",
+		Description: "desc1",
+		Labels: map[string]string{
+			labelLocation:     "central-1",
+			labelProjectID:    "p1",
+			types.CloudLabel:  types.CloudGCP,
+			types.OriginLabel: types.OriginCloud,
+		},
+	}, types.KubernetesClusterSpecV3{
+		GCP: types.KubeGCP{
+			Name:      "cluster1",
+			ProjectID: "p1",
+			Location:  "central-1",
+		},
+	})
+	require.NoError(t, err)
+
+	cluster := gcp.GKECluster{
+		Name:        "cluster1",
+		Status:      containerpb.Cluster_RUNNING,
+		Labels:      nil,
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	}
+	actual, err := NewKubeClusterFromGCPGKE(cluster)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, actual))
+	require.True(t, actual.IsGCP())
+	require.False(t, actual.IsAzure())
+	require.False(t, actual.IsAWS())
 }
 
 var kubeServerYAML = `---
