@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -112,10 +113,17 @@ func (m *mockEC2Client) DescribeInstancesPagesWithContext(
 	return nil
 }
 
+func genEC2InstanceIDs(n int) []string {
+	var ec2InstanceIDs []string
+	for i := 0; i < n; i++ {
+		ec2InstanceIDs = append(ec2InstanceIDs, fmt.Sprintf("instance-id-%d", i))
+	}
+	return ec2InstanceIDs
+}
+
 func genEC2Instances(n int) []*ec2.Instance {
 	var ec2Instances []*ec2.Instance
-	for i := 0; i < n; i++ {
-		id := fmt.Sprintf("instance-id-%d", i)
+	for _, id := range genEC2InstanceIDs(n) {
 		ec2Instances = append(ec2Instances, &ec2.Instance{
 			InstanceId: aws.String(id),
 			Tags: []*ec2.Tag{{
@@ -130,16 +138,36 @@ func genEC2Instances(n int) []*ec2.Instance {
 	return ec2Instances
 }
 
+type mockSSMInstaller struct {
+	mu                 sync.Mutex
+	installedInstances []string
+}
+
+func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, inst := range req.Instances {
+		m.installedInstances = append(m.installedInstances, inst.InstanceID)
+	}
+	return nil
+}
+
+func (m *mockSSMInstaller) GetInstalledInstances() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installedInstances
+}
+
 func TestDiscoveryServer(t *testing.T) {
 	t.Parallel()
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport
-		presentInstances  []types.Server
-		foundEC2Instances []*ec2.Instance
-		ssm               *mockSSMClient
-		emitter           *mockEmitter
-		logHandler        func(*testing.T, io.Reader, chan struct{})
+		presentInstances       []types.Server
+		foundEC2Instances      []*ec2.Instance
+		ssm                    *mockSSMClient
+		emitter                *mockEmitter
+		wantInstalledInstances []string
 	}{
 		{
 			name:             "no nodes present, 1 found ",
@@ -185,6 +213,7 @@ func TestDiscoveryServer(t *testing.T) {
 					})
 				},
 			},
+			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -225,16 +254,6 @@ func TestDiscoveryServer(t *testing.T) {
 				},
 			},
 			emitter: &mockEmitter{},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"All discovered EC2 instances are already part of the cluster.") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
 		},
 		{
 			name: "nodes present, instance not filtered",
@@ -274,17 +293,8 @@ func TestDiscoveryServer(t *testing.T) {
 					ResponseCode: aws.Int64(0),
 				},
 			},
-			emitter: &mockEmitter{},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these instances: AccountID: owner, Instances: [instance-id-1]") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
+			emitter:                &mockEmitter{},
+			wantInstalledInstances: []string{"instance-id-1"},
 		},
 		{
 			name:              "chunked nodes get 2 log messages",
@@ -301,22 +311,8 @@ func TestDiscoveryServer(t *testing.T) {
 					ResponseCode: aws.Int64(0),
 				},
 			},
-			emitter: &mockEmitter{},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				instances := genEC2Instances(58)
-				findAll := []string{genEC2InstancesLogStr(server.ToEC2Instances(instances[:50])), genEC2InstancesLogStr(server.ToEC2Instances(instances[50:]))}
-				index := 0
-				for scanner.Scan() {
-					if index == len(findAll) {
-						done <- struct{}{}
-						return
-					}
-					if strings.Contains(scanner.Text(), findAll[index]) {
-						index++
-					}
-				}
-			},
+			emitter:                &mockEmitter{},
+			wantInstalledInstances: genEC2InstanceIDs(58),
 		},
 	}
 
@@ -362,6 +358,7 @@ func TestDiscoveryServer(t *testing.T) {
 			}
 
 			logger := logrus.New()
+			installer := &mockSSMInstaller{}
 			server, err := New(context.Background(), &Config{
 				Clients:     &testClients,
 				AccessPoint: tlsServer.Auth(),
@@ -378,6 +375,7 @@ func TestDiscoveryServer(t *testing.T) {
 				Log:     logger,
 			})
 			require.NoError(t, err)
+			server.ec2Installer = installer
 			tc.emitter.server = server
 			tc.emitter.t = t
 
@@ -386,29 +384,22 @@ func TestDiscoveryServer(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			if tc.logHandler != nil {
-				logger.SetOutput(w)
-				logger.SetLevel(logrus.DebugLevel)
-			}
 
 			go server.Start()
+			t.Cleanup(server.Stop)
 
-			if tc.logHandler != nil {
-				done := make(chan struct{})
-				go tc.logHandler(t, r, done)
-				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
-				defer cancelfn()
-				select {
-				case <-timeoutCtx.Done():
-					t.Fatal("Timeout waiting for log entries")
-					return
-				case <-done:
-					server.Stop()
-					return
-				}
+			if len(tc.wantInstalledInstances) > 0 {
+				slices.Sort(tc.wantInstalledInstances)
+				require.Eventually(t, func() bool {
+					instances := installer.GetInstalledInstances()
+					slices.Sort(instances)
+					return slices.Equal(tc.wantInstalledInstances, instances)
+				}, 500*time.Millisecond, 50*time.Millisecond)
+			} else {
+				require.Never(t, func() bool {
+					return len(installer.GetInstalledInstances()) > 0
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
-
-			server.Wait()
 		})
 	}
 }
@@ -1320,13 +1311,33 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 	return m.vms, nil
 }
 
+type mockAzureInstaller struct {
+	mu                 sync.Mutex
+	installedInstances []string
+}
+
+func (m *mockAzureInstaller) Run(_ context.Context, req server.AzureRunRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, inst := range req.Instances {
+		m.installedInstances = append(m.installedInstances, *inst.Name)
+	}
+	return nil
+}
+
+func (m *mockAzureInstaller) GetInstalledInstances() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installedInstances
+}
+
 func TestAzureVMDiscovery(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name          string
-		presentVMs    []types.Server
-		foundAzureVMs []*armcompute.VirtualMachine
-		logHandler    func(*testing.T, io.Reader, chan struct{})
+		name                   string
+		presentVMs             []types.Server
+		foundAzureVMs          []*armcompute.VirtualMachine
+		wantInstalledInstances []string
 	}{
 		{
 			name:       "no nodes present, 1 found",
@@ -1338,6 +1349,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 						ResourceGroupName: "rg",
 						Name:              "testvm",
 					}).String()),
+					Name:     aws.String("testvm"),
 					Location: aws.String("westcentralus"),
 					Tags: map[string]*string{
 						"teleport": aws.String("yes"),
@@ -1347,16 +1359,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these virtual machines") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
+			wantInstalledInstances: []string{"testvm"},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -1389,16 +1392,6 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"All discovered Azure VMs are already part of the cluster") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
 		},
 		{
 			name: "nodes present, instance not filtered",
@@ -1422,6 +1415,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 						ResourceGroupName: "rg",
 						Name:              "testvm",
 					}).String()),
+					Name:     aws.String("testvm"),
 					Location: aws.String("westcentralus"),
 					Tags: map[string]*string{
 						"teleport": aws.String("yes"),
@@ -1431,16 +1425,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these virtual machines") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
+			wantInstalledInstances: []string{"testvm"},
 		},
 	}
 
@@ -1479,6 +1464,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 
 			logger := logrus.New()
 			emitter := &mockEmitter{}
+			installer := &mockAzureInstaller{}
 			server, err := New(context.Background(), &Config{
 				Clients:     &testClients,
 				AccessPoint: tlsServer.Auth(),
@@ -1494,6 +1480,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			})
 
 			require.NoError(t, err)
+			server.azureInstaller = installer
 			emitter.server = server
 			emitter.t = t
 
@@ -1502,29 +1489,21 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			if tc.logHandler != nil {
-				logger.SetOutput(w)
-				logger.SetLevel(logrus.DebugLevel)
-			}
 
 			go server.Start()
+			t.Cleanup(server.Stop)
 
-			if tc.logHandler != nil {
-				done := make(chan struct{})
-				go tc.logHandler(t, r, done)
-				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
-				defer cancelfn()
-				select {
-				case <-timeoutCtx.Done():
-					t.Fatal("Timeout waiting for log entries")
-					return
-				case <-done:
-					server.Stop()
-					return
-				}
+			if len(tc.wantInstalledInstances) > 0 {
+				require.Eventually(t, func() bool {
+					instances := installer.GetInstalledInstances()
+					slices.Sort(instances)
+					return slices.Equal(tc.wantInstalledInstances, instances)
+				}, 500*time.Millisecond, 50*time.Millisecond)
+			} else {
+				require.Never(t, func() bool {
+					return len(installer.GetInstalledInstances()) > 0
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
-
-			server.Wait()
 		})
 
 	}
@@ -1554,13 +1533,33 @@ func (m *mockGCPClient) RemoveSSHKey(_ context.Context, _ *gcp.SSHKeyRequest) er
 	return nil
 }
 
+type mockGCPInstaller struct {
+	mu                 sync.Mutex
+	installedInstances []string
+}
+
+func (m *mockGCPInstaller) Run(_ context.Context, req server.GCPRunRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, inst := range req.Instances {
+		m.installedInstances = append(m.installedInstances, inst.Name)
+	}
+	return nil
+}
+
+func (m *mockGCPInstaller) GetInstalledInstances() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installedInstances
+}
+
 func TestGCPVMDiscovery(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		presentVMs  []types.Server
-		foundGCPVMs []*gcp.Instance
-		logHandler  func(*testing.T, io.Reader, chan struct{})
+		name                   string
+		presentVMs             []types.Server
+		foundGCPVMs            []*gcp.Instance
+		wantInstalledInstances []string
 	}{
 		{
 			name:       "no nodes present, 1 found",
@@ -1575,16 +1574,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these virtual machines") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
+			wantInstalledInstances: []string{"myinstance"},
 		},
 		{
 			name: "nodes present, instance filtered",
@@ -1611,16 +1601,6 @@ func TestGCPVMDiscovery(t *testing.T) {
 						"teleport": "yes",
 					},
 				},
-			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"All discovered GCP VMs are already part of the cluster") {
-						done <- struct{}{}
-						return
-					}
-				}
 			},
 		},
 		{
@@ -1649,16 +1629,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 					},
 				},
 			},
-			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
-				scanner := bufio.NewScanner(logs)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(),
-						"Running Teleport installation on these virtual machines") {
-						done <- struct{}{}
-						return
-					}
-				}
-			},
+			wantInstalledInstances: []string{"myinstance"},
 		},
 	}
 
@@ -1696,7 +1667,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 
 			logger := logrus.New()
 			emitter := &mockEmitter{}
-
+			installer := &mockGCPInstaller{}
 			server, err := New(context.Background(), &Config{
 				Clients:     &testClients,
 				AccessPoint: tlsServer.Auth(),
@@ -1711,7 +1682,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-
+			server.gcpInstaller = installer
 			emitter.server = server
 			emitter.t = t
 
@@ -1720,29 +1691,21 @@ func TestGCPVMDiscovery(t *testing.T) {
 				require.NoError(t, r.Close())
 				require.NoError(t, w.Close())
 			})
-			if tc.logHandler != nil {
-				logger.SetOutput(w)
-				logger.SetLevel(logrus.DebugLevel)
-			}
 
 			go server.Start()
 
-			if tc.logHandler != nil {
-				done := make(chan struct{})
-				go tc.logHandler(t, r, done)
-				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
-				defer cancelfn()
-				select {
-				case <-timeoutCtx.Done():
-					t.Fatal("Timeout waiting for log entries")
-					return
-				case <-done:
-					server.Stop()
-					return
-				}
+			if len(tc.wantInstalledInstances) > 0 {
+				require.Eventually(t, func() bool {
+					instances := installer.GetInstalledInstances()
+					slices.Sort(instances)
+					return slices.Equal(tc.wantInstalledInstances, instances)
+				}, 500*time.Millisecond, 50*time.Millisecond)
+			} else {
+				require.Never(t, func() bool {
+					return len(installer.GetInstalledInstances()) > 0
+				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 
-			server.Wait()
 		})
 	}
 }
