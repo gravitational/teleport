@@ -664,10 +664,9 @@ impl<S: Read + Write> RdpClient<S> {
 
     pub fn write(&mut self, event: RdpEvent) -> RdpResult<()> {
         match event {
-            RdpEvent::Pointer(pointer) => {
-                self.global.write_input_event(pointer.into(), &mut self.mcs)
-            }
+            RdpEvent::Pointer(ptr) => self.global.write_input_event(ptr.into(), &mut self.mcs),
             RdpEvent::Key(key) => self.global.write_input_event(key.into(), &mut self.mcs),
+            RdpEvent::Sync(sync) => self.global.write_input_event(sync.into(), &mut self.mcs),
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
                 "RDPCLIENT: This event can't be sent",
@@ -1491,10 +1490,24 @@ pub unsafe extern "C" fn client_write_sync_keys(
             return cgo_error;
         }
     };
-    // TODO(zmb3): implement 2.2.8.1.1.3.1.1.5 Synchronize Event (TS_SYNC_EVENT)
-    // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/6c5d0ef9-4653-4d69-9ba9-09ba3acd660f
-    debug!("client_write_sync_keys");
-    CGOErrCode::ErrCodeSuccess
+
+    let mut flags = 0u32;
+    if keys.caps_lock_down {
+        // TODO: handle scroll lock + num lock
+        flags |= global::InputSyncFlags::TsSyncCapsLock as u32;
+    }
+    let res = client
+        .rdp_client
+        .lock()
+        .unwrap()
+        .write(RdpEvent::Sync(InputSyncEvent { flags }));
+    if let Err(e) = res {
+        error!("failed writing RDP sync keys event: {:?}", e);
+        CGOErrCode::ErrCodeFailure
+    } else {
+        info!("client_write_sync_keys");
+        CGOErrCode::ErrCodeSuccess
+    }
 }
 
 /// # Safety
