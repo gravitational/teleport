@@ -244,6 +244,8 @@ function throwOnAgentProcessErrors(
     const rejectOnError = (agentProcessState: AgentProcessState) => {
       if (
         agentProcessState.status === 'exited' ||
+        // TODO(ravicious): 'error' should not be considered a separate process state. See the
+        // comment above the 'error' status definition.
         agentProcessState.status === 'error'
       ) {
         reject(new AgentProcessError());

@@ -333,8 +333,9 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
           }
         }
         case 'error': {
-          // TODO(ravicious): This can probably happen only just before killing the process? Error
-          // during spawn is already handled by the 'start' branch.
+          // TODO(ravicious): This can happen only just before killing the process. 'error' should
+          // not be considered a separate process state. See the comment above the 'error' status
+          // definition.
           return {
             Icon: StyledWarning,
             title: 'An error occurred to agent process',
