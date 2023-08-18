@@ -347,7 +347,29 @@ func TestReviewThresholds(t *testing.T) {
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
 					propose: deny,
 					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-						require.ErrorContains(tt, err, "can't review access request, it is approved")
+						require.ErrorIs(tt, err, trace.AccessDenied("can't review access request, it is approved"))
+					},
+				},
+			},
+		},
+		{
+			desc:      "trying to approve an already denied request",
+			requestor: "bob", // permitted by role general
+			reviews: []review{
+				{ // 1 of 2 required denials
+					author:  g.user(t, "military"),
+					propose: deny,
+				},
+				{ // 2 of 2 required denials
+					author:  g.user(t, "military"),
+					propose: deny,
+					expect:  deny,
+				},
+				{ // tries to approve but it was already denied
+					author:  g.user(t, "military"),
+					propose: approve,
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorIs(tt, err, trace.AccessDenied("can't review access request, it is denied"))
 					},
 				},
 			},
