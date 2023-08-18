@@ -80,6 +80,7 @@ export interface Acl {
   lock: Access;
   assist: Access;
   samlIdpServiceProvider: Access;
+  accessList: Access;
 }
 
 export interface User {
