@@ -221,6 +221,11 @@ export function prettifyCurrentAction(currentAction: CurrentAction): {
   error?: string;
   stackTrace?: string;
 } {
+  const noop = {
+    Icon: StyledIndicator,
+    title: '',
+  };
+
   switch (currentAction.kind) {
     case 'download': {
       switch (currentAction.attempt.status) {
@@ -240,7 +245,7 @@ export function prettifyCurrentAction(currentAction: CurrentAction): {
           };
         }
         case 'success': {
-          return; // noop, not used, at this point it should be start processing.
+          return noop; // noop, not used, at this point it should be start processing.
         }
         default: {
           return assertUnreachable(currentAction.attempt.status);
@@ -288,7 +293,7 @@ export function prettifyCurrentAction(currentAction: CurrentAction): {
           break;
         }
         case 'success': {
-          return; // noop, not used, at this point it should be observe-process running.
+          return noop; // noop, not used, at this point it should be observe-process running.
         }
         default: {
           return assertUnreachable(currentAction.attempt.status);
@@ -358,7 +363,7 @@ export function prettifyCurrentAction(currentAction: CurrentAction): {
           };
         }
         case 'success': {
-          return; // noop, not used, at this point it should be observe-process exited.
+          return noop; // noop, not used, at this point it should be observe-process exited.
         }
         default: {
           return assertUnreachable(currentAction.attempt.status);
