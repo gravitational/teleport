@@ -55,6 +55,13 @@ interface DocumentConnectMyComputerStatusProps {
   doc: types.DocumentConnectMyComputerStatus;
 }
 
+// When the documents are reopened, doc.connect_my_computer_status is replaced
+// with doc.connect_my_computer_setup.
+// This is needed to prevent showing the status document when the agent is not configured
+// (or its configuration has been removed).
+//
+// Then we check if the agent is configured, and if it is, we replace setup
+// with the status document.
 export function DocumentConnectMyComputerStatus(
   props: DocumentConnectMyComputerStatusProps
 ) {

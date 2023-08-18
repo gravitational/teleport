@@ -32,6 +32,7 @@ import {
 } from 'teleterm/ui/ConnectMyComputer';
 import Logger from 'teleterm/logger';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { StackTrace } from '../StackTrace';
@@ -49,6 +50,21 @@ export function DocumentConnectMyComputerSetup(
   const [step, setStep] = useState<'information' | 'agent-setup'>(
     'information'
   );
+  const { isAgentConfiguredAttempt } = useConnectMyComputerContext();
+  const { rootClusterUri, documentsService } = useWorkspaceContext();
+  const shouldRedirectToStatusDocument =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
+
+  // This redirect will happen when reopening the app with a status document,
+  // but also when the setup finishes.
+  if (shouldRedirectToStatusDocument) {
+    const statusDocument =
+      documentsService.createConnectMyComputerStatusDocument({
+        rootClusterUri,
+      });
+    documentsService.replace(props.doc.uri, statusDocument);
+  }
 
   return (
     <Document visible={props.visible}>
@@ -59,7 +75,9 @@ export function DocumentConnectMyComputerSetup(
         {step === 'information' && (
           <Information onSetUpAgentClick={() => setStep('agent-setup')} />
         )}
-        {step === 'agent-setup' && <AgentSetup doc={props.doc} />}
+        {step === 'agent-setup' && (
+          <AgentSetup rootClusterUri={rootClusterUri} />
+        )}
       </Box>
     </Document>
   );
@@ -100,37 +118,16 @@ function Information(props: { onSetUpAgentClick(): void }) {
   );
 }
 
-function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
+function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   const ctx = useAppContext();
-  const { rootClusterUri, documentsService } = useWorkspaceContext();
   const {
     startAgent,
     markAgentAsConfigured,
-    isAgentConfiguredAttempt,
     downloadAgent,
     agentProcessState,
   } = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
-
-  const shouldRedirectToStatusDocument =
-    isAgentConfiguredAttempt.status === 'success' &&
-    isAgentConfiguredAttempt.data;
-
-  useEffect(() => {
-    if (shouldRedirectToStatusDocument) {
-      const statusDocument =
-        documentsService.createConnectMyComputerStatusDocument({
-          rootClusterUri,
-        });
-      documentsService.replace(props.doc.uri, statusDocument);
-    }
-  }, [
-    documentsService,
-    shouldRedirectToStatusDocument,
-    props.doc.uri,
-    rootClusterUri,
-  ]);
 
   const [createRoleAttempt, runCreateRoleAttempt, setCreateRoleAttempt] =
     useAsync(
