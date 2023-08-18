@@ -25,19 +25,20 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	pb "google.golang.org/grpc/examples/features/proto/echo"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 // service is used to implement EchoServer
 type service struct {
-	pb.UnimplementedEchoServer
+	proto.UnimplementedAuthServiceServer
 }
 
-func (s *service) UnaryEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResponse, error) {
+func (s *service) Ping(ctx context.Context, req *proto.PingRequest) (*proto.PingResponse, error) {
 	return nil, trace.NotFound("not found")
 }
 
-func (s *service) BidirectionalStreamingEcho(stream pb.Echo_BidirectionalStreamingEchoServer) error {
+func (s *service) AddMFADevice(stream proto.AuthService_AddMFADeviceServer) error {
 	return trace.AlreadyExists("already exists")
 }
 
@@ -53,7 +54,7 @@ func TestGRPCErrorWrapping(t *testing.T) {
 		grpc.ChainUnaryInterceptor(GRPCServerUnaryErrorInterceptor),
 		grpc.ChainStreamInterceptor(GRPCServerStreamErrorInterceptor),
 	)
-	pb.RegisterEchoServer(server, &service{})
+	proto.RegisterAuthServiceServer(server, &service{})
 	go func() {
 		server.Serve(listener)
 	}()
@@ -68,10 +69,10 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 
-	client := pb.NewEchoClient(conn)
+	client := proto.NewAuthServiceClient(conn)
 
 	t.Run("unary interceptor", func(t *testing.T) {
-		resp, err := client.UnaryEcho(context.Background(), &pb.EchoRequest{Message: "Hi!"})
+		resp, err := client.Ping(context.Background(), &proto.PingRequest{})
 		require.Nil(t, resp)
 		require.True(t, trace.IsNotFound(err))
 		require.Equal(t, err.Error(), "not found")
@@ -80,10 +81,10 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	})
 
 	t.Run("stream interceptor", func(t *testing.T) {
-		stream, err := client.BidirectionalStreamingEcho(context.Background())
+		stream, err := client.AddMFADevice(context.Background())
 		require.NoError(t, err)
 
-		sendErr := stream.Send(&pb.EchoRequest{Message: "Hi!"})
+		sendErr := stream.Send(&proto.AddMFADeviceRequest{})
 
 		// io.EOF means the server closed the stream, which can
 		// happen depending in timing. In either case, it is
