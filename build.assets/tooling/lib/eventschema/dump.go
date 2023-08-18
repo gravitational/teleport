@@ -17,40 +17,47 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"sort"
 	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/gravitational/trace"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 const mainTemplate = `
 {{- define "events" -}}
 // Events is a map containing the description and schema for all Teleport events
 var events = map[string]*Event{
-    {{- range $name, $schema := .Roots }}
-    {{- include "event" (dict "name" $name "event" $schema) | nindent 4 }}
+    {{- range $_, $schema := orderSchemaMap .Roots }}
+    {{- include "event" $schema | nindent 4 }}
     {{- end }}
 }
 {{- end -}}
 
 {{- define "event" -}}
-"{{ .name }}": {
-    Description: {{ .event.Description | quote }},
-    {{- include "fields" .event | nindent 4 }}
+"{{ .Name }}": {
+    Description: {{ .Description | quote }},
+    {{- include "fields" . | nindent 4 }}
 },
 {{- end -}}
 
 {{- define "fields" -}}
-Fields: map[string]*EventField{
-{{- range $name, $schema := .Properties }}
-  {{- if not (eq $schema.Type "null") }}
-    "{{ $name }}": {
-        {{- include "field" $schema | indent 8 }}
+Fields: []*EventField{
+{{- range $_, $prop := orderSchemaMap .Properties }}
+  {{- if not (eq $prop.Type "null") }}
+    {
+        {{- include "namedField" $prop | nindent 8 }}
     },
   {{- end }}
 {{- end }}
 },
+{{- end -}}
+
+{{- define "namedField" -}}
+Name: {{ .Name | quote }},
+{{- include "field" . }}
 {{- end -}}
 
 {{- define "field" -}}
@@ -88,13 +95,14 @@ package eventschema
 
 type Event struct {
   Description string
-  Fields      map[string]*EventField
+  Fields      []*EventField
 }
 
 type EventField struct {
+  Name        string
   Type        string
   Description string
-  Fields      map[string]*EventField
+  Fields      []*EventField
   Items       *EventField
 }
 
@@ -112,8 +120,6 @@ func (generator *SchemaGenerator) Render() (string, error) {
 	// another function (and we need to do this for indentation).
 	// Helm solved this issue by implementing an "include" function that renders
 	// the template and returns a string.
-
-	// Code copied from Helm's templating
 	funcMap["include"] = func(name string, data interface{}) (string, error) {
 		var buf strings.Builder
 		if v, ok := includedNames[name]; ok {
@@ -129,13 +135,39 @@ func (generator *SchemaGenerator) Render() (string, error) {
 		return buf.String(), err
 	}
 
+	type NamedSchema struct {
+		Name string
+		v1.JSONSchemaProps
+	}
+
+	// the orderSchemaMap iterates over a schema map and returns an order list
+	// of all schemas wrapped in the NamedSchema type to store their name.
+	// This ensures the template orders the events and their fields consistently.
+	funcMap["orderSchemaMap"] = func(input map[string]v1.JSONSchemaProps) ([]NamedSchema, error) {
+		keys := make([]string, 0, len(input))
+		for key, _ := range input {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		output := make([]NamedSchema, len(keys))
+		for i, key := range keys {
+			output[i] = NamedSchema{key, input[key]}
+		}
+		return output, nil
+	}
+
 	t = t.Funcs(funcMap)
 	t = template.Must(t.Parse(mainTemplate))
 
 	buf := &bytes.Buffer{}
+	roots := make(map[string]v1.JSONSchemaProps, len(generator.roots))
+	for key, root := range generator.roots {
+		roots[key] = root.JSONSchemaProps
+	}
+
 	err := t.Execute(buf, struct {
-		Roots map[string]*Schema
-	}{generator.roots})
+		Roots map[string]v1.JSONSchemaProps
+	}{roots})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

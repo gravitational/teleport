@@ -97,8 +97,9 @@ func TestEventField_Schemas(t *testing.T) {
 			field: EventField{
 				Type:        "object",
 				Description: testDescription,
-				Fields: map[string]*EventField{
-					"bar": {
+				Fields: []*EventField{
+					{
+						Name:        "bar",
 						Type:        "string",
 						Description: testDescription,
 					},
@@ -113,12 +114,14 @@ func TestEventField_Schemas(t *testing.T) {
 			field: EventField{
 				Type:        "object",
 				Description: testDescription,
-				Fields: map[string]*EventField{
-					"bar": {
+				Fields: []*EventField{
+					{
+						Name:        "bar",
 						Type:        "object",
 						Description: testDescription,
-						Fields: map[string]*EventField{
-							"baz": {
+						Fields: []*EventField{
+							{
+								Name:        "baz",
 								Type:        "string",
 								Description: testDescription,
 							},
@@ -152,8 +155,9 @@ func TestEventField_Schemas(t *testing.T) {
 				Items: &EventField{
 					Type:        "object",
 					Description: testDescription,
-					Fields: map[string]*EventField{
-						"bar": {
+					Fields: []*EventField{
+						{
+							Name:        "bar",
 							Type:        "string",
 							Description: testDescription,
 						},

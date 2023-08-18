@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
-	"github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
+	tree "github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
 )
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
@@ -77,6 +77,7 @@ func (generator *SchemaGenerator) Process(file *tree.File) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		schema.ID = field.Name()
 		generator.roots[field.Name()] = schema
 	}
 

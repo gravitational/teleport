@@ -17,7 +17,6 @@ package eventschema
 import (
 	"fmt"
 	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -81,15 +80,14 @@ func (event *Event) TableSchema() (string, error) {
 	sb.WriteString("column_name, column_type, description\n")
 	sb.WriteString("event_date, date, is the event date\n")
 	sb.WriteString("event_time, timestamp, is the event time\n")
-	err := iterateOverFields(event.Fields, func(propName string, prop *EventField) error {
-		line, err := prop.TableSchema([]string{propName})
+	for _, prop := range event.Fields {
+		line, err := prop.TableSchema([]string{prop.Name})
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 		sb.WriteString(line)
-		return nil
-	})
-	return sb.String(), trace.Wrap(err)
+	}
+	return sb.String(), nil
 }
 
 // TableSchema returns a CSV description of the EventField schema.
@@ -98,16 +96,12 @@ func (field *EventField) TableSchema(path []string) (string, error) {
 	sb := strings.Builder{}
 	switch field.Type {
 	case "object":
-		err := iterateOverFields(field.Fields, func(propName string, prop *EventField) error {
-			line, err := prop.TableSchema(append(path, propName))
+		for _, prop := range field.Fields {
+			line, err := prop.TableSchema(append(path, prop.Name))
 			if err != nil {
-				return trace.Wrap(err)
+				return "", trace.Wrap(err)
 			}
 			sb.WriteString(line)
-			return nil
-		})
-		if err != nil {
-			return "", trace.Wrap(err)
 		}
 	case "string", "integer", "boolean", "date-time", "array":
 		sb.WriteString(tableSchemaLine(sqlFieldName(path), field.dmlType(), field.Description))
@@ -123,15 +117,15 @@ func (event *Event) ViewSchema() (string, error) {
 	sb := strings.Builder{}
 	sb.WriteString("SELECT\n")
 	sb.WriteString("  event_date, event_time\n")
-	err := iterateOverFields(event.Fields, func(propName string, prop *EventField) error {
-		line, err := prop.ViewSchema([]string{propName})
+
+	for _, prop := range event.Fields {
+		line, err := prop.ViewSchema([]string{prop.Name})
 		if err != nil {
-			return trace.Wrap(err)
+			return "", trace.Wrap(err)
 		}
 		sb.WriteString(line)
-		return nil
-	})
-	return sb.String(), trace.Wrap(err)
+	}
+	return sb.String(), nil
 }
 
 // ViewSchema returns the AthenaSQL statement used to build a view extracting
@@ -140,17 +134,14 @@ func (field *EventField) ViewSchema(path []string) (string, error) {
 	sb := strings.Builder{}
 	switch field.Type {
 	case "object":
-		err := iterateOverFields(field.Fields, func(propName string, prop *EventField) error {
-			line, err := prop.ViewSchema(append(path, propName))
+		for _, prop := range field.Fields {
+			line, err := prop.ViewSchema(append(path, prop.Name))
 			if err != nil {
-				return trace.Wrap(err)
+				return "", trace.Wrap(err)
 			}
 			sb.WriteString(line)
-			return nil
-		})
-		if err != nil {
-			return "", trace.Wrap(err)
 		}
+
 	case "string", "integer", "boolean", "date-time", "array":
 		sb.WriteString(viewSchemaLine(jsonFieldName(path), sqlFieldName(path), field.dmlType()))
 	default:
@@ -183,8 +174,8 @@ func (field *EventField) dmlType() string {
 			return "varchar"
 		}
 		rowTypes := make([]string, 0, len(field.Fields))
-		for name, subField := range field.Fields {
-			rowTypes = append(rowTypes, fmt.Sprintf("%s %s", name, subField.dmlType()))
+		for _, subField := range field.Fields {
+			rowTypes = append(rowTypes, fmt.Sprintf("%s %s", subField.Name, subField.dmlType()))
 		}
 		return fmt.Sprintf("row(%s)", strings.Join(rowTypes, ", "))
 	default:
@@ -215,24 +206,4 @@ func sqlFieldName(path []string) string {
 
 func viewSchemaLine(jsonField, viewField, fieldType string) string {
 	return fmt.Sprintf("  , CAST(json_extract(event_data, '%s') AS %s) as %s\n", jsonField, fieldType, viewField)
-}
-
-// iterateOverFields iterates over Event or EventField field while ensuring
-// the field order is consistent.
-func iterateOverFields(fields map[string]*EventField, fn func(name string, prop *EventField) error) error {
-	fieldNames := make([]string, 0, len(fields))
-	for name, _ := range fields {
-		fieldNames = append(fieldNames, name)
-	}
-
-	sort.Strings(fieldNames)
-	var err error
-
-	for _, name := range fieldNames {
-		err = fn(name, fields[name])
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
