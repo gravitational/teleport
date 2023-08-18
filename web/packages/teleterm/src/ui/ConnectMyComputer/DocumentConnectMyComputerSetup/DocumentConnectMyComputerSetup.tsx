@@ -26,8 +26,12 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
+import {
+  AgentProcessError,
+  useConnectMyComputerContext,
+} from 'teleterm/ui/ConnectMyComputer';
 import Logger from 'teleterm/logger';
+import { codeOrSignal } from 'teleterm/ui/utils/process';
 
 import { useAgentProperties } from '../useAgentProperties';
 import { StackTrace } from '../StackTrace';
@@ -103,8 +107,8 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
     startAgent,
     markAgentAsConfigured,
     isAgentConfiguredAttempt,
-    agentState,
     downloadAgent,
+    agentProcessState,
   } = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
   const nodeToken = useRef<string>();
@@ -222,30 +226,31 @@ function AgentSetup(props: { doc: types.DocumentConnectMyComputerSetup }) {
       name: 'Joining the cluster',
       attempt: joinClusterAttempt,
       customError: () => {
-        if (
-          agentState.status === 'join-error' ||
-          agentState.status === 'process-error'
-        ) {
-          return <StandardError error={agentState.message} />;
+        if (joinClusterAttempt.status !== 'error') {
+          return;
         }
 
-        if (agentState.status === 'process-exited') {
-          const { code, signal } = agentState;
-          const codeOrSignal = [
-            // code can be 0, so we cannot just check it the same way as the signal.
-            code != null && `code ${code}`,
-            signal && `signal ${signal}`,
-          ]
-            .filter(Boolean)
-            .join(' ');
+        if (joinClusterAttempt.statusText !== AgentProcessError.name) {
+          return <StandardError error={joinClusterAttempt.statusText} />;
+        }
+
+        if (agentProcessState.status === 'error') {
+          return <StandardError error={agentProcessState.message} />;
+        }
+
+        if (agentProcessState.status === 'exited') {
+          const { code, signal } = agentProcessState;
 
           return (
             <>
               <StandardError
-                error={`Agent process exited with ${codeOrSignal}.`}
+                error={`Agent process exited with ${codeOrSignal(
+                  code,
+                  signal
+                )}.`}
                 mb={1}
               />
-              <StackTrace lines={agentState.stackTrace} />
+              <StackTrace lines={agentProcessState.stackTrace} />
             </>
           );
         }

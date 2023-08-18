@@ -34,15 +34,17 @@ import { CircleCheck, Laptop, Moon, Warning } from 'design/Icon';
 import Indicator from 'design/Indicator';
 
 import {
-  AgentState,
+  AgentProcessError,
+  CurrentAction,
   useConnectMyComputerContext,
 } from 'teleterm/ui/ConnectMyComputer';
 import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { assertUnreachable } from 'teleterm/ui/utils';
+import { codeOrSignal } from 'teleterm/ui/utils/process';
 
 import { useAgentProperties } from '../useAgentProperties';
-
 import { StackTrace } from '../StackTrace';
 
 import type * as tsh from 'teleterm/services/tshd/types';
@@ -57,7 +59,7 @@ export function DocumentConnectMyComputerStatus(
   props: DocumentConnectMyComputerStatusProps
 ) {
   const {
-    agentState,
+    currentAction,
     agentNode,
     downloadAndStartAgent,
     killAgent,
@@ -66,7 +68,7 @@ export function DocumentConnectMyComputerStatus(
   const { documentsService, rootClusterUri } = useWorkspaceContext();
   const { roleName, systemUsername, hostname } = useAgentProperties();
 
-  const prettyAgentState = prettifyAgentState(agentState);
+  const prettyCurrentAction = prettifyCurrentAction(currentAction);
 
   function replaceWithSetupDocument(): void {
     documentsService.replace(
@@ -76,6 +78,23 @@ export function DocumentConnectMyComputerStatus(
       })
     );
   }
+
+  const isRunning =
+    currentAction.kind === 'observe-process' &&
+    currentAction.agentProcessState.status === 'running';
+  const isKilling =
+    currentAction.kind === 'kill' &&
+    currentAction.attempt.status === 'processing';
+  const isDownloading =
+    currentAction.kind === 'download' &&
+    currentAction.attempt.status === 'processing';
+  const isStarting =
+    currentAction.kind === 'start' &&
+    currentAction.attempt.status === 'processing';
+
+  const showDisconnectButton = isRunning || isKilling;
+  const disableDisconnectButton = isKilling;
+  const disableConnectButton = isDownloading || isStarting;
 
   return (
     <Document visible={props.visible}>
@@ -143,31 +162,32 @@ export function DocumentConnectMyComputerStatus(
           )}
         </Transition>
         <Flex mt={3} mb={2} gap={1} display="flex" alignItems="center">
-          {prettyAgentState.Icon && <prettyAgentState.Icon size="medium" />}
-          {prettyAgentState.title}
+          {prettyCurrentAction.Icon && (
+            <prettyCurrentAction.Icon size="medium" />
+          )}
+          {prettyCurrentAction.title}
         </Flex>
-        {prettyAgentState.error && (
+        {prettyCurrentAction.error && (
           <Alert
             css={`
               white-space: pre-wrap;
             `}
           >
-            {prettyAgentState.error}
+            {prettyCurrentAction.error}
           </Alert>
         )}
-        {prettyAgentState.stackTrace && (
-          <StackTrace lines={prettyAgentState.stackTrace} />
+        {prettyCurrentAction.stackTrace && (
+          <StackTrace lines={prettyCurrentAction.stackTrace} />
         )}
         <Text mb={4} mt={1}>
           Connecting your computer will allow any cluster user with the role{' '}
           <strong>{roleName}</strong> to access it as an SSH resource with the
           user <strong>{systemUsername}</strong>.
         </Text>
-        {agentState.status === 'process-running' ||
-        agentState.status === 'killing' ? (
+        {showDisconnectButton ? (
           <ButtonPrimary
             block
-            disabled={agentState.status === 'killing'}
+            disabled={disableDisconnectButton}
             onClick={killAgent}
           >
             Disconnect
@@ -175,10 +195,7 @@ export function DocumentConnectMyComputerStatus(
         ) : (
           <ButtonPrimary
             block
-            disabled={
-              agentState.status === 'downloading' ||
-              agentState.status === 'starting'
-            }
+            disabled={disableConnectButton}
             onClick={downloadAndStartAgent}
           >
             Connect
@@ -198,91 +215,161 @@ function renderLabels(labelsList: tsh.Label[]): JSX.Element[] {
   ));
 }
 
-function prettifyAgentState(agentState: AgentState): {
+function prettifyCurrentAction(currentAction: CurrentAction): {
   Icon: React.FC<IconProps>;
   title: string;
   error?: string;
   stackTrace?: string;
 } {
-  switch (agentState.status) {
-    case 'downloading': {
-      //TODO(gzdunek) add progress
-      return {
-        Icon: StyledIndicator,
-        title: 'Verifying binary',
-      };
-    }
-    case 'starting':
-      return {
-        Icon: StyledIndicator,
-        title: 'Starting',
-      };
-    case 'killing':
-      return {
-        Icon: StyledIndicator,
-        title: 'Stopping',
-      };
-    case 'process-not-started': {
-      return {
-        Icon: Moon,
-        title: 'Agent not running',
-      };
-    }
-    case 'process-running': {
-      return {
-        Icon: props => <CircleCheck {...props} color="success" />,
-        title: 'Agent running',
-      };
-    }
-    case 'process-exited': {
-      const { code, signal, exitedSuccessfully } = agentState;
-      const codeOrSignal = [
-        // code can be 0, so we cannot just check it the same way as the signal.
-        code != null && `code ${code}`,
-        signal && `signal ${signal}`,
-      ]
-        .filter(Boolean)
-        .join(' ');
+  const noop = {
+    Icon: StyledIndicator,
+    title: '',
+  };
 
-      return {
-        Icon: exitedSuccessfully ? Moon : StyledWarning,
-        title: [`Agent process exited with ${codeOrSignal}`].join('\n'),
-        stackTrace: agentState.stackTrace,
-      };
+  switch (currentAction.kind) {
+    case 'download': {
+      switch (currentAction.attempt.status) {
+        case '':
+        case 'processing': {
+          // TODO(gzdunek) add progress
+          return {
+            Icon: StyledIndicator,
+            title: 'Verifying agent binary',
+          };
+        }
+        case 'error': {
+          return {
+            Icon: StyledWarning,
+            title: 'Failed to download agent',
+            error: currentAction.attempt.statusText,
+          };
+        }
+        case 'success': {
+          return noop; // noop, not used, at this point it should be start processing.
+        }
+        default: {
+          return assertUnreachable(currentAction.attempt.status);
+        }
+      }
     }
-    case 'download-error': {
-      return {
-        Icon: StyledWarning,
-        title: 'Failed to download agent',
-        error: agentState.message,
-      };
+    case 'start': {
+      switch (currentAction.attempt.status) {
+        case '':
+        case 'processing': {
+          return {
+            Icon: StyledIndicator,
+            title: 'Starting',
+          };
+        }
+        case 'error': {
+          if (currentAction.attempt.statusText !== AgentProcessError.name) {
+            return {
+              Icon: StyledWarning,
+              title: 'Failed to start agent',
+              error: currentAction.attempt.statusText,
+            };
+          }
+
+          if (currentAction.agentProcessState.status === 'error') {
+            return {
+              Icon: StyledWarning,
+              title:
+                'Failed to start agent – an error occurred while spawning the agent process',
+              error: currentAction.agentProcessState.message,
+            };
+          }
+
+          if (currentAction.agentProcessState.status === 'exited') {
+            const { code, signal } = currentAction.agentProcessState;
+            return {
+              Icon: StyledWarning,
+              title: `Failed to start agent - the agent process quit unexpectedly with ${codeOrSignal(
+                code,
+                signal
+              )}`,
+              stackTrace: currentAction.agentProcessState.stackTrace,
+            };
+          }
+          break;
+        }
+        case 'success': {
+          return noop; // noop, not used, at this point it should be observe-process running.
+        }
+        default: {
+          return assertUnreachable(currentAction.attempt.status);
+        }
+      }
+      break;
     }
-    case 'kill-error': {
-      return {
-        Icon: StyledWarning,
-        title: 'Failed to kill agent',
-        error: agentState.message,
-      };
+    case 'observe-process': {
+      switch (currentAction.agentProcessState.status) {
+        case 'not-started': {
+          return {
+            Icon: Moon,
+            title: 'Agent not running',
+          };
+        }
+        case 'running': {
+          return {
+            Icon: props => <CircleCheck {...props} color="success" />,
+            title: 'Agent running',
+          };
+        }
+        case 'exited': {
+          const { code, signal, exitedSuccessfully } =
+            currentAction.agentProcessState;
+
+          if (exitedSuccessfully) {
+            return {
+              Icon: Moon,
+              title: 'Agent not running',
+            };
+          } else {
+            return {
+              Icon: StyledWarning,
+              title: `Agent process exited with ${codeOrSignal(code, signal)}`,
+              stackTrace: currentAction.agentProcessState.stackTrace,
+            };
+          }
+        }
+        case 'error': {
+          // TODO(ravicious): This can happen only just before killing the process. 'error' should
+          // not be considered a separate process state. See the comment above the 'error' status
+          // definition.
+          return {
+            Icon: StyledWarning,
+            title: 'An error occurred to agent process',
+            error: currentAction.agentProcessState.message,
+          };
+        }
+        default: {
+          return assertUnreachable(currentAction.agentProcessState);
+        }
+      }
     }
-    case 'join-error': {
-      return {
-        Icon: StyledWarning,
-        title: 'Failed to join cluster',
-        error: agentState.message,
-      };
-    }
-    case 'process-error': {
-      return {
-        Icon: StyledWarning,
-        title: 'An error occurred to the agent process',
-        error: agentState.message,
-      };
-    }
-    default: {
-      return {
-        Icon: null,
-        title: '',
-      };
+    case 'kill': {
+      switch (currentAction.attempt.status) {
+        case '':
+        case 'processing': {
+          return {
+            Icon: StyledIndicator,
+            title: 'Stopping',
+          };
+        }
+        case 'error': {
+          return {
+            Icon: StyledWarning,
+            title: 'Failed to stop agent',
+            error: currentAction.attempt.statusText,
+          };
+        }
+        case 'success': {
+          return noop; // noop, not used, at this point it should be observe-process exited.
+        }
+        default: {
+          return assertUnreachable(currentAction.attempt.status);
+        }
+      }
     }
   }
 }

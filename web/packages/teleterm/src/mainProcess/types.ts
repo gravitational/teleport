@@ -142,6 +142,10 @@ export type AgentProcessState =
       stackTrace?: string;
     }
   | {
+      // TODO(ravicious): 'error' should not be considered a separate process state. Instead,
+      // AgentRunner.start should not resolve until 'spawn' is emitted or reject if 'error' is
+      // emitted. AgentRunner.kill should not resolve until 'exit' is emitted or reject if 'error'
+      // is emitted.
       status: 'error';
       message: string;
     };

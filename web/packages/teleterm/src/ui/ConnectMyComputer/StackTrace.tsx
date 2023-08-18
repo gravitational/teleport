@@ -24,7 +24,7 @@ interface StacktraceProps {
 export function StackTrace(props: StacktraceProps): JSX.Element {
   return (
     <>
-      <Text mb={2}>Last 10 lines of error logs:</Text>
+      <Text mb={2}>Last 10 lines of logs:</Text>
       <Flex
         width="100%"
         color="light"
