@@ -17,11 +17,7 @@
 import { useState } from 'react';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import {
-  ResourcesResponse,
-  UnifiedResource,
-  ResourceFilter,
-} from 'teleport/services/agents';
+import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
 /**
@@ -30,7 +26,7 @@ import { UrlResourcesParams } from 'teleport/config';
  * request, the server is expected to return a `startKey` field that denotes the
  * next `startKey` to use for the next request.
  */
-export function useInfiniteScroll<T extends UnifiedResource>({
+export function useInfiniteScroll<T>({
   fetchFunc,
   clusterId,
   params,
@@ -109,7 +105,7 @@ export function useInfiniteScroll<T extends UnifiedResource>({
   };
 }
 
-type Props<T extends UnifiedResource> = {
+type Props<T> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams
@@ -120,7 +116,7 @@ type Props<T extends UnifiedResource> = {
   fetchMoreSize?: number;
 };
 
-type State<T extends UnifiedResource> = {
+export type State<T> = {
   fetchInitial: (() => void) | null;
   fetchMore: (() => void) | null;
   attempt: Attempt;
