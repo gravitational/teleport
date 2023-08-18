@@ -73,6 +73,8 @@ jobs:
         with:
           against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
 
+      # TODO(codingllama): Consider https://github.com/actions-rs/clippy-check
+      #  for Rust.
       - name: Run (non-action) linters
         run: make lint-no-actions
 
