@@ -17,13 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"crypto/ed25519"
-	"crypto/rand"
-	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
 	"net"
 	"testing"
 	"time"
@@ -33,28 +26,25 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/testhelpers/mtls"
 )
 
 // mockServer mocks an Auth Server.
 type mockServer struct {
-	addr      string
-	grpc      *grpc.Server
-	clientTLS *tls.Config
-	serverTLS *tls.Config
+	addr       string
+	grpc       *grpc.Server
+	mtlsConfig *mtls.Config
 }
 
 func newMockServer(t *testing.T, addr string, service proto.AuthServiceServer) *mockServer {
 	t.Helper()
 	m := &mockServer{
-		addr: addr,
+		addr:       addr,
+		mtlsConfig: mtls.NewConfig(t),
 	}
 
-	m.generateTestCerts(t)
-
 	m.grpc = grpc.NewServer(
-		grpc.Creds(credentials.NewTLS(m.serverTLS)),
+		grpc.Creds(credentials.NewTLS(m.mtlsConfig.ServerTLS)),
 	)
 
 	proto.RegisterAuthServiceServer(m.grpc, service)
@@ -88,102 +78,7 @@ func (m *mockServer) clientCfg() Config {
 		DialTimeout: time.Second,
 		Addrs:       []string{m.addr},
 		Credentials: []Credentials{
-			LoadTLS(m.clientTLS),
+			LoadTLS(m.mtlsConfig.ClientTLS),
 		},
-	}
-}
-
-func (m *mockServer) generateTestCerts(t *testing.T) {
-	t.Helper()
-
-	caKey, caCert := generateCA(t)
-	m.serverTLS = generateChildTLSConfigFromCA(t, caKey, caCert)
-	m.clientTLS = generateChildTLSConfigFromCA(t, caKey, caCert)
-}
-
-func generateCA(t *testing.T) (*keys.PrivateKey, *x509.Certificate) {
-	t.Helper()
-
-	caPub, caPriv, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-	caKey, err := keys.NewPrivateKey(caPriv, nil)
-	require.NoError(t, err)
-
-	// Create a self signed certificate.
-
-	notBefore := time.Now()
-	notAfter := notBefore.Add(time.Minute)
-	entity := pkix.Name{
-		Organization: []string{"teleport"},
-		CommonName:   "localhost",
-	}
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	require.NoError(t, err)
-
-	template := &x509.Certificate{
-		SerialNumber:          serialNumber,
-		Issuer:                entity,
-		Subject:               entity,
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageCertSign,
-		IsCA:                  true,
-		BasicConstraintsValid: true,
-	}
-
-	caCertDER, err := x509.CreateCertificate(rand.Reader, template, template, caPub, caKey)
-	require.NoError(t, err)
-
-	x509Cert, err := x509.ParseCertificate(caCertDER)
-	require.NoError(t, err)
-
-	return caKey, x509Cert
-}
-
-func generateChildTLSConfigFromCA(t *testing.T, caKey *keys.PrivateKey, caCert *x509.Certificate) *tls.Config {
-	t.Helper()
-
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-
-	key, err := keys.NewPrivateKey(priv, nil)
-	require.NoError(t, err)
-
-	// Create a certificate signed by the CA.
-
-	notBefore := time.Now()
-	notAfter := notBefore.Add(time.Minute)
-	entity := pkix.Name{
-		Organization: []string{"teleport"},
-		CommonName:   "localhost",
-	}
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	require.NoError(t, err)
-
-	template := &x509.Certificate{
-		SerialNumber:          serialNumber,
-		Subject:               entity,
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		BasicConstraintsValid: true,
-		DNSNames:              []string{constants.APIDomain},
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, template, caCert, pub, caKey)
-	require.NoError(t, err)
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-
-	tlsCert, err := key.TLSCertificate(certPEM)
-	require.NoError(t, err)
-
-	pool := x509.NewCertPool()
-	pool.AddCert(caCert)
-
-	return &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-		RootCAs:      pool,
 	}
 }
