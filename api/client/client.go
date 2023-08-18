@@ -646,7 +646,7 @@ func (c *Client) Dialer() ContextDialer {
 	return c.dialer
 }
 
-// GetConnection returns GRPC connection.
+// GetConnection returns gRPC connection.
 func (c *Client) GetConnection() *grpc.ClientConn {
 	return c.conn
 }
