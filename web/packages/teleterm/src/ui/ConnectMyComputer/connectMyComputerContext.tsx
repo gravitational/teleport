@@ -64,6 +64,8 @@ export interface ConnectMyComputerContext {
   agentNode: Server | undefined;
   startAgent(): Promise<[Server, Error]>;
   downloadAgent(): Promise<[void, Error]>;
+  downloadAgentAttempt: Attempt<void>;
+  setDownloadAgentAttempt(attempt: Attempt<void>): void;
   downloadAndStartAgent(): Promise<void>;
   killAgent(): Promise<[void, Error]>;
   isAgentConfiguredAttempt: Attempt<boolean>;
@@ -105,12 +107,13 @@ export const ConnectMyComputerContextProvider: FC<{
       }
   );
 
-  const [downloadAgentAttempt, downloadAgent] = useAsync(
-    useCallback(async () => {
-      setCurrentActionKind('download');
-      await connectMyComputerService.downloadAgent();
-    }, [connectMyComputerService])
-  );
+  const [downloadAgentAttempt, downloadAgent, setDownloadAgentAttempt] =
+    useAsync(
+      useCallback(async () => {
+        setCurrentActionKind('download');
+        await connectMyComputerService.downloadAgent();
+      }, [connectMyComputerService])
+    );
 
   const [startAgentAttempt, startAgent] = useAsync(
     useCallback(async () => {
@@ -211,6 +214,8 @@ export const ConnectMyComputerContextProvider: FC<{
         killAgent,
         startAgent,
         downloadAgent,
+        downloadAgentAttempt,
+        setDownloadAgentAttempt,
         downloadAndStartAgent,
         markAgentAsConfigured,
         isAgentConfiguredAttempt,

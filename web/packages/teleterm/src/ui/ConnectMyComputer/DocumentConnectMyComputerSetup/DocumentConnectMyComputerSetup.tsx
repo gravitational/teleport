@@ -123,7 +123,9 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   const {
     startAgent,
     markAgentAsConfigured,
-    downloadAgent,
+    downloadAgent: runDownloadAgentAttempt,
+    downloadAgentAttempt,
+    setDownloadAgentAttempt,
     agentProcessState,
   } = useConnectMyComputerContext();
   const cluster = ctx.clustersService.findCluster(rootClusterUri);
@@ -157,18 +159,6 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         });
       }, [ctx, rootClusterUri])
     );
-  const [
-    downloadAgentAttempt,
-    runDownloadAgentAttempt,
-    setDownloadAgentAttempt,
-  ] = useAsync(
-    useCallback(async () => {
-      const [, error] = await downloadAgent();
-      if (error) {
-        throw error;
-      }
-    }, [downloadAgent])
-  );
   const [
     generateConfigFileAttempt,
     runGenerateConfigFileAttempt,
