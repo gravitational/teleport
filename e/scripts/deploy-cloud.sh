@@ -88,6 +88,9 @@ if [[ -n "$CLOUD_SKIP_DEPLOY" ]]; then
 	exit 0
 fi
 
+auth_deployment_generation=$(kubectl get deployment teleport-auth -n $NAMESPACE -o jsonpath='{.status.observedGeneration}' --context=$KUBE_AUTH_CONTEXT)
+adg_exit=$?
+
 echo "-> Patching tenant \"$TENANT\" to run new image..."
 if ! (command -v tcctl); then
     echo "Using \`tcctl\` from source in folder \"$TCCTL_PATH\"..."
@@ -95,7 +98,7 @@ if ! (command -v tcctl); then
         cd "$TCCTL_PATH" && go run . "$@"
     }
 fi
-if (tcctl tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then 
+if (tcctl tenant get --app-name="$CLOUD_API_APP" --name="$TENANT"); then
     (tcctl tenant patch set --app-name="$CLOUD_API_APP" --name="$TENANT" --teleport-image-repo="$TARGET_IMAGE_REPO" --teleport-version="$target_image_tag")
 else
 	echo "Failed to patch tenant \"$TENANT\" using tcctl, retrying with kubectl..."
@@ -115,6 +118,9 @@ if [[ -n "$CLOUD_SKIP_ROLLOUT" ]]; then
 	echo "Skipping pod rollout. Use kubectl to check the status of your tenant's pods. (kubectl get pods -n $NAMESPACE --context $KUBE_AUTH_CONTEXT)"
 	echo_color $green "Success!"
 	exit 0
+else
+	# can't monitor rollout unless we have the original auth deployment generation
+	fail_on_exit_code "Could not retrieve auth deployment generation, cannot monitor rollout." $adg_exit
 fi
 
 echo "-> Checking tenant pods in cluster \"$KUBE_AUTH_CLUSTER\"..."
@@ -124,17 +130,11 @@ echo "-> Found $deployment_count deployments, monitoring rollout..."
 auth_deployment=$(echo "$tenant_deployments"| grep auth)
 fail_on_exit_code "Could not identify auth deployment, cannot monitor rollout."
 
-# when image changes, tenant operator will scale down to a single auth pod
-while [[ $auth_deployment_desired != 1 ]]; do
+# when image changes, the generation of the deployment will change after reconcile
+sleep 2
+while [[ $auth_deployment_generation == $(kubectl get $auth_deployment -n $NAMESPACE -o jsonpath='{.status.observedGeneration}' --context=$KUBE_AUTH_CONTEXT) ]]; do
+	echo "Waiting for auth deployment rollout to start (observedGeneration: $auth_deployment_generation)"
 	sleep 2
-	auth_deployment_desired=$(kubectl get $auth_deployment -n $NAMESPACE -o jsonpath='{.status.replicas}' --context=$KUBE_AUTH_CONTEXT)
-	echo "Waiting for single pod auth deployment (status.replicas: $auth_deployment_desired)"
-done
-# once auth instance is ready, tenant operator will scale up to 2 pods
-while [[ $auth_deployment_desired != 2 ]]; do
-	sleep 2
-	auth_deployment_desired=$(kubectl get $auth_deployment -n $NAMESPACE -o jsonpath='{.status.replicas}' --context=$KUBE_AUTH_CONTEXT)
-	echo "Waiting for auth deployment to have 2 pods (status.replicas: $auth_deployment_desired)"
 done
 
 # wait for both auth pods to become ready, then wait for proxy pods
