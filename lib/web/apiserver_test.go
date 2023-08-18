@@ -8457,12 +8457,8 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	}
 
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			authMiddleware.UnaryInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			authMiddleware.StreamInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
+		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(credentials.NewTLS(
 			copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName),
 		)),
