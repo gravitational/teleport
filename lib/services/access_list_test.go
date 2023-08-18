@@ -45,6 +45,7 @@ func TestAccessListUnmarshal(t *testing.T) {
 			Name: "test-access-list",
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -113,6 +114,7 @@ func TestAccessListMarshal(t *testing.T) {
 			Name: "test-access-list",
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -396,6 +398,7 @@ func newAccessList(t *testing.T) *accesslist.AccessList {
 			Name: "test",
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
@@ -460,6 +463,7 @@ version: v1
 metadata:
   name: test-access-list
 spec:
+  title: "title"
   description: "test access list"  
   owners:
   - name: test-user1
