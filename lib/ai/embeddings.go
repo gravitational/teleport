@@ -228,6 +228,7 @@ func (e *EmbeddingProcessor) Run(ctx context.Context, initialDelay, period time.
 	}
 }
 
+// process updates embeddings for all nodes once.
 func (e *EmbeddingProcessor) process(ctx context.Context) {
 	batch := NewBatchReducer(e.mapProcessFn,
 		maxEmbeddingAPISize, // Max batch size allowed by OpenAI API,
@@ -280,11 +281,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		},
 		// On compare keys callback. Compare the keys for iteration.
 		func(node types.Server, embeddings *Embedding) int {
-			if node.GetName() == embeddings.GetName() {
-				return 0
-			}
-
-			return strings.Compare(node.GetName(), embeddings.GetName())
+			return strings.Compare(node.GetName(), embeddings.GetEmbeddedID())
 		},
 	)
 

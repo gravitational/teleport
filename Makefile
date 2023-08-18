@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=13.3.2
+VERSION=13.3.3
 
 DOCKER_IMAGE ?= teleport
 
@@ -1063,7 +1063,7 @@ $(VERSRC): Makefile
 update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
-	cd build.assets/tooling && go run ./cmd/check -check valid -tag $(GITTAG)
+	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
