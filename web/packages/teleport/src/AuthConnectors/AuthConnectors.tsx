@@ -13,7 +13,7 @@ limitations under the License.
 
 import React from 'react';
 
-import { Indicator, Text, Box, Flex, Link, Alert, ButtonPrimary } from 'design';
+import { Alert, Box, ButtonPrimary, Flex, Indicator, Link, Text } from 'design';
 
 import {
   FeatureBox,
@@ -52,13 +52,20 @@ export function AuthConnectors(props: State) {
 
   return (
     <FeatureBox>
-      <FeatureHeader>
+      <FeatureHeader
+        css={`
+          @media screen and (max-width: 800px) {
+            flex-direction: column;
+            height: auto;
+            gap: 10px;
+            margin: 0 0 10px 0;
+            padding-bottom: 10px;
+            justify-content: center;
+          }
+        `}
+      >
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <ButtonPrimary
-          ml="auto"
-          width="240px"
-          onClick={() => resources.create('github')}
-        >
+        <ButtonPrimary width="240px" onClick={() => resources.create('github')}>
           New GitHub Connector
         </ButtonPrimary>
       </FeatureHeader>
@@ -71,48 +78,50 @@ export function AuthConnectors(props: State) {
       {attempt.status === 'success' && (
         <Flex alignItems="start">
           {isEmpty && (
-            <Flex mt="4" width="100%" justifyContent="center">
+            <Flex width="100%" justifyContent="center">
               <EmptyList onCreate={() => resources.create('github')} />
             </Flex>
           )}
-          {!isEmpty && (
-            <>
-              <ConnectorList
-                items={items}
-                onEdit={resources.edit}
-                onDelete={resources.remove}
-              />
-              <Box
-                ml="4"
-                width="240px"
-                color="text.main"
-                style={{ flexShrink: 0 }}
-              >
-                <Text typography="h6" mb={3} caps>
-                  Auth Connectors
-                </Text>
-                <Text typography="subtitle1" mb={3}>
-                  Auth connectors allow Teleport to authenticate users via an
-                  external identity source such as Okta, Active Directory,
-                  GitHub, etc. This authentication method is commonly known as
-                  single sign-on (SSO).
-                </Text>
-                <Text typography="subtitle1" mb={2}>
-                  Please{' '}
-                  <Link
-                    color="text.main"
-                    // We have two version of this component.
-                    // This OSS version and an enterprise version.
-                    href="https://goteleport.com/docs/setup/admin/github-sso/"
-                    target="_blank"
-                  >
-                    view our documentation
-                  </Link>{' '}
-                  on how to configure a GitHub connector.
-                </Text>
-              </Box>
-            </>
-          )}
+          <>
+            <ConnectorList
+              items={items}
+              onEdit={resources.edit}
+              onDelete={resources.remove}
+            />
+            <Box
+              ml="4"
+              width="240px"
+              color="text.main"
+              style={{ flexShrink: 0 }}
+              css={`
+                @media screen and (max-width: 1000px) {
+                  display: none;
+                } ;
+              `}
+            >
+              <Text typography="h6" mb={3} caps>
+                Auth Connectors
+              </Text>
+              <Text typography="subtitle1" mb={3}>
+                Auth connectors allow Teleport to authenticate users via an
+                external identity source such as Okta, Active Directory, GitHub,
+                etc. This authentication method is commonly known as single
+                sign-on (SSO).
+              </Text>
+              <Text typography="subtitle1" mb={2}>
+                Please{' '}
+                <Link
+                  color="text.main"
+                  // This URL is the OSS documentation for auth connectors
+                  href="https://goteleport.com/docs/setup/admin/github-sso/"
+                  target="_blank"
+                >
+                  view our documentation
+                </Link>{' '}
+                on how to configure a GitHub connector.
+              </Text>
+            </Box>
+          </>
         </Flex>
       )}
       {(resources.status === 'creating' || resources.status === 'editing') && (
