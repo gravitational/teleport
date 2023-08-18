@@ -65,6 +65,7 @@ jobs:
 
       - uses: bufbuild/buf-setup-action@v1
         with:
+          github_token: ${{ github.token }}
           version: latest
       - uses: bufbuild/buf-lint-action@v1
       - name: buf breaking --against=parent
