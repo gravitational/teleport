@@ -116,3 +116,75 @@ func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteAllAccessLists(ctx, &accesslistv1.DeleteAllAccessListsRequest{})
 	return trail.FromGRPC(err)
 }
+
+// ListAccessListMembers returns a paginated list of all access list members for an access list.
+func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAccessListMembers(ctx, &accesslistv1.ListAccessListMembersRequest{
+		PageSize:   int32(pageSize),
+		PageToken:  pageToken,
+		AccessList: accessList,
+	})
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	members = make([]*accesslist.AccessListMember, len(resp.Members))
+	for i, accessList := range resp.Members {
+		var err error
+		members[i], err = conv.FromMemberProto(accessList)
+		if err != nil {
+			return nil, "", trail.FromGRPC(err)
+		}
+	}
+
+	return members, resp.GetNextPageToken(), nil
+}
+
+// GetAccessListMember returns the specified access list member resource.
+func (c *Client) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{
+		AccessList: accessList,
+		MemberName: memberName,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	member, err := conv.FromMemberProto(resp)
+	return member, trail.FromGRPC(err)
+}
+
+// UpsertAccessListMember creates or updates an access list member resource.
+func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{
+		Member: conv.ToMemberProto(member),
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	responseMember, err := conv.FromMemberProto(resp)
+	return responseMember, trail.FromGRPC(err)
+}
+
+// DeleteAccessListMember hard deletes the specified access list member resource.
+func (c *Client) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
+	_, err := c.grpcClient.DeleteAccessListMember(ctx, &accesslistv1.DeleteAccessListMemberRequest{
+		AccessList: accessList,
+		MemberName: memberName,
+	})
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllAccessListMembers hard deletes all access list members for an access list.
+func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
+	_, err := c.grpcClient.DeleteAllAccessListMembersForAccessList(ctx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{
+		AccessList: accessList,
+	})
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllAccessListMembers hard deletes all access list members.
+func (c *Client) DeleteAllAccessListMembers(ctx context.Context) error {
+	_, err := c.grpcClient.DeleteAllAccessListMembers(ctx, &accesslistv1.DeleteAllAccessListMembersRequest{})
+	return trail.FromGRPC(err)
+}

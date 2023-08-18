@@ -173,6 +173,7 @@ type cacheCollections struct {
 	byKind map[resourceKind]collection
 
 	accessLists              collectionReader[services.AccessListsGetter]
+	accessListMembers        collectionReader[services.AccessListMembersGetter]
 	apps                     collectionReader[services.AppGetter]
 	nodes                    collectionReader[nodeGetter]
 	tunnelConnections        collectionReader[tunnelConnectionGetter]
@@ -609,6 +610,12 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.userLoginStates = &genericCollection[*userloginstate.UserLoginState, services.UserLoginStatesGetter, userLoginStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.userLoginStates
+		case types.KindAccessListMember:
+			if c.AccessListMembers == nil {
+				return nil, trace.BadParameter("missing parameter AccessListMembers")
+			}
+			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, services.AccessListMembersGetter, accessListMembersExecutor]{cache: c, watch: watch}
+			collections.byKind[resourceKind] = collections.accessLists
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2322,11 +2329,28 @@ var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExe
 type accessListsExecutor struct{}
 
 func (accessListsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessList, error) {
-	resources, err := cache.accessListsCache.GetAccessLists(ctx)
-	return resources, trace.Wrap(err)
+	var accessLists []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+
+		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessLists = append(accessLists, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+	return accessLists, nil
 }
 
 func (accessListsExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessList) error {
+	fmt.Printf("Yes? %+v\n", resource.GetMetadata())
 	_, err := cache.accessListsCache.UpsertAccessList(ctx, resource)
 	return trace.Wrap(err)
 }
@@ -2381,7 +2405,7 @@ var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}
 type userLoginStateExecutor struct{}
 
 func (userLoginStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
-	resources, err := cache.userLoginStateCache.GetUserLoginStates(ctx)
+	resources, err := cache.Config.UserLoginStates.GetUserLoginStates(ctx)
 	return resources, trace.Wrap(err)
 }
 
@@ -2407,4 +2431,77 @@ func (userLoginStateExecutor) getReader(cache *Cache, cacheOK bool) services.Use
 	return cache.Config.UserLoginStates
 }
 
-var _ executor[*accesslist.AccessList, services.AccessListsGetter] = accessListsExecutor{}
+var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}
+
+type accessListMembersExecutor struct{}
+
+func (accessListMembersExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*accesslist.AccessListMember, error) {
+	// Get all access lists
+	var accessLists []*accesslist.AccessList
+	var nextToken string
+	for {
+		var page []*accesslist.AccessList
+		var err error
+
+		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessLists = append(accessLists, page...)
+
+		if nextToken == "" {
+			break
+		}
+	}
+
+	// Get the members of each access list.
+	var members []*accesslist.AccessListMember
+	for _, accessList := range accessLists {
+		for {
+			var page []*accesslist.AccessListMember
+			var err error
+
+			page, nextToken, err = cache.Config.AccessListMembers.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			members = append(members, page...)
+
+			if nextToken == "" {
+				break
+			}
+		}
+	}
+	return members, nil
+}
+
+func (accessListMembersExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
+	fmt.Printf("Yes? %+v\n", resource.GetMetadata())
+	_, err := cache.accessListMembersCache.UpsertAccessListMember(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (accessListMembersExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.accessListMembersCache.DeleteAllAccessListMembers(ctx)
+}
+
+func (accessListMembersExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	member, ok := resource.(*accesslist.AccessListMember)
+	if !ok {
+		return trace.BadParameter("expected *accesslist.AccessListMember, got %T", resource)
+	}
+	return cache.accessListMembersCache.DeleteAccessListMember(ctx, member.Spec.AccessList, member.GetName())
+}
+
+func (accessListMembersExecutor) isSingleton() bool { return false }
+
+func (accessListMembersExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListMembersGetter {
+	if cacheOK {
+		return cache.accessListMembersCache
+	}
+	return cache.Config.AccessListMembers
+}
+
+var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}

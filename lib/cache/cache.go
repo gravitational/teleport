@@ -118,6 +118,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindAccessList},
 		{Kind: types.KindUserLoginState},
+		{Kind: types.KindAccessListMember},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -476,6 +477,7 @@ type Cache struct {
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	accessListsCache             services.AccessLists
 	userLoginStateCache          services.UserLoginStates
+	accessListMembersCache       services.AccessListMembers
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -633,6 +635,8 @@ type Config struct {
 	AccessLists services.AccessLists
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
+	// AccessListMembers is the access list members service.
+	AccessListMembers services.AccessListMembers
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -845,6 +849,7 @@ func New(config Config) (*Cache, error) {
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
 		accessListsCache:             accessListsCache,
 		userLoginStateCache:          userLoginStatesCache,
+		accessListMembersCache:       accessListsCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2528,6 +2533,32 @@ func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserL
 	}
 	defer rg.Release()
 	return rg.reader.GetUserLoginStates(ctx)
+}
+
+// ListAccessListMembers returns a paginated list of all access list members.
+func (c *Cache) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListMembers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListAccessListMembers(ctx, accessList, pageSize, pageToken)
+}
+
+// GetAccessListMember returns the specified access list member resource.
+func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListMember")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessListMember(ctx, accessList, memberName)
 }
 
 // GetUserLoginState returns the specified user login state resource.
