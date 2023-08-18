@@ -67,8 +67,12 @@ jobs:
         with:
           version: latest
       - uses: bufbuild/buf-lint-action@v1
-      # Breaking changes against master.
-      - uses: bufbuild/buf-breaking-action@v1
+      - name: buf breaking --against=parent
+        uses: bufbuild/buf-breaking-action@v1
+        with:
+          against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+      - name: buf breaking --against=master
+        uses: bufbuild/buf-breaking-action@v1
         if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
         with:
           against: "https://github.com/${GITHUB_REPOSITORY}.git#branch=master"
@@ -85,7 +89,3 @@ jobs:
       - name: Check if Operator CRDs are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
-
-      # TODO(codingllama): Do this using the Buf action.
-      - name: Check protos for breakage against parent
-        run: buf breaking . --against "https://github.com/${{ github.repository }}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
