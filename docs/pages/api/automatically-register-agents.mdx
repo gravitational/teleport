@@ -127,8 +127,9 @@ As with all Teleport users, the Teleport Auth Service authenticates the
 will request the credentials manually by *impersonating* the `register-apps`
 role and user.
 
-<ScopedBlock scope={["oss", "enterprise"]}>If you are using `tctl` from the Auth
-Service host, you will already have impersonation privileges.</ScopedBlock>
+If you are running a self-hosted Teleport Enterprise deployment and are using
+`tctl` from the Auth Service host, you will already have impersonation
+privileges.
 
 To grant your user impersonation privileges for `register-apps`, create a file
 called `register-apps-impersonator.yaml` defining a role:
