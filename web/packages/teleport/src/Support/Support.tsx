@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Card, Box, Text, Flex } from 'design';
+import { Box, Card, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import styled from 'styled-components';
@@ -34,13 +34,16 @@ export default function Container({
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
+  // showCTA returns the premium support value for enterprise customers and true for OSS users
+  const showCTA = cfg.isEnterprise ? ctx.lockedFeatures.premiumSupport : true;
+
   return (
     <Support
       {...cluster}
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
-      showPremiumSupportCTA={ctx.lockedFeatures.premiumSupport}
+      showPremiumSupportCTA={showCTA}
       children={children}
     />
   );
@@ -82,7 +85,7 @@ export const Support = ({
               title="Send Product Feedback"
               url="mailto:support@goteleport.com"
             />
-            {isEnterprise && showPremiumSupportCTA && (
+            {showPremiumSupportCTA && (
               <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
                 Unlock Premium Support w/Enterprise
               </ButtonLockedFeature>
@@ -207,6 +210,7 @@ const StyledSupportLink = styled.a.attrs({
   margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
+
   ${props => props.theme.typography.body2}
   &:hover, &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
