@@ -39,8 +39,8 @@ In it, we have the following Teleport components:
 - [Teleport Discovery Service](#discovery). Automatically discovers
   cloud-hosted databases and enrolls them in the Teleport cluster.
 
-Database Service establishes an SSH reverse tunnel to the Proxy Service. As
-such, users do not need to have direct connectivity to the Database Service, or
+The Database Service establishes an SSH reverse tunnel to the Proxy Service. As
+such, users do not need to have direct connectivity to the Database Service or
 the databases it's connected to. As long as it can dial back to the cluster's
 Proxy Service, it can be located behind a firewall.
 
@@ -65,8 +65,8 @@ connect to a database.
    standard database client (e.g. `psql`) with this client certificate to
    authenticate with the Teleport Proxy Service.
 1. The Proxy Service authenticates the connection and dispatches it to the
-   appropriate Database Service based on the routing information encoded in the
-   client certificate, over the reverse tunnel.
+   appropriate Database Service instance based on the routing information
+   encoded in the client certificate, over the reverse tunnel.
 1. The Database Service authenticates the connection, performs an authorization
    check, and then establishes the connection to the database.
 1. The Database Service begins proxying traffic between the user's database
