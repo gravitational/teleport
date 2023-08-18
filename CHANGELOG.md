@@ -19,8 +19,7 @@
 * EKS and AKS discovery are now considered Generally Available [#30209](https://github.com/gravitational/teleport/pull/30209)
 * Fixed a panic when importing GKE clusters without labels [#30647](https://github.com/gravitational/teleport/pull/30647)
 * Added support for auditing chunked SQL Server packets [#30243](https://github.com/gravitational/teleport/pull/30243)
-
-* Make the plugins exit when the connection breaks if running in Kubernetes instead of retrying infinetly [#30039](https://github.com/gravitational/teleport/pull/30039)
+* Plugins now exit when the connection breaks in Kubernetes [#30039](https://github.com/gravitational/teleport/pull/30039)
 
 ## 13.3.2 (08/08/23)
 
