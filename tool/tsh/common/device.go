@@ -96,10 +96,8 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var dev *devicepb.Device
-	var outcome enroll.RunAdminOutcome
 	ctx := cf.Context
-	if err := client.RetryWithRelogin(ctx, teleportClient, func() error {
+	return trace.Wrap(client.RetryWithRelogin(ctx, teleportClient, func() error {
 		proxyClient, err := teleportClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -112,23 +110,25 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 		}
 		defer authClient.Close()
 		devices := authClient.DevicesClient()
-
 		enrollCeremony := enroll.NewCeremony()
+
+		// Admin fast-tracked enrollment.
 		if c.currentDevice {
-			dev, outcome, err = enrollCeremony.RunAdmin(ctx, devices, cf.Debug)
-			// err handled below.
-		} else {
-			dev, err = enrollCeremony.Run(ctx, devices, cf.Debug, c.token)
-			if err == nil {
-				outcome = enroll.DeviceEnrolled
-			}
-			// err handled below.
+			dev, outcome, err := enrollCeremony.RunAdmin(ctx, devices, cf.Debug)
+			printEnrollOutcome(outcome, dev) // Report partial successes.
+			return trace.Wrap(err)
+		}
+
+		// End-user enrollment.
+		dev, err := enrollCeremony.Run(ctx, devices, cf.Debug, c.token)
+		if err == nil {
+			printEnrollOutcome(enroll.DeviceEnrolled, dev)
 		}
 		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
-	}
+	}))
+}
 
+func printEnrollOutcome(outcome enroll.RunAdminOutcome, dev *devicepb.Device) {
 	var action string
 	switch outcome {
 	case enroll.DeviceRegisteredAndEnrolled:
@@ -137,11 +137,13 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 		action = "registered"
 	case enroll.DeviceEnrolled:
 		action = "enrolled"
+	default:
+		return // All actions failed, don't print anything.
 	}
+
 	fmt.Printf(
 		"Device %q/%v %v\n",
 		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType), action)
-	return nil
 }
 
 type deviceCollectCommand struct {
