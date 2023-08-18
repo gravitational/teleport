@@ -200,7 +200,8 @@ your terminal, and manually adjust `/etc/teleport.yaml`.
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+  <TabItem label="Self-Hosted Edition" scope={["oss","enterprise"]}>
 ```code
 $ sudo teleport db configure create \
    -o file \
@@ -212,8 +213,8 @@ $ sudo teleport db configure create \
    --aws-account-id=(=aws.aws_access_key=)  \
    --labels=env=dev
 ```
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+  </TabItem>
+  <TabItem label="Cloud"  scope={["cloud"]}>
 ```code
 $ sudo teleport db configure create \
    -o file \
@@ -225,7 +226,8 @@ $ sudo teleport db configure create \
    --aws-account-id=(=aws.aws_access_key=)  \
    --labels=env=dev
 ```
-</ScopedBlock>
+  </TabItem>
+  </Tabs>
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 

@@ -182,8 +182,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
+<Tabs>
+  <TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
 ```code
 $ teleport db configure create \
    -o file \
@@ -191,9 +191,8 @@ $ teleport db configure create \
    --proxy=<Var name="teleport.example.com" />:443 \
    --azure-sqlserver-discovery=eastus
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+  </TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
 ```code
 $ teleport db configure create \
    -o file \
@@ -201,7 +200,8 @@ $ teleport db configure create \
    --proxy=<Var name="mytenant.teleport.sh" />:443 \
    --azure-sqlserver-discovery=eastus
 ```
-</ScopedBlock>
+  </TabItem>
+</Tabs>
 
 The command will generate a Database Service configuration with Azure SQL
 Server auto-discovery enabled in the `eastus` region and place it at the
@@ -225,7 +225,8 @@ Server auto-discovery enabled in the `eastus` region and place it at the
 Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+  <TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=alice
@@ -236,8 +237,8 @@ sqlserver          Azure SQL Server in westeurope     [*]           ...
 sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+  </TabItem>
+  <TabItem label="Cloud" scope={["cloud"]}>
 
 ```code
 $ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=alice
@@ -248,7 +249,8 @@ sqlserver          Azure SQL Server in westeurope     [*]           ...
 sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
 ```
 
-</ScopedBlock>
+  </TabItem>
+</Tabs>
 
 To retrieve credentials for a database and connect to it:
 
