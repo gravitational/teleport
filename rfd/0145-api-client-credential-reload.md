@@ -41,18 +41,20 @@ of the API client and Access plugins in their current state.
 
 ## Details
 
-One of the challenges with implementing this is the complexity of transport
-to the Teleport API - we not only need to reload the TLS credentials which are
-presented during the TLS handshake, but also the SSH credentials which are
-used in some circumstances to open a tunnel to the Auth Server.
-
-We should also aim to support the rotation of Certificate Authorities.
-
-It may be helpful to reduce the success criteria of this build to focus on 
-short-lived identity files. This simplifies the implementation as an identity 
+It may be helpful to reduce the success criteria of this build to focus on
+short-lived identity files. This simplifies the implementation as an identity
 file contains all relevant material within a single file. This is in contrast
 to a separate key and certificate file where it is possible to reload it in an
 inconsistent state where the key does not match the certificate.
+
+One of the challenges with implementing this is the complexity of transport
+to the Teleport API - we not only need to reload the TLS credentials which are
+presented during the TLS handshake, but also the SSH credentials which are
+used as part of our custom diallers that establish connectivity over tunnels.
+
+We should also aim to support the rotation of Certificate Authorities. Machine
+ID will output rotated CA credentials and having the API client automatically
+load these will improve stability of tools that use the API over CA rotations.
 
 ### Option A: Credential reloading
 
@@ -60,59 +62,45 @@ In this option, we build support for reloading files directly into each of the
 `client.Credential` credential loader implementations. The client itself remains
 unaware that any credential reloading as occurred.
 
+For a developer writing a custom automation, it would look like so:
+
+```go
+func example() {
+	identityFileWatcher, err := client.WatchIdentityFile("my-identity-file")
+	defer identityFileWatcher.Close()
+	
+    clt, err := client.New(ctx, client.Config{
+        Addrs: []string{
+        "tele.example.com:443",
+        },
+        Credentials: []client.Credentials{
+            identityFileWatcher,
+        },
+    })
+	
+	// Or, rather than relying on change detection within the
+	// IdentityFileWatcher, a Reload() could be manually invoked.
+	err = identityFileWatcher.Reload()
+}
+```
+
 The challenge of this is that the `tls.Config` and `ssh.Config` passed into the
 `api.Client` cannot be mutated. This is not just down to concerns of concurrent
 read and writes, but also because these config types are deep copied before use
 in the gRPC client.
 
 Therefore, this implementation relies on the callback fields offered on these
-config types. This can be challenging as these callbacks do not always map
-one-to-one to the static field equivalent. For example, compare the complexity
-of a static configuration of a root CA pool against a dynamic one (which
-requires you to reimplement certificate verification):
-
-```go
-package main
-
-import (
-	"crypto/tls"
-	"crypto/x509"
-)
-
-func static() {
-	pool := x509.NewCertPool()
-    tls.Config{
-        RootCAs: pool,
-    }
-}
-
-func dynamic() {
-	pool := x509.NewCertPool()
-	tls.Config{
-		VerifyConnection: func(state tls.ConnectionState) error {
-			opts := x509.VerifyOptions{
-				DNSName:       state.ServerName,
-				Intermediates: x509.NewCertPool(),
-				Roots:         pool,
-			}
-			for _, cert := range state.PeerCertificates[1:] {
-				opts.Intermediates.AddCert(cert)
-			}
-			_, err := state.PeerCertificates[0].Verify(opts)
-			return err
-		},
-	}
-}
-```
+config types (e.g `tls.Config.VerifyConnection`). This can be challenging as 
+these callbacks do not always map one-to-one to the static field equivalent.
 
 Benefits:
 
 - The scope of the changes in this build is limited to the credential loader
   implementations themselves - this reduces the risk of introducing a bug in the
   Teleport API client and makes this build simpler.
-- The risk of this change could be reduced further by introducing new
-  credential loaders which support this behaviour, rather than modifying
-  the existing ones.
+- By creating a new `client.Credential` instead of modifying an existing one, we
+  can further reduce the risk of regressions.
+- Implementation is relatively simple compared to option B.
 
 Drawbacks:
 
@@ -126,6 +114,8 @@ Drawbacks:
 In this option, no changes are made to the existing credential loaders. Instead,
 a change is made to the Teleport Client to support reloading credentials on a 
 fixed interval or when manually requested.
+
+For a developer writing a custom automation, it would look like so:
 
 ```go
 func example() {
@@ -144,3 +134,5 @@ func example() {
 	err = clt.ReloadCredentials(ctx)
 }
 ```
+
+### Decision
