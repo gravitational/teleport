@@ -59,6 +59,7 @@ export enum NavTitle {
   EnrollNewIntegration = 'Enroll New Integration',
   NewRequest = 'New Request',
   ReviewRequests = 'Review Requests',
+  AccessLists = 'Access Lists',
 
   // Activity
   SessionRecordings = 'Session Recordings',
