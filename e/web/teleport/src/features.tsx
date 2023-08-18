@@ -362,6 +362,7 @@ class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
 export function getEnterpriseFeatures(): TeleportFeature[] {
   return [
     // Resources
+    new OSS.FeatureUnifiedResources(),
     new OSS.FeatureNodes(),
     new OSS.FeatureApps(),
     new OSS.FeatureKubes(),
