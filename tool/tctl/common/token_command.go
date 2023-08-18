@@ -163,6 +163,12 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	// If it's Kube, then enable App and Discovery roles automatically so users
+	// don't have problems with running Kubernetes App Discovery by default.
+	if len(roles) == 1 && roles[0] == types.RoleKube {
+		roles = append(roles, types.RoleApp, types.RoleDiscovery)
+	}
+
 	token := c.value
 	if c.value == "" {
 		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
