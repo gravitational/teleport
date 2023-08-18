@@ -473,6 +473,10 @@ type CLIConf struct {
 	// headlessSkipConfirm determines whether to provide a y/N
 	// confirmation prompt before prompting for MFA.
 	headlessSkipConfirm bool
+
+	// WebauthnLogin allows tests to override the Webauthn Login func.
+	// Defaults to [wancli.Login].
+	WebauthnLogin client.WebauthnLoginFunc
 }
 
 // Stdout returns the stdout writer.
@@ -3673,6 +3677,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// pass along mock sso login if provided (only used in tests)
 	c.MockSSOLogin = cf.mockSSOLogin
 	c.MockHeadlessLogin = cf.mockHeadlessLogin
+	c.WebauthnLogin = cf.WebauthnLogin
 
 	// pass along MySQL/Postgres path overrides (only used in tests).
 	c.OverrideMySQLOptionFilePath = cf.overrideMySQLOptionFilePath
