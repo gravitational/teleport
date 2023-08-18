@@ -2,6 +2,7 @@
 
 ## 13.3.3 (08/18/23)
 
+* Added allowing host users to be created with a specific UID or GID [#30178](https://github.com/gravitational/teleport/pull/30178)
 * Fixed SSH agent forwarding under Cygwin [#30582](https://github.com/gravitational/teleport/pull/30582)
 * Fixed resource name resolution issues in `tsh db` [#30563](https://github.com/gravitational/teleport/pull/30563)
 * Retired obsolete AWS `aurora` engine identifier [#30548](https://github.com/gravitational/teleport/pull/30548)
