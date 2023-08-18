@@ -2050,7 +2050,7 @@ func (process *TeleportProcess) initAuthService() error {
 			ctx := payloadContext(payload, log)
 			log.Info("Shutting down immediately (auth service does not currently support graceful shutdown).")
 			// NOTE: Graceful shutdown of auth.TLSServer is disabled right now, because we don't
-			// have a good model for performing it.  In particular, watchers and other GRPC streams
+			// have a good model for performing it.  In particular, watchers and other gRPC streams
 			// are a problem.  Even if we distinguish between user-created and server-created streams
 			// (as is done with ssh connections), we don't have a way to distinguish "service accounts"
 			// such as access workflow plugins from normal users.  Without this, a graceful shutdown

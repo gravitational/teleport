@@ -417,7 +417,7 @@ func (i *downstreamICS) Error() error {
 }
 
 // NewUpstreamInventoryControlStream wraps the server-side control stream handle. For use as part of the internals
-// of the auth server's GRPC API implementation.
+// of the auth server's gRPC API implementation.
 func NewUpstreamInventoryControlStream(stream proto.AuthService_InventoryControlStreamServer, peerAddr string) UpstreamInventoryControlStream {
 	ics := &upstreamICS{
 		sendC:    make(chan downstreamSend),

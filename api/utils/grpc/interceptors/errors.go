@@ -24,7 +24,7 @@ import (
 
 // grpcServerStreamWrapper wraps around the embedded grpc.ServerStream
 // and intercepts the RecvMsg and SendMsg method calls converting errors
-// to the appropriate grpc status error.
+// to the appropriate gRPC status error.
 type grpcServerStreamWrapper struct {
 	grpc.ServerStream
 }
@@ -41,7 +41,7 @@ func (s *grpcServerStreamWrapper) RecvMsg(m interface{}) error {
 
 // grpcClientStreamWrapper wraps around the embedded grpc.ClientStream
 // and intercepts the RecvMsg and SendMsg method calls converting errors
-// to the appropriate grpc status error.
+// to the appropriate gRPC status error.
 type grpcClientStreamWrapper struct {
 	grpc.ClientStream
 }
@@ -56,28 +56,28 @@ func (s *grpcClientStreamWrapper) RecvMsg(m interface{}) error {
 	return trace.Unwrap(trail.FromGRPC(s.ClientStream.RecvMsg(m)))
 }
 
-// GRPCServerUnaryErrorInterceptor is a GRPC unary server interceptor that
-// handles converting errors to the appropriate grpc status error.
+// GRPCServerUnaryErrorInterceptor is a gRPC unary server interceptor that
+// handles converting errors to the appropriate gRPC status error.
 func GRPCServerUnaryErrorInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	resp, err := handler(ctx, req)
 	return resp, trace.Unwrap(trail.ToGRPC(err))
 }
 
-// GRPCClientUnaryErrorInterceptor is a GRPC unary client interceptor that
+// GRPCClientUnaryErrorInterceptor is a gRPC unary client interceptor that
 // handles converting errors to the appropriate grpc status error.
 func GRPCClientUnaryErrorInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	return trace.Unwrap(trail.FromGRPC(invoker(ctx, method, req, reply, cc, opts...)))
 }
 
-// GRPCServerStreamErrorInterceptor is a GRPC server stream interceptor that
-// handles converting errors to the appropriate grpc status error.
+// GRPCServerStreamErrorInterceptor is a gRPC server stream interceptor that
+// handles converting errors to the appropriate gRPC status error.
 func GRPCServerStreamErrorInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	serverWrapper := &grpcServerStreamWrapper{ss}
 	return trace.Unwrap(trail.ToGRPC(handler(srv, serverWrapper)))
 }
 
-// GRPCClientStreamErrorInterceptor is GRPC client stream interceptor that
-// handles converting errors to the appropriate grpc status error.
+// GRPCClientStreamErrorInterceptor is gRPC client stream interceptor that
+// handles converting errors to the appropriate gRPC status error.
 func GRPCClientStreamErrorInterceptor(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 	s, err := streamer(ctx, desc, cc, method, opts...)
 	if err != nil {
