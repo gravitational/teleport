@@ -96,7 +96,6 @@ export function Resources() {
 
   if (!enabled) {
     history.replace(cfg.getNodesRoute(clusterId));
-    return;
   }
 
   return (

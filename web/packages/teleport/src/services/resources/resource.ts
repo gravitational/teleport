@@ -42,7 +42,7 @@ class ResourceService {
       .then(json => {
         const items = json?.items || [];
 
-        // TODO (avatus) REMOVE IN 15.0
+        // TODO (avatus) DELETE IN 15.0
         // if this request succeeds, we don't need a legacy view
         localStorage.removeItem(KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED);
         return {
@@ -54,7 +54,7 @@ class ResourceService {
       .catch(res => {
         // TODO (avatus) : a temporary check to catch unimplemented errors for unified resources
         // This is a quick hacky way to catch the error until we migrate completely to unified resources
-        // REMOVE IN 15.0
+        // DELETE IN 15.0
         if (res.response?.status === 404 || res.response?.status === 501) {
           localStorage.setItem(
             KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED,

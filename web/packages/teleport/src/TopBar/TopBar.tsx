@@ -110,7 +110,7 @@ export function TopBar() {
 
     const newPath = history.location.pathname.replace(oldPrefix, newPrefix);
 
-    // TODO (avatus) REMOVE IN 15 (LEGACY RESOURCES SUPPORT)
+    // TODO (avatus) DELETE IN 15 (LEGACY RESOURCES SUPPORT)
     // this is a temporary hack to support leaf clusters _maybe_ not having access
     // to unified resources yet. When unified resources are loaded in fetchUnifiedResources,
     // if the response is a 404 (the endpoint doesnt exist), we:
