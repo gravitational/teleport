@@ -51,6 +51,8 @@ func NewCeremony() *Ceremony {
 	}
 }
 
+// RunAdminOutcome is the outcome of [Ceremony.RunAdmin].
+// It is used to communicate the actions performed.
 type RunAdminOutcome int
 
 const (
