@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -37,7 +36,6 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestListKubernetesResources(t *testing.T) {
@@ -394,16 +392,8 @@ func initGRPCServer(t *testing.T, testCtx *kubeproxy.TestContext, listener net.L
 	}
 
 	grpcServer := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
-			authMiddleware.UnaryInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
-			authMiddleware.StreamInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
+		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(credentials.NewTLS(
 			copyAndConfigureTLS(tlsConfig, logrus.New(), testCtx.AuthClient, clusterName),
 		)),
