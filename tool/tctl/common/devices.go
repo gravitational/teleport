@@ -129,7 +129,7 @@ func (c *DevicesCommand) TryRun(ctx context.Context, selectedCommand string, aut
 }
 
 type deviceAddCommand struct {
-	currentDeviceCommand
+	canOperateOnCurrentDevice
 
 	os        string // string from command line, distinct from inherited osType!
 	enroll    bool
@@ -258,7 +258,7 @@ func (c *deviceListCommand) Run(ctx context.Context, authClient auth.ClientI) er
 }
 
 type deviceRemoveCommand struct {
-	currentDeviceCommand
+	canOperateOnCurrentDevice
 
 	deviceID string
 }
@@ -297,7 +297,7 @@ func (c *deviceRemoveCommand) Run(ctx context.Context, authClient auth.ClientI) 
 }
 
 type deviceEnrollCommand struct {
-	currentDeviceCommand
+	canOperateOnCurrentDevice
 
 	deviceID string
 	ttl      time.Duration
@@ -343,7 +343,7 @@ func (c *deviceEnrollCommand) Run(ctx context.Context, authClient auth.ClientI) 
 }
 
 type deviceLockCommand struct {
-	currentDeviceCommand
+	canOperateOnCurrentDevice
 
 	deviceID string
 	message  string
@@ -448,9 +448,9 @@ func findDeviceID(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	return deviceID, assetTag, nil
 }
 
-// currentDeviceCommand marks commands capable of operating against the current
-// device.
-type currentDeviceCommand struct {
+// canOperateOnCurrentDevice marks commands capable of operating against the
+// current device.
+type canOperateOnCurrentDevice struct {
 	osType   devicepb.OSType
 	assetTag string
 
@@ -459,7 +459,7 @@ type currentDeviceCommand struct {
 	currentDevice bool
 }
 
-func (c *currentDeviceCommand) setCurrentDevice() (bool, error) {
+func (c *canOperateOnCurrentDevice) setCurrentDevice() (bool, error) {
 	if !c.currentDevice {
 		return false, nil
 	}
