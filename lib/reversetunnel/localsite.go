@@ -246,7 +246,7 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 		return false
 	}
 	// the node is an agentless node, the connection must be forwarded
-	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
 		return true
 	}
 	// proxy session recording mode is being used and an SSH session
@@ -283,7 +283,7 @@ func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, useTunnel
 }
 
 func (s *localSite) maybeSendSignedPROXYHeader(params reversetunnelclient.DialParams, conn net.Conn, useTunnel bool) error {
-	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.AgentlessSigner != nil, params.From, params.OriginalClientDstAddr) {
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, useTunnel, params.IsAgentlessNode, params.From, params.OriginalClientDstAddr) {
 		return nil
 	}
 
@@ -355,8 +355,8 @@ func (s *localSite) adviseReconnect(ctx context.Context) {
 }
 
 func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
-		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
+	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+		return nil, trace.BadParameter("agentless node require an agent getter")
 	}
 	s.log.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
@@ -396,28 +396,31 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 	// server does not need to close, it will close and release all resources
 	// once conn is closed.
 	serverConfig := forward.ServerConfig{
-		AuthClient:      s.client,
-		UserAgent:       userAgent,
-		AgentlessSigner: params.AgentlessSigner,
-		TargetConn:      targetConn,
-		SrcAddr:         params.From,
-		DstAddr:         params.To,
-		HostCertificate: hostCertificate,
-		Ciphers:         s.srv.Config.Ciphers,
-		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
-		MACAlgorithms:   s.srv.Config.MACAlgorithms,
-		DataDir:         s.srv.Config.DataDir,
-		Address:         params.Address,
-		UseTunnel:       useTunnel,
-		HostUUID:        s.srv.ID,
-		Emitter:         s.srv.Config.Emitter,
-		ParentContext:   s.srv.Context,
-		LockWatcher:     s.srv.LockWatcher,
-		TargetID:        params.ServerID,
-		TargetAddr:      params.To.String(),
-		TargetHostname:  params.Address,
-		TargetServer:    params.TargetServer,
-		Clock:           s.clock,
+		AuthClient:          s.client,
+		UserAgent:           userAgent,
+		IsAgentlessNode:     params.IsAgentlessNode,
+		ProxyPublicAddress:  params.ProxyPublicAddress,
+		DestinationListener: params.ToListener,
+		AgentlessSigner:     params.AgentlessSigner,
+		TargetConn:          targetConn,
+		SrcAddr:             params.From,
+		DstAddr:             params.To,
+		HostCertificate:     hostCertificate,
+		Ciphers:             s.srv.Config.Ciphers,
+		KEXAlgorithms:       s.srv.Config.KEXAlgorithms,
+		MACAlgorithms:       s.srv.Config.MACAlgorithms,
+		DataDir:             s.srv.Config.DataDir,
+		Address:             params.Address,
+		UseTunnel:           useTunnel,
+		HostUUID:            s.srv.ID,
+		Emitter:             s.srv.Config.Emitter,
+		ParentContext:       s.srv.Context,
+		LockWatcher:         s.srv.LockWatcher,
+		TargetID:            params.ServerID,
+		TargetAddr:          params.To.String(),
+		TargetHostname:      params.Address,
+		TargetServer:        params.TargetServer,
+		Clock:               s.clock,
 	}
 	// Ensure the hostname is set correctly if we have details of the target
 	if params.TargetServer != nil {

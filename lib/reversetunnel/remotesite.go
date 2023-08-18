@@ -780,7 +780,7 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		IsAgentlessNode: params.AgentlessSigner != nil,
+		IsAgentlessNode: params.IsAgentlessNode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -790,8 +790,8 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 }
 
 func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
-	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
-		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
+	if params.GetUserAgent == nil && !params.IsAgentlessNode {
+		return nil, trace.BadParameter("user agent getter is required for non-agentless nodes")
 	}
 	s.logger.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 
@@ -822,7 +822,7 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 		ConnType:        params.ConnType,
 		ClientSrcAddr:   stringOrEmpty(params.From),
 		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		IsAgentlessNode: params.AgentlessSigner != nil,
+		IsAgentlessNode: params.IsAgentlessNode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -835,29 +835,31 @@ func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ ne
 	// Note: A localClient is passed to the forwarding server to make sure the
 	// session gets recorded in the local cluster instead of the remote cluster.
 	serverConfig := forward.ServerConfig{
-		AuthClient:      s.localClient,
-		UserAgent:       userAgent,
-		AgentlessSigner: params.AgentlessSigner,
-		TargetConn:      targetConn,
-		SrcAddr:         params.From,
-		DstAddr:         params.To,
-		HostCertificate: hostCertificate,
-		Ciphers:         s.srv.Config.Ciphers,
-		KEXAlgorithms:   s.srv.Config.KEXAlgorithms,
-		MACAlgorithms:   s.srv.Config.MACAlgorithms,
-		DataDir:         s.srv.Config.DataDir,
-		Address:         params.Address,
-		UseTunnel:       UseTunnel(s.logger, targetConn),
-		FIPS:            s.srv.FIPS,
-		HostUUID:        s.srv.ID,
-		Emitter:         s.srv.Config.Emitter,
-		ParentContext:   s.srv.Context,
-		LockWatcher:     s.srv.LockWatcher,
-		TargetID:        params.ServerID,
-		TargetAddr:      params.To.String(),
-		TargetHostname:  params.Address,
-		TargetServer:    params.TargetServer,
-		Clock:           s.clock,
+		AuthClient:         s.localClient,
+		UserAgent:          userAgent,
+		IsAgentlessNode:    params.IsAgentlessNode,
+		ProxyPublicAddress: params.ProxyPublicAddress,
+		AgentlessSigner:    params.AgentlessSigner,
+		TargetConn:         targetConn,
+		SrcAddr:            params.From,
+		DstAddr:            params.To,
+		HostCertificate:    hostCertificate,
+		Ciphers:            s.srv.Config.Ciphers,
+		KEXAlgorithms:      s.srv.Config.KEXAlgorithms,
+		MACAlgorithms:      s.srv.Config.MACAlgorithms,
+		DataDir:            s.srv.Config.DataDir,
+		Address:            params.Address,
+		UseTunnel:          UseTunnel(s.logger, targetConn),
+		FIPS:               s.srv.FIPS,
+		HostUUID:           s.srv.ID,
+		Emitter:            s.srv.Config.Emitter,
+		ParentContext:      s.srv.Context,
+		LockWatcher:        s.srv.LockWatcher,
+		TargetID:           params.ServerID,
+		TargetAddr:         params.To.String(),
+		TargetHostname:     params.Address,
+		TargetServer:       params.TargetServer,
+		Clock:              s.clock,
 	}
 	// Ensure the hostname is set correctly if we have details of the target
 	if params.TargetServer != nil {

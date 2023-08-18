@@ -1440,6 +1440,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
+		PublicAddress:       proxyClient.Endpoint(),
 	})
 	require.NoError(t, err)
 
@@ -1581,6 +1582,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
+		PublicAddress:       proxyClient.Endpoint(),
 	})
 	require.NoError(t, err)
 
@@ -2362,6 +2364,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		RemoteClusterGetter: proxyClient,
 		SiteGetter:          reverseTunnelServer,
 		TracerProvider:      tracing.NoopProvider(),
+		PublicAddress:       proxyClient.Endpoint(),
 	})
 	require.NoError(t, err)
 

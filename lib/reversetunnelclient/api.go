@@ -40,9 +40,24 @@ type DialParams struct {
 	// To is the destination address.
 	To net.Addr
 
+	// ToListener is the destination listener.
+	// This is required when there's another TCP listener that is responsible for receiving the connection and forward it to another system.
+	// This is the case for the EC2 Instance Connect Endpoint in use by the SubKindOpenSSHEICENode.
+	// To field must point to this listener.
+	ToListener net.Listener
+
 	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
+
+	// IsAgentlessNode indicates whether the Node is an OpenSSH Node.
+	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.
+	IsAgentlessNode bool
+
+	// proxyPublicAddress is the Teleport's Proxy Public Address.
+	// Required for Dialing to Nodes with SubKind OpenSSHEICENode
+	// This is used to generate AWS OIDC API Tokens to create EC2 Instance Connect Endpoint tunnels.
+	ProxyPublicAddress string
 
 	// AgentlessSigner is used for authenticating to the remote host when it is an
 	// agentless node.

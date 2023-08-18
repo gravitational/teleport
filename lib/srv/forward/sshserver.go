@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -174,6 +175,16 @@ type Server struct {
 	// It **MUST** only be populated when the target is a teleport ssh server
 	// or an agentless server.
 	targetServer types.Server
+
+	// proxyPublicAddress is the Teleport's Proxy Public Address.
+	// Required for Nodes with SubKind OpenSSHEphemeralKeyNode
+	// This is used to generate AWS OIDC API Tokens to create EC2 Instance Connect Endpoint tunnels.
+	proxyPublicAddress string
+
+	// destinationListener is a listener that will receive the ssh calls from this ssh Server.
+	// This is required when there's another TCP listener that is responsible for receiving the connection and forward it to another system.
+	// This is the case for the EC2 Instance Connect Endpoint in use by the SubKindOpenSSHEICENode.
+	destinationListener net.Listener
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -241,6 +252,20 @@ type ServerConfig struct {
 	// It **MUST** only be populated when the target is a teleport ssh server
 	// or an agentless server.
 	TargetServer types.Server
+
+	// IsAgentlessNode indicates whether the targetServer is a Node with an OpenSSH server (no teleport agent).
+	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
+	IsAgentlessNode bool
+
+	// ProxyPublicAddress is the Teleport's Proxy Public Address.
+	// Required for Nodes with SubKind OpenSSHEphemeralKeyNode
+	// This is used to generate AWS OIDC API Tokens to create EC2 Instance Connect Endpoint tunnels.
+	ProxyPublicAddress string
+
+	// DestinationListener is the destination listener.
+	// This is required when there's another TCP listener that is responsible for receiving the connection and forward it to another system.
+	// This is the case for the EC2 Instance Connect Endpoint in use by the SubKindOpenSSHNode.
+	DestinationListener net.Listener
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -251,8 +276,28 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if s.UserAgent == nil && s.AgentlessSigner == nil {
-		return trace.BadParameter("user agent or agentless signer required to connect to remote host")
+	if s.IsAgentlessNode {
+		if s.TargetServer == nil {
+			return trace.BadParameter("target server is required for agentless nodes")
+		}
+
+		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
+			if s.ProxyPublicAddress == "" {
+				return trace.BadParameter("missing parameter ProxyPublicAddress")
+			}
+
+			if s.DestinationListener == nil {
+				return trace.BadParameter("missing parameter DestinationListener")
+			}
+		}
+
+		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHNode && s.AgentlessSigner == nil {
+			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
+		}
+	}
+
+	if s.UserAgent == nil && !s.IsAgentlessNode {
+		return trace.BadParameter("user agent required for teleport nodes (agentless)")
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -308,28 +353,30 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:              uuid.New().String(),
-		targetConn:      c.TargetConn,
-		serverConn:      utils.NewTrackingConn(serverConn),
-		clientConn:      clientConn,
-		userAgent:       c.UserAgent,
-		agentlessSigner: c.AgentlessSigner,
-		hostCertificate: c.HostCertificate,
-		useTunnel:       c.UseTunnel,
-		address:         c.Address,
-		authClient:      c.AuthClient,
-		authService:     c.AuthClient,
-		dataDir:         c.DataDir,
-		clock:           c.Clock,
-		hostUUID:        c.HostUUID,
-		StreamEmitter:   c.Emitter,
-		parentContext:   c.ParentContext,
-		lockWatcher:     c.LockWatcher,
-		tracerProvider:  c.TracerProvider,
-		targetID:        c.TargetID,
-		targetAddr:      c.TargetAddr,
-		targetHostname:  c.TargetHostname,
-		targetServer:    c.TargetServer,
+		id:                  uuid.New().String(),
+		targetConn:          c.TargetConn,
+		serverConn:          utils.NewTrackingConn(serverConn),
+		clientConn:          clientConn,
+		userAgent:           c.UserAgent,
+		agentlessSigner:     c.AgentlessSigner,
+		hostCertificate:     c.HostCertificate,
+		useTunnel:           c.UseTunnel,
+		address:             c.Address,
+		authClient:          c.AuthClient,
+		authService:         c.AuthClient,
+		dataDir:             c.DataDir,
+		clock:               c.Clock,
+		hostUUID:            c.HostUUID,
+		StreamEmitter:       c.Emitter,
+		parentContext:       c.ParentContext,
+		lockWatcher:         c.LockWatcher,
+		tracerProvider:      c.TracerProvider,
+		targetID:            c.TargetID,
+		targetAddr:          c.TargetAddr,
+		targetHostname:      c.TargetHostname,
+		targetServer:        c.TargetServer,
+		proxyPublicAddress:  c.ProxyPublicAddress,
+		destinationListener: c.DestinationListener,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -574,9 +621,9 @@ func (s *Server) Serve() {
 		return
 	}
 
-	// OpenSSH nodes don't support moderated sessions, send an error to
-	// the user and gracefully fail the user is attempting to create one.
-	if s.targetServer != nil && s.targetServer.GetSubKind() == types.SubKindOpenSSHNode {
+	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+		// OpenSSH nodes don't support moderated sessions, send an error to
+		// the user and gracefully fail the user is attempting to create one.
 		policySets := s.identityContext.AccessChecker.SessionPolicySets()
 		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
 		if evaluator.IsModerated() {
@@ -585,6 +632,17 @@ func (s *Server) Serve() {
 
 			s.log.Debugf("Dropping connection to %s@%s that needs moderation", sconn.User(), s.clientConn.RemoteAddr())
 			return
+		}
+
+		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
+			sshSigner, err := s.setupTunnelForOpenSSHEphemeralNode(ctx)
+			if err != nil {
+				s.log.Warnf("Unable to set up EC2 Instance Connect Endpoint Tunnel for %q: %v", s.targetServer.GetName(), err)
+				return
+			}
+
+			s.agentlessSigner = sshSigner
+			s.address = s.destinationListener.Addr().String()
 		}
 	}
 
@@ -618,6 +676,60 @@ func (s *Server) Serve() {
 	})
 
 	go s.handleConnection(ctx, chans, reqs)
+}
+
+func (s Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (ssh.Signer, error) {
+	if s.targetServer.GetCloudMetadata() == nil || s.targetServer.GetCloudMetadata().AWS == nil {
+		return nil, trace.BadParameter("missing aws cloud metadata")
+	}
+	awsInfo := s.targetServer.GetCloudMetadata().AWS
+
+	issuer, err := awsoidc.IssuerFromPublicAddress(s.proxyPublicAddress)
+	if err != nil {
+		return nil, trace.BadParameter("failed to get issuer %v", err)
+	}
+
+	token, err := s.authClient.GenerateAWSOIDCToken(ctx, types.GenerateAWSOIDCTokenRequest{
+		Issuer: issuer,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to generate aws token: %v", err)
+	}
+
+	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
+	if err != nil {
+		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
+	}
+
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
+	}
+
+	openTunnelClt, err := awsoidc.NewOpenTunnelEC2Client(ctx, &awsoidc.AWSClientRequest{
+		IntegrationName: integration.GetName(),
+		Token:           token,
+		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
+		Region:          awsInfo.Region,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to create the ec2 open tunnel client: %v", err)
+	}
+
+	openTunnelResp, err := awsoidc.OpenTunnelEC2(ctx, openTunnelClt, awsoidc.OpenTunnelEC2Request{
+		Region:          awsInfo.Region,
+		InstanceID:      awsInfo.InstanceID,
+		VPCID:           awsInfo.VPCID,
+		EC2Address:      s.targetServer.GetAddr(),
+		EC2SSHLoginUser: s.identityContext.Login,
+		Listener:        s.destinationListener,
+	})
+	if err != nil {
+		return nil, trace.BadParameter("failed to open aws ec2 instance endpoint connect tunnel: %v", err)
+	}
+
+	// This is the SSH Signer that the client must used to connect to the EC2
+	// This is trusted because because awsoidc.OpenTunnelEC2 sends the public key to the host.
+	return openTunnelResp.SSHSigner, nil
 }
 
 // Close will close all underlying connections that the forwarding server holds.

@@ -401,6 +401,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		RemoteClusterGetter: s.proxyClient,
 		SiteGetter:          revTunServer,
 		TracerProvider:      tracing.NoopProvider(),
+		PublicAddress:       s.proxyClient.Endpoint(),
 	})
 	require.NoError(t, err)
 
@@ -7659,6 +7660,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		RemoteClusterGetter: client,
 		SiteGetter:          revTunServer,
 		TracerProvider:      tracing.NoopProvider(),
+		PublicAddress:       client.Endpoint(),
 	})
 	require.NoError(t, err)
 

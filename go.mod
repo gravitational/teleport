@@ -44,6 +44,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/athena v1.31.5
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.21.5
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.114.0
+	github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect v1.16.3
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.6
 	github.com/aws/aws-sdk-go-v2/service/glue v1.61.3
 	github.com/aws/aws-sdk-go-v2/service/iam v1.22.5
