@@ -51,12 +51,6 @@ func NewCeremony() *Ceremony {
 	}
 }
 
-// RunCeremony performs the client-side device enrollment ceremony.
-// Equivalent to `NewCeremony().Run()`.
-func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, debug bool, enrollToken string) (*devicepb.Device, error) {
-	return NewCeremony().Run(ctx, devicesClient, debug, enrollToken)
-}
-
 type RunAdminOutcome int
 
 const (
