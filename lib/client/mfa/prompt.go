@@ -37,6 +37,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
+// AdminMFAHintBeforePrompt is a hint used for MFA prompts for admin-level API requests.
+const AdminMFAHintBeforePrompt = "MFA is required for admin-level API request."
+
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentClient,
 })

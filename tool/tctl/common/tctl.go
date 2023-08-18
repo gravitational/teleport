@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -195,6 +196,10 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	ctx := context.Background()
 
+	mfaPrompt := mfa.NewPrompt("")
+	mfaPrompt.HintBeforePrompt = mfa.AdminMFAHintBeforePrompt
+	clientConfig.PromptAdminRequestMFA = mfaPrompt.Run
+
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
@@ -205,6 +210,13 @@ func TryRun(commands []CLICommand, args []string) error {
 			cfg.AuthServerAddresses()[0].Addr)
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
+
+	// Set proxy address for the MFA prompt from the ping response.
+	resp, err := client.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaPrompt.ProxyAddress = resp.ProxyPublicAddr
 
 	// execute whatever is selected:
 	var match bool
