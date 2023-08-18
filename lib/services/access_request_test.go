@@ -278,6 +278,8 @@ func TestReviewThresholds(t *testing.T) {
 		propose types.RequestState
 		// expect is the expected post-review state of the request (defaults to pending)
 		expect types.RequestState
+
+		errCheck require.ErrorAssertionFunc
 	}
 
 	tts := []struct {
@@ -314,10 +316,39 @@ func TestReviewThresholds(t *testing.T) {
 					propose: approve,
 					expect:  approve,
 				},
-				{ // adds second denial to all thresholds, no effect since a state-transition was already triggered.
+			},
+		},
+		{
+			desc:      "trying to deny an already approved request",
+			requestor: "alice", // permitted by role populist
+			reviews: []review{
+				{ // cannot review own requests
+					author:   "alice",
+					noReview: true,
+				},
+				{ // no matching allow directives
+					author:   g.user(t, "military"),
+					noReview: true,
+				},
+				{ // adds one approval to all thresholds
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: approve,
+				},
+				{ // adds one denial to all thresholds
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
 					propose: deny,
+				},
+				{ // adds second approval to all thresholds, triggers "uprising".
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: approve,
 					expect:  approve,
+				},
+				{ // adds second denial but request was already approved.
+					author:  g.user(t, "proletariat", "intelligentsia", "military"),
+					propose: deny,
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+						require.ErrorContains(tt, err, "can't review access request, it is approved")
+					},
 				},
 			},
 		},
@@ -574,6 +605,11 @@ func TestReviewThresholds(t *testing.T) {
 			require.True(t, ok, "scenario=%q, rev=%d", tt.desc, ri)
 
 			err = ApplyAccessReview(req, rev, author)
+			if rt.errCheck != nil {
+				rt.errCheck(t, err)
+				continue
+			}
+
 			require.NoError(t, err, "scenario=%q, rev=%d", tt.desc, ri)
 			require.Equal(t, rt.expect.String(), req.GetState().String(), "scenario=%q, rev=%d", tt.desc, ri)
 		}
