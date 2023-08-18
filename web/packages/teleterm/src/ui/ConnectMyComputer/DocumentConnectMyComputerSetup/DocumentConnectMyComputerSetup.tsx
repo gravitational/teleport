@@ -14,7 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Box, ButtonPrimary, Flex, Text } from 'design';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
@@ -55,16 +61,29 @@ export function DocumentConnectMyComputerSetup(
   const shouldRedirectToStatusDocument =
     isAgentConfiguredAttempt.status === 'success' &&
     isAgentConfiguredAttempt.data;
+  const isRedirectingRef = useRef(false);
 
-  // This redirect will happen when reopening the app with a status document,
-  // but also when the setup finishes.
-  if (shouldRedirectToStatusDocument) {
-    const statusDocument =
-      documentsService.createConnectMyComputerStatusDocument({
-        rootClusterUri,
-      });
-    documentsService.replace(props.doc.uri, statusDocument);
-  }
+  // useLayoutEffect instead of useEffect to prevent flashing the Setup document just before
+  // opening the Status document.
+  // TODO(ravicious): This is a hack and should be replaced with some other mechanism.
+  useLayoutEffect(() => {
+    // This redirect will happen when reopening the app with a status document,
+    // but also when the setup finishes.
+    if (shouldRedirectToStatusDocument && !isRedirectingRef.current) {
+      isRedirectingRef.current = true;
+
+      const statusDocument =
+        documentsService.createConnectMyComputerStatusDocument({
+          rootClusterUri,
+        });
+      documentsService.replace(props.doc.uri, statusDocument);
+    }
+  }, [
+    documentsService,
+    props.doc.uri,
+    rootClusterUri,
+    shouldRedirectToStatusDocument,
+  ]);
 
   return (
     <Document visible={props.visible}>
