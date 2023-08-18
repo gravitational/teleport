@@ -109,6 +109,7 @@
 | `teleport_proxy_db_connection_dial_failures_total`     | counter   | Teleport Proxy | Number of failed dial attempts from Proxy to DB service made.                                                                            |
 | `teleport_proxy_db_attempted_servers_total`            | histogram | Teleport Proxy | Number of servers processed during connection attempt to the DB service from Proxy service.                                              |
 | `teleport_proxy_db_connection_tls_config_time_seconds` | histogram | Teleport Proxy | Time to fetch TLS configuration for the connection to DB service from Proxy service.                                                     |
+| `teleport_proxy_db_active_connections_total`           | gauge     | Teleport Proxy | Number of currently active connections to DB service from Proxy service.                                                                 |
 
 ### Kubernetes Access
 

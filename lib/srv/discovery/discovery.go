@@ -46,6 +46,23 @@ import (
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
+// ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
+type ssmInstaller interface {
+	Run(ctx context.Context, req server.SSMRunRequest) error
+}
+
+// azureInstaller handles running commands that install Teleport on Azure
+// virtual machines.
+type azureInstaller interface {
+	Run(ctx context.Context, req server.AzureRunRequest) error
+}
+
+// gcpInstaller handles running commands that install Teleport on GCP
+// virtual machines.
+type gcpInstaller interface {
+	Run(ctx context.Context, req server.GCPRunRequest) error
+}
+
 // Config provides configuration for the discovery server.
 type Config struct {
 	// Clients is an interface for retrieving cloud clients.
@@ -116,17 +133,17 @@ type Server struct {
 	// ec2Watcher periodically retrieves EC2 instances.
 	ec2Watcher *server.Watcher
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
-	ec2Installer *server.SSMInstaller
+	ec2Installer ssmInstaller
 	// azureWatcher periodically retrieves Azure virtual machines.
 	azureWatcher *server.Watcher
 	// azureInstaller is used to start the installation process on discovered Azure
 	// virtual machines.
-	azureInstaller *server.AzureInstaller
+	azureInstaller azureInstaller
 	// gcpWatcher periodically retrieves GCP virtual machines.
 	gcpWatcher *server.Watcher
 	// gcpInstaller is used to start the installation process on discovered GCP
 	// virtual machines
-	gcpInstaller *server.GCPInstaller
+	gcpInstaller gcpInstaller
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []common.Fetcher
 	// databaseFetchers holds all database fetchers.
@@ -187,9 +204,12 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 			return trace.Wrap(err)
 		}
 
-		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
-			Emitter: s.Emitter,
-		})
+		if s.ec2Installer == nil {
+			s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+				Emitter: s.Emitter,
+			})
+		}
+
 		lr, err := newLabelReconciler(&labelReconcilerConfig{
 			log:         s.Log,
 			accessPoint: s.AccessPoint,
@@ -265,8 +285,10 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.azureInstaller = &server.AzureInstaller{
-			Emitter: s.Emitter,
+		if s.azureInstaller == nil {
+			s.azureInstaller = &server.AzureInstaller{
+				Emitter: s.Emitter,
+			}
 		}
 	}
 
@@ -331,8 +353,10 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.gcpInstaller = &server.GCPInstaller{
-			Emitter: s.Emitter,
+		if s.gcpInstaller == nil {
+			s.gcpInstaller = &server.GCPInstaller{
+				Emitter: s.Emitter,
+			}
 		}
 	}
 
