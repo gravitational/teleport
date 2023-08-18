@@ -191,4 +191,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getAssistantAccess() {
     return this.state.acl.assist;
   }
+
+  getAccessListAccess() {
+    return this.state.acl.accessList;
+  }
 }

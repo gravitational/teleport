@@ -65,6 +65,7 @@ export const allAccessAcl: Acl = {
   lock: fullAccess,
   assist: fullAccess,
   samlIdpServiceProvider: fullAccess,
+  accessList: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
