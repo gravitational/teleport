@@ -112,7 +112,7 @@ func (c *Ceremony) RunAdmin(
 		if dev.OsType == osType {
 			currentDev = dev
 			log.Debugf(
-				"Found device %q/%v, id=%q",
+				"Device Trust: Found device %q/%v, id=%q",
 				currentDev.AssetTag, devicetrust.FriendlyOSType(currentDev.OsType), currentDev.Id,
 			)
 			break
