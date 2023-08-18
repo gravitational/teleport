@@ -1028,7 +1028,7 @@ func TestKubeServerWatcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
-
+	require.NoError(t, w.WaitInitialization())
 	newKubeServer := func(t *testing.T, name, addr, hostID string) types.KubeServer {
 		kube, err := types.NewKubernetesClusterV3(
 			types.Metadata{
