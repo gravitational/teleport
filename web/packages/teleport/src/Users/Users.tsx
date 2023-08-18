@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, {
+  ReactNode,
+} from 'react';
 import { Indicator, Box, ButtonPrimary, Alert } from 'design';
 
 import {
@@ -27,10 +29,10 @@ import UserList from './UserList';
 import UserAddEdit from './UserAddEdit';
 import UserDelete from './UserDelete';
 import UserReset from './UserReset';
-import useUsers, { State } from './useUsers';
+import useUsers, { State, UsersContainerProps } from './useUsers';
 
-export default function Container() {
-  const state = useUsers();
+export default function Container(props: UsersContainerProps) {
+  const state = useUsers(props);
   return <Users {...state} />;
 }
 
@@ -49,16 +51,28 @@ export function Users(props: State) {
     onUpdate,
     onDelete,
     onReset,
+    inviteCollaboratorsOpen,
+    setInviteCollaboratorsOpen
   } = props;
+
+  function handleInviteCollaboratorsClick() {
+    console.log('handleInviteCollaboratorsClick()');
+    setInviteCollaboratorsOpen(true);
+  }
 
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
         {attempt.isSuccess && (
-          <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
-            Create New User
-          </ButtonPrimary>
+          <>
+            <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
+              Create New User
+            </ButtonPrimary>
+            {props.inviteCollaborators && (
+              <ButtonPrimary ml={4} width="240px" onClick={handleInviteCollaboratorsClick}>Invite Collaborators</ButtonPrimary>
+            )}
+          </>
         )}
       </FeatureHeader>
       {attempt.isProcessing && (
@@ -98,6 +112,9 @@ export function Users(props: State) {
           onReset={onReset}
           username={operation.user.name}
         />
+      )}
+      { inviteCollaboratorsOpen && (
+        <props.inviteCollaborators open={inviteCollaboratorsOpen} setOpen={setInviteCollaboratorsOpen}/>
       )}
     </FeatureBox>
   );

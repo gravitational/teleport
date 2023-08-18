@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-import { useState, useEffect } from 'react';
+import { ReactElement, Dispatch, SetStateAction, useState, useEffect } from 'react';
 import { useAttempt } from 'shared/hooks';
 
 import { User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
-export default function useUsers() {
+export default function useUsers({
+  inviteCollaborators,
+}: UsersContainerProps) {
   const ctx = useTeleport();
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [users, setUsers] = useState([] as User[]);
@@ -28,6 +30,7 @@ export default function useUsers() {
   const [operation, setOperation] = useState({
     type: 'none',
   } as Operation);
+  const [inviteCollaboratorsOpen, setInviteCollaboratorsOpen] = useState<boolean>(false);
 
   function onStartCreate() {
     const user = { name: '', roles: [], created: new Date() };
@@ -110,6 +113,9 @@ export default function useUsers() {
     onCreate,
     onUpdate,
     onReset,
+    inviteCollaborators,
+    inviteCollaboratorsOpen,
+    setInviteCollaboratorsOpen,
   };
 }
 
@@ -117,5 +123,14 @@ type Operation = {
   type: 'create' | 'edit' | 'delete' | 'reset' | 'none';
   user?: User;
 };
+
+export interface InviteCollaboratorsDialogProps {
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+}
+
+export type UsersContainerProps = {
+  inviteCollaborators?: (props: InviteCollaboratorsDialogProps) => ReactElement
+}
 
 export type State = ReturnType<typeof useUsers>;
