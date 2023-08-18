@@ -35,7 +35,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
-  KeysEnum.UNIFIED_RESOURCES_ENABLED,
+  KeysEnum.UNIFIED_RESOURCES_DISABLED,
 ];
 
 const storage = {
@@ -182,9 +182,13 @@ const storage = {
    * TODO(bl-nero): remove this setting once unified resources are released.
    */
   areUnifiedResourcesEnabled(): boolean {
-    return (
-      window.localStorage.getItem(KeysEnum.UNIFIED_RESOURCES_ENABLED) === 'true'
+    const disabled = window.localStorage.getItem(
+      KeysEnum.UNIFIED_RESOURCES_DISABLED
     );
+    const notSupported = window.localStorage.getItem(
+      KeysEnum.UNIFIED_RESOURCES_NOT_SUPPORTED
+    );
+    return disabled !== 'true' && notSupported !== 'true';
   },
 
   broadcast(messageType, messageBody) {

@@ -26,6 +26,9 @@ import {
 } from 'teleport/components/Layout';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
+import cfg from 'teleport/config';
+import history from 'teleport/services/history/history';
+import localStorage from 'teleport/services/localStorage';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
@@ -38,6 +41,7 @@ import { FilterPanel } from './FilterPanel';
 
 export function Resources() {
   const { isLeafCluster } = useStickyClusterId();
+  const enabled = localStorage.areUnifiedResourcesEnabled();
   const teleCtx = useTeleport();
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
   const { clusterId } = useStickyClusterId();
@@ -89,6 +93,10 @@ export function Resources() {
       return () => observer.disconnect();
     }
   });
+
+  if (!enabled) {
+    history.replace(cfg.getNodesRoute(clusterId));
+  }
 
   return (
     <FeatureBox>
