@@ -234,7 +234,7 @@ export function prettifyCurrentAction(currentAction: CurrentAction): {
           // TODO(gzdunek) add progress
           return {
             Icon: StyledIndicator,
-            title: 'Verifying binary',
+            title: 'Verifying agent binary',
           };
         }
         case 'error': {
