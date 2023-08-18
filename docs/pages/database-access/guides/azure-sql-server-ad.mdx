@@ -16,12 +16,15 @@ description: How to configure Teleport database access with Azure SQL Server usi
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Azure SQL Server" dbConfigure="Azure SQL Server using Azure Active Directory authentication" dbName="Azure SQL Server" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Azure SQL Server Azure Active Directory Self-Hosted](../../../img/database-access/guides/sqlserver/sql-aad.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access Azure SQL Server Azure Active Directory Cloud](../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -183,7 +186,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
 <Tabs>
-  <TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
 ```code
 $ teleport db configure create \
    -o file \
@@ -191,8 +195,9 @@ $ teleport db configure create \
    --proxy=<Var name="teleport.example.com" />:443 \
    --azure-sqlserver-discovery=eastus
 ```
-  </TabItem>
-  <TabItem label="Cloud" scope={["cloud"]}>
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ```code
 $ teleport db configure create \
    -o file \
@@ -200,7 +205,7 @@ $ teleport db configure create \
    --proxy=<Var name="mytenant.teleport.sh" />:443 \
    --azure-sqlserver-discovery=eastus
 ```
-  </TabItem>
+</TabItem>
 </Tabs>
 
 The command will generate a Database Service configuration with Azure SQL
@@ -226,7 +231,7 @@ Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
 
 <Tabs>
-  <TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=alice
@@ -237,8 +242,8 @@ sqlserver          Azure SQL Server in westeurope     [*]           ...
 sqlserver-managed  Azure Managed SQL Server in eastus [*]           ...
 ```
 
-  </TabItem>
-  <TabItem label="Cloud" scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=alice
@@ -306,3 +311,4 @@ To check if the VM has access, you can do the following on the VM:
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

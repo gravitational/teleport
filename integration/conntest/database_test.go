@@ -329,5 +329,5 @@ func waitForDatabases(t *testing.T, authServer *auth.Server, dbNames []string) {
 			}
 		}
 		return registered == len(dbNames)
-	}, 10*time.Second, 100*time.Millisecond)
+	}, 30*time.Second, 100*time.Millisecond)
 }

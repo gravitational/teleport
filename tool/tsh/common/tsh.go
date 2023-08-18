@@ -480,6 +480,10 @@ type CLIConf struct {
 	// Defaults to [dtauthn.NewCeremony().Run].
 	DTAuthnRunCeremony client.DTAuthnRunCeremonyFunc
 
+	// WebauthnLogin allows tests to override the Webauthn Login func.
+	// Defaults to [wancli.Login].
+	WebauthnLogin client.WebauthnLoginFunc
+
 	// LeafClusterName is the optional name of a leaf cluster to connect to instead
 	LeafClusterName string
 }
@@ -3738,6 +3742,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.MockSSOLogin = cf.MockSSOLogin
 	c.MockHeadlessLogin = cf.MockHeadlessLogin
 	c.DTAuthnRunCeremony = cf.DTAuthnRunCeremony
+	c.WebauthnLogin = cf.WebauthnLogin
 
 	// pass along MySQL/Postgres path overrides (only used in tests).
 	c.OverrideMySQLOptionFilePath = cf.overrideMySQLOptionFilePath

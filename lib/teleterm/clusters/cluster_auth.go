@@ -294,6 +294,7 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 			},
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
 			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
+			WebauthnLogin:           c.clusterClient.WebauthnLogin,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

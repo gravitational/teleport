@@ -17,7 +17,8 @@ Teleport, and includes links to more detailed documentation at the end.
 [downloading](https://goteleport.com/download/) and installing `tsh`, sign in to
 your Teleport cluster:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 <Tabs>
 <TabItem label="Local user">
 
@@ -58,9 +59,9 @@ required for your particular use case.
 
 </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope={["enterprise", "cloud"]}>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 <Tabs>
 <TabItem label="Local user">
 ```code
@@ -100,7 +101,9 @@ required for your particular use case.
 
 </TabItem>
 </Tabs>
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Teleport Connect
 
@@ -361,3 +364,4 @@ either directly or through proxy tunnels.
 {/*lint ignore messaging for page title*/}
 - [Database Access GUI Clients](./gui-clients.mdx) details
 how to connect many popular database GUI clients through Teleport.
+

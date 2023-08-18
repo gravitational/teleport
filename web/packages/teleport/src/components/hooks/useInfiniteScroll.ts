@@ -63,12 +63,24 @@ export function useInfiniteScroll<T extends UnifiedResource>({
       setAttempt({ status: 'success' });
     } catch (err) {
       setAttempt({ status: 'failed', statusText: err.message });
-      setFetchedData({ ...fetchedData, agents: [], totalCount: 0 });
+      setFetchedData({
+        agents: [],
+        startKey: '',
+        totalCount: 0,
+      });
     }
   };
 
   const fetchMore = async () => {
-    if (attempt.status === 'processing' || !fetchedData.startKey) {
+    // TODO(bl-nero): Disallowing further requests on failed status is a
+    // temporary fix to prevent multiple requests from being sent. Currently,
+    // they wouldn't go through anyway, but at least we don't thrash the UI
+    // constantly.
+    if (
+      attempt.status === 'processing' ||
+      attempt.status === 'failed' ||
+      !fetchedData.startKey
+    ) {
       return;
     }
     try {
