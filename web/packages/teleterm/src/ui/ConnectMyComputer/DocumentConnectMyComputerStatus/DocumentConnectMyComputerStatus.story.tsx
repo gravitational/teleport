@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 
 import { wait } from 'shared/utils/wait';
 
@@ -102,18 +102,23 @@ const doc: types.DocumentConnectMyComputerStatus = {
   rootClusterUri: cluster.uri,
   kind: 'doc.connect_my_computer_status',
 };
-const workspace: types.Workspace = {
-  localClusterUri: cluster.uri,
-  documents: [doc],
-  location: doc.uri,
-  accessRequests: undefined,
-};
 
 function ShowState(props: {
   agentProcessState: AgentProcessState;
   appContext?: AppContext;
 }) {
   const appContext = props.appContext || new MockAppContext();
+  // wrapped in a memo to prevent the creation of a new object with each render,
+  // which caused infinite rendering loops
+  const workspace = useMemo<types.Workspace>(
+    () => ({
+      localClusterUri: cluster.uri,
+      documents: [doc],
+      location: doc.uri,
+      accessRequests: undefined,
+    }),
+    []
+  );
 
   appContext.mainProcessClient.getAgentState = () => props.agentProcessState;
   appContext.mainProcessClient.subscribeToAgentUpdate = (
