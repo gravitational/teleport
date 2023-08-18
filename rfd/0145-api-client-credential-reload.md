@@ -9,7 +9,7 @@ state: draft
 
 * Engineering: ??
 * Product: ??
-* Security: @reedloden || @jent
+* Security: ??
 
 ## What
 
@@ -135,4 +135,66 @@ func example() {
 }
 ```
 
+The first way of implementing this would be to adjust the SSH based dialers to 
+support using the most recently reloaded `ssh.Config` when they are invoked 
+(rather than using the same `ssh.Config` throughout their lifetime) and would 
+also involve creating a custom `grpc/credentials.TransportCredentials` 
+implementation to support using the most recently reloaded `tls.Config`. This
+implementation would wrap over the existing TLS based `TransportCredential`
+offered by the package.
+
+This first implementation would provide similar behaviour to option A.
+
+Benefits:
+
+- Supports all credential loader types and wouldn't require modifications to
+  them.
+
+Drawbacks:
+
+- Much more "risky" than Option A without any significant benefits.
+- Changes in credentials (e.g roles associated with the identity) will not be
+  reflected in requests made to the server until the connection between the Auth
+  Server and client is broken. This could be anything from minutes to days
+  depending on the stability of the connection.
+
+The second way of implementing this would be for the Teleport API client to
+internally rotate the `grpc.ClientConn` being used. 
+
+Whilst this requires no changes to the credentials or the diallers, it does 
+involve managing the closure of the previous `grpc.ClientConn` - if this omitted
+then a memory leak will occur. Managing the closure of these could be complex as
+a streaming RPC could last a significant period of time after the client has 
+switched to the new `grpc.ClientConn` - and prematurely closing the 
+`grpc.ClientConn` will lead to the streaming RPC being interrupted. 
+
+An implementation could make use of a custom gRPC client balancer to manage a
+set of SubConns. A new `grpc.SubConn` could be created at rotation time and the
+balancer could begin to instruct the `grpc.ClientConn` to use this for RPCs.
+The balancer could then monitor the number of outstanding RPCs on the previous
+`grpc.SubConn` and close this when this becomes zero. Therefore not interrupting
+any existing RPCs.
+
+Benefits:
+
+- Changes in credentials can be reflected in requests immediately.
+- Supports all credential loader types and wouldn't require modifications to
+  them.
+
+Drawbacks:
+
+- A risky change to the core internals of our API client.
+- Significantly more engineering involved compared to Option A.
+
 ### Decision
+
+At this time, Credential Reloading is the most viable option:
+
+- Simpler and easier to implement than Client Reloading
+- Lower risk change to a key Teleport component
+- Achieves the success criteria of supporting CA and certificate reloading
+  support in the API Client, Event Handlers and Access Plugins.
+
+Pursuing credential reloading does not preclude client reloading support at a
+later date when more resource is available to properly implement something of
+this complexity.
