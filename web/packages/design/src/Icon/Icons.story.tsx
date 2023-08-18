@@ -167,7 +167,10 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.User} text="User" />
     <IconBox IconCmpt={Icon.UserAdd} text="UserAdd" />
     <IconBox IconCmpt={Icon.UserCircleGear} text="UserCircleGear" />
+    <IconBox IconCmpt={Icon.UserIdBadge} text="UserIdBadge" />
+    <IconBox IconCmpt={Icon.UserList} text="UserList" />
     <IconBox IconCmpt={Icon.Users} text="Users" />
+    <IconBox IconCmpt={Icon.UsersTriple} text="UsersTriple" />
     <IconBox IconCmpt={Icon.VideoGame} text="VideoGame" />
     <IconBox IconCmpt={Icon.VolumeUp} text="VolumeUp" />
     <IconBox IconCmpt={Icon.VpnKey} text="VpnKey" />
@@ -175,6 +178,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Warning} text="Warning" />
     <IconBox IconCmpt={Icon.Wifi} text="Wifi" />
     <IconBox IconCmpt={Icon.Windows} text="Windows" />
+    <IconBox IconCmpt={Icon.Wrench} text="Wrench" />
     <IconBox IconCmpt={Icon.Youtube} text="Youtube" />
   </Flex>
 );

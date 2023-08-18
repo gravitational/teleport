@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+import { wait } from 'shared/utils/wait';
+
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import {
   Cluster,
   CreateConnectMyComputerRoleResponse,
+  Server,
   TshClient,
 } from 'teleterm/services/tshd/types';
 
@@ -61,10 +64,45 @@ export class ConnectMyComputerService {
     });
   }
 
+  killAgent(rootClusterUri: uri.RootClusterUri): Promise<void> {
+    return this.mainProcessClient.killAgent({ rootClusterUri });
+  }
+
+  isAgentConfigFileCreated(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<boolean> {
+    return this.mainProcessClient.isAgentConfigFileCreated({ rootClusterUri });
+  }
+
   deleteToken(
     rootClusterUri: uri.RootClusterUri,
     token: string
   ): Promise<void> {
     return this.tshClient.deleteConnectMyComputerToken(rootClusterUri, token);
+  }
+
+  async waitForNodeToJoin(
+    rootClusterUri: uri.RootClusterUri,
+    abortSignal: AbortSignal
+  ): Promise<Server> {
+    // TODO(gzdunek): Replace with waiting for the node to join.
+    await wait(1_000, abortSignal);
+    return {
+      uri: `${rootClusterUri}/servers/178ef081-259b-4aa5-a018-449b5ea7e694`,
+      tunnel: false,
+      name: '178ef081-259b-4aa5-a018-449b5ea7e694',
+      hostname: 'foo',
+      addr: '127.0.0.1:3022',
+      labelsList: [
+        {
+          name: 'hostname',
+          value: 'mbp.home',
+        },
+        {
+          name: 'teleport.dev/connect-my-computer',
+          value: 'abcd@goteleport.com',
+        },
+      ],
+    };
   }
 }
