@@ -1344,10 +1344,11 @@ func (a *Server) updateInstallMethodsMetrics() {
 	// record install methods for all connected resources
 	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 		installMethod := "unknown"
+		installMethods := append([]string{}, handle.AgentMetadata().InstallMethods...)
 
-		if len(handle.AgentMetadata().InstallMethods) > 0 {
-			slices.Sort(handle.AgentMetadata().InstallMethods)
-			installMethod = strings.Join(handle.AgentMetadata().InstallMethods, ",")
+		if len(installMethods) > 0 {
+			slices.Sort(installMethods)
+			installMethod = strings.Join(installMethods, ",")
 		}
 
 		installMethodCount[installMethod]++
