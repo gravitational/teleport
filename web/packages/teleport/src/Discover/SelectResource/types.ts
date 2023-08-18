@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Platform } from 'design/theme/utils';
+
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
@@ -65,11 +67,23 @@ export interface ResourceSpec {
   // It is used as a flag, that when defined, means that
   // this resource is not "guided" (has no UI interactive flow).
   unguidedLink?: string;
-  // isDialog is whether or not the flow for this resource is a popover dialog as opposed to a Discover flow.
+  // isDialog indicates whether the flow for this resource is a popover dialog as opposed to a Discover flow.
   // This is the case for the 'Application' resource.
   isDialog?: boolean;
   // event is the expected backend enum event name that describes
-  // the type of this resource (eg. server v. kubernetes),
+  // the type of this resource (e.g. server v. kubernetes),
   // used for usage reporting.
   event: DiscoverEventResource;
+  // platform indicates a particular platform the resource is associated with.
+  // Set this value if the resource should be prioritized based on the platform.
+  platform?: Platform;
+}
+
+export enum SearchResource {
+  UNSPECIFIED = '',
+  APPLICATION = 'application',
+  DATABASE = 'database',
+  DESKTOP = 'desktop',
+  KUBERNETES = 'kubernetes',
+  SERVER = 'server',
 }

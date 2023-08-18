@@ -30,6 +30,8 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
+import { OnboardCard } from 'design/Onboard/OnboardCard';
+
 import {
   SliderProps,
   UseTokenState,
@@ -37,7 +39,7 @@ import {
 
 import secKeyGraphic from './sec-key-with-bg.png';
 
-export function NewMfaDevice(props: Props) {
+export function NewMfaDevice(props: NewMfaDeviceProps) {
   const {
     resetToken,
     submitAttempt,
@@ -103,7 +105,7 @@ export function NewMfaDevice(props: Props) {
   return (
     <Validation>
       {({ validator }) => (
-        <Box p={5} ref={refCallback}>
+        <OnboardCard ref={refCallback}>
           <Flex mb={3} alignItems="center">
             <ArrowBack
               fontSize={30}
@@ -115,10 +117,10 @@ export function NewMfaDevice(props: Props) {
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text color="text.slightlyMuted">Step 2 of 2</Text>
               <Text typography="h4" color="text.main" bold>
                 Set Two-Factor Device
               </Text>
+              <Text color="text.slightlyMuted">Step 2 of 2</Text>
             </Box>
           </Flex>
           {submitAttempt.status === 'failed' && (
@@ -229,7 +231,7 @@ export function NewMfaDevice(props: Props) {
           >
             Submit
           </ButtonPrimary>
-        </Box>
+        </OnboardCard>
       )}
     </Validation>
   );
@@ -245,7 +247,7 @@ function getDefaultDeviceName(mfaType: Auth2faType) {
   return '';
 }
 
-type Props = UseTokenState &
+export type NewMfaDeviceProps = UseTokenState &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;

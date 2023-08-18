@@ -161,7 +161,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 					RouteToCluster:    cluster,
 					KubernetesCluster: kubeCluster,
-				}, nil /*applyOpts*/)
+				})
 
 				return trace.Wrap(err)
 			})
@@ -747,7 +747,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 			k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 				RouteToCluster:    c.teleportCluster,
 				KubernetesCluster: c.kubeCluster,
-			}, nil /*applyOpts*/)
+			})
 			return err
 		},
 		client.WithBeforeLoginHook(

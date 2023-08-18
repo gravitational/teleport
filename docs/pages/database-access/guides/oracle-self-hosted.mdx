@@ -217,6 +217,15 @@ $ teleport db configure create \
 
 (!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
+Make sure that the Teleport agent pod is running. You should see one Teleport
+agent pod pod with a single ready container:
+
+```code
+$ kubectl -n teleport get pods
+NAME                    READY   STATUS    RESTARTS   AGE
+teleport-kube-agent-0   1/1     Running   0          32s
+```
+
 ## Step 5/5. Connect
 
 Once the Database Service has joined the cluster, log in to see the available
