@@ -844,7 +844,9 @@ test-sh:
 
 .PHONY: run-etcd
 run-etcd:
-	examples/etcd/start-etcd.sh
+	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.3.9 .
+	docker run -it --rm -p'2379:2379' etcdbox
+
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
