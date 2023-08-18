@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-/** Resolves after a given duration */
-export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(resolve, ms);
-    if (abortSignal) {
-      abortSignal.onabort = () => {
-        clearTimeout(timeout);
-        reject(new DOMException('Wait was aborted.', 'AbortError'));
-      };
-    }
-  });
+export function codeOrSignal(
+  code: number | null,
+  signal: NodeJS.Signals | null
+) {
+  return [
+    // code can be 0, so we cannot just check it the same way as the signal.
+    code != null && `code ${code}`,
+    signal && `signal ${signal}`,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
