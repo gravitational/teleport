@@ -196,9 +196,9 @@ To configure a role for desktop access:
    
    In this file:
    
-   - Set `windows_desktop_labels` to use lables to restrict access to specific hosts.
-   - Set `windows_desktop_logins` to specify the Teleport users who should be allowed 
-   to access Windows desktops.
+   - Set `windows_desktop_labels` to specify any labels you want to use to allow or deny access to specific hosts.
+   - Set `windows_desktop_logins` to specify the Windows logins that Teleport users assigned to the role
+   can use to access Windows desktops.
 
 1. Apply the new role to your cluster by running the following command:
 
@@ -211,9 +211,9 @@ To configure a role for desktop access:
 ## Step 4/4. Connect
 
 Now that you have configured a Linux server to run the Windows Desktop Service and
-created a role to allow a Teleport user to access a local Windows login, you can 
-use the Teleport user assigned the `windows-desktop-admins` role to connect to 
-Windows desktops from the Teleport Web UI.
+created a role to allow a Teleport user to connect to Microsoft Windows with a local
+Windows login, you can use the Teleport user assigned the `windows-desktop-admins` role 
+to connect to Windows desktops from the Teleport Web UI.
 
 To connect to a Windows desktop:
 
@@ -227,9 +227,18 @@ Windows login to use for the connection.
    
    ![Connect to a Windows desktop from the Teleport Web UI](../../img/desktop-access/non-ad-connect.png)
 
+   Teleport opens a remote desktop connection and start recording the desktop session. When you're
+   finished working with the Windows desktop, click the **More items** menu, then click **Disconnect**.
+
+   ![Disonnect from a Windows desktop ](../../img/desktop-access/desktop-disconnect.png)
+
+   To view the recording, select **Management** in the Teleport Web UI, then click **Session Recordings** 
+   in the Activty section.
+
+
 ## Next steps
 
-- See the [RBAC page](./rbac.mdx) for more information about setting up
-Windows desktop access permissions.
-- See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
-guide for instructions on how to create or update a user with a given role.
+For more information about how to create, assign, and update roles, see [Access Controls 
+Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles).
+For more specific information about configuring role-based access controls to manage Windows desktop 
+access permissions, see [Role-Based Access Control for Desktop Access](./rbac.mdx).
