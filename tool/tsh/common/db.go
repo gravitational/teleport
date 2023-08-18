@@ -317,7 +317,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 					Database:    dbInfo.Database,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
-			}, nil /*applyOpts*/)
+			})
 			return trace.Wrap(err)
 		}); err != nil {
 			return trace.Wrap(err)
@@ -393,6 +393,9 @@ func makeLogoutMessage(cf *CLIConf, logout, activeRoutes []tlsca.RouteToDatabase
 			name:   cf.DatabaseService,
 			labels: cf.Labels,
 			query:  cf.PredicateExpression,
+		}
+		if selectors.IsEmpty() {
+			return "", trace.NotFound("Not logged into any databases")
 		}
 		return "", trace.NotFound("Not logged into %v", selectors)
 	case 1:
@@ -817,7 +820,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 // is active in profile and no labels or predicate query are given.
 // Otherwise, the ListDatabases endpoint is called.
 func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient) (*databaseInfo, error) {
-	haveSelectors := len(tc.Labels) > 0 || tc.PredicateExpression != ""
+	haveSelectors := tc.DatabaseService != "" || len(tc.Labels) > 0 || tc.PredicateExpression != ""
 	if !haveSelectors {
 		// if selectors are given, we might incur an extra ListDatabases API
 		// call here to match against an active database.
@@ -1012,11 +1015,20 @@ func listDatabasesByName(ctx context.Context, tc *client.TeleportClient, name st
 	return listDatabasesWithPredicate(ctx, tc, predicate)
 }
 
+// makePrefixPredicate returns a predicate expression that matches resources
+// by prefix name.
+func makePrefixPredicate(prefix string) string {
+	if prefix == "" {
+		return ""
+	}
+	return fmt.Sprintf(`hasPrefix(name, %q)`, prefix)
+}
+
 // listDatabasesByPrefix lists databases that match a given name prefix.
 func listDatabasesByPrefix(ctx context.Context, tc *client.TeleportClient, prefix string) (types.Databases, error) {
-	predicate := fmt.Sprintf(`hasPrefix(name, %q)`, prefix)
+	predicate := makePrefixPredicate(prefix)
 	databases, err := listDatabasesWithPredicate(ctx, tc, predicate)
-	if err == nil || !utils.IsPredicateError(err) {
+	if err == nil || !utils.IsPredicateError(err) || predicate == "" {
 		return databases, trace.Wrap(err)
 	}
 	// predicate error from using hasPrefix expression.
@@ -1039,23 +1051,35 @@ func listDatabasesByPrefix(ctx context.Context, tc *client.TeleportClient, prefi
 // a given additional predicate expression. If the teleport client already
 // has a predicate expression, the predicates are combined with a logical AND.
 func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, predicate string) (types.Databases, error) {
-	if predicate == "" {
-		predicate = tc.PredicateExpression
-	} else if tc.PredicateExpression != "" {
-		predicate = fmt.Sprintf("(%v) && (%v)", predicate, tc.PredicateExpression)
-	}
 	var databases []types.Database
 	err := client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
 		databases, err = tc.ListDatabases(ctx, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
 			ResourceType:        types.KindDatabaseServer,
-			PredicateExpression: predicate,
+			PredicateExpression: combinePredicateExpressions(predicate, tc.PredicateExpression),
 			Labels:              tc.Labels,
 		})
 		return trace.Wrap(err)
 	})
 	return databases, trace.Wrap(err)
+}
+
+// combinePredicateExpressions combines two predicate expressions into one
+// expression as a conjunction (logical AND) of the expressions.
+func combinePredicateExpressions(a, b string) string {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	switch {
+	case a == "":
+		return b
+	case b == "":
+		return a
+	case a == b:
+		return a
+	default:
+		return fmt.Sprintf("(%v) && (%v)", a, b)
+	}
 }
 
 // getDefaultDBUser enumerates the allowed database users for a given database
@@ -1310,49 +1334,53 @@ func pickActiveDatabase(cf *CLIConf, tc *client.TeleportClient) (*tlsca.RouteToD
 // filtered out - this is to avoid requiring additional selectors
 // when a user gives an exact database name.
 func filterActiveDatabases(ctx context.Context, tc *client.TeleportClient, activeRoutes []tlsca.RouteToDatabase) ([]tlsca.RouteToDatabase, types.Databases, error) {
+	if len(activeRoutes) == 0 {
+		// nothing to filter
+		return nil, nil, nil
+	}
 	prefix := tc.DatabaseService
-	if prefix == "" && len(activeRoutes) == 1 {
-		prefix = activeRoutes[0].ServiceName
-	}
-
-	haveSelectors := len(tc.Labels) > 0 || tc.PredicateExpression != ""
-	var selectedRoutes []tlsca.RouteToDatabase
-	for _, db := range activeRoutes {
-		if db.ServiceName == prefix && !haveSelectors {
-			// short-circuit to select the exact match when we don't have
-			// label or predicate selectors.
-			return []tlsca.RouteToDatabase{db}, nil, nil
+	if len(tc.Labels) == 0 && tc.PredicateExpression == "" {
+		if prefix == "" && len(activeRoutes) == 1 {
+			return activeRoutes, nil, nil
 		}
-		if strings.HasPrefix(db.ServiceName, prefix) {
-			selectedRoutes = append(selectedRoutes, db)
+		// when we have a name but don't have label or predicate query, look for
+		// a route that matches the name exactly to maybe avoid calling
+		// ListDatabases API below.
+		for _, route := range activeRoutes {
+			if route.ServiceName == prefix {
+				return []tlsca.RouteToDatabase{route}, nil, nil
+			}
 		}
 	}
-	if len(selectedRoutes) == 0 || !haveSelectors {
-		// nothing to filter further, avoid making API call.
-		return selectedRoutes, nil, nil
-	}
 
-	// make a ListDatabases API call and match on full database name.
+	// make a ListDatabases API call filtered by prefix name
 	databases, err := listDatabasesByPrefix(ctx, tc, prefix)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	selectedRoutes = nil
+	databasesByName := databases.ToMap()
+
+	// when a database matches the prefix fully, look for a
+	// corresponding active route.
+	if db, ok := databasesByName[prefix]; ok {
+		for _, route := range activeRoutes {
+			if route.ServiceName == db.GetName() {
+				return []tlsca.RouteToDatabase{route}, types.Databases{db}, nil
+			}
+		}
+		// no active route, but return the fetched databases if the caller is
+		// interested.
+		return nil, databases, nil
+	}
+
+	// otherwise, just filter routes to those that match the names of the
+	// databases.
+	var selectedRoutes []tlsca.RouteToDatabase
 	var activeDBs types.Databases
 	for _, route := range activeRoutes {
-		for _, db := range databases {
-			if db.GetName() == route.ServiceName {
-				if db.GetName() == prefix {
-					// when label/query selectors are used and multiple
-					// databases come back, but one of them matches the prefix
-					// exactly, short-circuit to return just that db.
-					// We can't do that before calling the API because the
-					// labels/query might not actually match the active db.
-					return []tlsca.RouteToDatabase{route}, types.Databases{db}, nil
-				}
-				selectedRoutes = append(selectedRoutes, route)
-				activeDBs = append(activeDBs, db)
-			}
+		if db, ok := databasesByName[route.ServiceName]; ok {
+			selectedRoutes = append(selectedRoutes, route)
+			activeDBs = append(activeDBs, db)
 		}
 	}
 	return selectedRoutes, activeDBs, nil
@@ -1627,11 +1655,13 @@ func (r resourceSelectors) IsEmpty() bool {
 func formatAmbiguityErrTemplate(cf *CLIConf, selectors resourceSelectors, listCommand, matchTable, fullNameExample string) string {
 	data := map[string]any{
 		"command":     cf.CommandWithBinary(),
-		"selectors":   strings.TrimSpace(selectors.String()),
 		"listCommand": strings.TrimSpace(listCommand),
 		"kind":        strings.TrimSpace(selectors.kind),
 		"matchTable":  strings.TrimSpace(matchTable),
 		"example":     strings.TrimSpace(fullNameExample),
+	}
+	if !selectors.IsEmpty() {
+		data["selectors"] = strings.TrimSpace(selectors.String())
 	}
 	var sb strings.Builder
 	_ = ambiguityErrTemplate.Execute(&sb, data)
@@ -1694,7 +1724,11 @@ You can start a local proxy for database GUI clients:
 
 	// ambiguityErrTemplate is the error message printed when a resource is
 	// specified ambiguously by name prefix and/or labels.
-	ambiguityErrTemplate = template.Must(template.New("").Parse("{{ .selectors }} matches multiple {{ .kind }}s:" + `
+	ambiguityErrTemplate = template.Must(template.New("").Parse(`{{if .selectors -}}
+{{ .selectors }} matches multiple {{ .kind }}s:
+{{- else -}}
+multiple {{ .kind }}s are available:
+{{- end }}
 
 {{ .matchTable }}
 

@@ -1724,8 +1724,7 @@ exports[`open source loaded 1`] = `
         title=""
         width="240px"
       >
-        Add 
-        database
+        Add database
       </button>
     </a>
   </div>

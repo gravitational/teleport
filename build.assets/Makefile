@@ -9,6 +9,8 @@ SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
+# Teleport version - some targets require this to be set
+VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
 ADDFLAGS ?=
 BATSFLAGS :=
@@ -132,7 +134,7 @@ buildbox:
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
-			--build-arg PROTOC_VER=$(PROTOC_VER) \
+			--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi

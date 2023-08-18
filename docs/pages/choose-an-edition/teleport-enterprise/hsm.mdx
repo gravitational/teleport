@@ -7,12 +7,6 @@ h1: Teleport HSM Support
 This guide will show you how to set up the Teleport Auth Service to use a
 hardware security module (HSM) to store and handle private keys.
 
-<ScopedBlock scope={["oss", "cloud"]}>
-
-This guide is intended for Teleport Enterprise users.
-
-</ScopedBlock>
-
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Enterprise (self-hosted).
@@ -357,4 +351,5 @@ All CAs listed in the output of `tctl status` must be rotated.
 You are all set! Check the teleport logs for `Creating new HSM key pair` to
 confirm that the feature is working. You can also check that keys were created
 in your HSM using your HSM's admin tool.
+
 

@@ -27,6 +27,7 @@ import (
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	// Load kubeconfig auth plugins for gcp and azure.
@@ -129,18 +130,19 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			f.log.WithError(err).Warnf("failed to create KubernetesClusterV3 from credentials for cluster %q.", cluster)
 			continue
 		}
+
 		details, err := newClusterDetails(ctx,
 			clusterDetailsConfig{
 				cluster:   kubeCluster,
 				kubeCreds: clusterCreds,
-				log:       f.log.WithField("cluster", cluster),
+				log:       f.log.WithField("cluster", kubeCluster.GetName()),
 				checker:   f.cfg.CheckImpersonationPermissions,
 				component: serviceType,
 				clock:     f.cfg.Clock,
 			})
 		if err != nil {
 			f.log.WithError(err).Warnf("Failed to create cluster details for cluster %q.", cluster)
-			return trace.Wrap(err, "setting up details for cluster %q", cluster)
+			return trace.Wrap(err)
 		}
 		f.clusterDetails[cluster] = details
 	}
@@ -181,7 +183,7 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
 	}
 
-	transport, err := newDirectTransports(component, tlsConfig, transportConfig)
+	transport, err := newDirectTransport(component, tlsConfig, transportConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate transport from kubeconfig: %v", err)
 	}
@@ -197,13 +199,17 @@ func extractKubeCreds(ctx context.Context, component string, cluster string, cli
 	}, nil
 }
 
-// newDirectTransports creates a new http.Transport that will be used to connect to the Kubernetes API server.
-// It is a direct connection, not going through a proxy.
-func newDirectTransports(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (http.RoundTripper, error) {
+// newDirectTransport creates a new http.Transport that will be used to connect to the Kubernetes API server.
+// It is a direct connection, not going through a Teleport proxy.
+// The transport used respects HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables.
+func newDirectTransport(component string, tlsConfig *tls.Config, transportConfig *transport.Config) (http.RoundTripper, error) {
 	h2HTTPTransport, err := newH2Transport(tlsConfig, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// SetTransportDefaults sets the default values for the transport including
+	// support for HTTP_PROXY, HTTPS_PROXY, NO_PROXY, and the default user agent.
+	h2HTTPTransport = utilnet.SetTransportDefaults(h2HTTPTransport)
 	h2Transport, err := wrapTransport(h2HTTPTransport, transportConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

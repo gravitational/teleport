@@ -291,8 +291,8 @@ ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
 # Install protoc.
-ARG PROTOC_VER # eg, "3.20.2"
-RUN VERSION="$PROTOC_VER" && \
+ARG PROTOC_VERSION # eg, "3.20.2"
+RUN VERSION="$PROTOC_VERSION" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
   curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \

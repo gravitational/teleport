@@ -499,6 +499,8 @@ message Features {
   DeviceTrustFeature DeviceTrust = 19 [(gogoproto.jsontag) = "device_trust,omitempty"];
   // FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
   bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
+  // AccessRequests holds its namesake feature settings.
+  AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
 }
 
 // DeviceTrustFeature holds the Device Trust feature general and usage-based
@@ -512,6 +514,17 @@ message DeviceTrustFeature {
   // Meant for usage-based accounts, like Teleport Team. Has no effect if
   // [Features.IsUsageBased] is `false`.
   int32 devices_usage_limit = 2 [(gogoproto.jsontag) = "devices_usage_limit,omitempty"];
+}
+
+// AccessRequestsFeature holds the AccessRequest feature general and usage-based
+// settings.
+// Requires Teleport Enterprise.
+message AccessRequestsFeature {
+  // Usage-based limit for the number of limit for the number of
+  // access requests created in a calendar month.
+  // Meant for usage-based accounts, like Teleport Team. Has no effect if
+  // [Features.IsUsageBased] is `false`.
+  int32 monthly_request_limit = 1 [(gogoproto.jsontag) = "monthly_request_limit"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -1827,6 +1840,21 @@ message ListResourcesRequest {
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
 }
 
+// GetSSHTargetsRequest gets all servers that might match an equivalent ssh dial request.
+message GetSSHTargetsRequest {
+  // Host is the target host as would be sent to the proxy during a dial request.
+  string Host = 1;
+  // Port is the ssh port. This value is optional, and both empty string and "0" are typically
+  // treated as meaning that any port should match.
+  string Port = 2;
+}
+
+// GetSSHTargetsResponse holds ssh servers that match an ssh targets request.
+message GetSSHTargetsResponse {
+  // Servers is a list of servers matching the supplied request.
+  repeated types.ServerV2 Servers = 1;
+}
+
 // ListResourceResponse response of ListResources.
 message ListResourcesResponse {
   // Resources is a list of resource.
@@ -2860,6 +2888,12 @@ service AuthService {
 
   // ListUnifiedResources retrieves a paginated list of all resource types displayable in the UI.
   rpc ListUnifiedResources(ListUnifiedResourcesRequest) returns (ListUnifiedResourcesResponse);
+
+  // GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
+  // returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
+  // which is what we want when handling things like ambiguous host errors and resource-based access requests,
+  // but may result in confusing behavior if it is used outside of those contexts.
+  rpc GetSSHTargets(GetSSHTargetsRequest) returns (GetSSHTargetsResponse);
 
   // GetDomainName returns local auth domain of the current auth server
   rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);

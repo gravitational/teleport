@@ -87,7 +87,7 @@ func getKubeTLSClientConfig(ctx context.Context, tc *client.TeleportClient) (res
 		k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 			RouteToCluster:    tc.SiteName,
 			KubernetesCluster: tc.KubernetesCluster,
-		}, nil /*applyOpts*/)
+		})
 		return err
 	})
 	if err != nil {
