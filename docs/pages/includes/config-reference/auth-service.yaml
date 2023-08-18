@@ -383,6 +383,13 @@ auth_service:
     # in a leaf cluster. Defaults to false.
     load_all_cas: false
 
+    # Enables case-insensitivity for ssh dial requests. Setting this to true will allow
+    # 'tsh ssh myserver' to route to host 'MyServer'. Dialing with an uppercase hostname
+    # will still require an exact match. Openssh always lowercases hostnames, so setting
+    # this to true is necessary if you want to use openssh to access nodes with uppercase
+    # characters in their hostnames.
+    case_insensitive_routing: false
+
     # Configuration for the Teleport Assist functionality
     assist:
       openai:

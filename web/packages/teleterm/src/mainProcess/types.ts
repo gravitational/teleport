@@ -31,6 +31,10 @@ export type RuntimeSettings = {
   binDir: string | undefined;
   certsDir: string;
   kubeConfigsDir: string;
+  // TODO(ravicious): Replace with app.getPath('logs'). We started storing logs under a custom path.
+  // Before switching to the recommended path, we need to investigate the impact of this change.
+  // https://www.electronjs.org/docs/latest/api/app#appgetpathname
+  logsDir: string;
   defaultShell: string;
   platform: Platform;
   agentBinaryPath: string;
@@ -100,6 +104,10 @@ export type MainProcessClient = {
     properties: AgentConfigFileClusterProperties
   ): Promise<void>;
   runAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
+  isAgentConfigFileCreated(args: {
+    rootClusterUri: RootClusterUri;
+  }): Promise<boolean>;
+  killAgent(args: { rootClusterUri: RootClusterUri }): Promise<void>;
   getAgentState(args: { rootClusterUri: RootClusterUri }): AgentProcessState;
   subscribeToAgentUpdate: SubscribeToAgentUpdate;
 };
@@ -135,9 +143,13 @@ export type AgentProcessState =
       signal: NodeJS.Signals | null;
       exitedSuccessfully: boolean;
       /** Fragment of a stack trace when the process did not exit successfully. */
-      stackTrace?: string;
+      logs?: string;
     }
   | {
+      // TODO(ravicious): 'error' should not be considered a separate process state. Instead,
+      // AgentRunner.start should not resolve until 'spawn' is emitted or reject if 'error' is
+      // emitted. AgentRunner.kill should not resolve until 'exit' is emitted or reject if 'error'
+      // is emitted.
       status: 'error';
       message: string;
     };

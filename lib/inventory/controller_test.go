@@ -18,12 +18,14 @@ package inventory
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -451,6 +453,65 @@ func TestUpdateLabels(t *testing.T) {
 		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
 		return true
 	}, time.Second, 100*time.Millisecond)
+}
+
+// TestAgentMetadata verifies that an instance's agent metadata is received in
+// inventory control stream.
+func TestAgentMetadata(t *testing.T) {
+	// set the install method to validate it was returned as agent metadata
+	t.Setenv("TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE", "true")
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	upstreamHello := proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	}
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: "auth",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+		return downstream, nil
+	}, upstreamHello)
+
+	// Wait for upstream hello.
+	select {
+	case msg := <-upstream.Recv():
+		require.Equal(t, upstreamHello, msg)
+	case <-ctx.Done():
+		require.Fail(t, "never got upstream hello")
+	}
+	require.NoError(t, upstream.Send(ctx, downstreamHello))
+	controller.RegisterControlStream(upstream, upstreamHello)
+
+	// Verify that control stream upstreamHandle is now accessible.
+	upstreamHandle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// Validate that the agent's metadata ends up in the auth server.
+	require.Eventually(t, func() bool {
+		return slices.Equal(upstreamHandle.AgentMetadata().InstallMethods, []string{"awsoidc_deployservice"}) &&
+			upstreamHandle.AgentMetadata().OS == runtime.GOOS
+	}, 5*time.Second, 200*time.Millisecond)
 }
 
 type eventOpts struct {

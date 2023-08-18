@@ -148,6 +148,10 @@ const (
 	// It uses the private key created above to SSH into the host.
 	SubKindOpenSSHEICENode = "openssh-ec2-ice"
 
+	// KindUnifiedResource is a meta Kind that is used for the unified resource search present on
+	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
+	KindUnifiedResource = "unified_resource"
+
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
@@ -452,6 +456,9 @@ const (
 
 	// KindUserLoginState is a UserLoginState resource
 	KindUserLoginState = "user_login_state"
+
+	// KindAccessListMember is an AccessListMember resource
+	KindAccessListMember = "access_list_member"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -870,6 +877,12 @@ const (
 	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 )
 
+const (
+	// InstallMethodAWSOIDCDeployServiceEnvVar is the env var used to detect if the agent was installed
+	// using the DeployService action of the AWS OIDC integration.
+	InstallMethodAWSOIDCDeployServiceEnvVar = "TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE"
+)
+
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
 const CloudHostnameTag = "TeleportHostname"
 
@@ -963,6 +976,9 @@ const (
 
 	// ResourceSpecType refers to a resource field named "type".
 	ResourceSpecType = "type"
+
+	// ResourceKind refers to a resource field named "kind".
+	ResourceKind = "kind"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

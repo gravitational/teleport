@@ -2097,8 +2097,7 @@ exports[`loaded state 1`] = `
           title=""
           width="240px"
         >
-          Add 
-          application
+          Add application
         </button>
       </a>
     </div>

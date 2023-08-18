@@ -868,7 +868,7 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 	nodeProc, err := NewTeleport(nodeCfg)
 	require.NoError(t, err)
 
-	c, err := nodeProc.reconnectToAuthService(types.RoleNode)
+	c, err := nodeProc.reconnectToAuthService(types.RoleInstance)
 	if skipVersionCheck {
 		require.NoError(t, err)
 		require.NotNil(t, c)

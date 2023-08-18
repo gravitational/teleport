@@ -1,10 +1,11 @@
-Make sure you can connect to Teleport. Log in to your cluster using `tsh`, then use `tctl`
+You can sign in to your Teleport cluster using `tsh` and can use `tctl`
 remotely:
 
 {/* Ignoring scope linting since we use this partial throughout the docs and
 cannot guarantee that it will line up with a page's configured scopes*/}
 {/*lint ignore scopes*/} 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=email@example.com
@@ -15,12 +16,14 @@ $ tctl status
 ```
 
 You can run subsequent `tctl` commands in this guide on your local machine.
+For full privileges, you can also run `tctl` commands on your Teleport Auth Service host.
 
-For full privileges, you can also run `tctl` commands on your Auth Service host.
+</TabItem>
+</Tabs>
 
-</ScopedBlock>
 {/*lint ignore scopes*/}
-<ScopedBlock scope={["cloud","team"]}>
+<Tabs>
+<TabItem scope={["cloud","team"]} label="Teleport Cloud">
 
 ```code
 $ tsh login --proxy=myinstance.teleport.sh --user=email@example.com
@@ -32,4 +35,7 @@ $ tctl status
 
 You must run subsequent `tctl` commands in this guide on your local machine.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
+

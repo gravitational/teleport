@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -345,6 +346,12 @@ type TeleportProcess struct {
 	// instanceClient is the instance-level auth client. this is created asynchronously
 	// and may not exist for some time if cert migrations are necessary.
 	instanceClient *auth.Client
+
+	// instanceClientReady is closed when the isntance client becomes available.
+	instanceClientReady chan struct{}
+
+	// instanceClientReadyOnce protects instanceClientReady from double-close.
+	instanceClientReadyOnce sync.Once
 
 	// instanceRoles is the collection of enabled service roles (excludes things like "admin"
 	// and "instance" which aren't true user-facing services). The values in this mapping are
@@ -852,7 +859,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	_, err = uuid.Parse(cfg.HostUUID)
-	if err != nil && !utils.IsEC2NodeID(cfg.HostUUID) {
+	if err != nil && !aws.IsEC2NodeID(cfg.HostUUID) {
 		cfg.Log.Warnf("Host UUID %q is not a true UUID (not eligible for UUID-based proxying)", cfg.HostUUID)
 	}
 
@@ -919,6 +926,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
+		instanceClientReady: make(chan struct{}),
 		instanceRoles:       make(map[types.SystemRole]string),
 		Identities:          make(map[types.SystemRole]*auth.Identity),
 		connectors:          make(map[types.SystemRole]*Connector),
@@ -1078,6 +1086,13 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth), process.log)
 	}
 
+	// initInstance initializes the pseudo-service "Instance" that is active for all teleport
+	// instances. All other services inherit their auth client from the "Instance" service, so
+	// we initialize it immediately after auth in order to ensure timely client availability.
+	if err := process.initInstance(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if cfg.SSH.Enabled {
 		if err := process.initSSH(); err != nil {
 			return nil, err
@@ -1167,12 +1182,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		return nil, trace.BadParameter("all services failed to start")
 	}
 
-	// initInstance initializes the pseudo-service "Instance" that is active for all teleport
-	// instances. We active this last because it cares about which other services are active.
-	if err := process.initInstance(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// create the new pid file only after started successfully
 	if cfg.PIDFile != "" {
 		f, err := os.OpenFile(cfg.PIDFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
@@ -1244,14 +1253,30 @@ func (process *TeleportProcess) getLocalAuth() *auth.Server {
 
 func (process *TeleportProcess) setInstanceClient(clt *auth.Client) {
 	process.Lock()
-	defer process.Unlock()
 	process.instanceClient = clt
+	process.Unlock()
+	process.instanceClientReadyOnce.Do(func() {
+		close(process.instanceClientReady)
+	})
 }
 
 func (process *TeleportProcess) getInstanceClient() *auth.Client {
 	process.Lock()
 	defer process.Unlock()
 	return process.instanceClient
+}
+
+// waitForInstanceClient waits for the instance client to become available. Instance client is only available if at least
+// one non-auth service is registered.  Auth-only instances cannot use the instance client because auth servers need to
+// be able to fully initialize without a valid CA in order to support HSMs.
+func (process *TeleportProcess) waitForInstanceClient() (clt *auth.Client, ok bool) {
+	select {
+	case <-process.instanceClientReady:
+		clt = process.getInstanceClient()
+		return clt, clt != nil
+	case <-process.ExitContext().Done():
+		return nil, false
+	}
 }
 
 // makeInventoryControlStreamWhenReady is the same as makeInventoryControlStream except that it blocks until
@@ -1737,6 +1762,22 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(process.ExitContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
+			Client:       authServer,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: authServer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
+
 	if embedderClient != nil {
 		log.Debugf("Starting embedding watcher")
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
@@ -1985,6 +2026,10 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
+
+	process.RegisterFunc("auth.server_info", func() error {
+		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
+	})
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown
@@ -2252,7 +2297,7 @@ func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName
 	return auth.NewAppsWrapper(clt, cache), nil
 }
 
-// newLocalCacheForApps returns new instance of access point configured for a windows desktop service.
+// newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
 func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI, cacheName []string) (auth.WindowsDesktopAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
@@ -2312,8 +2357,16 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 
 // initInstance initializes the pseudo-service "Instance" that is active on all teleport instances.
 func (process *TeleportProcess) initInstance() error {
-	if process.Config.Auth.Enabled {
-		// if we have a local auth server, we cannot create an instance client without breaking HSM rotation.
+	var hasNonAuthRole bool
+	for _, role := range process.getInstanceRoles() {
+		if role != types.RoleAuth {
+			hasNonAuthRole = true
+			break
+		}
+	}
+
+	if process.Config.Auth.Enabled && !hasNonAuthRole {
+		// if we have a local auth server and no other services, we cannot create an instance client without breaking HSM rotation.
 		// instance control stream will be created via in-memory pipe, but until this limitation is resolved
 		// or a fully in-memory instance client is implemented, we cannot rely on the instance client existing
 		// for purposes other than the control stream.
@@ -2636,10 +2689,12 @@ func (process *TeleportProcess) RegisterWithAuthServer(role types.SystemRole, ev
 			// the registerExpectedServices function.
 			process.log.Errorf("Register called for unexpected instance role %q (this is a bug).", role)
 		}
+
 		connector, err := process.reconnectToAuthService(role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		process.BroadcastEvent(Event{Name: eventName, Payload: connector})
 		return nil
 	})
@@ -2875,7 +2930,9 @@ func (process *TeleportProcess) initMetricsService() error {
 
 	server := &http.Server{
 		Handler:           mux,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentMetrics),
 		TLSConfig:         tlsConfig,
@@ -2996,7 +3053,9 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	server := &http.Server{
 		Handler:           mux,
-		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		ReadTimeout:       apidefaults.DefaultIOTimeout,
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		WriteTimeout:      apidefaults.DefaultIOTimeout,
 		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentDiagnostic),
 	}
@@ -3073,6 +3132,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 	var dnsNames []string
 	if process.Config.Hostname != "" {
 		principals = append(principals, process.Config.Hostname)
+		if lh := utils.ToLowerCaseASCII(process.Config.Hostname); lh != process.Config.Hostname {
+			// openssh expects all hostnames to be lowercase
+			principals = append(principals, lh)
+		}
 	}
 	var addrs []utils.NetAddr
 
@@ -3926,7 +3989,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 					limiter.MakeMiddleware(proxyLimiter),
 					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
 				),
-				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+				ReadTimeout:       apidefaults.DefaultIOTimeout,
+				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+				WriteTimeout:      apidefaults.DefaultIOTimeout,
 				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
@@ -4625,7 +4690,9 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
-			ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+			ReadTimeout:       apidefaults.DefaultIOTimeout,
+			ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+			WriteTimeout:      apidefaults.DefaultIOTimeout,
 			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
 		},
@@ -5749,12 +5816,8 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	}
 
 	server := grpc.NewServer(
-		grpc.ChainUnaryInterceptor(
-			authMiddleware.UnaryInterceptor(),
-		),
-		grpc.ChainStreamInterceptor(
-			authMiddleware.StreamInterceptor(),
-		),
+		grpc.ChainUnaryInterceptor(authMiddleware.UnaryInterceptors()...),
+		grpc.ChainStreamInterceptor(authMiddleware.StreamInterceptors()...),
 		grpc.Creds(creds),
 	)
 

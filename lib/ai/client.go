@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/ai/embedding"
 	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 const (
@@ -48,13 +49,39 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 
 // NewChat creates a new chat. The username is set in the conversation context,
 // so that the AI can use it to personalize the conversation.
-// toolsConfig contains all required clients and configuration for agent tools
-// to interact with Teleport.
-func (client *Client) NewChat(username string, toolsConfig model.ToolsConfig) (*Chat, error) {
-	agent, err := model.NewAgent(username, toolsConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// embeddingServiceClient is used to get the embeddings from the Auth Server.
+func (client *Client) NewChat(toolContext *model.ToolContext) *Chat {
+	tools := []model.Tool{
+		&model.CommandExecutionTool{},
+		&model.EmbeddingRetrievalTool{},
 	}
+
+	// The following tools are only available in the enterprise build. They will fail
+	// if included in OSS due to the lack of the required backend APIs.
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		tools = append(tools, &model.AccessRequestCreateTool{},
+			&model.AccessRequestsListTool{},
+			&model.AccessRequestListRequestableRolesTool{},
+			&model.AccessRequestListRequestableResourcesTool{})
+	}
+
+	return &Chat{
+		client: client,
+		messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: model.PromptCharacter(toolContext.User),
+			},
+		},
+		// Initialize a tokenizer for prompt token accounting.
+		// Cl100k is used by GPT-3 and GPT-4.
+		tokenizer: codec.NewCl100kBase(),
+		agent:     model.NewAgent(toolContext, tools...),
+	}
+}
+
+func (client *Client) NewCommand(username string) *Chat {
+	toolContext := &model.ToolContext{User: username}
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{
@@ -66,8 +93,8 @@ func (client *Client) NewChat(username string, toolsConfig model.ToolsConfig) (*
 		// Initialize a tokenizer for prompt token accounting.
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
-		agent:     agent,
-	}, nil
+		agent:     model.NewAgent(toolContext, &model.CommandGenerationTool{}),
+	}
 }
 
 // Summary creates a short summary for the given input.
@@ -121,7 +148,7 @@ func (client *Client) CommandSummary(ctx context.Context, messages []openai.Chat
 	return completion, tc, trace.Wrap(err)
 }
 
-// ClassifyMessage takes a user message, a list of categories, and uses the AI mode as a zero shot classifier.
+// ClassifyMessage takes a user message, a list of categories, and uses the AI mode as a zero-shot classifier.
 func (client *Client) ClassifyMessage(ctx context.Context, message string, classes map[string]string) (string, error) {
 	resp, err := client.svc.CreateChatCompletion(
 		ctx,

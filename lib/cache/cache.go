@@ -2582,7 +2582,14 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 				return nil, trace.Wrap(err)
 			}
 
-			return local.FakePaginate(servers.AsResources(), req)
+			return local.FakePaginate(servers.AsResources(), local.FakePaginateParams{
+				ResourceType:        req.ResourceType,
+				Limit:               req.Limit,
+				Labels:              req.Labels,
+				SearchKeywords:      req.SearchKeywords,
+				PredicateExpression: req.PredicateExpression,
+				StartKey:            req.StartKey,
+			})
 		}
 	}
 

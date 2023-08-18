@@ -77,6 +77,10 @@ type Server interface {
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
+	// CloneResource is used to return a clone of the Server and match the CloneAny interface
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneResource() ResourceWithLabels
+
 	// GetCloudMetadata gets the cloud metadata for the server.
 	GetCloudMetadata() *CloudMetadata
 	// SetCloudMetadata sets the server's cloud metadata.
@@ -495,6 +499,11 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
 	return utils.CloneProtoMsg(s)
+}
+
+// CloneResource creates a clone of this server value
+func (s *ServerV2) CloneResource() ResourceWithLabels {
+	return s.DeepCopy()
 }
 
 // GetCloudMetadata gets the cloud metadata for the server.

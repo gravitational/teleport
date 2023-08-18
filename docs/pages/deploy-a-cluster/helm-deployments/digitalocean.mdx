@@ -123,7 +123,8 @@ Once you get the value for the external IP (it may take a few minutes for this f
 ## Step 3/4. Create and set up Teleport user
 Now we create a Teleport user by executing the `tctl` command with `kubectl`.
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ kubectl --namespace teleport-cluster exec deployment/teleport-cluster-auth -- tctl users add tadmin --roles=access,editor --logins=ubuntu
 
@@ -132,8 +133,8 @@ https://tele.example.com:443/web/invite/<invite-token>
 
 NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 $ kubectl --namespace teleport-cluster exec deployment/teleport-cluster-auth -- tctl users add tadmin --roles=access,editor,reviewer --logins=ubuntu
 
@@ -142,7 +143,9 @@ https://tele.example.com:443/web/invite/<invite-token>
 
 NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Copy the link shown after executing the above command and open the link in a web browser to complete the user registration process (the link is `https://tele.example.com:443/web/invite/<invite-token>` in the above case).
 <Figure align="left" bordered caption="Set up user">
@@ -213,7 +216,8 @@ $ export KUBECONFIG=${HOME?}/teleport-kubeconfig.yaml
 
 </Admonition>
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code 
 $ tsh login --proxy=tele.example.com:443 --auth=local --user=tadmin
 Enter password for Teleport user tadmin:
@@ -228,8 +232,8 @@ Enter your OTP token:
   Valid until:        2021-10-27 06:37:15 +0000 UTC [valid for 12h0m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code 
 $ tsh login --proxy=tele.example.com:443 --auth=local --user=tadmin
 Enter password for Teleport user tadmin:
@@ -244,7 +248,9 @@ Enter your OTP token:
   Valid until:        2021-10-27 06:37:15 +0000 UTC [valid for 12h0m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Select the Kubernetes cluster
 
@@ -280,3 +286,4 @@ Teleport:
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
 - [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)
+

@@ -9,6 +9,8 @@ SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
+# Teleport version - some targets require this to be set
+VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
 ADDFLAGS ?=
 BATSFLAGS :=
@@ -30,9 +32,9 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
-include images.mk
-include grpcbox.mk
 include versions.mk
+include images.mk
+include grpcbox.mk # Requires images.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -132,7 +134,7 @@ buildbox:
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
-			--build-arg PROTOC_VER=$(PROTOC_VER) \
+			--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -260,8 +262,6 @@ test: buildbox
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
@@ -273,8 +273,6 @@ test-root: buildbox
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
