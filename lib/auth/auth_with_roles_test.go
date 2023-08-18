@@ -22,6 +22,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,17 +42,18 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/api/types/webauthn"
+	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -1254,7 +1256,7 @@ func BenchmarkListNodes(b *testing.B) {
 		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(b, err)
 	}
-	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(b, err)
 	require.Len(b, testNodes, nodeCount)
 
@@ -1393,7 +1395,7 @@ func benchmarkListNodes(
 		var resources []types.ResourceWithLabels
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
-			Namespace:    defaults.Namespace,
+			Namespace:    apidefaults.Namespace,
 			Limit:        1_000,
 		}
 		for {
@@ -1432,7 +1434,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	// create user, role, and client
@@ -1456,7 +1458,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 	// listing nodes 0-4 should list first 5 nodes
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindNode,
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		Limit:        5,
 	})
 	require.NoError(t, err)
@@ -1471,7 +1473,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 	// listing nodes 0-4 should skip the third node and add the fifth to the end.
 	resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindNode,
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		Limit:        5,
 	})
 	require.NoError(t, err)
@@ -1482,7 +1484,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 	// Test various filtering.
 	baseRequest := proto.ListResourcesRequest{
 		ResourceType: types.KindNode,
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		Limit:        int32(len(testResources) + 1),
 	}
 
@@ -1627,7 +1629,7 @@ func TestGetSessionEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+	_, _ = clt.GetSessionEvents(apidefaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
@@ -1870,7 +1872,7 @@ func TestDatabasesCRUDRBAC(t *testing.T) {
 				Protocol: libdefaults.ProtocolMySQL,
 				URI:      "localhost:3306",
 				DynamicLabels: map[string]types.CommandLabelV2{
-					"hostname": types.CommandLabelV2{
+					"hostname": {
 						Period:  types.Duration(time.Hour),
 						Command: []string{"hostname"},
 					},
@@ -1920,6 +1922,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		Status: aws.String(eks.ClusterStatusActive),
 	})
 	require.NoError(t, err)
+	eksCluster.SetOrigin(types.OriginCloud)
 
 	// Discovery service must not have access to non-cloud cluster (cluster
 	// without "cloud" origin label).
@@ -1939,6 +1942,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		Status: aws.String(eks.ClusterStatusActive),
 	})
 	require.NoError(t, err)
+	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
 		"hostname": &types.CommandLabelV2{
 			Period:  types.Duration(time.Hour),
@@ -1954,7 +1958,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	t.Run("Read", func(t *testing.T) {
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Equal(t, clusters, []types.KubeCluster{eksCluster})
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters))
 	})
 	t.Run("Update", func(t *testing.T) {
 		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
@@ -1980,13 +1984,23 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	// Create test databases.
 	for i := 0; i < 5; i++ {
-		name := uuid.New().String()
+		name := fmt.Sprintf("db-%d", i)
+		database, err := types.NewDatabaseV3(
+			types.Metadata{
+				Name:   name,
+				Labels: map[string]string{"name": name},
+			},
+			types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "example.com",
+			},
+		)
+		require.NoError(t, err)
 		db, err := types.NewDatabaseServerV3(types.Metadata{
 			Name:   name,
 			Labels: map[string]string{"name": name},
 		}, types.DatabaseServerSpecV3{
-			Protocol: "postgres",
-			URI:      "example.com",
+			Database: database,
 			Hostname: "host",
 			HostID:   "hostid",
 		})
@@ -1996,7 +2010,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testServers, err := srv.Auth().GetDatabaseServers(ctx, defaults.Namespace)
+	testServers, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	testResources := make([]types.ResourceWithLabels, len(testServers))
@@ -2013,7 +2027,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	require.NoError(t, err)
 
 	listRequest := proto.ListResourcesRequest{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		// Guarantee that the list will all the servers.
 		Limit:        int32(len(testServers) + 1),
 		ResourceType: types.KindDatabaseServer,
@@ -2022,7 +2036,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	// permit user to get the first database
 	role.SetDatabaseLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err := clt.GetDatabaseServers(ctx, defaults.Namespace)
+	servers, err := clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
 	require.Empty(t, cmp.Diff(testServers[0:1], servers))
@@ -2034,7 +2048,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	// permit user to get all databases
 	role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers), len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
@@ -2045,7 +2059,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	// Test various filtering.
 	baseRequest := proto.ListResourcesRequest{
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		Limit:        int32(len(testServers) + 1),
 		ResourceType: types.KindDatabaseServer,
 	}
@@ -2077,7 +2091,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	// deny user to get the first database
 	role.SetDatabaseLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers[1:]), len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
@@ -2089,7 +2103,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	// deny user to get all databases
 	role.SetDatabaseLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetDatabaseServers(ctx, defaults.Namespace)
+	servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, servers)
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -2119,7 +2133,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
+	testServers, err := srv.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	testResources := make([]types.ResourceWithLabels, len(testServers))
@@ -2128,7 +2142,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	}
 
 	listRequest := proto.ListResourcesRequest{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		// Guarantee that the list will all the servers.
 		Limit:        int32(len(testServers) + 1),
 		ResourceType: types.KindAppServer,
@@ -2145,7 +2159,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	// permit user to get the first app
 	role.SetAppLabels(types.Allow, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err := clt.GetApplicationServers(ctx, defaults.Namespace)
+	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
 	require.Empty(t, cmp.Diff(testServers[0:1], servers))
@@ -2157,7 +2171,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	// permit user to get all apps
 	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers), len(servers))
 	require.Empty(t, cmp.Diff(testServers, servers))
@@ -2168,7 +2182,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 
 	// Test various filtering.
 	baseRequest := proto.ListResourcesRequest{
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		Limit:        int32(len(testServers) + 1),
 		ResourceType: types.KindAppServer,
 	}
@@ -2200,7 +2214,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	// deny user to get the first app
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testServers[1:]), len(servers))
 	require.Empty(t, cmp.Diff(testServers[1:], servers))
@@ -2212,7 +2226,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	// deny user to get all apps
 	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(servers))
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -2251,7 +2265,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 			name := fmt.Sprintf("saml-app-%v", i)
 			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 				Name:      name,
-				Namespace: defaults.Namespace,
+				Namespace: apidefaults.Namespace,
 			}, types.SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 				<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="entity-id-%v" validUntil="2025-12-09T09:13:31.006Z">
@@ -2270,7 +2284,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 		}
 	}
 
-	testAppServers, err := srv.Auth().GetApplicationServers(ctx, defaults.Namespace)
+	testAppServers, err := srv.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
 	testServiceProviders, _, err := srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
@@ -2288,7 +2302,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	}
 
 	listRequest := proto.ListResourcesRequest{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		// Guarantee that the list will have all the app servers and IdP service providers.
 		Limit:        int32(numResources + 1),
 		ResourceType: types.KindAppOrSAMLIdPServiceProvider,
@@ -2307,7 +2321,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	listRequestAppsOnly.SearchKeywords = []string{"app-server"}
 	role.SetAppLabels(types.Allow, types.Labels{"name": {testAppServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err := clt.GetApplicationServers(ctx, defaults.Namespace)
+	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, len(servers))
 	require.Empty(t, cmp.Diff(testAppServers[0:1], servers))
@@ -2329,7 +2343,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 
 	// Test various filtering.
 	baseRequest := proto.ListResourcesRequest{
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		Limit:        int32(numResources + 1),
 		ResourceType: types.KindAppOrSAMLIdPServiceProvider,
 	}
@@ -2368,7 +2382,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 	// deny user to get the first app
 	role.SetAppLabels(types.Deny, types.Labels{"name": {testAppServers[0].GetName()}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, len(testAppServers[1:]), len(servers))
 	require.Empty(t, cmp.Diff(testAppServers[1:], servers))
@@ -2386,7 +2400,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 		},
 	})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
-	servers, err = clt.GetApplicationServers(ctx, defaults.Namespace)
+	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, len(servers))
 	resp, err = clt.ListResources(ctx, listRequest)
@@ -2719,6 +2733,17 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			err = srv.Auth().SetAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 
+			db, err := types.NewDatabaseV3(
+				types.Metadata{
+					Name: databaseName,
+				},
+				types.DatabaseSpecV3{
+					Protocol: tc.dbProtocol,
+					URI:      "example.com",
+				},
+			)
+			require.NoError(t, err)
+
 			database, err := types.NewDatabaseServerV3(
 				types.Metadata{
 					Name: databaseName,
@@ -2727,8 +2752,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 					},
 				},
 				types.DatabaseServerSpecV3{
-					Protocol: tc.dbProtocol,
-					URI:      "example.com",
+					Database: db,
 					Hostname: "host",
 					HostID:   "hostID",
 				},
@@ -2858,7 +2882,7 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	require.NoError(t, err)
 
 	listRequest := proto.ListResourcesRequest{
-		Namespace: defaults.Namespace,
+		Namespace: apidefaults.Namespace,
 		// Guarantee that the list will all the servers.
 		Limit:        int32(len(testServers) + 1),
 		ResourceType: types.KindKubeServer,
@@ -2878,7 +2902,7 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 
 	// Test various filtering.
 	baseRequest := proto.ListResourcesRequest{
-		Namespace:    defaults.Namespace,
+		Namespace:    apidefaults.Namespace,
 		Limit:        int32(len(testServers) + 1),
 		ResourceType: types.KindKubeServer,
 	}
@@ -2960,7 +2984,7 @@ func TestListDatabaseServices(t *testing.T) {
 	listServicesResp, err := srv.Auth().ListResources(ctx,
 		proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
-			Limit:        defaults.DefaultChunkSize,
+			Limit:        apidefaults.DefaultChunkSize,
 		},
 	)
 	require.NoError(t, err)
@@ -2984,7 +3008,7 @@ func TestListDatabaseServices(t *testing.T) {
 	_, err = clt.ListResources(ctx,
 		proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
-			Limit:        defaults.DefaultChunkSize,
+			Limit:        apidefaults.DefaultChunkSize,
 		},
 	)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied because role does not allow Read operations")
@@ -2998,7 +3022,7 @@ func TestListDatabaseServices(t *testing.T) {
 	listServicesResp, err = clt.ListResources(ctx,
 		proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
-			Limit:        defaults.DefaultChunkSize,
+			Limit:        apidefaults.DefaultChunkSize,
 		},
 	)
 	require.NoError(t, err)
@@ -3034,7 +3058,7 @@ func TestListDatabaseServices(t *testing.T) {
 	listServicesResp, err = clt.ListResources(ctx,
 		proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
-			Limit:        defaults.DefaultChunkSize,
+			Limit:        apidefaults.DefaultChunkSize,
 		},
 	)
 	require.NoError(t, err)
@@ -3049,7 +3073,7 @@ func TestListDatabaseServices(t *testing.T) {
 	listServicesResp, err = clt.ListResources(ctx,
 		proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
-			Limit:        defaults.DefaultChunkSize,
+			Limit:        apidefaults.DefaultChunkSize,
 		},
 	)
 	require.NoError(t, err)
@@ -3064,7 +3088,7 @@ func TestListDatabaseServices(t *testing.T) {
 	listServicesResp, err = clt.ListResources(ctx,
 		proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
-			Limit:        defaults.DefaultChunkSize,
+			Limit:        apidefaults.DefaultChunkSize,
 		},
 	)
 	require.NoError(t, err)
@@ -3093,7 +3117,7 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, testNodes, 3)
 
@@ -3146,7 +3170,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Len(t, testNodes, numTestNodes)
 
@@ -3938,7 +3962,7 @@ func TestListResources_WithRoles(t *testing.T) {
 				Version: types.V2,
 				Metadata: types.Metadata{
 					Name:      name,
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 					Labels:    labels,
 				},
 				Spec: types.ServerSpecV2{
@@ -4120,6 +4144,375 @@ func TestListResources_WithRoles(t *testing.T) {
 	}
 }
 
+// TestListUnifiedResources_KindsFilter will generate multiple resources
+// and filter for only one kind.
+func TestListUnifiedResources_KindsFilter(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	for i := 0; i < 5; i++ {
+		name := uuid.New().String()
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+		db, err := types.NewDatabaseServerV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseServerSpecV3{
+			HostID:   "_",
+			Hostname: "_",
+			Database: &types.DatabaseV3{
+				Metadata: types.Metadata{
+					Name: fmt.Sprintf("name-%d", i),
+				},
+				Spec: types.DatabaseSpecV3{
+					Protocol: "_",
+					URI:      "_",
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+		require.NoError(t, err)
+	}
+
+	// create user and client
+	user, _, err := CreateUserAndRole(srv.Auth(), "user", nil, nil)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds: []string{types.KindDatabase},
+		Limit: 5,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return len(resp.Resources) == 5
+	}, time.Second, time.Second/10)
+	// Check that all resources are of type KindDatabaseServer
+	for _, resource := range resp.Resources {
+		r := resource.GetDatabaseServer()
+		require.Equal(t, types.KindDatabaseServer, r.GetKind())
+	}
+}
+
+// TestListUnifiedResources_WithSearch will generate multiple resources
+// and filter by a search query
+func TestListUnifiedResources_WithSearch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
+	for i := 0; i < 6; i++ {
+		name := names[i]
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{
+				Hostname: name,
+			},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, 6)
+
+	// create user and client
+	user, _, err := CreateUserAndRole(srv.Auth(), "user", nil, nil)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		SearchKeywords: []string{"tifa"},
+		Limit:          10,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 2)
+	require.Empty(t, resp.NextKey)
+
+	// Check that our returned resource has the correct name
+	for _, resource := range resp.Resources {
+		r := resource.GetNode()
+		require.True(t, strings.Contains(r.GetHostname(), "tifa"))
+	}
+}
+
+// TestListUnifiedResources_MixedAccess will generate multiple resources
+// and only return the kinds the user has access to
+func TestListUnifiedResources_MixedAccess(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
+	for i := 0; i < 6; i++ {
+		name := names[i]
+
+		// add nodes
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{
+				Hostname: name,
+			},
+			map[string]string{"name": "mylabel"},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+
+		// add dbs
+		db, err := types.NewDatabaseServerV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseServerSpecV3{
+			HostID:   "_",
+			Hostname: "_",
+			Database: &types.DatabaseV3{
+				Metadata: types.Metadata{
+					Name: fmt.Sprintf("name-%d", i),
+				},
+				Spec: types.DatabaseSpecV3{
+					Protocol: "_",
+					URI:      "_",
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+		require.NoError(t, err)
+
+		// add desktops
+		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{"name": "mylabel"},
+			types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
+		require.NoError(t, err)
+		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
+	}
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, 6)
+
+	testDbs, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testDbs, 6)
+
+	testDesktops, err := srv.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	require.NoError(t, err)
+	require.Len(t, testDesktops, 6)
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
+	// remove permission from nodes and desktops
+	role.SetNodeLabels(types.Deny, types.Labels{"name": {"mylabel"}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Limit: 10,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 6)
+	require.Empty(t, resp.NextKey)
+
+	// only receive databases
+	for _, resource := range resp.Resources {
+		r := resource.GetDatabaseServer()
+		require.Equal(t, types.KindDatabaseServer, r.GetKind())
+	}
+}
+
+// TestListUnifiedResources_WithPredicate will return resources that match the
+// predicate expression
+func TestListUnifiedResources_WithPredicate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
+	for i := 0; i < 6; i++ {
+		name := names[i]
+
+		// add nodes
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{
+				Hostname: name,
+			},
+			map[string]string{"name": name},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+	}
+	testNodes, err := srv.Auth().GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testNodes, 6)
+
+	// create user, role, and client
+	username := "theuser"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		PredicateExpression: `labels.name == "tifa"`,
+		Limit:               10,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, resp.NextKey)
+}
+
+// go test ./lib/auth -bench=BenchmarkListUnifiedResources -run=^$ -v -benchtime 1x
+// goos: darwin
+// goarch: arm64
+// pkg: github.com/gravitational/teleport/lib/auth
+// BenchmarkListUnifiedResources
+// BenchmarkListUnifiedResources/simple_labels
+// BenchmarkListUnifiedResources/simple_labels-10                 1        22900895292 ns/op       15071189320 B/op        272733781 allocs/op
+// PASS
+// ok      github.com/gravitational/teleport/lib/auth      25.135s
+func BenchmarkListUnifiedResources(b *testing.B) {
+	const nodeCount = 50_000
+	const roleCount = 32
+
+	logger := logrus.StandardLogger()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetFormatter(utils.NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
+	logger.SetOutput(io.Discard)
+
+	ctx := context.Background()
+	srv := newTestTLSServer(b)
+
+	var ids []string
+	for i := 0; i < roleCount; i++ {
+		ids = append(ids, uuid.New().String())
+	}
+
+	ids[0] = "hidden"
+
+	var hiddenNodes int
+	// Create test nodes.
+	for i := 0; i < nodeCount; i++ {
+		name := uuid.New().String()
+		id := ids[i%len(ids)]
+		if id == "hidden" {
+			hiddenNodes++
+		}
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{
+				"key":   id,
+				"group": "users",
+			},
+		)
+		require.NoError(b, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(b, err)
+	}
+
+	for _, tc := range []struct {
+		desc     string
+		editRole func(types.Role, string)
+	}{
+		{
+			desc: "simple labels",
+			editRole: func(r types.Role, id string) {
+				if id == "hidden" {
+					r.SetNodeLabels(types.Deny, types.Labels{"key": {id}})
+				} else {
+					r.SetNodeLabels(types.Allow, types.Labels{"key": {id}})
+				}
+			},
+		},
+	} {
+		b.Run(tc.desc, func(b *testing.B) {
+			benchmarkListUnifiedResources(
+				b, ctx,
+				nodeCount, roleCount, hiddenNodes,
+				srv,
+				ids,
+				tc.editRole,
+			)
+		})
+	}
+}
+
+func benchmarkListUnifiedResources(
+	b *testing.B, ctx context.Context,
+	nodeCount, roleCount, hiddenNodes int,
+	srv *TestTLSServer,
+	ids []string,
+	editRole func(r types.Role, id string),
+) {
+	var roles []types.Role
+	for _, id := range ids {
+		role, err := types.NewRole(fmt.Sprintf("role-%s", id), types.RoleSpecV6{})
+		require.NoError(b, err)
+		editRole(role, id)
+		roles = append(roles, role)
+	}
+
+	// create user, role, and client
+	username := "user"
+
+	user, err := CreateUser(srv.Auth(), username, roles...)
+	require.NoError(b, err)
+	user.SetTraits(map[string][]string{
+		"group": {"users"},
+		"email": {"test@example.com"},
+	})
+	err = srv.Auth().UpsertUser(user)
+	require.NoError(b, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(b, err)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		var resources []*proto.PaginatedResource
+		req := &proto.ListUnifiedResourcesRequest{
+			Limit: 1_000,
+		}
+		for {
+			rsp, err := clt.ListUnifiedResources(ctx, req)
+			require.NoError(b, err)
+
+			resources = append(resources, rsp.Resources...)
+			req.StartKey = rsp.NextKey
+			if req.StartKey == "" {
+				break
+			}
+		}
+		require.Len(b, resources, nodeCount-hiddenNodes)
+	}
+}
+
 // TestGenerateHostCert attempts to generate host certificates using various
 // RBAC rules
 func TestGenerateHostCert(t *testing.T) {
@@ -4270,33 +4663,22 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	// Test all local service roles, plus RoleInstance.
-	// The latter may also be used to run the uploader.
-	roles := append(types.LocalServiceMappings(), types.RoleInstance)
+	roles := types.LocalServiceMappings()
 	for _, role := range roles {
 		// RoleMDM services don't create events by themselves, instead they rely on
 		// Auth to issue events.
 		if role == types.RoleAuth || role == types.RoleMDM {
 			continue
 		}
+
 		t.Run(role.String(), func(t *testing.T) {
 			ctx := context.Background()
-
-			var identity TestIdentity
-			if role == types.RoleInstance {
-				// RoleInstance needs AdditionalSystemRoles, otherwise the setup is the
-				// same.
-				identity = TestIdentity{
-					I: authz.BuiltinRole{
-						Role: role,
-						AdditionalSystemRoles: []types.SystemRole{
-							types.RoleNode, // Arbitrary, could be any role.
-						},
-						Username: string(role),
-					},
-				}
-			} else {
-				identity = TestBuiltin(role)
+			identity := TestIdentity{
+				I: authz.BuiltinRole{
+					Role:                  types.RoleInstance,
+					AdditionalSystemRoles: []types.SystemRole{role},
+					Username:              string(types.RoleInstance),
+				},
 			}
 
 			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
@@ -4309,7 +4691,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 			}
 
 			t.Run("GetSessionTracker", func(t *testing.T) {
-				sid := session.ID("foo/" + role.String())
+				sid := session.ID("test-session")
 				tracker, err := s.CreateSessionTracker(ctx, &types.SessionTrackerV1{
 					ResourceHeader: types.ResourceHeader{
 						Metadata: types.Metadata{
@@ -5139,7 +5521,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			// default to failed mfa challenge response
 			resp := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: &webauthn.CredentialAssertionResponse{
+					Webauthn: &wanpb.CredentialAssertionResponse{
 						Type: "bad response",
 					},
 				},
@@ -6232,7 +6614,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			kube, err := types.NewKubernetesClusterV3(
 				types.Metadata{
 					Name:      "kube",
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				types.KubernetesClusterSpecV3{},
 			)
@@ -6247,7 +6629,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			kubeServer, err := types.NewKubernetesServerV3(
 				types.Metadata{
 					Name:      serverName,
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 				},
 				types.KubernetesServerSpecV3{
 					Cluster: kube,
@@ -6280,7 +6662,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 					Type:      types.KeepAlive_KUBERNETES,
 					Expires:   time.Now().Add(5 * time.Minute),
 					Name:      serverName,
-					Namespace: defaults.Namespace,
+					Namespace: apidefaults.Namespace,
 					HostID:    hostID,
 				},
 			)

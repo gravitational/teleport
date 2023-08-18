@@ -17,16 +17,74 @@ limitations under the License.
 package aws
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConvertRequestFailureError(t *testing.T) {
+	t.Parallel()
+
+	fakeRequestID := "11111111-2222-3333-3333-333333333334"
+
+	tests := []struct {
+		name           string
+		inputError     error
+		wantUnmodified bool
+		wantIsError    func(error) bool
+	}{
+		{
+			name:        "StatusForbidden",
+			inputError:  awserr.NewRequestFailure(awserr.New("code", "message", nil), http.StatusForbidden, fakeRequestID),
+			wantIsError: trace.IsAccessDenied,
+		},
+		{
+			name:        "StatusConflict",
+			inputError:  awserr.NewRequestFailure(awserr.New("code", "message", nil), http.StatusConflict, fakeRequestID),
+			wantIsError: trace.IsAlreadyExists,
+		},
+		{
+			name:        "StatusNotFound",
+			inputError:  awserr.NewRequestFailure(awserr.New("code", "message", nil), http.StatusNotFound, fakeRequestID),
+			wantIsError: trace.IsNotFound,
+		},
+		{
+			name:           "StatusBadRequest",
+			inputError:     awserr.NewRequestFailure(awserr.New("code", "message", nil), http.StatusBadRequest, fakeRequestID),
+			wantUnmodified: true,
+		},
+		{
+			name:        "StatusBadRequest with AccessDeniedException",
+			inputError:  awserr.NewRequestFailure(awserr.New("AccessDeniedException", "message", nil), http.StatusBadRequest, fakeRequestID),
+			wantIsError: trace.IsAccessDenied,
+		},
+		{
+			name:           "not AWS error",
+			inputError:     errors.New("not-aws-error"),
+			wantUnmodified: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := ConvertRequestFailureError(test.inputError)
+
+			if test.wantUnmodified {
+				require.Equal(t, test.inputError, err)
+			} else {
+				require.True(t, test.wantIsError(err))
+			}
+		})
+	}
+}
 
 func TestConvertIAMv2Error(t *testing.T) {
 	for _, tt := range []struct {

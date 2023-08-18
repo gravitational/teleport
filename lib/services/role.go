@@ -1976,6 +1976,13 @@ func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, imperso
 	return false, nil
 }
 
+// RoleMatcherFunc is a convenience type for creating a role matcher from a function.
+type RoleMatcherFunc func(types.Role, types.RoleConditionType) (bool, error)
+
+func (f RoleMatcherFunc) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	return f(role, condition)
+}
+
 // RoleMatcher defines an interface for a generic role matcher.
 type RoleMatcher interface {
 	Match(types.Role, types.RoleConditionType) (bool, error)

@@ -90,6 +90,8 @@ type UserACL struct {
 	Assist ResourceAccess `json:"assist"`
 	// SAMLIdpServiceProvider defines access to `saml_idp_service_provider` objects.
 	SAMLIdpServiceProvider ResourceAccess `json:"samlIdpServiceProvider"`
+	// AccessList defines access to access list management.
+	AccessList ResourceAccess `json:"accessList"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -158,6 +160,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
 	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
 	lockAccess := newAccess(userRoles, ctx, types.KindLock)
+	accessListAccess := newAccess(userRoles, ctx, types.KindAccessList)
 
 	return UserACL{
 		AccessRequests:          requestAccess,
@@ -188,5 +191,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		Locks:                   lockAccess,
 		Assist:                  assistAccess,
 		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
+		AccessList:              accessListAccess,
 	}
 }

@@ -31,7 +31,8 @@ You will learn how to:
 
 To add saved sessions to PuTTY:
 
-<ScopedBlock scope={["oss","enterprise"]}>
+<Tabs>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 
 1. Sign into a Teleport cluster using the `tsh login` command:
 
@@ -63,8 +64,8 @@ Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:teleport.example.com]
 
 If you don't provide a login to this command, your local Windows username is used instead.
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 1. Sign into a Teleport cluster using the `tsh login` command:
 
@@ -96,8 +97,10 @@ Added PuTTY session for ubuntu@ip-172-31-30-140 [proxy:mytenant.teleport.sh]
 
 If you don't provide a login to this command, your local Windows username is used instead.
 
-</ScopedBlock>
+</TabItem>
 
+
+</Tabs>
 
 ## Use a saved session to connect with PuTTY
 
@@ -243,5 +246,6 @@ To remove `tsh` and associated user data see
 [Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
 
 ## Further reading
-- [CLI Reference](../reference/cli.mdx#tsh-puttyconfig).
+- [CLI Reference](../reference/cli/tsh.mdx#tsh-puttyconfig).
+
 

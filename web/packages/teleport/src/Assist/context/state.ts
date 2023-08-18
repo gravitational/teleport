@@ -15,8 +15,7 @@
  */
 
 import {
-  AccessRequestEvent,
-  AccessRequestStatus,
+  ResolvedAccessRequestServerMessage,
   ServerMessageType,
 } from 'teleport/Assist/types';
 
@@ -68,6 +67,7 @@ export enum AssistStateActionType {
   AddCommandResultSummary,
   ToggleSidebar,
   AddAccessRequest,
+  AddAccessRequestCreated,
 }
 
 export interface ReplaceConversationsAction {
@@ -187,11 +187,14 @@ export interface ToggleSidebarAction {
 
 export interface AddAccessRequestAction {
   type: AssistStateActionType.AddAccessRequest;
+  message: ResolvedAccessRequestServerMessage;
   conversationId: string;
-  status: AccessRequestStatus;
-  summary: string;
-  username: string;
-  events: AccessRequestEvent[];
+}
+
+export interface AddAccessRequestCreatedAction {
+  type: AssistStateActionType.AddAccessRequestCreated;
+  conversationId: string;
+  accessRequestId: string;
 }
 
 export type AssistContextAction =
@@ -214,7 +217,8 @@ export type AssistContextAction =
   | UpdateConversationTitleAction
   | AddCommandResultSummaryAction
   | ToggleSidebarAction
-  | AddAccessRequestAction;
+  | AddAccessRequestAction
+  | AddAccessRequestCreatedAction;
 
 export function reducer(
   state: AssistState,
@@ -280,6 +284,9 @@ export function reducer(
 
     case AssistStateActionType.AddAccessRequest:
       return addAccessRequest(state, action);
+
+    case AssistStateActionType.AddAccessRequestCreated:
+      return addAccessRequestCreated(state, action);
 
     default:
       return state;
@@ -735,17 +742,41 @@ export function addAccessRequest(
   action: AddAccessRequestAction
 ): AssistState {
   const messages = new Map(state.messages.data);
-
   const existingMessages = messages.get(action.conversationId);
 
   messages.set(action.conversationId, [
     ...existingMessages,
     {
-      type: ServerMessageType.AccessRequests,
-      status: action.status,
-      username: action.username,
-      events: action.events,
-      summary: action.summary,
+      type: ServerMessageType.AccessRequest,
+      roles: action.message.roles,
+      reason: action.message.reason,
+      suggestedReviewers: action.message.suggestedReviewers,
+      resources: action.message.resources,
+      created: new Date(),
+    },
+  ]);
+
+  return {
+    ...state,
+    messages: {
+      ...state.messages,
+      data: messages,
+    },
+  };
+}
+
+export function addAccessRequestCreated(
+  state: AssistState,
+  action: AddAccessRequestCreatedAction
+): AssistState {
+  const messages = new Map(state.messages.data);
+  const existingMessages = messages.get(action.conversationId);
+
+  messages.set(action.conversationId, [
+    ...existingMessages.slice(0, -1), // remove the AccessRequest message
+    {
+      type: ServerMessageType.AccessRequestCreated,
+      accessRequestId: action.accessRequestId,
       created: new Date(),
     },
   ]);

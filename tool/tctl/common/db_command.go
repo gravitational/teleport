@@ -84,24 +84,17 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	var servers []types.DatabaseServer
-	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
 		Labels:              labels,
 		PredicateExpression: c.predicateExpr,
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
-	switch {
-	case err != nil:
+	if err != nil {
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})
 		}
 		return trace.Wrap(err)
-	default:
-		servers, err = types.ResourcesWithLabels(resources).AsDatabaseServers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	coll := &databaseServerCollection{servers: servers}

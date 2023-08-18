@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -41,7 +42,7 @@ type kube struct {
 // connect to the local proxy.
 func (k *kube) KubeconfigPath() string {
 	return keypaths.KubeConfigPath(
-		k.cfg.ProfileDir,
+		k.cfg.KubeconfigsDir,
 		k.cfg.TargetURI.GetProfileName(),
 		k.cfg.Username,
 		k.cfg.ClusterName,
@@ -57,9 +58,9 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 
 	k := &kube{base}
 
-	// A key is required here for generating local CAs. It can be any key.
-	// Reading the provided key path to avoid generating a new one.
-	key, err := keys.LoadPrivateKey(k.cfg.KeyPath)
+	// Generate a new private key for the proxy. The client's existing private key may be
+	// a hardware-backed private key, which cannot be added to the local proxy kube config.
+	key, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -80,11 +81,6 @@ func makeKubeGateway(cfg Config) (Kube, error) {
 	if err := k.writeKubeconfig(key, cas); err != nil {
 		return nil, trace.NewAggregate(err, k.Close())
 	}
-	// make sure kubeconfig is written again on new cert as a relogin may
-	// cleanup profile dir.
-	k.onNewCertFuncs = append(k.onNewCertFuncs, func(_ tls.Certificate) error {
-		return trace.Wrap(k.writeKubeconfig(key, cas))
-	})
 	return k, nil
 }
 

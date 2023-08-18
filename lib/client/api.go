@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -192,6 +193,10 @@ type Config struct {
 
 	// PredicateExpression host to connect
 	PredicateExpression string
+
+	// UseSearchAsRoles modifies the behavior of resource loading to
+	// use search as roles feature.
+	UseSearchAsRoles bool
 
 	// Labels represent host Labels
 	Labels map[string]string
@@ -442,7 +447,7 @@ type Config struct {
 
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
-	// Defaults to [dtauthn.NewCeremony().Run].
+	// Defaults to "dtauthn.NewCeremony().Run()".
 	DTAuthnRunCeremony DTAuthnRunCeremonyFunc
 
 	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
@@ -454,6 +459,14 @@ type Config struct {
 	// function.
 	// Defaults to [dtenroll.AutoEnroll].
 	dtAutoEnroll dtAutoEnrollFunc
+
+	// PromptMFAFunc allows tests to override the default MFA prompt function.
+	// Defaults to [mfa.NewPrompt().Run].
+	PromptMFAFunc PromptMFAFunc
+
+	// WebauthnLogin allows tests to override the Webauthn Login func.
+	// Defaults to [wancli.Login].
+	WebauthnLogin WebauthnLoginFunc
 }
 
 // CachePolicy defines cache policy for local clients
@@ -958,20 +971,6 @@ func GetKubeTLSServerName(k8host string) string {
 	return addSubdomainPrefix(k8host, constants.KubeTeleportProxyALPNPrefix)
 }
 
-// GetOldKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
-// TODO(smallinsky) DELETE IN 14.0.0 After dropping support for KubeSNIPrefix SNI routing handler.
-func GetOldKubeTLSServerName(k8host string) string {
-	isIPFormat := net.ParseIP(k8host) != nil
-
-	if k8host == "" || isIPFormat {
-		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
-		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
-		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
-	}
-	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
-}
-
 func addSubdomainPrefix(domain, prefix string) string {
 	return fmt.Sprintf("%s%s", prefix, domain)
 }
@@ -999,10 +998,11 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 		Labels:              c.Labels,
 		SearchKeywords:      c.SearchKeywords,
 		PredicateExpression: c.PredicateExpression,
+		UseSearchAsRoles:    c.UseSearchAsRoles,
 	}
 }
 
-// DTAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
+// DTAuthnRunCeremonyFunc matches the signature of [dtauthn.Ceremony.Run].
 type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
 
 // dtAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
@@ -1330,7 +1330,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // (according to RBAC), IssueCertsWithMFA will:
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
-func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, applyOpts func(opts *PromptMFAChallengeOpts)) (*Key, error) {
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPromptOpts ...mfa.PromptOpt) (*Key, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/IssueUserCertsWithMFA",
@@ -1344,11 +1344,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	key, err := proxyClient.IssueUserCertsWithMFA(
-		ctx, params,
-		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, proxyAddr, c, applyOpts)
-		})
+	key, err := proxyClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
 	return key, trace.Wrap(err)
 }
 
@@ -1945,12 +1941,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-					resp, err := tc.PromptMFAChallenge(ctx, proxyAddr, c, func(opts *PromptMFAChallengeOpts) {
-						opts.Quiet = true
-					})
-					return resp, trace.Wrap(err)
-				})
+				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
 			}
 		}
 	}
@@ -2016,7 +2007,6 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 		default:
 			return trace.BadParameter("unknown session type %q", typ)
 		}
-
 	}
 
 	// read the stream into a buffer:
@@ -2833,19 +2823,16 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
-		ProxyAddress:       cfg.proxyAddress,
-		TLSRoutingEnabled:  tc.TLSRoutingEnabled,
-		TLSConfig:          tlsConfig,
-		DialOpts:           tc.Config.DialOpts,
-		UnaryInterceptors:  []grpc.UnaryClientInterceptor{utils.GRPCClientUnaryErrorInterceptor},
-		StreamInterceptors: []grpc.StreamClientInterceptor{utils.GRPCClientStreamErrorInterceptor},
-		SSHDialer: proxyclient.SSHDialerFunc(func(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-			clt, err := makeProxySSHClient(ctx, tc, config)
-			return clt, trace.Wrap(err)
-		}),
+		ProxyAddress:            cfg.proxyAddress,
+		TLSRoutingEnabled:       tc.TLSRoutingEnabled,
+		TLSConfig:               tlsConfig,
+		DialOpts:                tc.Config.DialOpts,
+		UnaryInterceptors:       []grpc.UnaryClientInterceptor{utils.GRPCClientUnaryErrorInterceptor},
+		StreamInterceptors:      []grpc.StreamClientInterceptor{utils.GRPCClientStreamErrorInterceptor},
 		SSHConfig:               cfg.ClientConfig,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      tc.InsecureSkipVerify,
+		ViaJumpHost:             len(tc.JumpHosts) > 0,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3549,8 +3536,9 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 					return tc.headlessLogin(ctx, priv)
 				}, nil
 			}
-			log.Debug("Headless login is disabled for this command. Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported. Defaulting to local authentication methods.")
-			fallthrough
+			return nil, trace.BadParameter("" +
+				"Headless login is not supported for this command. " +
+				"Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported.")
 		case constants.LocalConnector, "":
 			// if passwordless is enabled and there are passwordless credentials
 			// registered, we can try to go with passwordless login even though
@@ -3641,6 +3629,7 @@ func (tc *TeleportClient) pwdlessLoginWeb(ctx context.Context, priv *keys.Privat
 		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 		StderrOverride:          tc.Stderr,
+		WebauthnLogin:           tc.WebauthnLogin,
 	})
 	return clt, session, trace.Wrap(err)
 }
@@ -3706,12 +3695,10 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, priv *keys.Priva
 	}
 
 	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
-		SSHLogin:                sshLogin,
-		User:                    tc.Username,
-		Password:                password,
-		AuthenticatorAttachment: tc.AuthenticatorAttachment,
-		PreferOTP:               tc.PreferOTP,
-		AllowStdinHijack:        tc.AllowStdinHijack,
+		SSHLogin:  sshLogin,
+		User:      tc.Username,
+		Password:  password,
+		PromptMFA: tc.PromptMFA,
 	})
 	return clt, session, trace.Wrap(err)
 }
@@ -3921,6 +3908,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKe
 		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 		StderrOverride:          tc.Stderr,
+		WebauthnLogin:           tc.WebauthnLogin,
 	})
 
 	return response, trace.Wrap(err)
@@ -4012,12 +4000,10 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 	}
 
 	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin:                sshLogin,
-		User:                    tc.Username,
-		Password:                password,
-		AuthenticatorAttachment: tc.AuthenticatorAttachment,
-		PreferOTP:               tc.PreferOTP,
-		AllowStdinHijack:        tc.AllowStdinHijack,
+		SSHLogin:  sshLogin,
+		User:      tc.Username,
+		Password:  password,
+		PromptMFA: tc.PromptMFA,
 	})
 
 	return response, trace.Wrap(err)
@@ -4449,7 +4435,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 	tc.TLSRoutingEnabled = proxySettings.TLSRoutingEnabled
 	if tc.TLSRoutingEnabled {
 		// If proxy supports TLS Routing all k8s requests will be sent to the WebProxyAddr where TLS Routing will identify
-		// k8s requests by "kube." SNI prefix and route to the kube proxy service.
+		// k8s requests by "kube-teleport-proxy-alpn." SNI prefix and route to the kube proxy service.
 		tc.KubeProxyAddr = tc.WebProxyAddr
 	}
 
@@ -4562,7 +4548,7 @@ func connectToSSHAgent() agent.ExtendedAgent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
-		log.Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
+		log.WithError(err).Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
 		return nil
 	}
 
@@ -5159,7 +5145,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	resp, err := tc.PromptMFAChallenge(ctx, tc.WebProxyAddr, chall, nil)
+	resp, err := tc.PromptMFA(ctx, chall)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -95,6 +95,7 @@ export default class MainProcess {
     this.windowsManager = opts.windowsManager;
     this.agentRunner = new AgentRunner(
       this.settings,
+      path.join(__dirname, 'agentCleanupDaemon.js'),
       (rootClusterUri, state) => {
         const window = this.windowsManager.getWindow();
         if (window.isDestroyed()) {
@@ -153,24 +154,15 @@ export default class MainProcess {
       },
     });
 
-    const tshdPassThroughLogger = createFileLoggerService({
+    this.logProcessExitAndError('tshd', this.tshdProcess);
+
+    createFileLoggerService({
       dev: this.settings.dev,
-      dir: this.settings.userDataDir,
+      dir: this.settings.logsDir,
       name: 'tshd',
       loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
-    });
-
-    tshdPassThroughLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stdout);
-    tshdPassThroughLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stderr);
-
-    this.tshdProcess.on('error', error => {
-      this.logger.error('tshd failed to start', error);
-    });
-
-    this.tshdProcess.once('exit', code => {
-      this.logger.info('tshd exited with code:', code);
-    });
+    }).pipeProcessOutputIntoLogger(this.tshdProcess);
   }
 
   private _initSharedProcess() {
@@ -181,28 +173,16 @@ export default class MainProcess {
         stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
       }
     );
-    const sharedProcessPassThroughLogger = createFileLoggerService({
+
+    this.logProcessExitAndError('shared process', this.sharedProcess);
+
+    createFileLoggerService({
       dev: this.settings.dev,
-      dir: this.settings.userDataDir,
+      dir: this.settings.logsDir,
       name: 'shared',
       loggerNameColor: LoggerColor.Yellow,
       passThroughMode: true,
-    });
-
-    sharedProcessPassThroughLogger.pipeProcessOutputIntoLogger(
-      this.sharedProcess.stdout
-    );
-    sharedProcessPassThroughLogger.pipeProcessOutputIntoLogger(
-      this.sharedProcess.stderr
-    );
-
-    this.sharedProcess.on('error', error => {
-      this.logger.error('shared process failed to start', error);
-    });
-
-    this.sharedProcess.once('exit', code => {
-      this.logger.info('shared process exited with code:', code);
-    });
+    }).pipeProcessOutputIntoLogger(this.sharedProcess);
   }
 
   private _initResolvingChildProcessAddresses(): void {
@@ -476,6 +456,27 @@ export default class MainProcess {
     });
     daemonStop.stderr.setEncoding('utf-8');
     daemonStop.stderr.on('data', logger.error);
+  }
+
+  private logProcessExitAndError(
+    processName: string,
+    childProcess: ChildProcess
+  ) {
+    childProcess.on('error', error => {
+      this.logger.error(`${processName} failed to start`, error);
+    });
+
+    childProcess.once('exit', (code, signal) => {
+      const codeOrSignal = [
+        // code can be 0, so we cannot just check it the same way as the signal.
+        code != null && `code ${code}`,
+        signal && `signal ${signal}`,
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      this.logger.info(`${processName} exited with ${codeOrSignal}`);
+    });
   }
 }
 

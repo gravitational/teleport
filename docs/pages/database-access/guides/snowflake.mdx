@@ -13,18 +13,17 @@ description: How to configure Teleport database access with Snowflake.
   Database access for Snowflake is available starting from Teleport `10.0`.
 </Details>
 
-This guide will help you to:
+(!docs/pages/includes/database-access/db-introduction.mdx  dbType="Snowflake" dbConfigure="Snowflake database with key pair authentication" dbName="Snowflake" !)
 
-- Install and configure Teleport.
-- Assign Teleport's public key to a Snowflake user.
-- Connect to Snowflake through Teleport.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
   ![Teleport Database Access Snowflake Self-Hosted](../../../img/database-access/guides/snowflake_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
   ![Teleport Database Access Snowflake Cloud](../../../img/database-access/guides/snowflake_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -157,3 +156,4 @@ $ tsh db logout
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

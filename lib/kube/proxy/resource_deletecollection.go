@@ -22,7 +22,6 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -44,58 +43,53 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// deleteResourcesCollection calls listPods method to list the Pods the user
+// deleteResourcesCollection calls listResources method to list the resources the user
 // has access to and calls their delete method using the allowed kube principals.
-func (f *Forwarder) deleteResourcesCollection(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+func (f *Forwarder) deleteResourcesCollection(sess *clusterSession, w http.ResponseWriter, req *http.Request) (resp any, err error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube.Forwarder/deletePodsCollection",
+		"kube.Forwarder/deleteResourcesCollection",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCMethodKey.String("deletePodsCollection"),
+			semconv.RPCMethodKey.String("deleteResourcesCollection"),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
 	defer span.End()
 	req = req.WithContext(ctx)
+	var (
+		isLocalKubeCluster = f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName)
+		kubeObjType        string
+		namespace          string
+	)
 
-	sess, err := f.newClusterSession(ctx, *authCtx)
-	if err != nil {
-		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
-		f.log.Errorf("Failed to create cluster session: %v.", err)
-		return nil, trace.Wrap(err)
-	}
-
-	sess.upgradeToHTTP2 = true
-	sess.forwarder, err = f.makeSessionForwarder(sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := f.setupForwardingHeaders(sess, req, true /* withImpersonationHeaders */); err != nil {
-		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
-		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
-		return nil, trace.Wrap(err)
+	if isLocalKubeCluster {
+		namespace = sess.apiResource.namespace
+		kubeObjType, _ = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
 	}
 	// status holds the returned response code.
 	var status int
+	switch {
 	// Check if the target Kubernetes cluster is not served by the current service.
 	// If it's the case, forward the request to the target Kube Service where the
 	// filtering logic will be applied.
-	if !f.isLocalKubeCluster(sess) {
+	case !isLocalKubeCluster:
 		rw := httplib.NewResponseStatusRecorder(w)
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
-	} else {
+	case kubeObjType == utils.KubeCustomResource && namespace != "":
+		status, err = f.handleDeleteCustomResourceCollection(w, req, sess)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
 		memoryRW := responsewriters.NewMemoryResponseWriter()
 		listReq := req.Clone(req.Context())
 		// reset body and method since list does not need the body response.
 		listReq.Body = nil
 		listReq.Method = http.MethodGet
-		_, err = f.listResources(authCtx, memoryRW, listReq, p)
+		_, err = f.listResources(sess, memoryRW, listReq)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -103,18 +97,18 @@ func (f *Forwarder) deleteResourcesCollection(authCtx *authContext, w http.Respo
 		if err := decompressInplace(memoryRW); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		status, err = f.handleDeleteCollectionReq(req, &sess.authContext, memoryRW, w)
+		status, err = f.handleDeleteCollectionReq(req, sess, memoryRW, w)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	f.emitAuditEvent(authCtx, req, sess, status)
+	f.emitAuditEvent(req, sess, status)
 
 	return nil, nil
 }
 
-func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authContext, memWriter *responsewriters.MemoryResponseWriter, w http.ResponseWriter) (int, error) {
+func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSession, memWriter *responsewriters.MemoryResponseWriter, w http.ResponseWriter) (int, error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/handleDeleteCollectionReq",
@@ -130,7 +124,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 	const internalErrStatus = http.StatusInternalServerError
 	// get content-type value
 	contentType := responsewriters.GetContentTypeHeader(memWriter.Header())
-	encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, newClientNegotiator())
+	encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, newClientNegotiator(sess.codecFactory))
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}
@@ -147,14 +141,14 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 		return internalErrStatus, trace.Wrap(err)
 	}
 
-	details, err := f.findKubeDetailsByClusterName(authCtx.kubeClusterName)
+	details, err := f.findKubeDetailsByClusterName(sess.kubeClusterName)
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}
 	params := deleteResourcesCommonParams{
 		ctx:         ctx,
 		log:         f.log,
-		authCtx:     authCtx,
+		authCtx:     &sess.authContext,
 		header:      req.Header,
 		kubeDetails: details,
 	}
@@ -422,7 +416,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 		}
 		o.Items = pointerArrayToArray(items)
 	default:
-		return internalErrStatus, trace.BadParameter("expected *corev1.PodList, got: %T", obj)
+		return internalErrStatus, trace.BadParameter("unexpected type %T", obj)
 	}
 	// reset the memory buffer.
 	memWriter.Buffer().Reset()
@@ -463,6 +457,54 @@ func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.Del
 	}
 	_, _, err = decoder.Decode(data, nil, &into)
 	return into, trace.Wrap(err)
+}
+
+// handleDeleteCustomResourceCollection handles the DELETE Collection request
+// for custom resources. It checks if the user is allowed to execute
+// delete collection requests on the desired namespace and forwards the request
+// to the Kubernetes API server.
+// This process is different from the other delete collection requests because
+// we don't have to check if the user is allowed to delete each individual
+// resource. Instead, we just have to check if the user is allowed to delete
+// collections within the namespace.
+func (f *Forwarder) handleDeleteCustomResourceCollection(w http.ResponseWriter, req *http.Request, sess *clusterSession) (status int, err error) {
+	// Access to custom resources is controlled by KindKubeNamespace.
+	// We need to check if the user is allowed to delete the custom resource within
+	// the namespace by using the CheckKubeGroupsAndUsers method.
+	r := types.KubernetesResource{
+		Kind:  types.KindKubeNamespace,
+		Name:  sess.apiResource.namespace,
+		Verbs: []string{types.KubeVerbDeleteCollection},
+	}
+
+	// Check if the user is allowed to delete the custom resource within the namespace
+	// and get the list of groups and users that the request impersonates.
+	allowedKubeGroups, allowedKubeUsers, err := sess.Checker.CheckKubeGroupsAndUsers(
+		sess.sessionTTL,
+		false, /* overrideTTL */
+		services.NewKubernetesClusterLabelMatcher(
+			sess.kubeClusterLabels,
+			sess.Checker.Traits(),
+		),
+		services.NewKubernetesResourceMatcher(r),
+	)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	// fillDefaultKubePrincipalDetails fills the default details in order to keep
+	// the correct behavior when forwarding the request to the Kubernetes API.
+	kubeUsers, kubeGroups := fillDefaultKubePrincipalDetails(allowedKubeGroups, allowedKubeUsers, sess.User.GetName())
+	sess.kubeUsers = utils.StringsSet(kubeUsers)
+	sess.kubeGroups = utils.StringsSet(kubeGroups)
+	if err := setupImpersonationHeaders(f.log, sess.authContext, req.Header); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	// forward the request to the Kubernetes API.
+	rw := httplib.NewResponseStatusRecorder(w)
+	sess.forwarder.ServeHTTP(rw, req)
+	return rw.Status(), nil
 }
 
 type deleteResourcesCommonParams struct {

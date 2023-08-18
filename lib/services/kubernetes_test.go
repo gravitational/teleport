@@ -92,7 +92,6 @@ func TestNewKubeClusterFromAWSEKS(t *testing.T) {
 				Labels: map[string]string{
 					types.DiscoveryLabelAccountID: "123456789012",
 					types.DiscoveryLabelRegion:    "eu-west-1",
-					types.OriginLabel:             types.OriginCloud,
 					types.CloudLabel:              types.CloudAWS,
 					overrideLabel:                 "override-1",
 					"env":                         "prod",
@@ -135,7 +134,6 @@ func TestNewKubeClusterFromAzureAKS(t *testing.T) {
 			types.DiscoveryLabelRegion:              "uswest1",
 			types.DiscoveryLabelAzureResourceGroup:  "group1",
 			types.DiscoveryLabelAzureSubscriptionID: "subID",
-			types.OriginLabel:                       types.OriginCloud,
 			types.CloudLabel:                        types.CloudAzure,
 			overrideLabel:                           "override-1",
 			"env":                                   "prod",
@@ -179,7 +177,6 @@ func TestNewKubeClusterFromGCPGKE(t *testing.T) {
 		Labels: map[string]string{
 			types.DiscoveryLabelGCPLocation:  "central-1",
 			types.DiscoveryLabelGCPProjectID: "p1",
-			types.OriginLabel:                types.OriginCloud,
 			types.CloudLabel:                 types.CloudGCP,
 			overrideLabel:                    "override-1",
 			"env":                            "prod",
@@ -208,6 +205,40 @@ func TestNewKubeClusterFromGCPGKE(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(expected, actual))
 	require.NoError(t, err)
+	require.True(t, actual.IsGCP())
+	require.False(t, actual.IsAzure())
+	require.False(t, actual.IsAWS())
+}
+
+func TestNewKubeClusterFromGCPGKEWithoutLabels(t *testing.T) {
+	expected, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name:        "cluster1",
+		Description: "desc1",
+		Labels: map[string]string{
+			types.DiscoveryLabelGCPLocation:  "central-1",
+			types.DiscoveryLabelGCPProjectID: "p1",
+			types.CloudLabel:                 types.CloudGCP,
+		},
+	}, types.KubernetesClusterSpecV3{
+		GCP: types.KubeGCP{
+			Name:      "cluster1",
+			ProjectID: "p1",
+			Location:  "central-1",
+		},
+	})
+	require.NoError(t, err)
+
+	cluster := gcp.GKECluster{
+		Name:        "cluster1",
+		Status:      containerpb.Cluster_RUNNING,
+		Labels:      nil,
+		ProjectID:   "p1",
+		Location:    "central-1",
+		Description: "desc1",
+	}
+	actual, err := NewKubeClusterFromGCPGKE(cluster)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, actual))
 	require.True(t, actual.IsGCP())
 	require.False(t, actual.IsAzure())
 	require.False(t, actual.IsAWS())

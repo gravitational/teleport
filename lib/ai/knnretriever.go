@@ -19,30 +19,20 @@ package ai
 import (
 	"github.com/gravitational/trace"
 	"github.com/kyroy/kdtree"
+
+	"github.com/gravitational/teleport/lib/ai/embedding"
 )
 
 // Document is a embedding enriched with similarity score
 type Document struct {
-	*Embedding
+	*embedding.Embedding
 	SimilarityScore float64
-}
-
-// Dimensions returns the number of dimensions of the embedding
-// Implements kdtree.Point interface
-func (e *Embedding) Dimensions() int {
-	return len(e.Vector)
-}
-
-// Dimension returns the value of the i-th dimension
-// Implements kdtree.Point interface
-func (e *Embedding) Dimension(i int) float64 {
-	return e.Vector[i]
 }
 
 // KNNRetriever is a retriever that uses KNN to find relevant documents.
 type KNNRetriever struct {
 	tree    *kdtree.KDTree
-	mapping map[string]*Embedding
+	mapping map[string]*embedding.Embedding
 	// vectorsDimension is the dimension of the vectors.
 	// All vectors must have the same dimension.
 	vectorsDimension int
@@ -50,13 +40,13 @@ type KNNRetriever struct {
 
 // NewKNNRetriever returns a new KNNRetriever. It expects that all points
 // have the same dimension and all vectors are normalized.
-func NewKNNRetriever(points []*Embedding) (*KNNRetriever, error) {
+func NewKNNRetriever(points []*embedding.Embedding) (*KNNRetriever, error) {
 	if len(points) == 0 {
 		return nil, trace.BadParameter("no points provided")
 	}
 	expectedDimension := points[0].Dimensions()
 	kpoints := make([]kdtree.Point, len(points))
-	mapping := make(map[string]*Embedding, len(points))
+	mapping := make(map[string]*embedding.Embedding, len(points))
 	for i, point := range points {
 		// Make sure that all points have the same dimension
 		if point.Dimensions() != expectedDimension {
@@ -74,11 +64,11 @@ func NewKNNRetriever(points []*Embedding) (*KNNRetriever, error) {
 }
 
 // GetRelevant returns the k most relevant documents to the query
-func (r *KNNRetriever) GetRelevant(query *Embedding, k int) []*Document {
+func (r *KNNRetriever) GetRelevant(query *embedding.Embedding, k int) []*Document {
 	result := r.tree.KNN(query, k)
 	relevant := make([]*Document, len(result))
 	for i, item := range result {
-		embedding := item.(*Embedding)
+		embedding := item.(*embedding.Embedding)
 		// Ignore error. We've already checked that all points have the same dimension
 		similarity, _ := calculateSimilarity(query.Vector, embedding.Vector)
 
@@ -91,7 +81,7 @@ func (r *KNNRetriever) GetRelevant(query *Embedding, k int) []*Document {
 }
 
 // Insert inserts a new point into the retriever
-func (r *KNNRetriever) Insert(point *Embedding) error {
+func (r *KNNRetriever) Insert(point *embedding.Embedding) error {
 	if point.Dimensions() != r.vectorsDimension {
 		return trace.BadParameter("point has wrong dimension")
 	}

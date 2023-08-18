@@ -31,6 +31,10 @@ export type RuntimeSettings = {
   binDir: string | undefined;
   certsDir: string;
   kubeConfigsDir: string;
+  // TODO(ravicious): Replace with app.getPath('logs'). We started storing logs under a custom path.
+  // Before switching to the recommended path, we need to investigate the impact of this change.
+  // https://www.electronjs.org/docs/latest/api/app#appgetpathname
+  logsDir: string;
   defaultShell: string;
   platform: Platform;
   agentBinaryPath: string;

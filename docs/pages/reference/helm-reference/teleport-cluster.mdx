@@ -238,7 +238,7 @@ Defaults to `local`.
 `authentication.localAuth` controls whether local authentication is enabled.
 When disabled, users can only log in through authentication connectors like `saml`, `oidc` or `github`.
 
-[Disabling local auth is required for FedRAMP / FIPS](../../access-controls/compliance-frameworks/fedramp.mdx#teleport-auth-server).
+[Disabling local auth is required for FedRAMP / FIPS](../../access-controls/compliance-frameworks/fedramp.mdx#teleport-auth-service).
 
 ### `authentication.lockingMode`
 
@@ -846,6 +846,21 @@ The default is left blank, which will automatically create a `PersistentVolumeCl
   ```yaml
   persistence:
     existingClaimName: my-existing-pvc-name
+  ```
+
+### `persistence.storageClassName`
+
+| Type   | Default value |
+|--------|---------------|
+| `string` | `nil`        |
+
+`persistence.storageClassName` can be used to set the storage class for the `PersistentVolumeClaim`.
+
+`values.yaml` example:
+
+  ```yaml
+  persistence:
+    storageClassName: ebs-ssd
   ```
 
 ### `persistence.volumeSize`

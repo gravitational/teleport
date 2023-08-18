@@ -25,14 +25,24 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 service AccessListService {
   // GetAccessLists returns a list of all access lists.
   rpc GetAccessLists(GetAccessListsRequest) returns (GetAccessListsResponse);
+  // ListAccessLists returns a paginated list of all access lists.
+  rpc ListAccessLists(ListAccessListsRequest) returns (ListAccessListsResponse);
   // GetAccessList returns the specified access list resource.
   rpc GetAccessList(GetAccessListRequest) returns (AccessList);
+  // GetAccessListMembers returns the members associated with the access list resource.
+  rpc GetAccessListMembers(GetAccessListMembersRequest) returns (GetAccessListMembersResponse);
   // UpsertAccessList creates or updates an access list resource.
   rpc UpsertAccessList(UpsertAccessListRequest) returns (AccessList);
+  // UpsertAccessListMember creates or updates an access list member resource.
+  rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
   // DeleteAccessList hard deletes the specified access list resource.
   rpc DeleteAccessList(DeleteAccessListRequest) returns (google.protobuf.Empty);
+  // DeleteAccessListMember hard deletes the specified access list member resource.
+  rpc DeleteAccessListMember(DeleteAccessListMemberRequest) returns (google.protobuf.Empty);
   // DeleteAllAccessLists hard deletes all access lists.
   rpc DeleteAllAccessLists(DeleteAllAccessListsRequest) returns (google.protobuf.Empty);
+  // DeleteAllAccessListMembers hard deletes all access list members for an access list.
+  rpc DeleteAllAccessListMembers(DeleteAllAccessListMembersRequest) returns (google.protobuf.Empty);
 }
 
 // GetAccessListsRequest is the request for getting all access lists.
@@ -44,10 +54,39 @@ message GetAccessListsResponse {
   repeated AccessList access_lists = 1;
 }
 
+// ListAccessListsRequest is the request for getting paginated access lists.
+message ListAccessListsRequest {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+
+  // next_token is the page token.
+  string next_token = 2;
+}
+
+// ListAccessListsResponse is the response for getting paginated access lists.
+message ListAccessListsResponse {
+  // access_lists is the list of access lists.
+  repeated AccessList access_lists = 1;
+  // next_token is the next page token.
+  string next_token = 2;
+}
+
 // GetAccessListRequest is the request for retrieving an access list.
 message GetAccessListRequest {
   // name is the name of the access list to retrieve.
   string name = 1;
+}
+
+// GetAccessListMembersRequest is the request for retrieving members of an access list.
+message GetAccessListMembersRequest {
+  // name is the name of the access list to retrieve.
+  string name = 1;
+}
+
+// GetAccessListMembersResponse is the response for retrieving members of an access list.
+message GetAccessListMembersResponse {
+  // members are the members of the acccess list.
+  repeated Member members = 1;
 }
 
 // UpsertAccessListRequest is the request for upserting an access list.
@@ -56,11 +95,35 @@ message UpsertAccessListRequest {
   AccessList access_list = 1;
 }
 
+// UpsertAccessListMemberRequest is the request for upserting an access list member.
+message UpsertAccessListMemberRequest {
+  // access_list is the name of access list.
+  string access_list = 1;
+  // name is the name of the user to add.
+  string name = 2;
+  // reason is the reason the user is being added.
+  string reason = 3;
+}
+
 // DeleteAccessListRequest is the request for deleting an access list.
 message DeleteAccessListRequest {
   // name is the name of the access list to delete.
   string name = 1;
 }
 
-// DeleteAllAccessListRequest is the request for deleting all access lists.
+// DeleteAccessListMemberRequest is the request for deleting a member from an access list.
+message DeleteAccessListMemberRequest {
+  // access_list is the name of access list.
+  string access_list = 1;
+  // name is the name of the user to delete.
+  string name = 2;
+}
+
+// DeleteAllAccessListsRequest is the request for deleting all access lists.
 message DeleteAllAccessListsRequest {}
+
+// DeleteAllAccessListMembersRequest is the request for deleting all members from an access list.
+message DeleteAllAccessListMembersRequest {
+  // access_list is the name of access list.
+  string access_list = 1;
+}

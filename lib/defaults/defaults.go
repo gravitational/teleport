@@ -135,7 +135,7 @@ const (
 
 	// ReadHeadersTimeout is a default TCP timeout when we wait
 	// for the response headers to arrive
-	ReadHeadersTimeout = time.Second
+	ReadHeadersTimeout = 10 * time.Second
 
 	// DatabaseConnectTimeout is a timeout for connecting to a database via
 	// database access.
@@ -320,6 +320,9 @@ const (
 
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
+
+	// UnifiedResourcesQueueSize is the unified resource watcher queue size
+	UnifiedResourcesQueueSize = 8192
 
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128

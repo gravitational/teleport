@@ -17,5 +17,9 @@ module.exports = {
   ],
   transformIgnorePatterns: [`/node_modules/(?!${esModules})`],
   coverageReporters: ['text-summary', 'lcov'],
-  setupFilesAfterEnv: ['<rootDir>/web/packages/shared/setupTests.tsx'],
+  testPathIgnorePatterns: ['e2e'],
+  setupFilesAfterEnv: [
+    '<rootDir>/web/packages/shared/setupTests.tsx',
+    '<rootDir>/web/packages/build/jest/customMatchers.ts',
+  ],
 };

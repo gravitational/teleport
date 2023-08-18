@@ -16,6 +16,7 @@ limitations under the License.
 import { AgentLabel } from 'teleport/services/agents';
 
 export interface Node {
+  kind: 'node';
   id: string;
   clusterId: string;
   hostname: string;

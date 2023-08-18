@@ -47,7 +47,7 @@ const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 // Allows running tsh in insecure mode (development)
 const isInsecure = dev || argv.includes('--insecure');
 
-function getRuntimeSettings(): RuntimeSettings {
+export function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
   const sessionDataDir = app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
@@ -59,6 +59,11 @@ function getRuntimeSettings(): RuntimeSettings {
   const { binDir, tshBinPath } = getBinaryPaths();
   const { username } = os.userInfo();
   const hostname = os.hostname();
+  const kubeConfigsDir = getKubeConfigsDir();
+  // TODO(ravicious): Replace with app.getPath('logs'). We started storing logs under a custom path.
+  // Before switching to the recommended path, we need to investigate the impact of this change.
+  // https://www.electronjs.org/docs/latest/api/app#appgetpathname
+  const logsDir = path.join(userDataDir, 'logs');
 
   const tshd = {
     insecure: isInsecure,
@@ -73,6 +78,7 @@ function getRuntimeSettings(): RuntimeSettings {
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
       `--prehog-addr=${staticConfig.prehogAddress}`,
+      `--kubeconfigs-dir=${kubeConfigsDir}`,
     ],
   };
   const sharedProcess = {
@@ -108,7 +114,8 @@ function getRuntimeSettings(): RuntimeSettings {
     agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
-    kubeConfigsDir: getKubeConfigsDir(),
+    kubeConfigsDir,
+    logsDir,
     platform: process.platform,
     installationId: loadInstallationId(
       path.resolve(app.getPath('userData'), 'installation_id')
@@ -195,7 +202,7 @@ function getBinaryPaths(): { binDir?: string; tshBinPath: string } {
   return { tshBinPath };
 }
 
-function getAssetPath(...paths: string[]): string {
+export function getAssetPath(...paths: string[]): string {
   return path.join(RESOURCES_PATH, 'assets', ...paths);
 }
 
@@ -254,5 +261,3 @@ function getUnixSocketNetworkAddress(socketName: string) {
 
   return `unix://${path.resolve(app.getPath('userData'), socketName)}`;
 }
-
-export { getRuntimeSettings, getAssetPath };
