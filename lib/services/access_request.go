@@ -378,9 +378,9 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 	// Resolved requests should not be updated.
 	switch {
 	case req.GetState().IsApproved():
-		return trace.AccessDenied("can't review access request, it is approved")
+		return trace.AccessDenied("the access request has been already approved")
 	case req.GetState().IsDenied():
-		return trace.AccessDenied("can't review access request, it is denied")
+		return trace.AccessDenied("the access request has been already denied")
 	}
 
 	req.SetReviews(append(req.GetReviews(), rev))
