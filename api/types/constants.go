@@ -400,6 +400,9 @@ const (
 	// KindUserLoginState is a UserLoginState resource
 	KindUserLoginState = "user_login_state"
 
+	// KindAccessListMember is an AccessListMember resource
+	KindAccessListMember = "access_list_member"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
