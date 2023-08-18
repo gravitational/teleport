@@ -72,7 +72,7 @@ export function AgentExitedUnsuccessfully() {
         status: 'exited',
         exitedSuccessfully: false,
         code: 1,
-        stackTrace: 'teleport: error: unknown short flag -non-existing-flag',
+        logs: 'teleport: error: unknown short flag -non-existing-flag',
         signal: null,
       }}
     />

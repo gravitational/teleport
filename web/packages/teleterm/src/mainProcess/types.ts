@@ -143,7 +143,7 @@ export type AgentProcessState =
       signal: NodeJS.Signals | null;
       exitedSuccessfully: boolean;
       /** Fragment of a stack trace when the process did not exit successfully. */
-      stackTrace?: string;
+      logs?: string;
     }
   | {
       // TODO(ravicious): 'error' should not be considered a separate process state. Instead,

@@ -256,7 +256,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
                 )}.`}
                 mb={1}
               />
-              <Logs logs={agentProcessState.stackTrace} />
+              <Logs logs={agentProcessState.logs} />
             </>
           );
         }

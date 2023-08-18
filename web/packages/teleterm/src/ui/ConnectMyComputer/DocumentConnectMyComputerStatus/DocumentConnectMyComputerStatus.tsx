@@ -183,9 +183,7 @@ export function DocumentConnectMyComputerStatus(
             {prettyCurrentAction.error}
           </Alert>
         )}
-        {prettyCurrentAction.stackTrace && (
-          <Logs logs={prettyCurrentAction.stackTrace} />
-        )}
+        {prettyCurrentAction.logs && <Logs logs={prettyCurrentAction.logs} />}
         <Text mb={4} mt={1}>
           Connecting your computer will allow any cluster user with the role{' '}
           <strong>{roleName}</strong> to access it as an SSH resource with the
@@ -226,7 +224,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
   Icon: React.FC<IconProps>;
   title: string;
   error?: string;
-  stackTrace?: string;
+  logs?: string;
 } {
   const noop = {
     Icon: StyledIndicator,
@@ -294,7 +292,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
                 code,
                 signal
               )}`,
-              stackTrace: currentAction.agentProcessState.stackTrace,
+              logs: currentAction.agentProcessState.logs,
             };
           }
           break;
@@ -335,7 +333,7 @@ function prettifyCurrentAction(currentAction: CurrentAction): {
             return {
               Icon: StyledWarning,
               title: `Agent process exited with ${codeOrSignal(code, signal)}`,
-              stackTrace: currentAction.agentProcessState.stackTrace,
+              logs: currentAction.agentProcessState.logs,
             };
           }
         }
