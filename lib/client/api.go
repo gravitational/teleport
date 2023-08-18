@@ -428,6 +428,10 @@ type Config struct {
 	// PromptMFAFunc allows tests to override the default MFA prompt function.
 	// Defaults to [mfa.NewPrompt().Run].
 	PromptMFAFunc PromptMFAFunc
+
+	// WebauthnLogin allows tests to override the Webauthn Login func.
+	// Defaults to [wancli.Login].
+	WebauthnLogin WebauthnLoginFunc
 }
 
 // CachePolicy defines cache policy for local clients
@@ -3549,6 +3553,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKe
 		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
 		StderrOverride:          tc.Stderr,
+		WebauthnLogin:           tc.WebauthnLogin,
 	})
 
 	return response, trace.Wrap(err)
