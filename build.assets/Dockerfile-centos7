@@ -204,11 +204,6 @@ COPY --from=git2 /opt/git /usr/local
 
 ARG BUILDARCH
 
-# Install etcd.
-RUN (curl -fsSL https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-     rm -rf etcd-v3.3.9-linux-${BUILDARCH})
-
 # Install Go.
 RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
