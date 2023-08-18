@@ -35,7 +35,7 @@ import { codeOrSignal } from 'teleterm/ui/utils/process';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useAgentProperties } from '../useAgentProperties';
-import { StackTrace } from '../StackTrace';
+import { Logs } from '../Logs';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -247,7 +247,7 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
                 )}.`}
                 mb={1}
               />
-              <StackTrace lines={agentProcessState.stackTrace} />
+              <Logs logs={agentProcessState.stackTrace} />
             </>
           );
         }

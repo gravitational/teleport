@@ -17,11 +17,11 @@
 import { Flex, Text } from 'design';
 import React from 'react';
 
-interface StacktraceProps {
-  lines: string;
+interface LogsProps {
+  logs: string;
 }
 
-export function StackTrace(props: StacktraceProps): JSX.Element {
+export function Logs(props: LogsProps): JSX.Element {
   return (
     <>
       <Text mb={2}>Last 10 lines of logs:</Text>
@@ -41,7 +41,7 @@ export function StackTrace(props: StacktraceProps): JSX.Element {
             font-family: ${props => props.theme.fonts.mono};
           `}
         >
-          {props.lines}
+          {props.logs}
         </span>
       </Flex>
     </>

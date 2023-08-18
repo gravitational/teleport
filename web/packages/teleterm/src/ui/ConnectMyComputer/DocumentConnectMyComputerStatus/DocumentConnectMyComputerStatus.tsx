@@ -45,7 +45,7 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { codeOrSignal } from 'teleterm/ui/utils/process';
 
 import { useAgentProperties } from '../useAgentProperties';
-import { StackTrace } from '../StackTrace';
+import { Logs } from '../Logs';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 import type { IconProps } from 'design/Icon/Icon';
@@ -184,7 +184,7 @@ export function DocumentConnectMyComputerStatus(
           </Alert>
         )}
         {prettyCurrentAction.stackTrace && (
-          <StackTrace lines={prettyCurrentAction.stackTrace} />
+          <Logs logs={prettyCurrentAction.stackTrace} />
         )}
         <Text mb={4} mt={1}>
           Connecting your computer will allow any cluster user with the role{' '}
