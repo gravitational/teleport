@@ -25,8 +25,8 @@ With a dynamic label, the `teleport` process executes an external command on its
 a configurable frequency and the output of the command becomes the label value.
 
 You can add multiple static and dynamic labels for the same resource.
-However, if you add static labels that use the same key but with different values, only the first 
-key-value pair is used.
+However, you can't add static labels that use the same key with different values or use
+a static label to define multiple potential values.
 
 Dynamic labels are especially useful for decoupling a label value from the Teleport configuration. 
 For example, if you start Teleport on an Amazon EC2 instance, you can use a dynamic label to set the 
@@ -94,6 +94,17 @@ where you installed the Teleport agent.
      enabled: true
      labels:
        environment: dev
+   ```
+
+   This example illustrate a simple value setting. However, you can use static labels
+   to define more complex string values that include white space or punctuation marks. 
+   For example:
+
+   ```code
+   ssh_service:
+     enabled: true
+     labels:
+       location: San Francisco Bldg 301 4th floor
    ```
 
 1. Save your changes and close the file.
