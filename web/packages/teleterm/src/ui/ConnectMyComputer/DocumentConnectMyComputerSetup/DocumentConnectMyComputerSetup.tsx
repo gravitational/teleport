@@ -256,6 +256,9 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
   ];
 
   const runSteps = useCallback(async () => {
+    // all steps have to be cleared when starting the setup process;
+    // otherwise we could see old errors on retry
+    // (the error would be cleared when the given step starts, but it would be too late)
     setCreateRoleAttempt(makeEmptyAttempt());
     setDownloadAgentAttempt(makeEmptyAttempt());
     setGenerateConfigFileAttempt(makeEmptyAttempt());
@@ -273,6 +276,8 @@ function AgentSetup({ rootClusterUri }: { rootClusterUri: RootClusterUri }) {
         return;
       }
     }
+    // Wait before navigating away from the document, so the user has time
+    // to notice that all four steps have completed.
     await wait(500);
     markAgentAsConfigured();
   }, [
