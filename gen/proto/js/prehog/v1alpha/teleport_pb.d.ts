@@ -1663,6 +1663,35 @@ export namespace DeviceAuthenticateEvent {
     }
 }
 
+export class FeatureRecommendationEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): FeatureRecommendationEvent;
+
+    getFeature(): Feature;
+    setFeature(value: Feature): FeatureRecommendationEvent;
+
+    getFeatureRecommendationStatus(): FeatureRecommendationStatus;
+    setFeatureRecommendationStatus(value: FeatureRecommendationStatus): FeatureRecommendationEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): FeatureRecommendationEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: FeatureRecommendationEvent): FeatureRecommendationEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: FeatureRecommendationEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): FeatureRecommendationEvent;
+    static deserializeBinaryFromReader(message: FeatureRecommendationEvent, reader: jspb.BinaryReader): FeatureRecommendationEvent;
+}
+
+export namespace FeatureRecommendationEvent {
+    export type AsObject = {
+        userName: string,
+        feature: Feature,
+        featureRecommendationStatus: FeatureRecommendationStatus,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1968,6 +1997,12 @@ export class SubmitEventRequest extends jspb.Message {
     setDeviceAuthenticateEvent(value?: DeviceAuthenticateEvent): SubmitEventRequest;
 
 
+    hasFeatureRecommendationEvent(): boolean;
+    clearFeatureRecommendationEvent(): void;
+    getFeatureRecommendationEvent(): FeatureRecommendationEvent | undefined;
+    setFeatureRecommendationEvent(value?: FeatureRecommendationEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -2033,6 +2068,7 @@ export namespace SubmitEventRequest {
         assistExecution?: AssistExecutionEvent.AsObject,
         assistNewConversation?: AssistNewConversationEvent.AsObject,
         deviceAuthenticateEvent?: DeviceAuthenticateEvent.AsObject,
+        featureRecommendationEvent?: FeatureRecommendationEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2135,6 +2171,8 @@ export namespace SubmitEventRequest {
     ASSIST_NEW_CONVERSATION = 51,
 
     DEVICE_AUTHENTICATE_EVENT = 52,
+
+    FEATURE_RECOMMENDATION_EVENT = 53,
 
     }
 
@@ -2326,4 +2364,15 @@ export enum EditorChangeStatus {
     EDITOR_CHANGE_STATUS_UNSPECIFIED = 0,
     EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1,
     EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2,
+}
+
+export enum Feature {
+    FEATURE_UNSPECIFIED = 0,
+    FEATURE_TRUSTED_DEVICES = 1,
+}
+
+export enum FeatureRecommendationStatus {
+    FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
+    FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
+    FEATURE_RECOMMENDATION_STATUS_DONE = 2,
 }
