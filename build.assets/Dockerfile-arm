@@ -26,20 +26,15 @@ RUN apt-get -y update && \
         gnupg \
         gzip \
         libc6-dev \
-        libelf-dev \
         libpam-dev \
-        libssl-dev \
         locales \
-        openssh-client \
         pkg-config \
         sudo \
         unzip \
         zip \
-        zlib1g-dev \
-        gcc-arm-linux-gnueabi \
-        libc6-armel-cross \
-        libc6-dev-armel-cross \
-        linux-libc-dev-armhf-cross \
+        # ARM dependencies
+        libc6-dev-armhf-cross \
+        gcc-arm-linux-gnueabihf \
         && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \

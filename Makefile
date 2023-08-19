@@ -242,7 +242,7 @@ CGOFLAG = CGO_ENABLED=1
 
 # ARM builds need to specify the correct C compiler
 ifeq ($(IS_NATIVE_BUILD),"no")
-CC=arm-linux-gnueabi-gcc
+CC=arm-linux-gnueabihf-gcc
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.

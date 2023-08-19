@@ -193,11 +193,11 @@ buildbox-arm:
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--build-arg UID=$(UID) \
-        --build-arg GID=$(GID) \
-        --build-arg BUILDARCH=$(RUNTIME_ARCH) \
-        --build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-        --build-arg RUST_VERSION=$(RUST_VERSION) \
-        --build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
@@ -390,10 +390,7 @@ release-386:
 
 .PHONY: release-arm
 release-arm: buildbox-arm
-	@echo "Build Assets Release (32 bits)"
-	 docker run -e ARCH=arm $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_ARM) \
-		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=arm RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
-	#$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
+	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
 
 .PHONY: release-amd64-centos7
 release-amd64-centos7: buildbox-centos7
