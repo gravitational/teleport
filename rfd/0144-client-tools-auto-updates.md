@@ -49,6 +49,8 @@ The [deploy-auto-update-changes.yml](https://github.com/gravitational/cloud/blob
 
 Unlike the agent version discovery model, there will not be an endpoint to identify if a critical update is available. The reason for this is because updates are not executed in a scheduled update window. Teleport client tools will check this endpoint everytime `login` or `status` is executed, and update accordingly if the cached version does not match the cloud-stable version.
 
+We've considered querying the Teleport version information from the ping response, but we've decided against this approach. One reason is because we would not be able to update the client tools versions independently of the cluster. Another reason is because we're considering removing the Teleport minor version information from the ping response. The minor version informatoin could be used by attackers to identify and attack unpatched customers.
+
 ### Caching
 
 A single version of the Teleport client tools will be stored in the user's $HOME directory. Teleport already makes use of a .tsh directory for storing tsh config. Cached versions of tsh/tctl will also live within this directory under ` $HOME/.tsh/bin/{tsh,tctl}`. Whenever a new version of the client tools are available, the existing cached version will be replaced.
@@ -85,7 +87,9 @@ An alternative method could be use to a flag like `--no-cache` to determine if a
 - If `--no-cache=false`, try to execute tsh from cache with `--no-cache=true`
 - If tsh does not exist in cache, execute as usual
 
-Another option could be to have users update their `PATH` env with `export PATH=$HOME/.tsh/bin:$PATH`. Users would then execute the cached binary directly. This seems like a simpler approach then the above methods. The problem is that this requries an extra step for the users, and the cached binary would not support TouchID for macOS users.
+Another option could be to have users update their `PATH` env with `export PATH=$HOME/.tsh/bin:$PATH`. Adding the tsh bin directory to the `PATH` environment in the user's `.profile` can be handled by tsh. Users would then execute the cached binary directly. This seems like a simpler approach than the above methods. The problem is that the cached binary would not support TouchID for macOS users.
+
+I believe macOS software needs to be notarized as a requirement for TouchID. For this reason Teleport provides a separate signed tsh download at `https://cdn.teleport.dev/tsh-13.3.4.pkg`. We could change the download method for macOS users, but this might not be very straight forward to implement.
 
 ## UX
 
