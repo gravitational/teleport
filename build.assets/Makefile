@@ -196,7 +196,6 @@ buildbox-arm:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
