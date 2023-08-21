@@ -22,6 +22,5 @@
     write_target_value: {{ required "aws.writeTargetValue is required when aws.dynamoAutoScaling is true" .Values.aws.writeTargetValue }}
     {{- else }}
     auto_scaling: false
-    billing_mode: pay_per_request
     {{- end }}
 {{- end -}}
