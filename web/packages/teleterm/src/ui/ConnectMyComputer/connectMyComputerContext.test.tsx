@@ -139,9 +139,7 @@ test('starting the agent flips the workspace autoStart flag to true', async () =
   await act(() => result.current.startAgent());
 
   expect(
-    appContext.workspacesService.getConnectMyComputerAutoStartFlag(
-      rootCluster.uri
-    )
+    appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
   ).toBeTruthy();
 });
 
@@ -163,9 +161,7 @@ test('killing the agent flips the workspace autoStart flag to false', async () =
   await act(() => result.current.killAgent());
 
   expect(
-    appContext.workspacesService.getConnectMyComputerAutoStartFlag(
-      rootCluster.uri
-    )
+    appContext.workspacesService.getConnectMyComputerAutoStart(rootCluster.uri)
   ).toBeFalsy();
 });
 
@@ -202,7 +198,7 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
       return { cleanup: () => eventEmitter.off('', listener) };
     });
   jest
-    .spyOn(appContext.workspacesService, 'getConnectMyComputerAutoStartFlag')
+    .spyOn(appContext.workspacesService, 'getConnectMyComputerAutoStart')
     .mockReturnValue(true);
 
   const { result, waitFor } = renderHook(() => useConnectMyComputerContext(), {

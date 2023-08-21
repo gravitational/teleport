@@ -189,18 +189,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.persistState();
   }
 
-  setConnectMyComputerAutoStartFlag(
+  setConnectMyComputerAutoStart(
     rootClusterUri: RootClusterUri,
-    params: { shouldAutoStart: boolean }
+    autoStart: boolean
   ): void {
     this.setState(draftState => {
       draftState.workspaces[rootClusterUri].connectMyComputer = {
-        autoStart: params.shouldAutoStart,
+        autoStart,
       };
     });
   }
 
-  getConnectMyComputerAutoStartFlag(rootClusterUri: RootClusterUri): boolean {
+  getConnectMyComputerAutoStart(rootClusterUri: RootClusterUri): boolean {
     return this.state.workspaces[rootClusterUri].connectMyComputer?.autoStart;
   }
 

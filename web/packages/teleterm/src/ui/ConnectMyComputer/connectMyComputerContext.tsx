@@ -161,9 +161,9 @@ export const ConnectMyComputerContextProvider: FC<{
           }),
         ]);
         setCurrentActionKind('observe-process');
-        workspacesService.setConnectMyComputerAutoStartFlag(
+        workspacesService.setConnectMyComputerAutoStart(
           props.rootClusterUri,
-          { shouldAutoStart: true }
+          true
         );
         return server;
       } catch (error) {
@@ -194,9 +194,9 @@ export const ConnectMyComputerContextProvider: FC<{
       setCurrentActionKind('kill');
       await connectMyComputerService.killAgent(props.rootClusterUri);
       setCurrentActionKind('observe-process');
-      workspacesService.setConnectMyComputerAutoStartFlag(
+      workspacesService.setConnectMyComputerAutoStart(
         props.rootClusterUri,
-        { shouldAutoStart: false }
+        false
       );
     }, [connectMyComputerService, props.rootClusterUri, workspacesService])
   );
@@ -249,9 +249,7 @@ export const ConnectMyComputerContextProvider: FC<{
     const shouldAutoStartAgent =
       isAgentConfigured &&
       canUse &&
-      workspacesService.getConnectMyComputerAutoStartFlag(
-        props.rootClusterUri
-      ) &&
+      workspacesService.getConnectMyComputerAutoStart(props.rootClusterUri) &&
       agentIsNotStarted;
     if (shouldAutoStartAgent) {
       downloadAndStartAgent();
