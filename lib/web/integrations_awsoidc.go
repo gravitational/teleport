@@ -366,3 +366,40 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		EC2ICEs:   resp.EC2ICEs,
 	}, nil
 }
+
+// awsOIDCDeployC2ICE creates an EC2 Instance Connect Endpoint.
+func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployEC2ICERequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	createEC2ICEClient, err := awsoidc.NewCreateEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.CreateEC2ICE(ctx,
+		createEC2ICEClient,
+		awsoidc.CreateEC2ICERequest{
+			Cluster:          h.auth.clusterName,
+			IntegrationName:  awsClientReq.IntegrationName,
+			SubnetID:         req.SubnetID,
+			SecurityGroupIDs: req.SecurityGroupIDs,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCDeployEC2ICEResponse{
+		Name: resp.Name,
+	}, nil
+}
