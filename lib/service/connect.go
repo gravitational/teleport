@@ -1047,7 +1047,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
 func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, error) {
-	if identity.ID.Role != types.RoleInstance {
+	if identity.ID.Role != types.RoleInstance && identity.ID.Role != types.RoleMDM {
 		clt, ok := process.waitForInstanceClient()
 		if !ok {
 			return nil, trace.Errorf("failed to get instance client for identity %q", identity.ID.Role)

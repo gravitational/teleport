@@ -266,13 +266,13 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	listDBsClient, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
+	listEC2Client, err := awsoidc.NewListEC2Client(ctx, awsClientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	resp, err := awsoidc.ListEC2(ctx,
-		listDBsClient,
+		listEC2Client,
 		awsoidc.ListEC2Request{
 			Integration: awsClientReq.IntegrationName,
 			Region:      req.Region,
@@ -291,5 +291,41 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 	return ui.AWSOIDCListEC2Response{
 		NextToken: resp.NextToken,
 		Servers:   servers,
+	}, nil
+}
+
+// awsOIDCListEC2ICE returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
+func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCListEC2ICERequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listEC2ICEClient, err := awsoidc.NewListEC2ICEClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListEC2ICE(ctx,
+		listEC2ICEClient,
+		awsoidc.ListEC2ICERequest{
+			VPCID:     req.VPCID,
+			NextToken: req.NextToken,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListEC2ICEResponse{
+		NextToken: resp.NextToken,
+		EC2ICEs:   resp.EC2ICEs,
 	}, nil
 }

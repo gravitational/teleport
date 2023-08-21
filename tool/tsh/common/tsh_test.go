@@ -3658,6 +3658,9 @@ func TestSerializeDatabases(t *testing.T) {
         "redshift_serverless": {}
       },
       "mysql": {},
+      "oracle": {
+        "audit_user": ""
+      },
       "gcp": {},
       "azure": {
 	    "redis": {}
