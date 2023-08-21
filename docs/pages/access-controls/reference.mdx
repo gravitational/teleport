@@ -313,12 +313,32 @@ conditions:
 
 #### Variables
 
-{/* TODO: label expression variables*/}
+You can use the following template variables in the fields above:
+
+|Variable|Type|Description|
+|---|---|---|
+|`{{user.spec.traits}}`|`map[string][]string`|All of the user's traits.|
+|`{{labels.<key>}}`|`string`|The label with the specified `key`.|
+
+{/*TODO: Double-check labels.key. Check the RFD.*/}}
 
 #### Functions
 
-{/* TODO: label expression functions*/}
+You can use the following functions in label expression fields:
 
+{/* TODO: Fill this in based on the RFD and source*/}
+
+|Function|Description|
+|---|---|
+|`{{labels_matching(arg)}}`||
+|`{{contains(list,item)}}`||
+|`{{contains_any(list,item)}}`||
+|`{{contains_all(list,item)}}`||
+|`{{regexp.match(list,regexp)}}`||
+|`{{regexp.replace(list,regexp,replacement)}}`||
+|`{{email.local(email)}}`||
+|`{{strings.upper(value)}}`||
+|`{{strings.lower(value)}}`||
 
 ## Principals on external systems
 
