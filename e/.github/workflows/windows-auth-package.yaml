@@ -16,7 +16,13 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version-file: 'windowsauth/go.mod'
+          go-version-file: 'windowsauth/installer/go.mod'
+      - name: Setup Rust
+        #embedded-resource crate doesn't like cross-compilation from msvc to mingw
+        run: |
+          rustup toolchain install 1.71.1-x86_64-pc-windows-gnu
+          rustup default 1.71.1-x86_64-pc-windows-gnu
+          rustup show
       - name: Build all
         run: make -C windowsauth VERSION=${env:VERSION} all
         env:

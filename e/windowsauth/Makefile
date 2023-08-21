@@ -15,7 +15,7 @@ else
 endif
 
 INSTALLER=build/teleport-windows-auth-setup-$(VERSION_FULL)-amd64.exe
-DLL=build/teleport.dll
+DLL=target/x86_64-pc-windows-gnu/release/teleport_auth_package.dll
 
 # this transforms version to something FILEVERSION in *.rc files understands, e.g
 # v12.0.0-alpha1 -> 12,0,0
@@ -34,7 +34,7 @@ all: $(DLL) $(INSTALLER)
 
 .PHONY: test
 test: $(DLL)
-	$(GO_FLAGS) go test ./...
+	cd installer && $(GO_FLAGS) go test ./...
 
 .PHONY: clean
 clean:
@@ -43,19 +43,18 @@ clean:
 	rm -f installer/*.syso
 	rm -f *.syso
 
-$(DLL): *.go *.c *.h logo.syso
-	$(GO_FLAGS) go build -buildmode=c-shared -o build/teleport.dll
-
-logo.syso: logo.rc icon.bmp
-	$(WINDRES) -D VERSION="$(VERSION_FULL)" -D VERSION_COMMA="$(VERSION_COMMA)" -i logo.rc -o logo.syso --use-temp-file -O coff
+.PHONY: $(DLL)
+$(DLL):
+	cargo build --target=x86_64-pc-windows-gnu --release
 
 installer/resources.syso: installer/resources.rc installer/teleport.ico installer/manifest.xml
 	$(WINDRES) -D VERSION="$(VERSION_FULL)" -D VERSION_COMMA="$(VERSION_COMMA)" -i installer/resources.rc -o installer/resources.syso --use-temp-file -O coff
 
 installer/teleport.dll: $(DLL)
-	$(CMD) cp build/teleport.dll installer/teleport.dll
+	$(CMD) cp $(DLL) installer/teleport.dll
 
-$(INSTALLER): installer/resources.syso installer/*.go installer/teleport.dll
+.PHONY: $(INSTALLER)
+$(INSTALLER): installer/resources.syso installer/teleport.dll
 	cd installer && \
 	$(GO_FLAGS) go build -o "../$@" .
 

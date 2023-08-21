@@ -1,5 +1,3 @@
-LOGO          BITMAP           "icon.bmp"
-
 #include "winver.h"
 #define xstr(s) str(s)
 #define str(s) #s "\0"

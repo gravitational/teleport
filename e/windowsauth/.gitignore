@@ -5,6 +5,7 @@
 /go.h
 /teleport.h
 /build
+/target
 .DS_Store
 /**/*.dll
 /**/*.syso
