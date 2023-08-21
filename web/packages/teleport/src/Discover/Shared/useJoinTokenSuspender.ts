@@ -35,14 +35,14 @@ interface SuspendResult {
 }
 
 let abortController: AbortController;
-let joinTokenCache = new Map<ResourceKind, SuspendResult>();
+let joinTokenCache = new Map<string, SuspendResult>();
 
-export function clearCachedJoinTokenResult(resourceKind: ResourceKind) {
-  joinTokenCache.delete(resourceKind);
+export function clearCachedJoinTokenResult(resourceKinds: ResourceKind[]) {
+  joinTokenCache.delete(resourceKinds.sort().join());
 }
 
 export function useJoinTokenSuspender(
-  resourceKind: ResourceKind,
+  resourceKinds: ResourceKind[],
   suggestedAgentMatcherLabels: AgentLabel[] = [],
   joinMethod: JoinMethod = 'token'
 ): {
@@ -54,6 +54,8 @@ export function useJoinTokenSuspender(
 
   const [, rerender] = useState(0);
 
+  const kindsKey = resourceKinds.sort().join();
+
   function run() {
     abortController = new AbortController();
 
@@ -63,7 +65,7 @@ export function useJoinTokenSuspender(
       promise: ctx.joinTokenService
         .fetchJoinToken(
           {
-            roles: [resourceKindToJoinRole(resourceKind)],
+            roles: resourceKinds.map(resourceKindToJoinRole),
             method: joinMethod,
             suggestedAgentMatcherLabels,
           },
@@ -85,7 +87,7 @@ export function useJoinTokenSuspender(
         }),
     };
 
-    joinTokenCache.set(resourceKind, result);
+    joinTokenCache.set(kindsKey, result);
 
     return result;
   }
@@ -96,7 +98,7 @@ export function useJoinTokenSuspender(
     };
   }, []);
 
-  const existing = joinTokenCache.get(resourceKind);
+  const existing = joinTokenCache.get(kindsKey);
 
   if (existing) {
     if (existing.error) {
@@ -110,7 +112,7 @@ export function useJoinTokenSuspender(
           // Delete the cached token and force a rerender
           // so that this hook runs again and creates a new one.
 
-          joinTokenCache.delete(resourceKind);
+          joinTokenCache.delete(kindsKey);
 
           rerender(c => c + 1);
         },

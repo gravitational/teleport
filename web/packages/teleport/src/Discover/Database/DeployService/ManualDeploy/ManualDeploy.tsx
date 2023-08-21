@@ -82,7 +82,7 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
     <Validation>
       {({ validator }) => (
         <CatchError
-          onRetry={() => clearCachedJoinTokenResult(ResourceKind.Database)}
+          onRetry={() => clearCachedJoinTokenResult([ResourceKind.Database])}
           fallbackFn={fbProps => (
             <Box>
               {heading}
@@ -143,7 +143,7 @@ export function ManualDeploy(props: {
 
   // Fetches join token.
   const { joinToken } = useJoinTokenSuspender(
-    ResourceKind.Database,
+    [ResourceKind.Database],
     props.labels
   );
 

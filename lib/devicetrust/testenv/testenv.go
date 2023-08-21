@@ -28,10 +28,23 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// Opt is a creation option for [E]
+type Opt func(*E)
+
+// WithAutoCreateDevice instructs EnrollDevice to automatically create the
+// requested device, if it wasn't previously registered.
+// See also [FakeEnrollmentToken].
+func WithAutoCreateDevice(b bool) Opt {
+	return func(e *E) {
+		e.service.autoCreateDevice = b
+	}
+}
+
 // E is an integrated test environment for device trust.
 type E struct {
 	DevicesClient devicepb.DeviceTrustServiceClient
 
+	service *fakeDeviceService
 	closers []func() error
 }
 
@@ -48,8 +61,8 @@ func (e *E) Close() error {
 
 // MustNew creates a new E or panics.
 // Callers are required to defer e.Close() to release test resources.
-func MustNew() *E {
-	env, err := New()
+func MustNew(opts ...Opt) *E {
+	env, err := New(opts...)
 	if err != nil {
 		panic(err)
 	}
@@ -58,8 +71,14 @@ func MustNew() *E {
 
 // New creates a new E.
 // Callers are required to defer e.Close() to release test resources.
-func New() (*E, error) {
-	e := &E{}
+func New(opts ...Opt) (*E, error) {
+	e := &E{
+		service: newFakeDeviceService(),
+	}
+
+	for _, opt := range opts {
+		opt(e)
+	}
 
 	ok := false
 	defer func() {
@@ -85,7 +104,7 @@ func New() (*E, error) {
 	})
 
 	// Register service.
-	devicepb.RegisterDeviceTrustServiceServer(s, newFakeDeviceService())
+	devicepb.RegisterDeviceTrustServiceServer(s, e.service)
 
 	// Start.
 	go func() {

@@ -137,21 +137,6 @@ the foreground to better understand how it works.
 <Tabs>
   <TabItem label="Token-based Joining">
 
-  <ScopedBlock scope={["oss", "enterprise"]}>
-
-  ```code
-  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ sudo tbot start \
-     --data-dir=/var/lib/teleport/bot \
-     --destination-dir=/opt/machine-id \
-     --token=(=presets.tokens.first=) \
-     --join-method=token \
-     --auth-server=teleport.example.com:443
-  ```
-
-  </ScopedBlock>
-  <ScopedBlock scope={["cloud"]}>
-
   ```code
   $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ sudo tbot start \
@@ -161,14 +146,10 @@ the foreground to better understand how it works.
      --join-method=token \
      --auth-server=example.teleport.sh:443
   ```
-
-  </ScopedBlock>
 
   </TabItem>
   <TabItem label="IAM Method">
 
-  <ScopedBlock scope={["oss", "enterprise"]}>
-
   ```code
   $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ sudo tbot start \
@@ -176,23 +157,8 @@ the foreground to better understand how it works.
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
-     --auth-server=teleport.example.com:443
-  ```
-
-  </ScopedBlock>
-  <ScopedBlock scope={["cloud"]}>
-
-  ```code
-  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ tbot start \
-     --data-dir=/var/lib/teleport/bot \
-     --destination-dir=/opt/machine-id \
-     --token=iam-token \
-     --join-method=iam \
      --auth-server=example.teleport.sh:443
   ```
-
-  </ScopedBlock>
 
   </TabItem>
 </Tabs>
