@@ -21,8 +21,8 @@ Rather than separating all resources into their own individual pages, a Unified 
 
 ## Details
 
-In order to get a searchable and filterable list of all resource kinds, we will create a new, in-memory store that will 
-initialize on auth service start and only live as long as the service is up. The watcher will update the store any time 
+In order to get a searchable and filterable list of all resource kinds, we will create a new, in-memory store on the auth server
+that will initialize on auth service start and only live as long as the service is up. The watcher will update the store any time 
 it receives an event for any of the watched kinds. We will use a very similar setup for this as our in-memory backend, 
 but instead of storing the resource in its textual representation required by the backend, we can store resources as 
 their concrete type(e.g. types.ServerV2).
@@ -119,6 +119,9 @@ message ListUnifiedResourcesResponse {
 ```
 
 This endpoint will pull resources from our unified resource cache and run through the same filtering/rbac as `ListResources`
+
+### Performance Limitations
+As of the current implementation, `ListUnifiedResources` is not very performant for large clusters. It uses `FakePaginate` under the hood, similar to the rest of the legacy Web UI resources, which will load the entire resource set into memory to then handle sorting, RBAC checks, and pagination. This becomes very taxing as every request has to load the entire set before getting the "next page". This is a limitation due to not being able to preserve a stream across RPCs (for example, how `ListNodes` works with `IterateResources`.  A possible solution for the next iteration might be storing resources in a map and using the bTree per sort order to store indexes but this needs to be verified. 
 
 ### Backward Compatibility
 
