@@ -1,6 +1,6 @@
 ---
 title: Get started with Desktop Access
-description: Passwordless access to Windows systems for local users
+description: Configure passwordless access to Windows computers for local users.
 videoBanner: 9DyKQbg4ORc
 ---
 
@@ -31,10 +31,10 @@ To complete the steps in this guide, verify your environment meets the following
   from the Linux server.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Prepare Microsoft Windows desktop
+## Step 1/4. Prepare Windows
 
 Before you can enroll a Microsoft Windows desktop as a resource to be protected by Teleport,
-you need tov prepare the Microsoft Windows environment with a certificate from the Teleport 
+you need to prepare the Microsoft Windows environment with a certificate from the Teleport 
 certificate authority (CA) and modify the default authentication service for remote desktop
 access.
 
@@ -58,14 +58,15 @@ exported when prompted.
 
    - Installs the selected Teleport certificate.
    - Loads the required dynamic link library (DLL) for Teleport to use.
-   - Disable Network Level Authentication (NLA) for remote desktop services. 
+   - Disables Network Level Authentication (NLA) for remote desktop services. 
 
 1. Restart the computer.
 
-If you have administrative privileges, you can also run the Teleport Windows Auth Setup program 
+You can also run the Teleport Windows Auth Setup program as an administrator
 in a Command Prompt window or PowerShell terminal to automate the process.
 After you have downloaded the setup program, run following command
-to install the Teleport certificate, load the DLL, disable NLA, and restart the computer in a single step:
+to install the Teleport certificate, load the DLL, disable NLA, and restart the 
+computer in a single step:
 
 ```code
 $ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
@@ -73,7 +74,7 @@ $ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
 
 ## Step 2/4. Configure the Windows Desktop Service
 
-Now that you have prepared the Microsoft Windows desktop to enroll in the cluster, the next steps
+Now that you have prepared the Windows computer to enroll in the cluster, the next steps
 involve:
 
 - Generating an invitation token on your administrative workstation.
