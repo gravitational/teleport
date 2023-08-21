@@ -4,8 +4,6 @@ import localStorage from 'teleport/services/localStorage';
 
 import * as service from 'teleport/services/userPreferences';
 
-import { RecommendationStatus } from 'teleport/types';
-
 import cfg from 'teleport/config';
 
 import WorkflowService from 'e-teleport/services/workflow';
@@ -17,6 +15,8 @@ import RecoveryService from 'e-teleport/services/recovery';
 import { deviceService } from 'e-teleport/services/devices';
 
 import { surveyService } from 'e-teleport/services/survey';
+
+import { setAndEmitFeatureRecommendationStatus } from 'e-teleport/services/featureRecommendation';
 
 import { downloadsService } from './services/downloads';
 import { pluginsService } from './services/plugins';
@@ -62,33 +62,11 @@ class TeleportEContext extends TeleportContext {
     // fetchNonBillableSummaryInformation will do an auth check on the backend for the billing role,
     // we should only fetch if the user has the correct permissions.
     if (cfg.isUsageBasedBilling && this.getFeatureFlags().billing) {
-      // retrieve feature recommendation state from local storage.
-      // if grv_recommend_feature is undefined, or a given feature recommendation state is
-      // not 'DONE', we check with backend for usage summary and set state to 'NOTIFY'
-      // if usage counts zero.
-      // if usage counts more than zero, we set state to 'DONE'.
-      const recommendFeature = localStorage.getFeatureRecommendationStatus();
-
-      if (
-        !recommendFeature ||
-        recommendFeature?.TrustedDevices !== RecommendationStatus.Done
-      ) {
-        // TODO(sshah): update to status 'DONE' once user completes desired CTA.
-        try {
-          const nonBillableUsage =
-            await this.cloudService.fetchNonBillableSummaryInformation();
-
-          const trustedDevicesNotificationStatus = nonBillableUsage
-            .trustedDeviceUsage.devicesInUse
-            ? RecommendationStatus.Done
-            : RecommendationStatus.Notify;
-          localStorage.setRecommendFeature({
-            TrustedDevices: trustedDevicesNotificationStatus,
-          });
-        } catch (err) {
-          // log error instead of bubbling it up and crashing the app
-          console.error(err);
-        }
+      try {
+        await setAndEmitFeatureRecommendationStatus(this.cloudService);
+      } catch (err) {
+        // log error instead of bubbling it up and crashing the app
+        console.error(err);
       }
     }
   }
