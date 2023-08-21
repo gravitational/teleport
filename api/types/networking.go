@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -417,30 +418,78 @@ func (c *ClusterNetworkingConfigV2) SetCaseInsensitiveRouting(cir bool) {
 	c.Spec.CaseInsensitiveRouting = cir
 }
 
-// MarshalYAML defines how a proxy listener mode should be marshaled to a string
-func (p ProxyListenerMode) MarshalYAML() (interface{}, error) {
-	return strings.ToLower(p.String()), nil
+const (
+	proxyListenerModeSeparate  = "separate"
+	proxyListenerModeMultiplex = "multiplex"
+)
+
+func (p ProxyListenerMode) encode() (string, error) {
+	switch p {
+	case ProxyListenerMode_Multiplex:
+		return proxyListenerModeMultiplex, nil
+	case ProxyListenerMode_Separate:
+		return proxyListenerModeSeparate, nil
+	}
+	return "", trace.BadParameter("invalid proxy listener mode")
 }
 
-// UnmarshalYAML unmarshalls proxy listener mode from YAML value.
-func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var stringVar string
-	if err := unmarshal(&stringVar); err != nil {
-		return trace.Wrap(err)
-	}
-	for k, v := range ProxyListenerMode_value {
-		if strings.EqualFold(k, stringVar) {
-			*p = ProxyListenerMode(v)
+func (p *ProxyListenerMode) decode(val any) error {
+	switch val := val.(type) {
+	case string:
+		for k, v := range ProxyListenerMode_value {
+			if strings.EqualFold(k, val) {
+				*p = ProxyListenerMode(v)
+				return nil
+			}
+		}
+	case float64:
+		valI := int32(val)
+		_, ok := ProxyListenerMode_name[valI]
+		if ok {
+			*p = ProxyListenerMode(valI)
 			return nil
 		}
 	}
-
 	available := make([]string, 0, len(ProxyListenerMode_value))
 	for k := range ProxyListenerMode_value {
 		available = append(available, strings.ToLower(k))
 	}
 	return trace.BadParameter(
-		"proxy listener mode must be one of %s; got %q", strings.Join(available, ","), stringVar)
+		"proxy listener mode must be one of %s; got %v", strings.Join(available, ","), val)
+}
+
+// MarshalYAML defines how a proxy listener mode should be marshaled to a string
+func (p ProxyListenerMode) MarshalJSON() ([]byte, error) {
+	res, err := p.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(res)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalYAML unmarshalls proxy listener mode from YAML value.
+func (p *ProxyListenerMode) UnmarshalJSON(data []byte) error {
+	var anyVar any
+	if err := json.Unmarshal(data, &anyVar); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(p.decode(anyVar))
+}
+
+// MarshalYAML defines how a proxy listener mode should be marshaled to a string
+func (p ProxyListenerMode) MarshalYAML() (interface{}, error) {
+	res, err := p.encode()
+	return []byte(res), trace.Wrap(err)
+}
+
+// UnmarshalYAML unmarshalls proxy listener mode from YAML value.
+func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var anyVar any
+	if err := unmarshal(&anyVar); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(p.decode(anyVar))
 }
 
 // MarshalYAML defines how a routing strategy should be marshaled to a string
