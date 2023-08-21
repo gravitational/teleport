@@ -431,6 +431,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Opsgenie",
+              "slug": "/access-controls/access-request-plugins/opsgenie/",
+              "forScopes": ["cloud"]
+            },
+            {
               "title": "Jira",
               "slug": "/access-controls/access-request-plugins/ssh-approval-jira/",
               "forScopes": ["enterprise", "cloud"]
@@ -1377,7 +1382,25 @@
         },
         {
           "title": "Command Line",
-          "slug": "/reference/cli/"
+          "slug": "/reference/cli/",
+          "entries": [
+	      {
+	      	  "title": "teleport",
+	      	  "slug": "/reference/cli/teleport/"
+	      },
+	      {
+	      	  "title": "tsh",
+	      	  "slug": "/reference/cli/tsh/"
+	      },
+	      {
+	      	  "title": "tctl",
+	      	  "slug": "/reference/cli/tctl/"
+	      },
+	      {
+	      	  "title": "tbot",
+	      	  "slug": "/reference/cli/tbot/"
+	      }
+	  ]
         },
         {
           "title": "Metrics",
