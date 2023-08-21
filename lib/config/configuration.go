@@ -1480,6 +1480,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			AdminUser: servicecfg.DatabaseAdminUser{
 				Name: database.AdminUser.Name,
 			},
+			Oracle: convOracleOptions(database.Oracle),
 			AWS: servicecfg.DatabaseAWS{
 				AccountID:     database.AWS.AccountID,
 				AssumeRoleARN: database.AWS.AssumeRoleARN,
@@ -1530,6 +1531,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 	return nil
+}
+
+func convOracleOptions(o DatabaseOracle) servicecfg.OracleOptions {
+	return servicecfg.OracleOptions{
+		AuditUser: o.AuditUser,
+	}
 }
 
 // readCACert reads database CA certificate from the config file.
