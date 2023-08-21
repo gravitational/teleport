@@ -17,7 +17,7 @@
 import { formatDuration } from 'date-fns';
 
 import { AccessRequestResource } from 'teleport/Assist/types';
-import { AgentIdKind } from 'teleport/services/agents';
+import { ResourceIdKind } from 'teleport/services/agents';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import {
@@ -39,7 +39,7 @@ export async function createAccessRequest(
     reason,
     roles,
     resourceIds: resources.map(item => ({
-      kind: item.type as AgentIdKind,
+      kind: item.type as ResourceIdKind,
       name: item.id,
       clusterName: clusterId,
     })),

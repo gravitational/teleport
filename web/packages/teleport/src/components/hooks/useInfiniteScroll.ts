@@ -18,9 +18,9 @@ import { useState } from 'react';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
-  AgentResponse,
+  ResourcesResponse,
   UnifiedResource,
-  AgentFilter,
+  ResourceFilter,
 } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
@@ -39,7 +39,7 @@ export function useInfiniteScroll<T extends UnifiedResource>({
 }: Props<T>): State<T> {
   const { attempt, setAttempt } = useAttempt('processing');
 
-  const [fetchedData, setFetchedData] = useState<AgentResponse<T>>({
+  const [fetchedData, setFetchedData] = useState<ResourcesResponse<T>>({
     agents: [],
     startKey: '',
     totalCount: 0,
@@ -113,9 +113,9 @@ type Props<T extends UnifiedResource> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams
-  ) => Promise<AgentResponse<T>>;
+  ) => Promise<ResourcesResponse<T>>;
   clusterId: string;
-  params: AgentFilter;
+  params: ResourceFilter;
   initialFetchSize?: number;
   fetchMoreSize?: number;
 };
@@ -124,5 +124,5 @@ type State<T extends UnifiedResource> = {
   fetchInitial: (() => void) | null;
   fetchMore: (() => void) | null;
   attempt: Attempt;
-  fetchedData: AgentResponse<T>;
+  fetchedData: ResourcesResponse<T>;
 };

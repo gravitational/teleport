@@ -18,8 +18,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { SortType } from 'design/DataTable/types';
 import { useAsync } from 'shared/hooks/useAsync';
 import {
-  AgentFilter as WeakAgentFilter,
-  AgentLabel,
+  ResourceFilter as WeakAgentFilter,
+  ResourceLabel,
 } from 'teleport/services/agents';
 
 import { GetResourcesParams } from 'teleterm/services/tshd/types';
@@ -30,7 +30,7 @@ import { useClusterContext } from '../clusterContext';
 
 type AgentFilter = WeakAgentFilter & { sort: SortType };
 
-function addAgentLabelToQuery(filter: AgentFilter, label: AgentLabel) {
+function addAgentLabelToQuery(filter: AgentFilter, label: ResourceLabel) {
   const queryParts = [];
 
   // Add existing query
@@ -138,7 +138,7 @@ export function useServerSideResources<Agent>(
     updateAgentFilter({ ...agentFilter, search: '', query });
   }
 
-  function onAgentLabelClick(label: AgentLabel) {
+  function onAgentLabelClick(label: ResourceLabel) {
     const query = addAgentLabelToQuery(agentFilter, label);
     updateAgentFilter({ ...agentFilter, search: '', query });
   }

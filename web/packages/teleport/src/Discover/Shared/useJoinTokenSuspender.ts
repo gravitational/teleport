@@ -25,7 +25,7 @@ import {
 
 import { useDiscover } from '../useDiscover';
 
-import type { AgentLabel } from 'teleport/services/agents';
+import type { ResourceLabel } from 'teleport/services/agents';
 import type { JoinMethod, JoinToken } from 'teleport/services/joinToken';
 
 interface SuspendResult {
@@ -43,7 +43,7 @@ export function clearCachedJoinTokenResult(resourceKinds: ResourceKind[]) {
 
 export function useJoinTokenSuspender(
   resourceKinds: ResourceKind[],
-  suggestedAgentMatcherLabels: AgentLabel[] = [],
+  suggestedAgentMatcherLabels: ResourceLabel[] = [],
   joinMethod: JoinMethod = 'token'
 ): {
   joinToken: JoinToken;

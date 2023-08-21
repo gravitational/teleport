@@ -29,7 +29,7 @@ import {
 } from 'design/SVGIcon';
 
 import {
-  AgentLabel,
+  ResourceLabel,
   UnifiedResource,
   UnifiedResourceKind,
 } from 'teleport/services/agents';
@@ -54,7 +54,7 @@ const ResTypeIconBox = styled(Box)`
 
 type Props = {
   resource: UnifiedResource;
-  onLabelClick?: (label: AgentLabel) => void;
+  onLabelClick?: (label: ResourceLabel) => void;
 };
 
 export function ResourceCard({ resource, onLabelClick }: Props) {
