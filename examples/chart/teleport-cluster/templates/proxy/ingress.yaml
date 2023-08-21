@@ -36,6 +36,9 @@ spec:
   {{- range $publicAddr }}
     - {{ quote . }}
   {{- end }}
+  {{- if $proxy.highAvailability.certManager.enabled }}
+    secretName: teleport-tls
+  {{- end }}
   rules:
    {{- range $publicAddr }}
   - host: {{ quote . }}
