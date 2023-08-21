@@ -68,9 +68,7 @@ exports[`snapshot tests 1`] = `
 .c1 {
   color: #FF6257;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
