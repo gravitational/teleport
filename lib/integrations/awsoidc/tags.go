@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 
@@ -62,6 +63,19 @@ func (d awsTags) ToECSTags() []ecsTypes.Tag {
 		})
 	}
 	return ecsTags
+}
+
+// ToEC2Tags the default tags using the expected type for EC2 resources: [ec2Types.Tag]
+func (d awsTags) ToEC2Tags() []ec2Types.Tag {
+	ec2Tags := make([]ec2Types.Tag, 0, len(d))
+	for k, v := range d {
+		k, v := k, v
+		ec2Tags = append(ec2Tags, ec2Types.Tag{
+			Key:   &k,
+			Value: &v,
+		})
+	}
+	return ec2Tags
 }
 
 // MatchesECSTags checks if the awsTags are present and have the same value in resourceTags.
