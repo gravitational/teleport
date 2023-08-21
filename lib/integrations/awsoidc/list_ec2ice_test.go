@@ -63,7 +63,7 @@ func (m mockListEC2ICEClient) DescribeInstanceConnectEndpoints(ctx context.Conte
 
 	if sliceEnd < totalEndpoints {
 		nextToken := strconv.Itoa(requestedPage + 1)
-		ret.NextToken = stringPointer(nextToken)
+		ret.NextToken = &nextToken
 	}
 
 	return ret, nil
@@ -97,7 +97,6 @@ func TestListEC2ICE(t *testing.T) {
 
 		// First page must return pageSize number of Endpoints
 		resp, err := ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
-			Region:    "us-east-1",
 			VPCID:     "vpc-123",
 			NextToken: "",
 		})
@@ -109,7 +108,6 @@ func TestListEC2ICE(t *testing.T) {
 
 		// Second page must return pageSize number of Endpoints
 		resp, err = ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
-			Region:    "us-east-1",
 			VPCID:     "vpc-abc",
 			NextToken: nextPageToken,
 		})
@@ -121,7 +119,6 @@ func TestListEC2ICE(t *testing.T) {
 
 		// Third page must return only the remaining Endpoints and an empty nextToken
 		resp, err = ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
-			Region:    "us-east-1",
 			VPCID:     "vpc-abc",
 			NextToken: nextPageToken,
 		})
@@ -141,7 +138,6 @@ func TestListEC2ICE(t *testing.T) {
 		{
 			name: "valid for listing instances",
 			req: ListEC2ICERequest{
-				Region:    "us-east-1",
 				VPCID:     "vpc-abcd",
 				NextToken: "",
 			},
@@ -165,17 +161,8 @@ func TestListEC2ICE(t *testing.T) {
 			errCheck: noErrorFunc,
 		},
 		{
-			name: "no region",
-			req: ListEC2ICERequest{
-				VPCID: "myintegration",
-			},
-			errCheck: trace.IsBadParameter,
-		},
-		{
-			name: "no vpc id",
-			req: ListEC2ICERequest{
-				Region: "us-east-1",
-			},
+			name:     "no vpc id",
+			req:      ListEC2ICERequest{},
 			errCheck: trace.IsBadParameter,
 		},
 	} {

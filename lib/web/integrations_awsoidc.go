@@ -317,7 +317,6 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		listEC2ICEClient,
 		awsoidc.ListEC2ICERequest{
 			VPCID:     req.VPCID,
-			Region:    req.Region,
 			NextToken: req.NextToken,
 		},
 	)

@@ -27,9 +27,6 @@ import (
 
 // ListEC2ICERequest contains the required fields to list AWS EC2 Instance Connect Endpoints.
 type ListEC2ICERequest struct {
-	// Region is the AWS Region.
-	Region string
-
 	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
 	VPCID string
 
@@ -42,9 +39,6 @@ type ListEC2ICERequest struct {
 func (req *ListEC2ICERequest) CheckAndSetDefaults() error {
 	if req.VPCID == "" {
 		return trace.BadParameter("vpc id is required")
-	}
-	if req.Region == "" {
-		return trace.BadParameter("region is required")
 	}
 
 	return nil
