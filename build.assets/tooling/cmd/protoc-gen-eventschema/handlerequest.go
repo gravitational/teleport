@@ -21,7 +21,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/eventschema"
-	"github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
+	tree "github.com/gravitational/teleport/build.assets/tooling/lib/protobuf-tree"
 )
 
 const outputFileName = "zz_generated.eventschema.go"

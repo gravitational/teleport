@@ -145,7 +145,7 @@ func (generator *SchemaGenerator) Render() (string, error) {
 	// This ensures the template orders the events and their fields consistently.
 	funcMap["orderSchemaMap"] = func(input map[string]v1.JSONSchemaProps) ([]NamedSchema, error) {
 		keys := make([]string, 0, len(input))
-		for key, _ := range input {
+		for key := range input {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
