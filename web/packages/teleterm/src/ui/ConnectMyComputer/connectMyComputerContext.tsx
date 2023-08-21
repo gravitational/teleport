@@ -77,7 +77,13 @@ const ConnectMyComputerContext = createContext<ConnectMyComputerContext>(null);
 export const ConnectMyComputerContextProvider: FC<{
   rootClusterUri: RootClusterUri;
 }> = props => {
-  const { mainProcessClient, connectMyComputerService } = useAppContext();
+  const {
+    mainProcessClient,
+    connectMyComputerService,
+    clustersService,
+    configService,
+  } = useAppContext();
+  clustersService.useState();
 
   const [
     isAgentConfiguredAttempt,
@@ -89,6 +95,17 @@ export const ConnectMyComputerContextProvider: FC<{
         connectMyComputerService.isAgentConfigFileCreated(props.rootClusterUri),
       [connectMyComputerService, props.rootClusterUri]
     )
+  );
+
+  const rootCluster = clustersService.findCluster(props.rootClusterUri);
+  const canUse = useMemo(
+    () =>
+      canUseConnectMyComputer(
+        rootCluster,
+        configService,
+        mainProcessClient.getRuntimeSettings()
+      ),
+    [configService, mainProcessClient, rootCluster]
   );
 
   const markAgentAsConfigured = useCallback(() => {
