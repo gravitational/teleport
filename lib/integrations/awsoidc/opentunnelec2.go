@@ -18,10 +18,13 @@ package awsoidc
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -88,10 +91,9 @@ type OpenTunnelEC2Request struct {
 	// This value is parsed from EC2Address.
 	ec2PrivateHostname string
 
-	// endpointScheme is the url scheme for connecting to the EC2 Instance Connect Endpoint
-	// Only used for tests.
-	// Eg, "ws"
-	endpointScheme string
+	// websocketCustomCA is a x509.Certificate to trust when trying to connect to the websocket.
+	// For testing purposes only.
+	websocketCustomCA *x509.Certificate
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -232,7 +234,7 @@ func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelE
 		endpointHost:     *eice.DnsName,
 		privateIPAddress: req.ec2PrivateHostname,
 		remotePort:       req.ec2OpenSSHPort,
-		endpointScheme:   req.endpointScheme,
+		customCA:         req.websocketCustomCA,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -303,7 +305,7 @@ type dialEC2InstanceUsingEICERequest struct {
 	credsProvider    aws.CredentialsProvider
 	awsRegion        string
 	endpointId       string
-	endpointScheme   string
+	customCA         *x509.Certificate
 	endpointHost     string
 	privateIPAddress string
 	remotePort       string
@@ -319,11 +321,8 @@ func dialEC2InstanceUsingEICE(ctx context.Context, req dialEC2InstanceUsingEICER
 	q.Set("privateIpAddress", req.privateIPAddress)
 	q.Set("remotePort", req.remotePort)
 
-	if req.endpointScheme == "" {
-		req.endpointScheme = "wss"
-	}
 	openTunnelURL := url.URL{
-		Scheme:   req.endpointScheme,
+		Scheme:   "wss",
 		Host:     req.endpointHost,
 		Path:     "openTunnel",
 		RawQuery: q.Encode(),
@@ -345,7 +344,20 @@ func dialEC2InstanceUsingEICE(ctx context.Context, req dialEC2InstanceUsingEICER
 		return nil, trace.Wrap(err)
 	}
 
-	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, signed, http.Header{})
+	websocketDialer := websocket.DefaultDialer
+
+	// For testing purposes only. Adds the httpTestServer CA
+	if req.customCA != nil {
+		if !strings.HasPrefix(req.endpointHost, "127.0.0.1:") {
+			return nil, trace.BadParameter("custom CA can only be used for testing and the websocket address must be localhost: %v", req.endpointHost)
+		}
+		websocketDialer.TLSClientConfig = &tls.Config{
+			RootCAs: x509.NewCertPool(),
+		}
+		websocketDialer.TLSClientConfig.RootCAs.AddCert(req.customCA)
+	}
+
+	conn, resp, err := websocketDialer.DialContext(ctx, signed, http.Header{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

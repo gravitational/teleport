@@ -237,13 +237,13 @@ func TestOpenTunnelEC2(t *testing.T) {
 	defer localListener.Close()
 
 	resp, err := OpenTunnelEC2(ctx, m, OpenTunnelEC2Request{
-		EC2SSHLoginUser: "os-user",
-		Region:          "us-east-1",
-		InstanceID:      "i-123",
-		VPCID:           "vpc-123",
-		EC2Address:      ec2Listener.Addr().String(),
-		Listener:        localListener,
-		//endpointScheme:  "ws",
+		EC2SSHLoginUser:   "os-user",
+		Region:            "us-east-1",
+		InstanceID:        "i-123",
+		VPCID:             "vpc-123",
+		EC2Address:        ec2Listener.Addr().String(),
+		Listener:          localListener,
+		websocketCustomCA: eiceWebsocketServer.Certificate(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
