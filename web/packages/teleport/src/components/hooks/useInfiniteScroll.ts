@@ -39,6 +39,7 @@ export function useKeyBasedPagination<T>({
 }: Props<T>): State<T> {
   const { attempt, setAttempt } = useAttempt();
   const [finished, setFinished] = useState(false);
+  const [abortController, setAbortController] = useState(new AbortController());
 
   const [fetchedData, setFetchedData] = useState<ResourcesResponse<T>>({
     agents: [],
@@ -47,28 +48,38 @@ export function useKeyBasedPagination<T>({
   });
 
   useEffect(() => {
+    abortController.abort();
+
     setAttempt({ status: '', statusText: '' });
     setFinished(false);
+    setAbortController(new AbortController());
     setFetchedData({ agents: [], startKey: '', totalCount: 0 });
   }, [clusterId, ...resourceFilterToHookDeps(filter)]);
 
+  let fetchCalled = false;
   const fetch = async () => {
     if (
       finished ||
+      fetchCalled ||
       attempt.status === 'processing' ||
       attempt.status === 'failed'
     ) {
       return;
     }
     try {
+      fetchCalled = true;
       setAttempt({ status: 'processing' });
       const limit =
         fetchedData.agents.length > 0 ? fetchMoreSize : initialFetchSize;
-      const res = await fetchFunc(clusterId, {
-        ...filter,
-        limit,
-        startKey: fetchedData.startKey,
-      });
+      const res = await fetchFunc(
+        clusterId,
+        {
+          ...filter,
+          limit,
+          startKey: fetchedData.startKey,
+        },
+        abortController.signal
+      );
       const { startKey, agents } = res;
       setFetchedData({
         ...fetchedData,
@@ -80,6 +91,8 @@ export function useKeyBasedPagination<T>({
       }
       setAttempt({ status: 'success' });
     } catch (err) {
+      // Aborting is not really an error here.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setAttempt({ status: 'failed', statusText: err.message });
     }
   };
@@ -91,10 +104,11 @@ export function useKeyBasedPagination<T>({
   };
 }
 
-type Props<T> = {
+export type Props<T> = {
   fetchFunc: (
     clusterId: string,
-    params: UrlResourcesParams
+    params: UrlResourcesParams,
+    signal?: AbortSignal
   ) => Promise<ResourcesResponse<T>>;
   clusterId: string;
   filter: ResourceFilter;
