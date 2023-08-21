@@ -296,8 +296,9 @@ github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.32/go.mod 
 github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.35 h1:UKjpIDLVF90RfV88XurdduMoTxPqtGHZMIDYZQM7RO4=
 github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.35/go.mod h1:B3dUg0V6eJesUTi+m27NUkj7n8hdDKYUpxj8f4+TqaQ=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.27/go.mod h1:EOwBD4J4S5qYszS5/3DpkejfuK+Z5/1uzICfPaZLtqw=
-github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.32 h1:dGAseBFEYxth10V23b5e2mAS+tX7oVbfYHD6dnDdAsg=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.32/go.mod h1:4jwAWKEkCR0anWk5+1RbfSg1R5Gzld7NLiuaq5bTR/Y=
+github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35 h1:CdzPW9kKitgIiLV1+MHobfR5Xg25iYnyzWZhyQuSlDI=
+github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35/go.mod h1:QGF2Rs33W5MaN9gYdEQOBBFPLwTZkEhRwI33f7KIG0o=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.15.1 h1:PT6PBCycRwhpEW5hJnRiceCeoWJ+r3bdgXtV+VKG7Pk=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.15.1/go.mod h1:TqoxCLwT2nrxrBGA+z7t6OWM7LBkgRckK3gOjYE+7JA=
 github.com/aws/aws-sdk-go-v2/service/rds v1.50.1 h1:qA97x6Cll56tY+PGze+jrGGjlT+gfEyUYwZPp53jWsA=
@@ -315,8 +316,9 @@ github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.10/go.mod h1:AFvkxc8xfBe8XA+5
 github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.2 h1:OJELEgyaT2kmaBGZ+myyZbTTLobfe3ox3FSh5eYK9Qs=
 github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.2/go.mod h1:ubDBBaDFs1GHijSOTi8ljppML15GLG0HxhILtbjNNYQ=
 github.com/aws/aws-sdk-go-v2/service/sts v1.19.0/go.mod h1:BgQOMsg8av8jset59jelyPW7NoZcZXLVpDsXunGDrk8=
-github.com/aws/aws-sdk-go-v2/service/sts v1.21.2 h1:ympg1+Lnq33XLhcK/xTG4yZHPs1Oyxu+6DEWbl7qOzA=
 github.com/aws/aws-sdk-go-v2/service/sts v1.21.2/go.mod h1:FQ/DQcOfESELfJi5ED+IPPAjI5xC6nxtSolVVB773jM=
+github.com/aws/aws-sdk-go-v2/service/sts v1.21.5 h1:CQBFElb0LS8RojMJlxRSo/HXipvTZW2S44Lt9Mk2aYQ=
+github.com/aws/aws-sdk-go-v2/service/sts v1.21.5/go.mod h1:VC7JDqsqiwXukYEDjoHh9U0fOJtNWh04FPQz4ct4GGU=
 github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6 h1:+AQtpMAj/wOpgdmXSGKSBVozGsYbvaf73gTz4aSK9vM=
 github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6/go.mod h1:Y5LTHeZGpeKFaXYfPYNfVqdpAjejlvXLhGqFqSJRQYc=
 github.com/aws/smithy-go v1.13.5/go.mod h1:Tg+OJXh4MB2R/uN61Ko2f6hTZwB/ZYGOtib8J3gBHzA=

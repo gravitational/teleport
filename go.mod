@@ -51,7 +51,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.2
 	github.com/aws/aws-sdk-go-v2/service/sns v1.21.4
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.24.1
-	github.com/aws/aws-sdk-go-v2/service/sts v1.21.2
+	github.com/aws/aws-sdk-go-v2/service/sts v1.21.5
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/aws/smithy-go v1.14.2
 	github.com/beevik/etree v1.2.0
@@ -233,7 +233,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.33 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.35 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.32 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.15.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.13.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.15.2 // indirect
