@@ -508,6 +508,7 @@ func onceValue[T any](f func() T) func() T {
 // then this leads to a memory leak since the underlying metric is not cleaned
 // up.
 // See https://github.com/gravitational/teleport/issues/30759
+// See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
 var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
 	return otelgrpc.StreamClientInterceptor()
 })
