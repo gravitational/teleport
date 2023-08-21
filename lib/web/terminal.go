@@ -407,6 +407,15 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	t.log.Debug("Closing websocket stream")
 }
 
+type stderrWriter struct {
+	stream *TerminalStream
+}
+
+func (s stderrWriter) Write(b []byte) (int, error) {
+	s.stream.writeError(string(b))
+	return len(b), nil
+}
+
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream, clientAddr string) (*client.TeleportClient, error) {
 	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/makeClient")
@@ -421,7 +430,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = stream
-	clientConfig.Stderr = stream
+	clientConfig.Stderr = stderrWriter{stream: stream}
 	clientConfig.Stdin = stream
 	clientConfig.SiteName = t.sessionData.ClusterName
 	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
