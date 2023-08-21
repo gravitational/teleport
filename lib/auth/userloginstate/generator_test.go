@@ -236,6 +236,7 @@ func newAccessList(t *testing.T, name string, members []string, roles []string, 
 	accessList, err := accesslist.NewAccessList(header.Metadata{
 		Name: name,
 	}, accesslist.Spec{
+		Title: "title",
 		Audit: accesslist.Audit{
 			Frequency: time.Hour,
 		},
