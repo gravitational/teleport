@@ -414,12 +414,12 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(),
+			unaryClientInterceptorOnce(),
 			metadata.UnaryClientInterceptor,
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(),
+			streamClientInterceptorOnce(),
 			metadata.StreamClientInterceptor,
 			breaker.StreamClientInterceptor(cb),
 		),
@@ -447,6 +447,19 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 
 	return nil
 }
+
+// We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
+// because each time this is called, they create a new underlying metric. If
+// something (e.g tbot) is repeatedly creating new clients and closing them,
+// then this leads to a memory leak since the underlying metric is not cleaned
+// up.
+var streamClientInterceptorOnce = sync.OnceValue(func() grpc.StreamClientInterceptor {
+	return otelgrpc.StreamClientInterceptor()
+})
+
+var unaryClientInterceptorOnce = sync.OnceValue(func() grpc.UnaryClientInterceptor {
+	return otelgrpc.UnaryClientInterceptor()
+})
 
 // ConfigureALPN configures ALPN SNI cluster routing information in TLS settings allowing for
 // allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
