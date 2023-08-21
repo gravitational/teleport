@@ -140,19 +140,39 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 		}
 	}
 
-	// 'kv'::regclass will get the oid for the kv table as searched given the
-	// current search_path, which matches the behavior of any query that refers
-	// to the kv table with no qualifier (like the rest of the pgbk code does)
-	var schemaName string
-	if err := conn.QueryRow(ctx,
-		"SELECT nsp.nspname "+
-			"FROM pg_class AS cl JOIN pg_namespace AS nsp ON cl.relnamespace = nsp.oid "+
-			"WHERE cl.oid = 'kv'::regclass",
-		pgx.QueryExecModeExec,
-	).Scan(&schemaName); err != nil {
-		return trace.Wrap(err)
+	// logic taken from libpq's version parsing in pqSaveParameterStatus
+	var vMajor, vMinor int
+	fmt.Sscanf(conn.PgConn().ParameterStatus("server_version"), "%d.%d", &vMajor, &vMinor)
+	pluginName, pollChangeFeed := "wal2json", b.pollWal2json
+	// pgoutput is usable through the SQL interface in 14.8 and 15.3
+	// (technically 13.11, but 13 doesn't support the binary output mode)
+	if (vMajor == 14 && vMinor >= 8) || (vMajor == 15 && vMinor >= 3) || vMajor > 15 {
+		pluginName, pollChangeFeed = "pgoutput", b.pollPgoutput
 	}
-	addTables := wal2jsonEscape(schemaName) + ".kv"
+
+	var target string
+	switch pluginName {
+	case "wal2json":
+		// 'kv'::regclass will get the oid for the kv table as searched given the
+		// current search_path, which matches the behavior of any query that refers
+		// to the kv table with no qualifier (like the rest of the pgbk code does)
+		var schemaName string
+		if err := conn.QueryRow(ctx,
+			"SELECT nsp.nspname "+
+				"FROM pg_class AS cl JOIN pg_namespace AS nsp ON cl.relnamespace = nsp.oid "+
+				"WHERE cl.oid = 'kv'::regclass",
+			pgx.QueryExecModeExec,
+		).Scan(&schemaName); err != nil {
+			return trace.Wrap(err)
+		}
+		target = wal2jsonEscape(schemaName) + ".kv"
+	case "pgoutput":
+		// TODO(espadolini): ensure the existence of a publication, potentially
+		// fall back to wal2json
+		//
+		// it should be something like `CREATE PUBLICATION kv_pub FOR TABLE kv`
+		target = "kv_pub"
+	}
 
 	// reading from a replication slot adds to the postgres log at "log" level
 	// (right below "fatal") for every poll, and we poll every second here, so
@@ -190,8 +210,8 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	// hanging here leaves the backend non-functional
 	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	if _, err := conn.Exec(createCtx,
-		"SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json', true)",
-		pgx.QueryExecModeExec, slotName,
+		"SELECT * FROM pg_create_logical_replication_slot($1, $2, true)",
+		pgx.QueryExecModeExec, slotName, pluginName,
 	); err != nil {
 		cancel()
 		return trace.Wrap(err)
@@ -203,9 +223,21 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	defer b.buf.Reset()
 
 	for ctx.Err() == nil {
-		messages, err := b.pollChangeFeed(ctx, conn, addTables, slotName, b.cfg.ChangeFeedBatchSize)
+		t0 := time.Now()
+
+		timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		messages, err := pollChangeFeed(timeoutCtx, conn, target, slotName, b.cfg.ChangeFeedBatchSize)
 		if err != nil {
+			cancel()
 			return trace.Wrap(err)
+		}
+		cancel()
+
+		if messages > 0 {
+			b.log.WithFields(logrus.Fields{
+				"messages": messages,
+				"elapsed":  time.Since(t0).String(),
+			}).Debug("Fetched change feed events.")
 		}
 
 		// tight loop if we hit the batch size
@@ -222,18 +254,14 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-// pollChangeFeed will poll the change feed and emit any fetched events, if any.
-// It returns the count of received messages.
-func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, addTables, slotName string, batchSize int) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	t0 := time.Now()
-
+// pollWal2json will poll the replication slot configured with the wal2json
+// plugin and emit any fetched events, if any. It returns the count of received
+// messages.
+func (b *Backend) pollWal2json(ctx context.Context, conn *pgx.Conn, target, slotName string, batchSize int) (int64, error) {
 	rows, _ := conn.Query(ctx,
 		"SELECT data FROM pg_logical_slot_get_changes($1, NULL, $2, "+
 			"'format-version', '2', 'add-tables', $3, 'include-transaction', 'false')",
-		slotName, batchSize, addTables)
+		slotName, batchSize, target)
 
 	var data []byte
 	tag, err := pgx.ForEachRow(rows, []any{(*pgtype.DriverBytes)(&data)}, func() error {
@@ -254,13 +282,27 @@ func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, addTables,
 		return 0, trace.Wrap(err)
 	}
 
-	messages := tag.RowsAffected()
-	if messages > 0 {
-		b.log.WithFields(logrus.Fields{
-			"messages": messages,
-			"elapsed":  time.Since(t0).String(),
-		}).Debug("Fetched change feed events.")
+	return tag.RowsAffected(), nil
+}
+
+// pollPgoutput will poll the replication slot configured with the pgoutput
+// plugin and emit any fetched events, if any. It returns the count of received
+// messages.
+func (b *Backend) pollPgoutput(ctx context.Context, conn *pgx.Conn, target, slotName string, batchSize int) (int64, error) {
+	var parser PgoutputParser
+
+	rows, _ := conn.Query(ctx,
+		"SELECT data FROM pg_logical_slot_get_binary_changes($1, NULL, $2, "+
+			"'proto_version', '1', 'publication_names', $3, 'binary', 'true')",
+		slotName, batchSize, target)
+
+	var data []byte
+	tag, err := pgx.ForEachRow(rows, []any{(*pgtype.DriverBytes)(&data)}, func() error {
+		return trace.Wrap(parser.Parse(data, conn.TypeMap(), b.buf.Emit))
+	})
+	if err != nil {
+		return 0, trace.Wrap(err)
 	}
 
-	return messages, nil
+	return tag.RowsAffected(), nil
 }
