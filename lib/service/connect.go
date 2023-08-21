@@ -1041,13 +1041,24 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 	}
 }
 
+// inhertisInstanceClient checks if the given system role should use a reference to the
+// instance client rather than being granted its own client.
+func inheritsInstanceClient(role types.SystemRole) bool {
+	switch role {
+	case types.RoleInstance, types.RoleMDM:
+		return false
+	default:
+		return true
+	}
+}
+
 // newClient attempts to connect to either the proxy server or auth server
 // For config v3 and onwards, it will only connect to either the proxy (via tunnel) or the auth server (direct),
 // depending on what was specified in the config.
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
 func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client, error) {
-	if identity.ID.Role != types.RoleInstance && identity.ID.Role != types.RoleMDM {
+	if inheritsInstanceClient(identity.ID.Role) {
 		clt, ok := process.waitForInstanceClient()
 		if !ok {
 			return nil, trace.Errorf("failed to get instance client for identity %q", identity.ID.Role)

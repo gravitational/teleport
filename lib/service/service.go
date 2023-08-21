@@ -311,7 +311,7 @@ func (c *Connector) UseTunnel() bool {
 
 // Close closes resources associated with connector
 func (c *Connector) Close() error {
-	if c.Client != nil {
+	if c.Client != nil && !inheritsInstanceClient(c.ClientIdentity.ID.Role) {
 		return c.Client.Close()
 	}
 	return nil
