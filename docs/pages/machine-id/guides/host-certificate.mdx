@@ -167,21 +167,6 @@ First, create a basic configuration file using the following parameters:
 <Tabs>
   <TabItem label="Token-based Joining">
 
-  <ScopedBlock scope={["oss", "enterprise"]}>
-
-  ```code
-  $ tbot configure \
-     --data-dir=/var/lib/teleport/bot \
-     --token=(=presets.tokens.first=) \
-     --join-method=token \
-     --certificate-ttl=1h0m0s \
-     --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
-  ```
-
-  </ScopedBlock>
-  <ScopedBlock scope={["cloud"]}>
-
   ```code
   $ tbot configure \
      --data-dir=/var/lib/teleport/bot \
@@ -191,27 +176,10 @@ First, create a basic configuration file using the following parameters:
      --ca-pin=(=presets.ca_pin=) \
      --auth-server=example.teleport.sh:443
   ```
-
-  </ScopedBlock>
 
   </TabItem>
   <TabItem label="IAM method">
 
-  <ScopedBlock scope={["oss", "enterprise"]}>
-
-  ```code
-  $ tbot configure \
-     --data-dir=/var/lib/teleport/bot \
-     --token=iam-token \
-     --join-method=iam \
-     --certificate-ttl=1h0m0s \
-     --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
-  ```
-
-  </ScopedBlock>
-  <ScopedBlock scope={["cloud"]}>
-
   ```code
   $ tbot configure \
      --data-dir=/var/lib/teleport/bot \
@@ -221,8 +189,6 @@ First, create a basic configuration file using the following parameters:
      --ca-pin=(=presets.ca_pin=) \
      --auth-server=example.teleport.sh:443
   ```
-
-  </ScopedBlock>
 
   </TabItem>
 </Tabs>
