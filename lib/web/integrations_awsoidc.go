@@ -295,7 +295,7 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 }
 
 // awsOIDCListEC2ICE returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
-func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (any, error) {
 	ctx := r.Context()
 
 	var req ui.AWSOIDCListEC2ICERequest
