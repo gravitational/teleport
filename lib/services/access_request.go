@@ -396,16 +396,18 @@ func ApplyAccessReview(req types.AccessRequest, rev types.AccessReview, author t
 		rev.Created = time.Now()
 	}
 
-	// set threshold indexes and store the review
+	// set threshold indexes
 	rev.ThresholdIndexes = tids
-	req.SetReviews(append(req.GetReviews(), rev))
 
-	// if request has already exited the pending state, then no further work
-	// needs to be done (subsequent reviews have no effect after initial
-	// state-transition).
-	if !req.GetState().IsPending() {
-		return nil
+	// Resolved requests should not be updated.
+	switch {
+	case req.GetState().IsApproved():
+		return trace.AccessDenied("the access request has been already approved")
+	case req.GetState().IsDenied():
+		return trace.AccessDenied("the access request has been already denied")
 	}
+
+	req.SetReviews(append(req.GetReviews(), rev))
 
 	// request is still pending, so check to see if this
 	// review introduces a state-transition.

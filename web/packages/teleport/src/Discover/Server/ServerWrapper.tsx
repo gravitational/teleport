@@ -28,7 +28,7 @@ export function ServerWrapper(props: ServerWrapperProps) {
   useEffect(() => {
     return () => {
       // once the user leaves the desktop setup flow, delete the existing token
-      clearCachedJoinTokenResult(ResourceKind.Server);
+      clearCachedJoinTokenResult([ResourceKind.Server]);
     };
   }, []);
 

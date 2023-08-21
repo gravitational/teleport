@@ -38,7 +38,14 @@ export type JoinToken = {
 // - 'Kube' is a role for a kube service
 // - 'Node' is a role for a node in the cluster
 // - 'WindowsDesktop' is a role for a windows desktop service.
-export type JoinRole = 'App' | 'Node' | 'Db' | 'Kube' | 'WindowsDesktop';
+// - 'Discovery' is a role for a discovery service.
+export type JoinRole =
+  | 'App'
+  | 'Node'
+  | 'Db'
+  | 'Kube'
+  | 'WindowsDesktop'
+  | 'Discovery';
 
 // JoinMethod is the method used for new nodes to join the cluster.
 // Same hard-corded value as the backend.

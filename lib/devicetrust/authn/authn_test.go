@@ -28,7 +28,9 @@ import (
 )
 
 func TestRunCeremony(t *testing.T) {
-	env := testenv.MustNew()
+	env := testenv.MustNew(
+		testenv.WithAutoCreateDevice(true),
+	)
 	defer env.Close()
 
 	devices := env.DevicesClient
@@ -99,7 +101,7 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	if err != nil {
 		return fmt.Errorf("enroll device init: %w", err)
 	}
-	enrollDeviceInit.Token = "fake device token"
+	enrollDeviceInit.Token = testenv.FakeEnrollmentToken
 	if err := stream.Send(&devicepb.EnrollDeviceRequest{
 		Payload: &devicepb.EnrollDeviceRequest_Init{
 			Init: enrollDeviceInit,

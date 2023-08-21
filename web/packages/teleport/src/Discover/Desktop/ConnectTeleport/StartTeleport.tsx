@@ -61,7 +61,7 @@ function StepWrapper(props: StepWrapperProps) {
 export function StartTeleport(
   props: React.PropsWithChildren<StartTeleportProps>
 ) {
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
   const { active, result } = usePingTeleport(joinToken);
 
   const showHint = useShowHint(active);
