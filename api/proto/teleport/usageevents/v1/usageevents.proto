@@ -377,6 +377,32 @@ message AssistNewConversationEvent {
   string category = 1;
 }
 
+// AssistAccessRequest is an event that is emitted when a user requests access
+// to a resource via Assist.
+message AssistAccessRequest {
+  // ResourceType describes the type of resource the user is requesting access to, e.g. "node", "db", "k8s" or "role".
+  string resource_type = 1;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 2;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 3;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 4;
+}
+
+// AssistAction is an event that is emitted when a user triggers an action (SSH command generation, output explain, etc.)
+// via Assist.
+message AssistAction {
+  // Action is the action that was triggered, e.g. "ssh-explain", "ssh-command-generate", etc.
+  string action = 1;
+  // TotalTokens is the total amount of token used to generate the command summary
+  int64 total_tokens = 2;
+  // PromptTokens is the amount of estimated tokens used by the prompt to generate the command summary
+  int64 prompt_tokens = 3;
+  // CompletionTokens is the amount of tokens that the summary completion response consists of
+  int64 completion_tokens = 4;
+}
+
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
 enum IntegrationEnrollKind {
@@ -462,6 +488,8 @@ message UsageEventOneOf {
     UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 33;
     AssistExecutionEvent assist_execution = 34;
     AssistNewConversationEvent assist_new_conversation = 35;
+    AssistAccessRequest assist_access_request = 38;
+    AssistAction assist_action = 39;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

@@ -1492,6 +1492,80 @@ export namespace AssistNewConversationEvent {
     }
 }
 
+export class AssistAccessRequestEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistAccessRequestEvent;
+
+    getResourceType(): string;
+    setResourceType(value: string): AssistAccessRequestEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistAccessRequestEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistAccessRequestEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistAccessRequestEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistAccessRequestEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistAccessRequestEvent): AssistAccessRequestEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistAccessRequestEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistAccessRequestEvent;
+    static deserializeBinaryFromReader(message: AssistAccessRequestEvent, reader: jspb.BinaryReader): AssistAccessRequestEvent;
+}
+
+export namespace AssistAccessRequestEvent {
+    export type AsObject = {
+        userName: string,
+        resourceType: string,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
+export class AssistActionEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistActionEvent;
+
+    getAction(): string;
+    setAction(value: string): AssistActionEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistActionEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistActionEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistActionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistActionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistActionEvent): AssistActionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistActionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistActionEvent;
+    static deserializeBinaryFromReader(message: AssistActionEvent, reader: jspb.BinaryReader): AssistActionEvent;
+}
+
+export namespace AssistActionEvent {
+    export type AsObject = {
+        userName: string,
+        action: string,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
 export class IntegrationEnrollMetadata extends jspb.Message { 
     getId(): string;
     setId(value: string): IntegrationEnrollMetadata;
@@ -1928,6 +2002,18 @@ export class SubmitEventRequest extends jspb.Message {
     setDeviceAuthenticateEvent(value?: DeviceAuthenticateEvent): SubmitEventRequest;
 
 
+    hasAssistAccessRequest(): boolean;
+    clearAssistAccessRequest(): void;
+    getAssistAccessRequest(): AssistAccessRequestEvent | undefined;
+    setAssistAccessRequest(value?: AssistAccessRequestEvent): SubmitEventRequest;
+
+
+    hasAssistAction(): boolean;
+    clearAssistAction(): void;
+    getAssistAction(): AssistActionEvent | undefined;
+    setAssistAction(value?: AssistActionEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1993,6 +2079,8 @@ export namespace SubmitEventRequest {
         assistExecution?: AssistExecutionEvent.AsObject,
         assistNewConversation?: AssistNewConversationEvent.AsObject,
         deviceAuthenticateEvent?: DeviceAuthenticateEvent.AsObject,
+        assistAccessRequest?: AssistAccessRequestEvent.AsObject,
+        assistAction?: AssistActionEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2095,6 +2183,10 @@ export namespace SubmitEventRequest {
     ASSIST_NEW_CONVERSATION = 51,
 
     DEVICE_AUTHENTICATE_EVENT = 52,
+
+    ASSIST_ACCESS_REQUEST = 54,
+
+    ASSIST_ACTION = 55,
 
     }
 
