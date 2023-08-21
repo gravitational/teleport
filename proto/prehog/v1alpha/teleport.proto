@@ -745,6 +745,41 @@ message DeviceAuthenticateEvent {
   string device_os_type = 3;
 }
 
+// FeatureRecommendationEvent captures event emitted when a feature is recommended to user or
+// when user completes the desired CTA for the feature.
+//
+// PostHost event: tp.ui.feature.recommendation
+message FeatureRecommendationEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+  // feature is name of the Teleport feature.
+  //
+  // PostHost property: tp.feature
+  Feature feature = 2;
+  // feature_recommendation_status records recommendation state, which can be 'NOTIFIED' (feature is recommended)
+  // OR 'DONE' (user completes desired CTA)
+  //
+  // PostHost property: tp.feature_recommendation_status
+  FeatureRecommendationStatus feature_recommendation_status = 3;
+}
+
+// Feature is name of Teleport feature
+enum Feature {
+  FEATURE_UNSPECIFIED = 0;
+  FEATURE_TRUSTED_DEVICES = 1;
+}
+
+// FeatureRecommendationStatus is feature recommendation status.
+enum FeatureRecommendationStatus {
+  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0;
+  // FEATURE_RECOMMENDATION_STATUS_NOTIFIED is emitted when a feature is recommended (notified in UI) to user.
+  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1;
+  // FEATURE_RECOMMENDATION_STATUS_DONE is emitted when user completes the desired CTA.
+  FEATURE_RECOMMENDATION_STATUS_DONE = 2;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -831,6 +866,8 @@ message SubmitEventRequest {
     AssistNewConversationEvent assist_new_conversation = 51;
 
     DeviceAuthenticateEvent device_authenticate_event = 52;
+
+    FeatureRecommendationEvent feature_recommendation_event = 53;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

@@ -19,9 +19,9 @@ import { FetchStatus, Page } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
-  AgentResponse,
+  ResourcesResponse,
   UnifiedResource,
-  AgentFilter,
+  ResourceFilter,
 } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
@@ -35,7 +35,7 @@ export function useServerSidePagination<T extends UnifiedResource>({
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
 
-  const [fetchedData, setFetchedData] = useState<AgentResponse<T>>({
+  const [fetchedData, setFetchedData] = useState<ResourcesResponse<T>>({
     agents: [],
     startKey: '',
     totalCount: 0,
@@ -142,9 +142,9 @@ type Props<T extends UnifiedResource> = {
   fetchFunc: (
     clusterId: string,
     params: UrlResourcesParams
-  ) => Promise<AgentResponse<T>>;
+  ) => Promise<ResourcesResponse<T>>;
   clusterId: string;
-  params: AgentFilter;
+  params: ResourceFilter;
   pageSize?: number;
 };
 
@@ -157,7 +157,7 @@ type State<T extends UnifiedResource> = {
   fetchStatus: FetchStatus;
   page: Page;
   pageSize: number;
-  fetchedData: AgentResponse<T>;
+  fetchedData: ResourcesResponse<T>;
 };
 
 /** Contains the values needed to display 'Showing X - X of X' on the top right of the table. */

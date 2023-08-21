@@ -23,5 +23,5 @@ export function getMetaKeySymbol() {
     return '⌘';
   }
 
-  return '^';
+  return '⊞';
 }

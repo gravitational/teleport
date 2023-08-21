@@ -257,26 +257,18 @@ clean:
 .PHONY:test
 test: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:test-root
 test-root: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
@@ -298,10 +290,7 @@ test-helm-update-snapshots:
 .PHONY:integration
 integration: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
 		make -C $(SRCDIR) FLAGS='-cover' integration"
 
 .PHONY:integration-root
@@ -579,3 +568,16 @@ build-multiarch:
 		--build-arg GID=$(shell id -g) \
 		--tag $(BUILDBOX) \
 		--file Dockerfile-multiarch .
+
+.PHONY:generate-eventschema
+generate-eventschema:
+	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
+	
+	cd tooling && go build -o ./bin/protoc-gen-eventschema ./cmd/protoc-gen-eventschema/
+
+	protoc \
+		-I ../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=./tooling/bin/protoc-gen-eventschema \
+		--eventschema_out="../gen/go/eventschema" \
+		"teleport/legacy/types/events/events.proto";

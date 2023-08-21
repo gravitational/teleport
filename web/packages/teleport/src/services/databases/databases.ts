@@ -16,7 +16,7 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
-import { AgentResponse } from 'teleport/services/agents';
+import { ResourcesResponse } from 'teleport/services/agents';
 
 import { makeDatabase, makeDatabaseService } from './makeDatabase';
 
@@ -33,7 +33,7 @@ class DatabaseService {
     clusterId: string,
     params: UrlResourcesParams,
     signal?: AbortSignal
-  ): Promise<AgentResponse<Database>> {
+  ): Promise<ResourcesResponse<Database>> {
     return api
       .get(cfg.getDatabasesUrl(clusterId, params), signal)
       .then(json => {

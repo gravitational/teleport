@@ -869,7 +869,9 @@ test-e2e:
 
 .PHONY: run-etcd
 run-etcd:
-	examples/etcd/start-etcd.sh
+	docker build -f .github/services/Dockerfile.etcd -t etcdbox --build-arg=ETCD_VERSION=3.3.9 .
+	docker run -it --rm -p'2379:2379' etcdbox
+
 #
 # Integration tests. Need a TTY to work.
 # Any tests which need to run as root must be skipped during regular integration testing.
@@ -926,7 +928,14 @@ e2e-aws: $(TEST_LOG_DIR) ensure-gotestsum
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-kube-agent-updater lint-go lint-license lint-rust lint-tools lint-protos
+lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
+
+#
+# Lints everything but Go sources.
+# Similar to lint.
+#
+.PHONY: lint-no-actions
+lint-no-actions: lint-sh lint-helm lint-license lint-rust
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
