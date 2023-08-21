@@ -1,29 +1,25 @@
 import { getOSSFeatures } from 'teleport/features';
 
+import { NavTitle } from 'teleport/types';
+
 import { getEnterpriseFeatures } from 'e-teleport/features';
 
-test('enterprise features are a superset of oss features', () => {
+const enterpriseTitles: string[] = getEnterpriseFeatures()
   // some features do not have a route defined, so we need to filter them out
-  const featuresE = getEnterpriseFeatures().filter(featureE =>
-    Boolean(featureE.route)
-  );
-  const featuresOSS = getOSSFeatures().filter(feature =>
-    Boolean(feature.route)
-  );
+  .filter(feature => Boolean(feature.route))
+  .map(f => f.route.title);
 
-  // For each feature in OSS, check that there is an equivalent in Enterprise
-  featuresOSS.forEach(featureOss => {
-    if (
-      !featuresE.find(
-        featureE => featureE.route.title === featureOss.route.title
-      )
-    ) {
-      console.log(featureOss);
-    }
-    expect(
-      featuresE.find(
-        featureE => featureE.route.title === featureOss.route.title
-      )
-    ).toBeDefined();
-  });
+const ossTitles: string[] = getOSSFeatures()
+  // some features do not have a route defined, so we need to filter them out
+  .filter(feature => Boolean(feature.route))
+  .map(f => f.route.title);
+
+test.each(ossTitles)(`oss title %s should exist in Enterprise`, testCase => {
+  // AccessRequests is a non-feature view in OSS to show off Enterprise capability
+  // An actual working route exists in Enterprise
+  if (testCase === NavTitle.AccessRequests) {
+    return;
+  }
+
+  expect(enterpriseTitles).toContain(testCase);
 });

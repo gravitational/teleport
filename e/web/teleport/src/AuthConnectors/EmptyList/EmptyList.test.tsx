@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from 'design/utils/testing';
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
@@ -51,10 +51,11 @@ describe('emptyList', () => {
     ).toBeInTheDocument();
   });
 
-  test('triggers correct event when locked feature button is clicked', () => {
+  test('triggers correct event when locked feature button is clicked', async () => {
+    jest.resetAllMocks();
     const spy = jest.spyOn(userEventService, 'captureCtaEvent');
     renderComponent({ showLockedFeature: true });
-    fireEvent.click(
+    await userEvent.click(
       screen.getByText('Unlock OIDC & SAML with Teleport Enterprise')
     );
     expect(spy).toHaveBeenCalledWith(CtaEvent.CTA_AUTH_CONNECTOR);
@@ -62,5 +63,6 @@ describe('emptyList', () => {
 });
 
 const ctx = createTeleportContext();
+ctx.isEnterprise = true;
 const renderWithContext = ui =>
   render(<TeleportContextProvider ctx={ctx}>{ui}</TeleportContextProvider>);
