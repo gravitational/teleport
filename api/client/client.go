@@ -414,12 +414,12 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithChainUnaryInterceptor(
-			unaryClientInterceptorOnce(),
+			otelUnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 			breaker.UnaryClientInterceptor(cb),
 		),
 		grpc.WithChainStreamInterceptor(
-			streamClientInterceptorOnce(),
+			otelStreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 			breaker.StreamClientInterceptor(cb),
 		),
@@ -448,16 +448,32 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	return nil
 }
 
+// TODO(noah): Once we upgrade to go 1.21, change invocations of this to
+// sync.OnceValue
+func onceValue[T any](f func() T) func() T {
+	var (
+		value T
+		once  sync.Once
+	)
+	return func() T {
+		once.Do(func() {
+			value = f()
+		})
+		return value
+	}
+}
+
 // We wrap the creation of the otelgrpc interceptors in a sync.Once - this is
 // because each time this is called, they create a new underlying metric. If
 // something (e.g tbot) is repeatedly creating new clients and closing them,
 // then this leads to a memory leak since the underlying metric is not cleaned
 // up.
-var streamClientInterceptorOnce = sync.OnceValue(func() grpc.StreamClientInterceptor {
+// See https://github.com/gravitational/teleport/issues/30759
+var otelStreamClientInterceptor = onceValue(func() grpc.StreamClientInterceptor {
 	return otelgrpc.StreamClientInterceptor()
 })
 
-var unaryClientInterceptorOnce = sync.OnceValue(func() grpc.UnaryClientInterceptor {
+var otelUnaryClientInterceptor = onceValue(func() grpc.UnaryClientInterceptor {
 	return otelgrpc.UnaryClientInterceptor()
 })
 
