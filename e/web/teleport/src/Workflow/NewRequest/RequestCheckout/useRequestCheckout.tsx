@@ -12,7 +12,7 @@ import { middleValues } from 'e-teleport/Workflow/NewRequest/RequestCheckout/tim
 
 import { State as NewRequestState, ResourceKind } from '../useNewRequest';
 
-import type { AgentIdKind } from 'teleport/services/agents';
+import type { ResourceIdKind } from 'teleport/services/agents';
 import type { AccessRequest, ResourceId } from 'e-teleport/services/workflow';
 
 const SEVEN_DAYS_IN_MS = 1000 * 60 * 60 * 24 * 7;
@@ -115,7 +115,7 @@ export function useRequestCheckout({
     } else {
       resourceIds = data.map(item => ({
         name: item.id,
-        kind: item.kind as AgentIdKind,
+        kind: item.kind as ResourceIdKind,
         clusterName: clusterId,
       }));
       roles = selectedResourceRequestRoles;
@@ -156,11 +156,11 @@ export function useRequestCheckout({
   function fetchResourceRequestRoles() {
     fetchResourceRequestRolesAttempt.setAttempt({ status: 'processing' });
     const resourceIdRequest: {
-      kind: AgentIdKind;
+      kind: ResourceIdKind;
       name: string;
       clusterName: string;
     }[] = data.map(resource => ({
-      kind: resource.kind as AgentIdKind,
+      kind: resource.kind as ResourceIdKind,
       name: resource.id,
       clusterName: clusterId,
     }));

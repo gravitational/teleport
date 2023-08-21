@@ -13,10 +13,10 @@ import { UserGroup } from 'teleport/services/userGroups';
 import Ctx from 'e-teleport/teleportContextE';
 
 import type {
-  AgentLabel,
-  AgentFilter,
-  AgentResponse,
-  AgentIdKind,
+  ResourceLabel,
+  ResourceFilter,
+  ResourcesResponse,
+  ResourceIdKind,
   UnifiedResource,
 } from 'teleport/services/agents';
 
@@ -30,14 +30,14 @@ export function useNewRequest(ctx: Ctx) {
   );
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [fetchedData, setFetchedData] = useState<
-    AgentResponse<UnifiedResource>
+    ResourcesResponse<UnifiedResource>
   >(getEmptyFetchedDataState());
 
   const [addedAll, setAddedAll] = useState(getDefaultAddedAll());
   const addAllFetchAttempt = useAttempt('');
 
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
-  const [agentFilter, setAgentFilter] = useState<AgentFilter>({
+  const [agentFilter, setAgentFilter] = useState<ResourceFilter>({
     sort: getDefaultSort(selectedResource),
   });
 
@@ -144,7 +144,7 @@ export function useNewRequest(ctx: Ctx) {
   ) {
     if (addedResources[kind][resourceId]) {
       delete addedResources[kind][resourceId];
-      updateAddedAll(kind as AgentIdKind, false);
+      updateAddedAll(kind as ResourceIdKind, false);
     } else {
       addedResources[kind][resourceId] = resourceName
         ? resourceName
@@ -248,7 +248,7 @@ export function useNewRequest(ctx: Ctx) {
       });
   };
 
-  function onAgentLabelClick(label: AgentLabel) {
+  function onAgentLabelClick(label: ResourceLabel) {
     const query = addAgentLabelToQuery(agentFilter, label);
     setAgentFilter({ ...agentFilter, search: '', query });
   }
@@ -348,7 +348,7 @@ export function useNewRequest(ctx: Ctx) {
     });
   }
 
-  function updateAddedAll(agentKind: AgentIdKind, isAddedAll: boolean) {
+  function updateAddedAll(agentKind: ResourceIdKind, isAddedAll: boolean) {
     addedAll[agentKind] = isAddedAll;
     setAddedAll({
       app: addedAll.app,
@@ -366,7 +366,7 @@ export function useNewRequest(ctx: Ctx) {
     } else {
       unAddCurrentPage();
     }
-    updateAddedAll(selectedResource as AgentIdKind, false);
+    updateAddedAll(selectedResource as ResourceIdKind, false);
   }
 
   function toggleAddAllPages() {
@@ -384,14 +384,14 @@ export function useNewRequest(ctx: Ctx) {
           addAgents(res.agents);
           addAllFetchAttempt.setAttempt({ status: 'success' });
           setFetchStatus('');
-          updateAddedAll(selectedResource as AgentIdKind, true);
+          updateAddedAll(selectedResource as ResourceIdKind, true);
         })
         .catch((err: Error) => {
           addAllFetchAttempt.handleError(err);
           setFetchStatus('');
         });
     } else {
-      updateAddedAll(selectedResource as AgentIdKind, false);
+      updateAddedAll(selectedResource as ResourceIdKind, false);
       addedResources[selectedResource] = {};
       setAddedResources({
         ...addedResources,
@@ -567,7 +567,7 @@ function getAgentsFetchCallback(ctx: Ctx, resourceType: ResourceKind) {
   }
 }
 
-function addAgentLabelToQuery(filter: AgentFilter, label: AgentLabel) {
+function addAgentLabelToQuery(filter: ResourceFilter, label: ResourceLabel) {
   const queryParts = [];
 
   // Add existing query
@@ -606,12 +606,12 @@ function getDefaultAddedAll(): AddedAll {
 }
 
 type AddedAll = {
-  [K in AgentIdKind]: boolean;
+  [K in ResourceIdKind]: boolean;
 };
 
 // ResourceKind describes resource kind's for both a search based access
 // request and "role" based access request.
-export type ResourceKind = AgentIdKind | 'role';
+export type ResourceKind = ResourceIdKind | 'role';
 
 export type ResourceMap = {
   [K in ResourceKind]: Record<string, string>;

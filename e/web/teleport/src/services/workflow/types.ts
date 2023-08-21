@@ -1,4 +1,4 @@
-import type { AgentIdKind } from 'teleport/services/agents';
+import type { ResourceIdKind } from 'teleport/services/agents';
 
 export type RequestState =
   | 'NONE'
@@ -50,7 +50,7 @@ export type Resource = {
 // ResourceID is a unique identifier for a teleport resource.
 export type ResourceId = {
   // kind is the resource (agent) kind.
-  kind: AgentIdKind;
+  kind: ResourceIdKind;
   // name is the name of the specific resource.
   name: string;
   // clusterName is the name of cluster.

@@ -17,10 +17,10 @@ import { routing } from 'teleterm/ui/uri';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import type {
-  AgentLabel,
-  AgentFilter as WeakAgentFilter,
-  AgentResponse,
-  AgentIdKind,
+  ResourceLabel,
+  ResourceFilter as WeakAgentFilter,
+  ResourcesResponse,
+  ResourceIdKind,
   UnifiedResource,
 } from 'teleport/services/agents';
 
@@ -40,7 +40,7 @@ export default function useNewRequest() {
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [fetchedData, setFetchedData] = useState<
-    AgentResponse<UnifiedResource>
+    ResourcesResponse<UnifiedResource>
   >(getEmptyFetchedDataState());
   const requestableRoles = loggedInUser?.requestableRolesList || [];
   const [selectedResource, setSelectedResource] =
@@ -128,7 +128,7 @@ export default function useNewRequest() {
     fetch();
   }, [fetch]);
 
-  function addAgentLabelToQuery(filter: AgentFilter, label: AgentLabel) {
+  function addAgentLabelToQuery(filter: AgentFilter, label: ResourceLabel) {
     const queryParts = [];
 
     // Add existing query
@@ -148,7 +148,7 @@ export default function useNewRequest() {
     return queryParts.join(' && ');
   }
 
-  function onAgentLabelClick(label: AgentLabel) {
+  function onAgentLabelClick(label: ResourceLabel) {
     const query = addAgentLabelToQuery(agentFilter, label);
     setAgentFilter({ ...agentFilter, search: '', query });
   }
@@ -304,6 +304,6 @@ function getDefaultSort(kind: ResourceKind): SortType {
   return { fieldName: 'name', dir: 'ASC' };
 }
 
-export type ResourceKind = AgentIdKind | 'role';
+export type ResourceKind = ResourceIdKind | 'role';
 
 export type State = ReturnType<typeof useNewRequest>;
