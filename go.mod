@@ -35,7 +35,7 @@ require (
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.44.322
-	github.com/aws/aws-sdk-go-v2 v1.20.1
+	github.com/aws/aws-sdk-go-v2 v1.20.3
 	github.com/aws/aws-sdk-go-v2/config v1.18.33
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.32
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.10.36
@@ -49,11 +49,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.22.2
 	github.com/aws/aws-sdk-go-v2/service/rds v1.50.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.38.2
-	github.com/aws/aws-sdk-go-v2/service/sns v1.21.2
+	github.com/aws/aws-sdk-go-v2/service/sns v1.21.4
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.24.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.21.2
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
-	github.com/aws/smithy-go v1.14.1
+	github.com/aws/smithy-go v1.14.2
 	github.com/beevik/etree v1.2.0
 	github.com/bufbuild/connect-go v1.10.0
 	github.com/buildkite/bintest/v3 v3.1.1
@@ -225,8 +225,8 @@ require (
 	github.com/apache/arrow/go/v12 v12.0.1 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.12 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.38 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.32 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.40 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.39 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.1.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.15.2 // indirect
