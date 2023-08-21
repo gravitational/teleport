@@ -173,6 +173,10 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/accessrequest", h.WithClusterClientProvider(p.getAccessRequestsHandle))
 	h.GET("/enterprise/resourcerequestroles", h.WithAuth(p.getResourceRequestRolesHandle))
 
+	h.GET("/enterprise/accesslist", h.WithAuth(p.getAccessLists))
+	h.GET("/enterprise/accesslist/:accessListId", h.WithAuth(p.getAccessList))
+	h.POST("/enterprise/accesslist", h.WithAuth(p.createAccessList))
+
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
 
 	// Plugins: RESTy endpoints (create/list/delete)
