@@ -23,7 +23,7 @@ import LogoHeroDark from './LogoHeroDark.svg';
 
 const LogoHero = ({ ...rest }) => {
   const theme = useTheme();
-  const src = theme.name === 'light' ? LogoHeroLight : LogoHeroDark;
+  const src = theme.type === 'light' ? LogoHeroLight : LogoHeroDark;
   return <Image {...rest} src={src} />;
 };
 
