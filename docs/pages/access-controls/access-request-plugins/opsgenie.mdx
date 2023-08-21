@@ -47,22 +47,6 @@ Then select 'Create New Role' and create the requester role.
 
 ![Add user one](../../../img/enterprise/plugins/opsgenie/add-requester-role.png)
 
-The `opsgenie_notify_services` annotation specifies the schedule the alert will be be created for.
-
-### Create a user who will request access
-
-Create a user called `myuser` who has the `requester` role. Later in this
-guide, you will create an Access Request as this user to test the Opsgenie
-plugin:
-
-To create a user first navigate to Management -> Access -> Users
-
-![Add user one](../../../img/enterprise/plugins/opsgenie/add-user-one.png)
-
-Then select 'Create New User' and create a user with the requester role.
-
-![Add user two](../../../img/enterprise/plugins/opsgenie/add-user-two.png)
-
 ```
 kind: role
 version: v5
@@ -78,6 +62,22 @@ spec:
       annotations:
         opsgenie_notify_services: ['teleport-access-request-notifications']
 ```
+
+The `opsgenie_notify_services` annotation specifies the schedule the alert will be be created for.
+
+### Create a user who will request access
+
+Create a user called `myuser` who has the `requester` role. Later in this
+guide, you will create an Access Request as this user to test the Opsgenie
+plugin:
+
+To create a user first navigate to Management -> Access -> Users
+
+![Add user one](../../../img/enterprise/plugins/opsgenie/add-user-one.png)
+
+Then select 'Create New User' and create a user with the requester role.
+
+![Add user two](../../../img/enterprise/plugins/opsgenie/add-user-two.png)
 
 ## Step 3/5. Set up an Opsgenie API key
 
