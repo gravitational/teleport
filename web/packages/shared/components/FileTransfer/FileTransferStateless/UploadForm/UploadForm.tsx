@@ -76,7 +76,7 @@ export function UploadForm(props: UploadFormProps) {
   return (
     <Form>
       <PathInput
-        label="Upload destination"
+        label="Upload Destination"
         value={destinationPath}
         autoFocus
         onChange={e => setDestinationPath(e.target.value)}
