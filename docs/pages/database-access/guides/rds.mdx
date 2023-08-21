@@ -56,28 +56,13 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Create the Database Service configuration:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 ```code
 $ teleport db configure create \
    -o file \
-   --proxy=teleport.example.com:3080 \
+   --proxy=example.teleport.sh:443 \
    --token=/tmp/token \
    --rds-discovery=us-west-1
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ teleport db configure create \
-   -o file \
-   --proxy=mytenant.teleport.sh:443 \
-   --token=/tmp/token \
-   --rds-discovery=us-west-1
-```
-
-</ScopedBlock>
 
 The command will generate a Database Service configuration with RDS/Aurora
 database auto-discovery enabled on the `us-west-1` region and place it at the
@@ -148,10 +133,8 @@ for more information.
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 ```code
-$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh login --proxy=example.teleport.sh --user=alice
 $ tsh db ls
 # Name                           Description                                   Labels
 # ------------------------------ --------------------------------------------- --------
@@ -160,22 +143,6 @@ $ tsh db ls
 # aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
 # aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
-$ tsh db ls
-# Name                           Description                                   Labels
-# ------------------------------ --------------------------------------------- --------
-# postgres-rds                   RDS instance in us-west-1                     ...
-# aurora-mysql                   Aurora cluster in us-west-1                   ...
-# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
-# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
-```
-
-</ScopedBlock>
 
 <Admonition type="note" title="Note">
   Primary, reader, and custom endpoints of Aurora clusters have names of

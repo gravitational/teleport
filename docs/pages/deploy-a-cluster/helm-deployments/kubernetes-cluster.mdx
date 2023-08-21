@@ -5,12 +5,7 @@ description: Getting started with Teleport. Let's deploy Teleport in a Kubernete
 
 Teleport can provide secure, unified access to your Kubernetes clusters. This guide will show you how to:
 
-<ScopedBlock scope={["enterprise"]}>
-- Deploy Teleport Enterprise in a Kubernetes cluster.
-</ScopedBlock>
-<ScopedBlock scope={["oss"]}>
 - Deploy Teleport in a Kubernetes cluster.
-</ScopedBlock>
 - Set up Single Sign-On (SSO) for authentication to your Teleport cluster.
 
 While completing this guide, you will deploy one Teleport pod each for the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
