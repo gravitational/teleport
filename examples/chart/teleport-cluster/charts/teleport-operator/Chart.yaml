@@ -1,4 +1,4 @@
-.version: &version "14.0.0-dev.noah.otelgrpc-leak-patch"
+.version: &version "14.0.0-dev.noah.otelgrpc-leak-patch.1"
 
 name: teleport-operator
 apiVersion: v2
