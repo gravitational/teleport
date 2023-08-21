@@ -2623,7 +2623,7 @@ func (process *TeleportProcess) initSSH() error {
 
 			go func() {
 				if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-					mux.Entry.WithError(err).Error("mux encountered err serving")
+					mux.Entry.WithError(err).Error("node ssh multiplexer terminated unexpectedly")
 				}
 			}()
 			defer mux.Close()
