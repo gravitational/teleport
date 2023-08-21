@@ -74,6 +74,11 @@ func IsKeyspacesEndpoint(uri string) bool {
 	return hasCassandraPrefix && IsAWSEndpoint(uri)
 }
 
+// IsOpenSearchEndpoint returns true if input URI is an OpenSearch endpoint.
+func IsOpenSearchEndpoint(uri string) bool {
+	return isAWSServiceEndpoint(uri, OpenSearchServiceName)
+}
+
 // RDSEndpointDetails contains information about an RDS endpoint.
 type RDSEndpointDetails struct {
 	// InstanceID is the identifier of an RDS instance.

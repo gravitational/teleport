@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -76,7 +76,7 @@ func (protobufMFACodec) decodeChallenge(bytes []byte, envelopeType string) (*aut
 	}
 
 	return &authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge),
+		WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
 	}, nil
 }
 
@@ -126,6 +126,6 @@ func (tdpMFACodec) decodeChallenge(buf []byte, envelopeType string) (*authproto.
 	}
 
 	return &authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wanlib.CredentialAssertionToProto(msg.WebauthnChallenge),
+		WebauthnChallenge: wantypes.CredentialAssertionToProto(msg.WebauthnChallenge),
 	}, nil
 }

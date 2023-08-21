@@ -17,7 +17,8 @@
 import { EventEmitter } from 'node:events';
 
 import React from 'react';
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook, act } from '@testing-library/react-hooks';
+import { makeErrorAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -25,6 +26,7 @@ import { WorkspaceContextProvider } from 'teleterm/ui/Documents';
 import { AgentProcessState } from 'teleterm/mainProcess/types';
 
 import {
+  AgentProcessError,
   ConnectMyComputerContextProvider,
   useConnectMyComputerContext,
 } from './connectMyComputerContext';
@@ -32,7 +34,10 @@ import {
 test('runAgentAndWaitForNodeToJoin re-throws errors that are thrown while spawning the process', async () => {
   const mockedAppContext = new MockAppContext({});
   const eventEmitter = new EventEmitter();
-  const errorStatus: AgentProcessState = { status: 'error', message: 'ENOENT' };
+  const errorStatus: AgentProcessState = {
+    status: 'error',
+    message: 'ENOENT',
+  };
   jest
     .spyOn(mockedAppContext.mainProcessClient, 'getAgentState')
     .mockImplementation(() => errorStatus);
@@ -62,7 +67,17 @@ test('runAgentAndWaitForNodeToJoin re-throws errors that are thrown while spawni
     ),
   });
 
-  await expect(result.current.runAgentAndWaitForNodeToJoin).rejects.toThrow(
-    `Agent process failed to start.\nENOENT`
-  );
+  let error: Error;
+  await act(async () => {
+    [, error] = await result.current.startAgent();
+  });
+  expect(error).toBeInstanceOf(AgentProcessError);
+  expect(result.current.currentAction).toStrictEqual({
+    kind: 'start',
+    attempt: makeErrorAttempt(AgentProcessError.name),
+    agentProcessState: {
+      status: 'error',
+      message: 'ENOENT',
+    },
+  });
 });

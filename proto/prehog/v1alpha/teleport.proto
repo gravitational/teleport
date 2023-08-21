@@ -48,12 +48,24 @@ message SSOCreateEvent {
   string connector_type = 1;
 }
 
+// ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
-  // TODO(espadolini): is a resource the teleport process or the
-  // databases/desktops/kube clusters accessed through it?
+  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s").
   string resource_type = 1;
+  // resource_origin is the origin of the resource ("cloud").
+  string resource_origin = 2;
+  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP").
+  string cloud_provider = 3;
+  // database contains additional database information if resource_type == "db".
+  DiscoveredDatabaseMetadata database = 4;
+}
 
-  // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
+// DiscoveredDatabaseMetadata contains additional database information.
+message DiscoveredDatabaseMetadata {
+  // database type.
+  string db_type = 1;
+  // database protocol.
+  string db_protocol = 2;
 }
 
 // the kind of a "resource" as intended by ResourceHeartbeatEvent
@@ -715,6 +727,59 @@ enum EditorChangeStatus {
   EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
 }
 
+// Device authentication event
+message DeviceAuthenticateEvent {
+  // anonymized device ID, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.device_id
+  string device_id = 1;
+
+  // anonymized username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
+  string user_name = 2;
+
+  // device OS type
+  //
+  // PostHog property: tp.device_os_type
+  string device_os_type = 3;
+}
+
+// FeatureRecommendationEvent captures event emitted when a feature is recommended to user or
+// when user completes the desired CTA for the feature.
+//
+// PostHost event: tp.ui.feature.recommendation
+message FeatureRecommendationEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+  // feature is name of the Teleport feature.
+  //
+  // PostHost property: tp.feature
+  Feature feature = 2;
+  // feature_recommendation_status records recommendation state, which can be 'NOTIFIED' (feature is recommended)
+  // OR 'DONE' (user completes desired CTA)
+  //
+  // PostHost property: tp.feature_recommendation_status
+  FeatureRecommendationStatus feature_recommendation_status = 3;
+}
+
+// Feature is name of Teleport feature
+enum Feature {
+  FEATURE_UNSPECIFIED = 0;
+  FEATURE_TRUSTED_DEVICES = 1;
+}
+
+// FeatureRecommendationStatus is feature recommendation status.
+enum FeatureRecommendationStatus {
+  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0;
+  // FEATURE_RECOMMENDATION_STATUS_NOTIFIED is emitted when a feature is recommended (notified in UI) to user.
+  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1;
+  // FEATURE_RECOMMENDATION_STATUS_DONE is emitted when user completes the desired CTA.
+  FEATURE_RECOMMENDATION_STATUS_DONE = 2;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -799,6 +864,10 @@ message SubmitEventRequest {
 
     AssistExecutionEvent assist_execution = 50;
     AssistNewConversationEvent assist_new_conversation = 51;
+
+    DeviceAuthenticateEvent device_authenticate_event = 52;
+
+    FeatureRecommendationEvent feature_recommendation_event = 53;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

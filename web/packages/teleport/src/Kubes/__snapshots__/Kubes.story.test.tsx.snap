@@ -1651,8 +1651,7 @@ exports[`loaded 1`] = `
         title=""
         width="240px"
       >
-        Add 
-        kubernetes
+        Add kubernetes
       </button>
     </a>
   </div>

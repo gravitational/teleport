@@ -77,6 +77,10 @@ type Server interface {
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
+	// CloneResource is used to return a clone of the Server and match the CloneAny interface
+	// This is helpful when interfacing with multiple types at the same time in unified resources
+	CloneResource() ResourceWithLabels
+
 	// GetCloudMetadata gets the cloud metadata for the server.
 	GetCloudMetadata() *CloudMetadata
 	// SetCloudMetadata sets the server's cloud metadata.
@@ -377,13 +381,13 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // They include SubKindOpenSSHNode and SubKindOpenSSHEICENode.
 func (s *ServerV2) openSSHNodeCheckAndSetDefaults() error {
 	if s.Spec.Addr == "" {
-		return trace.BadParameter(`addr must be set when server SubKind is "openssh"`)
+		return trace.BadParameter("addr must be set when server SubKind is %q", s.GetSubKind())
 	}
 	if len(s.GetPublicAddrs()) != 0 {
-		return trace.BadParameter(`publicAddrs must not be set when server SubKind is "openssh"`)
+		return trace.BadParameter("publicAddrs must not be set when server SubKind is %q", s.GetSubKind())
 	}
 	if s.Spec.Hostname == "" {
-		return trace.BadParameter(`hostname must be set when server SubKind is "openssh"`)
+		return trace.BadParameter("hostname must be set when server SubKind is %q", s.GetSubKind())
 	}
 
 	_, _, err := net.SplitHostPort(s.Spec.Addr)
@@ -495,6 +499,11 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
 	return utils.CloneProtoMsg(s)
+}
+
+// CloneResource creates a clone of this server value
+func (s *ServerV2) CloneResource() ResourceWithLabels {
+	return s.DeepCopy()
 }
 
 // GetCloudMetadata gets the cloud metadata for the server.

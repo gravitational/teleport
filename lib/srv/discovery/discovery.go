@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
@@ -34,6 +35,8 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -62,6 +65,23 @@ type Matchers struct {
 
 func (m Matchers) IsEmpty() bool {
 	return len(m.GCP) == 0 && len(m.AWS) == 0 && len(m.Azure) == 0 && len(m.Kubernetes) == 0
+}
+
+// ssmInstaller handles running SSM commands that install Teleport on EC2 instances.
+type ssmInstaller interface {
+	Run(ctx context.Context, req server.SSMRunRequest) error
+}
+
+// azureInstaller handles running commands that install Teleport on Azure
+// virtual machines.
+type azureInstaller interface {
+	Run(ctx context.Context, req server.AzureRunRequest) error
+}
+
+// gcpInstaller handles running commands that install Teleport on GCP
+// virtual machines.
+type gcpInstaller interface {
+	Run(ctx context.Context, req server.GCPRunRequest) error
 }
 
 // Config provides configuration for the discovery server.
@@ -139,6 +159,7 @@ kubernetes matchers are present.`)
 	if c.protocolChecker == nil {
 		c.protocolChecker = fetchers.NewProtoChecker(false)
 	}
+
 	if c.PollInterval == 0 {
 		c.PollInterval = 5 * time.Minute
 	}
@@ -162,17 +183,17 @@ type Server struct {
 	// ec2Watcher periodically retrieves EC2 instances.
 	ec2Watcher *server.Watcher
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
-	ec2Installer *server.SSMInstaller
+	ec2Installer ssmInstaller
 	// azureWatcher periodically retrieves Azure virtual machines.
 	azureWatcher *server.Watcher
 	// azureInstaller is used to start the installation process on discovered Azure
 	// virtual machines.
-	azureInstaller *server.AzureInstaller
+	azureInstaller azureInstaller
 	// gcpWatcher periodically retrieves GCP virtual machines.
 	gcpWatcher *server.Watcher
 	// gcpInstaller is used to start the installation process on discovered GCP
 	// virtual machines
-	gcpInstaller *server.GCPInstaller
+	gcpInstaller gcpInstaller
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []common.Fetcher
 	// kubeAppsFetchers holds all kubernetes fetchers for apps.
@@ -184,6 +205,11 @@ type Server struct {
 	// reconciler periodically reconciles the labels of discovered instances
 	// with the auth server.
 	reconciler *labelReconciler
+
+	mu sync.Mutex
+	// usageEventCache keeps track of which instances the server has emitted
+	// usage events for.
+	usageEventCache map[string]struct{}
 }
 
 // New initializes a discovery Server
@@ -194,9 +220,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
-		Config:   cfg,
-		ctx:      localCtx,
-		cancelfn: cancelfn,
+		Config:          cfg,
+		ctx:             localCtx,
+		cancelfn:        cancelfn,
+		usageEventCache: make(map[string]struct{}),
 	}
 
 	if err := s.initAWSWatchers(cfg.Matchers.AWS); err != nil {
@@ -239,9 +266,12 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 			return trace.Wrap(err)
 		}
 
-		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
-			Emitter: s.Emitter,
-		})
+		if s.ec2Installer == nil {
+			s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+				Emitter: s.Emitter,
+			})
+		}
+
 		lr, err := newLabelReconciler(&labelReconcilerConfig{
 			log:         s.Log,
 			accessPoint: s.AccessPoint,
@@ -348,8 +378,10 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.azureInstaller = &server.AzureInstaller{
-			Emitter: s.Emitter,
+		if s.azureInstaller == nil {
+			s.azureInstaller = &server.AzureInstaller{
+				Emitter: s.Emitter,
+			}
 		}
 	}
 
@@ -414,8 +446,10 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		s.gcpInstaller = &server.GCPInstaller{
-			Emitter: s.Emitter,
+		if s.gcpInstaller == nil {
+			s.gcpInstaller = &server.GCPInstaller{
+				Emitter: s.Emitter,
+			}
 		}
 	}
 
@@ -541,7 +575,13 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 		Region:       instances.Region,
 		AccountID:    instances.AccountID,
 	}
-	return trace.Wrap(s.ec2Installer.Run(s.ctx, req))
+	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) logHandleInstancesErr(err error) {
@@ -701,7 +741,13 @@ func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
 	}
-	return trace.Wrap(s.azureInstaller.Run(s.ctx, req))
+	if err := s.azureInstaller.Run(s.ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) handleAzureDiscovery() {
@@ -780,7 +826,13 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		ScriptName:      instances.ScriptName,
 		PublicProxyAddr: instances.PublicProxyAddr,
 	}
-	return trace.Wrap(s.gcpInstaller.Run(s.ctx, req))
+	if err := s.gcpInstaller.Run(s.ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
+		s.Log.WithError(err).Debug("Error emitting usage event.")
+	}
+	return nil
 }
 
 func (s *Server) handleGCPDiscovery() {
@@ -808,6 +860,27 @@ func (s *Server) handleGCPDiscovery() {
 			return
 		}
 	}
+}
+
+func (s *Server) emitUsageEvents(events map[string]*usageeventsv1.ResourceCreateEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for name, event := range events {
+		if _, exists := s.usageEventCache[name]; exists {
+			continue
+		}
+		s.usageEventCache[name] = struct{}{}
+		if err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
+			Event: &usageeventsv1.UsageEventOneOf{
+				Event: &usageeventsv1.UsageEventOneOf_ResourceCreateEvent{
+					ResourceCreateEvent: event,
+				},
+			},
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // Start starts the discovery service.

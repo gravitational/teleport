@@ -22,6 +22,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
@@ -58,6 +59,14 @@ func TestFromProtoNils(t *testing.T) {
 
 	_, err = FromProto(uls)
 	require.NoError(t, err)
+
+	// UserType is empty
+	uls = ToProto(newUserLoginState(t, "user-login-state"))
+	uls.Spec.UserType = ""
+
+	fromProto, err := FromProto(uls)
+	require.NoError(t, err)
+	require.Equal(t, fromProto.GetUserType(), types.UserTypeLocal)
 }
 
 func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState {
@@ -73,6 +82,7 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 				"key1": []string{"value1"},
 				"key2": []string{"value2"},
 			},
+			UserType: types.UserTypeSSO,
 		},
 	)
 	require.NoError(t, err)

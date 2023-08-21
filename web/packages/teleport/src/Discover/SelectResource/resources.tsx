@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Platform } from 'design/theme/utils';
+
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
@@ -35,6 +37,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'ubuntu',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'Debian 8+',
@@ -42,6 +45,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'debian',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'RHEL/CentOS 7+',
@@ -49,6 +53,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'rhel centos',
     icon: 'Linux',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'Amazon Linux 2/2023',
@@ -56,6 +61,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'amazon linux',
     icon: 'Aws',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_LINUX,
   },
   {
     name: 'macOS',
@@ -63,6 +69,7 @@ export const SERVERS: ResourceSpec[] = [
     keywords: baseServerKeywords + 'mac macos intel silicone apple',
     icon: 'Apple',
     event: DiscoverEventResource.Server,
+    platform: Platform.PLATFORM_MACINTOSH,
   },
 ];
 
@@ -84,6 +91,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     keywords: 'windows desktop active directory ad',
     icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
+    platform: Platform.PLATFORM_WINDOWS,
   },
   // {
   //   name: 'Non Active Directory',

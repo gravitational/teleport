@@ -7,12 +7,15 @@ If you want to configure Redis Cluster, please read [Database Access with Redis 
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="Redis" dbConfigure="Redis database with mutual TLS authentication" dbName="Redis" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/redis_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud","team"]}>
+</TabItem>
+<TabItem scope={["cloud","team"]} label="Teleport Cloud">
 ![Teleport Database Access Redis Cloud](../../../img/database-access/guides/redis_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -130,3 +133,4 @@ returns the <nobr>`ERR Teleport: not supported by Teleport`</nobr> error.
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+

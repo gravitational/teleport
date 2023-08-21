@@ -316,6 +316,11 @@ message DatabaseSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "mongo_atlas,omitempty"
   ];
+  // Oracle is an additional Oracle configuration options.
+  OracleOptions Oracle = 13 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "oracle,omitempty"
+  ];
 }
 
 // DatabaseAdminUser contains information about privileged database user used
@@ -323,6 +328,13 @@ message DatabaseSpecV3 {
 message DatabaseAdminUser {
   // Name is the username of the privileged database user.
   string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// OracleOptions contains information about privileged database user used
+// for database audit.
+message OracleOptions {
+  // AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
+  string AuditUser = 1 [(gogoproto.jsontag) = "audit_user"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -1588,6 +1600,9 @@ message ClusterNetworkingConfigSpecV2 {
   // AssistCommandExecutionWorkers determines the number of workers that will
   // execute arbitrary Assist commands on servers in parallel
   int32 AssistCommandExecutionWorkers = 11 [(gogoproto.jsontag) = "assist_command_execution_workers,omitempty"];
+
+  // CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
+  bool CaseInsensitiveRouting = 12 [(gogoproto.jsontag) = "case_insensitive_routing,omitempty"];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -5283,6 +5298,8 @@ message PluginSpecV1 {
     PluginMattermostSettings mattermost = 7;
     // Settings for the JIRA plugin
     PluginJiraSettings jira = 8;
+    // Settings for the Discord plugin
+    PluginDiscordSettings discord = 9;
   }
 }
 
@@ -5369,6 +5386,22 @@ message PluginOktaSettings {
 
   // OrgUrl is the Okta organization URL to use for API communication.
   string org_url = 1;
+}
+
+// Defines a set of discord channel IDs
+message DiscordChannels {
+  option (gogoproto.equal) = true;
+  repeated string channel_ids = 1;
+}
+
+// Defines settings for the discord plugin
+message PluginDiscordSettings {
+  option (gogoproto.equal) = true;
+
+  // RoleToRecipients maps Teleport roles (by name) to the set of Discord
+  // channel IDs that will receive notifications and requests regarding that
+  // that Role.
+  map<string, DiscordChannels> role_to_recipients = 1;
 }
 
 message PluginBootstrapCredentialsV1 {

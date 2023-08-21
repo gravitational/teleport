@@ -126,9 +126,11 @@ func makeDatabaseActionsBuildOption(flags configurators.BootstrapFlags, targetCf
 	case configurators.DatabaseServiceByDiscoveryServiceConfig:
 		return databaseActionsBuildOption{
 			withDiscovery:    false,
-			withMetadata:     false, // Discovered databases should have correct metadata.
 			withAuth:         true,
 			withAuthBoundary: boundary,
+			// Discovered databases should be checked by URL validator which
+			// requires same permissions as the metadata service.
+			withMetadata: true,
 		}
 
 	case configurators.DatabaseService:

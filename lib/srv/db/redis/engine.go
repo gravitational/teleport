@@ -25,8 +25,8 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"

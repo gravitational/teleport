@@ -16,7 +16,7 @@ limitations under the License.
 
 import { fonts } from './fonts';
 import { darken, getContrastRatio } from './utils/colorManipulator';
-import { lightBlue, blueGrey, yellow } from './palette';
+import { blue, lightBlue, blueGrey, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
 
@@ -165,6 +165,10 @@ const colors = {
     active: '#996700',
   },
 
+  notice: {
+    background: blue[50],
+  },
+
   action: {
     active: '#FFFFFF',
     hover: 'rgba(255, 255, 255, 0.1)',
@@ -242,8 +246,6 @@ const theme = {
   regular: fontWeights.regular,
   bold: fontWeights.bold,
   ...sharedStyles,
-  // disabled media queries for styled-system
-  breakpoints: [],
 };
 
 export default theme;
