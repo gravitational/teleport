@@ -15,6 +15,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/accesslist"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
+	"github.com/gravitational/teleport/e/lib/resourceusage/resourceusagev1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
@@ -225,6 +227,10 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 
 	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
 
+	if err := p.registerResourceUsageService(p.authServer); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -306,6 +312,25 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 
 	pluginspb.RegisterPluginServiceServer(grpcServer, service)
 	modules.GetModules().EnablePlugins()
+
+	return nil
+}
+
+func (p *Plugin) registerResourceUsageService(server *auth.GRPCServer) error {
+	grpcServer, err := server.GetServer()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	service, err := resourceusagev1.New(resourceusagev1.ServiceConfig{
+		Authorizer: p.authServer.Authorizer,
+		AuditLog:   p.authServer.AuditLog,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resourceusagepb.RegisterResourceUsageServiceServer(grpcServer, service)
 
 	return nil
 }

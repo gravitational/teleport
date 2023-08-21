@@ -44,4 +44,8 @@ export type NonBillableSummaryInformation = {
     devicesUsageLimit: number;
     devicesInUse: number;
   };
+  accessRequestUsage: {
+    monthlyLimit: number;
+    monthlyUsed: number;
+  };
 };

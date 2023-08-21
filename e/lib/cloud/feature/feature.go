@@ -42,9 +42,10 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 		},
 	}
 
-	// Grant 5 devices for usage-based/Team accounts.
+	// Set usage-based / Team account limits.
 	if f.IsUsageBasedBilling {
 		f.DeviceTrust.DevicesUsageLimit = 5
+		f.AccessRequests.MonthlyRequestLimit = 5
 	}
 
 	return f, nil

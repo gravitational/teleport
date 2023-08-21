@@ -28,6 +28,10 @@ describe('cycle', () => {
           devicesInUse: 0,
           devicesUsageLimit: 0,
         },
+        accessRequestUsage: {
+          monthlyUsed: 0,
+          monthlyLimit: 5,
+        },
       },
       productName: 'some-product',
       stripeMissingPaymentMethod: false,
@@ -55,8 +59,8 @@ describe('cycle', () => {
       'https://goteleport.com/teleport-pricing/'
     );
     expect(
-      screen.getByRole('link', { name: /Contact Sales/i })
-    ).toBeInTheDocument();
+      screen.getAllByRole('link', { name: /Contact Sales/i })
+    ).toHaveLength(2);
   });
 
   test('info icon popovers', async () => {
@@ -104,7 +108,7 @@ describe('cycle', () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          'Unique trusted device enrolled in Teleport. Upgrade to enterprise plan for more than five devices.'
+          'Unique trusted devices enrolled in Teleport. Upgrade to enterprise plan for more than five devices.'
         )
       ).toBeVisible();
     });
@@ -116,24 +120,29 @@ describe('cycle', () => {
     props.currentUsage.usageTia = 10000;
     props.currentUsage.usagePr = 200;
     props.nonBillableUsage.trustedDeviceUsage.devicesInUse = 1;
+    props.nonBillableUsage.accessRequestUsage.monthlyUsed = 3;
 
     renderWithElementsAndContext(<Cycle {...props} />);
     const mau = screen.getByTestId(/Active Users/i);
     expect(within(mau).getByText(/0 of 30/i)).toBeInTheDocument();
-    expect(within(mau).getByText(/(0%)/i)).toBeInTheDocument();
+    expect(within(mau).getByText(/\(0%\)/i)).toBeInTheDocument();
 
     const tia = screen.getByTestId(/Teleport Identity Authorizations/i);
     expect(
       within(tia).getByText(/10000 of 50000 Included/i)
     ).toBeInTheDocument();
-    expect(within(tia).getByText(/(20%)/i)).toBeInTheDocument();
+    expect(within(tia).getByText(/\(20%\)/i)).toBeInTheDocument();
 
     const pr = screen.getByTestId(/Teleport Protected Resources/i);
     expect(within(pr).getByText(/200 of 50/i)).toBeInTheDocument();
-    expect(within(pr).getByText(/(400%)/i)).toBeInTheDocument();
+    expect(within(pr).getByText(/\(400%\)/i)).toBeInTheDocument();
 
     const mad = screen.getByTestId(/Trusted Devices/i);
     expect(within(mad).getByText(/1 of 5/i)).toBeInTheDocument();
-    expect(within(mad).getByText(/(20%)/i)).toBeInTheDocument();
+    expect(within(mad).getByText(/\(20%\)/i)).toBeInTheDocument();
+
+    const mar = screen.getByTestId(/Access Requests/i);
+    expect(within(mar).getByText(/3 of 5/i)).toBeInTheDocument();
+    expect(within(mar).getByText(/\(60%\)/i)).toBeInTheDocument();
   });
 });

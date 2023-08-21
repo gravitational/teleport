@@ -46,6 +46,10 @@ export function SummaryPageView() {
         devicesUsageLimit: 5,
         devicesInUse: 4,
       },
+      accessRequestUsage: {
+        monthlyLimit: 5,
+        monthlyUsed: 5,
+      },
     },
     reload: () => {},
   };

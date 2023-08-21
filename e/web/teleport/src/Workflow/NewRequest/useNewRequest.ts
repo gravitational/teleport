@@ -10,6 +10,8 @@ import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { UserGroup } from 'teleport/services/userGroups';
 
+import cfg from 'teleport/config';
+
 import Ctx from 'e-teleport/teleportContextE';
 
 import type {
@@ -24,7 +26,9 @@ const pageSize = 10;
 
 export function useNewRequest(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
-  const { attempt, setAttempt } = useAttempt(isLeafCluster ? 'processing' : '');
+  const { attempt, setAttempt, handleError } = useAttempt(
+    isLeafCluster ? 'processing' : ''
+  );
   const [selectedResource, setSelectedResource] = useState<ResourceKind>(
     isLeafCluster ? 'node' : 'role'
   );
@@ -46,6 +50,30 @@ export function useNewRequest(ctx: Ctx) {
   );
 
   const [numAddedOnPage, setNumAddedOnPage] = useState(getNumAddedOnPage());
+
+  const [usage, setUsage] = useState<{
+    limit: number;
+    used: number;
+  } | null>(null);
+
+  function fetchUsage() {
+    if (!cfg.isUsageBasedBilling) {
+      // there are no limits on non usage-based billing plans
+      return;
+    }
+
+    ctx.cloudService
+      .fetchNonBillableSummaryInformation()
+      .then(info => {
+        setUsage({
+          limit: info.accessRequestUsage.monthlyLimit,
+          used: info.accessRequestUsage.monthlyUsed,
+        });
+      })
+      .catch(handleError);
+  }
+
+  useEffect(fetchUsage, []);
 
   useEffect(() => {
     // No need to fetch anything for roles, it
@@ -518,6 +546,8 @@ export function useNewRequest(ctx: Ctx) {
     unAddCurrentPage,
     numAddedOnPage,
     addAllFetchAttempt: addAllFetchAttempt.attempt,
+    fetchUsage,
+    usage,
   };
 }
 

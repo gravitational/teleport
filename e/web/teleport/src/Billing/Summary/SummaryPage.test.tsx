@@ -43,6 +43,10 @@ describe('summaryPage', () => {
           devicesInUse: 0,
           devicesUsageLimit: 0,
         },
+        accessRequestUsage: {
+          monthlyLimit: 0,
+          monthlyUsed: 0,
+        },
       },
       reload: jest.fn(),
     };

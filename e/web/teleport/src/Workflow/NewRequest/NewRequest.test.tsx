@@ -7,6 +7,7 @@ import { within, waitFor } from '@testing-library/react';
 import makeUserContext from 'teleport/services/user/makeUserContext';
 import { Node } from 'teleport/services/nodes/types';
 
+import cfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
 
 import { AccessRequest } from 'e-teleport/services/workflow';
@@ -278,6 +279,65 @@ describe('new request behavior', () => {
     );
     screen.getByText(/remove 2 applications/i);
     screen.getByText(/alternatively select user groups/i);
+  });
+
+  test('displays usage info when usage-based billing is used', async () => {
+    cfg.oss.isUsageBasedBilling = true;
+    jest
+      .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
+      .mockResolvedValueOnce({
+        trustedDeviceUsage: {
+          devicesUsageLimit: 0,
+          devicesInUse: 0,
+        },
+        accessRequestUsage: {
+          monthlyLimit: 5,
+          monthlyUsed: 3,
+        },
+      });
+    render(Component);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('usage-info')).toBeInTheDocument();
+    });
+
+    const usageInfo = screen.getByTestId('usage-info');
+    expect(usageInfo).toHaveTextContent(`3 access requests`);
+    expect(usageInfo).toHaveTextContent(
+      `allocation of 5 access requests per month`
+    );
+  });
+
+  test('displays upsell link and button when access request limit is reached', async () => {
+    cfg.oss.isUsageBasedBilling = true;
+    jest
+      .spyOn(ctx.cloudService, 'fetchNonBillableSummaryInformation')
+      .mockResolvedValueOnce({
+        trustedDeviceUsage: {
+          devicesUsageLimit: 0,
+          devicesInUse: 0,
+        },
+        accessRequestUsage: {
+          monthlyLimit: 5,
+          monthlyUsed: 5,
+        },
+      });
+    render(Component);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('usage-info')).toBeInTheDocument();
+    });
+
+    const usageInfo = screen.getByTestId('usage-info');
+    expect(usageInfo).toHaveTextContent(`reached its allocation`);
+    const upsellLinks = await screen.findAllByRole('link');
+    expect(upsellLinks).toHaveLength(2);
+    for (const link of upsellLinks) {
+      expect(link).toHaveAttribute(
+        'href',
+        expect.stringMatching(/https:\/\/goteleport.com\/r\/upgrade/i)
+      );
+    }
   });
 });
 

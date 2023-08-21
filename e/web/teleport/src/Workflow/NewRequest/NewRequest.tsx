@@ -15,16 +15,27 @@ import {
 import { kinds } from 'design/Button/Button';
 import { StyledPanel } from 'design/DataTable/StyledTable';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
-import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
+import {
+  Info as InfoIcon,
+  CircleArrowLeft,
+  CircleArrowRight,
+} from 'design/Icon';
 import Select from 'shared/components/Select';
+import Link from 'design/Link';
 import { SearchPanel } from 'shared/components/Search';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import { CtaEvent } from 'teleport/services/userEvent';
+
+import cfg from 'teleport/config';
+import { getSalesURL } from 'teleport/services/sales';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
@@ -105,6 +116,8 @@ export function NewRequest(props: State) {
     numAddedOnPage,
     addedAll,
     addAllFetchAttempt,
+    usage,
+    fetchUsage,
   } = props;
 
   const [showCheckout, setShowCheckout] = useState(false);
@@ -181,10 +194,24 @@ export function NewRequest(props: State) {
     attempt.status === 'failed' &&
     agents.length === 0;
 
+  const limitReached = usage && usageLimitReached(usage);
+
   return (
     <FeatureBox>
       <FeatureHeader>
-        <FeatureHeaderTitle>New Request</FeatureHeaderTitle>
+        <Flex width="100%" alignItems="center" justifyContent="space-between">
+          <FeatureHeaderTitle>New Request</FeatureHeaderTitle>
+
+          {limitReached && (
+            <Box>
+              <ButtonLockedFeature event={CtaEvent.CTA_ACCESS_REQUESTS}>
+                <Text color="buttons.primary.text">
+                  Unlock Unlimited Access Requests with Teleport Enterprise
+                </Text>
+              </ButtonLockedFeature>
+            </Box>
+          )}
+        </Flex>
       </FeatureHeader>
       <Box>
         {attempt.status === 'failed' && (
@@ -193,6 +220,7 @@ export function NewRequest(props: State) {
         {addAllFetchAttempt.status === 'failed' && (
           <ErrorMessage message={addAllFetchAttempt.statusText} />
         )}
+        {usage && <UsageInfo {...usage} />}
         {!nonRecoverableError && attempt.status !== 'processing' && (
           <Box width="150px" mb={4} data-testid="resource-selector">
             <Select
@@ -336,7 +364,10 @@ export function NewRequest(props: State) {
           {transitionState => (
             <RequestCheckout
               addedResources={addedResources}
-              onClose={() => setShowCheckout(false)}
+              onClose={() => {
+                setShowCheckout(false);
+                fetchUsage();
+              }}
               toggleResource={addOrRemoveResource}
               transitionState={transitionState}
               reset={clearAddedResources}
@@ -481,6 +512,68 @@ function AddAllPagesPanel({
       </StyledSelectAllPanel>
     );
   }
+}
+
+function UsageInfo(usage: { limit: number; used: number }) {
+  // limit will be 0 if not using usage-based billing
+  if (!usage.limit) {
+    return null;
+  }
+
+  const limitReached = usageLimitReached(usage);
+
+  const ctx = useTeleportE();
+
+  const getSalesLink = () => {
+    const version = ctx.storeUser.state.cluster.authVersion;
+    const isEnterprise = ctx.isEnterprise;
+    const isUsageBased = cfg.isUsageBasedBilling;
+    return getSalesURL(version, isEnterprise, isUsageBased);
+  };
+
+  return (
+    <UsageNotice
+      data-testid="usage-info"
+      width="100%"
+      height="44px"
+      my={2}
+      as={Flex}
+      alignItems="center"
+      flex="0 0 auto"
+    >
+      <InfoIcon color="info" px={3} />
+      <Text typography="paragraph">
+        {limitReached ? (
+          <>
+            Your cluster has reached its allocation of {usage.used} access
+            requests per month, but{' '}
+            <Link href={getSalesLink()} target="_blank">
+              you can get unlimited access requests with Teleport Enterprise.
+            </Link>
+          </>
+        ) : (
+          <>
+            Your cluster has an allocation of {usage.limit} access requests per
+            month. {usage.used}{' '}
+            {usage.used == 1 ? 'access request has' : 'access requests have'}{' '}
+            been created this month.
+          </>
+        )}
+      </Text>
+    </UsageNotice>
+  );
+}
+
+const UsageNotice = styled(Box)`
+  border: 2px solid ${({ theme }) => theme.colors.info};
+  background-color: ${({ theme }) => theme.colors.notice.background};
+  border-radius: 8px;
+  margin-bottom: 24px;
+  padding: 24px 0;
+`;
+
+function usageLimitReached({ limit, used }: { limit: number; used: number }) {
+  return used >= limit;
 }
 
 const StyledSelectAllPanel = styled(StyledPanel)`

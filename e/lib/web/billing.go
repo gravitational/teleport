@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/trace/trail"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -153,7 +154,6 @@ func (p *Plugin) updateEmailHandle(w http.ResponseWriter, r *http.Request, ctx *
 }
 
 // getNonBillableUsageSummaryHandle returns usage report for resources that are not tracked in Stripe.
-// Currently only returns Trusted Device usage summary.
 func (p *Plugin) getNonBillableUsageSummaryHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
 
 	authClt, err := ctx.GetClient()
@@ -166,6 +166,17 @@ func (p *Plugin) getNonBillableUsageSummaryHandle(w http.ResponseWriter, r *http
 	// See [devicepb.DevicesUsage.AccountUsageType] (or handle the zeroes
 	// accordingly!)
 	devicesUsage, err := authClt.DevicesClient().GetDevicesUsage(r.Context(), &devicepb.GetDevicesUsageRequest{})
+	// TODO(codingllama): Do trail conversion using an interceptor.
+	if trace.IsAccessDenied(trail.FromGRPC(err)) {
+		// Do not fail the whole request on "access denied", since this endpoint is also called in the "New Request" page,
+		// where we always want to display the access request limit for better UX.
+		devicesUsage = &devicepb.DevicesUsage{}
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Move DevicesUsage under GetUsage.
+	usage, err := authClt.ResourceUsageClient().GetUsage(r.Context(), &resourceusagepb.GetUsageRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -174,6 +185,10 @@ func (p *Plugin) getNonBillableUsageSummaryHandle(w http.ResponseWriter, r *http
 		TrustedDeviceUsage: ui.TrustedDeviceUsage{
 			DevicesUsageLimit: devicesUsage.DevicesUsageLimit,
 			DevicesInUse:      devicesUsage.DevicesInUse,
+		},
+		AccessRequestUsage: ui.AccessRequestUsage{
+			MonthlyLimit: usage.GetAccessRequests().GetMonthlyLimit(),
+			MonthlyUsed:  usage.GetAccessRequests().GetMonthlyUsed(),
 		},
 	}, nil
 }

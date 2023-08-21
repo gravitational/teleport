@@ -9,8 +9,12 @@ import Link from 'design/Link';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 import { ToolTipInfo } from 'shared/components/ToolTip';
+
+import cfg from 'teleport/config';
+import { getSalesURL } from 'teleport/services/sales';
 
 import { CycleProps, CycleUsage } from 'e-teleport/Billing/types';
 
@@ -29,7 +33,7 @@ export const Cycle = ({
   productName,
   stripeMissingPaymentMethod,
   stripeTrialEnd,
-  nonBillableUsage: { trustedDeviceUsage },
+  nonBillableUsage: { trustedDeviceUsage, accessRequestUsage },
 }: CycleProps) => {
   const theme = useTheme();
   const start = displayUnixShortDate(periodStart);
@@ -40,6 +44,8 @@ export const Cycle = ({
   const pr = usagePr || 0;
   const mad = trustedDeviceUsage?.devicesInUse || 0;
   const maxMAD = trustedDeviceUsage?.devicesUsageLimit || 5;
+  const ar = accessRequestUsage?.monthlyUsed || 0;
+  const maxAR = accessRequestUsage?.monthlyLimit || 0;
 
   const usage: CycleUsage[] = [
     {
@@ -69,6 +75,19 @@ export const Cycle = ({
       hasFreeTier: true,
       info: 'Any unique resource such as a Kubernetes cluster, SSH server, database instance or serverless endpoint, that has registered itself with the Teleport cluster and is protected by Teleport.',
     },
+  ];
+
+  // Usage info for entities where accounting does not correspond to a billing cycle
+  const monthlyUsage: CycleUsage[] = [
+    {
+      name: 'Access Requests',
+      total: ar,
+      percentage: Math.round((ar / maxAR) * 100),
+      percentageMax: maxAR,
+      hardMax: maxAR,
+      hasFreeTier: true,
+      info: 'Access requests created this month. Upgrade to enterprise plan for more than five access requests per month.',
+    },
     {
       name: 'Trusted Devices',
       total: mad,
@@ -76,10 +95,98 @@ export const Cycle = ({
       percentageMax: maxMAD,
       hardMax: maxMAD,
       hasFreeTier: true,
-      info: 'Unique trusted device enrolled in Teleport. Upgrade to enterprise plan for more than five devices.',
+      info: 'Unique trusted devices enrolled in Teleport. Upgrade to enterprise plan for more than five devices.',
     },
   ];
 
+  const ctx = useTeleport();
+
+  const getSalesLink = () => {
+    const version = ctx.storeUser.state.cluster.authVersion;
+    const isEnterprise = ctx.isEnterprise;
+    const isUsageBased = cfg.isUsageBasedBilling;
+    return getSalesURL(version, isEnterprise, isUsageBased);
+  };
+
+  return (
+    <Box>
+      <UsageGroup>
+        <h2>
+          Current Cycle: {start} - {end}
+        </h2>
+        <Text color={theme.colors.text.secondary}>
+          {stripeMissingPaymentMethod
+            ? `Your trial will expire on ${displayUnixShortDate(
+                stripeTrialEnd
+              )}. To maintain access to your Teleport cluster, upgrade to the Teleport ${productName} Plan by adding a payment method.`
+            : `Your next invoice will occur on ${end} at a rate of ${mauRate} per active monthly user.`}
+        </Text>
+        <Flex flexWrap="wrap">
+          {usage.map(u => (
+            <Usage usage={u} />
+          ))}
+        </Flex>
+        <Text color={theme.colors.text.slightlyMuted} mt="12px">
+          <i>
+            Your team plan includes a limited amount of free usage. <br />
+            If your team exceeds the limit for a given category, your team will
+            be charged for the extra use.&nbsp;
+            <Link
+              color="text.secondary"
+              href="https://goteleport.com/teleport-pricing/"
+              target="_blank"
+            >
+              Learn More.
+            </Link>{' '}
+          </i>
+        </Text>
+        <hr
+          style={{
+            margin: '16px auto 16px -40px',
+            border: `1px solid ${theme.colors.spotBackground[0]}`,
+          }}
+        />
+        <Flex justifyContent="right" alignItems="center">
+          <Text mr={3} typography="paragraph">
+            Do you have custom needs?
+          </Text>
+          <ButtonLockedFeature
+            width="196px"
+            noIcon
+            event={CtaEvent.CTA_UNSPECIFIED}
+            mr={5}
+          >
+            Contact Sales
+          </ButtonLockedFeature>
+        </Flex>
+      </UsageGroup>
+
+      <UsageGroup>
+        <h2>
+          Monthly allocations:{' '}
+          {new Date().toLocaleString('default', { month: 'long' })}
+        </h2>
+        <Flex flexWrap="wrap">
+          {monthlyUsage.map(u => (
+            <Usage usage={u} />
+          ))}
+        </Flex>
+        <Text color={theme.colors.text.slightlyMuted} mt="12px">
+          <i>
+            We can not increase monthly allocations in the Team plan.{' '}
+            <Link color="text.secondary" href={getSalesLink()} target="_blank">
+              Contact sales
+            </Link>{' '}
+            to unlock unlimited access requests.
+          </i>
+        </Text>
+      </UsageGroup>
+    </Box>
+  );
+};
+
+function Usage({ usage }: { usage: CycleUsage }) {
+  const theme = useTheme();
   const getColor = (total, hasFreeTier, freeTierMax, hardMax): string => {
     // if a product has hit its hard max
     if (total >= hardMax) {
@@ -97,86 +204,25 @@ export const Cycle = ({
   };
 
   return (
-    <Box
-      bg={theme.colors.levels.surface}
-      borderRadius="8px"
-      m="20px 0 0 0"
-      p="20px 0 20px 40px"
-    >
-      <h2>
-        Current Cycle: {start} - {end}
-      </h2>
-      <Text color={theme.colors.text.secondary}>
-        {stripeMissingPaymentMethod
-          ? `Your trial will expire on ${displayUnixShortDate(
-              stripeTrialEnd
-            )}. To maintain access to your Teleport cluster, upgrade to the Teleport ${productName} Plan by adding a payment method.`
-          : `Your next invoice will occur on ${end} at a rate of ${mauRate} per active monthly user.`}
-      </Text>
-      <Flex flexWrap="wrap">
-        {usage.map(u => (
-          // todo (michellescripts) add info/hover for description  https://github.com/gravitational/cloud/issues/3536
-          <Box key={u.name} width="30%" flex="40%" data-testid={u.name}>
-            <Flex flexDirection="row" alignItems="center" gap={2}>
-              <h3>{u.name}</h3>
-              <ToolTipInfo children={<Text>{u.info}</Text>} />
-            </Flex>
-            {u.total} of {u.percentageMax}
-            {u.hasFreeTier && ' Included'} ({u.percentage}%)
-            <StyledBar
-              percent={Math.min(u.percentage, 100)}
-              color={getColor(
-                u.total,
-                u.hasFreeTier,
-                u.percentageMax,
-                u.hardMax
-              )}
-            />
-          </Box>
-        ))}
+    <Box key={usage.name} width="30%" flex="40% 0" data-testid={usage.name}>
+      <Flex flexDirection="row" alignItems="center" gap={2}>
+        <h3>{usage.name}</h3>
+        <ToolTipInfo children={<Text>{usage.info}</Text>} />
       </Flex>
-      <Text color={theme.colors.text.slightlyMuted} mt="12px">
-        <i>
-          Your team plan includes a limited amount of free usage. <br />
-          If your team exceeds the limit for a given category<sup>[1]</sup>,
-          your team will be charged for the extra use.&nbsp;
-          <Link
-            color="text.secondary"
-            href="https://goteleport.com/teleport-pricing/"
-            target="_blank"
-          >
-            Learn More.
-          </Link>{' '}
-          <br />
-          <Text color={theme.colors.text.slightlyMuted} fontSize="12px">
-            [1] Trusted Device limit cannot be increased in the team plan.
-            Contact sales for additional devices.
-          </Text>
-        </i>
-      </Text>
-      <footer></footer>
-      <hr
-        style={{
-          margin: '16px auto 16px -40px',
-          border: `1px solid ${theme.colors.spotBackground[0]}`,
-        }}
+      {usage.total} of {usage.percentageMax}
+      {usage.hasFreeTier && ' Included'} ({usage.percentage}%)
+      <StyledBar
+        percent={Math.min(usage.percentage, 100)}
+        color={getColor(
+          usage.total,
+          usage.hasFreeTier,
+          usage.percentageMax,
+          usage.hardMax
+        )}
       />
-      <Flex justifyContent="right" alignItems="center">
-        <Text mr={3} typography="paragraph">
-          Do you have custom needs?
-        </Text>
-        <ButtonLockedFeature
-          width="196px"
-          noIcon
-          event={CtaEvent.CTA_UNSPECIFIED}
-          mr={5}
-        >
-          Contact Sales
-        </ButtonLockedFeature>
-      </Flex>
     </Box>
   );
-};
+}
 
 const StyledBar = styled.div<{
   percent: number;
@@ -196,4 +242,11 @@ const StyledBar = styled.div<{
     height: 100%;
     border-radius: 9px;
   }
+`;
+
+const UsageGroup = styled(Box)`
+  background: ${({ theme }) => theme.colors.levels.surface};
+  border-radius: 8px;
+  margin: 20px 0 0;
+  padding: 20px 0 20px 40px;
 `;

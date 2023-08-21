@@ -20,16 +20,11 @@ import {
 import { NavTitle } from 'teleport/types';
 
 import cfg from 'e-teleport/config';
-import {
-  ReviewRequests,
-  NewRequest,
-  RequestFeatureLocked,
-} from 'e-teleport/Workflow';
+import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
 
 import { Downloads } from 'e-teleport/Downloads';
 
 import type {
-  LockedFeatures,
   FeatureFlags,
   TeleportFeature,
   TeleportFeatureNavigationItem,
@@ -74,25 +69,6 @@ class FeatureAccessRequests implements TeleportFeature {
   hasAccess(flags: FeatureFlags) {
     return flags.accessRequests;
   }
-  // display an alternate page with a call to action
-  // in case the feature is locked in the cluster
-  isLocked(lockedFeatures: LockedFeatures) {
-    return lockedFeatures.accessRequests;
-  }
-
-  lockedRoute = {
-    title: 'Access Requests',
-    path: cfg.routes.requestNew,
-    component: RequestFeatureLocked,
-  };
-
-  lockedNavigationItem = {
-    title: NavTitle.AccessRequests,
-    icon: <EqualizersVertical />,
-    getLink(clusterId: string) {
-      return cfg.getNewAccessRequestRoute(clusterId);
-    },
-  };
 }
 
 class FeatureNewAccessRequest implements TeleportFeature {
