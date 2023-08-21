@@ -18,12 +18,10 @@ This guide will explain how to:
 ## Prerequisites
 
 - A running Teleport cluster, either self hosted or in Teleport Cloud.
-- A host running the `teleport` daemon with the Teleport Application Service
-  enabled. Follow the [Getting Started](../getting-started.mdx) or [Connecting
-  Apps](../guides/connecting-apps.mdx) guides to get it running.
+- An AWS EC2 or other instance you can assign an IAM role where
+  you will run the Teleport Application Service. The instance
+  must be running a Linux distribution.
 - IAM permissions in the AWS account you want to connect.
-- AWS EC2 or other instance where you can assign a IAM Security Role for the
-  Teleport Agent.
 - `aws` command line interface (CLI) tool in PATH. [Installing or updating the
   latest version of the AWS CLI
   ](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
@@ -164,42 +162,62 @@ Templates](../../access-controls/guides/role-templates.mdx) for details.
 
 ## Step 5/9. Register AWS console application in Teleport
 
-Add AWS management console to your Application Service configuration:
+### Get a join token
+
+Establish trust between your Teleport cluster and your new Application Service
+instance by creating a join token:
+
+```code
+$ tctl tokens add --type=app --ttl=1h --format=text
+(=presets.tokens.first=)
+```
+
+On the host where you will install the Teleport Application Service, create a
+file called `/tmp/token` that consists only of your token:
+
+```code
+$ echo <Var name="join-token" /> | sudo tee /tmp/token
+```
+
+### Install the Teleport Application Service
+
+Run the following commands on the host where you will install the Teleport
+Application Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Configure the Teleport Application Service
+
+On the host where you will run the Teleport Application Service, create a file
+at `/etc/teleport.yaml` with the following content:
 
 ```yaml
 version: v3
 teleport:
-  # Data directory for the Application Proxy service. If running on the same
-  # node as Auth/Proxy service, make sure to use different data directories.
-  data_dir: /var/lib/teleport-app
-  # Instructs the service to load the auth token from the specified file
-  # during initial registration with the cluster.
-  auth_token: /var/lib/teleport-app/token
-  # Proxy address to connect to. Note that it has to be the proxy address
-  # because the app service always connects to the cluster over a reverse
-  # tunnel.
-  proxy_server: teleport.example.com:3080
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
 app_service:
   enabled: "yes"
   apps:
   - name: "awsconsole"
   # The public AWS Console is used after authenticating the user from Teleport
     uri: "https://console.aws.amazon.com/ec2/v2/home"
-auth_service:
-  enabled: "no"
-ssh_service:
-  enabled: "no"
-proxy_service:
-  enabled: "no"
-
 ```
 
-Start the application service
+Edit `/etc/teleport.yaml` to replace `teleport.example.com:443` with the host
+and port of your Teleport Proxy Service or Teleport Cloud tenant, e.g.,
+`mytenant.teleport.sh:443`.
 
-
-```code
-sudo teleport start --config=/path/to/teleport.yaml
-```
+The `app_service` field configures the Teleport Application Service. Each item
+within `app_service.apps` is an application configuration. 
 
 Note that the URI must start with one of the following values in order to be
 recognized as an AWS console.
@@ -209,6 +227,10 @@ recognized as an AWS console.
 | Standard AWS regions      | `https://console.aws.amazon.com` |
 | AWS GovCloud (US) regions | `https://console.amazonaws-us-gov.com` |
 | AWS China regions         | `https://console.amazonaws.cn` |
+
+### Start the Teleport Application Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Application Service"!)
 
 <Admonition type="warning" title="non-standard AWS regions">
 For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
