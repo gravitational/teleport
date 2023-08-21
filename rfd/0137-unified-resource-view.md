@@ -1,9 +1,13 @@
 ---
 authors: Michael Myers (michael.myers@goteleport.com)
-state: draft
+state: implemented v14.0
 ---
 
 # RFD 137 - Unified Resource view for the web UI
+### Required Approvers
+* @zmb3 && @rosstimothy
+
+**note: this is a post-implementation RFD to capture implementation details**
 
 ## What
 
@@ -17,25 +21,16 @@ Rather than separating all resources into their own individual pages, a Unified 
 
 ## Details
 
-In order to get a searchable and filterable list of all resource kinds, we will create a new, in-memory store that will initialize on auth service start and only live as long as the service is up. The watcher will update the store any time it receives an event for any of the watched kinds. We will use a very similar setup for this as our in-memory backend, but instead of storing the resource in its textual representation required by the backend, we can store resources as their concrete type(e.g. types.ServerV2).
+In order to get a searchable and filterable list of all resource kinds, we will create a new, in-memory store that will 
+initialize on auth service start and only live as long as the service is up. The watcher will update the store any time 
+it receives an event for any of the watched kinds. We will use a very similar setup for this as our in-memory backend, 
+but instead of storing the resource in its textual representation required by the backend, we can store resources as 
+their concrete type(e.g. types.ServerV2).
 
-### New Types
-`KindUnifiedResource` will be created and used as the `RequestType` for Unified Resource requests coming from the web. This will inform a few specific methods like `auth_with_roles.MakePaginatedResource` to check the response items type individually rather than collectively. 
-
-The key is in the format `name/type` to prevent name collisions across types. However, this makes the default sort a little weird where resource with UUID names will come first, even though they'll be displayed with a "friendly" name. Such as `Servers` being stored by a UUID but making the `Hostname` visible. This can change if we find a better way "on the fly" since it's only created when the auth service is started so, we aren't locked into anything in this regard. For now, we'll implement with `GetName()/GetKind()`
-
-For the existing resource endpoints, we return a "ui" version of the resource. Because our list will be of multiple types, we will add the `Kind` field to our existing resource structs. In a vacuum, it's redundant. When listed together, this will allow our UI to differentiate between the different kinds
-```diff
-type Server struct {
-+	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
-+	Kind string `json:"kind"`
-	// Tunnel indicates of this server is connected over a reverse tunnel.
-	Tunnel bool `json:"tunnel"`
-	// Name is this server name
-	Name string `json:"id"`
-	// ...
-}
-```
+The key is in the format `name/type` to prevent name collisions across types. However, this make the default sort a
+little weird where resource with UUID names will come first, even though they'll be displayed with a "friendly" name. We
+can combat this by storing `Servers` specifically a `name+UUID/type`. This will require a separate map of `resourceKey -> UUID`
+because the `OpDelete` event only returns a `ResourceHeader`, rather than the resource itself (no hostname in the header).
 
 ### The UnifiedResourceCache
 Most of the magic will happen within this new cache. It's a pretty close copy of our memory backend implementation with a few changes. The important types are below
@@ -62,7 +57,10 @@ type resource interface {
 
 ```
 
-The cache will initialize with a `resourceWatcher` that watches ever type currently available in the UI. As of this RFD, those types include server, database servers, app servers, kube servers, saml IdP service providers, and windows desktops. This can be easily updated to include (or not include) any type by removing it's type from the watcher, and the getResource call associated with that type. 
+The cache will initialize with a `resourceWatcher` that watches every type currently available in the UI. As of this RFD,
+those types include server, database servers, app servers, kube servers, saml IdP service providers, and Windows desktops. 
+This can be easily updated to include (or not include) any type by removing its type from the watcher, and the 
+getResource call associated with that type. 
 
 The cache initializes by getting every current resource of the above types and adding them to the internal bTree, and then starts a watcher to put/delete those types based on events. If the resources are requested from an uninitialized or stale UnifiedResourceCache, we will resort to getting all the current resources again, and storing the result in a `utils.FnCache` until the watcher is back online. This `fnCache` has a TTL of 15 seconds.
 
