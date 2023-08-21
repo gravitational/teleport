@@ -34,5 +34,7 @@ jobs:
       - name: Mark paths as safe
         run: git config --global --add safe.directory $( realpath . )
 
-      - name: Run linter
-        run: make lint
+      - uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          skip-cache: true
