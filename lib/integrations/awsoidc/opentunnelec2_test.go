@@ -153,7 +153,7 @@ func TestOpenTunnelRequest(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(tt.reqWithDefaults, r, cmpopts.IgnoreFields(OpenTunnelEC2Request{}, "Listener", "ec2OpenSSHPort", "ec2PrivateIP", "endpointScheme")))
+			require.Empty(t, cmp.Diff(tt.reqWithDefaults, r, cmpopts.IgnoreFields(OpenTunnelEC2Request{}, "Listener", "ec2OpenSSHPort", "ec2PrivateHostname", "websocketCustomCA")))
 			require.Equal(t, tt.reqWithDefaults.ec2PrivateHostname, r.ec2PrivateHostname)
 			require.Equal(t, tt.reqWithDefaults.ec2OpenSSHPort, r.ec2OpenSSHPort)
 		})

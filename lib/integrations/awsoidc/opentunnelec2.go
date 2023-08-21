@@ -209,6 +209,14 @@ func NewOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (O
 // Ref:
 // - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-using-eice.html
 // - https://github.com/aws/aws-cli/blob/f6c820e89d8b566ab54ab9d863754ec4b713fd6a/awscli/customizations/ec2instanceconnect/opentunnel.py
+//
+// High level archictecture:
+// - create a new SSH Key SK1
+// - send SK1 key using ec2instanceconnect.SendSSHPublicKey
+// - open TCP listener to receive connections from Teleport Proxy
+// - when a connection arrives C1, it connects to the websocket (EC2 Instance Connect Endpoint service), the websocket connects to the EC2 instance.
+// - the proxy then talks SSH protocol to C1, which in turn pipes the tcp stream via websocket to EC2 Instance Connect Endpoint, which in turns pipes the stream to the EC2 instance.
+// - the proxy sends the Public Key created in the first step in order to authenticate.
 func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelEC2Request) (*OpenTunnelEC2Response, error) {
 	var err error
 	ret := &OpenTunnelEC2Response{}
