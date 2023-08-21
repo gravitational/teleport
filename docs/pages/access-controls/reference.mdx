@@ -63,17 +63,6 @@ Here is a full role specification:
 
 (!docs/pages/includes/role-spec.mdx!)
 
-The following variables can be used with `logins` and `windows_desktop_logins` fields:
-
-| Variable | Description |
-| - | - |
-| `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database<br/>and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the<br/>"allowed logins" parameter used in the<br/>`tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [Trusted Cluster](../management/admin/trustedclusters.mdx),<br/>Teleport will substitute the logins from the root cluster<br/>whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root<br/>cluster, then `ubuntu` will be substituted in the leaf<br/>cluster with this variable. |
-| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on).<br/>If using SAML, this will be expanded with "xyz" assertion value.<br/>For OIDC, this will be expanded a value of "xyz" claim. |
-
-Both variables above are there to deliver the same benefit: they allow Teleport
-administrators to define allowed OS logins via the user database, be it the
-local DB, or an identity manager behind a SAML or OIDC endpoint.
-
 ### An example of a SAML assertion
 
 Assuming you have the following SAML assertion attribute in your response:
@@ -91,10 +80,11 @@ logins:
    - '{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}'
 ```
 
-### Role options
+## Role options
 
-As shown above, a role can define certain restrictions on sessions initiated by users.
-The table below documents the behavior of each option if multiple roles are assigned to a user.
+A role can define certain restrictions on sessions initiated by users. The table
+below documents the behavior of each option if multiple roles are assigned to a
+user:
 
 | Option | Description | Multi-role behavior |
 | - | - | - |
@@ -153,7 +143,7 @@ Label              | `v3`, `v4` and `v5` Default   | `v6` Default
 ------------------ | -------------- | ---------------
 `kubernetes_resources` | `[{"kind":"pod", "name":"*", "namespace":"*"}]` | `[]`
 
-## RBAC for resources
+## RBAC for infrastructure resources
 
 A Teleport role defines which resources (e.g., applications, servers, and
 databases) a user can access.
@@ -294,7 +284,106 @@ access will be denied.
 In an allow rule, the matching is not greedy, if both are set they both have to
 match for access to be allowed.
 
-## Teleport resources
+## RBAC for principals on external systems
+
+You can define Teleport roles that restrict a user's access to certain
+principals on a third-party access control system, such as AWS IAM or the user
+accounts on a Linux system. 
+
+When a user attempts to authenticate to a third-party infrastructure resource
+proxied by Teleport, Teleport determines from the user's roles which principals
+they can assume.
+
+### Fields
+
+The following role fields control a user's access to principals on external
+systems:
+
+{/* TODO: replace these with the actual field names*/}
+- Logins
+- Windows logins
+- AWS Role ARNs
+- Azure identities
+- GCP accounts
+- Kubernetes groups
+- Kubernetes users
+- DB names
+- DB users
+- DB roles
+- `host_groups`
+- `host_sudoers`
+- `desktop_groups`
+- impersonattion users
+- impersonation roles
+
+### Variables
+
+When assigning a value to the role fields listed in the previous section,
+Teleport substitutes the following variables with data from the authenticating
+user, drawing from the local user database as well as the user's external single
+sign-on provider.
+
+| Variable | Description |
+| - | - |
+| `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database<br/>and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the<br/>"allowed logins" parameter used in the<br/>`tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [Trusted Cluster](../management/admin/trustedclusters.mdx),<br/>Teleport will substitute the logins from the root cluster<br/>whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root<br/>cluster, then `ubuntu` will be substituted in the leaf<br/>cluster with this variable. |
+|{{internal.azure_identities}}| Returns the Azure identities defined in Teleport available to the user. Azure identities can set for a specific user or defined in a role.|
+|{{internal.db_names}}|List of all allowed database names.|
+|{{internal.db_users}}|List of all allowed database users.|
+|{{internal.gcp_service_accounts}}|List of GCP service accounts.|
+|{{internal.kube_username}}|Kubernetes usernames available to the user.|
+|{{internal.kubernetes_groups}}|List of allowed Kubernetes groups.|
+|{{internal.kubernetes_users}}|List of allowed Kubernetes users.|
+|{{internal.logins}}|List of allowed SSH logins.|
+|{{internal.windows_logins}}|List of allowed Windows logins.|
+| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on).<br/>If using SAML, this will be expanded with "xyz" assertion value.<br/>For OIDC, this will be expanded a value of "xyz" claim. |
+
+External variables provide user traits from an Identity Provider or another
+external data source. 
+
+In role templates, you can refer to these variables using the following two
+formats, where `trait` is the name of the trait:
+
+- **Dot syntax:** `{{external.trait}}`
+- **Bracket syntax:** `{{external["trait"]}}`
+
+Teleport will expand the template variables above with the value of the SAML
+attribute or OIDC claim called `trait`.
+
+You can specify an external trait in the first syntax if it begins with a letter
+and contains only letters, numbers, and underscores. Otherwise, you must use
+bracket syntax to specify a trait.
+
+Common examples of external traits available through an identity provider
+include the following:
+
+- `{{external.logins}}`
+- `{{external.username}}`
+- `{{external.env}}`
+
+Refer to your specific identity provider's documentation for the complete list
+of available claims and attributes.
+
+Teleport can only expand an `external` variable to a string or a list of
+strings. If you are using an OIDC-based SSO solution, ensure that you have
+configured your identity provider to include claims with values that have a
+supported data type.
+
+### Functions
+
+You can use the following functions in role fields that govern access to
+principals on external systems. Both functions can take a template variable
+named above as an argument:
+
+|Function|Description|
+|---|---|
+|{{email.local(variable)}}|Extracts the local part of an email address.|
+|{{regexp.replace(variable, expression, replacement)}}|Finds all matches of the expression within the variable and replaces them with the replacement.|
+
+{/* TODO include an example*/}
+
+{/* TODO: What about label matchers and certificate extensions?*/}
+
+## RBAC for dynamic Teleport resources
 
 RBAC lets teams limit what resources are available to Teleport users. This can be helpful if, for example,
 you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles
@@ -452,16 +541,7 @@ of how template variables and functions work within Teleport roles.
 
 ### Internal Variables and Functions
 
-#### `{{email.local(variable)}}`
-
-- **Type**: Function
-- **Description**: Extracts the local part of an email address.
-- **Example**: `{{email.local(alice@example.com)}}` -> `alice`
-
-This function is often paired with an external variable, for example:
-`{{email.local(external.username)}}` for IdPs using email addresses as the username.
-
-#### `{{regexp.match(expression, variable)}}`
+### `{{regexp.match(expression, variable)}}`
 
 - **Type**: Function
 - **Description**: Returns true if the provided string matches the specified
@@ -477,99 +557,5 @@ This function is often paired with an external variable, for example:
 - **Example**: `{{regexp.not_match("^Email: (.*)$", external.raw_email)}}` ->
   `true` for non-matching input.
 
-#### `{{regexp.replace(variable, expression, replacement)}}`
 
-- **Type**: Function
-- **Description**: Finds all matches of the expression and replaces them with
-  the replacement. Supports expansion.
-- **Example**: `{{regexp.replace(external.email, "^(.*)@example.com$", "$1")}}`
-  -> `alice` (when input is `alice@example.com`)
 
-#### `{{internal.azure_identities}}`
-
-- **Type**: Variable
-- **Description**: Returns the Azure identities defined in Teleport available to
-  the user. Azure identities can set for a specific user or defined in a role.
-- **Example**: `{{internal.azure_identities}}` -> `"/subscriptions/0000.../.../id1"`
-
-#### `{{internal.db_names}}`
-
-- **Type**: Variable
-- **Description**: List of all allowed database names.
-- **Example**: `{{internal.db_names}}` -> `["db_name_1", "db_name_2"]`
-
-#### `{{internal.db_users}}`
-
-- **Type**: Variable
-- **Description**: List of all allowed database users.
-- **Example**: `{{internal.db_users}}` -> `["db_user_1", "db_user_2"]`
-
-#### `{{internal.gcp_service_accounts}}`
-
-- **Type**: Variable
-- **Description**: List of GCP service accounts defined in Teleport available
-  to the user.
-- **Example**: `internal.gcp_service_accounts}}` -> `"user@google-cloud-project.iam.gserviceaccount.com"`
-
-#### `{{internal.kube_username}}`
-
-- **Type**: Variable
-- **Description**: Kubernetes usernames available to the user.
-- **Example**: `{{internal.kube_username}}` -> `["myuser", "kube-admin"]`.
-
-#### `{{internal.kubernetes_groups}}`
-
-- **Type**: Variable
-- **Description**: List of allowed Kubernetes groups.
-- **Example**: `{{internal.kubernetes_groups}}` -> `["group1", "group2"]`
-
-#### `{{internal.kubernetes_users}}`
-
-- **Type**: Variable
-- **Description**: List of allowed Kubernetes users.
-- **Example**: `{{internal.kubernetes_users}}` -> `["user1", "user2"]`
-
-#### `{{internal.logins}}`
-
-- **Type**: Variable
-- **Description**: List of allowed SSH logins.
-- **Example**: `{{internal.logins}}` -> `["user1", "user2"]`
-
-#### `{{internal.windows_logins}}`
-
-- **Type**: Variable
-- **Description**: List of allowed Windows logins.
-- **Example**: `{{internal.windows_logins}}` -> `["user1", "user2"]`
-
-### External variables
-
-External variables provide user traits from an Identity Provider or another
-external data source. 
-
-In role templates, you can refer to these variables using the following two
-formats, where `trait` is the name of the trait:
-
-- **Dot syntax:** `{{external.trait}}`
-- **Bracket syntax:** `{{external["trait"]}}`
-
-Teleport will expand the template variables above with the value of the SAML
-attribute or OIDC claim called `trait`.
-
-You can specify an external trait in the first syntax if it begins with a letter
-and contains only letters, numbers, and underscores. Otherwise, you must use
-bracket syntax to specify a trait.
-
-Common examples of external traits available through an identity provider
-include the following:
-
-- `{{external.logins}}`
-- `{{external.username}}`
-- `{{external.env}}`
-
-Refer to your specific identity provider's documentation for the complete list
-of available claims and attributes.
-
-Teleport can only expand an `external` variable to a string or a list of
-strings. If you are using an OIDC-based SSO solution, ensure that you have
-configured your identity provider to include claims with values that have a
-supported data type.
