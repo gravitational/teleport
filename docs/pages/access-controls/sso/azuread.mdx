@@ -153,12 +153,6 @@ version: v2
 
 ```
 
-Create the connector using `tctl`:
-
-```code
-$ tctl create -f azure-connector.yaml
-```
-
 With the connector in place on the cluster, you can test it with `tctl`:
 
 ```code
@@ -168,6 +162,13 @@ $ cat azure-connector.yaml | tctl sso test
 Your browser should open and log you in to the Teleport cluster using your
 Azure AD credentials. If there are any problems, the CLI output will help you
 debug the connector configuration.
+
+
+To create the connector using the `tctl` tool, run the following command:
+
+```code
+$ tctl create -f azure-connector.yaml
+```
 
 ## Step 3/3. Create a new Teleport role
 

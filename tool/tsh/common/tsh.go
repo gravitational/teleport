@@ -1440,6 +1440,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.enroll.run(&cf)
 	case deviceCmd.collect.FullCommand():
 		err = deviceCmd.collect.run(&cf)
+	case deviceCmd.assetTag.FullCommand():
+		err = deviceCmd.assetTag.run(&cf)
 	case deviceCmd.keyget.FullCommand():
 		err = deviceCmd.keyget.run(&cf)
 	case deviceCmd.activateCredential.FullCommand():

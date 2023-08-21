@@ -68,6 +68,8 @@ type Database interface {
 	GetStatusCA() string
 	// GetMySQL returns the database options from spec.
 	GetMySQL() MySQLOptions
+	// GetOracle returns the database options from spec.
+	GetOracle() OracleOptions
 	// GetMySQLServerVersion returns the MySQL server version either from configuration or
 	// reported by the database.
 	GetMySQLServerVersion() string
@@ -286,6 +288,11 @@ func (d *DatabaseV3) GetAdminUser() string {
 	}
 	// If it's not in the spec, check labels (for auto-discovered databases).
 	return d.Metadata.Labels[DatabaseAdminLabel]
+}
+
+// GetOracle returns the Oracle options from spec.
+func (d *DatabaseV3) GetOracle() OracleOptions {
+	return d.Spec.Oracle
 }
 
 // SupportsAutoUsers returns true if this database supports automatic user
@@ -1143,4 +1150,9 @@ func (s *IAMPolicyStatus) UnmarshalJSON(data []byte) error {
 
 	*s = IAMPolicyStatus(IAMPolicyStatus_value[stringVal])
 	return nil
+}
+
+// IsAuditLogEnabled returns if Oracle Audit Log was enabled
+func (o OracleOptions) IsAuditLogEnabled() bool {
+	return o.AuditUser != ""
 }

@@ -16,7 +16,7 @@
 
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { rm } from 'node:fs/promises';
+import { access, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -65,6 +65,25 @@ export async function createAgentConfigFile(
       timeout: 10_000, // 10 seconds
     }
   );
+}
+
+export async function isAgentConfigFileCreated(
+  runtimeSettings: RuntimeSettings,
+  rootClusterUri: RootClusterUri
+): Promise<boolean> {
+  const { configFile } = generateAgentConfigPaths(
+    runtimeSettings,
+    rootClusterUri
+  );
+  try {
+    await access(configFile);
+    return true;
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      return false;
+    }
+    throw e;
+  }
 }
 
 /**
