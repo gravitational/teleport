@@ -143,7 +143,32 @@ Label              | `v3`, `v4` and `v5` Default   | `v6` Default
 ------------------ | -------------- | ---------------
 `kubernetes_resources` | `[{"kind":"pod", "name":"*", "namespace":"*"}]` | `[]`
 
-## RBAC for infrastructure resources
+## Access Requests
+
+You can define Teleport roles that manage the level of control a user has over
+the lifecycle and scope of Teleport Access Requests, including both reviewing
+and submitting requests.
+
+### Fields
+
+{/* TODO: Add actual names for these fields*/}
+- c.Roles.AllowReview
+- allow.Where
+- allow.Roles
+- allow.ClaimsToRoles
+
+### Variables
+
+Teleport does not perform variable expansion on the values of the fields above.
+
+### Functions
+
+|Function|Description|
+|---|---|
+|`{{regexp.match(regexp)}}`|Returns `true` if the regular expression matches a user's role.|
+|`{{regexp.not_match(regexp)}}`|Returns `true` if the regular expression does not match a user's role.|
+
+## Infrastructure resources
 
 A Teleport role defines which resources (e.g., applications, servers, and
 databases) a user can access.
@@ -257,6 +282,20 @@ spec:
       contains(user.spec.traits["teams"], labels["team"])
 ```
 
+Typically you will only want to use one of `<kind>_labels` or
+`<kind>_labels_expression` in a single role, but you are allowed to specify
+both.
+If you have both in a deny rule, the matching is greedy, if either one matches
+access will be denied.
+In an allow rule, the matching is not greedy, if both are set they both have to
+match for access to be allowed.
+
+Read the [predicate
+language](../reference/predicate-language.mdx#label-expressions) guide for a
+more in depth explanation of the language.
+
+#### Fields
+
 The `<kind>_labels_expression` fields have the same purpose of the
 matching `<kind>_labels` fields, but support predicate expressions instead
 of label matchers.
@@ -272,19 +311,16 @@ conditions:
 - `windows_desktop_labels_expression`
 - `group_labels_expression`
 
-Check out our
-[predicate language](../reference/predicate-language.mdx#label-expressions)
-guide for a more in depth explanation of the language.
+#### Variables
 
-Typically you will only want to use one of `<kind>_labels` or
-`<kind>_labels_expression` in a single role, but you are allowed to specify
-both.
-If you have both in a deny rule, the matching is greedy, if either one matches
-access will be denied.
-In an allow rule, the matching is not greedy, if both are set they both have to
-match for access to be allowed.
+{/* TODO: label expression variables*/}
 
-## RBAC for principals on external systems
+#### Functions
+
+{/* TODO: label expression functions*/}
+
+
+## Principals on external systems
 
 You can define Teleport roles that restrict a user's access to certain
 principals on a third-party access control system, such as AWS IAM or the user
@@ -527,35 +563,6 @@ within this guide:
 | `ssh_session.participants` | The list of participants from an SSH session      |
 | `user.metadata.name`       | The user's name                                   |
 
-Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
+Read the [predicate
+language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.
-
-## Template variables and functions
-
-Teleport enables operators to define roles with template variables and functions
-to provide more precise controls over which users can access resources in your
-infrastructure.
-
-See the [Teleport Role Templates](./guides/role-templates) guide for an overview
-of how template variables and functions work within Teleport roles.
-
-### Internal Variables and Functions
-
-### `{{regexp.match(expression, variable)}}`
-
-- **Type**: Function
-- **Description**: Returns true if the provided string matches the specified
-  pattern.
-- **Example**: `{{regexp.match("^Email: (.*)$", external.raw_email)}}` -> `true`
-  for matching input.
-
-#### `{{regexp.not_match(expression, variable)}}`
-
-- **Type**: Function
-- **Description**: Returns true if the provided string does not match the
-  specified pattern.
-- **Example**: `{{regexp.not_match("^Email: (.*)$", external.raw_email)}}` ->
-  `true` for non-matching input.
-
-
-
