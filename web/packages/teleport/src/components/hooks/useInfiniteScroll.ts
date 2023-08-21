@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
+import {
+  ResourcesResponse,
+  ResourceFilter,
+  resourceFilterToHookDeps,
+} from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
 
 /**
@@ -26,14 +30,15 @@ import { UrlResourcesParams } from 'teleport/config';
  * request, the server is expected to return a `startKey` field that denotes the
  * next `startKey` to use for the next request.
  */
-export function useInfiniteScroll<T>({
+export function useKeyBasedPagination<T>({
   fetchFunc,
   clusterId,
-  params,
+  filter,
   initialFetchSize = 30,
   fetchMoreSize = 20,
 }: Props<T>): State<T> {
-  const { attempt, setAttempt } = useAttempt('processing');
+  const { attempt, setAttempt } = useAttempt();
+  const [finished, setFinished] = useState(false);
 
   const [fetchedData, setFetchedData] = useState<ResourcesResponse<T>>({
     agents: [],
@@ -41,56 +46,38 @@ export function useInfiniteScroll<T>({
     totalCount: 0,
   });
 
-  const fetchInitial = async () => {
-    setAttempt({ status: 'processing' });
-    try {
-      const res = await fetchFunc(clusterId, {
-        ...params,
-        limit: initialFetchSize,
-        startKey: '',
-      });
+  useEffect(() => {
+    setAttempt({ status: '', statusText: '' });
+    setFinished(false);
+    setFetchedData({ agents: [], startKey: '', totalCount: 0 });
+  }, [clusterId, ...resourceFilterToHookDeps(filter)]);
 
-      setFetchedData({
-        ...fetchedData,
-        agents: res.agents,
-        startKey: res.startKey,
-        totalCount: res.totalCount,
-      });
-      setAttempt({ status: 'success' });
-    } catch (err) {
-      setAttempt({ status: 'failed', statusText: err.message });
-      setFetchedData({
-        agents: [],
-        startKey: '',
-        totalCount: 0,
-      });
-    }
-  };
-
-  const fetchMore = async () => {
-    // TODO(bl-nero): Disallowing further requests on failed status is a
-    // temporary fix to prevent multiple requests from being sent. Currently,
-    // they wouldn't go through anyway, but at least we don't thrash the UI
-    // constantly.
+  const fetch = async () => {
     if (
+      finished ||
       attempt.status === 'processing' ||
-      attempt.status === 'failed' ||
-      !fetchedData.startKey
+      attempt.status === 'failed'
     ) {
       return;
     }
     try {
       setAttempt({ status: 'processing' });
+      const limit =
+        fetchedData.agents.length > 0 ? fetchMoreSize : initialFetchSize;
       const res = await fetchFunc(clusterId, {
-        ...params,
-        limit: fetchMoreSize,
+        ...filter,
+        limit,
         startKey: fetchedData.startKey,
       });
+      const { startKey, agents } = res;
       setFetchedData({
         ...fetchedData,
-        agents: [...fetchedData.agents, ...res.agents],
-        startKey: res.startKey,
+        agents: [...fetchedData.agents, ...agents],
+        startKey,
       });
+      if (!startKey) {
+        setFinished(true);
+      }
       setAttempt({ status: 'success' });
     } catch (err) {
       setAttempt({ status: 'failed', statusText: err.message });
@@ -98,8 +85,7 @@ export function useInfiniteScroll<T>({
   };
 
   return {
-    fetchInitial,
-    fetchMore,
+    fetch,
     attempt,
     fetchedData,
   };
@@ -111,14 +97,13 @@ type Props<T> = {
     params: UrlResourcesParams
   ) => Promise<ResourcesResponse<T>>;
   clusterId: string;
-  params: ResourceFilter;
+  filter: ResourceFilter;
   initialFetchSize?: number;
   fetchMoreSize?: number;
 };
 
 export type State<T> = {
-  fetchInitial: (() => void) | null;
-  fetchMore: (() => void) | null;
+  fetch: (() => void) | null;
   attempt: Attempt;
   fetchedData: ResourcesResponse<T>;
 };

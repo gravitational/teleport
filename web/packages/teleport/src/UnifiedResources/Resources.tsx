@@ -31,7 +31,7 @@ import history from 'teleport/services/history/history';
 import localStorage from 'teleport/services/localStorage';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
-import { useInfiniteScroll } from 'teleport/components/hooks/useInfiniteScroll';
+import { useKeyBasedPagination } from 'teleport/components/hooks/useInfiniteScroll';
 import { SearchResource } from 'teleport/Discover/SelectResource';
 import { useUrlFiltering } from 'teleport/components/hooks';
 
@@ -60,15 +60,11 @@ export function Resources() {
     onLabelClick,
   } = filtering;
 
-  const { fetchInitial, fetchedData, attempt, fetchMore } = useInfiniteScroll({
+  const { fetch, fetchedData, attempt } = useKeyBasedPagination({
     fetchFunc: teleCtx.resourceService.fetchUnifiedResources,
     clusterId,
-    params,
+    filter: params,
   });
-
-  useEffect(() => {
-    fetchInitial();
-  }, [clusterId, search]);
 
   const infiniteScrollDetector = useRef(null);
 
@@ -86,7 +82,7 @@ export function Resources() {
     if (infiniteScrollDetector.current) {
       const observer = new IntersectionObserver(entries => {
         if (entries[0]?.isIntersecting) {
-          fetchMore();
+          fetch();
         }
       });
       observer.observe(infiniteScrollDetector.current);

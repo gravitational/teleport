@@ -58,6 +58,15 @@ export type ResourceFilter = {
   kinds?: string[];
 };
 
+export function resourceFilterToHookDeps({
+  query,
+  search,
+  sort,
+  kinds,
+}: ResourceFilter): [string?, string?, string?, SortDir?, string[]?] {
+  return [query, search, sort?.fieldName, sort?.dir, kinds];
+}
+
 export type SortType = {
   fieldName: string;
   dir: SortDir;
