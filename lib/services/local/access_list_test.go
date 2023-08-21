@@ -133,6 +133,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 			Name: name,
 		},
 		accesslist.Spec{
+			Title:       "title",
 			Description: "test access list",
 			Owners: []accesslist.Owner{
 				{
