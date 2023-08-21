@@ -274,7 +274,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	}, func(ctx context.Context, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 		challenge := &client.MFAAuthenticateChallenge{
 			WebauthnChallenge: wantypes.CredentialAssertionFromProto(c.WebauthnChallenge),
 		}

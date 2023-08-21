@@ -655,6 +655,7 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 //export tdp_sd_acknowledge
 func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge) C.CGOErrCode {
 	return cgo.Handle(handle).Value().(*Client).sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
+		//nolint:unconvert // Avoid hard dependencies on C types.
 		ErrCode:     uint32(ack.err_code),
 		DirectoryID: uint32(ack.directory_id),
 	})
@@ -702,8 +703,9 @@ func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRe
 	return cgo.Handle(handle).Value().(*Client).sharedDirectoryCreateRequest(tdp.SharedDirectoryCreateRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
-		FileType:     uint32(req.file_type),
-		Path:         C.GoString(req.path),
+		//nolint:unconvert // Avoid hard dependencies on C types.
+		FileType: uint32(req.file_type),
+		Path:     C.GoString(req.path),
 	})
 }
 

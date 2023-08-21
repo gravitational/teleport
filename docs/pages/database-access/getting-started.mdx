@@ -5,12 +5,15 @@ description: Getting started with Teleport database access and AWS Aurora Postgr
 
 (!docs/pages/includes/database-access/db-introduction.mdx  dbType="PostgreSQL AWS Aurora" dbConfigure="AWS Aurora database with IAM authentication" dbName="Aurora" !)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 ![Teleport Database Access RDS Self-Hosted](../../img/database-access/guides/rds_selfhosted.png)
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 ![Teleport Database Access RDS Cloud](../../img/database-access/guides/rds_cloud.png)
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Prerequisites
 
@@ -91,7 +94,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 On the node where you will run the Teleport Database Service, start Teleport and
 point it to your Aurora database instance. Make sure to update the database
@@ -108,8 +112,8 @@ $ teleport db start \
   --aws-region=us-west-1
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 On the node where you will run the Teleport Database Service, start Teleport and
 point it to your Aurora database instance. Make sure to update the database
@@ -126,7 +130,9 @@ $ teleport db start \
   --aws-region=us-west-1
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 <Admonition
   type="note"
@@ -160,16 +166,19 @@ EOF
 
 Create the Teleport user assigned the `db` role we've just created:
 
-<ScopedBlock scope={["oss"]}>
+<Tabs>
+<TabItem scope={["oss"]} label="Teleport Community Edition">
 ```code
 $ tctl users add --roles=access,db alice
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Commercial">
 ```code
 $ tctl users add --roles=access,requester,db alice
 ```
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ## Step 4/4. Connect
 
@@ -178,20 +187,23 @@ the local user is created, we're ready to connect to the database.
 
 Log in to Teleport with the user we've just created.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Now we can inspect available databases:
 
@@ -218,3 +230,4 @@ Access use-case, for example:
 - Learn how to configure [GUI clients](../connect-your-client/gui-clients.mdx).
 - Learn about database access [role-based access control](./rbac.mdx).
 - See [frequently asked questions](./faq.mdx).
+

@@ -349,6 +349,9 @@ const (
 	// AWSRunTests turns on tests executed against AWS directly
 	AWSRunTests = "TEST_AWS"
 
+	// AWSRunDBTests turns on tests executed against AWS databases directly.
+	AWSRunDBTests = "TEST_AWS_DB"
+
 	// Region is AWS region parameter
 	Region = "region"
 

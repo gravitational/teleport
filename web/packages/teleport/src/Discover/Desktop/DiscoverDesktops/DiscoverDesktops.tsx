@@ -101,7 +101,7 @@ export function DiscoverDesktops() {
   const ctx = useTeleport();
   const { emitEvent, nextStep } = useDiscover();
 
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { joinToken } = useJoinTokenSuspender([ResourceKind.Desktop]);
   const { result: desktopService, active } =
     usePingTeleport<WindowsDesktopService>(joinToken);
 
