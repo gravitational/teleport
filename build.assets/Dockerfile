@@ -209,7 +209,7 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustup component add rustfmt clippy && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
 # Install wasm-pack for targeting WebAssembly from Rust.
-RUN cargo install wasm-pack
+RUN cargo install wasm-pack --version 0.11.0
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
