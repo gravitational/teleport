@@ -197,6 +197,7 @@ test('starts the agent automatically if the workspace autoStart flag is true', a
       eventEmitter.on('', listener);
       return { cleanup: () => eventEmitter.off('', listener) };
     });
+
   jest
     .spyOn(appContext.workspacesService, 'getConnectMyComputerAutoStart')
     .mockReturnValue(true);
