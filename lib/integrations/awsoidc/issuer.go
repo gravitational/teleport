@@ -24,12 +24,12 @@ import (
 )
 
 // IssuerFromPublicAddress is the address for the AWS OIDC Provider.
-// It must match exactly what was introduced in AWS IAM console when addind the Identity Provider.
-// PublicProxyAddr from `teleport.yaml/proxy.` does not come with the desired format: it misses the protocol and has a port
+// It must match exactly what was introduced in AWS IAM console when adding the Identity Provider.
+// PublicProxyAddr from `teleport.yaml/proxy` does not come with the desired format: it misses the protocol and has a port
 // This method adds the `https` protocol and removes the port if it is the default one for https (443)
 func IssuerFromPublicAddress(addr string) (string, error) {
 	// Add protocol if not present.
-	if !strings.HasPrefix(addr, "https://") {
+	if !strings.HasPrefix(addr, "https://") && !strings.HasPrefix(addr, "http://") {
 		addr = "https://" + addr
 	}
 

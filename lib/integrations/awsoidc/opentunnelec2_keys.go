@@ -48,7 +48,7 @@ func generatePrivatePublicKey() (publicKey any, privateKey any, err error) {
 }
 
 // sendSSHPublicKey creates a new Private Key and uploads the Public to the ec2 instance.
-// This key is only valid for 60 seconds and can only be used to authenticate the EC2SSHLoginUser.
+// This key will be removed by AWS after 60 seconds and can only be used to authenticate the EC2SSHLoginUser.
 // More information: https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
 func sendSSHPublicKey(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelEC2Request) (ssh.Signer, error) {
 	pubKey, privKey, err := generatePrivatePublicKey()

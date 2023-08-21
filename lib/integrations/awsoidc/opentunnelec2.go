@@ -80,14 +80,15 @@ type OpenTunnelEC2Request struct {
 	Listener net.Listener
 
 	// ec2OpenSSHPort is the port to connect to in the EC2 Instance.
-	// This values is parsed from EC2Address.
+	// This value is parsed from EC2Address.
 	// Possible values: 22, 3389.
 	ec2OpenSSHPort string
-	// ec2PrivateIP is the private IP of the EC2 Instance.
-	// This values is parsed from EC2Address.
-	ec2PrivateIP string
 
-	// eiceEndpointScheme is the url scheme for connecting to the EC2 Instance Connect Endpoint
+	// ec2PrivateHostname is the private hostname of the EC2 Instance.
+	// This value is parsed from EC2Address.
+	ec2PrivateHostname string
+
+	// endpointScheme is the url scheme for connecting to the EC2 Instance Connect Endpoint
 	// Only used for tests.
 	// Eg, "ws"
 	endpointScheme string
@@ -121,7 +122,7 @@ func (r *OpenTunnelEC2Request) CheckAndSetDefaults() error {
 		return trace.BadParameter("ec2 address required")
 	}
 
-	r.ec2PrivateIP, r.ec2OpenSSHPort, err = net.SplitHostPort(r.EC2Address)
+	r.ec2PrivateHostname, r.ec2OpenSSHPort, err = net.SplitHostPort(r.EC2Address)
 	if err != nil {
 		return trace.BadParameter("ec2 address is invalid: %v", err)
 	}
@@ -143,7 +144,7 @@ type OpenTunnelEC2Response struct {
 // OpenTunnelEC2Client describes the required methods to Open a Tunnel to an EC2 Instance using
 // EC2 Instance Connect Endpoint.
 type OpenTunnelEC2Client interface {
-	// Describes the specified EC2 Instance Connect Endpoints or all EC2 Instance
+	// DescribeInstanceConnectEndpoints describes the specified EC2 Instance Connect Endpoints or all EC2 Instance
 	// Connect Endpoints.
 	DescribeInstanceConnectEndpoints(ctx context.Context, params *ec2.DescribeInstanceConnectEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstanceConnectEndpointsOutput, error)
 
@@ -229,7 +230,7 @@ func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelE
 		awsRegion:        req.Region,
 		endpointId:       *eice.InstanceConnectEndpointId,
 		endpointHost:     *eice.DnsName,
-		privateIPAddress: req.ec2PrivateIP,
+		privateIPAddress: req.ec2PrivateHostname,
 		remotePort:       req.ec2OpenSSHPort,
 		endpointScheme:   req.endpointScheme,
 	})

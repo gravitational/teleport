@@ -678,7 +678,7 @@ func (s *Server) Serve() {
 	go s.handleConnection(ctx, chans, reqs)
 }
 
-func (s Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (ssh.Signer, error) {
+func (s *Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (ssh.Signer, error) {
 	if s.targetServer.GetCloudMetadata() == nil || s.targetServer.GetCloudMetadata().AWS == nil {
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
@@ -727,8 +727,8 @@ func (s Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (ssh.Sig
 		return nil, trace.BadParameter("failed to open aws ec2 instance endpoint connect tunnel: %v", err)
 	}
 
-	// This is the SSH Signer that the client must used to connect to the EC2
-	// This is trusted because because awsoidc.OpenTunnelEC2 sends the public key to the host.
+	// This is the SSH Signer that the client must have used to connect to the EC2
+	// This is trusted because awsoidc.OpenTunnelEC2 sends the public key to the host.
 	return openTunnelResp.SSHSigner, nil
 }
 

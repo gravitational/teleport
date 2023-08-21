@@ -791,7 +791,7 @@ func (s *remoteSite) DialTCP(params reversetunnelclient.DialParams) (net.Conn, e
 
 func (s *remoteSite) dialAndForward(params reversetunnelclient.DialParams) (_ net.Conn, retErr error) {
 	if params.GetUserAgent == nil && !params.IsAgentlessNode {
-		return nil, trace.BadParameter("user agent getter is required for non-agentless nodes")
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes")
 	}
 	s.logger.Debugf("Dialing and forwarding from %v to %v.", params.From, params.To)
 

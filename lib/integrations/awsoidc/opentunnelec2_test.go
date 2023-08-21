@@ -135,13 +135,13 @@ func TestOpenTunnelRequest(t *testing.T) {
 			req:      baseReqFn,
 			errCheck: require.NoError,
 			reqWithDefaults: OpenTunnelEC2Request{
-				Region:          "us-east-1",
-				InstanceID:      "i-123",
-				VPCID:           "vpc-id",
-				EC2SSHLoginUser: "ec2-user",
-				EC2Address:      "127.0.0.1:22",
-				ec2OpenSSHPort:  "22",
-				ec2PrivateIP:    "127.0.0.1",
+				Region:             "us-east-1",
+				InstanceID:         "i-123",
+				VPCID:              "vpc-id",
+				EC2SSHLoginUser:    "ec2-user",
+				EC2Address:         "127.0.0.1:22",
+				ec2OpenSSHPort:     "22",
+				ec2PrivateHostname: "127.0.0.1",
 			},
 		},
 	} {
@@ -154,7 +154,7 @@ func TestOpenTunnelRequest(t *testing.T) {
 				return
 			}
 			require.Empty(t, cmp.Diff(tt.reqWithDefaults, r, cmpopts.IgnoreFields(OpenTunnelEC2Request{}, "Listener", "ec2OpenSSHPort", "ec2PrivateIP", "endpointScheme")))
-			require.Equal(t, tt.reqWithDefaults.ec2PrivateIP, r.ec2PrivateIP)
+			require.Equal(t, tt.reqWithDefaults.ec2PrivateHostname, r.ec2PrivateHostname)
 			require.Equal(t, tt.reqWithDefaults.ec2OpenSSHPort, r.ec2OpenSSHPort)
 		})
 	}
@@ -182,7 +182,7 @@ func TestOpenTunnelEC2(t *testing.T) {
 	//   - reads M2 from C-EC2
 	//   - writes M2 into the C-WS
 	upgrader := websocket.Upgrader{}
-	eiceWebsocketServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	eiceWebsocketServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			t.Log("upgrade error:", err)
@@ -243,7 +243,7 @@ func TestOpenTunnelEC2(t *testing.T) {
 		VPCID:           "vpc-123",
 		EC2Address:      ec2Listener.Addr().String(),
 		Listener:        localListener,
-		endpointScheme:  "ws",
+		//endpointScheme:  "ws",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)

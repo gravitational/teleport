@@ -277,12 +277,9 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 			agentGetter = nil
 			isAgentlessNode = true
 
-			// If the node is of SubKindOpenSSHNode, create the signer.
-			//
-			// Creating the ssh.Signer for SubKindOpenSSHEICENode requires the SSH Login User.
-			// SSH Login User is not available at this stage.
-			// So, the ssh.Signer is created later in the process, after the connection was set up and identity was received.
-			if target.GetSubKind() == types.SubKindOpenSSHNode {
+			switch target.GetSubKind() {
+			case types.SubKindOpenSSHNode:
+				// If the node is of SubKindOpenSSHNode, create the signer.
 				client, err := r.GetSiteClient(ctx, clusterName)
 				if err != nil {
 					return nil, trace.Wrap(err)
@@ -291,14 +288,18 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-			}
 
-			if target.GetSubKind() == types.SubKindOpenSSHEICENode {
-				destinationListener, err = net.Listen("tcp", ":0")
+			case types.SubKindOpenSSHEICENode:
+				// A socket is created so that the Dial function can reach a target but the ssh.Signer is created
+				// just in time, when the login user is sent.
+				destinationListener, err = net.Listen("tcp", "localhost:0")
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 				serverAddr = destinationListener.Addr().String()
+
+			default:
+				return nil, trace.BadParameter("invalid target subkind: %s", target.GetSubKind())
 			}
 		}
 
