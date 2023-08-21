@@ -22,15 +22,12 @@ ERROR: failed direct dial to auth server: auth API: access denied [00]
 
 In particular, note the message `auth API: access denied`.
 
-<Tabs>
-<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
-The Teleport Auth Service will also provide some additional context:
+In self-hosted Teleport deployments, the Teleport Auth Service will also provide
+some additional context:
+
 ```text
 [AUTH]      WARN lock targeting User:"bot-example" is in force: The bot user "bot-example" has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate. auth/apiserver.go:224
 ```
-</TabItem>
-
-</Tabs>
 
 ### Explanation
 
