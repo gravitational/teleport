@@ -3096,7 +3096,7 @@ func CreatePROXYHeaderGetter(ctx context.Context, proxySigner multiplexer.PROXYH
 		return nil
 	}
 
-	src, dst := utils.ClientAddrFromContext(ctx)
+	src, dst := utilsaddr.ClientAddrFromContext(ctx)
 	if src != nil && dst != nil {
 		return func() ([]byte, error) {
 			return proxySigner.SignPROXYHeader(src, dst)

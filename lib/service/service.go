@@ -3875,19 +3875,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Ciphers:                       cfg.Ciphers,
 				KEXAlgorithms:                 cfg.KEXAlgorithms,
 				MACAlgorithms:                 cfg.MACAlgorithms,
-				DataDir:              process.Config.DataDir,
-				PollingPeriod:        process.Config.PollingPeriod,
-				FIPS:                 cfg.FIPS,
-				Emitter:              streamEmitter,
-				Log:                  process.log,
-				LockWatcher:          lockWatcher,
-				PeerClient:           peerClient,
-				NodeWatcher:          nodeWatcher,
-				CertAuthorityWatcher: caWatcher,
-				CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
-				LocalAuthAddresses:   utilsaddr.NetAddrsToStrings(process.Config.AuthServerAddresses()),
-				IngressReporter:      ingressReporter,
-				PROXYSigner:          proxySigner,
+				DataDir:                       process.Config.DataDir,
+				PollingPeriod:                 process.Config.PollingPeriod,
+				FIPS:                          cfg.FIPS,
+				Emitter:                       streamEmitter,
+				Log:                           process.log,
+				LockWatcher:                   lockWatcher,
+				PeerClient:                    peerClient,
+				NodeWatcher:                   nodeWatcher,
+				CertAuthorityWatcher:          caWatcher,
+				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
+				LocalAuthAddresses:            utilsaddr.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+				IngressReporter:               ingressReporter,
+				PROXYSigner:                   proxySigner,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4063,7 +4063,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
 				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-					return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+					return utilsaddr.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
 				},
 			},
 			Handler: webHandler,

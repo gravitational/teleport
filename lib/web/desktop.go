@@ -175,7 +175,7 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(err)
 	}
 
-	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(r.Context())
+	clientSrcAddr, clientDstAddr := utilsaddr.ClientAddrFromContext(r.Context())
 
 	c := &connector{
 		log:           log,

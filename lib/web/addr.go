@@ -105,7 +105,7 @@ func parseXForwardedForHeaders(observedAddr string, xForwardedForHeaders []strin
 }
 
 func requestWithClientSrcAddr(r *http.Request, clientSrcAddr net.Addr) *http.Request {
-	ctx := utils.ClientSrcAddrContext(r.Context(), clientSrcAddr)
+	ctx := utilsaddr.ClientSrcAddrContext(r.Context(), clientSrcAddr)
 	r = r.WithContext(ctx)
 	r.RemoteAddr = clientSrcAddr.String()
 	return r

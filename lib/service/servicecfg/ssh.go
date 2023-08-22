@@ -23,9 +23,9 @@ import (
 
 // SSHConfig configures Teleport's SSH service.
 type SSHConfig struct {
-	Enabled   bool
-	Addr      utilsaddr.NetAddr
-	Namespace string
+	Enabled               bool
+	Addr                  utilsaddr.NetAddr
+	Namespace             string
 	Shell                 string
 	Limiter               limiter.Config
 	Labels                map[string]string

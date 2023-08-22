@@ -299,7 +299,7 @@ func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Ad
 			OriginalClientDstAddr: dst,
 		}
 
-		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
+		clientSrcAddr, clientDstAddr := utilsaddr.ClientAddrFromContext(in)
 		if dialParams.From == nil && clientSrcAddr != nil {
 			dialParams.From = clientSrcAddr
 		}
@@ -393,7 +393,7 @@ func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reverse
 		return nil, trace.Wrap(err)
 	}
 
-	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(ctx)
+	clientSrcAddr, clientDstAddr := utilsaddr.ClientAddrFromContext(ctx)
 
 	return auth.NewClient(apiclient.Config{
 		Context: ctx,

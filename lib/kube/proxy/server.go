@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/utilsaddr"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -245,7 +246,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			TLSConfig:         cfg.TLS,
 			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+				return utilsaddr.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
 			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),

@@ -296,7 +296,7 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, 
 
 	var from net.Addr
 	from = &utilsaddr.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
-	clientSrcAddr, originalDst := utils.ClientAddrFromContext(ctx)
+	clientSrcAddr, originalDst := utilsaddr.ClientAddrFromContext(ctx)
 	if clientSrcAddr != nil {
 		from = clientSrcAddr
 	}
