@@ -131,7 +131,6 @@ buildbox:
 			--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-			--build-arg BUF_VERSION=$(BUF_VERSION) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
@@ -588,7 +587,7 @@ build-multiarch:
 .PHONY:generate-eventschema
 generate-eventschema:
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
-	
+
 	cd tooling && go build -o ./bin/protoc-gen-eventschema ./cmd/protoc-gen-eventschema/
 
 	protoc \

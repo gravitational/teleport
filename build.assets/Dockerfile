@@ -307,11 +307,7 @@ RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/master/
     sh -s -- -b "$(go env GOPATH)/bin"
 
 # Install Buf.
-ARG BUF_VERSION # eg, "1.19.0"
-RUN BIN='/usr/local/bin' && \
-  VERSION="$BUF_VERSION" && \
-  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
-  chmod +x "$BIN/buf"
+RUN go install github.com/bufbuild/buf/cmd/buf@latest
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION
