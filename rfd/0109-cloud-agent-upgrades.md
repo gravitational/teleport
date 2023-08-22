@@ -329,14 +329,14 @@ by ec2 discovery.
 
 ### ECS Fargate Agents
 
-When a user uses the Teleport Discover flow to connect an RDS, a Teleport agent is automatically provisioned using ECS Fargate. We need a
-way to keep these agents updated. One idea is to run a separate goroutine in Teleport that periodically checks for an available update and
+When Teleport Discover flow is used to connect an RDS, a Teleport agent is automatically provisioned using ECS Fargate. We need a
+way to keep these agents updated. Teleport will run a separate goroutine that periodically checks for an available update and
 uses the ECS Fargate API to update Teleport agents.
 
 This goroutine does not need to be run on all Teleport clusters. It will only be needed if the `TELEPORT_AUTOMATIC_UPGRADES` environment
 variable is enabled. The window when Fargate agents are updated should also coincide with the tenant upgrade window.
 
-The logic flow might look something like:
+The logic flow will look like:
 - List all available Fargate agents
 - If no agents are available, do nothing
 - If agents are available, query the current cloud-stable agent version
