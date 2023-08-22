@@ -51,6 +51,8 @@ type DynamicIdentityFileCreds struct {
 	Path string
 }
 
+// NewDynamicIdentityFileCreds returns a DynamicIdentityFileCreds which has
+// been initially loaded and is ready for use.
 func NewDynamicIdentityFileCreds(path string) (*DynamicIdentityFileCreds, error) {
 	d := &DynamicIdentityFileCreds{
 		Path: path,
