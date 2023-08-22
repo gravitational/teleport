@@ -2510,12 +2510,38 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		return nil, trace.Wrap(err)
 	}
 
-	var dbNames, dbUsers []string
-
 	var userGroups []types.UserGroup
-	userGroupLookup := make(map[string]types.UserGroup)
 
-	containsApp, containsDb := false, false
+	// generator to retrieve UserGroupLookup on first call and return it again in subsequent calls.
+	// If we encounter an error, we log it once and return an empty UserGroupLookup for the current and subsequent calls.
+	getUserGroupLookup := func() func() map[string]types.UserGroup {
+		userGroupLookup := make(map[string]types.UserGroup)
+		var gotUserGroupLookup bool
+		return func() map[string]types.UserGroup {
+			if gotUserGroupLookup {
+				return userGroupLookup
+			}
+
+			userGroups, err = apiclient.GetAllResources[types.UserGroup](request.Context(), clt, &proto.ListResourcesRequest{
+				ResourceType:     types.KindUserGroup,
+				Namespace:        apidefaults.Namespace,
+				UseSearchAsRoles: true,
+			})
+			if err != nil {
+				h.log.Infof("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+			}
+
+			for _, userGroup := range userGroups {
+				userGroupLookup[userGroup.GetName()] = userGroup
+			}
+
+			gotUserGroupLookup = true
+			return userGroupLookup
+		}
+	}()
+
+	var dbNames, dbUsers []string
+	containsDB := false
 
 	unifiedResources := make([]any, 0, len(page.Resources))
 	for _, resource := range page.Resources {
@@ -2527,63 +2553,33 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			}
 			unifiedResources = append(unifiedResources, server)
 		case types.DatabaseServer:
-			if !containsDb {
+			if !containsDB {
 				dbNames, dbUsers, err = getDatabaseUsersAndNames(accessChecker)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				containsDb = true
+				containsDB = true
 			}
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			if !containsApp {
-				userGroups, err = apiclient.GetAllResources[types.UserGroup](request.Context(), clt, &proto.ListResourcesRequest{
-					ResourceType:     types.KindUserGroup,
-					Namespace:        apidefaults.Namespace,
-					UseSearchAsRoles: true,
-				})
-				if err != nil {
-					h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
-				}
-
-				for _, userGroup := range userGroups {
-					userGroupLookup[userGroup.GetName()] = userGroup
-				}
-				containsApp = true
-			}
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
 				LocalProxyDNSName: h.proxyDNSName(),
 				AppClusterName:    site.GetName(),
 				Identity:          identity,
-				UserGroupLookup:   userGroupLookup,
+				UserGroupLookup:   getUserGroupLookup(),
 				Logger:            h.log,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.AppServerOrSAMLIdPServiceProvider:
-			if !containsApp {
-				userGroups, err = apiclient.GetAllResources[types.UserGroup](request.Context(), clt, &proto.ListResourcesRequest{
-					ResourceType:     types.KindUserGroup,
-					Namespace:        apidefaults.Namespace,
-					UseSearchAsRoles: true,
-				})
-				if err != nil {
-					h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
-				}
-
-				for _, userGroup := range userGroups {
-					userGroupLookup[userGroup.GetName()] = userGroup
-				}
-				containsApp = true
-			}
 			if r.IsAppServer() {
 				app := ui.MakeApp(r.GetAppServer().GetApp(), ui.MakeAppsConfig{
 					LocalClusterName:  h.auth.clusterName,
 					LocalProxyDNSName: h.proxyDNSName(),
 					AppClusterName:    site.GetName(),
 					Identity:          identity,
-					UserGroupLookup:   userGroupLookup,
+					UserGroupLookup:   getUserGroupLookup(),
 					Logger:            h.log,
 				})
 				unifiedResources = append(unifiedResources, app)
