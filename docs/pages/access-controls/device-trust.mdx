@@ -37,7 +37,7 @@ device enrollment.
 are registered or removed from Teleport. For example, this happens when the IT
 department of your company acquires new devices, or retires devices from use.
 
-Inventory management can be manually operated ([Set Up Trusted Device](./device-trust/guide.mdx)),
+Inventory management can be manually operated ([Device Management](./device-trust/device-management.mdx)),
 or automatically synced with Mobile Device Management (MDM) solution such as Jamf
 ([Jamf Pro Integration](./device-trust/jamf-integration.mdx)).
 
@@ -52,7 +52,7 @@ user/device combination.
 Enrollment exchanges an enrollment token, created by a
 device admin, for the opportunity to enroll the corresponding device.
 
-### How Trust is established
+### How trust is established with the device
 Device Trust leverages dedicated secure hardware in devices to store device credentials
 and perform device challenges. The specific implementation varies between types of devices.
 
@@ -72,7 +72,7 @@ enrolls a malicious device to Teleport, establishing trust with Secure Enclave o
 already defeated at this point. The more trusted the enrollment environment and operator,
 the better the ongoing guarantees that the device itself is trustworthy.
 
-## Device Trust Enforcement
+## Device Trust enforcement
 Enforcing Device Trust means configuring Teleport with device trust mode, i.e. applying
 `device_trust_mode: required` rule, which tells Teleport Auth Service to only allow access
 with a trusted and an authenticated device, in addition to establishing the user's identity and enforcing
@@ -81,11 +81,11 @@ the necessary roles.
 Teleport supports two methods for device enforcement: Role-based
 enforcement and Cluster-wide enforcement.
 
-- **Role-based enforcement** can be used to enforce devices at role level, using RBAC.
+- **Role-based enforcement** can be used to enforce Device Trust at role level, using RBAC.
 - **Cluster-wide enforcement** can be used to enforce Device Trust at cluster level.
 
 ## Guides
-- [Getting Started with Device Trust](./device-trust/device-management.mdx)
-- [Device Registration and Enrollment](./device-trust/device-management.mdx)
-- [Device Trust Enforcement](./device-trust/enforcing-device-trust.mdx)
+- [Getting Started with Device Trust](./device-trust/guide.mdx)
+- [Device Management](./device-trust/device-management.mdx)
+- [Enforcing Device Trust](./device-trust/enforcing-device-trust.mdx)
 - [Jamf Pro Integration](./device-trust/jamf-integration.mdx)

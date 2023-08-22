@@ -4,7 +4,7 @@ description: Learn how to enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
 ---
 
-<Admonition type="warning" title="Preview Note: Supperted Resources">
+<Admonition type="warning" title="Preview Note: Supported Resources">
 The device trust preview only support SSH, Database and Kubernetes resources.
 Support for other resources is planned for upcoming Teleport versions.
 </Admonition>
@@ -135,7 +135,7 @@ auth_service:
 </TabItem>
 </Tabs>
 
-SSH, Database and Kubernetes access without a trusted device is now forbidden.
+Once the config is updated, SSH, Database and Kubernetes access without a trusted device will be forbidden.
 For example, SSH access without a trusted device fails with the following error:
 
 ```code
@@ -194,3 +194,7 @@ Teleport will deny access:
 $ tsh ssh server1
 ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"(=devicetrust.device_id=)" is in force)
 ```
+
+## Next steps
+- [Device Management](./device-management.mdx)
+- [Jamf Pro Integration](./jamf-integration.mdx)

@@ -5,7 +5,7 @@ description: Learn how to register and enroll device in Teleport
 
 <Admonition type="warning" title="Preview Note: Supported Device Type">
 The device trust preview works on macOS and Windows devices. Support for other operating
-systems and access features is planned for upcoming Teleport versions.
+systems is planned for upcoming Teleport versions.
 </Admonition>
 
 ### Prerequisites
@@ -16,25 +16,16 @@ systems and access features is planned for upcoming Teleport versions.
 
 ## Register a trusted device
 
-The `tctl` tool is used to manage the device inventory. A device admin is
-responsible for managing devices, adding new devices to the inventory and
-removing devices that are no longer in use.
+To register a device, you first need to determine its serial number.
 
 <Admonition type="tip" title="Self enrollment">
 User's with `editor` role can register and enroll their device directly using `tsh` with
 the following command:
 ```code
 $ tsh device enroll --current-device
+Device "(=devicetrust.asset_tag=)"/macOS registered and enrolled
 ```
 </Admonition>
-
-<Admonition type="tip" title="Sync with Jamf">
-Teleport supports device synchronization with [Jamf](./jamf-integration.mdx). Once configured, devices
-are automatically updated in Teleport device inventory, avoiding manual device operation.
-</Admonition>
-
-Before you can enroll the device, you need to register it. To register
-a device, you first need to determine its serial number.
 
 <Tabs>
   <TabItem label="macOS">
@@ -102,9 +93,15 @@ a device, you first need to determine its serial number.
   </TabItem>
 </Tabs>
 
+<Admonition type="tip" title="Sync with Jamf">
+Teleport supports device synchronization with [Jamf](./jamf-integration.mdx). Once configured, devices
+are automatically updated in Teleport device inventory, avoiding manual device operation.
+</Admonition>
+
 <Admonition type="warning" title="Device Role">
 For clusters created using Teleport v12 or newer, the builtin role editor has the necessary permissions to manage devices.
-If you Teleport cluster is older than v12, you will need to create and grant `device` role to manage device inventory.[link to below]
+If you Teleport cluster is older than v12, you will need to create and grant [`device` role](#dedicated-device-admin-role)
+to manage device inventory.
 </Admonition>
 
 ## Generate enrollment token
@@ -129,6 +126,11 @@ tsh device enroll --token=(=devicetrust.enroll_token=)
 
 To perform the enrollment ceremony, using the device specified above, type the
 command printed by `tctl devices enroll`:
+
+<Admonition type="note" title="tctl and tsh">
+- `tctl` is used to manage device, i.e. register device, generate enrollment token, remove device.
+- `tsh` is used to enroll device.
+</Admonition>
 
 ```code
 $ tsh device enroll --token=(=devicetrust.enroll_token=)
@@ -165,7 +167,7 @@ device during next Teleport login.
 
 Auto-enrollment allows `tsh` to automatically enroll devices already registered
 in Teleport during the user's login. The registration may be
-[manual](./guide.mdx#step-12-register-a-trusted-device) or performed using an
+[manual](./device-management.mdx#register-a-trusted-device) or performed using an
 integration, like the [Jamf Pro integration](./jamf-integration.mdx).
 
 <Admonition type="note" title="Device Registration">
@@ -235,7 +237,7 @@ successfully enrolled and authenticated.
 ## Removing trusted device
 
 A device that is no longer in use may be removed using `tctl devices rm
---device-id=<ID>` or `tctl devices rm --asset-tag=<SERIAL>`
+--device-id=<ID>` or `tctl devices rm --asset-tag=<SERIAL>`.
 
 First, find a device to delete:
 ```code
@@ -376,5 +378,5 @@ auth_service:
 (!docs/pages/includes/device-trust/auto-enroll-troubleshooting.mdx!)
 
 ## Next steps
-- [Device Trust Enforcement](./enforcing-device-trust.mdx)
+- [Enforcing Device Trust](./enforcing-device-trust.mdx)
 - [Jamf Pro Integration](./jamf-integration.mdx)
