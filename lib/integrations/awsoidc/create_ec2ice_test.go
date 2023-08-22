@@ -45,32 +45,31 @@ func (m mockCreateEC2ICEClient) CreateInstanceConnectEndpoint(ctx context.Contex
 	}, nil
 }
 
-func TestCreateEC2ICE(t *testing.T) {
+func TestCreateEC2ICE_success(t *testing.T) {
 	ctx := context.Background()
+	mockCreateClient := &mockCreateEC2ICEClient{
+		name: "eice-123",
+	}
+	resp, err := CreateEC2ICE(ctx, mockCreateClient, CreateEC2ICERequest{
+		Cluster:         "c1",
+		IntegrationName: "i1",
+		SubnetID:        "subnet-id123",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "eice-123", resp.Name)
+}
 
-	t.Run("success", func(t *testing.T) {
-		mockCreateClient := &mockCreateEC2ICEClient{
-			name: "eice-123",
-		}
-		resp, err := CreateEC2ICE(ctx, mockCreateClient, CreateEC2ICERequest{
-			Cluster:         "c1",
-			IntegrationName: "i1",
-			SubnetID:        "subnet-id123",
-		})
-		require.NoError(t, err)
-		require.Equal(t, "eice-123", resp.Name)
+func TestCreateEC2ICE_error_quota_reached(t *testing.T) {
+	ctx := context.Background()
+	mockCreateClient := &mockCreateEC2ICEClient{
+		err: fmt.Errorf("api error ResourceLimitExceeded: You've reached the quota for the maximum number of Instance Connect Endpoints for this subnet. Delete unused Instance Connect Endpoints, or request a quota increase."),
+	}
+	_, err := CreateEC2ICE(ctx, mockCreateClient, CreateEC2ICERequest{
+		Cluster:         "c1",
+		IntegrationName: "i1",
+		SubnetID:        "subnet-id123",
 	})
-	t.Run("vpc reached the max allowed number of EC2 ICE", func(t *testing.T) {
-		mockCreateClient := &mockCreateEC2ICEClient{
-			err: fmt.Errorf("api error ResourceLimitExceeded: You've reached the quota for the maximum number of Instance Connect Endpoints for this subnet. Delete unused Instance Connect Endpoints, or request a quota increase."),
-		}
-		_, err := CreateEC2ICE(ctx, mockCreateClient, CreateEC2ICERequest{
-			Cluster:         "c1",
-			IntegrationName: "i1",
-			SubnetID:        "subnet-id123",
-		})
-		require.ErrorContains(t, err, "api error ResourceLimitExceeded: You've reached the quota for the maximum number of Instance Connect Endpoints for this subnet. Delete unused Instance Connect Endpoints, or request a quota increase.")
-	})
+	require.ErrorContains(t, err, "api error ResourceLimitExceeded: You've reached the quota for the maximum number of Instance Connect Endpoints for this subnet. Delete unused Instance Connect Endpoints, or request a quota increase.")
 }
 
 func TestCreateEC2ICERequest(t *testing.T) {
@@ -136,7 +135,7 @@ func TestCreateEC2ICERequest(t *testing.T) {
 				IntegrationName:  "teleportdev",
 				SubnetID:         "subnet-123",
 				SecurityGroupIDs: []string{"sg-1", "sg-2"},
-				ResourceCreationTags: awsTags{
+				ResourceCreationTags: AWSTags{
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/cluster":     "teleport-cluster",
 					"teleport.dev/integration": "teleportdev",

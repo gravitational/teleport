@@ -29,9 +29,9 @@ import (
 func TestDefaultTags(t *testing.T) {
 	clusterName := "mycluster"
 	integrationName := "myawsaccount"
-	d := DefaultResourceCreationTags(clusterName, integrationName)
+	d := defaultResourceCreationTags(clusterName, integrationName)
 
-	expectedTags := awsTags{
+	expectedTags := AWSTags{
 		"teleport.dev/cluster":     "mycluster",
 		"teleport.dev/integration": "myawsaccount",
 		"teleport.dev/origin":      "integration_awsoidc",

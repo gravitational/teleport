@@ -19,6 +19,7 @@ package awsoidc
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
@@ -38,7 +39,7 @@ type CreateEC2ICERequest struct {
 	SubnetID string
 
 	// SecurityGroupIDs is a list of SecurityGroups to assign to the Endpoint.
-	// If an empty list is provided, the Endpoint will receive the default SG for the Subnet's VPC.
+	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
 	SecurityGroupIDs []string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
@@ -46,7 +47,7 @@ type CreateEC2ICERequest struct {
 	// - teleport.dev/cluster: <cluster>
 	// - teleport.dev/origin: aws-oidc-integration
 	// - teleport.dev/integration: <integrationName>
-	ResourceCreationTags awsTags
+	ResourceCreationTags AWSTags
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -64,7 +65,7 @@ func (req *CreateEC2ICERequest) CheckAndSetDefaults() error {
 	}
 
 	if len(req.ResourceCreationTags) == 0 {
-		req.ResourceCreationTags = DefaultResourceCreationTags(req.Cluster, req.IntegrationName)
+		req.ResourceCreationTags = defaultResourceCreationTags(req.Cluster, req.IntegrationName)
 	}
 
 	return nil
@@ -124,11 +125,12 @@ func CreateEC2ICE(ctx context.Context, clt CreateEC2ICEClient, req CreateEC2ICER
 		return nil, trace.Wrap(err)
 	}
 
-	if ec2ICEndpoint == nil || ec2ICEndpoint.InstanceConnectEndpoint == nil || ec2ICEndpoint.InstanceConnectEndpoint.InstanceConnectEndpointId == nil {
-		return nil, trace.BadParameter("endpoint was created but failed to get its name")
+	endpointName := "unknown"
+	if ec2ICEndpoint.InstanceConnectEndpoint != nil {
+		endpointName = aws.ToString(ec2ICEndpoint.InstanceConnectEndpoint.InstanceConnectEndpointId)
 	}
 
 	return &CreateEC2ICEResponse{
-		Name: *ec2ICEndpoint.InstanceConnectEndpoint.InstanceConnectEndpointId,
+		Name: endpointName,
 	}, nil
 }

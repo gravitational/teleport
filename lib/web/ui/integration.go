@@ -232,7 +232,7 @@ type AWSOIDCDeployEC2ICERequest struct {
 	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
 	SubnetID string `json:"subnetID"`
 	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
-	// If an empty list is provided, the Endpoint will receive the default SG for the Subnet's VPC.
+	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
 	SecurityGroupIDs []string `json:"securityGroupIds"`
 }
 
