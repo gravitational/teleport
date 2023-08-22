@@ -43,19 +43,20 @@ RUN apt-get -y update && \
 ARG NODE_VERSION
 ENV NODE_PATH="/usr/local/lib/nodejs-linux"
 ENV PATH="$PATH:${NODE_PATH}/bin"
-RUN NODE_ARCH=$(if [ "$BUILDARCH" = 'amd64' ]; then echo 'x64'; else echo 'arm64'; fi) && \
+RUN NODE_ARCH="$(if [ "$BUILDARCH" = 'amd64' ]; then echo 'x64'; else echo 'arm64'; fi)" && \
     NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
     NODE_FILE="$(mktemp node-XXXXXX.tar.xz)" && \
     mkdir -p "$NODE_PATH" && \
     curl -o "$NODE_FILE" -fsSL "$NODE_URL" && \
-    tar -xJf "$NODE_FILE" -C /usr/local/lib/nodejs-linux --strip-components=1
+    tar -xJf "$NODE_FILE" -C /usr/local/lib/nodejs-linux --strip-components=1 && \
+    rm -f "$NODE_FILE"
 RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
 RUN mkdir -p /opt && \
     cd /opt && \
-    curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+    curl -fsSL "https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-$BUILDARCH.tar.gz" | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -65,10 +66,11 @@ ENV GOPATH="/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Add the CI user.
+# This images is not used in CI, but because we used to use it in CI, we keep the same UID/GID and name.
 ARG UID
 ARG GID
-RUN groupadd ci --gid=$GID -o && \
-    useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+RUN groupadd ci --gid="$GID" -o && \
+    useradd ci --uid="$UID" --gid="$GID" --create-home --shell=/bin/sh && \
     mkdir -p -m0700 /var/lib/teleport && \
     chown -R ci /var/lib/teleport
 
