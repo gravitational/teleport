@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -91,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/release"
+	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -248,6 +250,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.UserPreferences == nil {
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
+	if cfg.UserLoginState == nil {
+		cfg.UserLoginState, err = local.NewUserLoginStateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -300,6 +308,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
 		AccessLists:             cfg.AccessLists,
+		UserLoginStates:         cfg.UserLoginState,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
@@ -391,6 +400,19 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		)
 	}
+
+	// Add in a login hook for generating state during user login.
+	ulsGenerator, err := userloginstate.NewGenerator(userloginstate.GeneratorConfig{
+		Log:         log,
+		AccessLists: services,
+		Access:      services,
+		Clock:       cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	as.RegisterLoginHook(ulsGenerator.LoginHook(services.UserLoginStates))
 
 	return &as, nil
 }
@@ -1497,7 +1519,7 @@ func (a *Server) GetKeyStore() *keystore.Manager {
 
 type certRequest struct {
 	// user is a user to generate certificate for
-	user types.User
+	user services.UserState
 	// impersonator is a user who generates the certificate,
 	// is set when different from the user in the certificate
 	impersonator string
@@ -1631,6 +1653,21 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
+// getUserOrLoginState will return the given user or the login state associated with the user.
+func (a *Server) getUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
+	uls, err := a.GetUserLoginState(ctx, username)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if err == nil {
+		return uls, nil
+	}
+
+	user, err := a.GetUser(username, false)
+	return user, trace.Wrap(err)
+}
+
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
 	if req.User == nil {
 		return nil, trace.BadParameter("user is empty")
@@ -1653,7 +1690,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 
 	// add implicit roles to the set and build a checker
-	accessInfo := services.AccessInfoFromUser(req.User)
+	accessInfo := services.AccessInfoFromUserState(req.User)
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
 		var err error
@@ -1702,11 +1739,11 @@ type GenerateUserTestCertsRequest struct {
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
-	user, err := a.GetUser(req.Username, false)
+	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1716,13 +1753,13 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:           user,
+		user:           userState,
 		ttl:            req.TTL,
 		compatibility:  req.Compatibility,
 		publicKey:      req.Key,
 		routeToCluster: req.RouteToCluster,
 		checker:        checker,
-		traits:         user.GetTraits(),
+		traits:         userState.GetTraits(),
 		loginIP:        req.PinnedIP,
 		pinIP:          req.PinnedIP != "",
 		mfaVerified:    req.MFAVerified,
@@ -1762,11 +1799,11 @@ type AppTestCertRequest struct {
 // GenerateUserAppTestCert generates an application specific certificate, used
 // internally for tests.
 func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error) {
-	user, err := a.GetUser(req.Username, false)
+	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1786,7 +1823,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	}
 
 	certs, err := a.generateUserCert(certRequest{
-		user:      user,
+		user:      userState,
 		publicKey: req.PublicKey,
 		checker:   checker,
 		ttl:       req.TTL,
@@ -1832,11 +1869,11 @@ type DatabaseTestCertRequest struct {
 // GenerateDatabaseTestCert generates a database access certificate for the
 // provided parameters. Used only internally in tests.
 func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, error) {
-	user, err := a.GetUser(req.Username, false)
+	userState, err := a.getUserOrLoginState(context.Background(), req.Username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1846,7 +1883,7 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:      user,
+		user:      userState,
 		publicKey: req.PublicKey,
 		loginIP:   req.PinnedIP,
 		pinIP:     req.PinnedIP != "",
@@ -2125,10 +2162,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 	}
 
 	// Bot users are regular Teleport users, but have a special internal label.
-	bot := false
-	if _, ok := req.user.GetMetadata().Labels[types.BotLabel]; ok {
-		bot = true
-	}
+	bot := req.user.IsBot()
 
 	// Unfortunately the only clue we have about Windows certs is the usage
 	// restriction: `RouteToWindowsDesktop` isn't actually passed along to the
@@ -3347,7 +3381,7 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
 func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	u, err := a.GetUser(user, false)
+	u, err := a.getUserOrLoginState(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3914,7 +3948,7 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 
 // NewWebSession creates and returns a new web session for the specified request
 func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	user, err := a.GetUser(req.User, false)
+	userState, err := a.getUserOrLoginState(ctx, req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3949,7 +3983,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
-		user:           user,
+		user:           userState,
 		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
 		publicKey:      pub,
@@ -4084,6 +4118,10 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
+	}
+
+	if err := a.verifyAccessRequestMonthlyLimit(ctx); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Creating Access Request %v with expiry %v.", req.GetName(), req.Expiry())
@@ -5505,6 +5543,33 @@ func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assis
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// getAccessRequestMonthlyUsage returns the number of access requests that have been created this month.
+func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) {
+	return resourceusage.GetAccessRequestMonthlyUsage(ctx, a.Services.AuditLogSessionStreamer, a.clock.Now().UTC())
+}
+
+// verifyAccessRequestMonthlyLimit checks whether the cluster has exceeded the monthly access request limit.
+// If so, it returns an error. This is only applicable on usage-based billing plans.
+func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
+	f := modules.GetModules().Features()
+	if !f.IsUsageBasedBilling {
+		return nil // unlimited
+	}
+	monthlyLimit := f.AccessRequests.MonthlyRequestLimit
+
+	const limitReachedMessage = "cluster has reached its monthly access request limit, please contact the cluster administrator"
+
+	usage, err := a.getAccessRequestMonthlyUsage(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if usage >= monthlyLimit {
+		return trace.AccessDenied(limitReachedMessage)
+	}
+
+	return nil
 }
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
