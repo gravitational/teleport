@@ -17,7 +17,7 @@
 
 ### Security fixes
 
-* TODO(jent): Update this when security fix lands
+* Security improvements with possible `medium` severity DoS conditions through protocol level attacks. [#30854](https://github.com/gravitational/teleport/pull/30854)
 
 ## 11.3.20 (08/04/23)
 
