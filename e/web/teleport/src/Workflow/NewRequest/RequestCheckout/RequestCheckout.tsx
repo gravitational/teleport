@@ -139,7 +139,7 @@ export function RequestCheckout({
     createRequest(
       reason,
       selectedReviewers.map(r => r.value),
-      new Date(maxDuration.value)
+      maxDuration ? new Date(maxDuration.value) : null
     );
   }
 

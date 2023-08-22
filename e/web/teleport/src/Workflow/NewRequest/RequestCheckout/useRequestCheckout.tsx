@@ -37,10 +37,7 @@ export function useRequestCheckout({
 
   const [fetchStatus, setFetchStatus] = useState<LoadingStatus>('loading');
 
-  const [maxDuration, setMaxDuration] = useState<Option<number, string>>({
-    value: 0,
-    label: '',
-  });
+  const [maxDuration, setMaxDuration] = useState<Option<number>>();
 
   const [durationOptions, setDurationOptions] = useState<Option<number>[]>([]);
 
