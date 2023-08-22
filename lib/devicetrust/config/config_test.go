@@ -106,3 +106,70 @@ func TestValidateConfigAgainstModules(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAutoEnrollEnabled(t *testing.T) {
+	tests := []struct {
+		name      string
+		buildType string
+		dt        *types.DeviceTrust
+		want      bool
+	}{
+		{
+			name:      "OSS always disabled",
+			buildType: modules.BuildOSS,
+			dt: &types.DeviceTrust{
+				Mode:           "required",
+				AutoEnrollMode: "enabled",
+			},
+			want: false,
+		},
+		{
+			name:      "Ent nil config defaults to true",
+			buildType: modules.BuildEnterprise,
+			want:      true,
+		},
+		{
+			name:      "Ent empty config defaults to true",
+			buildType: modules.BuildEnterprise,
+			dt:        &types.DeviceTrust{},
+			want:      true,
+		},
+		{
+			name:      "Ent mode=off",
+			buildType: modules.BuildEnterprise,
+			dt: &types.DeviceTrust{
+				Mode:           "off",
+				AutoEnrollMode: "enabled",
+			},
+			want: false,
+		},
+		{
+			name:      "Ent enabled",
+			buildType: modules.BuildEnterprise,
+			dt: &types.DeviceTrust{
+				Mode:           "required",
+				AutoEnrollMode: "enabled",
+			},
+			want: true,
+		},
+		{
+			name:      "Ent disabled",
+			buildType: modules.BuildEnterprise,
+			dt: &types.DeviceTrust{
+				Mode:           "required",
+				AutoEnrollMode: "disabled",
+			},
+			want: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: test.buildType,
+			})
+			if got := dtconfig.IsAutoEnrollEnabled(test.dt); got != test.want {
+				t.Errorf("IsAutoEnrollEnabled() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}

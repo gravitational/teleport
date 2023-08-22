@@ -150,8 +150,8 @@ func TestPing(t *testing.T) {
 					RPID: "example.com",
 				},
 				DeviceTrust: &types.DeviceTrust{
-					Mode:       constants.DeviceTrustModeOptional,
-					AutoEnroll: true,
+					Mode:           constants.DeviceTrustModeOptional,
+					AutoEnrollMode: constants.DeviceTrustAutoEnrollModeEnabled,
 				},
 			},
 			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {

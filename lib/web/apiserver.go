@@ -1052,7 +1052,7 @@ func deviceTrustSettings(cap types.AuthPreference) webclient.DeviceTrustSettings
 	dt := cap.GetDeviceTrust()
 	return webclient.DeviceTrustSettings{
 		Disabled:   deviceTrustDisabled(cap),
-		AutoEnroll: dt != nil && dt.AutoEnroll,
+		AutoEnroll: dtconfig.IsAutoEnrollEnabled(dt),
 	}
 }
 

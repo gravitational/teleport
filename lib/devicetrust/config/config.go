@@ -52,3 +52,10 @@ func ValidateConfigAgainstModules(dt *types.DeviceTrust) error {
 		return nil
 	}
 }
+
+// IsAutoEnrollEnabled returns true if auto-enroll is enabled.
+// Always returns false for OSS builds.
+func IsAutoEnrollEnabled(dt *types.DeviceTrust) bool {
+	return GetEffectiveMode(dt) != constants.DeviceTrustModeOff &&
+		(dt == nil || dt.AutoEnrollMode != constants.DeviceTrustAutoEnrollModeDisabled)
+}
