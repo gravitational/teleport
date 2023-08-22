@@ -14,6 +14,7 @@
 * Improved audit logging support for large SQL Server queries. [#30245](https://github.com/gravitational/teleport/pull/30245)
 * Explicitly mention _registered_ and _new_ device when running `tsh mfa add` on Windows. [#30217](https://github.com/gravitational/teleport/pull/30217)
 * Tighten discovery service permissions. [#29996](https://github.com/gravitational/teleport/pull/29996)
+* helm: Add support for custom annodations in the teleport-kube-agent Secret. [#30840](https://github.com/gravitational/teleport/pull/30840)
 
 ### Security fixes
 
