@@ -140,16 +140,6 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 
 // UpsertAccessListMember creates or updates an access list member resource.
 func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
-	accessList, err := a.GetAccessList(ctx, member.Spec.AccessList)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If the member expiry is set to zero, we'll use the next audit date as its expiry.
-	if member.Spec.Expires.IsZero() {
-		member.Spec.Expires = accessList.Spec.Audit.NextAuditDate
-	}
-
 	if err := trace.Wrap(a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)); err != nil {
 		return nil, trace.Wrap(err)
 	}
