@@ -178,7 +178,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		items, err := stream.Collect(embeddings.GetEmbeddings(ctx))
+		items, err := stream.Collect(embeddings.GetAllEmbeddings(ctx))
 		assert.NoError(t, err)
 		return len(items) == numInitialNodes
 	}, 7*time.Second, 200*time.Millisecond)
@@ -188,7 +188,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 
 	validateEmbeddings(t,
 		nodesAcquired,
-		embeddings.GetEmbeddings(ctx))
+		embeddings.GetAllEmbeddings(ctx))
 
 	for k, v := range embedder.timesCalled {
 		require.Equal(t, 1, v, "expected %v to be computed once, was %d", k, v)
@@ -206,7 +206,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	// Since nodes are streamed in ascending order by names, when embeddings for node6 are calculated,
 	// we can be sure that our recent changes have been fully processed
 	require.Eventually(t, func() bool {
-		items, err := stream.Collect(embeddings.GetEmbeddings(ctx))
+		items, err := stream.Collect(embeddings.GetAllEmbeddings(ctx))
 		assert.NoError(t, err)
 		return len(items) == numInitialNodes+1
 	}, 7*time.Second, 200*time.Millisecond)
@@ -224,7 +224,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 
 	validateEmbeddings(t,
 		nodesAcquired,
-		embeddings.GetEmbeddings(ctx))
+		embeddings.GetAllEmbeddings(ctx))
 }
 
 func TestMarshallUnmarshallEmbedding(t *testing.T) {

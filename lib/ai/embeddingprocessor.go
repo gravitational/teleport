@@ -40,8 +40,9 @@ const maxEmbeddingAPISize = 1000
 
 // Embeddings implements the minimal interface used by the Embedding processor.
 type Embeddings interface {
-	// GetEmbeddings returns all embeddings.
-	GetEmbeddings(ctx context.Context) stream.Stream[*embeddinglib.Embedding]
+	// GetAllEmbeddings returns all embeddings.
+	GetAllEmbeddings(ctx context.Context) stream.Stream[*embeddinglib.Embedding]
+
 	// UpsertEmbedding creates or update a single ai.Embedding in the backend.
 	UpsertEmbedding(ctx context.Context, embedding *embeddinglib.Embedding) (*embeddinglib.Embedding, error)
 }
@@ -212,7 +213,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 	e.log.Debugf("embedding processor started")
 	defer e.log.Debugf("embedding processor finished")
 
-	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx)
+	embeddingsStream := e.embeddingSrv.GetAllEmbeddings(ctx)
 	unifiedResources, err := e.nodeSrv.GetUnifiedResources(ctx)
 	if err != nil {
 		e.log.Debugf("embedding processor failed with error: %v", err)
@@ -301,7 +302,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 // latest embeddings. The new index is created and then swapped with the old one.
 func (e *EmbeddingProcessor) updateMemIndex(ctx context.Context) error {
 	embeddingsIndex := NewSimpleRetriever()
-	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx)
+	embeddingsStream := e.embeddingSrv.GetAllEmbeddings(ctx)
 
 	for embeddingsStream.Next() {
 		embedding := embeddingsStream.Item()
