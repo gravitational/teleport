@@ -1857,13 +1857,9 @@ message DeviceTrust {
   // Defaults to "optional" for Enterprise.
   string Mode = 1 [(gogoproto.jsontag) = "mode,omitempty"];
 
-  // Enable device auto-enroll.
-  // Auto-enroll lets any user issue a device enrollment token for a known
-  // device that is not already enrolled.
-  // `tsh` takes advantage of auto-enroll to automatically enroll devices on
-  // user login, when appropriate.
-  // The effective cluster Mode still applies: AutoEnroll=true is meaningless if
-  // Mode="off".
+  // Use AutoEnrollMode instead.
+  // AutoEnroll is completely ignored in favor of AutoEnrollMode.
+  // TODO(codingllama): Remove usages and deprecate field.
   bool AutoEnroll = 2 [(gogoproto.jsontag) = "auto_enroll,omitempty"];
 
   // Allow list of EKCert CAs in PEM format.
@@ -1874,6 +1870,20 @@ message DeviceTrust {
   // If not present, then the CA of TPM EKCerts will not be checked during
   // enrollment, this allows any device to enroll.
   repeated string EKCertAllowedCAs = 3 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
+
+  // Auto-enrollment mode, either "enabled" or "disabled".
+  //
+  // Auto-enrollment lets any user issue a device enrollment token for a known
+  // device that is not already enrolled.
+  //
+  // `tsh` takes advantage of auto-enroll to automatically enroll devices on
+  // user login, when appropriate.
+  //
+  // The effective cluster Mode still applies: AutoEnrollMode="enabled" is
+  // meaningless if Mode="off".
+  //
+  // Defaults to "enabled".
+  string AutoEnrollMode = 4 [(gogoproto.jsontag) = "auto_enroll_mode,omitempty"];
 }
 
 // Namespace represents namespace resource specification
