@@ -609,6 +609,40 @@ func (e *AssistNewConversationEvent) Anonymize(a utils.Anonymizer) prehogv1a.Sub
 	}
 }
 
+type AssistAccessRequestEvent prehogv1a.AssistAccessRequestEvent
+
+// Anonymize anonymizes the event.
+func (e *AssistAccessRequestEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistAccessRequest{
+			AssistAccessRequest: &prehogv1a.AssistAccessRequestEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				ResourceType:     e.ResourceType,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
+type AssistActionEvent prehogv1a.AssistActionEvent
+
+// Anonymize anonymizes the event.
+func (e *AssistActionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistAction{
+			AssistAction: &prehogv1a.AssistActionEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				Action:           e.Action,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
@@ -617,7 +651,7 @@ type UserMetadata struct {
 	IsSSO bool
 }
 
-// DeviceAuthenticateEvent event is emitted after successful device authentication ceremony.
+// DeviceAuthenticateEvent event is emitted after a successful device authentication ceremony.
 type DeviceAuthenticateEvent prehogv1a.DeviceAuthenticateEvent
 
 func (d *DeviceAuthenticateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
@@ -905,6 +939,24 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		ret := &AssistNewConversationEvent{
 			UserName: userMD.Username,
 			Category: e.AssistNewConversation.Category,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistAccessRequest:
+		ret := &AssistAccessRequestEvent{
+			UserName:         userMD.Username,
+			ResourceType:     e.AssistAccessRequest.ResourceType,
+			TotalTokens:      e.AssistAccessRequest.TotalTokens,
+			PromptTokens:     e.AssistAccessRequest.PromptTokens,
+			CompletionTokens: e.AssistAccessRequest.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistAction:
+		ret := &AssistActionEvent{
+			UserName:         userMD.Username,
+			Action:           e.AssistAction.Action,
+			TotalTokens:      e.AssistAction.TotalTokens,
+			PromptTokens:     e.AssistAction.PromptTokens,
+			CompletionTokens: e.AssistAction.CompletionTokens,
 		}
 		return ret, nil
 	default:
