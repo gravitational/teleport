@@ -30,9 +30,9 @@ export default function parseError(json) {
 export class ApiError extends Error {
   response: Response;
 
-  constructor(message, response: Response) {
+  constructor(message: string, response: Response, opts?: ErrorOptions) {
     message = message || 'Unknown error';
-    super(message);
+    super(message, opts);
     this.response = response;
     this.name = 'ApiError';
   }

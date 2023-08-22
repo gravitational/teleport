@@ -14,110 +14,41 @@
  * limitations under the License.
  */
 
-import { useState, useEffect } from 'react';
-import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
+import { useEffect, useRef } from 'react';
 
-import {
-  ResourcesResponse,
-  ResourceFilter,
-  resourceFilterToHookDeps,
-} from 'teleport/services/agents';
-import { UrlResourcesParams } from 'teleport/config';
-
-/**
- * Supports fetching more data from the server when more data is available. Pass
- * a `fetchFunc` that retrieves a single batch of data. After the initial
- * request, the server is expected to return a `startKey` field that denotes the
- * next `startKey` to use for the next request.
+/** Calls `callback` whenever the `trigger` element intersects the viewport.
+ *
+ * This hook is intended to be used in tandem with the `useKeyBasedPagination`
+ * hook. Example usage:
+ *
+ * ```ts
+ * const scrollDetector = useRef(null);
+ * const { fetch, resources } = useKeyBasedPagination({
+ *   fetchFunc: api.fetchItems,
+ *   filter,
+ * });
+ * useInfiniteScroll(scrollDetector.current, fetch);
+ *
+ * return (<>
+ *   {items.map(renderItem)}
+ *   <div ref={scrollDetector} />
+ * </>);
+ * ```
  */
-export function useKeyBasedPagination<T>({
-  fetchFunc,
-  clusterId,
-  filter,
-  initialFetchSize = 30,
-  fetchMoreSize = 20,
-}: Props<T>): State<T> {
-  const { attempt, setAttempt } = useAttempt();
-  const [finished, setFinished] = useState(false);
-  const [abortController, setAbortController] = useState(new AbortController());
-
-  const [fetchedData, setFetchedData] = useState<ResourcesResponse<T>>({
-    agents: [],
-    startKey: '',
-    totalCount: 0,
-  });
+export function useInfiniteScroll(trigger: Element, callback: () => void) {
+  const observer = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
-    abortController.abort();
-
-    setAttempt({ status: '', statusText: '' });
-    setFinished(false);
-    setAbortController(new AbortController());
-    setFetchedData({ agents: [], startKey: '', totalCount: 0 });
-  }, [clusterId, ...resourceFilterToHookDeps(filter)]);
-
-  let fetchCalled = false;
-  const fetch = async () => {
-    if (
-      finished ||
-      fetchCalled ||
-      attempt.status === 'processing' ||
-      attempt.status === 'failed'
-    ) {
-      return;
+    if (observer.current) {
+      observer.current.disconnect();
     }
-    try {
-      fetchCalled = true;
-      setAttempt({ status: 'processing' });
-      const limit =
-        fetchedData.agents.length > 0 ? fetchMoreSize : initialFetchSize;
-      const res = await fetchFunc(
-        clusterId,
-        {
-          ...filter,
-          limit,
-          startKey: fetchedData.startKey,
-        },
-        abortController.signal
-      );
-      const { startKey, agents } = res;
-      setFetchedData({
-        ...fetchedData,
-        agents: [...fetchedData.agents, ...agents],
-        startKey,
-      });
-      if (!startKey) {
-        setFinished(true);
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) {
+        callback();
       }
-      setAttempt({ status: 'success' });
-    } catch (err) {
-      // Aborting is not really an error here.
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      setAttempt({ status: 'failed', statusText: err.message });
+    });
+    if (trigger) {
+      observer.current.observe(trigger);
     }
-  };
-
-  return {
-    fetch,
-    attempt,
-    fetchedData,
-  };
+  }, [trigger, callback]);
 }
-
-export type Props<T> = {
-  fetchFunc: (
-    clusterId: string,
-    params: UrlResourcesParams,
-    signal?: AbortSignal
-  ) => Promise<ResourcesResponse<T>>;
-  clusterId: string;
-  filter: ResourceFilter;
-  initialFetchSize?: number;
-  fetchMoreSize?: number;
-};
-
-export type State<T> = {
-  fetch: (() => void) | null;
-  attempt: Attempt;
-  fetchedData: ResourcesResponse<T>;
-};
