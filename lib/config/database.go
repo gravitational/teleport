@@ -81,11 +81,11 @@ db_service:
   # resources:
   # - labels:
   #     "env": "dev"
-  #  # Optional AWS role that the Database Service will assume to access the
-  #  # databases.
-  #  aws:
-  #    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
-  #    external_id: "example-external-id"
+  #   # Optional AWS role that the Database Service will assume to access the
+  #   # databases.
+  #   aws:
+  #     assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+  #     external_id: "example-external-id"
   {{- end }}
 
   # Matchers for registering AWS-hosted databases.
