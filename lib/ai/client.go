@@ -64,7 +64,9 @@ func (client *Client) NewChat(toolContext *modeltools.ToolContext) *Chat {
 		tools = append(tools, &modeltools.AccessRequestCreateTool{},
 			&modeltools.AccessRequestsListTool{},
 			&modeltools.AccessRequestListRequestableRolesTool{},
-			&modeltools.AccessRequestListRequestableResourcesTool{})
+			&modeltools.AccessRequestListRequestableResourcesTool{},
+			&modeltools.AuditQueryGenerationTool{LLM: client.svc},
+		)
 	}
 
 	return &Chat{
