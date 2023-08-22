@@ -209,6 +209,12 @@ func (c *Client) readClientUsername() error {
 	}
 }
 
+const (
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
+	maxRDPScreenWidth  = 8192
+	maxRDPScreenHeight = 8192
+)
+
 func (c *Client) readClientSize() error {
 	for {
 		msg, err := c.cfg.Conn.ReadMessage()
@@ -221,6 +227,16 @@ func (c *Client) readClientSize() error {
 			continue
 		}
 		c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
+
+		if s.Width > maxRDPScreenWidth || s.Height > maxRDPScreenHeight {
+			err := trace.BadParameter(
+				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+				s.Width, s.Height, maxRDPScreenWidth, maxRDPScreenHeight,
+			)
+			c.cfg.Log.Error(err)
+			c.cfg.Conn.WriteMessage(tdp.Notification{Message: err.Error(), Severity: tdp.SeverityError})
+		}
+
 		c.clientWidth = uint16(s.Width)
 		c.clientHeight = uint16(s.Height)
 		return nil

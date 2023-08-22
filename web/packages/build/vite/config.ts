@@ -99,6 +99,13 @@ export function createViteConfig(
           secure: false,
           ws: true,
         },
+        // /webapi/sites/:site/desktopplayback/:sid
+        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/desktopplayback\\/(.*?)': {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
         '^\\/v1\\/webapi\\/assistant\\/(.*?)': {
           target: `https://${target}`,
           changeOrigin: false,
