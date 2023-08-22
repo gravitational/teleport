@@ -131,7 +131,7 @@ function Install-Rust {
         $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
         $Env:CARGO_HOME = "$ToolchainDir/cargo"
         & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-toolchain "$RustVersion-x86_64-pc-windows-gnu"
-        Enable-Node -ToolchainDir $ToolchainDir
+        Enable-Rust -ToolchainDir $ToolchainDir
     }
 }
 
