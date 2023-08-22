@@ -38,6 +38,8 @@ spec:
   {{- end }}
   {{- if $proxy.highAvailability.certManager.enabled }}
     secretName: teleport-tls
+  {{- else if $proxy.tls.existingSecretName }}
+    secretName: {{ $proxy.tls.existingSecretName }}
   {{- end }}
   rules:
    {{- range $publicAddr }}

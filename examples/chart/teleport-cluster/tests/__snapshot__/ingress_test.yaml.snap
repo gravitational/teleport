@@ -36,6 +36,12 @@ sets the publicAddr and wildcard of publicAddr as hostnames when Ingress is enab
     - hosts:
       - helm-lint.example.com
       - '*.helm-lint.example.com'
+sets tls.secretName the value of tls.existingSecretName when set:
+  1: |
+    - hosts:
+      - teleport.example.com
+      - '*.teleport.example.com'
+      secretName: helm-lint-tls-secret
 sets tls.secretName when cert-manager is enabled:
   1: |
     - hosts:
