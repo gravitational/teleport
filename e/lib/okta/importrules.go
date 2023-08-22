@@ -18,7 +18,10 @@ package okta
 
 import (
 	"context"
+	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -26,9 +29,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+var interpolationRegex = regexp.MustCompile(`\$\d+`)
+
 // regexAndPriorityLabels contains a regex and associated priority labels.
 type regexAndPriorityLabels struct {
-	regex             string
+	regex             *regexp.Regexp
 	priorityAndLabels priorityAndLabels
 }
 
@@ -73,16 +78,24 @@ func (s *Service) buildImportRuleMappings(ctx context.Context) error {
 					}
 					if ok, regexes := match.GetGroupNameRegexes(); ok {
 						for _, regex := range regexes {
+							compiledRegex, err := utils.CompileExpression(regex)
+							if err != nil {
+								return trace.Wrap(err)
+							}
 							s.groupNameRegexes = append(s.groupNameRegexes, regexAndPriorityLabels{
-								regex:             regex,
+								regex:             compiledRegex,
 								priorityAndLabels: p,
 							})
 						}
 					}
 					if ok, regexes := match.GetAppNameRegexes(); ok {
 						for _, regex := range regexes {
+							compiledRegex, err := utils.CompileExpression(regex)
+							if err != nil {
+								return trace.Wrap(err)
+							}
 							s.appNameRegexes = append(s.appNameRegexes, regexAndPriorityLabels{
-								regex:             regex,
+								regex:             compiledRegex,
 								priorityAndLabels: p,
 							})
 						}
@@ -119,13 +132,14 @@ func (s *Service) getGroupLabels(groupID, groupName string) (map[string]string, 
 
 	regexesMatch := false
 	for _, regexAndLabel := range groupNameRegexes {
-		match, err := utils.MatchString(groupName, regexAndLabel.regex)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if match {
+		matches := regexAndLabel.regex.FindStringSubmatch(groupName)
+		if len(matches) > 0 {
 			regexesMatch = true
-			groupLabels = append(groupLabels, regexAndLabel.priorityAndLabels)
+			interpolatedLabels, err := interpolatedLabels(matches, regexAndLabel.priorityAndLabels)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			groupLabels = append(groupLabels, interpolatedLabels)
 		}
 	}
 
@@ -148,13 +162,14 @@ func (s *Service) getApplicationLabels(applicationID, applicationName string) (m
 
 	regexesMatch := false
 	for _, regexAndLabel := range appNameRegexes {
-		match, err := utils.MatchString(applicationName, regexAndLabel.regex)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if match {
+		matches := regexAndLabel.regex.FindStringSubmatch(applicationName)
+		if matches != nil {
 			regexesMatch = true
-			appLabels = append(appLabels, regexAndLabel.priorityAndLabels)
+			interpolatedLabels, err := interpolatedLabels(matches, regexAndLabel.priorityAndLabels)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			appLabels = append(appLabels, interpolatedLabels)
 		}
 	}
 
@@ -163,6 +178,35 @@ func (s *Service) getApplicationLabels(applicationID, applicationName string) (m
 	}
 
 	return aggregateLabels(appLabels), nil
+}
+
+// interpolatedLabels will interpolate matches from regexes into the prioritized labels.
+func interpolatedLabels(matches []string, label priorityAndLabels) (priorityAndLabels, error) {
+	interpolatedLabels := map[string]string{}
+
+	numMatches := len(matches)
+	for k, v := range label.addLabels {
+		interpolations := interpolationRegex.FindAllString(v, -1)
+		label := v
+
+		for _, interpolation := range interpolations {
+			if len(interpolation) < 2 {
+				return priorityAndLabels{}, trace.BadParameter("interpolation match needs to be greater than 1 element long")
+			}
+			matchNum, err := strconv.Atoi(interpolation[1:])
+			if err != nil {
+				return priorityAndLabels{}, trace.Wrap(err)
+			}
+			if matchNum >= numMatches {
+				return priorityAndLabels{}, trace.BadParameter("no match found for string interpolation %d", matchNum)
+			}
+			label = strings.ReplaceAll(label, interpolation, matches[matchNum])
+		}
+
+		interpolatedLabels[k] = label
+	}
+
+	return newPriorityAndLabel(label.priority, interpolatedLabels), nil
 }
 
 // aggregateLabels will return labels applied to a map, applied in order.

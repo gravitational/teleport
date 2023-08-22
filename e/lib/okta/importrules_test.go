@@ -177,6 +177,23 @@ func TestGetLabels(t *testing.T) {
 			},
 		},
 		{
+			name: "interpolated values",
+			importRules: []types.OktaImportRule{
+				newIR(t, "ir1", 99, newIRMapping(map[string]string{"label1": "$0"}, newIRMatchGroupNameRegex("^group.*$"), newIRMatchApps(appID))),
+				newIR(t, "ir2", 99, newIRMapping(map[string]string{"label2": "$0"}, newIRMatchAppNameRegex("^app.*$"))),
+				newIR(t, "ir3", 99, newIRMapping(map[string]string{"label3": "$0 $1 $2"}, newIRMatchAppNameRegex(`^app(\d+)(.*)$`))),
+			},
+			expectedGroupLabels: map[string]string{
+				"label1": groupName,
+			},
+			expectedAppLabels: map[string]string{
+				// Interpolation doesn't work for a direct ID map
+				"label1": "$0",
+				"label2": appName,
+				"label3": "app1Name 1 Name",
+			},
+		},
+		{
 			name: "multiple labels",
 			importRules: []types.OktaImportRule{
 				newIR(t, "ir1", 100,
