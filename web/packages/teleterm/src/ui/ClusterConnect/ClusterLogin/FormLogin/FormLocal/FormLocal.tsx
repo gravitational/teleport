@@ -103,7 +103,7 @@ export const FormLocal = ({
                 maxWidth="50%"
                 width="100%"
                 data-testid="mfa-select"
-                label="Two-factor type"
+                label="Two-factor Type"
                 value={mfaType}
                 options={mfaOptions}
                 onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
@@ -115,7 +115,7 @@ export const FormLocal = ({
               {mfaType.value === 'otp' && (
                 <FieldInput
                   width="50%"
-                  label="Authenticator code"
+                  label="Authenticator Code"
                   rule={requiredToken}
                   autoComplete="one-time-code"
                   inputMode="numeric"
