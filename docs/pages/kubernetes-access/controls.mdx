@@ -120,7 +120,8 @@ spec:
 
 Create or update this role using `tctl`:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -130,8 +131,8 @@ $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create -f member.yaml
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your Teleport cluster so you can use tctl remotely.
@@ -139,7 +140,9 @@ $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl create -f member.yaml
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Assign this role to a user in OIDC or SAML connector:
 

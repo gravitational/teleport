@@ -12,12 +12,15 @@ controls that Teleport provides for human users.
 
 ## Prerequisites
 
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 You will need Teleport Cloud 10.1.0 or later.
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
+</TabItem>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 You will need a running Teleport cluster version 10.1.0 or later.
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 If you have not already connected your application to Teleport, follow
 the [Application Access Getting Started Guide](../../application-access/getting-started.mdx).

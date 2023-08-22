@@ -58,7 +58,8 @@ Policy](./manual-setup.mdx#create-another-gpo-and-import-the-teleport-ca). Note 
 Teleport CA was rotated since the last import, you will have to fetch the
 new CA using the following command:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```code
 # Log in to your cluster with tsh so you can use tctl from your local machine.
@@ -68,8 +69,8 @@ $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl auth export --type=windows >user-ca.cer
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```code
 # Log in to your Teleport cluster so you can use tctl remotely.
@@ -77,7 +78,9 @@ $ tsh login --proxy=mytenant.teleport.sh --user=myuser
 $ tctl auth export --type=windows >user-ca.cer
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 If that doesn't help, log into the target host directly, open PowerShell and
 run `gpupdate.exe /force`. This forces a Group Policy sync and should pick up

@@ -221,7 +221,8 @@ Like all Teleport users, `teleport-event-handler` needs signed credentials in
 order to connect to your Teleport cluster. You will use the `tctl auth sign`
 command to request these credentials for the plugin.
 
-<ScopedBlock scope={["enterprise", "oss"]}>
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 The format of the credentials depends on whether you have set up your Teleport
 cluster so clients and services connect to the Teleport Proxy Service or to the
@@ -273,9 +274,9 @@ connect to the Auth Service.
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope="cloud">
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 The following `tctl auth sign` command impersonates the `teleport-event-handler`
 user, generates signed credentials, and writes an identity file to the local
@@ -297,7 +298,9 @@ Service's gRPC endpoint.
 
 You will refer to this file later when configuring the plugin.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 Move the credentials you generated to the host where you are running the
 Teleport Event Handler plugin.

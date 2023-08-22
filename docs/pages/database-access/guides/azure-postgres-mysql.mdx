@@ -55,7 +55,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 Create the Database Service configuration, specifying a region like this:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 <Tabs>
 <TabItem label="PostgreSQL">
@@ -82,8 +83,8 @@ Create the Database Service configuration, specifying a region like this:
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 <Tabs>
 <TabItem label="PostgreSQL">
@@ -110,7 +111,9 @@ Create the Database Service configuration, specifying a region like this:
 </TabItem>
 </Tabs>
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 The command will generate a Database Service configuration with Azure MySQL/Postgres
 database auto-discovery enabled in the `eastus` region and place it at the

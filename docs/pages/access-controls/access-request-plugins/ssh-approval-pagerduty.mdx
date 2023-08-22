@@ -32,20 +32,23 @@ PagerDuty.
 
 - Either a Linux host or Kubernetes cluster where you will run the PagerDuty plugin.
 
-<ScopedBlock scope={["enterprise", "oss"]}>
+<Tabs>
+<TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
 We recommend installing Teleport plugins on the same host as the Teleport Proxy
 Service. This is an ideal location as plugins have a low memory footprint, and
 will require both public internet access and Teleport Auth Service access.
 
-</ScopedBlock>
+</TabItem>
 
-<ScopedBlock scope="cloud">
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 Install the Teleport PagerDuty plugin on a host that can access both your
 Teleport Cloud tenant and PagerDuty.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 (!docs/pages/includes/tctl.mdx!)
 

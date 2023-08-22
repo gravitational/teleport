@@ -32,28 +32,23 @@ general access to Windows desktops.
 
 ## Prerequisites
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-- One or more hosts to run the Teleport Auth and Proxy services on.
-</ScopedBlock>
 - A server or virtual machine running a Windows Server operating system.
   In this guide, we'll install Active Directory on this server in order
   to support passwordless logins with Teleport to the Windows desktops
   in the Active Directory domain.
-- A Linux host where you will run the Teleport Desktop Service.
-  <ScopedBlock scope={["oss", "enterprise"]}> This guide assumes that you will
-  run Teleport's Windows Desktop Service on a dedicated host. To install Desktop
-  Access into an existing Teleport instance running other services, see the
-  [Manual Setup](manual-setup.mdx) guide for Desktop Access.</ScopedBlock>
+- A Linux host where you will run the Teleport Desktop Service. This guide
+  assumes that you will run Teleport's Windows Desktop Service on a dedicated
+  host. To install the Desktop Service into an existing Teleport instance
+  running other services, see the [Manual Setup](manual-setup.mdx) guide.
 - An Active Directory domain, configured for LDAPS (Teleport requires an
-  encrypted LDAP connection). Typically this means installing
-  [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
+  encrypted LDAP connection). Typically this means installing [AD
+  CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
 
 ## Step 1/2. Run the discovery wizard
 
-In your web browser, access the teleport Web UI at <ScopedBlock scope={["oss", "enterprise"]}>
-`teleport.example.com`</ScopedBlock><ScopedBlock scope={["cloud"]}>
-`mytennant.teleport.sh`</ScopedBlock>. Click on your user name at the top right
-and select **Manage Access**, Select "Desktop" from the main menu, then **NEXT**:
+In your web browser, access the Teleport Web UI at `example.teleport.sh`. Click
+on your user name at the top right and select **Manage Access**, Select
+"Desktop" from the main menu, then **NEXT**:
 
 If you already have Active Directory installed, skip to the next step. Otherwise,
 copy and paste the first command provided into a Windows PowerShell window. If
@@ -168,7 +163,7 @@ Service, and then use the following configuration:
 version: v3
 teleport:
   auth_token: /path/to/token
-  proxy_server: mytenant.teleport.sh:443 # replace with your cloud tenant
+  proxy_server: example.teleport.sh:443 # replace with your cloud tenant
 windows_desktop_service:
   enabled: yes
   ldap:

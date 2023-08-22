@@ -89,20 +89,10 @@ this secret as long as your file is named `license.pem`.
   $ kubectl -n teleport create secret generic license --from-file=license.pem
   ```
 
-After the `ConfigMap` has been created<ScopedBlock scope="enterprise"> and you
-have deployed the secret containing your license file</ScopedBlock>, you can
-deploy the Helm chart into a Kubernetes cluster with a command like this:
+Next, deploy the Helm chart into a Kubernetes cluster with a command like this:
 
-<ScopedBlock scope={["oss", "cloud"]}>
-
-```code
-$ helm install teleport teleport/teleport-cluster \
-  --namespace teleport \
-  --set chartMode=custom
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["enterprise"]}>
+<Tabs>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
 ```code
 $ helm install teleport teleport/teleport-cluster \
@@ -111,7 +101,17 @@ $ helm install teleport teleport/teleport-cluster \
   --set enterprise=true
 ```
 
-</ScopedBlock>
+</TabItem>
+<TabItem scope={["oss", "cloud"]} label="Other Editions">
+
+```code
+$ helm install teleport teleport/teleport-cluster \
+  --namespace teleport \
+  --set chartMode=custom
+```
+
+</TabItem>
+</Tabs>
 
 <Admonition type="warning">
   Most settings from `values.yaml` will not be applied in `custom` mode.

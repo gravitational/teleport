@@ -16,13 +16,16 @@ Teleport provides for human users.
 
 ## Prerequisites
 
-<ScopedBlock scope={["cloud"]}>
+<Tabs>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 You will need Teleport Cloud 9.3.0 or later.
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
+</TabItem>
+<TabItem scope={["oss","enterprise"]} label="Self-Hosted">
 You will need to be running the Teleport Proxy and Auth Services, version 9.3.0 or
 later.
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 If you have not already put your database behind the Teleport Database Service,
 follow the [database access getting started guide](../../database-access/getting-started.mdx).
