@@ -148,9 +148,7 @@ exports[`render correct form to add TOTP device 1`] = `
 .c11 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -158,9 +156,7 @@ exports[`render correct form to add TOTP device 1`] = `
 .c14 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -451,7 +447,7 @@ exports[`render correct form to add TOTP device 1`] = `
           font-size="0"
           for="select"
         >
-          Two-factor type
+          Two-factor Type
         </label>
         <div
           class="c12"
@@ -515,7 +511,7 @@ exports[`render correct form to add TOTP device 1`] = `
           class="c14"
           font-size="0"
         >
-          Authenticator code
+          Authenticator Code
           <input
             autocomplete="one-time-code"
             class="c15"
@@ -535,7 +531,7 @@ exports[`render correct form to add TOTP device 1`] = `
         class="c14"
         font-size="0"
       >
-        Device name
+        Device Name
         <input
           autocomplete="off"
           class="c15"
@@ -691,9 +687,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 .c9 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -701,9 +695,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 .c12 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -967,7 +959,7 @@ exports[`render correct form to add Webauthn device 1`] = `
           font-size="0"
           for="select"
         >
-          Two-factor type
+          Two-factor Type
         </label>
         <div
           class="c10"
@@ -1032,7 +1024,7 @@ exports[`render correct form to add Webauthn device 1`] = `
         class="c12"
         font-size="0"
       >
-        Device name
+        Device Name
         <input
           autocomplete="off"
           class="c13"
@@ -1188,9 +1180,7 @@ exports[`render correct form to add with multi option 1`] = `
 .c9 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1198,9 +1188,7 @@ exports[`render correct form to add with multi option 1`] = `
 .c12 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -1464,7 +1452,7 @@ exports[`render correct form to add with multi option 1`] = `
           font-size="0"
           for="select"
         >
-          Two-factor type
+          Two-factor Type
         </label>
         <div
           class="c10"
@@ -1529,7 +1517,7 @@ exports[`render correct form to add with multi option 1`] = `
         class="c12"
         font-size="0"
       >
-        Device name
+        Device Name
         <input
           autocomplete="off"
           class="c13"
@@ -1707,9 +1695,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 .c10 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1717,9 +1703,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 .c13 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 0px;
 }
@@ -1990,7 +1974,7 @@ exports[`render failed state for form to add with multi option 1`] = `
           font-size="0"
           for="select"
         >
-          Two-factor type
+          Two-factor Type
         </label>
         <div
           class="c11"
@@ -2055,7 +2039,7 @@ exports[`render failed state for form to add with multi option 1`] = `
         class="c13"
         font-size="0"
       >
-        Device name
+        Device Name
         <input
           autocomplete="off"
           class="c14"

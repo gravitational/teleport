@@ -198,7 +198,7 @@ function Reviewers({
           border-color: ${props => props.theme.colors.spotBackground[1]};
         `}
       >
-        <Text mr={2} fontSize="11px" fontWeight="500" caps>
+        <Text mr={2} fontSize={1}>
           Reviewers (optional)
         </Text>
         <ButtonBorder onClick={toggleEditReviewers} size="small" width="50px">

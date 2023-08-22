@@ -126,7 +126,7 @@ export function VerifyUser({
                   <FieldSelect
                     maxWidth="50%"
                     width="100%"
-                    label="Two-factor type"
+                    label="Two-factor Type"
                     value={mfaOption}
                     options={mfaOptions}
                     onChange={(o: MfaOption) => setMfaOption(o)}
@@ -137,7 +137,7 @@ export function VerifyUser({
                   {mfaOption.value === 'otp' && (
                     <FieldInput
                       width="50%"
-                      label="authenticator code"
+                      label="Authenticator Code"
                       rule={requiredToken}
                       inputMode="numeric"
                       autoComplete="one-time-code"

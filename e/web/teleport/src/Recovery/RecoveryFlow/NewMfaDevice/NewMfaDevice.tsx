@@ -132,7 +132,7 @@ export function NewMfaDevice({
                 <FieldSelect
                   maxWidth="50%"
                   width="100%"
-                  label="Two-factor type"
+                  label="Two-factor Type"
                   value={mfaOption}
                   options={mfaOptions}
                   onChange={(o: MfaOption) => onSetMfaOption(o, validator)}
@@ -143,7 +143,7 @@ export function NewMfaDevice({
                 {mfaOption.value === 'otp' && (
                   <FieldInput
                     width="50%"
-                    label="Authenticator code"
+                    label="Authenticator Code"
                     rule={requiredToken}
                     inputMode="numeric"
                     autoComplete="one-time-code"
@@ -156,7 +156,7 @@ export function NewMfaDevice({
               </Flex>
               <FieldInput
                 rule={requiredField('Device name is required')}
-                label="Device name"
+                label="Device Name"
                 placeholder="Name"
                 width="100%"
                 autoFocus

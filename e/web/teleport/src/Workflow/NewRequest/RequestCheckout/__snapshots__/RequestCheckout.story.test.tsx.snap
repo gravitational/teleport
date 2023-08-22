@@ -143,11 +143,9 @@ exports[`failed state 1`] = `
 .c17 {
   overflow: hidden;
   text-overflow: ellipsis;
-  text-transform: uppercase;
-  font-size: 11px;
+  font-size: 12px;
   margin: 0px;
   margin-right: 8px;
-  font-weight: 500;
 }
 
 .c4 {
@@ -168,9 +166,7 @@ exports[`failed state 1`] = `
 .c20 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -884,8 +880,7 @@ exports[`failed state 1`] = `
             >
               <div
                 class="c17"
-                font-size="11px"
-                font-weight="500"
+                font-size="1"
               >
                 Reviewers (optional)
               </div>
@@ -1055,11 +1050,9 @@ exports[`loaded state 1`] = `
 .c16 {
   overflow: hidden;
   text-overflow: ellipsis;
-  text-transform: uppercase;
-  font-size: 11px;
+  font-size: 12px;
   margin: 0px;
   margin-right: 8px;
-  font-weight: 500;
 }
 
 .c4 {
@@ -1080,9 +1073,7 @@ exports[`loaded state 1`] = `
 .c19 {
   color: #FFFFFF;
   display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 12px;
   width: 100%;
   margin-bottom: 4px;
 }
@@ -1790,8 +1781,7 @@ exports[`loaded state 1`] = `
             >
               <div
                 class="c16"
-                font-size="11px"
-                font-weight="500"
+                font-size="1"
               >
                 Reviewers (optional)
               </div>

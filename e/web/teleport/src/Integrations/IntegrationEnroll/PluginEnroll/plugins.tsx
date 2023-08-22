@@ -122,7 +122,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
         <InputIconContainer style={{ position: 'relative' }}>
           <StyledFieldInput
             width="260px"
-            label="Default channel"
+            label="Default Channel"
             name="fallback_channel" // must be the same name as expected by the backend as form value
             rule={requiredField('Default channel must be specified')}
             value={channel}
