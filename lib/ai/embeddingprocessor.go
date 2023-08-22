@@ -39,8 +39,8 @@ const maxEmbeddingAPISize = 1000
 
 // Embeddings implements the minimal interface used by the Embedding processor.
 type Embeddings interface {
-	// GetEmbeddings returns all embeddings for a given kind.
-	GetEmbeddings(ctx context.Context, kind string) stream.Stream[*embeddinglib.Embedding]
+	// GetEmbeddings returns all embeddings.
+	GetEmbeddings(ctx context.Context) stream.Stream[*embeddinglib.Embedding]
 	// UpsertEmbedding creates or update a single ai.Embedding in the backend.
 	UpsertEmbedding(ctx context.Context, embedding *embeddinglib.Embedding) (*embeddinglib.Embedding, error)
 }
@@ -160,15 +160,15 @@ func NewEmbeddingProcessor(cfg *EmbeddingProcessorConfig) *EmbeddingProcessor {
 	}
 }
 
-// nodeStringPair is a helper struct that pairs a node with a data string.
-type nodeStringPair struct {
-	node types.Server
-	data string
+// resourceStringPair is a helper struct that pairs a reosurce with a data string.
+type resourceStringPair struct {
+	resource types.Resource
+	data     string
 }
 
 // mapProcessFn is a helper function that maps a slice of nodeStringPair,
 // compute embeddings and return them as a slice of ai.Embedding.
-func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStringPair) ([]*embeddinglib.Embedding, error) {
+func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*resourceStringPair) ([]*embeddinglib.Embedding, error) {
 	dataBatch := make([]string, 0, len(data))
 	for _, pair := range data {
 		dataBatch = append(dataBatch, pair.data)
@@ -181,8 +181,8 @@ func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStrin
 
 	results := make([]*embeddinglib.Embedding, 0, len(embeddings))
 	for i, embedding := range embeddings {
-		emb := embeddinglib.NewEmbedding(types.KindNode,
-			data[i].node.GetName(), embedding,
+		emb := embeddinglib.NewEmbedding(data[i].resource.GetKind(),
+			data[i].resource.GetName(), embedding,
 			embeddinglib.EmbeddingHash([]byte(data[i].data)),
 		)
 		results = append(results, emb)
@@ -208,7 +208,7 @@ func (e *EmbeddingProcessor) Run(ctx context.Context, initialDelay, period time.
 	}
 }
 
-// process updates embeddings for all nodes once.
+// process updates embeddings for all resources once.
 func (e *EmbeddingProcessor) process(ctx context.Context) {
 	batch := NewBatchReducer(e.mapProcessFn,
 		maxEmbeddingAPISize, // Max batch size allowed by OpenAI API,
@@ -217,19 +217,20 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 	e.log.Debugf("embedding processor started")
 	defer e.log.Debugf("embedding processor finished")
 
-	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, types.KindNode)
+	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx)
 	nodesStream := e.nodeSrv.GetNodeStream(ctx, defaults.Namespace)
+	resourceStream := streamutils.NewMapStreams(nodesStream, func(node types.Server) types.Resource { return node })
 
 	s := streamutils.NewZipStreams(
-		nodesStream,
+		resourceStream,
 		embeddingsStream,
-		// On new node callback. Add the node to the batch.
-		func(node types.Server) error {
-			nodeData, err := embeddinglib.SerializeNode(node)
+		// On new resource callback. Add the resource to the batch.
+		func(resource types.Resource) error {
+			resourceData, err := embeddinglib.SerializeResource(resource)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			vectors, err := batch.Add(ctx, &nodeStringPair{node, string(nodeData)})
+			vectors, err := batch.Add(ctx, &resourceStringPair{resource, string(resourceData)})
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -239,17 +240,17 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 
 			return nil
 		},
-		// On equal node callback. Check if the node's embedding hash matches
-		// the one in the backend. If not, add the node to the batch.
-		func(node types.Server, embedding *embeddinglib.Embedding) error {
-			nodeData, err := embeddinglib.SerializeNode(node)
+		// On equal resource callback. Check if the resource's embedding hash matches
+		// the one in the backend. If not, add the resource to the batch.
+		func(resource types.Resource, embedding *embeddinglib.Embedding) error {
+			resourceData, err := embeddinglib.SerializeResource(resource)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			nodeHash := embeddinglib.EmbeddingHash(nodeData)
+			resourceHash := embeddinglib.EmbeddingHash(resourceData)
 
-			if !EmbeddingHashMatches(embedding, nodeHash) {
-				vectors, err := batch.Add(ctx, &nodeStringPair{node, string(nodeData)})
+			if !EmbeddingHashMatches(embedding, resourceHash) {
+				vectors, err := batch.Add(ctx, &resourceStringPair{resource, string(resourceData)})
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -260,8 +261,8 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 			return nil
 		},
 		// On compare keys callback. Compare the keys for iteration.
-		func(node types.Server, embeddings *embeddinglib.Embedding) int {
-			return strings.Compare(node.GetName(), embeddings.GetEmbeddedID())
+		func(resource types.Resource, embeddings *embeddinglib.Embedding) int {
+			return strings.Compare(resource.GetName(), embeddings.GetEmbeddedID())
 		},
 	)
 
@@ -269,7 +270,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		e.log.Warnf("Failed to generate nodes embedding: %v", err)
 	}
 
-	// Process the remaining nodes in the batch
+	// Process the remaining resources in the batch
 	vectors, err := batch.Finalize(ctx)
 	if err != nil {
 		e.log.Warnf("Failed to add node to batch: %v", err)
@@ -290,7 +291,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 // latest embeddings. The new index is created and then swapped with the old one.
 func (e *EmbeddingProcessor) updateMemIndex(ctx context.Context) error {
 	embeddingsIndex := NewSimpleRetriever()
-	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, types.KindNode)
+	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx)
 
 	for embeddingsStream.Next() {
 		embedding := embeddingsStream.Item()

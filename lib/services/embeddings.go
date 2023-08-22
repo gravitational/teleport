@@ -30,7 +30,7 @@ type Embeddings interface {
 	// GetEmbedding looks up a single embedding by its name in the backend.
 	GetEmbedding(ctx context.Context, kind, resourceID string) (*embedding.Embedding, error)
 	// GetEmbeddings returns all embeddings for a given kind.
-	GetEmbeddings(ctx context.Context, kind string) stream.Stream[*embedding.Embedding]
+	GetEmbeddings(ctx context.Context) stream.Stream[*embedding.Embedding]
 	// UpsertEmbedding creates or updates a single ai.Embedding in the backend.
 	UpsertEmbedding(ctx context.Context, embedding *embedding.Embedding) (*embedding.Embedding, error)
 }
