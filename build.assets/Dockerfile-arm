@@ -1,3 +1,7 @@
+# This Dockerfile is used to build Teleport on ARM only.
+# We are using the official Debian 11 image as a base image
+# because the finaly binary must be compatible with distroless
+# images that are also Debian 11 based: https://github.com/GoogleContainerTools/distroless
 FROM docker.io/library/debian:11
 
 COPY locale.gen /etc/locale.gen
@@ -14,16 +18,11 @@ ENV LANGUAGE="en_US.UTF-8" \
 ARG BUILDARCH
 
 RUN apt-get -y update && \
-    apt-get -y install software-properties-common && \
-    apt-get update -y --fix-missing && \
-    apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
-        apt-utils \
         build-essential \
         ca-certificates \
         curl \
         git \
-        gnupg \
         gzip \
         libc6-dev \
         libpam-dev \
@@ -33,8 +32,8 @@ RUN apt-get -y update && \
         unzip \
         zip \
         # ARM dependencies
-        libc6-dev-armhf-cross \
         gcc-arm-linux-gnueabihf \
+        libc6-dev-armhf-cross \
         && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
@@ -44,16 +43,19 @@ RUN apt-get -y update && \
 ARG NODE_VERSION
 ENV NODE_PATH="/usr/local/lib/nodejs-linux"
 ENV PATH="$PATH:${NODE_PATH}/bin"
-RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
-    export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
-    mkdir -p ${NODE_PATH} && \
-    curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
-    tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
+RUN NODE_ARCH=$(if [ "$BUILDARCH" = 'amd64' ]; then echo 'x64'; else echo 'arm64'; fi) && \
+    NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
+    NODE_FILE="$(mktemp node-XXXXXX.tar.xz)" && \
+    mkdir -p "$NODE_PATH" && \
+    curl -o "$NODE_FILE" -fsSL "$NODE_URL" && \
+    tar -xJf "$NODE_FILE" -C /usr/local/lib/nodejs-linux --strip-components=1
 RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && \
+    cd /opt && \
+    curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -67,6 +69,7 @@ ARG UID
 ARG GID
 RUN groupadd ci --gid=$GID -o && \
     useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
-    mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport
+    mkdir -p -m0700 /var/lib/teleport && \
+    chown -R ci /var/lib/teleport
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
