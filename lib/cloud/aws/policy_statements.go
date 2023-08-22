@@ -98,3 +98,27 @@ func StatementForRDSDBConnect() *Statement {
 		Resources: allResources,
 	}
 }
+
+// StatementForEC2InstanceConnectEndpoint returns the statement that allows the flow for accessing
+// an EC2 instance using its private IP, using EC2 Instance Connect Endpoint.
+func StatementForEC2InstanceConnectEndpoint() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"ec2:DescribeInstances",
+			"ec2:DescribeInstanceConnectEndpoints",
+			"ec2:DescribeSecurityGroups",
+
+			// Create ICE requires the following actions:
+			// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/permissions-for-ec2-instance-connect-endpoint.html
+			"ec2:CreateInstanceConnectEndpoint",
+			"ec2:CreateTags",
+			"ec2:CreateNetworkInterface",
+			"iam:CreateServiceLinkedRole",
+
+			"ec2-instance-connect:SendSSHPublicKey",
+			"ec2-instance-connect:OpenTunnel",
+		},
+		Resources: allResources,
+	}
+}
