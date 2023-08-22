@@ -191,10 +191,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		if member.AddedBy == "" {
 			return trace.BadParameter("member %s added by is missing", member.Name)
 		}
-
-		if member.Expires.IsZero() {
-			member.Expires = a.Spec.Audit.NextAuditDate
-		}
 	}
 
 	return nil
