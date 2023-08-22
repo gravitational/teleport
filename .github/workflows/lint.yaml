@@ -14,7 +14,6 @@ on:
 
 jobs:
   lint:
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     name: Lint (Go)
     runs-on: ubuntu-22.04-16core
 
@@ -42,26 +41,31 @@ jobs:
         with:
           version: latest
           working-directory: api
+          skip-cache: true
       - name: golangci-lint (teleport)
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
           args: --build-tags libfido2,piv
+          skip-cache: true
       - name: golangci-lint (kube-agent-updater)
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
           working-directory: integrations/kube-agent-updater
+          skip-cache: true
       - name: golangci-lint (assets/backport)
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
           working-directory: assets/backport
+          skip-cache: true
       - name: golangci-lint (build.assets/tooling)
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
           working-directory: build.assets/tooling
+          skip-cache: true
 
       - uses: bufbuild/buf-setup-action@v1
         with:

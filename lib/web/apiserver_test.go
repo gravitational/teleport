@@ -3638,7 +3638,7 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 			insertResource: func() {
 				resource := &types.AppServerV3{
 					Metadata: types.Metadata{Name: "test-app"},
-					Kind:     types.KindAppServer,
+					Kind:     types.KindApp,
 					Version:  types.V2,
 					Spec: types.AppServerSpecV3{
 						HostID: "hostid",
@@ -4211,7 +4211,7 @@ func TestClusterAppsGet(t *testing.T) {
 
 	resource := &types.AppServerV3{
 		Metadata: types.Metadata{Name: "test-app"},
-		Kind:     types.KindAppServer,
+		Kind:     types.KindApp,
 		Version:  types.V2,
 		Spec: types.AppServerSpecV3{
 			HostID: "hostid",
@@ -4273,7 +4273,7 @@ func TestClusterAppsGet(t *testing.T) {
 	require.Len(t, resp.Items, 3)
 	require.Equal(t, 3, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
-		Kind:        types.KindAppServer,
+		Kind:        types.KindApp,
 		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
@@ -4284,7 +4284,7 @@ func TestClusterAppsGet(t *testing.T) {
 		AWSConsole:  true,
 		UserGroups:  []ui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
 	}, {
-		Kind:       types.KindAppServer,
+		Kind:       types.KindApp,
 		Name:       "app2",
 		URI:        "uri",
 		Labels:     []ui.Label{},
@@ -4293,7 +4293,7 @@ func TestClusterAppsGet(t *testing.T) {
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
 	}, {
-		Kind:        types.KindSAMLIdPServiceProvider,
+		Kind:        types.KindApp,
 		Name:        "test-saml-app",
 		Description: "SAML Application",
 		URI:         "",
