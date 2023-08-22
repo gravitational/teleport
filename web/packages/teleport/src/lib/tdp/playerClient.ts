@@ -66,7 +66,6 @@ export class PlayerClient extends Client {
 
   // Overrides Client implementation.
   handleClientScreenSpec(buffer: ArrayBuffer) {
-    console.log('handleClientScreenSpec');
     const spec = this.codec.decodeClientScreenSpec(buffer);
     this.setClientScreenSpec(spec);
   }

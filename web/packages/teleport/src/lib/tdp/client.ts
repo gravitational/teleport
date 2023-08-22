@@ -310,7 +310,6 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   handleRDPChannelIDs(buffer: ArrayBuffer) {
-    console.log('handleRDPChannelIDs');
     const { ioChannelId, userChannelId } =
       this.codec.decodeRDPChannelIDs(buffer);
 
