@@ -88,9 +88,6 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   private logger = Logger.create('TDPClient');
 
-  // TODO(isaiah): width/height are optional -- include them when the client itself should determine the screen size such as in a desktop session.
-  // Leave them undefined when the server should set the screen size, such as when the client is being used for recording playback.
-  //
   constructor(socketAddr: string) {
     super();
     this.socketAddr = socketAddr;
@@ -153,10 +150,11 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   private initFastPathProcessor(ioChannelId: number, userChannelId: number) {
     if (!this.spec.width || !this.spec.height) {
+      this.logger.error(
+        'client screen spec must be set before initializing fast path processor'
+      );
       this.handleError(
-        new Error(
-          'client screen spec must be set before initializing fast path processor'
-        ),
+        new Error('internal error'),
         TdpClientEvent.CLIENT_ERROR
       );
     }

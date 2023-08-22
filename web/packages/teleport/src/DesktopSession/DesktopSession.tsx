@@ -119,7 +119,7 @@ export function DesktopSession(props: State) {
 
   if (errorDialog.open) {
     return (
-      <Session {...props} connect={false} displayCanvas={false}>
+      <Session {...props} clientShouldConnect={false} displayCanvas={false}>
         <Dialog
           dialogCss={() => ({ width: '484px' })}
           onClose={onDialogClose}
@@ -156,7 +156,11 @@ export function DesktopSession(props: State) {
     const shouldConnect = false;
 
     return (
-      <Session {...props} connect={shouldConnect} displayCanvas={false}>
+      <Session
+        {...props}
+        clientShouldConnect={shouldConnect}
+        displayCanvas={false}
+      >
         <Dialog
           dialogCss={() => ({ width: '484px' })}
           onClose={() => {}}
@@ -193,7 +197,7 @@ export function DesktopSession(props: State) {
 
   if (disconnected) {
     return (
-      <Session {...props} connect={false} displayCanvas={false}>
+      <Session {...props} clientShouldConnect={false} displayCanvas={false}>
         <Box textAlign="center" m={10}>
           <Text>Session successfully disconnected</Text>
         </Box>
@@ -208,7 +212,11 @@ export function DesktopSession(props: State) {
     const shouldConnect = fetchAttempt.status !== 'processing';
 
     return (
-      <Session {...props} connect={shouldConnect} displayCanvas={false}>
+      <Session
+        {...props}
+        clientShouldConnect={shouldConnect}
+        displayCanvas={false}
+      >
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
@@ -216,7 +224,7 @@ export function DesktopSession(props: State) {
     );
   }
 
-  return <Session {...props} connect={true} displayCanvas={true} />;
+  return <Session {...props} clientShouldConnect={true} displayCanvas={true} />;
 }
 
 function Session({
@@ -228,22 +236,22 @@ function Session({
   setClipboardSharingEnabled,
   directorySharingState,
   setDirectorySharingState,
-  onPngFrame,
-  onBitmapFrame,
-  onClipboardData,
-  onTdpError,
-  onTdpWarning,
-  onWsClose,
-  onWsOpen,
-  onKeyDown,
-  onKeyUp,
-  onMouseMove,
-  onMouseDown,
-  onMouseUp,
-  onMouseWheelScroll,
-  onContextMenu,
-  connect,
-  screenSpec,
+  clientOnPngFrame,
+  clientOnBitmapFrame,
+  clientOnClipboardData,
+  clientOnTdpError,
+  clientOnTdpWarning,
+  clientOnWsClose,
+  clientOnWsOpen,
+  canvasOnKeyDown,
+  canvasOnKeyUp,
+  canvasOnMouseMove,
+  canvasOnMouseDown,
+  canvasOnMouseUp,
+  canvasOnMouseWheelScroll,
+  canvasOnContextMenu,
+  clientShouldConnect,
+  clientScreenSpec,
   displayCanvas,
   clipboardSharingEnabled,
   onShareDirectory,
@@ -295,23 +303,23 @@ function Session({
           display: displayCanvas ? 'flex' : 'none',
           flex: 1, // ensures the canvas fills available screen space
         }}
-        tdpCli={tdpClient}
-        tdpCliConnect={connect}
-        tdpCliScreenSpec={screenSpec}
-        tdpCliOnPngFrame={onPngFrame}
-        tdpCliOnBmpFrame={onBitmapFrame}
-        tdpCliOnClipboardData={onClipboardData}
-        tdpCliOnTdpError={onTdpError}
-        tdpCliOnTdpWarning={onTdpWarning}
-        tdpCliOnWsClose={onWsClose}
-        tdpCliOnWsOpen={onWsOpen}
-        onKeyDown={onKeyDown}
-        onKeyUp={onKeyUp}
-        onMouseMove={onMouseMove}
-        onMouseDown={onMouseDown}
-        onMouseUp={onMouseUp}
-        onMouseWheelScroll={onMouseWheelScroll}
-        onContextMenu={onContextMenu}
+        client={tdpClient}
+        clientShouldConnect={clientShouldConnect}
+        clientScreenSpec={clientScreenSpec}
+        clientOnPngFrame={clientOnPngFrame}
+        clientOnBmpFrame={clientOnBitmapFrame}
+        clientOnClipboardData={clientOnClipboardData}
+        clientOnTdpError={clientOnTdpError}
+        clientOnTdpWarning={clientOnTdpWarning}
+        clientOnWsClose={clientOnWsClose}
+        clientOnWsOpen={clientOnWsOpen}
+        canvasOnKeyDown={canvasOnKeyDown}
+        canvasOnKeyUp={canvasOnKeyUp}
+        canvasOnMouseMove={canvasOnMouseMove}
+        canvasOnMouseDown={canvasOnMouseDown}
+        canvasOnMouseUp={canvasOnMouseUp}
+        canvasOnMouseWheelScroll={canvasOnMouseWheelScroll}
+        canvasOnContextMenu={canvasOnContextMenu}
       />
     </Flex>
   );
@@ -320,6 +328,6 @@ function Session({
 type Props = State & {
   // Determines whether the tdp client that's passed to the TdpClientCanvas
   // should connect to the server.
-  connect: boolean;
+  clientShouldConnect: boolean;
   displayCanvas: boolean;
 };
