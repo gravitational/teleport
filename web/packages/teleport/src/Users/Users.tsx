@@ -56,7 +56,6 @@ export function Users(props: State) {
   } = props;
 
   function handleInviteCollaboratorsClick() {
-    console.log('handleInviteCollaboratorsClick()');
     setInviteCollaboratorsOpen(true);
   }
 

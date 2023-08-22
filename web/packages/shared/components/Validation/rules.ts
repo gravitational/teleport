@@ -102,10 +102,35 @@ const requiredRoleArn = (roleArn: string) => () => {
   };
 };
 
+// requiredEmailLike ensures a string contains a plausible email, i.e. that it
+// contains an '@' and some characters on each side.
+const requiredEmailLike = (email: string) => () => {
+  if (!email) {
+    return {
+      valid: false,
+      message: 'Email address is required',
+    }
+  }
+
+  // Must contain an @, i.e. 2 entries, and each must be nonempty.
+  let parts = email.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return {
+      valid: false,
+      message: 'Email address is invalid',
+    }
+  }
+
+  return {
+    valid: true
+  }
+};
+
 export {
   requiredToken,
   requiredPassword,
   requiredConfirmedPassword,
   requiredField,
   requiredRoleArn,
+  requiredEmailLike,
 };
