@@ -2017,6 +2017,24 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
   </TabItem>
 </Tabs>
 
+## `annotations.secret`
+
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+
+Kubernetes annotations which should be applied to the `Secret` created by the chart.
+
+`values.yaml` example:
+
+  ```yaml
+  annotations:
+    secret:
+      kubernetes.io/annotation: value
+  ```
+
 ## `annotations.serviceAccount`
 
 | Type     | Default value | Can be used in `custom` mode? |
