@@ -167,6 +167,9 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	accessList1Member1 := newAccessListMember(t, accessList1.GetName(), "alice")
 	accessList1Member2 := newAccessListMember(t, accessList1.GetName(), "bob")
 
+	// Set member2 expiry to zero, which should get the access list next audit date as expiry.
+	accessList1Member2.Spec.Expires = time.Time{}
+
 	_, err = service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
 	require.True(t, trace.IsNotFound(err))
 	_, err = service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member2.GetName())
@@ -178,6 +181,9 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(accessList1Member1, member, cmpOpts...))
 	member, err = service.UpsertAccessListMember(ctx, accessList1Member2)
 	require.NoError(t, err)
+
+	accessList1Member2.Spec.Expires = accessList1.Spec.Audit.NextAuditDate
+
 	require.Empty(t, cmp.Diff(accessList1Member2, member, cmpOpts...))
 
 	member, err = service.GetAccessListMember(ctx, accessList1.GetName(), accessList1Member1.GetName())
@@ -292,7 +298,8 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 				},
 			},
 			Audit: accesslist.Audit{
-				Frequency: time.Hour,
+				Frequency:     time.Hour,
+				NextAuditDate: time.Now().Add(time.Hour),
 			},
 			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},

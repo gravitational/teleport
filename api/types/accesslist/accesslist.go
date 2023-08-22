@@ -173,9 +173,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("audit frequency must be greater than 0")
 	}
 
-	if a.Spec.Audit.NextAuditDate.IsZero() {
-		return trace.BadParameter("next audit date can't be zero")
-	}
+	// TODO(mdwn): Next audit date must not be zero.
 
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
 		return trace.BadParameter("grants must specify at least one role or trait")
@@ -190,12 +188,12 @@ func (a *AccessList) CheckAndSetDefaults() error {
 			return trace.BadParameter("member %s joined is missing", member.Name)
 		}
 
-		if member.Expires.IsZero() {
-			return trace.BadParameter("member %s expires is missing", member.Name)
-		}
-
 		if member.AddedBy == "" {
 			return trace.BadParameter("member %s added by is missing", member.Name)
+		}
+
+		if member.Expires.IsZero() {
+			member.Expires = a.Spec.Audit.NextAuditDate
 		}
 	}
 
@@ -256,12 +254,17 @@ func (a *Audit) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, fmt.Sprintf("%v", audit["next_audit_date"]))
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
 func (a *Audit) MarshalJSON() ([]byte, error) {
 	audit := map[string]interface{}{}
 	audit["frequency"] = a.Frequency.String()
+	audit["next_audit_date"] = a.NextAuditDate.Format(time.RFC3339Nano)
 	data, err := json.Marshal(audit)
 	return data, trace.Wrap(err)
 }
