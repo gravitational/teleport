@@ -234,18 +234,27 @@ export const ConnectMyComputerContextProvider: FC<{
     }
   }
 
+  useEffect(() => {
+    // This call checks if the agent is configured even if the user does not have access to Connect My Computer.
+    // Unfortunately, we cannot call it only if `canUse === true`, because to resolve `canUse` value
+    // we need to fetch some data from the auth server which takes time.
+    // This doesn't work for us, because the information if the agent is configured is needed immediately -
+    // based on this we replace the setup document with the status document.
+    // If we had waited for `canUse` to become true, the user might have seen a setup document
+    // which would have been replaced by the other document after 1-2 seconds.
+    if (isAgentConfiguredAttempt.status === '') {
+      checkIfAgentIsConfigured();
+    }
+  }, [checkIfAgentIsConfigured, isAgentConfiguredAttempt.status]);
+
+  const isAgentConfigured =
+    isAgentConfiguredAttempt.status === 'success' &&
+    isAgentConfiguredAttempt.data;
   const agentIsNotStarted =
     currentAction.kind === 'observe-process' &&
     currentAction.agentProcessState.status === 'not-started';
 
   useEffect(() => {
-    if (isAgentConfiguredAttempt.status === '') {
-      checkIfAgentIsConfigured();
-    }
-
-    const isAgentConfigured =
-      isAgentConfiguredAttempt.status === 'success' &&
-      isAgentConfiguredAttempt.data;
     const shouldAutoStartAgent =
       isAgentConfigured &&
       canUse &&
@@ -256,10 +265,9 @@ export const ConnectMyComputerContextProvider: FC<{
     }
   }, [
     canUse,
-    checkIfAgentIsConfigured,
     downloadAndStartAgent,
     agentIsNotStarted,
-    isAgentConfiguredAttempt,
+    isAgentConfigured,
     props.rootClusterUri,
     workspacesService,
   ]);
