@@ -666,6 +666,22 @@ func (d *DeviceAuthenticateEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submit
 	}
 }
 
+// FeatureRecommendationEvent emitted when a feature is recommended to user or
+// when user completes the desired CTA for the feature.
+type FeatureRecommendationEvent prehogv1a.FeatureRecommendationEvent
+
+func (e *FeatureRecommendationEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_FeatureRecommendationEvent{
+			FeatureRecommendationEvent: &prehogv1a.FeatureRecommendationEvent{
+				UserName:                    a.AnonymizeString(e.UserName),
+				Feature:                     e.Feature,
+				FeatureRecommendationStatus: e.FeatureRecommendationStatus,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
@@ -957,6 +973,13 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			TotalTokens:      e.AssistAction.TotalTokens,
 			PromptTokens:     e.AssistAction.PromptTokens,
 			CompletionTokens: e.AssistAction.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_FeatureRecommendationEvent:
+		ret := &FeatureRecommendationEvent{
+			UserName:                    userMD.Username,
+			Feature:                     prehogv1a.Feature(e.FeatureRecommendationEvent.Feature),
+			FeatureRecommendationStatus: prehogv1a.FeatureRecommendationStatus(e.FeatureRecommendationEvent.FeatureRecommendationStatus),
 		}
 		return ret, nil
 	default:
