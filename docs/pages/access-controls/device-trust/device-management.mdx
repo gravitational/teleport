@@ -21,16 +21,16 @@ responsible for managing devices, adding new devices to the inventory and
 removing devices that are no longer in use.
 
 <Admonition type="tip" title="Self enrollment">
-User's with `editor` role can register and enroll their device directly using `tsh` with
+Users with the `editor` role can register and enroll their device in a single step with
 the following command:
 ```code
 $ tsh device enroll --current-device
 ```
 </Admonition>
 
-<Admonition type="tip" title="Sync with Jamf">
-Teleport supports device synchronization with [Jamf](./jamf-integration.mdx). Once configured, devices
-are automatically updated in Teleport device inventory, avoiding manual device operation.
+<Admonition type="tip" title="Sync with Jamf Pro">
+Teleport supports device synchronization with [Jamf Pro](./jamf-integration.mdx). Once configured, devices
+are automatically updated in Teleport's device inventory.
 </Admonition>
 
 Before you can enroll the device, you need to register it. To register
@@ -103,8 +103,8 @@ a device, you first need to determine its serial number.
 </Tabs>
 
 <Admonition type="warning" title="Device Role">
-For clusters created using Teleport v12 or newer, the builtin role editor has the necessary permissions to manage devices.
-If you Teleport cluster is older than v12, you will need to create and grant `device` role to manage device inventory.[link to below]
+For clusters created using Teleport v12 or newer, the preset `editor` role has the necessary permissions to manage devices.
+If you Teleport cluster is older than v12, you will need to create and grant [`device` role](#dedicated-device-admin-role) to manage device inventory.
 </Admonition>
 
 ## Generate enrollment token
@@ -158,8 +158,8 @@ perform a TPM Credential Activation. This step is only required for
 enrollment and is not required on future device authentications.
 </Admonition>
 
-## Auto enrollment
-In a large organization, distributing enrollment token to user can be challenging.
+## Auto-Enrollment
+In a large organization, distributing enrollment tokens to each user can be challenging.
 Teleport supports auto-enrollment, which if enabled, automatically enrolls user
 device during next Teleport login.
 
@@ -167,11 +167,6 @@ Auto-enrollment allows `tsh` to automatically enroll devices already registered
 in Teleport during the user's login. The registration may be
 [manual](#register-a-trusted-device) or performed using an
 integration, like the [Jamf Pro integration](./jamf-integration.mdx).
-
-<Admonition type="note" title="Device Registration">
-A previously registered device is necessary for
-  auto-enrollment to take place.
-</Admonition>
 
 Enable auto-enrollment in your cluster settings:
 

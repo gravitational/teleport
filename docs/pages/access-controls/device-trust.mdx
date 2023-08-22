@@ -8,7 +8,7 @@ videoBanner: gBQyj_X1LVw
 <Admonition type="warning">
   Device Trust is currently in Preview mode and supports following components:
 
-  - User devices: macOS and Windows OS.
+  - User devices: macOS and Windows.
   - Teleport client: `tsh` and Teleport connect.
   - Resources: SSH, Database and Kubernetes.
 
@@ -42,12 +42,12 @@ are registered or removed from Teleport. For example, this happens when the IT
 department of your company acquires new devices, or retires devices from use.
 
 Inventory management can be manually operated using `tctl` or automatically synced
-with Mobile Device Management (MDM) solution such as Jamf.
+with a Mobile Device Management (MDM) solution such as Jamf Pro.
 
 **Device enrollment** is performed either by a device admin or by the end-user,
 at your discretion. This is the step that creates the Secure Enclave private key
-in the device and register its public key counterpart with the Teleport Auth
-Server. Enrollment has to run on the actual device that you want to enroll in. For
+in the device and registers its public key counterpart with the Teleport Auth
+Server. Enrollment has to run on the actual device that you want to enroll. For
 example, this happens when a user gets a new device for the first time, or when
 IT prepares a new device for a user. Enrollment only needs to happen once per
 user/device combination.

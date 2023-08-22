@@ -5,7 +5,7 @@ videoBanner: gBQyj_X1LVw
 ---
 
 <Admonition type="warning" title="Preview Note: Supported Resources">
-The device trust preview only support SSH, Database and Kubernetes resources.
+The device trust preview only supports SSH, Database and Kubernetes resources.
 Support for other resources is planned for upcoming Teleport versions.
 </Admonition>
 
@@ -26,13 +26,15 @@ by the `device_trust_mode` authentication setting:
   Kubernetes connections.
 
 ### Prerequisites
+
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
+(!docs/pages/includes/device-trust/prereqs.mdx!)
 
 ## Role-based trusted device enforcement
 
 Role-based configuration enforces trusted device access at the role level. It
-can be configured with the `spec.options.device_trust_mode.(required,optional,off)` option and
+can be configured with the `spec.options.device_trust_mode` option and
 applies to the resources in its `allow` rules. It
 works similar to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
