@@ -153,6 +153,8 @@ type RegisterParams struct {
 	// certificates that are returned by registering should expire at.
 	// It should not be specified for non-bot registrations.
 	Expires *time.Time
+	// Insecure makes the authentication process ignore the CA of the Auth Server during registration.
+	Insecure bool
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -308,10 +310,14 @@ func proxyServerIsAuth(server utils.NetAddr) bool {
 // registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
 	var certs *proto.Certs
+
+	// Determine if either the local library is set to insecure, or insecure was passed as a parameter.
+	var insecure = params.Insecure || lib.IsInsecureDevMode()
+
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure:
 		// IAM and Azure join methods require gRPC client
-		conn, err := proxyJoinServiceConn(params, lib.IsInsecureDevMode())
+		conn, err := proxyJoinServiceConn(params, insecure)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -333,7 +339,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 		var err error
 		certs, err = params.GetHostCredentials(context.Background(),
 			getHostAddresses(params)[0],
-			lib.IsInsecureDevMode(),
+			insecure,
 			types.RegisterUsingTokenRequest{
 				Token:                token,
 				HostID:               params.ID.HostUUID,
@@ -489,9 +495,12 @@ func insecureRegisterClient(params RegisterParams) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// If no CA was found, then create a insecure connection to the Auth Server,
+	// If no CA was found (or --insecure was explicitly set), then create a insecure connection to the Auth Server,
 	// otherwise use the CA on disk to validate the Auth Server.
-	if trace.IsNotFound(err) {
+	if params.Insecure {
+		tlsConfig.InsecureSkipVerify = true
+		log.Warnf("Running in insecure mode. USE ONLY FOR DEVELOPMENT OR TESTING!")
+	} else if trace.IsNotFound(err) {
 		tlsConfig.InsecureSkipVerify = true
 
 		log.Warnf("Joining cluster without validating the identity of the Auth " +

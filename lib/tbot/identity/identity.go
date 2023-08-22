@@ -196,7 +196,7 @@ func (i *Identity) HasDNSNames(dnsNames []string) bool {
 
 // TLSConfig returns TLS config for mutual TLS authentication
 // can return NotFound error if there are no TLS credentials setup for identity
-func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
+func (i *Identity) TLSConfig(cipherSuites []uint16, insecure bool) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	if !i.HasTLSConfig() {
 		return nil, trace.NotFound("no TLS credentials setup for this identity")
@@ -217,6 +217,7 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
 	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
+	tlsConfig.InsecureSkipVerify = insecure
 	return tlsConfig, nil
 }
 
@@ -330,7 +331,7 @@ func ReadTLSIdentityFromKeyPair(identity *Identity, keyBytes, certBytes []byte, 
 
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?
-	_, err = identity.TLSConfig(utils.DefaultCipherSuites())
+	_, err = identity.TLSConfig(utils.DefaultCipherSuites(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
