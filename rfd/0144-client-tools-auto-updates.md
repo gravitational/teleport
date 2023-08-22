@@ -82,14 +82,17 @@ One way to handle execution of cached binaries is to use the os.Executable funct
 - If executable is in cache directory (.tsh/bin/tsh), then execute command as usual
 - Else try to execute tsh from cache if exists
 
-An alternative method could be use to a flag like `--no-cache` to determine if a cached version should be executed. The flow might look something like:
-- If `--no-cache=true`, execute as usual
-- If `--no-cache=false`, try to execute tsh from cache with `--no-cache=true`
-- If tsh does not exist in cache, execute as usual
-
 Another option could be to have users update their `PATH` env with `export PATH=$HOME/.tsh/bin:$PATH`. Adding the tsh bin directory to the `PATH` environment in the user's `.profile` can be handled by tsh. Users would then execute the cached binary directly. This seems like a simpler approach than the above methods. The problem is that the cached binary would not support TouchID for macOS users.
 
-I believe macOS software needs to be notarized as a requirement for TouchID. For this reason Teleport provides a separate signed tsh download at `https://cdn.teleport.dev/tsh-13.3.4.pkg`. We could change the download method for macOS users, but this might not be very straight forward to implement.
+I believe macOS software needs to be notarized as a requirement for TouchID. For this reason Teleport provides a separate signed tsh download at `https://cdn.teleport.dev/tsh-13.3.4.pkg`. We could change the download method for macOS users, but this might not be very straight forward to implement. The macOS `installer` would also require sudo/admin privileges to install the package. It sounds like this issue is being worked on currently, and we won't be shipping unsigned binaries after this quarter.
+
+## Inspiration
+
+Terraform uses a separate version manager tool called `tfenv` to install and switch between different versions of `terraform`. How it works is first you install a version using `tfenv install 1.3.9`. This will download the tarball and install terraform in `$HOME/.tfenv/versions/1.3.9/terraform`. Then you can select which version to use with `tfenv use 1.3.9`. The `1.3.9` binary is then symlinked to `$HOME/.tfenv/bin/terraform`.
+
+
+Tailscale supports the `tailscale update` command on Windows and some Linux distros. The imlpementation looks like it checks the OS/distro and then uses the system specific package manager to update the tool. On macOS they support automatic updates using https://github.com/mas-cli/mas. This feature requires `tailscale` to be install via the app store.
+
 
 ## UX
 
