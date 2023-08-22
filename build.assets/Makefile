@@ -189,12 +189,17 @@ buildbox-centos7-fips:
 # with the correct UID and GID created, so those arguments are not needed here.
 #
 .PHONY:buildbox-arm
-buildbox-arm: buildbox
+buildbox-arm:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
 	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
