@@ -93,7 +93,8 @@ On your server, save `token.file` to an appropriate, secure, directory you have
 the rights and access to read. Next, generate a configuration file enabling
 Teleport's SSH Service.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 Change `tele.example.com` to the address of your Teleport Proxy Service. Assign
 the `--token` flag to the path where you saved `token.file`.
@@ -106,8 +107,8 @@ $ sudo teleport node configure \
    --proxy=tele.example.com:443
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
  Change `mytenant.teleport.sh` to your Teleport Cloud tenant address. Assign the
  `--token` flag to the path where you saved `token.file`.
@@ -120,7 +121,9 @@ $ sudo teleport node configure \
    --proxy=mytenant.teleport.sh:443
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 The `teleport node configure` command above placed a configuration file at
 `/etc/teleport.yaml`. The last step is to start Teleport, pointing it at this
@@ -164,7 +167,8 @@ We can use `tsh` to SSH into the cluster:
 
 ### Log in to the cluster
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 On your local machine, log in to your cluster through `tsh`, assigning the
 `--proxy` flag to the address of your Teleport Proxy Service:
@@ -174,8 +178,8 @@ On your local machine, log in to your cluster through `tsh`, assigning the
 $ tsh login --proxy=tele.example.com --user=myuser
 ```
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 On your local machine, log in to your cluster through `tsh`, assigning the
 `--proxy` flag to the address of your Teleport Cloud tenant:
@@ -185,14 +189,17 @@ On your local machine, log in to your cluster through `tsh`, assigning the
 $ tsh login --proxy=mytenant.teleport.sh:443 --user=myuser
 ```
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 You'll be prompted to supply the password and second factor we set up
 previously.
 
 `myuser` will now see something similar to:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
 ```txt
 > Profile URL:      https://tele.example.com:443
@@ -208,8 +215,8 @@ Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 In this example, `myuser` is now logged into the `tele.example.com` cluster
 through Teleport SSH.
 
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ```txt
 > Profile URL:        https://mytenant.teleport.sh:443
@@ -225,7 +232,9 @@ Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 In this example, `myuser` is now logged into the `mytenant.teleport.sh`
 cluster through Teleport SSH.
 
-</ScopedBlock>
+</TabItem>
+
+</Tabs>
 
 ### Display cluster resources
 
@@ -281,22 +290,10 @@ into a server using a third-party tool. Compare the two equivalent commands:
   To use the `ssh` client generate a SSH configuration file and postfix
   the cluster name after the node name.
 
-  <ScopedBlock scope={["oss", "enterprise"]}>
-
     ```code
     $ tsh config > ssh_config_teleport
-    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.tele.example.com
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.example.teleport.sh
     ```
-
-   </ScopedBlock>
-  <ScopedBlock scope={["cloud"]}>
-
-    ```code
-    $ tsh config > ssh_config_teleport
-    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.mytenant.teleport.sh
-    ```
-
-   </ScopedBlock>
 
   </TabItem>
 </Tabs>
@@ -394,3 +391,4 @@ further Getting Started exercises.
 - [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/)
 - Consider whether [OpenSSH or Teleport SSH](https://goteleport.com/blog/openssh-vs-teleport/) is right for you.
 - [Labels](../management/admin/labels.mdx)
+

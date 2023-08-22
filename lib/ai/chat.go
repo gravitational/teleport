@@ -57,6 +57,7 @@ func (chat *Chat) GetMessages() []openai.ChatCompletionMessage {
 // Message types:
 // - CompletionCommand: a command from the assistant
 // - Message: a text message from the assistant
+// - AccessRequest: an access request suggestion from the assistant
 func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 1 {
@@ -65,6 +66,11 @@ func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdate
 		}, model.NewTokenCount(), nil
 	}
 
+	return chat.Reply(ctx, userInput, progressUpdates)
+}
+
+// Reply replies to the user input with a message from the assistant based on the current context.
+func (chat *Chat) Reply(ctx context.Context, userInput string, progressUpdates func(*model.AgentAction)) (any, *model.TokenCount, error) {
 	userMessage := openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: userInput,

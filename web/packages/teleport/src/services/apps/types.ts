@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { ResourceLabel } from 'teleport/services/agents';
 
 export interface App {
+  kind: 'app';
   id: string;
   name: string;
   description: string;
   uri: string;
   publicAddr: string;
-  labels: AgentLabel[];
+  labels: ResourceLabel[];
   clusterId: string;
   launchUrl: string;
   fqdn: string;

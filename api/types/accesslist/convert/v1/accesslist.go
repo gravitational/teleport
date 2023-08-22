@@ -69,6 +69,7 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 	}
 
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
+		Title:       msg.Spec.Title,
 		Description: msg.Spec.Description,
 		Owners:      owners,
 		Audit: accesslist.Audit{
@@ -116,6 +117,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	return &accesslistv1.AccessList{
 		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
+			Title:       accessList.Spec.Title,
 			Description: accessList.Spec.Description,
 			Owners:      owners,
 			Audit: &accesslistv1.AccessListAudit{

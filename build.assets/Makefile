@@ -9,6 +9,8 @@ SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
+# Teleport version - some targets require this to be set
+VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
 ADDFLAGS ?=
 BATSFLAGS :=
@@ -30,9 +32,9 @@ RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
-include images.mk
-include grpcbox.mk
 include versions.mk
+include images.mk
+include grpcbox.mk # Requires images.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -132,7 +134,7 @@ buildbox:
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
-			--build-arg PROTOC_VER=$(PROTOC_VER) \
+			--build-arg PROTOC_VERSION=$(PROTOC_VERSION) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -255,26 +257,18 @@ clean:
 .PHONY:test
 test: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
 
 .PHONY:test-root
 test-root: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
-		type gcloud 2>&1 >/dev/null || exit 1; \
-		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
@@ -296,10 +290,7 @@ test-helm-update-snapshots:
 .PHONY:integration
 integration: buildbox
 	docker run \
-		--env TELEPORT_ETCD_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c \
-		"examples/etcd/start-etcd.sh & sleep 1; \
 		make -C $(SRCDIR) FLAGS='-cover' integration"
 
 .PHONY:integration-root
@@ -577,3 +568,16 @@ build-multiarch:
 		--build-arg GID=$(shell id -g) \
 		--tag $(BUILDBOX) \
 		--file Dockerfile-multiarch .
+
+.PHONY:generate-eventschema
+generate-eventschema:
+	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
+	
+	cd tooling && go build -o ./bin/protoc-gen-eventschema ./cmd/protoc-gen-eventschema/
+
+	protoc \
+		-I ../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=./tooling/bin/protoc-gen-eventschema \
+		--eventschema_out="../gen/go/eventschema" \
+		"teleport/legacy/types/events/events.proto";
