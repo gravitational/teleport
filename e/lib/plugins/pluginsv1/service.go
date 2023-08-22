@@ -31,6 +31,7 @@ const (
 // cluster's back-end data store.
 func getStaticPlugins() []types.PluginType {
 	return []types.PluginType{
+		types.PluginTypeDiscord,
 		types.PluginTypeOkta,
 		types.PluginTypeOpsgenie,
 		types.PluginTypePagerDuty,

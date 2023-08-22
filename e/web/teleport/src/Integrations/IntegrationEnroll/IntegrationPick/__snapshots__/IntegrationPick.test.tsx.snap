@@ -303,28 +303,6 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
           </a>
           <a
             class="c16 c9"
-            data-testid="tile-discord"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/discord"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c12 c13"
-              src="file_stub"
-            />
-            <div
-              class="c14"
-              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
-            >
-              <div
-                class="c11"
-              >
-                Discord
-              </div>
-            </div>
-          </a>
-          <a
-            class="c16 c9"
             data-testid="tile-msteams"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
             rel="noreferrer"
@@ -1082,28 +1060,6 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
                 class="c11"
               >
                 Email
-              </div>
-            </div>
-          </a>
-          <a
-            class="c18 c13"
-            data-testid="tile-discord"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/discord"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c14 c15"
-              src="file_stub"
-            />
-            <div
-              class="c16"
-              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
-            >
-              <div
-                class="c11"
-              >
-                Discord
               </div>
             </div>
           </a>
@@ -1950,6 +1906,32 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           </div>
           <div
             class="c12"
+            data-testid="tile-discord"
+            disabled=""
+          >
+            <img
+              class="c13 c14"
+              src="file_stub"
+            />
+            <div
+              class="c15"
+              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
+            >
+              <div
+                class="c11"
+              >
+                Discord
+              </div>
+            </div>
+            <div
+              class="c16"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </div>
+          <div
+            class="c12"
             data-testid="tile-mattermost"
             disabled=""
           >
@@ -2022,28 +2004,6 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
                 class="c11"
               >
                 Email
-              </div>
-            </div>
-          </a>
-          <a
-            class="c18 c9"
-            data-testid="tile-discord"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/discord"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c13 c14"
-              src="file_stub"
-            />
-            <div
-              class="c15"
-              style="display: flex; flex-direction: row; justify-content: center; align-items: center;"
-            >
-              <div
-                class="c11"
-              >
-                Discord
               </div>
             </div>
           </a>

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -76,6 +77,16 @@ func pluginDetails(p types.Plugin) string {
 		return "Teleport access requests will be created in the Opsgenie schedule indicated by opsgenie_notify_services annotation on the access request"
 	case *types.PluginSpecV1_PagerDuty:
 		return fmt.Sprintf(`Incidents will be created by PagerDuty user %q`, settings.PagerDuty.UserEmail)
+
+	case *types.PluginSpecV1_Discord:
+		channels := settings.Discord.RoleToRecipients[types.Wildcard]
+		suffix := ""
+		if len(channels.ChannelIds) > 1 {
+			suffix = "s"
+		}
+		combinedChannels := strings.Join(channels.ChannelIds, ", ")
+		return fmt.Sprintf(`Messages will be sent to Discord channel%s %s`, suffix, combinedChannels)
+
 	default:
 		return ""
 	}

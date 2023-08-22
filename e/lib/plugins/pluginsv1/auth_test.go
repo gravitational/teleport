@@ -372,5 +372,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeMattermost,
 		},
+		{
+			Type: types.PluginTypeDiscord,
+		},
 	}, resp.PluginTypes)
 }

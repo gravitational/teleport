@@ -63,6 +63,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 
 	if cfg.Factories == nil {
 		cfg.Factories = map[types.PluginType]instanceFactory{
+			types.PluginTypeDiscord:    discordInstanceFactory,
 			types.PluginTypeOkta:       oktaInstanceFactory,
 			types.PluginTypeSlack:      slackInstanceFactory,
 			types.PluginTypeOpsgenie:   opsgenieInstanceFactory,

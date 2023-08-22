@@ -653,9 +653,63 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
   {
     type: 'discord',
     name: 'Discord',
+    fullName: 'Discord',
     icon: discordIcon,
-    url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/discord',
-    hosted: false,
+    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-discord',
+    hosted: true,
+    Description: () => (
+      <Text>
+        <p>
+          A Teleport integration with Discord will post Access Requests to
+          configured Discord Channels.
+        </p>
+        <p>
+          Before you begin you will need to create and configure configure an
+          app on your Discord Server. For step-by-step instructions, refer to
+          the{' '}
+          <Link
+            target="_blank"
+            href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-discord/#step-58-register-a-discord-app"
+          >
+            Register a Discord app
+          </Link>{' '}
+          section of the Access Requests with Discord guide.
+        </p>
+      </Text>
+    ),
+    FormMixin: () => {
+      const [token, setToken] = useState('');
+      const [channels, setChannels] = useState('');
+
+      return (
+        <>
+          <FieldInput
+            width="500px"
+            label="Discord API Token"
+            name="token" // must be the same name as expected by the backend as form value
+            rule={requiredField('API Token Required')}
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="ABCD..."
+            toolTipContent="Discord Bot API token"
+            type="password"
+            mb={3}
+          />
+
+          <FieldInput
+            width="500px"
+            label="Channel(s)"
+            name="channels" // must be the same name as expected by the backend as form value
+            rule={requiredField('Channel')}
+            value={channels}
+            onChange={e => setChannels(e.target.value)}
+            placeholder="123456789012345678"
+            toolTipContent="A comma-separated list of Discord channel IDs"
+            mb={3}
+          />
+        </>
+      );
+    },
   },
   {
     type: 'mattermost',

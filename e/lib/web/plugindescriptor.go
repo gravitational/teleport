@@ -73,6 +73,7 @@ func (fn pluginInstallerFn) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 // initialized, but there is nothing stopping us from wrapping it in mutexes
 // and making it dynamic data in the future.
 var pluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginType]pluginDescriptor{
+	types.PluginTypeDiscord:    pluginInstallerFn(installDiscordPlugin),
 	types.PluginTypeJamf:       pluginInstallerFn(installJamfPlugin),
 	types.PluginTypeJira:       pluginInstallerFn(installJiraPlugin),
 	types.PluginTypeOkta:       pluginInstallerFn(installOktaPlugin),
@@ -80,6 +81,74 @@ var pluginDescriptors map[types.PluginType]pluginDescriptor = map[types.PluginTy
 	types.PluginTypePagerDuty:  pluginInstallerFn(installPagerdutyPlugin),
 	types.PluginTypeMattermost: pluginInstallerFn(installMattermostPlugin),
 	types.PluginTypeSlack:      slackDescriptor{},
+}
+
+func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	token := r.FormValue("token")
+	channelsText := r.FormValue("channels")
+
+	if token == "" {
+		return nil, trace.BadParameter("missing API token")
+	}
+
+	if channelsText == "" {
+		return nil, trace.BadParameter("missing channels")
+	}
+
+	channels := &types.DiscordChannels{}
+	for _, text := range strings.Split(channelsText, ",") {
+		text = strings.TrimSpace(text)
+		if text != "" {
+			channels.ChannelIds = append(channels.ChannelIds, text)
+		}
+	}
+
+	if len(channels.ChannelIds) == 0 {
+		return nil, trace.BadParameter("missing or malformed channels: %q", channelsText)
+	}
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeDiscord,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Discord{
+					Discord: &types.PluginDiscordSettings{
+						RoleToRecipients: map[string]*types.DiscordChannels{
+							types.Wildcard: channels,
+						},
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"discord/key": "value",
+					},
+					Name: types.PluginTypeDiscord,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: token,
+				},
+			},
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, req, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui, nil
 }
 
 func installOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
