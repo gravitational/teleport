@@ -359,7 +359,7 @@
               ]
             },
             {
-              "title": "Manage Trusted Device",
+              "title": "Manage Trusted Devices",
               "slug": "/access-controls/device-trust/device-management/",
               "forScopes": [
                 "enterprise",

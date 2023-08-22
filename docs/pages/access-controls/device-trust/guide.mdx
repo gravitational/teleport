@@ -7,7 +7,7 @@ videoBanner: gBQyj_X1LVw
 <Admonition type="warning">
   Device Trust is currently in Preview mode and supports following components:
 
-  - User devices: macOS and Windows OS.
+  - User devices: macOS and Windows.
   - Teleport client: `tsh` and Teleport connect.
   - Resources: SSH, Database and Kubernetes.
 
@@ -74,7 +74,6 @@ $ tctl get roles/access > access.yaml
 Update role with device mode "required" `spec.options.device_trust_mode.required`.
 
 ```diff
-$ vi access.yaml
 kind: role
 version: v6
 metadata:
