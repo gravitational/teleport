@@ -1152,7 +1152,7 @@ func (m *RequestValidator) calculateMaxAccessDuration(req types.AccessRequest) (
 	// This prevents the time drift that can occur as the value is set on the client side.
 	// TODO(jakule): Replace with MaxAccessDuration that is a duration (5h, 4d etc), and not a point in time.
 	if req.GetDryRun() {
-		maxDuration = maxAccessDuration - 10
+		maxDuration = maxAccessDuration
 	} else if maxDuration < 0 {
 		return 0, trace.BadParameter("invalid maxDuration: must be greater than creation time")
 	}
