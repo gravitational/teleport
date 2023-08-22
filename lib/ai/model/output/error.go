@@ -14,11 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package model
+package output
 
 import (
 	"fmt"
+
+	"github.com/gravitational/trace"
 )
+
+// NewInvalidOutputError builds an error caused by the output of an LLM.
+func NewInvalidOutputError(coarse, detail string) error {
+	return &invalidOutputError{
+		coarse: coarse,
+		detail: detail,
+	}
+}
+
+// IsInvalidOutputError returns true if the error is an invalidOutputError.
+func IsInvalidOutputError(err error) bool {
+	_, ok := trace.Unwrap(err).(*invalidOutputError)
+	return ok
+}
 
 // invalidOutputError represents an error caused by the output of an LLM.
 // These may be used automatically by the agent loop to attempt to correct an output until it is valid.

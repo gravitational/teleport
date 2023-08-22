@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-package model
+package tools
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/gravitational/trace"
+
+	modeloutput "github.com/gravitational/teleport/lib/ai/model/output"
 )
 
 type CommandGenerationTool struct{}
@@ -58,19 +60,19 @@ func (c *CommandGenerationTool) Run(_ context.Context, toolCtx *ToolContext, _ s
 	return "", trace.NotImplemented("not implemented")
 }
 
-// parseInput is called in a special case if the planned tool is CommandExecutionTool.
+// ParseInput is called in a special case if the planned tool is CommandExecutionTool.
 // This is because CommandExecutionTool is handled differently from most other tools and forcibly terminates the thought loop.
-func (*CommandGenerationTool) parseInput(input string) (*CommandGenerationToolInput, error) {
-	output, err := parseJSONFromModel[CommandGenerationToolInput](input)
+func (*CommandGenerationTool) ParseInput(input string) (*CommandGenerationToolInput, error) {
+	output, err := modeloutput.ParseJSONFromModel[CommandGenerationToolInput](input)
 	if err != nil {
 		return nil, err
 	}
 
 	if output.Command == "" {
-		return nil, &invalidOutputError{
-			coarse: "command generation: missing command",
-			detail: "command must be non-empty",
-		}
+		return nil, modeloutput.NewInvalidOutputError(
+			"command generation: missing command",
+			"command must be non-empty",
+		)
 	}
 
 	// Ignore the acknowledgement field.

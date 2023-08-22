@@ -45,7 +45,7 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/ai/model"
+	"github.com/gravitational/teleport/lib/ai/tokens"
 	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -290,7 +290,7 @@ func (h *Handler) executeCommand(
 
 	runCommands(hosts, runCmd, int(netConfig.GetAssistCommandExecutionWorkers()), h.log)
 
-	var tokenCount *model.TokenCount
+	var tokenCount *tokens.TokenCount
 	// Optionally, try to compute the command summary.
 	if output, valid := buffer.Export(); valid {
 		summaryReq := summaryRequest{
@@ -308,7 +308,7 @@ func (h *Handler) executeCommand(
 		}
 	}
 
-	prompt, completion := model.CountTokens(tokenCount)
+	prompt, completion := tokens.CountTokens(tokenCount)
 
 	usageEventReq := &clientproto.SubmitUsageEventRequest{
 		Event: &usageeventsv1.UsageEventOneOf{
@@ -344,7 +344,7 @@ func (h *Handler) computeAndSendSummary(
 	ctx context.Context,
 	req *summaryRequest,
 	ws WSConn,
-) (*model.TokenCount, error) {
+) (*tokens.TokenCount, error) {
 	// Convert the map nodeId->output into a map nodeName->output
 	namedOutput := outputByName(req.hosts, req.output)
 
