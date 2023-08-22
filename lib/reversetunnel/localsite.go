@@ -399,7 +399,6 @@ func (s *localSite) dialAndForward(params reversetunnelclient.DialParams) (_ net
 		AuthClient:          s.client,
 		UserAgent:           userAgent,
 		IsAgentlessNode:     params.IsAgentlessNode,
-		ProxyPublicAddress:  params.ProxyPublicAddress,
 		DestinationListener: params.ToListener,
 		AgentlessSigner:     params.AgentlessSigner,
 		TargetConn:          targetConn,

@@ -124,11 +124,6 @@ type RouterConfig struct {
 	// TracerProvider allows tracers to be created
 	TracerProvider oteltrace.TracerProvider
 
-	// PublicAddress is the proxy's Public Address.
-	// This is required to proxy SSH connections into OpenSSHEICE SubKind Nodes.
-	// Eg, proxy.example.com:3080
-	PublicAddress string
-
 	// serverResolver is used to resolve hosts, used by tests
 	serverResolver serverResolverFn
 }
@@ -155,10 +150,6 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 		c.TracerProvider = tracing.DefaultProvider()
 	}
 
-	if c.PublicAddress == "" {
-		return trace.BadParameter("PublicAddress must be provided")
-	}
-
 	if c.serverResolver == nil {
 		c.serverResolver = getServer
 	}
@@ -169,14 +160,13 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // Router is used by the proxy to establish connections to both
 // nodes and other clusters.
 type Router struct {
-	clusterName        string
-	log                *logrus.Entry
-	clusterGetter      RemoteClusterGetter
-	localSite          reversetunnelclient.RemoteSite
-	siteGetter         SiteGetter
-	tracer             oteltrace.Tracer
-	serverResolver     serverResolverFn
-	proxyPublicAddress string
+	clusterName    string
+	log            *logrus.Entry
+	clusterGetter  RemoteClusterGetter
+	localSite      reversetunnelclient.RemoteSite
+	siteGetter     SiteGetter
+	tracer         oteltrace.Tracer
+	serverResolver serverResolverFn
 }
 
 // NewRouter creates and returns a Router that is populated
@@ -192,14 +182,13 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}
 
 	return &Router{
-		clusterName:        cfg.ClusterName,
-		log:                cfg.Log,
-		clusterGetter:      cfg.RemoteClusterGetter,
-		localSite:          localSite,
-		siteGetter:         cfg.SiteGetter,
-		tracer:             cfg.TracerProvider.Tracer("Router"),
-		serverResolver:     cfg.serverResolver,
-		proxyPublicAddress: cfg.PublicAddress,
+		clusterName:    cfg.ClusterName,
+		log:            cfg.Log,
+		clusterGetter:  cfg.RemoteClusterGetter,
+		localSite:      localSite,
+		siteGetter:     cfg.SiteGetter,
+		tracer:         cfg.TracerProvider.Tracer("Router"),
+		serverResolver: cfg.serverResolver,
 	}, nil
 }
 
@@ -319,7 +308,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
 		IsAgentlessNode:       isAgentlessNode,
-		ProxyPublicAddress:    r.proxyPublicAddress,
 		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            principals,

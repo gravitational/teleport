@@ -54,11 +54,6 @@ type DialParams struct {
 	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEICE.
 	IsAgentlessNode bool
 
-	// proxyPublicAddress is the Teleport's Proxy Public Address.
-	// Required for Dialing to Nodes with SubKind OpenSSHEICENode
-	// This is used to generate AWS OIDC API Tokens to create EC2 Instance Connect Endpoint tunnels.
-	ProxyPublicAddress string
-
 	// AgentlessSigner is used for authenticating to the remote host when it is an
 	// agentless node.
 	AgentlessSigner ssh.Signer

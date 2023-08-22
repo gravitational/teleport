@@ -176,11 +176,6 @@ type Server struct {
 	// or an agentless server.
 	targetServer types.Server
 
-	// proxyPublicAddress is the Teleport's Proxy Public Address.
-	// Required for Nodes with SubKind OpenSSHEphemeralKeyNode
-	// This is used to generate AWS OIDC API Tokens to create EC2 Instance Connect Endpoint tunnels.
-	proxyPublicAddress string
-
 	// destinationListener is a listener that will receive the ssh calls from this ssh Server.
 	// This is required when there's another TCP listener that is responsible for receiving the connection and forward it to another system.
 	// This is the case for the EC2 Instance Connect Endpoint in use by the SubKindOpenSSHEICENode.
@@ -257,11 +252,6 @@ type ServerConfig struct {
 	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
 	IsAgentlessNode bool
 
-	// ProxyPublicAddress is the Teleport's Proxy Public Address.
-	// Required for Nodes with SubKind OpenSSHEphemeralKeyNode
-	// This is used to generate AWS OIDC API Tokens to create EC2 Instance Connect Endpoint tunnels.
-	ProxyPublicAddress string
-
 	// DestinationListener is the destination listener.
 	// This is required when there's another TCP listener that is responsible for receiving the connection and forward it to another system.
 	// This is the case for the EC2 Instance Connect Endpoint in use by the SubKindOpenSSHNode.
@@ -281,14 +271,8 @@ func (s *ServerConfig) CheckDefaults() error {
 			return trace.BadParameter("target server is required for agentless nodes")
 		}
 
-		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-			if s.ProxyPublicAddress == "" {
-				return trace.BadParameter("missing parameter ProxyPublicAddress")
-			}
-
-			if s.DestinationListener == nil {
-				return trace.BadParameter("missing parameter DestinationListener")
-			}
+		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode && s.DestinationListener == nil {
+			return trace.BadParameter("missing parameter DestinationListener")
 		}
 
 		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHNode && s.AgentlessSigner == nil {
@@ -375,7 +359,6 @@ func New(c ServerConfig) (*Server, error) {
 		targetAddr:          c.TargetAddr,
 		targetHostname:      c.TargetHostname,
 		targetServer:        c.TargetServer,
-		proxyPublicAddress:  c.ProxyPublicAddress,
 		destinationListener: c.DestinationListener,
 	}
 
@@ -678,13 +661,34 @@ func (s *Server) Serve() {
 	go s.handleConnection(ctx, chans, reqs)
 }
 
+func getProxyPublicAddr(clt auth.ClientI) (string, error) {
+	proxies, err := clt.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	for _, p := range proxies {
+		proxyPublicAddress := p.GetPublicAddr()
+		if proxyPublicAddress != "" {
+			return proxyPublicAddress, nil
+		}
+	}
+
+	return "", trace.BadParameter("failed to get Proxy Public Address")
+}
+
 func (s *Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (ssh.Signer, error) {
 	if s.targetServer.GetCloudMetadata() == nil || s.targetServer.GetCloudMetadata().AWS == nil {
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
 	awsInfo := s.targetServer.GetCloudMetadata().AWS
 
-	issuer, err := awsoidc.IssuerFromPublicAddress(s.proxyPublicAddress)
+	proxyPublicAddress, err := getProxyPublicAddr(s.authClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	issuer, err := awsoidc.IssuerFromPublicAddress(proxyPublicAddress)
 	if err != nil {
 		return nil, trace.BadParameter("failed to get issuer %v", err)
 	}

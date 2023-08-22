@@ -3849,27 +3849,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var proxyRouter *proxy.Router
 	if !process.Config.Proxy.DisableReverseTunnel {
-
-		// When a request for SSH reaches the router, and the node is of SubKind OpenSSHEICE
-		// the public address is required in order to generate an AWS Token to call the Amazon EC2/EC2InstanceConnect APIs.
-		//
-		// Fallback to ProxyWebAddress when ProxyPublicAddr is not set.
-		publicAddr := process.proxyPublicAddr().Addr
-		if publicAddr == "" {
-			proxyWebAddr, err := process.ProxyWebAddr()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			publicAddr = proxyWebAddr.Addr
-		}
-
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:         clusterName,
 			Log:                 process.log.WithField(trace.Component, "router"),
 			RemoteClusterGetter: accessPoint,
 			SiteGetter:          tsrv,
 			TracerProvider:      process.TracingProvider,
-			PublicAddress:       publicAddr,
 		})
 		if err != nil {
 			return trace.Wrap(err)
