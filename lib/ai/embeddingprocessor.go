@@ -219,7 +219,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 
 	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx)
 	nodesStream := e.nodeSrv.GetNodeStream(ctx, defaults.Namespace)
-	resourceStream := streamutils.NewMapStreams(nodesStream, func(node types.Server) types.Resource { return node })
+	resourceStream := stream.MapWhile(nodesStream, func(node types.Server) (types.Resource, bool) { return node, true })
 
 	s := streamutils.NewZipStreams(
 		resourceStream,
