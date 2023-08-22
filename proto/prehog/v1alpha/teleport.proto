@@ -885,10 +885,10 @@ message SubmitEventRequest {
 
     DeviceAuthenticateEvent device_authenticate_event = 52;
 
+    FeatureRecommendationEvent feature_recommendation_event = 53;
+
     AssistAccessRequestEvent assist_access_request = 54;
     AssistActionEvent assist_action = 55;
-
-    FeatureRecommendationEvent feature_recommendation_event = 53;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

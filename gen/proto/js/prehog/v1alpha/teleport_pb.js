@@ -12625,7 +12625,7 @@ proto.prehog.v1alpha.FeatureRecommendationEvent.prototype.setFeatureRecommendati
  * @private {!Array<!Array<number>>}
  * @const
  */
-proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_ = [[3,4,5,6,7,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,54,55,53]];
+proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_ = [[3,4,5,6,7,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55]];
 
 /**
  * @enum {number}
@@ -12681,9 +12681,9 @@ proto.prehog.v1alpha.SubmitEventRequest.EventCase = {
   ASSIST_EXECUTION: 50,
   ASSIST_NEW_CONVERSATION: 51,
   DEVICE_AUTHENTICATE_EVENT: 52,
+  FEATURE_RECOMMENDATION_EVENT: 53,
   ASSIST_ACCESS_REQUEST: 54,
-  ASSIST_ACTION: 55,
-  FEATURE_RECOMMENDATION_EVENT: 53
+  ASSIST_ACTION: 55
 };
 
 /**
@@ -12775,9 +12775,9 @@ proto.prehog.v1alpha.SubmitEventRequest.toObject = function(includeInstance, msg
     assistExecution: (f = msg.getAssistExecution()) && proto.prehog.v1alpha.AssistExecutionEvent.toObject(includeInstance, f),
     assistNewConversation: (f = msg.getAssistNewConversation()) && proto.prehog.v1alpha.AssistNewConversationEvent.toObject(includeInstance, f),
     deviceAuthenticateEvent: (f = msg.getDeviceAuthenticateEvent()) && proto.prehog.v1alpha.DeviceAuthenticateEvent.toObject(includeInstance, f),
+    featureRecommendationEvent: (f = msg.getFeatureRecommendationEvent()) && proto.prehog.v1alpha.FeatureRecommendationEvent.toObject(includeInstance, f),
     assistAccessRequest: (f = msg.getAssistAccessRequest()) && proto.prehog.v1alpha.AssistAccessRequestEvent.toObject(includeInstance, f),
-    assistAction: (f = msg.getAssistAction()) && proto.prehog.v1alpha.AssistActionEvent.toObject(includeInstance, f),
-    featureRecommendationEvent: (f = msg.getFeatureRecommendationEvent()) && proto.prehog.v1alpha.FeatureRecommendationEvent.toObject(includeInstance, f)
+    assistAction: (f = msg.getAssistAction()) && proto.prehog.v1alpha.AssistActionEvent.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -13068,6 +13068,11 @@ proto.prehog.v1alpha.SubmitEventRequest.deserializeBinaryFromReader = function(m
       reader.readMessage(value,proto.prehog.v1alpha.DeviceAuthenticateEvent.deserializeBinaryFromReader);
       msg.setDeviceAuthenticateEvent(value);
       break;
+    case 53:
+      var value = new proto.prehog.v1alpha.FeatureRecommendationEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.FeatureRecommendationEvent.deserializeBinaryFromReader);
+      msg.setFeatureRecommendationEvent(value);
+      break;
     case 54:
       var value = new proto.prehog.v1alpha.AssistAccessRequestEvent;
       reader.readMessage(value,proto.prehog.v1alpha.AssistAccessRequestEvent.deserializeBinaryFromReader);
@@ -13077,11 +13082,6 @@ proto.prehog.v1alpha.SubmitEventRequest.deserializeBinaryFromReader = function(m
       var value = new proto.prehog.v1alpha.AssistActionEvent;
       reader.readMessage(value,proto.prehog.v1alpha.AssistActionEvent.deserializeBinaryFromReader);
       msg.setAssistAction(value);
-      break;
-    case 53:
-      var value = new proto.prehog.v1alpha.FeatureRecommendationEvent;
-      reader.readMessage(value,proto.prehog.v1alpha.FeatureRecommendationEvent.deserializeBinaryFromReader);
-      msg.setFeatureRecommendationEvent(value);
       break;
     default:
       reader.skipField();
@@ -13519,6 +13519,14 @@ proto.prehog.v1alpha.SubmitEventRequest.serializeBinaryToWriter = function(messa
       proto.prehog.v1alpha.DeviceAuthenticateEvent.serializeBinaryToWriter
     );
   }
+  f = message.getFeatureRecommendationEvent();
+  if (f != null) {
+    writer.writeMessage(
+      53,
+      f,
+      proto.prehog.v1alpha.FeatureRecommendationEvent.serializeBinaryToWriter
+    );
+  }
   f = message.getAssistAccessRequest();
   if (f != null) {
     writer.writeMessage(
@@ -13533,14 +13541,6 @@ proto.prehog.v1alpha.SubmitEventRequest.serializeBinaryToWriter = function(messa
       55,
       f,
       proto.prehog.v1alpha.AssistActionEvent.serializeBinaryToWriter
-    );
-  }
-  f = message.getFeatureRecommendationEvent();
-  if (f != null) {
-    writer.writeMessage(
-      53,
-      f,
-      proto.prehog.v1alpha.FeatureRecommendationEvent.serializeBinaryToWriter
     );
   }
 };
@@ -15415,6 +15415,43 @@ proto.prehog.v1alpha.SubmitEventRequest.prototype.hasDeviceAuthenticateEvent = f
 
 
 /**
+ * optional FeatureRecommendationEvent feature_recommendation_event = 53;
+ * @return {?proto.prehog.v1alpha.FeatureRecommendationEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getFeatureRecommendationEvent = function() {
+  return /** @type{?proto.prehog.v1alpha.FeatureRecommendationEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.FeatureRecommendationEvent, 53));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.FeatureRecommendationEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setFeatureRecommendationEvent = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 53, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearFeatureRecommendationEvent = function() {
+  return this.setFeatureRecommendationEvent(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasFeatureRecommendationEvent = function() {
+  return jspb.Message.getField(this, 53) != null;
+};
+
+
+/**
  * optional AssistAccessRequestEvent assist_access_request = 54;
  * @return {?proto.prehog.v1alpha.AssistAccessRequestEvent}
  */
@@ -15485,43 +15522,6 @@ proto.prehog.v1alpha.SubmitEventRequest.prototype.clearAssistAction = function()
  */
 proto.prehog.v1alpha.SubmitEventRequest.prototype.hasAssistAction = function() {
   return jspb.Message.getField(this, 55) != null;
-};
-
-
-/**
- * optional FeatureRecommendationEvent feature_recommendation_event = 53;
- * @return {?proto.prehog.v1alpha.FeatureRecommendationEvent}
- */
-proto.prehog.v1alpha.SubmitEventRequest.prototype.getFeatureRecommendationEvent = function() {
-  return /** @type{?proto.prehog.v1alpha.FeatureRecommendationEvent} */ (
-    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.FeatureRecommendationEvent, 53));
-};
-
-
-/**
- * @param {?proto.prehog.v1alpha.FeatureRecommendationEvent|undefined} value
- * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
-*/
-proto.prehog.v1alpha.SubmitEventRequest.prototype.setFeatureRecommendationEvent = function(value) {
-  return jspb.Message.setOneofWrapperField(this, 53, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
-};
-
-
-/**
- * Clears the message field making it undefined.
- * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
- */
-proto.prehog.v1alpha.SubmitEventRequest.prototype.clearFeatureRecommendationEvent = function() {
-  return this.setFeatureRecommendationEvent(undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {boolean}
- */
-proto.prehog.v1alpha.SubmitEventRequest.prototype.hasFeatureRecommendationEvent = function() {
-  return jspb.Message.getField(this, 53) != null;
 };
 
 

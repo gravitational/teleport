@@ -2031,6 +2031,12 @@ export class SubmitEventRequest extends jspb.Message {
     setDeviceAuthenticateEvent(value?: DeviceAuthenticateEvent): SubmitEventRequest;
 
 
+    hasFeatureRecommendationEvent(): boolean;
+    clearFeatureRecommendationEvent(): void;
+    getFeatureRecommendationEvent(): FeatureRecommendationEvent | undefined;
+    setFeatureRecommendationEvent(value?: FeatureRecommendationEvent): SubmitEventRequest;
+
+
     hasAssistAccessRequest(): boolean;
     clearAssistAccessRequest(): void;
     getAssistAccessRequest(): AssistAccessRequestEvent | undefined;
@@ -2041,12 +2047,6 @@ export class SubmitEventRequest extends jspb.Message {
     clearAssistAction(): void;
     getAssistAction(): AssistActionEvent | undefined;
     setAssistAction(value?: AssistActionEvent): SubmitEventRequest;
-
-
-    hasFeatureRecommendationEvent(): boolean;
-    clearFeatureRecommendationEvent(): void;
-    getFeatureRecommendationEvent(): FeatureRecommendationEvent | undefined;
-    setFeatureRecommendationEvent(value?: FeatureRecommendationEvent): SubmitEventRequest;
 
 
     getEventCase(): SubmitEventRequest.EventCase;
@@ -2114,9 +2114,9 @@ export namespace SubmitEventRequest {
         assistExecution?: AssistExecutionEvent.AsObject,
         assistNewConversation?: AssistNewConversationEvent.AsObject,
         deviceAuthenticateEvent?: DeviceAuthenticateEvent.AsObject,
+        featureRecommendationEvent?: FeatureRecommendationEvent.AsObject,
         assistAccessRequest?: AssistAccessRequestEvent.AsObject,
         assistAction?: AssistActionEvent.AsObject,
-        featureRecommendationEvent?: FeatureRecommendationEvent.AsObject,
     }
 
     export enum EventCase {
@@ -2220,11 +2220,11 @@ export namespace SubmitEventRequest {
 
     DEVICE_AUTHENTICATE_EVENT = 52,
 
+    FEATURE_RECOMMENDATION_EVENT = 53,
+
     ASSIST_ACCESS_REQUEST = 54,
 
     ASSIST_ACTION = 55,
-
-    FEATURE_RECOMMENDATION_EVENT = 53,
 
     }
 
