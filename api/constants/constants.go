@@ -294,6 +294,19 @@ const (
 	DeviceTrustModeRequired DeviceTrustMode = "required"
 )
 
+// DeviceTrustAutoEnrollMode is the auto-enrolllment mode.
+// Requires the effective DeviceTrustMode to be "optional" or "required" to take
+// effect.
+// Defaults to "enabled".
+type DeviceTrustAutoEnrollMode = string
+
+const (
+	// DeviceTrustAutoEnrollModeEnabled is the "enabled" auto-enroll mode.
+	DeviceTrustAutoEnrollModeEnabled DeviceTrustAutoEnrollMode = "enabled"
+	// DeviceTrustAutoEnrollModeDisabled is the "disabled" auto-enroll mode.
+	DeviceTrustAutoEnrollModeDisabled DeviceTrustAutoEnrollMode = "disabled"
+)
+
 const (
 	// ChanTransport is a channel type that can be used to open a net.Conn
 	// through the reverse tunnel server. Used for trusted clusters and dial back

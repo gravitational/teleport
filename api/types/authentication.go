@@ -612,6 +612,19 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 				return trace.BadParameter("device trust has invalid EKCert allowed CAs entry: %v", err)
 			}
 		}
+
+		switch dt.AutoEnrollMode {
+		case "": // OK, "default" mode.
+		case constants.DeviceTrustAutoEnrollModeEnabled:
+			// AutoEnroll=false ignored (we can't tell if it was explicitly set).
+			// AutoEnroll=true has the same meaning.
+		case constants.DeviceTrustAutoEnrollModeDisabled:
+			if dt.AutoEnroll {
+				return trace.BadParameter("device trust has conflicting settings, auto_enroll=%v vs auto_enroll_mode=%v", dt.AutoEnroll, dt.AutoEnrollMode)
+			}
+		default:
+			return trace.BadParameter("device trust auto_enroll_mode %q not supported", dt.AutoEnrollMode)
+		}
 	}
 
 	// Make sure the IdP section is populated.

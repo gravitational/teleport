@@ -740,6 +740,64 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_deviceTrust(t *testing.T) {
 			},
 			wantErr: "invalid EKCert allowed CAs entry",
 		},
+		{
+			name: "AutoEnrollMode=enabled",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode:           "required",
+						AutoEnrollMode: "enabled",
+					},
+				},
+			},
+		},
+		{
+			name: "AutoEnrollMode=disabled",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode:           "required",
+						AutoEnrollMode: "disabled",
+					},
+				},
+			},
+		},
+		{
+			name: "AutoEnrollMode invalid",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode:           "required",
+						AutoEnrollMode: "NOT AN AUTO ENROLL MODE",
+					},
+				},
+			},
+			wantErr: "auto_enroll_mode",
+		},
+		{
+			name: "legacy - AutoEnroll=true",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode:       "required",
+						AutoEnroll: true,
+					},
+				},
+			},
+		},
+		{
+			name: "nok - AutoEnroll vs AutoEnrollMode",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode:           "required",
+						AutoEnroll:     true,
+						AutoEnrollMode: "disabled",
+					},
+				},
+			},
+			wantErr: "conflicting settings",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

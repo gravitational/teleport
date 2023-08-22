@@ -689,8 +689,8 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 				}
 			}),
 			wantPB: &types.DeviceTrust{
-				Mode:       "required",
-				AutoEnroll: true,
+				Mode:           "required",
+				AutoEnrollMode: "enabled",
 				EKCertAllowedCAs: []string{
 					string(tpmEKCertPEM),
 				},
@@ -740,6 +740,57 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 				}
 			}),
 			wantErr: true,
+		},
+		{
+			name: "auto-enroll false",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "false",
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				Mode:           "required",
+				AutoEnrollMode: "disabled",
+			},
+		},
+		{
+			name: "auto-enroll disabled",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "disabled",
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				Mode:           "required",
+				AutoEnrollMode: "disabled",
+			},
+		},
+		{
+			name: "auto-enroll enabled",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "enabled",
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				Mode:           "required",
+				AutoEnrollMode: "enabled",
+			},
 		},
 	}
 	for _, test := range tests {

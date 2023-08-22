@@ -1438,12 +1438,23 @@ type DeviceTrust struct {
 }
 
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
-	autoEnroll := false
-	if dt.AutoEnroll != "" {
-		var err error
-		autoEnroll, err = apiutils.ParseBool(dt.AutoEnroll)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	autoEnrollMode := dt.AutoEnroll
+	if autoEnrollMode != "" {
+		switch autoEnrollMode {
+		case constants.DeviceTrustAutoEnrollModeEnabled,
+			constants.DeviceTrustAutoEnrollModeDisabled:
+			// OK, let it through.
+		default:
+			// Parse legacy / boolean-style strings.
+			val, err := apiutils.ParseBool(dt.AutoEnroll)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if val {
+				autoEnrollMode = constants.DeviceTrustAutoEnrollModeEnabled
+			} else {
+				autoEnrollMode = constants.DeviceTrustAutoEnrollModeDisabled
+			}
 		}
 	}
 
@@ -1454,7 +1465,7 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 
 	return &types.DeviceTrust{
 		Mode:             dt.Mode,
-		AutoEnroll:       autoEnroll,
+		AutoEnrollMode:   autoEnrollMode,
 		EKCertAllowedCAs: allowedCAs,
 	}, nil
 }
