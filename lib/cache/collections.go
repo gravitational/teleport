@@ -2405,7 +2405,7 @@ var _ executor[*types.HeadlessAuthentication, noReader] = noopExecutor{}
 type userLoginStateExecutor struct{}
 
 func (userLoginStateExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userloginstate.UserLoginState, error) {
-	resources, err := cache.Config.UserLoginStates.GetUserLoginStates(ctx)
+	resources, err := cache.UserLoginStates.GetUserLoginStates(ctx)
 	return resources, trace.Wrap(err)
 }
 
@@ -2504,4 +2504,4 @@ func (accessListMembersExecutor) getReader(cache *Cache, cacheOK bool) services.
 	return cache.Config.AccessListMembers
 }
 
-var _ executor[*userloginstate.UserLoginState, services.UserLoginStatesGetter] = userLoginStateExecutor{}
+var _ executor[*accesslist.AccessListMember, services.AccessListMembersGetter] = accessListMembersExecutor{}
