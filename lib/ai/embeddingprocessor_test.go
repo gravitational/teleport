@@ -92,6 +92,22 @@ func (m *mockNodeStreamer) GetNodeStream(_ context.Context, _ string) stream.Str
 	return stream.Slice(nodes)
 }
 
+func (m *mockNodeStreamer) GetKubeClusterStream(ctx context.Context) stream.Stream[types.KubeCluster] {
+	return stream.Slice[types.KubeCluster](nil)
+}
+
+func (m *mockNodeStreamer) GetAppStream(ctx context.Context) stream.Stream[types.Application] {
+	return stream.Slice[types.Application](nil)
+}
+
+func (m *mockNodeStreamer) GetDatabaseStream(ctx context.Context) stream.Stream[types.Database] {
+	return stream.Slice[types.Database](nil)
+}
+
+func (m *mockNodeStreamer) GetWindowsDesktopStream(ctx context.Context) stream.Stream[types.WindowsDesktop] {
+	return stream.Slice[types.WindowsDesktop](nil)
+}
+
 func TestNodeEmbeddingGeneration(t *testing.T) {
 	t.Parallel()
 

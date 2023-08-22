@@ -49,6 +49,18 @@ type Embeddings interface {
 type NodesStreamGetter interface {
 	// GetNodeStream returns a list of registered servers.
 	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
+
+	// GetKubeClusterStream returns a list of registered clusters.
+	GetKubeClusterStream(ctx context.Context) stream.Stream[types.KubeCluster]
+
+	// GetAppStream returns a list of registered applications.
+	GetAppStream(ctx context.Context) stream.Stream[types.Application]
+
+	// GetDatabaseStream returns a list of registered databases.
+	GetDatabaseStream(ctx context.Context) stream.Stream[types.Database]
+
+	// GetWindowsDesktopStream returns a list of registered windows desktops.
+	GetWindowsDesktopStream(ctx context.Context) stream.Stream[types.WindowsDesktop]
 }
 
 // MarshalEmbedding marshals the ai.Embedding resource to binary ProtoBuf.
