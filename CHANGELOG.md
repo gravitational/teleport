@@ -1,5 +1,17 @@
 # Changelog
 
+## 13.3.5 (08/22/23)
+
+* Fixed S3 metric name for completed multipart uploads. [#30710](https://github.com/gravitational/teleport/pull/30710)
+* Added `--current-device` capabilities to `tsh`. [#30702](https://github.com/gravitational/teleport/pull/30702)
+* Fixed Review Requests to disallow reviews after request is resolved. [#30690](https://github.com/gravitational/teleport/pull/30690)
+* Fixed Teleport Connect to properly show errors from the remote end. [#30684](https://github.com/gravitational/teleport/pull/30684)
+* Fixed an issue with `tsh aws ssm start-session`. [#30668](https://github.com/gravitational/teleport/pull/30668)
+
+### Security fix
+
+* TODO(jent): Update this when security fix lands
+
 ## 13.3.4 (08/18/23)
 
 * Allow host users to be created with specific UID/GIDs [#30178](https://github.com/gravitational/teleport/pull/30178)
