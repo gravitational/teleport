@@ -18,6 +18,7 @@ package ai
 
 import (
 	"context"
+	"io"
 	"strings"
 	"time"
 
@@ -25,12 +26,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/api/defaults"
 	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	embeddinglib "github.com/gravitational/teleport/lib/ai/embedding"
+	"github.com/gravitational/teleport/lib/services"
 	streamutils "github.com/gravitational/teleport/lib/utils/stream"
 )
 
@@ -43,24 +44,6 @@ type Embeddings interface {
 	GetEmbeddings(ctx context.Context) stream.Stream[*embeddinglib.Embedding]
 	// UpsertEmbedding creates or update a single ai.Embedding in the backend.
 	UpsertEmbedding(ctx context.Context, embedding *embeddinglib.Embedding) (*embeddinglib.Embedding, error)
-}
-
-// NodesStreamGetter is a service that gets nodes.
-type NodesStreamGetter interface {
-	// GetNodeStream returns a list of registered servers.
-	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
-
-	// GetKubeClusterStream returns a list of registered clusters.
-	GetKubeClusterStream(ctx context.Context) stream.Stream[types.KubeCluster]
-
-	// GetAppStream returns a list of registered applications.
-	GetAppStream(ctx context.Context) stream.Stream[types.Application]
-
-	// GetDatabaseStream returns a list of registered databases.
-	GetDatabaseStream(ctx context.Context) stream.Stream[types.Database]
-
-	// GetWindowsDesktopStream returns a list of registered windows desktops.
-	GetWindowsDesktopStream(ctx context.Context) stream.Stream[types.WindowsDesktop]
 }
 
 // MarshalEmbedding marshals the ai.Embedding resource to binary ProtoBuf.
@@ -144,7 +127,7 @@ type EmbeddingProcessorConfig struct {
 	AIClient            embeddinglib.Embedder
 	EmbeddingSrv        Embeddings
 	EmbeddingsRetriever *SimpleRetriever
-	NodeSrv             NodesStreamGetter
+	NodeSrv             *services.UnifiedResourceCache
 	Log                 logrus.FieldLogger
 	Jitter              retryutils.Jitter
 }
@@ -155,7 +138,7 @@ type EmbeddingProcessor struct {
 	aiClient            embeddinglib.Embedder
 	embeddingSrv        Embeddings
 	embeddingsRetriever *SimpleRetriever
-	nodeSrv             NodesStreamGetter
+	nodeSrv             *services.UnifiedResourceCache
 	log                 logrus.FieldLogger
 	jitter              retryutils.Jitter
 }
@@ -230,8 +213,23 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 	defer e.log.Debugf("embedding processor finished")
 
 	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx)
-	nodesStream := e.nodeSrv.GetNodeStream(ctx, defaults.Namespace)
-	resourceStream := stream.MapWhile(nodesStream, func(node types.Server) (types.Resource, bool) { return node, true })
+	unifiedResources, err := e.nodeSrv.GetUnifiedResources(ctx)
+	if err != nil {
+		e.log.Debugf("embedding processor failed with error: %v", err)
+		return
+	}
+
+	idx := 0
+	resourceStream := stream.Func(func() (types.Resource, error) {
+		if idx == len(unifiedResources) {
+			return nil, io.EOF
+		}
+
+		resource := unifiedResources[idx].(types.Resource)
+		unifiedResources[idx] = nil
+		idx = idx + 1
+		return resource, nil
+	})
 
 	s := streamutils.NewZipStreams(
 		resourceStream,
