@@ -6,16 +6,18 @@ videoBanner: gBQyj_X1LVw
 ---
 
 <Admonition type="warning">
-Device Trust is currently in Preview mode and supports following components:
-- User devices: macOS and Windows OS.
-- Teleport client: `tsh` and Teleport connect.
-- Resources: SSH, Database and Kubernetes.
+  Device Trust is currently in Preview mode and supports following components:
 
-Support for other operating systems, access from Web UI and application
-access is planned for upcoming Teleport versions.
+  - User devices: macOS and Windows OS.
+  - Teleport client: `tsh` and Teleport connect.
+  - Resources: SSH, Database and Kubernetes.
+
+  Support for other operating systems, access from Web UI and application
+  access is planned for upcoming Teleport versions.
 </Admonition>
 
 ## Concepts
+
 Device Trust allows Teleport admins to enforce the use of trusted devices.
 Resources protected by the device mode "required" will enforce the use of a
 trusted device, in addition to establishing the user's identity and enforcing
@@ -23,6 +25,7 @@ the necessary roles. Furthermore, users using a trusted device leave audit
 trails that include the device's information.
 
 Device Trust requires two of the following steps to have been configured:
+
 - Trusted device registered and enrolled with Teleport.
 - Device enforcement mode configured via either a role or a cluster-wide config.
 
@@ -30,6 +33,7 @@ Categorically, we define these two requirements as Trusted Device management
 and Device Trust enforcement.
 
 ## Trusted Device management
+
 Device management is divided into two separate phases: inventory management and
 device enrollment.
 
@@ -37,9 +41,8 @@ device enrollment.
 are registered or removed from Teleport. For example, this happens when the IT
 department of your company acquires new devices, or retires devices from use.
 
-Inventory management can be manually operated ([Device Management](./device-trust/device-management.mdx)),
-or automatically synced with Mobile Device Management (MDM) solution such as Jamf
-([Jamf Pro Integration](./device-trust/jamf-integration.mdx)).
+Inventory management can be manually operated using `tctl` or automatically synced
+with Mobile Device Management (MDM) solution such as Jamf.
 
 **Device enrollment** is performed either by a device admin or by the end-user,
 at your discretion. This is the step that creates the Secure Enclave private key
@@ -53,6 +56,7 @@ Enrollment exchanges an enrollment token, created by a
 device admin, for the opportunity to enroll the corresponding device.
 
 ### How trust is established with the device
+
 Device Trust leverages dedicated secure hardware in devices to store device credentials
 and perform device challenges. The specific implementation varies between types of devices.
 
@@ -73,6 +77,7 @@ already defeated at this point. The more trusted the enrollment environment and 
 the better the ongoing guarantees that the device itself is trustworthy.
 
 ## Device Trust enforcement
+
 Enforcing Device Trust means configuring Teleport with device trust mode, i.e. applying
 `device_trust_mode: required` rule, which tells Teleport Auth Service to only allow access
 with a trusted and an authenticated device, in addition to establishing the user's identity and enforcing
@@ -85,6 +90,7 @@ enforcement and Cluster-wide enforcement.
 - **Cluster-wide enforcement** can be used to enforce Device Trust at cluster level.
 
 ## Guides
+
 - [Getting Started with Device Trust](./device-trust/guide.mdx)
 - [Device Management](./device-trust/device-management.mdx)
 - [Enforcing Device Trust](./device-trust/enforcing-device-trust.mdx)

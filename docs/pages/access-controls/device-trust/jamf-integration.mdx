@@ -12,11 +12,9 @@ both incremental (called "partial") and full syncs, as well as removals from
 Teleport if a computer is removed from Jamf Pro.
 
 Syncing devices from Jamf Pro is an **inventory management** step, equivalent to
-automatically running the corresponding `tctl devices add` commands. If you want
-to automatically enroll synced devices on user login, refer to the
-[auto-enrollment](#optional-enable-auto-enrollment) section.
+automatically running the corresponding `tctl devices add` commands.
 
-See the [Device Trust guide](./guide.mdx) for fundamental Device Trust concepts
+See the [Device Trust guide](../device-trust.mdx) for fundamental Device Trust concepts
 and behavior.
 
 ## Prerequisites
@@ -299,6 +297,7 @@ ssh_service:
   enabled: false
 ```
 
-## Optional: Enable auto-enrollment
+## Next steps
 
-Refer to the [auto-enrollment guide](./auto-enrollment.mdx).
+Automatically enroll synced devices on user login with
+[auto-enrollment](./device-management.mdx#auto-enrollment).
