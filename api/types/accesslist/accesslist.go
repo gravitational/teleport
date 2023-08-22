@@ -163,10 +163,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		if owner.Name == "" {
 			return trace.BadParameter("owner name is missing")
 		}
-
-		if owner.Description == "" {
-			return trace.BadParameter("owner %s description is missing", owner.Name)
-		}
 	}
 
 	if a.Spec.Audit.Frequency == 0 {
