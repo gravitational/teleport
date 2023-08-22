@@ -176,6 +176,9 @@ type CLIConf struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
+
+	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
+	Insecure bool
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -201,6 +204,9 @@ type OnboardingConfig struct {
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.
 	CAPins []string `yaml:"ca_pins,omitempty"`
+
+	// Insecure instructs `tbot` to trust the Auth Server without verifying the CA.
+	Insecure bool `yaml:"insecure,omitempty"`
 
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
@@ -276,8 +282,8 @@ type BotConfig struct {
 	ReloadCh <-chan struct{} `yaml:"-"`
 
 	// Insecure configures the bot to blindly trust the certificates offered by
-	// the auth server. Used for tests.
-	Insecure bool `yaml:"-"`
+	// the auth server.
+	Insecure bool `yaml:"insecure,omitempty"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -633,6 +639,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "validating merged bot config")
+	}
+
+	if cf.Insecure {
+		config.Insecure = true
 	}
 
 	return config, nil

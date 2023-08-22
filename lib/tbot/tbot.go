@@ -435,7 +435,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
+	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites(), b.cfg.Insecure)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
