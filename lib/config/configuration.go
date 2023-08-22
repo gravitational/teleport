@@ -198,6 +198,10 @@ type CommandLineFlags struct {
 	// IntegrationConfDeployServiceIAMArguments contains the arguments of
 	// `teleport integration configure deployservice-iam` command
 	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
+
+	// IntegrationConfEICEIAMArguments contains the arguments of
+	// `teleport integration configure eice-iam` command
+	IntegrationConfEICEIAMArguments IntegrationConfEICEIAM
 }
 
 // IntegrationConfDeployServiceIAM contains the arguments of
@@ -213,6 +217,15 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
+}
+
+// IntegrationConfEICEIAM contains the arguments of
+// `teleport integration configure eice-iam` command
+type IntegrationConfEICEIAM struct {
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
