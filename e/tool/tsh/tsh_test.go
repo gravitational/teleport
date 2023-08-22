@@ -129,7 +129,7 @@ func TestNodeAccess(t *testing.T) {
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
 	device.SetPasswordless()
-	setupWebAuthnChallengeSolver(t, device, true)
+	webauthnLoginOpt := setupWebAuthnChallengeSolver(device, true /* success */)
 	deviceTrustOpt := setupDeviceTrust(t, process)
 
 	setupUserMFA := func(t *testing.T, name string) {
@@ -171,14 +171,14 @@ func TestNodeAccess(t *testing.T) {
 			_, _, opt := mustLoginHome(t, authServer, proxyAddr, user, connector.GetName(), func(cf *tshcommon.CLIConf) error {
 				cf.AddKeysToAgent = "no"
 				return nil
-			})
+			}, webauthnLoginOpt)
 			return opt
 		},
 		identityLogin: func(t *testing.T, proxyAddr, user string) tshcommon.CliOption {
 			_, opt := mustLoginIdentity(t, authServer, proxyAddr, user, connector.GetName(), func(cf *tshcommon.CLIConf) error {
 				cf.AddKeysToAgent = "no"
 				return nil
-			})
+			}, webauthnLoginOpt)
 			return opt
 		},
 		headlessLogin: func(t *testing.T, proxyAddr, user string) tshcommon.CliOption {
@@ -234,6 +234,7 @@ func TestNodeAccess(t *testing.T) {
 		{
 			name:       "session_mfa",
 			loginCases: []string{homeLogin, identityLogin, headlessLogin},
+			opts:       []tshcommon.CliOption{webauthnLoginOpt},
 			setup: func(t *testing.T) {
 				userName := "session_mfa"
 				setupUserAndRole(t, userName, types.RoleSpecV6{
@@ -254,7 +255,7 @@ func TestNodeAccess(t *testing.T) {
 		{
 			name:       "device_trust_session_mfa",
 			loginCases: []string{homeLogin, headlessLogin}, // device trust does not support identity login
-			opts:       []tshcommon.CliOption{deviceTrustOpt},
+			opts:       []tshcommon.CliOption{deviceTrustOpt, webauthnLoginOpt},
 			setup: func(t *testing.T) {
 				userName := "device_trust_session_mfa"
 				setupUserAndRole(t, userName, types.RoleSpecV6{
@@ -295,7 +296,8 @@ func TestNodeAccess(t *testing.T) {
 
 			for _, loginName := range tc.loginCases {
 				t.Run(loginName, func(t *testing.T) {
-					loginOpt := loginFuncs[loginName](t, proxyAddr.String(), tc.name)
+					loginFunc := loginFuncs[loginName]
+					loginOpt := loginFunc(t, proxyAddr.String(), tc.name)
 					opts := append(tc.opts, loginOpt)
 
 					for hostType, hostName := range sshHostNameCases {
@@ -309,24 +311,23 @@ func TestNodeAccess(t *testing.T) {
 									"echo", "hello",
 								}, opts...)
 								require.NoError(t, err)
-
-								t.Run("AgentForwarding", func(t *testing.T) {
-									stdout := &bytes.Buffer{}
-									agentForwardingOpts := append(opts, func(cf *tshcommon.CLIConf) error {
-										cf.OverrideStdout = stdout
-										return nil
-									})
-									err := tshcommon.Run(ctx, []string{
-										"ssh",
-										"-d",
-										"--insecure",
-										"-A",
-										hostName,
-										"ssh-add", "-l",
-									}, agentForwardingOpts...)
-									require.NoError(t, err)
-									require.Contains(t, stdout.String(), "test-key", "agent test key entry not found during session:\n%v", stdout.String())
+							})
+							t.Run("AgentForwarding", func(t *testing.T) {
+								stdout := &bytes.Buffer{}
+								agentForwardingOpts := append(opts, func(cf *tshcommon.CLIConf) error {
+									cf.OverrideStdout = stdout
+									return nil
 								})
+								err := tshcommon.Run(ctx, []string{
+									"ssh",
+									"-d",
+									"--insecure",
+									"-A",
+									hostName,
+									"ssh-add", "-l",
+								}, agentForwardingOpts...)
+								require.NoError(t, err)
+								require.Contains(t, stdout.String(), "test-key", "agent test key entry not found during session:\n%v", stdout.String())
 							})
 						})
 					}
@@ -534,28 +535,26 @@ func mustLoginIdentity(t *testing.T, authServer *auth.Server, proxyAddr, user, c
 	return identityFilePath, setIdentity(identityFilePath, proxyAddr)
 }
 
-func setupWebAuthnChallengeSolver(t *testing.T, device *mocku2f.Key, success bool) {
-	oldWebauthn := *client.PromptWebauthn
-	t.Cleanup(func() {
-		*client.PromptWebauthn = oldWebauthn
-	})
+func setupWebAuthnChallengeSolver(device *mocku2f.Key, success bool) tshcommon.CliOption {
+	return func(c *tshcommon.CLIConf) error {
+		c.WebauthnLogin = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+			car, err := device.SignAssertion(origin, assertion)
+			if err != nil {
+				return nil, "", err
+			}
 
-	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
-		car, err := device.SignAssertion(origin, assertion)
-		if err != nil {
-			return nil, "", err
+			carProto := wantypes.CredentialAssertionResponseToProto(car)
+			if !success {
+				carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
+			}
+
+			return &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Webauthn{
+					Webauthn: carProto,
+				},
+			}, "", nil
 		}
-
-		carProto := wantypes.CredentialAssertionResponseToProto(car)
-		if !success {
-			carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
-		}
-
-		return &proto.MFAAuthenticateResponse{
-			Response: &proto.MFAAuthenticateResponse_Webauthn{
-				Webauthn: carProto,
-			},
-		}, "", nil
+		return nil
 	}
 }
 
