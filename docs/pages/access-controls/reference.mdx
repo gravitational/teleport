@@ -151,11 +151,17 @@ and submitting requests.
 
 ### Fields
 
-{/* TODO: Add actual names for these fields*/}
-- c.Roles.AllowReview
-- allow.Where
-- allow.Roles
-- allow.ClaimsToRoles
+The following role fields control a user's ability to request and review Access
+Requests:
+
+{/* TODO: look at (allow|deny).request.search_as_roles*/}
+{/* TODO: look at (allow|deny).request.roles*/}
+{/* TODO: look at (allow|deny).review_requests.preview_as_roles*/}
+{/* TODO: look at (allow|deny).review_request.roles*/}
+- allow.Where {/* TODO: get the actual name */}
+
+{/* TODO: See what the TraitsToRoleMatchers call in appendRoleMatchers
+does and how to describe this behavior */}
 
 ### Variables
 
@@ -167,6 +173,32 @@ Teleport does not perform variable expansion on the values of the fields above.
 |---|---|
 |`{{regexp.match(regexp)}}`|Returns `true` if the regular expression matches a user's role.|
 |`{{regexp.not_match(regexp)}}`|Returns `true` if the regular expression does not match a user's role.|
+
+Regular expressions support both wildcards (the `*` character) and [Go-style
+regular expressions](https://pkg.go.dev/regexp). If an expression begins with
+the `^` character and ends with the `$` character, Teleport will evaluate it as
+a regular expression. Otherwise, it will evaluate it as a wildcard expression.
+Wildcards match a sequence of one or more characters.
+
+## Impersonation
+
+Teleport roles allow you to control the extent to which one user can impersonate
+another in order to request credentials for connecting to Teleport. Read more
+about Teleport [impersonation](../access-controls/guides/impersonation.mdx).
+
+### Fields
+
+{/* TODO: fields for impersonating users and roles, plus "where". */}
+
+### Variables
+
+{/* TODO: see
+https://goteleport.com/docs/access-controls/guides/impersonation/#filter-fields
+*/}
+
+### Functions
+
+{/* TODO */}
 
 ## Infrastructure resources
 
