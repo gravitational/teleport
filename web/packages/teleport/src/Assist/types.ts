@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import { EventType } from 'teleport/lib/term/enums';
 
 export enum ServerMessageType {
@@ -28,6 +29,7 @@ export enum ServerMessageType {
   AssistThought = 'CHAT_MESSAGE_PROGRESS_UPDATE',
   AccessRequests = 'ACCESS_REQUESTS',
   AccessRequest = 'ACCESS_REQUEST',
+  AccessRequestCreated = 'ACCESS_REQUEST_CREATED',
 }
 
 // ExecutionEnvelopeType is the type of message that is returned when
@@ -121,10 +123,41 @@ export interface ResolvedCommandResultStreamServerMessage {
   created: Date;
 }
 
+export interface ResolvedAccessRequestCreatedMessage {
+  type: ServerMessageType.AccessRequestCreated;
+  accessRequestId: string;
+  created: Date;
+}
+
+export interface AccessRequestClientMessage {
+  type: ServerMessageType.AccessRequestCreated;
+  payload: string;
+}
+
+interface AccessRequestResourceBase {
+  id: string;
+  type: 'app' | 'node' | 'kubernetes' | 'desktop' | 'database';
+}
+
+interface AccessRequestGenericResource extends AccessRequestResourceBase {
+  type: 'app' | 'kubernetes' | 'desktop' | 'database';
+}
+
+interface AccessRequestNodeResource extends AccessRequestResourceBase {
+  type: 'node';
+  friendlyName: string;
+}
+
+export type AccessRequestResource =
+  | AccessRequestGenericResource
+  | AccessRequestNodeResource;
+
 export interface ResolvedAccessRequestServerMessage {
   type: ServerMessageType.AccessRequest;
-  resources: Resource[];
   reason: string;
+  suggestedReviewers: string[];
+  resources: AccessRequestResource[];
+  roles: string[];
   created: Date;
 }
 
@@ -141,23 +174,6 @@ export enum AccessRequestStatus {
   Declined,
 }
 
-export interface AccessRequestEvent {
-  created: Date;
-  resources: Resource[];
-  message: string;
-  username: string;
-  roles: string[];
-}
-
-export interface ResolvedAccessRequestsServerMessage {
-  type: ServerMessageType.AccessRequests;
-  status: AccessRequestStatus;
-  summary: string;
-  username: string;
-  events: AccessRequestEvent[];
-  created: Date;
-}
-
 export type ResolvedServerMessage =
   | ResolvedCommandServerMessage
   | ResolvedAssistServerMessage
@@ -167,8 +183,8 @@ export type ResolvedServerMessage =
   | ResolvedCommandResultSummaryServerMessage
   | ResolvedAssistThoughtServerMessage
   | ResolvedCommandResultStreamServerMessage
-  | ResolvedAccessRequestsServerMessage
-  | ResolvedAccessRequestServerMessage;
+  | ResolvedAccessRequestServerMessage
+  | ResolvedAccessRequestCreatedMessage;
 
 export interface GetConversationMessagesResponse {
   messages: ServerMessage[];
@@ -241,6 +257,14 @@ export interface SessionData {
 
 export interface SessionEndData {
   node_id: string;
+}
+
+export interface AccessRequestPayload {
+  roles: string[];
+  resources: AccessRequestResource[];
+  reason: string;
+  suggested_reviewers: string[];
+  created_time: Date;
 }
 
 export interface ExecuteRemoteCommandPayload {

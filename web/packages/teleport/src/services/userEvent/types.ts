@@ -25,6 +25,7 @@ export enum CaptureEvent {
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
   UiCallToActionClickEvent = 'tp.ui.callToAction.click',
+  FeatureRecommendationEvent = 'tp.ui.feature.recommendation',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -220,3 +221,19 @@ export enum CtaEvent {
   CTA_UPGRADE_BANNER = 6,
   CTA_BILLING_SUMMARY = 7,
 }
+
+export enum Feature {
+  FEATURES_UNSPECIFIED = 0,
+  FEATURES_TRUSTED_DEVICES = 1,
+}
+
+export enum FeatureRecommendationStatus {
+  FEATURE_RECOMMENDATION_STATUS_UNSPECIFIED = 0,
+  FEATURE_RECOMMENDATION_STATUS_NOTIFIED = 1,
+  FEATURE_RECOMMENDATION_STATUS_DONE = 2,
+}
+
+export type FeatureRecommendationEvent = {
+  Feature: Feature;
+  FeatureRecommendationStatus: FeatureRecommendationStatus;
+};

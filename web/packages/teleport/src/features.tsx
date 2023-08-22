@@ -40,6 +40,8 @@ import {
 
 import cfg from 'teleport/config';
 
+import localStorage from 'teleport/services/localStorage';
+
 import {
   ManagementSection,
   NavigationCategory,
@@ -52,6 +54,7 @@ import type { TeleportFeature, FeatureFlags } from './types';
 const Audit = lazy(() => import('./Audit'));
 const Nodes = lazy(() => import('./Nodes'));
 const Sessions = lazy(() => import('./Sessions'));
+const UnifiedResources = lazy(() => import('./UnifiedResources'));
 const Account = lazy(() => import('./Account'));
 const Applications = lazy(() => import('./Apps'));
 const Kubes = lazy(() => import('./Kubes'));
@@ -94,10 +97,38 @@ export class FeatureNodes implements TeleportFeature {
     },
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   category = NavigationCategory.Resources;
 
   hasAccess(flags: FeatureFlags) {
     return flags.nodes;
+  }
+}
+
+export class FeatureUnifiedResources implements TeleportFeature {
+  route = {
+    title: 'Resources',
+    path: cfg.routes.unifiedResources,
+    exact: true,
+    component: UnifiedResources,
+  };
+
+  navigationItem = {
+    title: NavTitle.Resources,
+    icon: <Server />,
+    exact: true,
+    getLink(clusterId: string) {
+      return cfg.getUnifiedResourcesRoute(clusterId);
+    },
+  };
+
+  hideFromNavigation = !localStorage.areUnifiedResourcesEnabled();
+
+  category = NavigationCategory.Resources;
+
+  hasAccess() {
+    return true;
   }
 }
 
@@ -110,6 +141,8 @@ export class FeatureApps implements TeleportFeature {
     exact: true,
     component: Applications,
   };
+
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.applications;
@@ -135,6 +168,8 @@ export class FeatureKubes implements TeleportFeature {
     component: Kubes,
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   hasAccess(flags: FeatureFlags) {
     return flags.kubernetes;
   }
@@ -159,6 +194,8 @@ export class FeatureDatabases implements TeleportFeature {
     component: Databases,
   };
 
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
+
   hasAccess(flags: FeatureFlags) {
     return flags.databases;
   }
@@ -182,6 +219,8 @@ export class FeatureDesktops implements TeleportFeature {
     exact: true,
     component: Desktops,
   };
+
+  hideFromNavigation = localStorage.areUnifiedResourcesEnabled();
 
   hasAccess(flags: FeatureFlags) {
     return flags.desktops;
@@ -607,6 +646,7 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
+    new FeatureUnifiedResources(),
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),

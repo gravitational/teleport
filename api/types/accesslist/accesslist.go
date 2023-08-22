@@ -43,7 +43,10 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
-	// Description is a plaintext description of the access list.
+	// Title is a plaintext short description of the access list.
+	Title string `json:"title" yaml:"title"`
+
+	// Description is an optional plaintext description of the access list.
 	Description string `json:"description" yaml:"description"`
 
 	// Owners is a list of owners of the access list.
@@ -66,6 +69,7 @@ type Spec struct {
 	Grants Grants `json:"grants" yaml:"grants"`
 
 	// Members describes the current members of the access list.
+	// TODO(mdwn): Remove this.
 	Members []Member `json:"members" yaml:"members"`
 }
 
@@ -142,6 +146,10 @@ func (a *AccessList) CheckAndSetDefaults() error {
 
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if a.Spec.Title == "" {
+		return trace.BadParameter("access list title required")
 	}
 
 	if len(a.Spec.Owners) == 0 {

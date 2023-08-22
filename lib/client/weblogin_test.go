@@ -115,6 +115,7 @@ func newServer(handler http.HandlerFunc, loopback bool) (*httptest.Server, error
 }
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {
+	t.Parallel()
 	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
@@ -132,12 +133,6 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
 	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
-
-	// Reset functions after tests.
-	oldWebauthn := *client.PromptWebauthn
-	t.Cleanup(func() {
-		*client.PromptWebauthn = oldWebauthn
-	})
 
 	solvePwdless := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 		car, err := device.SignAssertion(origin, assertion)
@@ -225,9 +220,9 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 			},
 			AuthenticatorAttachment: tc.AuthenticatorAttachment,
 			CustomPrompt:            test.customPromptLogin,
+			WebauthnLogin:           test.customPromptWebauthn,
 		}
 
-		*client.PromptWebauthn = test.customPromptWebauthn
 		_, err = client.SSHAgentPasswordlessLogin(ctx, req)
 		require.NoError(t, err)
 		require.True(t, customPromptCalled, "Custom prompt present but not called")

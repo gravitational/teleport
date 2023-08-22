@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 )
 
 // IntegrationAWSOIDCSpec contain the specific fields for the `aws-oidc` subkind integration.
@@ -197,6 +198,27 @@ type AWSOIDCListEC2Request struct {
 type AWSOIDCListEC2Response struct {
 	// Servers contains the page of Servers
 	Servers []Server `json:"servers"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCListEC2ICERequest is a request to ListEC2ICEs using the AWS OIDC Integration.
+type AWSOIDCListEC2ICERequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
+	VPCID string `json:"vpcId"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListEC2ICEResponse contains a list of AWS Instance Connect Endpoints and a next token if more pages are available.
+type AWSOIDCListEC2ICEResponse struct {
+	// EC2ICEs contains the page of Endpoints
+	EC2ICEs []awsoidc.EC2InstanceConnectEndpoint `json:"ec2Ices"`
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.

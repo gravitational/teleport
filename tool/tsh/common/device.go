@@ -31,9 +31,10 @@ import (
 type deviceCommand struct {
 	enroll *deviceEnrollCommand
 
-	// collect and keyget are debug commands.
-	collect *deviceCollectCommand
-	keyget  *deviceKeygetCommand
+	// collect, assetTag and keyget are debug commands.
+	collect  *deviceCollectCommand
+	assetTag *deviceAssetTagCommand
+	keyget   *deviceKeygetCommand
 
 	// activateCredential is a hidden command invoked on an elevated child
 	// process
@@ -44,6 +45,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	root := &deviceCommand{
 		enroll:             &deviceEnrollCommand{},
 		collect:            &deviceCollectCommand{},
+		assetTag:           &deviceAssetTagCommand{},
 		keyget:             &deviceKeygetCommand{},
 		activateCredential: &deviceActivateCredentialCommand{},
 	}
@@ -55,12 +57,15 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	// "tsh device enroll" command.
 	root.enroll.CmdClause = parentCmd.Command(
 		"enroll", "Enroll this device as a trusted device. Requires Teleport Enterprise.")
-	root.enroll.Flag("token", "Device enrollment token").
-		Required().
-		StringVar(&root.enroll.token)
+	root.enroll.Flag(
+		"current-device",
+		"Attempts to register and enroll the current device. Requires device admin privileges.").
+		BoolVar(&root.enroll.currentDevice)
+	root.enroll.Flag("token", "Device enrollment token").StringVar(&root.enroll.token)
 
 	// "tsh device" hidden debug commands.
 	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
+	root.assetTag.CmdClause = parentCmd.Command("asset-tag", "Print the detected device asset tag").Hidden()
 	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
 	root.activateCredential.CmdClause = parentCmd.Command("tpm-activate-credential", "").Hidden()
 	root.activateCredential.Flag("encrypted-credential", "").
@@ -75,18 +80,24 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 type deviceEnrollCommand struct {
 	*kingpin.CmdClause
 
-	token string
+	currentDevice bool
+	token         string
 }
 
 func (c *deviceEnrollCommand) run(cf *CLIConf) error {
+	if c.token == "" && !c.currentDevice {
+		// Mimic our required flag error.
+		// We don't want to suggest --current-device casually.
+		return trace.BadParameter("required flag --token not provided")
+	}
+
 	teleportClient, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var dev *devicepb.Device
 	ctx := cf.Context
-	if err := client.RetryWithRelogin(ctx, teleportClient, func() error {
+	return trace.Wrap(client.RetryWithRelogin(ctx, teleportClient, func() error {
 		proxyClient, err := teleportClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -98,19 +109,41 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer authClient.Close()
-
 		devices := authClient.DevicesClient()
-		dev, err = enroll.RunCeremony(ctx, devices, cf.Debug, c.token)
+		enrollCeremony := enroll.NewCeremony()
+
+		// Admin fast-tracked enrollment.
+		if c.currentDevice {
+			dev, outcome, err := enrollCeremony.RunAdmin(ctx, devices, cf.Debug)
+			printEnrollOutcome(outcome, dev) // Report partial successes.
+			return trace.Wrap(err)
+		}
+
+		// End-user enrollment.
+		dev, err := enrollCeremony.Run(ctx, devices, cf.Debug, c.token)
+		if err == nil {
+			printEnrollOutcome(enroll.DeviceEnrolled, dev)
+		}
 		return trace.Wrap(err)
-	}); err != nil {
-		return trace.Wrap(err)
+	}))
+}
+
+func printEnrollOutcome(outcome enroll.RunAdminOutcome, dev *devicepb.Device) {
+	var action string
+	switch outcome {
+	case enroll.DeviceRegisteredAndEnrolled:
+		action = "registered and enrolled"
+	case enroll.DeviceRegistered:
+		action = "registered"
+	case enroll.DeviceEnrolled:
+		action = "enrolled"
+	default:
+		return // All actions failed, don't print anything.
 	}
 
 	fmt.Printf(
-		"Device %q/%v enrolled\n",
-		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType),
-	)
-	return nil
+		"Device %q/%v %v\n",
+		dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType), action)
 }
 
 type deviceCollectCommand struct {
@@ -133,6 +166,20 @@ func (c *deviceCollectCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("DeviceCollectedData %s\n", val)
+	return nil
+}
+
+type deviceAssetTagCommand struct {
+	*kingpin.CmdClause
+}
+
+func (c *deviceAssetTagCommand) run(cf *CLIConf) error {
+	cdd, err := dtnative.CollectDeviceData()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println(cdd.SerialNumber)
 	return nil
 }
 

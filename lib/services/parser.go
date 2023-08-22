@@ -262,7 +262,7 @@ func (l *LogAction) Log(level, format string, args ...interface{}) predicate.Boo
 // Context is a default rule context used in teleport
 type Context struct {
 	// User is currently authenticated user
-	User types.User
+	User UserState
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource types.Resource
@@ -324,7 +324,7 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 	switch fields[0] {
 	case UserIdentifier:
-		var user types.User
+		var user UserState
 		if ctx.User == nil {
 			user = emptyUser
 		} else {

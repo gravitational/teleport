@@ -58,6 +58,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -3393,6 +3394,44 @@ func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeSe
 	return resources, nil
 }
 
+// GetSSHTargets gets all servers that would match an equivalent ssh dial request. Note that this method
+// returns all resources directly accessible to the user *and* all resources available via 'SearchAsRoles',
+// which is what we want when handling things like ambiguous host errors and resource-based access requests,
+// but may result in confusing behavior if it is used outside of those contexts.
+func (c *Client) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error) {
+	rsp, err := c.grpc.GetSSHTargets(ctx, req)
+	if err := trail.FromGRPC(err); !trace.IsNotImplemented(err) {
+		return rsp, err
+	}
+
+	// if we got a not implemented error, fallback to client-side filtering
+	servers, err := GetAllResources[*types.ServerV2](ctx, c, &proto.ListResourcesRequest{
+		ResourceType:     types.KindNode,
+		UseSearchAsRoles: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// we only get here if we hit a NotImplementedError from GetSSHTargets, which means
+	// we should be performing client-side filtering with default parameters instead.
+	routeMatcher := utils.NewSSHRouteMatcher(req.Host, req.Port, false)
+
+	// do client-side filtering
+	filtered := servers[:0]
+	for _, srv := range servers {
+		if !routeMatcher.RouteToServer(srv) {
+			continue
+		}
+
+		filtered = append(filtered, srv)
+	}
+
+	return &proto.GetSSHTargetsResponse{
+		Servers: filtered,
+	}, nil
+}
+
 // CreateSessionTracker creates a tracker resource for an active session.
 func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
 	v1, ok := st.(*types.SessionTrackerV1)
@@ -3795,6 +3834,12 @@ func (c *Client) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.C
 	return trail.FromGRPC(err)
 }
 
+// DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
+func (c *Client) DeleteClusterMaintenanceConfig(ctx context.Context) error {
+	_, err := c.grpc.DeleteClusterMaintenanceConfig(ctx, &emptypb.Empty{})
+	return trail.FromGRPC(err)
+}
+
 // integrationsClient returns an unadorned Integration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
@@ -4138,4 +4183,13 @@ func (c *Client) UpsertUserPreferences(ctx context.Context, in *userpreferencesp
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+// ResourceUsageClient returns an unadorned Resource Usage service client,
+// using the underlying Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a plugins client when calling this method, but all RPCs will return
+// "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClient {
+	return resourceusagepb.NewResourceUsageServiceClient(c.conn)
 }

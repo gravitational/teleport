@@ -457,6 +457,9 @@ const (
 	// KindUserLoginState is a UserLoginState resource
 	KindUserLoginState = "user_login_state"
 
+	// KindAccessListMember is an AccessListMember resource
+	KindAccessListMember = "access_list_member"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -973,6 +976,9 @@ const (
 
 	// ResourceSpecType refers to a resource field named "type".
 	ResourceSpecType = "type"
+
+	// ResourceKind refers to a resource field named "kind".
+	ResourceKind = "kind"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
