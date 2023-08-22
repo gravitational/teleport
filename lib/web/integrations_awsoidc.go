@@ -43,7 +43,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -297,7 +297,7 @@ func (h *Handler) awsOIDCListEC2(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -339,7 +339,7 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -376,7 +376,7 @@ func (h *Handler) awsOIDCDeployEC2ICE(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
