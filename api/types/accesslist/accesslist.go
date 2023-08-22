@@ -86,6 +86,9 @@ type Owner struct {
 type Audit struct {
 	// Frequency is a duration that describes how often an access list must be audited.
 	Frequency time.Duration `json:"frequency" yaml:"frequency"`
+
+	// NextAuditDate is the date that the next audit should be performed.
+	NextAuditDate time.Time `json:"next_audit_date" yaml:"next_audit_date"`
 }
 
 // Requires describes a requirement section for an access list. A user must
@@ -170,6 +173,10 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.BadParameter("audit frequency must be greater than 0")
 	}
 
+	if a.Spec.Audit.NextAuditDate.IsZero() {
+		return trace.BadParameter("next audit date can't be zero")
+	}
+
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
 		return trace.BadParameter("grants must specify at least one role or trait")
 	}
@@ -185,10 +192,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 
 		if member.Expires.IsZero() {
 			return trace.BadParameter("member %s expires is missing", member.Name)
-		}
-
-		if member.Reason == "" {
-			return trace.BadParameter("member %s reason is missing", member.Name)
 		}
 
 		if member.AddedBy == "" {
