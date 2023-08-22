@@ -523,9 +523,9 @@ message UsageEventOneOf {
     UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 33;
     AssistExecutionEvent assist_execution = 34;
     AssistNewConversationEvent assist_new_conversation = 35;
+    FeatureRecommendationEvent feature_recommendation_event = 37;
     AssistAccessRequest assist_access_request = 38;
     AssistAction assist_action = 39;
-    FeatureRecommendationEvent feature_recommendation_event = 40;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
