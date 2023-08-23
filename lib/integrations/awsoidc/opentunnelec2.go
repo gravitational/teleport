@@ -34,10 +34,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2instanceconnect"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
-	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -78,10 +76,6 @@ type OpenTunnelEC2Request struct {
 	// Eg, ip-172-31-32-234.eu-west-2.compute.internal:22
 	EC2Address string
 
-	// Listener is a tcp listener where clients will connect to.
-	// Eg, Proxy will connect to this listener when trying to ssh into
-	Listener net.Listener
-
 	// ec2OpenSSHPort is the port to connect to in the EC2 Instance.
 	// This value is parsed from EC2Address.
 	// Possible values: 22, 3389.
@@ -102,10 +96,6 @@ func (r *OpenTunnelEC2Request) CheckAndSetDefaults() error {
 
 	if r.Region == "" {
 		return trace.BadParameter("region is required")
-	}
-
-	if r.Listener == nil {
-		return trace.BadParameter("listener is required")
 	}
 
 	if r.InstanceID == "" {
@@ -141,6 +131,10 @@ func (r *OpenTunnelEC2Request) CheckAndSetDefaults() error {
 type OpenTunnelEC2Response struct {
 	// SSHSigner is the SSH Signer that should be used to connect to the host.
 	SSHSigner ssh.Signer
+
+	// Tunnel is a net.Conn that is connected to the EC2 instance.
+	// The SSH Client must use this connection to connect to it.
+	Tunnel net.Conn
 }
 
 // OpenTunnelEC2Client describes the required methods to Open a Tunnel to an EC2 Instance using
@@ -218,14 +212,11 @@ func NewOpenTunnelEC2Client(ctx context.Context, clientReq *AWSClientRequest) (O
 // - the proxy then talks SSH protocol to C1, which in turn pipes the tcp stream via websocket to EC2 Instance Connect Endpoint, which in turns pipes the stream to the EC2 instance.
 // - the proxy sends the Public Key created in the first step in order to authenticate.
 func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelEC2Request) (*OpenTunnelEC2Response, error) {
-	var err error
-	ret := &OpenTunnelEC2Response{}
-
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ret.SSHSigner, err = sendSSHPublicKey(ctx, clt, req)
+	sshSigner, err := sendSSHPublicKey(ctx, clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -248,39 +239,10 @@ func OpenTunnelEC2(ctx context.Context, clt OpenTunnelEC2Client, req OpenTunnelE
 		return nil, trace.Wrap(err)
 	}
 
-	go func() {
-		defer ec2Conn.Close()
-
-		logger := log.WithField("aws-oidc", "opentunnel").
-			WithField("instance_id", req.InstanceID).
-			WithField("eice", *eice.InstanceConnectEndpointId)
-
-		local, err := req.Listener.Accept()
-		if err != nil {
-			logger.WithError(err).Warn("failed to accept connection")
-			return
-		}
-		defer local.Close()
-
-		// Only one client is expected, no need to keep listener around.
-		req.Listener.Close()
-
-		g, _ := errgroup.WithContext(ctx)
-		g.Go(func() error {
-			_, err := io.Copy(local, ec2Conn)
-			return trace.Wrap(err, "dst:local src:ec2")
-		})
-		g.Go(func() error {
-			_, err := io.Copy(ec2Conn, local)
-			return trace.Wrap(err, "dst:ec2 src:local")
-		})
-
-		if err := g.Wait(); err != nil {
-			logger.WithError(err).Warn("failed to copy data")
-		}
-	}()
-
-	return ret, nil
+	return &OpenTunnelEC2Response{
+		SSHSigner: sshSigner,
+		Tunnel:    ec2Conn,
+	}, nil
 }
 
 // fetchEC2InstanceConnectEndpoint returns an EC2InstanceConnectEndpoint for the given VPC and whose state is ready to use ("create-complete").

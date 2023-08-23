@@ -175,11 +175,6 @@ type Server struct {
 	// It **MUST** only be populated when the target is a teleport ssh server
 	// or an agentless server.
 	targetServer types.Server
-
-	// destinationListener is a listener that will receive the ssh calls from this ssh Server.
-	// This is required when there's another TCP listener that is responsible for receiving the connection and forward it to another system.
-	// This is the case for the EC2 Instance Connect Endpoint in use by the SubKindOpenSSHEICENode.
-	destinationListener net.Listener
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -251,11 +246,6 @@ type ServerConfig struct {
 	// IsAgentlessNode indicates whether the targetServer is a Node with an OpenSSH server (no teleport agent).
 	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
 	IsAgentlessNode bool
-
-	// DestinationListener is the destination listener.
-	// This is required when there's another TCP listener that is responsible for receiving the connection and forward it to another system.
-	// This is the case for the EC2 Instance Connect Endpoint in use by the SubKindOpenSSHNode.
-	DestinationListener net.Listener
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -269,10 +259,6 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.IsAgentlessNode {
 		if s.TargetServer == nil {
 			return trace.BadParameter("target server is required for agentless nodes")
-		}
-
-		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHEICENode && s.DestinationListener == nil {
-			return trace.BadParameter("missing parameter DestinationListener")
 		}
 
 		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHNode && s.AgentlessSigner == nil {
@@ -337,29 +323,28 @@ func New(c ServerConfig) (*Server, error) {
 				"dst-addr": c.DstAddr.String(),
 			},
 		}),
-		id:                  uuid.New().String(),
-		targetConn:          c.TargetConn,
-		serverConn:          utils.NewTrackingConn(serverConn),
-		clientConn:          clientConn,
-		userAgent:           c.UserAgent,
-		agentlessSigner:     c.AgentlessSigner,
-		hostCertificate:     c.HostCertificate,
-		useTunnel:           c.UseTunnel,
-		address:             c.Address,
-		authClient:          c.AuthClient,
-		authService:         c.AuthClient,
-		dataDir:             c.DataDir,
-		clock:               c.Clock,
-		hostUUID:            c.HostUUID,
-		StreamEmitter:       c.Emitter,
-		parentContext:       c.ParentContext,
-		lockWatcher:         c.LockWatcher,
-		tracerProvider:      c.TracerProvider,
-		targetID:            c.TargetID,
-		targetAddr:          c.TargetAddr,
-		targetHostname:      c.TargetHostname,
-		targetServer:        c.TargetServer,
-		destinationListener: c.DestinationListener,
+		id:              uuid.New().String(),
+		targetConn:      c.TargetConn,
+		serverConn:      utils.NewTrackingConn(serverConn),
+		clientConn:      clientConn,
+		userAgent:       c.UserAgent,
+		agentlessSigner: c.AgentlessSigner,
+		hostCertificate: c.HostCertificate,
+		useTunnel:       c.UseTunnel,
+		address:         c.Address,
+		authClient:      c.AuthClient,
+		authService:     c.AuthClient,
+		dataDir:         c.DataDir,
+		clock:           c.Clock,
+		hostUUID:        c.HostUUID,
+		StreamEmitter:   c.Emitter,
+		parentContext:   c.ParentContext,
+		lockWatcher:     c.LockWatcher,
+		tracerProvider:  c.TracerProvider,
+		targetID:        c.TargetID,
+		targetAddr:      c.TargetAddr,
+		targetHostname:  c.TargetHostname,
+		targetServer:    c.TargetServer,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -618,14 +603,15 @@ func (s *Server) Serve() {
 		}
 
 		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-			sshSigner, err := s.setupTunnelForOpenSSHEphemeralNode(ctx)
+			openTunnelResp, err := s.setupTunnelForOpenSSHEphemeralNode(ctx)
 			if err != nil {
 				s.log.Warnf("Unable to set up EC2 Instance Connect Endpoint Tunnel for %q: %v", s.targetServer.GetName(), err)
 				return
 			}
 
-			s.agentlessSigner = sshSigner
-			s.address = s.destinationListener.Addr().String()
+			s.agentlessSigner = openTunnelResp.SSHSigner
+			s.targetConn = openTunnelResp.Tunnel
+			s.address = openTunnelResp.Tunnel.LocalAddr().String()
 		}
 	}
 
@@ -677,7 +663,7 @@ func getProxyPublicAddr(clt auth.ClientI) (string, error) {
 	return "", trace.BadParameter("failed to get Proxy Public Address")
 }
 
-func (s *Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (ssh.Signer, error) {
+func (s *Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (*awsoidc.OpenTunnelEC2Response, error) {
 	if s.targetServer.GetCloudMetadata() == nil || s.targetServer.GetCloudMetadata().AWS == nil {
 		return nil, trace.BadParameter("missing aws cloud metadata")
 	}
@@ -725,7 +711,6 @@ func (s *Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (ssh.Si
 		VPCID:           awsInfo.VPCID,
 		EC2Address:      s.targetServer.GetAddr(),
 		EC2SSHLoginUser: s.identityContext.Login,
-		Listener:        s.destinationListener,
 	})
 	if err != nil {
 		return nil, trace.BadParameter("failed to open aws ec2 instance endpoint connect tunnel: %v", err)
@@ -733,7 +718,8 @@ func (s *Server) setupTunnelForOpenSSHEphemeralNode(ctx context.Context) (ssh.Si
 
 	// This is the SSH Signer that the client must have used to connect to the EC2
 	// This is trusted because awsoidc.OpenTunnelEC2 sends the public key to the host.
-	return openTunnelResp.SSHSigner, nil
+	// It also returns a connection to the EC2 instance.
+	return openTunnelResp, nil
 }
 
 // Close will close all underlying connections that the forwarding server holds.

@@ -27,7 +27,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -67,7 +66,7 @@ func TestGeneratePKSC1RSAKey(t *testing.T) {
 }
 
 func TestGenerateEICEKey_when_boringbinary(t *testing.T) {
-	if !modules.GetModules().IsBoringBinary() {
+	if !IsBoringBinary() {
 		t.Skip()
 	}
 
@@ -80,7 +79,7 @@ func TestGenerateEICEKey_when_boringbinary(t *testing.T) {
 }
 
 func TestGenerateEICEKey(t *testing.T) {
-	if modules.GetModules().IsBoringBinary() {
+	if IsBoringBinary() {
 		t.Skip()
 	}
 
@@ -90,5 +89,4 @@ func TestGenerateEICEKey(t *testing.T) {
 	// We expect an ED25519 key
 	require.IsType(t, ed25519.PublicKey{}, publicKey)
 	require.IsType(t, ed25519.PrivateKey{}, privateKey)
-	t.Log("x")
 }

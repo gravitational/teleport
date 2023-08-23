@@ -50,7 +50,6 @@ func TestOpenTunnelRequest(t *testing.T) {
 			VPCID:           "vpc-id",
 			EC2SSHLoginUser: "ec2-user",
 			EC2Address:      "127.0.0.1:22",
-			Listener:        &net.TCPListener{},
 		}
 	}
 
@@ -113,15 +112,6 @@ func TestOpenTunnelRequest(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
-			name: "missing listener",
-			req: func() OpenTunnelEC2Request {
-				r := baseReqFn()
-				r.Listener = nil
-				return r
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
 			name: "invalid port (only 22 and 3389 are allowed)",
 			req: func() OpenTunnelEC2Request {
 				r := baseReqFn()
@@ -153,7 +143,7 @@ func TestOpenTunnelRequest(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(tt.reqWithDefaults, r, cmpopts.IgnoreFields(OpenTunnelEC2Request{}, "Listener", "ec2OpenSSHPort", "ec2PrivateHostname", "websocketCustomCA")))
+			require.Empty(t, cmp.Diff(tt.reqWithDefaults, r, cmpopts.IgnoreFields(OpenTunnelEC2Request{}, "ec2OpenSSHPort", "ec2PrivateHostname", "websocketCustomCA")))
 			require.Equal(t, tt.reqWithDefaults.ec2PrivateHostname, r.ec2PrivateHostname)
 			require.Equal(t, tt.reqWithDefaults.ec2OpenSSHPort, r.ec2OpenSSHPort)
 		})
@@ -232,17 +222,12 @@ func TestOpenTunnelEC2(t *testing.T) {
 		},
 	}
 
-	localListener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	defer localListener.Close()
-
 	resp, err := OpenTunnelEC2(ctx, m, OpenTunnelEC2Request{
 		EC2SSHLoginUser:   "os-user",
 		Region:            "us-east-1",
 		InstanceID:        "i-123",
 		VPCID:             "vpc-123",
 		EC2Address:        ec2Listener.Addr().String(),
-		Listener:          localListener,
 		websocketCustomCA: eiceWebsocketServer.Certificate(),
 	})
 	require.NoError(t, err)
@@ -275,18 +260,15 @@ func TestOpenTunnelEC2(t *testing.T) {
 			_, err = ec2LocalConnection.Write([]byte("pong"))
 			assert.NoError(t, err)
 		}()
-		localClient, err := net.Dial("tcp", localListener.Addr().String())
-		require.NoError(t, err)
-
-		_, err = localClient.Write([]byte("ping"))
+		_, err = resp.Tunnel.Write([]byte("ping"))
 		require.NoError(t, err)
 
 		bs := make([]byte, 4)
-		_, err = localClient.Read(bs)
+		_, err = resp.Tunnel.Read(bs)
 		require.NoError(t, err)
 		require.Equal(t, "pong", string(bytes.Trim(bs, "\x00")))
 
-		localClient.Close()
+		resp.Tunnel.Close()
 	})
 }
 

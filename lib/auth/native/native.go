@@ -20,8 +20,10 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -32,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -45,6 +46,15 @@ var precomputedKeys = make(chan *rsa.PrivateKey, 25)
 // startPrecomputeOnce is used to start the background task that precomputes key pairs.
 var startPrecomputeOnce sync.Once
 
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func IsBoringBinary() bool {
+	// Check the package name for one of the boring primitives, if the package
+	// path is from BoringCrypto, we know this binary was compiled against the
+	// dev.boringcrypto branch of Go.
+	hash := sha256.New()
+	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+}
+
 // GenerateKeyPair generates a new RSA key pair.
 func GenerateKeyPair() ([]byte, []byte, error) {
 	priv, err := GeneratePrivateKey()
@@ -56,7 +66,7 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 
 // GenerateEICEKey generates a key that can be send to an Amazon EC2 instance using the ec2instanceconnect.SendSSHPublicKey method.
 func GenerateEICEKey() (publicKey any, privateKey any, err error) {
-	if modules.GetModules().IsBoringBinary() {
+	if IsBoringBinary() {
 		privKey, err := GeneratePrivateKey()
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

@@ -231,12 +231,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	principals := []string{host}
 
 	var (
-		isAgentlessNode     bool
-		serverID            string
-		serverAddr          string
-		proxyIDs            []string
-		sshSigner           ssh.Signer
-		destinationListener net.Listener
+		isAgentlessNode bool
+		serverID        string
+		serverAddr      string
+		proxyIDs        []string
+		sshSigner       ssh.Signer
 	)
 
 	if target != nil {
@@ -266,8 +265,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 			agentGetter = nil
 			isAgentlessNode = true
 
-			switch target.GetSubKind() {
-			case types.SubKindOpenSSHNode:
+			if target.GetSubKind() == types.SubKindOpenSSHNode {
 				// If the node is of SubKindOpenSSHNode, create the signer.
 				client, err := r.GetSiteClient(ctx, clusterName)
 				if err != nil {
@@ -277,18 +275,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-
-			case types.SubKindOpenSSHEICENode:
-				// A socket is created so that the Dial function can reach a target but the ssh.Signer is created
-				// just in time, when the login user is sent.
-				destinationListener, err = net.Listen("tcp", "localhost:0")
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				serverAddr = destinationListener.Addr().String()
-
-			default:
-				return nil, trace.BadParameter("invalid target subkind: %s", target.GetSubKind())
 			}
 		}
 
@@ -304,7 +290,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	conn, err := site.Dial(reversetunnelclient.DialParams{
 		From:                  clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
-		ToListener:            destinationListener,
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
 		IsAgentlessNode:       isAgentlessNode,

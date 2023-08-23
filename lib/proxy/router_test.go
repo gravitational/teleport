@@ -543,7 +543,6 @@ func TestRouter_DialHost(t *testing.T) {
 				require.Nil(t, params.GetUserAgent)
 				require.Nil(t, params.AgentlessSigner)
 				require.True(t, params.IsAgentlessNode)
-				require.NotNil(t, params.ToListener)
 				require.NotNil(t, conn)
 			},
 		},

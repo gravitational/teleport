@@ -40,12 +40,6 @@ type DialParams struct {
 	// To is the destination address.
 	To net.Addr
 
-	// ToListener is the destination listener.
-	// This is required when there's another TCP listener that is responsible for receiving the connection and forward it to another system.
-	// This is the case for the EC2 Instance Connect Endpoint in use by the SubKindOpenSSHEICENode.
-	// To field must point to this listener.
-	ToListener net.Listener
-
 	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
