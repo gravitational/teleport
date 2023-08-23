@@ -307,6 +307,9 @@ require (
 	github.com/go-openapi/validate v0.22.3 // indirect
 	github.com/go-webauthn/x v0.1.6 // indirect
 	github.com/gobuffalo/flect v1.0.2 // indirect
+	github.com/gobwas/httphead v0.1.0 // indirect
+	github.com/gobwas/pool v0.2.1 // indirect
+	github.com/gobwas/ws v1.3.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.0 // indirect

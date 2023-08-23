@@ -431,6 +431,8 @@ const (
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
 	// has very short idle timeouts.
 	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
+	// WebAPIConnUpgradeTypeWebSocket is the standard upgrade type for WebSocket.
+	WebAPIConnUpgradeTypeWebSocket = "websocket"
 	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
 	// whether the network connection stays open after the current transaction
 	// finishes.

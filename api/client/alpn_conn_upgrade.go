@@ -184,8 +184,6 @@ func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withP
 
 // DialContext implements ContextDialer
 func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	logrus.Debugf("ALPN connection upgrade for %v.", addr)
-
 	tlsConn, err := tlsutils.TLSDial(ctx, d.dialer, network, addr, d.tlsConfig.Clone())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -210,14 +208,17 @@ func (d *alpnConnUpgradeDialer) upgradeType() string {
 	return constants.WebAPIConnUpgradeTypeALPN
 }
 
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (net.Conn, error) {
-	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func applyConnUpgradeHeaders(req *http.Request, alpnUpgradeType, challengeKey string) {
+	// Prefer "websocket".
+	req.Header.Add(constants.WebAPIConnUpgradeHeader, constants.WebAPIConnUpgradeTypeWebSocket)
+	req.Header.Set("Sec-Websocket-Protocol", alpnUpgradeType)
+	req.Header.Set("Sec-Websocket-Version", "13")
+	req.Header.Set("Sec-Websocket-Key", challengeKey)
 
-	req.Header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
-	req.Header.Add(constants.WebAPIConnUpgradeTeleportHeader, upgradeType)
+	// Append "legacy" custom upgrade type.
+	// TODO(greedy52) DELETE in 17.0
+	req.Header.Add(constants.WebAPIConnUpgradeHeader, alpnUpgradeType)
+	req.Header.Add(constants.WebAPIConnUpgradeTeleportHeader, alpnUpgradeType)
 
 	// Set "Connection" header to meet RFC spec:
 	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
@@ -230,6 +231,20 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (n
 	// must be set on both the upgrade request here and the 101 Switching
 	// Protocols response from the server.
 	req.Header.Add(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
+}
+
+func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
+	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeKey, err := generateWebSocketChallengeKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	applyConnUpgradeHeaders(req, alpnUpgradeType, challengeKey)
 
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
@@ -246,14 +261,28 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (n
 			return nil, trace.NotImplemented(
 				"connection upgrade call to %q with upgrade type %v failed with status code %v. Please upgrade the server and try again.",
 				constants.WebAPIConnUpgrade,
-				upgradeType,
+				alpnUpgradeType,
 				resp.StatusCode,
 			)
 		}
 		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
 
-	if upgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
+	// Handle WebSocket.
+	if resp.Header.Get(constants.WebAPIConnUpgradeHeader) == constants.WebAPIConnUpgradeTypeWebSocket {
+		if err := checkWebSocketUpgradeResponse(resp, challengeKey); err != nil {
+			defer conn.Close()
+			return nil, trace.Wrap(err)
+		}
+
+		logrus.Debugf("Performing ALPN WebSocket connection upgrade for %v.", api.Host)
+		return newWebSocketALPNClientConn(conn), nil
+	}
+
+	// Handle "legacy".
+	// TODO(greedy52) DELETE in 17.0.
+	logrus.Debugf("Performing ALPN legacy connection upgrade for %v.", api.Host)
+	if alpnUpgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
 		return pingconn.New(conn), nil
 	}
 	return conn, nil

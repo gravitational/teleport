@@ -1,0 +1,119 @@
+/*
+Copyright 2024 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package client
+
+import (
+	"crypto/rand"
+	"crypto/sha1"
+	"encoding/base64"
+	"io"
+	"net"
+	"net/http"
+	"sync"
+
+	"github.com/gobwas/ws"
+	"github.com/gravitational/trace"
+)
+
+func computeWebSocketAcceptKey(challengeKey string) string {
+	h := sha1.New()
+	h.Write([]byte(challengeKey))
+
+	// WebSocket magic string:
+	// https://www.rfc-editor.org/rfc/rfc6455
+	//
+	// Server side uses gorilla:
+	// https://github.com/gorilla/websocket/blob/dcea2f088ce10b1b0722c4eb995a4e145b5e9047/util.go#L17-L24
+	h.Write([]byte("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+func generateWebSocketChallengeKey() (string, error) {
+	// Quote from https://www.rfc-editor.org/rfc/rfc6455:
+	//
+	// A |Sec-WebSocket-Key| header field with a base64-encoded (see Section 4
+	// of [RFC4648]) value that, when decoded, is 16 bytes in length.
+	p := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, p); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return base64.StdEncoding.EncodeToString(p), nil
+}
+
+func checkWebSocketUpgradeResponse(resp *http.Response, challengeKey string) error {
+	if computeWebSocketAcceptKey(challengeKey) != resp.Header.Get("Sec-WebSocket-Accept") {
+		return trace.BadParameter("WebSocket handshake failed: invalid Sec-WebSocket-Accept")
+	}
+	return nil
+}
+
+type websocketALPNClientConn struct {
+	net.Conn
+	readBuffer []byte
+	writeMutex sync.Mutex
+}
+
+func newWebSocketALPNClientConn(conn net.Conn) *websocketALPNClientConn {
+	return &websocketALPNClientConn{
+		Conn: conn,
+	}
+}
+
+func (c *websocketALPNClientConn) Read(b []byte) (int, error) {
+	if len(c.readBuffer) > 0 {
+		n := copy(b, c.readBuffer)
+		if n < len(c.readBuffer) {
+			c.readBuffer = c.readBuffer[n:]
+		} else {
+			c.readBuffer = nil
+		}
+		return n, nil
+	}
+
+	for {
+		frame, err := ws.ReadFrame(c.Conn)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+
+		switch frame.Header.OpCode {
+		case ws.OpClose:
+			return 0, io.EOF
+		case ws.OpPing:
+			pong := ws.NewPongFrame(frame.Payload)
+			pong.Header.Masked = true
+			if err := c.writeFrame(pong); err != nil {
+				return 0, trace.Wrap(err)
+			}
+		case ws.OpBinary:
+			c.readBuffer = frame.Payload
+			return c.Read(b)
+		}
+	}
+}
+
+func (c *websocketALPNClientConn) Write(b []byte) (int, error) {
+	frame := ws.NewFrame(ws.OpBinary, true, b)
+	frame.Header.Masked = true
+	return len(b), trace.Wrap(c.writeFrame(frame))
+}
+
+func (c *websocketALPNClientConn) writeFrame(frame ws.Frame) error {
+	c.writeMutex.Lock()
+	defer c.writeMutex.Unlock()
+	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
+}
