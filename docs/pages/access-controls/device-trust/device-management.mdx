@@ -1,6 +1,6 @@
 ---
-title: Manage Trusted Device (Preview)
-description: Learn how to register and enroll device in Teleport
+title: Manage Trusted Devices (Preview)
+description: Learn how to manage Trusted Devices in Teleport
 ---
 
 <Admonition type="warning" title="Preview Note: Supported Device Type">
@@ -10,7 +10,7 @@ systems and access features is planned for upcoming Teleport versions.
 
 ### Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/no-oss-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
@@ -20,12 +20,12 @@ The `tctl` tool is used to manage the device inventory. A device admin is
 responsible for managing devices, adding new devices to the inventory and
 removing devices that are no longer in use.
 
-<Admonition type="tip" title="Self enrollment">
-Users with the `editor` role can register and enroll their device in a single step with
-the following command:
-```code
-$ tsh device enroll --current-device
-```
+<Admonition type="tip" title="Self enrollment: v13.3.5+">
+  Users with the preset `editor` or `device-enroll` role (available from v13.3.6 and above)
+  can register and enroll their device in a single step with the following command:
+  ```code
+  $ tsh device enroll --current-device
+  ```
 </Admonition>
 
 <Admonition type="tip" title="Sync with Jamf Pro">
@@ -67,7 +67,8 @@ a device, you first need to determine its serial number.
   </TabItem>
 
   <TabItem label="Windows">
-    Windows devices can have multiple serial numbers depending on the configuration made by the manufacturer. Teleport will pick the first available value from the following:
+    Windows devices can have multiple serial numbers depending on the configuration made by the manufacturer.
+    Teleport will pick the first available value from the following:
     - System asset tag
     - System serial number
     - Baseboard serial number
@@ -103,11 +104,15 @@ a device, you first need to determine its serial number.
 </Tabs>
 
 <Admonition type="warning" title="Device Role">
-For clusters created using Teleport v12 or newer, the preset `editor` role has the necessary permissions to manage devices.
-If you Teleport cluster is older than v12, you will need to create and grant [`device` role](#dedicated-device-admin-role) to manage device inventory.
+  For clusters created after v13.3.6, Teleport supports preset `device-admin` role to manage devices.
+
+  For clusters created using Teleport v12 or newer, the preset `editor` role has
+  the necessary permissions to manage devices. If your Teleport cluster is older than v12, you will
+  need to create and grant [`device` role](#dedicated-device-admin-role) to manage device inventory.
 </Admonition>
 
 ## Generate enrollment token
+
 A registered device becomes a trusted device after it goes through the
 enrollment ceremony. The tie between the device inventory and enrollment
 is a device enrollment token. A device enrollment token needs to be created
@@ -159,9 +164,14 @@ enrollment and is not required on future device authentications.
 </Admonition>
 
 ## Auto-Enrollment
+
 In a large organization, distributing enrollment tokens to each user can be challenging.
 Teleport supports auto-enrollment, which if enabled, automatically enrolls user
 device during next Teleport login.
+
+<Admonition type="tip" title="v13.3.6+">
+  Teleport version 13.3.6 and above has auto-enrollment enabled by default.
+</Admonition>
 
 Auto-enrollment allows `tsh` to automatically enroll devices already registered
 in Teleport during the user's login. The registration may be
@@ -252,8 +262,14 @@ Device "c9cbb327-68a8-497e-b820-6a4b2bf58269" removed
 ```
 
 ## Dedicated device admin role
+
 For tighter control over enrollment process, we recommend creating a dedicated
 device admin role and grant the role to user allowed for device management.
+
+<Admonition type="tip" title="v13.3.6+">
+  Teleport version 13.3.6 and above supports preset `device-admin` role, which
+  can be used as an alternative to creating a new role as explained below.
+</Admonition>
 
 Following is an example of a role that grants permissions for the `device` resource is necessary to manage
 the inventory. Save the yaml below as `device-admin.yaml` and create it in your
