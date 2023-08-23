@@ -1,3 +1,9 @@
+###################################################################################
+#                                                                                 #
+#      DO NOT USE FOR PRODUCTION BUILD OR ANYTHING OTHER THAN CI TESTING!         #
+#                                                                                 #
+###################################################################################
+
 # This Dockerfile makes the "build box" the container used to:
 # * run test and linters in CI
 # * building other Docker images
