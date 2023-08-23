@@ -129,17 +129,35 @@ func (a *AccessListService) DeleteAllAccessLists(ctx context.Context) error {
 
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
+	// Make sure the access list is present.
+	_, err := a.service.GetResource(ctx, accessList)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	return a.memberService.WithPrefix(accessList).ListResources(ctx, pageSize, nextToken)
 }
 
 // GetAccessListMember returns the specified access list member resource.
 func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
+	// Make sure the access list is present.
+	_, err := a.service.GetResource(ctx, accessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	member, err := a.memberService.WithPrefix(accessList).GetResource(ctx, memberName)
 	return member, trace.Wrap(err)
 }
 
 // UpsertAccessListMember creates or updates an access list member resource.
 func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
+	// Make sure the access list is present.
+	_, err := a.service.GetResource(ctx, member.Spec.AccessList)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := trace.Wrap(a.memberService.WithPrefix(member.Spec.AccessList).UpsertResource(ctx, member)); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,11 +166,23 @@ func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *
 
 // DeleteAccessListMember hard deletes the specified access list member resource.
 func (a *AccessListService) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
+	// Make sure the access list is present.
+	_, err := a.service.GetResource(ctx, accessList)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(a.memberService.WithPrefix(accessList).DeleteResource(ctx, memberName))
 }
 
 // DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 func (a *AccessListService) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
+	// Make sure the access list is present.
+	_, err := a.service.GetResource(ctx, accessList)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return trace.Wrap(a.memberService.WithPrefix(accessList).DeleteAllResources(ctx))
 }
 

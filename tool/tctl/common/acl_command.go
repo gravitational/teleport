@@ -25,10 +25,10 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -70,8 +70,8 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *servicecfg.Config) 
 	c.usersAdd = users.Command("add", "Add a user to an access list.")
 	c.usersAdd.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
 	c.usersAdd.Arg("user", "The user to add to the access list.").Required().StringVar(&c.userName)
-	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339).").Required().StringVar(&c.expires)
-	c.usersAdd.Arg("reason", "The reason the user has been added to the access list.").Required().StringVar(&c.reason)
+	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339).").StringVar(&c.expires)
+	c.usersAdd.Arg("reason", "The reason the user has been added to the access list.").StringVar(&c.reason)
 
 	c.usersRemove = users.Command("rm", "Remove a user from an access list.")
 	c.usersRemove.Arg("access-list-name", "The access list name.").Required().StringVar(&c.accessListName)
@@ -139,27 +139,32 @@ func (c *ACLCommand) Get(ctx context.Context, client auth.ClientI) error {
 
 // UsersAdd will add a user to an access list.
 func (c *ACLCommand) UsersAdd(ctx context.Context, client auth.ClientI) error {
-	expires, err := time.Parse(time.RFC3339, c.expires)
-	if err != nil {
-		return trace.Wrap(err)
+	var expires time.Time
+	var err error
+	if c.expires != "" {
+		expires, err = time.Parse(time.RFC3339, c.expires)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	accessList, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	accessList.Spec.Members = append(accessList.Spec.Members, accesslist.Member{
-		Name:    c.userName,
-		Reason:  c.reason,
-		Expires: expires,
+	member, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: c.userName,
+	}, accesslist.AccessListMemberSpec{
+		AccessList: c.accessListName,
+		Name:       c.userName,
+		Reason:     c.reason,
+		Expires:    expires,
 
 		// The following fields will be updated in the backend, so their values here don't matter.
 		Joined:  time.Now(),
 		AddedBy: "dummy",
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	_, err = client.AccessListClient().UpsertAccessList(ctx, accessList)
+	_, err = client.AccessListClient().UpsertAccessListMember(ctx, member)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -171,22 +176,7 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client auth.ClientI) error {
 
 // UsersRemove will remove a user to an access list.
 func (c *ACLCommand) UsersRemove(ctx context.Context, client auth.ClientI) error {
-	accessList, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	memberIndex := slices.IndexFunc(accessList.Spec.Members, func(member accesslist.Member) bool {
-		return member.Name == c.userName
-	})
-
-	if memberIndex == -1 {
-		return trace.NotFound("user %s is not a member of access list %s\n", c.userName, c.accessListName)
-	}
-
-	slices.Delete(accessList.Spec.Members, memberIndex, memberIndex+1)
-
-	_, err = client.AccessListClient().UpsertAccessList(ctx, accessList)
+	err := client.AccessListClient().DeleteAccessListMember(ctx, c.accessListName, c.userName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -198,19 +188,30 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client auth.ClientI) error
 
 // UsersList will list the users in an access list.
 func (c *ACLCommand) UsersList(ctx context.Context, client auth.ClientI) error {
-	accessList, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
+	members, nextToken, err := client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 1, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if len(accessList.Spec.Members) == 0 {
+	if len(members) == 0 {
 		fmt.Printf("No members found for access list %s.\nYou may not have access to see the members for this list.\n", c.accessListName)
 		return nil
 	}
 
 	fmt.Printf("Members of %s:\n", c.accessListName)
-	for _, member := range accessList.Spec.Members {
-		fmt.Printf("- %s\n", member.Name)
+	for {
+		for _, member := range members {
+			fmt.Printf("- %s\n", member.Spec.Name)
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		members, nextToken, err = client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 1, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
