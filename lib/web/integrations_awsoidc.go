@@ -316,6 +316,7 @@ func (h *Handler) awsOIDCListEC2ICE(w http.ResponseWriter, r *http.Request, p ht
 	resp, err := awsoidc.ListEC2ICE(ctx,
 		listEC2ICEClient,
 		awsoidc.ListEC2ICERequest{
+			Region:    req.Region,
 			VPCID:     req.VPCID,
 			NextToken: req.NextToken,
 		},

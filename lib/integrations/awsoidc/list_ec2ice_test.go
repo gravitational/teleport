@@ -98,6 +98,7 @@ func TestListEC2ICE(t *testing.T) {
 		// First page must return pageSize number of Endpoints
 		resp, err := ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
 			VPCID:     "vpc-123",
+			Region:    "us-east-1",
 			NextToken: "",
 		})
 		require.NoError(t, err)
@@ -109,6 +110,7 @@ func TestListEC2ICE(t *testing.T) {
 		// Second page must return pageSize number of Endpoints
 		resp, err = ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
 			VPCID:     "vpc-abc",
+			Region:    "us-east-1",
 			NextToken: nextPageToken,
 		})
 		require.NoError(t, err)
@@ -120,6 +122,7 @@ func TestListEC2ICE(t *testing.T) {
 		// Third page must return only the remaining Endpoints and an empty nextToken
 		resp, err = ListEC2ICE(ctx, mockListClient, ListEC2ICERequest{
 			VPCID:     "vpc-abc",
+			Region:    "us-east-1",
 			NextToken: nextPageToken,
 		})
 		require.NoError(t, err)
@@ -139,12 +142,14 @@ func TestListEC2ICE(t *testing.T) {
 			name: "valid for listing instances",
 			req: ListEC2ICERequest{
 				VPCID:     "vpc-abcd",
+				Region:    "us-east-1",
 				NextToken: "",
 			},
 			mockEndpoints: []ec2Types.Ec2InstanceConnectEndpoint{{
 				SubnetId:                  aws.String("subnet-123"),
 				InstanceConnectEndpointId: aws.String("ice-name"),
 				State:                     "create-complete",
+				StateMessage:              aws.String("success message"),
 			},
 			},
 			respCheck: func(t *testing.T, ldr *ListEC2ICEResponse) {
@@ -152,17 +157,28 @@ func TestListEC2ICE(t *testing.T) {
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
 
 				endpoint := EC2InstanceConnectEndpoint{
-					Name:     "ice-name",
-					State:    "create-complete",
-					SubnetID: "subnet-123",
+					Name:          "ice-name",
+					State:         "create-complete",
+					SubnetID:      "subnet-123",
+					StateMessage:  "success message",
+					DashboardLink: "https://us-east-1.console.aws.amazon.com/vpc/home?#InstanceConnectEndpointDetails:instanceConnectEndpointId=ice-name",
 				}
 				require.Empty(t, cmp.Diff(endpoint, ldr.EC2ICEs[0]))
 			},
 			errCheck: noErrorFunc,
 		},
 		{
-			name:     "no vpc id",
-			req:      ListEC2ICERequest{},
+			name: "no vpc id",
+			req: ListEC2ICERequest{
+				Region: "us-east-1",
+			},
+			errCheck: trace.IsBadParameter,
+		},
+		{
+			name: "no region id",
+			req: ListEC2ICERequest{
+				VPCID: "vpc-123",
+			},
 			errCheck: trace.IsBadParameter,
 		},
 	} {
