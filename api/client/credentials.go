@@ -500,6 +500,8 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 	// Build a "dynamic" tls.Config which can support a changing cert and root
 	// CA pool.
 	cfg := &tls.Config{
+		// Set the default NextProto of "h2". Based on the value in
+		// configureTLS()
 		NextProtos: []string{http2.NextProtoTLS},
 
 		// GetClientCertificate is used instead of the static Certificates
@@ -542,8 +544,9 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 			_, err := state.PeerCertificates[0].Verify(opts)
 			return err
 		},
-		// Set the default name that's included in all Teleport issued
-		// certificates.
+		// Set ServerName for SNI & Certificate Validation to the sentinel
+		// teleport.cluster.local which is included on all Teleport Auth Server
+		// certificates. Based on the value in configureTLS()
 		ServerName: constants.APIDomain,
 	}
 
