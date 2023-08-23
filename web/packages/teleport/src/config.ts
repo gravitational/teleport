@@ -82,6 +82,7 @@ const cfg = {
   routes: {
     root: '/web',
     discover: '/web/discover',
+    accessRequest: '/web/accessrequest',
     assistBase: '/web/assist/',
     assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
