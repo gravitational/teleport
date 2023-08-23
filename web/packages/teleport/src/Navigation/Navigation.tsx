@@ -16,8 +16,9 @@ limitations under the License.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
-
 import { matchPath, useHistory, useLocation } from 'react-router';
+
+import { Image } from 'design';
 
 import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
@@ -35,22 +36,11 @@ import { useTeleport } from '..';
 
 import logoLight from './logoLight.svg';
 import logoDark from './logoDark.svg';
+import logoPoweredBy from './logoPoweredBy.svg';
 
 import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
-
-const NavigationLogo = styled.div`
-  background: url(${props =>
-      props.themeOption === 'light' ? logoLight : logoDark})
-    no-repeat;
-  background-size: contain;
-  width: 180px;
-  height: 32px;
-  margin-top: 20px;
-  margin-left: 32px;
-  margin-bottom: 20px;
-`;
 
 const NavigationContainer = styled.div`
   background: ${p => p.theme.colors.levels.surface};
@@ -101,11 +91,13 @@ function getCategoryForRoute(
   return feature.category;
 }
 
-export function Navigation() {
+export function Navigation({
+  CustomLogo,
+  showPoweredByLogo = false,
+}: NavigationProps) {
   const features = useFeatures();
   const history = useHistory();
   const location = useLocation();
-  const theme = useTheme();
   const ctx = useTeleport();
 
   const [view, setView] = useState(
@@ -178,7 +170,7 @@ export function Navigation() {
 
   return (
     <NavigationContainer>
-      <NavigationLogo themeOption={theme.name} />
+      {CustomLogo ? <CustomLogo /> : <NavigationLogo />}
 
       {ctx.getFeatureFlags().managementSection && (
         <NavigationSwitcher
@@ -189,6 +181,46 @@ export function Navigation() {
       )}
 
       <CategoriesContainer>{categories}</CategoriesContainer>
+      {showPoweredByLogo && <PoweredByLogo />}
     </NavigationContainer>
   );
 }
+
+const NavigationLogo = () => {
+  const theme = useTheme();
+
+  return (
+    <Image
+      src={theme.type === 'dark' ? logoDark : logoLight}
+      height="32px"
+      width="fit-content"
+      style={{
+        marginTop: '20px',
+        marginLeft: '32px',
+        marginBottom: '20px',
+      }}
+      alt="teleport logo"
+    />
+  );
+};
+
+const PoweredByLogo = () => {
+  return (
+    <Image
+      src={logoPoweredBy}
+      height="48px"
+      width="fit-content"
+      style={{
+        marginTop: '28px',
+        marginLeft: '32px',
+        marginBottom: '36px',
+      }}
+      alt="powered by teleport"
+    />
+  );
+};
+
+export type NavigationProps = {
+  CustomLogo?: () => React.ReactElement;
+  showPoweredByLogo?: boolean;
+};

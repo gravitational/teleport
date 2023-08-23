@@ -17,25 +17,26 @@ limitations under the License.
 import React, { lazy } from 'react';
 
 import {
-  Server,
-  Application,
-  Desktop,
-  Kubernetes,
-  Database,
-  Terminal,
-  Users as UsersIcon,
-  ClipboardUser,
-  ShieldCheck,
-  Laptop,
-  Lock,
   AddCircle,
+  Application,
   CirclePlay,
-  ListThin,
-  SlidersVertical,
-  UserCircleGear,
-  Question,
+  ClipboardUser,
   Cluster,
+  Database,
+  Desktop,
+  EqualizersVertical,
   Integrations as IntegrationsIcon,
+  Kubernetes,
+  Laptop,
+  ListThin,
+  Lock,
+  Question,
+  Server,
+  ShieldCheck,
+  SlidersVertical,
+  Terminal,
+  UserCircleGear,
+  Users as UsersIcon,
 } from 'design/Icon';
 
 import cfg from 'teleport/config';
@@ -49,7 +50,7 @@ import {
 
 import { NavTitle } from './types';
 
-import type { TeleportFeature, FeatureFlags } from './types';
+import type { FeatureFlags, TeleportFeature } from './types';
 
 const Audit = lazy(() => import('./Audit'));
 const Nodes = lazy(() => import('./Nodes'));
@@ -71,6 +72,7 @@ const NewLock = lazy(() => import('./LocksV2/NewLock'));
 const Databases = lazy(() => import('./Databases'));
 const Desktops = lazy(() => import('./Desktops'));
 const Discover = lazy(() => import('./Discover'));
+const LockedAccessRequests = lazy(() => import('./AccessRequests'));
 const Integrations = lazy(() => import('./Integrations'));
 const IntegrationEnroll = lazy(
   () => import('@gravitational/teleport/src/Integrations/Enroll')
@@ -79,6 +81,30 @@ const IntegrationEnroll = lazy(
 // ****************************
 // Resource Features
 // ****************************
+
+class AccessRequests implements TeleportFeature {
+  category = NavigationCategory.Resources;
+
+  route = {
+    title: 'Access Requests',
+    path: cfg.routes.accessRequest,
+    exact: true,
+    component: LockedAccessRequests,
+  };
+
+  hasAccess() {
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.AccessRequests,
+    icon: <EqualizersVertical />,
+    exact: true,
+    getLink() {
+      return cfg.routes.accessRequest;
+    },
+  };
+}
 
 export class FeatureNodes implements TeleportFeature {
   route = {
@@ -652,6 +678,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureKubes(),
     new FeatureDatabases(),
     new FeatureDesktops(),
+    new AccessRequests(),
     new FeatureSessions(),
 
     // Management

@@ -79,6 +79,9 @@ message AccessListOwner {
 message AccessListAudit {
   // frequency is a duration that describes how often an access list must be audited.
   google.protobuf.Duration frequency = 1;
+
+  // next_audit_date is when the next audit date should be done by.
+  google.protobuf.Timestamp next_audit_date = 2;
 }
 
 // AccessListRequires describes a requirement section for an access list. A user must

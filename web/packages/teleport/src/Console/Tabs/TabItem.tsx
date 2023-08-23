@@ -115,6 +115,7 @@ const StyledCloseButton = styled.button`
   padding: 0;
   margin: 0 8px 0 0;
   transition: all 0.3s;
+  color: ${props => props.theme.colors.text.main};
 
   &:hover {
     color: ${props => props.theme.colors.text.primaryInverse};

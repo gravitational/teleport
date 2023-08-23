@@ -128,9 +128,9 @@ buildbox:
 			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
+			--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-			--build-arg BUF_VERSION=$(BUF_VERSION) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
@@ -157,6 +157,7 @@ buildbox-centos7:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
@@ -176,6 +177,7 @@ buildbox-centos7-fips:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
 		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
@@ -186,12 +188,17 @@ buildbox-centos7-fips:
 # with the correct UID and GID created, so those arguments are not needed here.
 #
 .PHONY:buildbox-arm
-buildbox-arm: buildbox
+buildbox-arm:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM) || true; fi;
 	docker build \
 		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
 
 CONNECT_VERSION ?= $(VERSION)
@@ -475,6 +482,13 @@ print-rust-version:
 	@echo $(RUST_VERSION)
 
 #
+# Print the wasm-pack version used to build Teleport.
+#
+.PHONY:print-wasm-pack-version
+print-wasm-pack-version:
+	@echo $(WASM_PACK_VERSION)
+
+#
 # Print the Node version used to build Teleport Connect.
 #
 .PHONY:print-node-version
@@ -563,6 +577,7 @@ build-multiarch:
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg WASM_PACK_VERSION=$(WASM_PACK_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg UID=$(shell id -u) \
 		--build-arg GID=$(shell id -g) \
@@ -572,7 +587,7 @@ build-multiarch:
 .PHONY:generate-eventschema
 generate-eventschema:
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
-	
+
 	cd tooling && go build -o ./bin/protoc-gen-eventschema ./cmd/protoc-gen-eventschema/
 
 	protoc \

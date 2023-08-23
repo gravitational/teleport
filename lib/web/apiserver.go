@@ -1480,6 +1480,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		AutomaticUpgrades:        clusterFeatures.GetAutomaticUpgrades(),
 		AssistEnabled:            assistEnabled,
 		HideInaccessibleFeatures: clusterFeatures.GetFeatureHiding(),
+		CustomTheme:              clusterFeatures.GetCustomTheme(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2800,7 +2801,7 @@ func (h *Handler) siteNodeConnect(
 	if params == "" {
 		return nil, trace.BadParameter("missing params")
 	}
-	var req *TerminalRequest
+	var req TerminalRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2824,13 +2825,13 @@ func (h *Handler) siteNodeConnect(
 	clusterName := site.GetName()
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx)
+		sessionData, err = h.generateSession(ctx, clt, &req, clusterName, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, req, clusterName)
+		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, &req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
