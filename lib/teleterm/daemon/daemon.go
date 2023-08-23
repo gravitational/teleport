@@ -203,11 +203,17 @@ func (s *Service) ResolveCluster(path string) (*clusters.Cluster, *client.Telepo
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	cluster, clusterClient, err := s.resolveCluster(resourceURI)
+	cluster, clusterClient, err := s.ResolveClusterURI(resourceURI)
 	return cluster, clusterClient, trace.Wrap(err)
 }
 
-func (s *Service) resolveCluster(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
+// ResolveClusterURI is like ResolveCluster, but it accepts an already parsed URI instead of a
+// string.
+//
+// In the future, we should migrate towards ResolveClusterURI. Transforming strings into URIs should
+// be done on the outermost layer, that is the gRPC handlers, so that the inner core doesn't have to
+// worry about parsing URIs and can assume they are correct.
+func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *client.TeleportClient, error) {
 	cluster, clusterClient, err := s.cfg.Storage.GetByResourceURI(uri)
 	return cluster, clusterClient, trace.Wrap(err)
 }
@@ -312,7 +318,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 	}
 
 	reissueDBCerts := func() error {
-		cluster, _, err := s.resolveCluster(g.TargetURI())
+		cluster, _, err := s.ResolveClusterURI(g.TargetURI())
 		if err != nil {
 			return trace.Wrap(err)
 		}
