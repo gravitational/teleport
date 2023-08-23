@@ -477,7 +477,6 @@ type Cache struct {
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	accessListsCache             services.AccessLists
 	userLoginStateCache          services.UserLoginStates
-	accessListMembersCache       services.AccessListMembers
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -635,8 +634,6 @@ type Config struct {
 	AccessLists services.AccessLists
 	// UserLoginStates is the user login state service.
 	UserLoginStates services.UserLoginStates
-	// AccessListMembers is the access list members service.
-	AccessListMembers services.AccessListMembers
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -849,7 +846,6 @@ func New(config Config) (*Cache, error) {
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
 		accessListsCache:             accessListsCache,
 		userLoginStateCache:          userLoginStatesCache,
-		accessListMembersCache:       accessListsCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,

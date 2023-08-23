@@ -297,7 +297,6 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
-		AccessListMembers:       p.accessListMembers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -693,7 +692,6 @@ func TestCompletenessInit(t *testing.T) {
 			Integrations:            p.integrations,
 			AccessLists:             p.accessLists,
 			UserLoginStates:         p.userLoginStates,
-			AccessListMembers:       p.accessListMembers,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -764,7 +762,6 @@ func TestCompletenessReset(t *testing.T) {
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
-		AccessListMembers:       p.accessListMembers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -947,7 +944,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
-		AccessListMembers:       p.accessListMembers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1028,7 +1024,6 @@ func initStrategy(t *testing.T) {
 		Integrations:            p.integrations,
 		AccessLists:             p.accessLists,
 		UserLoginStates:         p.userLoginStates,
-		AccessListMembers:       p.accessListMembers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))

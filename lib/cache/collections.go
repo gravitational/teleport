@@ -611,8 +611,8 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			collections.userLoginStates = &genericCollection[*userloginstate.UserLoginState, services.UserLoginStatesGetter, userLoginStateExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.userLoginStates
 		case types.KindAccessListMember:
-			if c.AccessListMembers == nil {
-				return nil, trace.BadParameter("missing parameter AccessListMembers")
+			if c.AccessLists == nil {
+				return nil, trace.BadParameter("missing parameter AccessLists")
 			}
 			collections.accessListMembers = &genericCollection[*accesslist.AccessListMember, services.AccessListMembersGetter, accessListMembersExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessLists
@@ -2461,7 +2461,7 @@ func (accessListMembersExecutor) getAll(ctx context.Context, cache *Cache, loadS
 			var page []*accesslist.AccessListMember
 			var err error
 
-			page, nextToken, err = cache.Config.AccessListMembers.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
+			page, nextToken, err = cache.AccessLists.ListAccessListMembers(ctx, accessList.GetName(), 0 /* default page size */, nextToken)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2477,12 +2477,12 @@ func (accessListMembersExecutor) getAll(ctx context.Context, cache *Cache, loadS
 }
 
 func (accessListMembersExecutor) upsert(ctx context.Context, cache *Cache, resource *accesslist.AccessListMember) error {
-	_, err := cache.accessListMembersCache.UpsertAccessListMember(ctx, resource)
+	_, err := cache.accessListsCache.UpsertAccessListMember(ctx, resource)
 	return trace.Wrap(err)
 }
 
 func (accessListMembersExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.accessListMembersCache.DeleteAllAccessListMembers(ctx)
+	return cache.accessListsCache.DeleteAllAccessListMembers(ctx)
 }
 
 func (accessListMembersExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
@@ -2490,16 +2490,16 @@ func (accessListMembersExecutor) delete(ctx context.Context, cache *Cache, resou
 	if !ok {
 		return trace.BadParameter("expected *accesslist.AccessListMember, got %T", resource)
 	}
-	return cache.accessListMembersCache.DeleteAccessListMember(ctx, member.Spec.AccessList, member.GetName())
+	return cache.accessListsCache.DeleteAccessListMember(ctx, member.Spec.AccessList, member.GetName())
 }
 
 func (accessListMembersExecutor) isSingleton() bool { return false }
 
 func (accessListMembersExecutor) getReader(cache *Cache, cacheOK bool) services.AccessListMembersGetter {
 	if cacheOK {
-		return cache.accessListMembersCache
+		return cache.accessListsCache
 	}
-	return cache.Config.AccessListMembers
+	return cache.AccessLists
 }
 
 var _ executor[*accesslist.AccessListMember, services.AccessListMembersGetter] = accessListMembersExecutor{}
