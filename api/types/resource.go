@@ -477,8 +477,12 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 		return true
 	}
 	resourceKind := resource.GetKind()
-
-	return slices.Contains(kinds, resourceKind)
+	switch resourceKind {
+	case KindApp, KindSAMLIdPServiceProvider:
+		return slices.Contains(kinds, KindApp)
+	default:
+		return slices.Contains(kinds, resourceKind)
+	}
 }
 
 // IsValidLabelKey checks if the supplied string matches the
