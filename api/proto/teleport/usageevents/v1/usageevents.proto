@@ -485,6 +485,26 @@ enum FeatureRecommendationStatus {
   FEATURE_RECOMMENDATION_STATUS_DONE = 2;
 }
 
+// ResourceCreateEvent is emitted when a resource is created.
+message ResourceCreateEvent {
+  // resource_type is the type of resource ("node", "node.openssh", "db", "k8s").
+  string resource_type = 1;
+  // resource_origin is the origin of the resource ("cloud").
+  string resource_origin = 2;
+  // cloud_provider is the cloud provider the resource came from ("AWS", "Azure", "GCP").
+  string cloud_provider = 3;
+  // database contains additional database information if resource_type == "db".
+  DiscoveredDatabaseMetadata database = 4;
+}
+
+// DiscoveredDatabaseMetadata contains additional database information.
+message DiscoveredDatabaseMetadata {
+  // database type.
+  string db_type = 1;
+  // database protocol.
+  string db_protocol = 2;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -523,6 +543,7 @@ message UsageEventOneOf {
     UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 33;
     AssistExecutionEvent assist_execution = 34;
     AssistNewConversationEvent assist_new_conversation = 35;
+    ResourceCreateEvent resource_create_event = 36;
     FeatureRecommendationEvent feature_recommendation_event = 37;
     AssistAccessRequest assist_access_request = 38;
     AssistAction assist_action = 39;
