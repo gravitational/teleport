@@ -327,21 +327,31 @@ to be changed to follow the same pattern of registering a release channel and in
 by ec2 discovery.
 
 
-### ECS Fargate Agents
+### AWS OIDC - Deploy Service Agents (Amazon ECS with Fargate)
+
 When Teleport Discover flow is used to connect an RDS, a Teleport agent is automatically provisioned using ECS Fargate. The automatic update
 functionality for regular agents depends on systemd or Kubernetes. Fargate agents run in containers, so that means the existing automatic
 update functionality is not compatible with these agents. We need a separate method of keeping these Fargate agents updated.
 
-To keep Farage agents updated, Teleport will run a separate task that checks every 30 minutes for an available update and uses the ECS
-Fargate API to update Teleport agents. This task does not need to be run on all Teleport clusters. It will only be needed if the
-`TELEPORT_AUTOMATIC_UPGRADES` environment variable is enabled. The window when Fargate agents are updated should also coincide with the
-tenant upgrade window.
+To keep Farage agents updated, Teleport will run a separate task on the Auth service. The task checks every 30 minutes for an available
+update and uses the ECS Fargate API to update Teleport agents. This task does not need to be run on all Teleport clusters. It will only be
+needed if the `TELEPORT_AUTOMATIC_UPGRADES` environment variable is enabled. The window when Fargate agents are updated should also coincide
+with the maintenance window.
 
 The logic flow will look like the same as the core update model:
 
 - If there is a critical update, attempt update
 - If an agent is unhealthy, attempt update
 - If within maintenance window, attempt update
+
+[DescribeClusters](https://docs.aws.amazon.com/sdk-for-go/api/service/ecs/#ECS.DescribeClusters) and
+[DescribeServices](https://docs.aws.amazon.com/sdk-for-go/api/service/ecs/#ECS.DescribeServices) provide information about the clusters and
+services. The cluster and service names are deterministic and the information returned from the API also include tags which can help
+identify if the cluster was created by Teleport using the DeployService.
+
+[DescribeTaskDefinition](https://docs.aws.amazon.com/sdk-for-go/api/service/ecs/#ECS.DescribeTaskDefinition) and
+[RegisterTaskDefinition](https://docs.aws.amazon.com/sdk-for-go/api/service/ecs/#ECS.RegisterTaskDefinition) can be used to pull the latest
+definition and recreate a new task with an updated container image version. Everything else must stay the same.
 
 To carry out the actual update of a Fargate agent, a new instance will be created with the desired version, then the old instance will be
 shutdown. The workflow will require the [CreateService](https://docs.aws.amazon.com/sdk-for-go/api/service/ecs/#ECS.CreateService), and
