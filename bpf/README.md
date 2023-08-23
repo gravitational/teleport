@@ -51,3 +51,8 @@ is allowed to run in the kernel. The license field is set to `GPL` by default. T
 disables some BPF features (like logging). To enable all BPF features to set the license to `GPL` in the BPF program
 and revert back before merging the code.
 
+### Logging
+
+BPF programs can log messages to the kernel log. To enable logging, you need to set the license to `GPL`. Then you
+can use `bpf_printk` helper to log messages. The messages will be logged to the kernel log. You can get the messages
+ from `/sys/kernel/debug/tracing/trace_pipe`. Here is the best explanation that I found so far https://nakryiko.com/posts/bpf-tips-printk/
