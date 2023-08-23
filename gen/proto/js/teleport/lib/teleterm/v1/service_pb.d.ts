@@ -1493,6 +1493,51 @@ export namespace DeleteConnectMyComputerTokenResponse {
     }
 }
 
+export class WaitForConnectMyComputerNodeJoinRequest extends jspb.Message { 
+    getRootClusterUri(): string;
+    setRootClusterUri(value: string): WaitForConnectMyComputerNodeJoinRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): WaitForConnectMyComputerNodeJoinRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: WaitForConnectMyComputerNodeJoinRequest): WaitForConnectMyComputerNodeJoinRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: WaitForConnectMyComputerNodeJoinRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): WaitForConnectMyComputerNodeJoinRequest;
+    static deserializeBinaryFromReader(message: WaitForConnectMyComputerNodeJoinRequest, reader: jspb.BinaryReader): WaitForConnectMyComputerNodeJoinRequest;
+}
+
+export namespace WaitForConnectMyComputerNodeJoinRequest {
+    export type AsObject = {
+        rootClusterUri: string,
+    }
+}
+
+export class WaitForConnectMyComputerNodeJoinResponse extends jspb.Message { 
+
+    hasServer(): boolean;
+    clearServer(): void;
+    getServer(): teleport_lib_teleterm_v1_server_pb.Server | undefined;
+    setServer(value?: teleport_lib_teleterm_v1_server_pb.Server): WaitForConnectMyComputerNodeJoinResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): WaitForConnectMyComputerNodeJoinResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: WaitForConnectMyComputerNodeJoinResponse): WaitForConnectMyComputerNodeJoinResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: WaitForConnectMyComputerNodeJoinResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): WaitForConnectMyComputerNodeJoinResponse;
+    static deserializeBinaryFromReader(message: WaitForConnectMyComputerNodeJoinResponse, reader: jspb.BinaryReader): WaitForConnectMyComputerNodeJoinResponse;
+}
+
+export namespace WaitForConnectMyComputerNodeJoinResponse {
+    export type AsObject = {
+        server?: teleport_lib_teleterm_v1_server_pb.Server.AsObject,
+    }
+}
+
 export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,
