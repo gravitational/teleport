@@ -18,7 +18,6 @@ package accesslist
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -236,17 +235,17 @@ func (a *AccessList) MatchSearch(values []string) bool {
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
-	var audit map[string]interface{}
+	var audit map[string]string
 	if err := json.Unmarshal(data, &audit); err != nil {
 		return trace.Wrap(err)
 	}
 
 	var err error
-	a.Frequency, err = time.ParseDuration(fmt.Sprintf("%v", audit["frequency"]))
+	a.Frequency, err = time.ParseDuration(audit["frequency"])
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, fmt.Sprintf("%v", audit["next_audit_date"]))
+	a.NextAuditDate, err = time.Parse(time.RFC3339Nano, audit["next_audit_date"])
 	if err != nil {
 		return trace.Wrap(err)
 	}
