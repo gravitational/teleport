@@ -3,18 +3,19 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 type accessCheckerPredicate struct {
