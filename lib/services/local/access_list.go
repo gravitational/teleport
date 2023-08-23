@@ -99,7 +99,7 @@ func (a *AccessListService) GetAccessList(ctx context.Context, name string) (*ac
 
 // UpsertAccessList creates or updates an access list resource.
 func (a *AccessListService) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
-	if err := trace.Wrap(a.service.UpsertResource(ctx, accessList)); err != nil {
+	if err := a.service.UpsertResource(ctx, accessList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return accessList, nil
