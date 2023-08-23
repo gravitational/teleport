@@ -25,6 +25,7 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history/history';
@@ -147,6 +148,13 @@ export function Resources() {
           </Box>
         )}
       </div>
+      {attempt.status === 'success' && fetchedData.agents.length === 0 && (
+        <Empty
+          clusterId={clusterId}
+          canCreate={canCreate && !isLeafCluster}
+          emptyStateInfo={emptyStateInfo}
+        />
+      )}
     </FeatureBox>
   );
 }
@@ -155,3 +163,14 @@ const ResourcesContainer = styled(Flex)`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
 `;
+
+const emptyStateInfo: EmptyStateInfo = {
+  title: 'Add your first resource to Teleport',
+  byline:
+    'Connect SSH servers, Kubernetes clusters, Windows Desktops, Databases, Web apps and more from our integrations catalog.',
+  resourceType: SearchResource.UNIFIED_RESOURCE,
+  readOnly: {
+    title: 'No Resources Found',
+    resource: 'resources',
+  },
+};

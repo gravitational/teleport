@@ -32,6 +32,7 @@ type ResourceType =
   | 'database'
   | 'desktop'
   | 'kubernetes'
+  | 'unified_resource'
   | 'server';
 
 function getAccentImage(resourceType: ResourceType): string {
@@ -41,6 +42,8 @@ function getAccentImage(resourceType: ResourceType): string {
     desktop: desktop,
     kubernetes: stack,
     server: stack,
+    // TODO (avatus) update once we have a dedicated image for unified resources
+    unified_resource: stack,
   };
   return accentImages[resourceType];
 }
@@ -105,23 +108,31 @@ export default function Empty(props: Props) {
           <Link
             to={{
               pathname: `${cfg.routes.root}/discover`,
-              state: { entity: resourceType },
+              state: {
+                entity:
+                  resourceType !== 'unified_resource' ? resourceType : null,
+              },
             }}
             style={{ textDecoration: 'none' }}
           >
-            <ButtonPrimary width="224px">Add {resourceType}</ButtonPrimary>
+            <ButtonPrimary width="224px" textTransform="none">
+              Add Resource
+            </ButtonPrimary>
           </Link>
-          <ButtonBorder
-            size="medium"
-            as="a"
-            href={docsURL}
-            target="_blank"
-            width="224px"
-            ml={4}
-            rel="noreferrer"
-          >
-            View Documentation
-          </ButtonBorder>
+          {docsURL && (
+            <ButtonBorder
+              textTransform="none"
+              size="medium"
+              as="a"
+              href={docsURL}
+              target="_blank"
+              width="224px"
+              ml={4}
+              rel="noreferrer"
+            >
+              View Documentation
+            </ButtonBorder>
+          )}
         </Box>
       </Box>
     </Box>
@@ -130,7 +141,7 @@ export default function Empty(props: Props) {
 
 export type EmptyStateInfo = {
   byline: string;
-  docsURL: string;
+  docsURL?: string;
   resourceType: ResourceType;
   readOnly: {
     title: string;
