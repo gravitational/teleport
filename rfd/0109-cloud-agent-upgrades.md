@@ -332,8 +332,8 @@ When Teleport Discover flow is used to connect an RDS, a Teleport agent is autom
 functionality for regular agents depends on systemd or Kubernetes. Fargate agents run in containers, so that means the existing automatic
 update functionality is not compatible with these agents. We need a separate method of keeping these Fargate agents updated.
 
-To keep Farage agents updated, Teleport will run a separate goroutine that checks every 30 minutes for an available update and uses the ECS
-Fargate API to update Teleport agents. This goroutine does not need to be run on all Teleport clusters. It will only be needed if the
+To keep Farage agents updated, Teleport will run a separate task that checks every 30 minutes for an available update and uses the ECS
+Fargate API to update Teleport agents. This task does not need to be run on all Teleport clusters. It will only be needed if the
 `TELEPORT_AUTOMATIC_UPGRADES` environment variable is enabled. The window when Fargate agents are updated should also coincide with the
 tenant upgrade window.
 
