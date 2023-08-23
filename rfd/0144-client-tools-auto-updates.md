@@ -27,9 +27,9 @@ Development for Automatic Updates of Teleport Agents has already been completed,
 
 ## Details
 
-Teleport will now store a single cached version of the client tools in the user's $HOME directory. tsh/tctl will execute this cached version when communicating with the Teleport Cloud cluster.
+Teleport client tools now supports an update command to update tsh/tctl to the latest cloud-stable version of Teleport. We'll push users to opt-in to automatic updates of client tools, but users can opt-out if desired.
 
-Cloud will host an endpoint for Teleport client tools version discovery. tsh/tctl will check this endpoint to identify the current cloud-stable version of Teleport. If the cached version is behind or ahead of the current cloud-stable version, the cache will be updated to match the current cloud-stable version. This will ensure Teleport client tools are always executed using the latest compatible version of Teleport when communicating with a Teleport Cloud cluster.
+Cloud will host an endpoint for Teleport client tools version discovery. tsh/tctl will check this endpoint to identify the current cloud-stable version of Teleport. On update tsh/tctl will compare its version to the current cloud-stable version. If the installed version is behind or ahead of the current cloud-stable version, tsh/tctl will be updated to match the current cloud-stable version. This will ensure Teleport client tools are always executed using the latest compatible version of Teleport when communicating with a Teleport Cloud cluster.
 
 ### Detecting Cloud instances
 
@@ -47,11 +47,29 @@ The stable version should be updated after each Cloud Tenant upgrade. This shoul
 
 The [deploy-auto-update-changes.yml](https://github.com/gravitational/cloud/blob/master/.github/workflows/deploy-auto-update-changes.yml) workflow will need to be updated to include an additional job that updates the cloud-stable version of client tools.
 
-Unlike the agent version discovery model, there will not be an endpoint to identify if a critical update is available. The reason for this is because updates are not executed in a scheduled update window. Teleport client tools will check this endpoint everytime `login` or `status` is executed, and update accordingly if the cached version does not match the cloud-stable version.
+Unlike the agent version discovery model, there will not be an endpoint to identify if a critical update is available. The reason for this is because updates are not executed in a scheduled update window. Teleport client tools will check this endpoint everytime `login` or `status` is executed, and update accordingly.
 
-We've considered querying the Teleport version information from the ping response, but we've decided against this approach. One reason is because we would not be able to update the client tools versions independently of the cluster. Another reason is because we're considering removing the Teleport minor version information from the ping response. The minor version informatoin could be used by attackers to identify and attack unpatched customers.
+We've considered querying the Teleport version information from the ping response, but we've decided against this approach. One reason is because we would not be able to update the client tools version independently of the cluster. Another reason is because we're considering removing the Teleport minor version information from the ping response. The minor version informatoin could be used by attackers to identify and attack unpatched customers.
 
-### Caching
+### Package update
+
+The client tools will be updated using the package manager available on the system. Teleport supports multiple package repositories and installation methods so we'll need to handle the update differently on each system. This will probably require a decent amount of testing and maintenance work, but we think this is the simplest and most straight forward solution.
+
+Support for tsh/tctl update will probably roll out in stages and there will most likely be many edge cases that we'll need to handle along the way.
+
+Another downside to this approach would be that upgrades will require sudo/admin privileges.
+
+### Caching (alternative)
+
+We've explored the idea of caching the client tools in the user's $HOME directory, but we're leaning towards a different appraoch.
+
+The benefits of this approach are:
+- It would not require sudo/admin privileges to install a new version of the client tools.
+- We would only need to handle a single method of installing the binary via direct tarball download.
+
+The downsides of this approach are:
+- Since we have multiple installation methods, it may be confusing to the users if there is a discrepancy between the version of client tools installed with the package manager and the cached version. This could potentially be a security concern if users are not able to correctly identify what versions of the client tools are installed on the system.
+- Installation without a package manager means that we now have the extra responsibility of validating downloads.
 
 A single version of the Teleport client tools will be stored in the user's $HOME directory. Teleport already makes use of a .tsh directory for storing tsh config. Cached versions of tsh/tctl will also live within this directory under ` $HOME/.tsh/bin/{tsh,tctl}`. Whenever a new version of the client tools are available, the existing cached version will be replaced.
 
@@ -60,20 +78,6 @@ The .tsh directory is only accessilbe to the user and we should make sure the ne
 Everytime `login` or `status` command is executed, tsh will compare the currently cached version of the client tools with the current cloud-stable version of Teleport. If the cached version is behind or ahead of the current stable version, a new version of the client tools will be downloaded to replace the existing ones. When downloading the Teleport client tools, the binaries will be downloaded directly. We need to make sure to download a version that is compatible with the system.
 
 Because only a single version of the client tools will be cached at a time, we do not need to worry about cleaning up the cache.
-
-### Package upgrade
-
-As an alternative to caching, we've considered directly upgrading the Teleport packages.
-
-This approach will be difficult to implement because we support multiple package repositories and installation methods. The amount of maintenance and testing required to support this solution is probably not worth the effort at this time.
-
-Another downside to this approach would be that upgrades would require sudo/admin privileges.
-
-### Config
-
-Automatic updates for client tools can be configured through tsh configuration. If `DISABLE_AUTO_UPDATE=true`, then auto updates for client tools will be disabled. If `DISABLE_UPDATE_PROMPT=true`, then the user will not be prompted to confirm the update. Both values will default to false.
-
-### Binary Execution
 
 The client tools will need a way to execute the cached binaries. When tsh/tctl is executed, it will now need to decide whether to execute the command as usual, or fork a new process using the cached binary.
 
@@ -85,6 +89,10 @@ One way to handle execution of cached binaries is to use the os.Executable funct
 Another option could be to have users update their `PATH` env with `export PATH=$HOME/.tsh/bin:$PATH`. Adding the tsh bin directory to the `PATH` environment in the user's `.profile` can be handled by tsh. Users would then execute the cached binary directly. This seems like a simpler approach than the above methods. The problem is that the cached binary would not support TouchID for macOS users.
 
 I believe macOS software needs to be notarized as a requirement for TouchID. For this reason Teleport provides a separate signed tsh download at `https://cdn.teleport.dev/tsh-13.3.4.pkg`. We could change the download method for macOS users, but this might not be very straight forward to implement. The macOS `installer` would also require sudo/admin privileges to install the package. It sounds like this issue is being worked on currently, and we won't be shipping unsigned binaries after this quarter.
+
+### Config
+
+Automatic updates for client tools can be configured through tsh configuration. If `DISABLE_AUTO_UPDATE=true`, then auto updates for client tools will be disabled. If `DISABLE_UPDATE_PROMPT=true`, then the user will not be prompted to confirm the update. Both values will default to false.
 
 ## Inspiration
 
@@ -112,11 +120,13 @@ To avoid breaking existing scripts, a `--[no-]auto-update` flag will be included
 
 There should be minimal documentation changes required for this feature. Users will not need to opt-in or take any actions to take advantage of this feature.
 
-The documentation should include a basic overview of how auto updates works for client tools. Documention should also be available describing how to use the configuration values `DISABLE_AUTO_UPDATE`, `DISABLE_UPDATE_PROMPT`, and the `--skip-auto-update` flag.
+The documentation should include a basic overview of how auto updates works for client tools. Documention should also be available describing how to use the configuration values `DISABLE_AUTO_UPDATE`, `DISABLE_UPDATE_PROMPT`, and the `--[no-]-auto-update` flag.
 
 ## Security Considerations
 
 ### Downloads
+
+Teleport supports manual installation of Teleport binaries from our CDN. Supporting automatic updates with this installation method will require validating the tarball downloads.
 
 Teleport provides sha256 checksums at `https://get.gravitational.com/teleport-ent-<version>-<os>-<arch>-bin.tar.gz.sha256`, which can be used to verify the tarball downloads. We could also consider sending sha256 checksums in the ping response.
 
@@ -127,5 +137,3 @@ For added security, one option to consider is to sign the binaries and have tsh/
 Once the binary has been downloaded, it could be susceptible to bit rot or tampering.
 
 To protect against this, we could keep a hash on disk to verify integrity on every invocation. Someone with enough rights to tamper with the client tools binary will also have the rights to tamper with the hash, so we'd also need to store the signature as well.
-
-We do not believe that moving the client tools executable under the users control significantly increases any local attacks, so we may keep this out of scope for this RFD.
