@@ -1,9 +1,9 @@
 # Changelog
 
-## 11.3.21 (08/22/23)
+## 11.3.22 (08/22/23)
 
 * Fixed S3 metric name for completed multipart uploads. [#30712](https://github.com/gravitational/teleport/pull/30712)
-* Fixed Teleport Connect to properly show errors from the remote end. [#30694](https://github.com/gravitational/teleport/pull/30694)
+* Ensure that SSH session errors are reported to the terminal. [#30694](https://github.com/gravitational/teleport/pull/30694)
 * Fixed Review Requests to disallow reviews after request is resolved. [#30688](https://github.com/gravitational/teleport/pull/30688)
 * Fixed Discovery service panics on GKE clusters without labels. [#30648](https://github.com/gravitational/teleport/pull/30648)
 * Fixed memory leak using PAM libraries. [#30519](https://github.com/gravitational/teleport/pull/30519)
