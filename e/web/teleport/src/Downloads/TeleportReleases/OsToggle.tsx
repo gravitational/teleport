@@ -39,7 +39,7 @@ export const OsToggle = ({ selectedOS, onClick }: OsToggleProps) => {
       style={{
         backgroundColor: theme.colors.levels.surface,
         border: `${
-          theme.name === 'light'
+          theme.type === 'light'
             ? `1px solid ${theme.colors.spotBackground[2]}`
             : ''
         }`,

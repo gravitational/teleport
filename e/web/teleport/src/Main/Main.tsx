@@ -14,6 +14,8 @@ import { BillingInformation } from 'e-teleport/services/cloud';
 import { UsageBasedUpgrade } from 'e-teleport/Banner/UsageBasedUpgrade/UsageBasedUpgrade';
 import { Questionnaire } from 'e-teleport/Welcome/Questionnaire/Questionnaire';
 
+import { BblpLogo } from './bblpLogo';
+
 export function MainE() {
   const ctx = useTeleport();
   const { license } = useBanner();
@@ -75,6 +77,10 @@ export function MainE() {
   const questionnaire =
     (usageBased && requiresOnboardingSurvey && Questionnaire) || null;
 
+  const CustomLogos = {
+    bblp: BblpLogo,
+  };
+
   return (
     <Main
       features={getEnterpriseFeatures()}
@@ -82,6 +88,12 @@ export function MainE() {
       customBanners={customBanners}
       billingBanners={billingBanners}
       Questionnaire={questionnaire}
+      navigationProps={
+        cfg.oss.customTheme && {
+          CustomLogo: CustomLogos[cfg.oss.customTheme],
+          showPoweredByLogo: !!CustomLogos[cfg.oss.customTheme],
+        }
+      }
     />
   );
 }

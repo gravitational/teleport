@@ -101,7 +101,7 @@ export function RequestView({
               borderTopRightRadius={2}
               css={`
                 background: ${props =>
-                  props.theme.name === 'light'
+                  props.theme.type === 'light'
                     ? props.theme.colors.spotBackground[0]
                     : props.theme.colors.levels.elevated};
               `}
