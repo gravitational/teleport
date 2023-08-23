@@ -467,9 +467,9 @@ func (d *DynamicIdentityFileCreds) Reload() error {
 	}
 	// The KeyId is not always a valid principal, so we use the first valid
 	// principal instead.
-	sshUser := d.sshCert.KeyId
-	if len(d.sshCert.ValidPrincipals) > 0 {
-		sshUser = d.sshCert.ValidPrincipals[0]
+	sshUser := sshCert.KeyId
+	if len(sshCert.ValidPrincipals) > 0 {
+		sshUser = sshCert.ValidPrincipals[0]
 	}
 
 	d.mu.Lock()
