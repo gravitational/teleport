@@ -9,6 +9,7 @@ https://docs.kernel.org/bpf/ - BPF documentation
 https://github.com/aquasecurity/libbpfgo - Go bindings for libbpf
 https://github.com/iovisor/bcc - BPF Compiler Collection (a lot of examples)
 https://github.com/cilium/cilium - BPF-based networking, security, and observability (more examples)
+https://man7.org/linux/man-pages/man7/bpf-helpers.7.html - BPF helpers documentation
 
 ## Environment setup:
 
@@ -43,5 +44,10 @@ Note: `libbpfgo` is not backward compatible and you need a matching version of `
 The first part is the version of `libbpfgo` and the second part is the version of `libbpf` library. 
 Using the wrong version of `libbpfgo` will result in a runtime/compilation error.
 
+### BPF license
 
+BPF programs are compiled into ELF files. ELF files have a license field that is used to verify that the BPF program
+is allowed to run in the kernel. The license field is set to `GPL` by default. Teleport uses `Dual BSD/GPL` which 
+disables some BPF features (like logging). To enable all BPF features to set the license to `GPL` in the BPF program
+and revert back before merging the code.
 
