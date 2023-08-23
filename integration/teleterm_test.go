@@ -111,6 +111,7 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -142,6 +143,7 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -223,6 +225,7 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -270,6 +273,7 @@ func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *help
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -498,6 +502,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			daemonService, err := daemon.New(daemon.Config{
 				Storage:        storage,
 				KubeconfigsDir: t.TempDir(),
+				AgentsDir:      t.TempDir(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() {
@@ -613,6 +618,7 @@ func testCreatingAndDeletingConnectMyComputerToken(t *testing.T, pack *dbhelpers
 		Clock:          fakeClock,
 		Storage:        storage,
 		KubeconfigsDir: t.TempDir(),
+		AgentsDir:      t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
