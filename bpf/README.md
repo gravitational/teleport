@@ -24,5 +24,24 @@ You can also use our Dockerfile to build the environment:
 make -C build.assets release-centos7
 ```
 
+## BPF code structure
+
+BPF code can be divided into two parts:
+
+1. BPF program - the actual BPF code that will be loaded into the kernel
+2. User space code - the code that will load the BPF program into the kernel
+
+BPF programs are located in `bpf` directory in our repository. They are C like programs with some limitations.
+The most important limitation is that you can't use any system calls in BPF programs. You can use only BPF helpers.
+The BPF programs are compiled using `clang` 10+, GCC is not supported. 
+
+User space code is located in `lib/bpf` directory. It's written in Go and uses `libbpfgo` library to load BPF programs into the kernel.
+`libbpfgo` is a Go wrapper around `libbpf` library. It's a low-level library that allows you to load BPF programs into the kernel.
+
+Note: `libbpfgo` is not backward compatible and you need a matching version of `libbpf` library. For that reason
+`libbpfgo` is not using semantic versioning, but tags have the following format `v0.4.5-libbpf-1.0.1`. 
+The first part is the version of `libbpfgo` and the second part is the version of `libbpf` library. 
+Using the wrong version of `libbpfgo` will result in a runtime/compilation error.
+
 
 
