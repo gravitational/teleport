@@ -787,7 +787,7 @@ func (s *Service) CreateConnectMyComputerNodeToken(ctx context.Context, rootClus
 	return nodeToken, trace.Wrap(err)
 }
 
-// DeleteConnectMyComputerToken deletes a join token
+// DeleteConnectMyComputerToken deletes a join token.
 func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.DeleteConnectMyComputerTokenRequest) (*api.DeleteConnectMyComputerTokenResponse, error) {
 	_, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
 	if err != nil {
@@ -812,6 +812,39 @@ func (s *Service) DeleteConnectMyComputerToken(ctx context.Context, req *api.Del
 	})
 
 	return response, trace.Wrap(err)
+}
+
+// WaitForConnectMyComputerNodeJoin returns a response only after detecting that a Connect My
+// Computer node for the given cluster has joined the cluster.
+func (s *Service) WaitForConnectMyComputerNodeJoin(ctx context.Context, rootClusterURI uri.ResourceURI) (clusters.Server, error) {
+	cluster, clusterClient, err := s.ResolveClusterURI(rootClusterURI)
+	if err != nil {
+		return clusters.Server{}, trace.Wrap(err)
+	}
+
+	var server clusters.Server
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		server, err = s.cfg.ConnectMyComputerNodeJoinWait.Run(ctx, authClient, cluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+
+	return server, trace.Wrap(err)
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
