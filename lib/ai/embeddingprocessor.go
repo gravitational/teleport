@@ -162,7 +162,7 @@ type resourceStringPair struct {
 	data     string
 }
 
-// mapProcessFn is a helper function that maps a slice of nodeStringPair,
+// mapProcessFn is a helper function that maps a slice of resourceStringPair,
 // compute embeddings and return them as a slice.
 func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*resourceStringPair) ([]*embeddinglib.Embedding, error) {
 	dataBatch := make([]string, 0, len(data))
