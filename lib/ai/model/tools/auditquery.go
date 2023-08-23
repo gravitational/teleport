@@ -60,7 +60,7 @@ func (t *AuditQueryGenerationTool) ChooseEventTable(ctx context.Context, input s
 	prompt := []openai.ChatCompletionMessage{
 		{
 			Role: openai.ChatMessageRoleSystem,
-			Content: `You are a tool that find the correct table to run a query on.
+			Content: `Your job it to find the correct table to run a query on.
 You will be given a list of tables, and a request from the user.
 You MUST RESPOND ONLY with a single table name. If no table can answer the question, respond 'none'.`,
 		},
