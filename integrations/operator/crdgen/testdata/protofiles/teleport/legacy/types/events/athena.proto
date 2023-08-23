@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,14 +14,16 @@
 
 syntax = "proto3";
 
-package teleport.devicetrust.v1;
+package events;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
+option go_package = "github.com/gravitational/teleport/api/types/events";
 
-// DeviceEnrollToken encapsulates the permission, granted by a device
-// administrator to an user, to enroll a device.
-// An enrolled device allows its user to perform device-aware actions.
-message DeviceEnrollToken {
-  // Opaque enrollement token required by the EnrollDevice RPC.
-  string token = 1;
+// AthenaS3EventPayload is used as payload for sending large events to SQS.
+message AthenaS3EventPayload {
+  // Path on S3.
+  string path = 1;
+  // VersionID is versionID of file on s3, if versioning is enabled.
+  string version_id = 2;
+  // Custom KMS key for server-side encryption.
+  string ckms = 3;
 }
